@@ -1,0 +1,15 @@
+{
+  "extends": "../../packages/config/tsconfig.node.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@forethread/i18n/locales/*": ["../../packages/i18n/src/locales/*"]
+    },
+    "outDir": "dist",
+    "rootDir": "src",
+    "incremental": false
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "prisma", "**/*.spec.ts", "**/*.test.ts"]
+}

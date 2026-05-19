@@ -1,0 +1,124 @@
+enum CompanyType {
+  CONTRACTOR
+  VENDOR
+}
+
+enum CompanyStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum VendorCategory {
+  CONCRETE_MASONRY
+  METAL_STEEL
+  TIMBER_WOOD
+  ELECTRICAL
+  LIGHTING
+  PLUMBING
+  HVAC_VENTILATION
+  FINISHING
+  DOORS_WINDOWS_GLAZING
+  INSULATION_WATERPROOFING
+  ROOFING_FACADE
+  FIXINGS_HARDWARE
+  SAFETY_PROTECTION
+  GENERAL_CONSTRUCTION
+  GENERAL_RETAILER
+}
+
+enum DocumentType {
+  INSURANCE
+  LICENSE
+  CERTIFICATION
+  OTHER
+}
+
+model Company {
+  id            String        @id @default(uuid())
+  type          CompanyType
+  legalName     String        @map("legal_name") @db.VarChar(255)
+  tradeName     String?       @map("trade_name") @db.VarChar(255)
+  abn           String?       @unique @db.VarChar(50)
+  taxCode       String?       @map("tax_code") @db.VarChar(11)
+  legalAddress  String?       @map("legal_address")
+  contactEmail  String?       @map("contact_email") @db.VarChar(255)
+  contactPhone  String?       @map("contact_phone") @db.VarChar(50)
+  website       String?       @db.VarChar(255)
+  logoUrl       String?       @map("logo_url") @db.VarChar(500)
+  status        CompanyStatus @default(ACTIVE)
+  specialisations String[]    @map("specialisations")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  users    User[]
+  projects Project[]
+  documents CompanyDocument[]
+
+  // Vendor ↔ Contractor assignment
+  vendorAssignments    CompanyVendorAssignment[] @relation("VendorCompany")
+  contractorAssignments CompanyVendorAssignment[] @relation("ContractorCompany")
+  warehouseLocations   WarehouseLocation[]
+
+  // Procurement relations
+  rfqs                  Rfq[]             @relation("RfqCompany")
+  rfqInvitations        RfqVendor[]       @relation("RfqInvitedVendor")
+  quoteResponsesAsVendor QuoteResponse[]  @relation("QuoteResponseVendor")
+  purchaseOrdersAsCompany PurchaseOrder[] @relation("PoCompany")
+  purchaseOrdersAsVendor  PurchaseOrder[] @relation("PoVendor")
+  bulkOrdersAsCompany   BulkOrder[]       @relation("BulkOrderCompany")
+  bulkOrdersAsVendor    BulkOrder[]       @relation("BulkOrderVendor")
+  invoicesAsCompany     Invoice[]         @relation("InvoiceCompany")
+  invoicesAsVendor      Invoice[]         @relation("InvoiceVendor")
+
+  @@index([type], map: "idx_companies_type")
+  @@index([legalName], map: "idx_companies_legal_name")
+  @@map("companies")
+}
+
+model CompanyVendorAssignment {
+  id           String          @id @default(uuid())
+  vendorId     String          @map("vendor_id")
+  contractorId String          @map("contractor_id")
+  categories   VendorCategory[]
+  assignedAt   DateTime        @default(now()) @map("assigned_at")
+
+  vendor     Company @relation("VendorCompany", fields: [vendorId], references: [id], onDelete: Cascade)
+  contractor Company @relation("ContractorCompany", fields: [contractorId], references: [id], onDelete: Cascade)
+
+  @@unique([vendorId, contractorId], map: "idx_vendor_contractor_unique")
+  @@index([vendorId], map: "idx_vendor_assignment_vendor")
+  @@index([contractorId], map: "idx_vendor_assignment_contractor")
+  @@map("company_vendor_assignments")
+}
+
+model CompanyDocument {
+  id        String       @id @default(uuid())
+  companyId String       @map("company_id")
+  type      DocumentType
+  fileId    String       @map("file_id")
+  expiresAt DateTime?    @map("expires_at")
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  file    File    @relation(fields: [fileId], references: [id])
+
+  @@index([companyId], map: "idx_company_documents_company")
+  @@map("company_documents")
+}
+
+model WarehouseLocation {
+  id        String   @id @default(uuid())
+  companyId String   @map("company_id")
+  name      String   @db.VarChar(255)
+  city      String   @db.VarChar(255)
+  postcode  String   @db.VarChar(20)
+  address   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  quoteResponses QuoteResponse[]
+
+  @@index([companyId], map: "idx_warehouse_locations_company")
+  @@map("warehouse_locations")
+}

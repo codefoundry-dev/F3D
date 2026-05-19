@@ -1,0 +1,133 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: forethread-postgres
+    restart: unless-stopped
+    ports:
+      - '5433:5432'
+    environment:
+      POSTGRES_USER: forethread
+      POSTGRES_PASSWORD: forethread
+      POSTGRES_DB: forethread_dev
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U forethread -d forethread_dev']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: forethread-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: forethread-mailhog
+    restart: unless-stopped
+    ports:
+      - '1025:1025' # SMTP
+      - '8025:8025' # Web UI
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://localhost:8025']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  minio:
+    image: minio/minio:latest
+    container_name: forethread-minio
+    restart: unless-stopped
+    ports:
+      - '9000:9000' # API
+      - '9001:9001' # Console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Backend API (build once, runs migrations + seed + app)
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    container_name: forethread-backend
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      APP_URL: http://localhost:3000
+      SUPER_ADMIN_APP_URL: http://localhost:5173
+      COMPANY_ADMIN_APP_URL: http://localhost:5174
+      VENDOR_APP_URL: http://localhost:5175
+      FINANCIAL_OFFICER_APP_URL: http://localhost:5176
+      PROCUREMENT_OFFICER_APP_URL: http://localhost:5177
+      WAREHOUSE_OFFICER_APP_URL: http://localhost:5178
+      DATABASE_URL: postgresql://forethread:forethread@postgres:5432/forethread_dev
+      REDIS_URL: redis://redis:6379
+      JWT_ACCESS_SECRET: dev-jwt-access-secret-change-me
+      JWT_REFRESH_SECRET: dev-jwt-refresh-secret-change-me
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_SECURE: 'false'
+      SMTP_USER: ''
+      SMTP_PASS: ''
+      SMTP_FROM: noreply@forethread.local
+      CORS_ORIGINS: http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177,http://localhost:5178
+      LOG_LEVEL: debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ['full']
+
+  # MinIO bucket initialization (runs once)
+  minio-init:
+    image: minio/mc:latest
+    container_name: forethread-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing local/forethread-dev &&
+      mc anonymous set public local/forethread-dev &&
+      echo 'MinIO bucket forethread-dev created successfully'
+      "
+    restart: 'no'
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local

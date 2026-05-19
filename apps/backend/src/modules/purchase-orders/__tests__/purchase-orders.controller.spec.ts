@@ -1,0 +1,242 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { UserRole } from '@prisma/client';
+
+import { PoChangeService } from '../po-change.service';
+import { PoDocumentService } from '../po-document.service';
+import { PoExportService } from '../po-export.service';
+import { PoStatusService } from '../po-status.service';
+import { PoValidationService } from '../po-validation.service';
+import { PurchaseOrdersController } from '../purchase-orders.controller';
+import { PurchaseOrdersService } from '../purchase-orders.service';
+
+const mockService = {
+  listPurchaseOrders: jest.fn(),
+  getPurchaseOrder: jest.fn(),
+  createPurchaseOrder: jest.fn(),
+  updatePurchaseOrder: jest.fn(),
+  copyPurchaseOrder: jest.fn(),
+};
+
+const mockExportService = {
+  exportPos: jest.fn(),
+};
+
+const mockDocumentService = {
+  uploadDocument: jest.fn(),
+  deleteDocument: jest.fn(),
+};
+
+const mockStatusService = {
+  issuePurchaseOrder: jest.fn(),
+  confirmPurchaseOrder: jest.fn(),
+  approvePurchaseOrder: jest.fn(),
+  declinePurchaseOrder: jest.fn(),
+  archivePurchaseOrder: jest.fn(),
+  acceptPurchaseOrder: jest.fn(),
+  vendorDeclinePurchaseOrder: jest.fn(),
+};
+
+const mockValidationService = {
+  validateItems: jest.fn(),
+};
+
+const mockChangeService = {
+  proposeChange: jest.fn(),
+  listChangeRequests: jest.fn(),
+  approveChange: jest.fn(),
+  rejectChange: jest.fn(),
+};
+
+const mockUser = {
+  id: 'ca-1',
+  email: 'ca@test.com',
+  role: UserRole.COMPANY_ADMIN,
+  companyId: 'comp-1',
+};
+
+describe('PurchaseOrdersController', () => {
+  let controller: PurchaseOrdersController;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [PurchaseOrdersController],
+      providers: [
+        { provide: PurchaseOrdersService, useValue: mockService },
+        { provide: PoExportService, useValue: mockExportService },
+        { provide: PoDocumentService, useValue: mockDocumentService },
+        { provide: PoStatusService, useValue: mockStatusService },
+        { provide: PoValidationService, useValue: mockValidationService },
+        { provide: PoChangeService, useValue: mockChangeService },
+      ],
+    }).compile();
+
+    controller = module.get<PurchaseOrdersController>(PurchaseOrdersController);
+  });
+
+  describe('listPurchaseOrders', () => {
+    it('delegates to service', async () => {
+      const query = { page: 1 };
+      const expected = { items: [], meta: { page: 1, limit: 25, total: 0, totalPages: 0 } };
+      mockService.listPurchaseOrders.mockResolvedValue(expected);
+
+      const result = await controller.listPurchaseOrders(query as never, mockUser);
+      expect(mockService.listPurchaseOrders).toHaveBeenCalledWith(query, mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('getPurchaseOrder', () => {
+    it('delegates to service', async () => {
+      const expected = { id: 'po-1' };
+      mockService.getPurchaseOrder.mockResolvedValue(expected);
+
+      const result = await controller.getPurchaseOrder('po-1', mockUser);
+      expect(mockService.getPurchaseOrder).toHaveBeenCalledWith('po-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('createPurchaseOrder', () => {
+    it('delegates to service', async () => {
+      const expected = { id: 'po-new' };
+      mockService.createPurchaseOrder.mockResolvedValue(expected);
+      const dto = { projectId: 'proj-1' };
+
+      const result = await controller.createPurchaseOrder(dto as never, mockUser);
+      expect(mockService.createPurchaseOrder).toHaveBeenCalledWith(dto, mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('updatePurchaseOrder', () => {
+    it('delegates to service', async () => {
+      const expected = { id: 'po-1' };
+      mockService.updatePurchaseOrder.mockResolvedValue(expected);
+      const dto = { vendorId: 'v-2' };
+
+      const result = await controller.updatePurchaseOrder('po-1', dto as never, mockUser);
+      expect(mockService.updatePurchaseOrder).toHaveBeenCalledWith('po-1', dto, mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('issuePurchaseOrder', () => {
+    it('delegates to status service', async () => {
+      const expected = { id: 'po-1', status: 'SENT' };
+      mockStatusService.issuePurchaseOrder.mockResolvedValue(expected);
+
+      const result = await controller.issuePurchaseOrder('po-1', mockUser);
+      expect(mockStatusService.issuePurchaseOrder).toHaveBeenCalledWith('po-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('exportPurchaseOrders', () => {
+    it('delegates to export service', async () => {
+      const expected = { url: 'https://storage/pos.csv' };
+      mockExportService.exportPos.mockResolvedValue(expected);
+      const query = { page: 1 };
+
+      const result = await controller.exportPurchaseOrders('csv', query as never, mockUser);
+      expect(mockExportService.exportPos).toHaveBeenCalledWith('csv', query, mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('copyPurchaseOrder', () => {
+    it('delegates to service', async () => {
+      const expected = { id: 'po-copy-1' };
+      mockService.copyPurchaseOrder.mockResolvedValue(expected);
+
+      const result = await controller.copyPurchaseOrder('po-1', mockUser);
+      expect(mockService.copyPurchaseOrder).toHaveBeenCalledWith('po-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('archivePurchaseOrder', () => {
+    it('delegates to status service', async () => {
+      const expected = { success: true };
+      mockStatusService.archivePurchaseOrder.mockResolvedValue(expected);
+
+      const result = await controller.archivePurchaseOrder('po-1', mockUser);
+      expect(mockStatusService.archivePurchaseOrder).toHaveBeenCalledWith('po-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('approvePurchaseOrder', () => {
+    it('delegates to status service', async () => {
+      const expected = { id: 'po-1', status: 'ACKNOWLEDGED' };
+      mockStatusService.approvePurchaseOrder.mockResolvedValue(expected);
+
+      const result = await controller.approvePurchaseOrder('po-1', mockUser);
+      expect(mockStatusService.approvePurchaseOrder).toHaveBeenCalledWith('po-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('declinePurchaseOrder', () => {
+    it('delegates to status service', async () => {
+      const expected = { id: 'po-1', status: 'CANCELLED' };
+      mockStatusService.declinePurchaseOrder.mockResolvedValue(expected);
+
+      const result = await controller.declinePurchaseOrder('po-1', mockUser);
+      expect(mockStatusService.declinePurchaseOrder).toHaveBeenCalledWith('po-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('acceptPurchaseOrder', () => {
+    it('delegates to status service', async () => {
+      const expected = { id: 'po-1', status: 'ACCEPTED' };
+      mockStatusService.acceptPurchaseOrder.mockResolvedValue(expected);
+      const dto = { paymentTermsDays: 30 };
+
+      const result = await controller.acceptPurchaseOrder('po-1', dto as never, mockUser);
+      expect(mockStatusService.acceptPurchaseOrder).toHaveBeenCalledWith('po-1', dto, mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('vendorDeclinePurchaseOrder', () => {
+    it('delegates to status service', async () => {
+      const expected = { id: 'po-1', status: 'CANCELLED_BY_VENDOR' };
+      mockStatusService.vendorDeclinePurchaseOrder.mockResolvedValue(expected);
+      const dto = { reason: 'Out of stock' };
+
+      const result = await controller.vendorDeclinePurchaseOrder('po-1', dto as never, mockUser);
+      expect(mockStatusService.vendorDeclinePurchaseOrder).toHaveBeenCalledWith(
+        'po-1',
+        dto,
+        mockUser,
+      );
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('uploadDocument', () => {
+    it('delegates to document service', async () => {
+      const expected = { id: 'doc-1', name: 'file.pdf' };
+      mockDocumentService.uploadDocument.mockResolvedValue(expected);
+      const file = { originalname: 'file.pdf' } as Express.Multer.File;
+
+      const result = await controller.uploadDocument('po-1', file, mockUser);
+      expect(mockDocumentService.uploadDocument).toHaveBeenCalledWith('po-1', file, mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('deleteDocument', () => {
+    it('delegates to document service', async () => {
+      const expected = { success: true };
+      mockDocumentService.deleteDocument.mockResolvedValue(expected);
+
+      const result = await controller.deleteDocument('po-1', 'doc-1', mockUser);
+      expect(mockDocumentService.deleteDocument).toHaveBeenCalledWith('po-1', 'doc-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+});

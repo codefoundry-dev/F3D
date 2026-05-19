@@ -1,0 +1,53 @@
+enum AuditAction {
+  USER_CREATED
+  USER_UPDATED
+  USER_DEACTIVATED
+  USER_REACTIVATED
+  USER_INVITATION_RESENT
+  USER_INVITATION_CANCELLED
+  USER_PASSWORD_RESET_INITIATED
+  COMPANY_CREATED
+  COMPANY_UPDATED
+  FILE_UPLOADED
+  FILE_DELETED
+  PROJECT_CREATED
+  PROJECT_UPDATED
+  PROJECT_MEMBER_ADDED
+  PROJECT_MEMBER_REMOVED
+  VENDOR_ASSIGNED
+  VENDOR_UNASSIGNED
+  VENDOR_INVITED
+  VENDOR_USER_INVITED
+  QUOTE_SUBMITTED
+  QUOTE_UPDATED
+  PO_ACCEPTED_BY_VENDOR
+  PO_DECLINED_BY_VENDOR
+  BULK_ORDER_CHANGE_PROPOSED
+  BULK_ORDER_CHANGE_APPROVED
+  BULK_ORDER_CHANGE_REJECTED
+  BULK_ORDER_CANCELLED
+  PO_CHANGE_PROPOSED
+  PO_CHANGE_APPROVED
+  PO_CHANGE_REJECTED
+  MESSAGE_SENT
+}
+
+model AuditLog {
+  id            String      @id @default(uuid())
+  action        AuditAction
+  performedById String      @map("performed_by_id")
+  targetType    String      @map("target_type") @db.VarChar(50)
+  targetId      String      @map("target_id")
+  targetLabel   String?     @map("target_label") @db.VarChar(255)
+  metadata      Json?
+  ipAddress     String?     @map("ip_address") @db.VarChar(45)
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  performedBy User @relation(fields: [performedById], references: [id])
+
+  @@index([action], map: "idx_audit_log_action")
+  @@index([performedById], map: "idx_audit_log_performer")
+  @@index([targetType, targetId], map: "idx_audit_log_target")
+  @@index([createdAt], map: "idx_audit_log_created_at")
+  @@map("audit_logs")
+}

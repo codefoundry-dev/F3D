@@ -1,0 +1,19 @@
+model UserTableView {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  tableName      String   @map("table_name") @db.VarChar(100)
+  name           String   @db.VarChar(255)
+  visibleColumns String[] @map("visible_columns")
+  columnOrder    String[] @map("column_order")
+  sortBy         String?  @map("sort_by") @db.VarChar(100)
+  sortDir        String?  @map("sort_dir") @db.VarChar(4)
+  quickFilter    String?  @map("quick_filter") @db.VarChar(100)
+  groupBy        String?  @map("group_by") @db.VarChar(100)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, tableName], map: "idx_user_table_views_user_table")
+  @@map("user_table_views")
+}

@@ -1,0 +1,58 @@
+{
+  "$schema": "node_modules/turbo/schema.json",
+  "ui": "tui",
+  "concurrency": "10",
+  "globalPassThroughEnv": ["NODE_OPTIONS"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", ".expo/**", "build/**"]
+    },
+    "dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "inputs": ["src/**", "*.ts", "*.tsx", "*.js", "*.jsx", ".eslintrc*", "eslint.config.*"]
+    },
+    "lint:fix": {
+      "inputs": ["src/**", "*.ts", "*.tsx", "*.js", "*.jsx"],
+      "cache": false
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "tsconfig*.json"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"],
+      "inputs": ["src/**", "test/**", "__tests__/**", "jest.config.*"]
+    },
+    "test:coverage": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"],
+      "inputs": ["src/**", "test/**", "__tests__/**", "jest.config.*"]
+    },
+    "test:integration": {
+      "cache": false,
+      "inputs": ["src/**", "test/**"]
+    },
+    "test:contract": {
+      "cache": false,
+      "inputs": ["src/**", "test/**"]
+    },
+    "db:generate": {
+      "inputs": ["src/prisma/schema.prisma"],
+      "outputs": ["node_modules/.prisma/**"],
+      "cache": true
+    },
+    "db:migrate": {
+      "cache": false,
+      "passThroughEnv": ["DATABASE_URL"]
+    },
+    "clean": {
+      "cache": false
+    }
+  }
+}

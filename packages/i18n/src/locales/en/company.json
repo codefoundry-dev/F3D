@@ -1,0 +1,63 @@
+{
+  "title": "Company Profile",
+  "subtitle": "View and manage your company details",
+  "companyName": "Company name",
+  "companyNamePlaceholder": "Name Surname",
+  "companyInfo": "Company Information",
+  "companyInfoDescription": "Update your company's details",
+  "legalName": "Legal Name",
+  "legalNamePlaceholder": "Enter legal company name",
+  "tradeName": "Trade Name",
+  "tradeNamePlaceholder": "Enter trade name",
+  "abn": "ABN",
+  "taxCode": "Tax Code",
+  "legalAddress": "Legal Address",
+  "legalAddressPlaceholder": "Enter legal address",
+  "contactEmail": "Contact Email",
+  "contactEmailPlaceholder": "Enter contact email",
+  "contactPhone": "Contact Phone",
+  "contactPhonePlaceholder": "Enter contact phone",
+  "phoneNumber": "Phone Number",
+  "website": "Website",
+  "websitePlaceholder": "Enter website URL",
+  "specialisations": "Specialisations",
+  "specialisationsPlaceholder": "Type and press Enter to add",
+  "saveChanges": "Save Changes",
+  "saving": "Saving...",
+  "updateSuccess": "Company profile updated successfully",
+
+  "tabs": {
+    "overview": "Overview",
+    "companyUsers": "Company Users",
+    "documents": "Documents"
+  },
+
+  "legalInfo": "Legal Information",
+  "contactInfo": "Contact Information",
+  "location": "Location",
+
+  "complianceDocuments": "Compliance documents",
+  "documentsTitle": "Documents",
+  "documentsSubtitle": "Manage company documents",
+  "addDocument": "Add",
+  "uploading": "Uploading...",
+  "deleteConfirm": "Are you sure you want to delete this document?",
+  "noDocuments": "No documents uploaded yet",
+  "documentDeleted": "Document deleted successfully",
+
+  "logoInvalidFormat": "Invalid file format. Please upload a JPG, PNG, WebP, or SVG image.",
+  "logoTooLarge": "File is too large. Maximum size is 5 MB.",
+
+  "editProfile": "Edit Profile",
+  "editCompanyDetails": "Edit company details",
+  "deactivateAllUsers": "Deactivate all users",
+  "activateAllUsers": "Activate all users",
+
+  "editModal": {
+    "title": "Edit Company Details",
+    "subtitle": "Update the company information and details.",
+    "submit": "Submit changes",
+    "submitting": "Submitting...",
+    "updateError": "Failed to update company details"
+  }
+}

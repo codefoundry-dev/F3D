@@ -1,0 +1,112 @@
+{
+  "title": "User Management",
+  "inviteUser": "Invite user",
+  "searchPlaceholder": "Search by name or email",
+  "noUsersFound": "No users found",
+  "createFirstUser": "Invite your first team member to get started",
+  "failedToLoad": "Failed to load users. Please refresh.",
+  "columns": {
+    "fullName": "Full name",
+    "email": "Email",
+    "phone": "Phone number",
+    "status": "Status",
+    "dateJoined": "Date Joined",
+    "actions": "Actions"
+  },
+  "filters": {
+    "status": "Status",
+    "date": "Date"
+  },
+  "statuses": {
+    "ACTIVE": "Active",
+    "INACTIVE": "Deactivated",
+    "INVITED": "Invited"
+  },
+  "inviteModal": {
+    "title": "Add a new vendor account",
+    "subtitle": "Invite a new team member to your company",
+    "fullName": "Full name",
+    "namePlaceholder": "Name Surname",
+    "email": "Email",
+    "emailPlaceholder": "admin@example.com",
+    "position": "Position",
+    "positionLabel": "Position",
+    "positionPlaceholder": "Enter position",
+    "positionOptional": "(optional)",
+    "sendInvitation": "Send Invitation",
+    "sending": "Sending…",
+    "createError": "Failed to send invitation. Please try again.",
+    "emailInUse": "This email is already in use."
+  },
+  "invitationSuccess": {
+    "title": "Invitation has been sent successfully",
+    "subtitle": "An invitation has been sent to the provided email address.",
+    "emailSent": "The user <strong>{{email}}</strong> will receive an activation email with a secure link to set their password. Once the password is set, they will become a member of the company and gain access to the system.",
+    "linkExpiry": "The reset link will expire in 4 hour. The user and their data will remain in the system, allowing you to resend the link if needed",
+    "backToUsers": "Back to User Management",
+    "redirecting": "Redirecting to \"User Management\" page in {{seconds}} seconds…"
+  },
+  "userAlreadyExists": {
+    "title": "User already exists",
+    "description": "A user with this email already exists in the system. Please use a different email or invite the user instead.",
+    "backToUsers": "Back to User Management"
+  },
+  "actions": {
+    "viewUser": "View user",
+    "editUser": "Edit user",
+    "deactivateUser": "Deactivate user",
+    "activateUser": "Activate user",
+    "resendInvitation": "Reset Invitation",
+    "cancelInvitation": "Cancel Invitation"
+  },
+  "deactivateModal": {
+    "title": "Deactivate User",
+    "subtitle": "This user will lose access to the system immediately.",
+    "info": "<span class=\"text-destructive\">You are going to deactivate the user <strong class=\"font-bold\">{{email}}</strong>. After changing the status, the user will no longer be able to log in.</span>",
+    "confirm": "Deactivate User"
+  },
+  "activateModal": {
+    "title": "Activate User",
+    "subtitle": "This user will regain access to the system immediately.",
+    "info": "<span class=\"text-success\">You are going to activate the user <strong class=\"font-bold\">{{email}}</strong>. After changing the status, the user will be able to log in again.</span>",
+    "confirm": "Activate User"
+  },
+  "cancelInvitationModal": {
+    "title": "Cancel Invitation",
+    "subtitle": "This action cannot be undone.",
+    "info": "<span class=\"text-destructive\">You are about to cancel the invitation for <strong class=\"font-bold\">{{email}}</strong>. This will permanently remove their account from the platform.</span>",
+    "confirm": "Cancel Invitation"
+  },
+  "resendInvitationModal": {
+    "title": "Resend Invitation",
+    "subtitle": "A new invitation will be sent to this user.",
+    "info": "<span class=\"text-success\">A new invitation link will be sent to <strong class=\"font-bold\">{{email}}</strong>. The previous invitation link will be invalidated.</span>",
+    "confirm": "Resend Invitation"
+  },
+  "resendInvitationSuccess": "Invitation has been resent successfully",
+  "cancelInvitationSuccess": "Invitation has been cancelled successfully",
+  "editModal": {
+    "title": "Edit User Details",
+    "subtitle": "Update the user's personal information.",
+    "fullName": "Full name",
+    "namePlaceholder": "Name Surname",
+    "email": "Email",
+    "emailPlaceholder": "admin@example.com",
+    "phone": "Phone number",
+    "phonePlaceholder": "+1234567890",
+    "position": "Position",
+    "positionPlaceholder": "Position name goes here",
+    "submitChanges": "Submit changes",
+    "submitting": "Submitting…",
+    "updateError": "Failed to update user. Please try again.",
+    "updateSuccess": "User details updated successfully."
+  },
+  "detail": {
+    "notFound": "User not found.",
+    "editUser": "Edit User",
+    "resendInvitation": "Resend Invitation",
+    "cancelInvitation": "Cancel Invitation",
+    "deactivate": "Deactivate",
+    "activate": "Activate"
+  }
+}

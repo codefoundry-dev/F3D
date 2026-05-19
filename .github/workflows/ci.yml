@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  pull_request:
+    branches: ['**']
+  push:
+    branches: [main, staging, production]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint all packages
+        run: pnpm lint
+        env:
+          FORCE_COLOR: '1'
+
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check all packages
+        run: pnpm typecheck
+        env:
+          FORCE_COLOR: '1'
+
+  test:
+    name: Test (Coverage ≥ 90%)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: forethread_test
+          POSTGRES_PASSWORD: forethread_test
+          POSTGRES_DB: forethread_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U forethread_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://forethread_test:forethread_test@localhost:5432/forethread_test
+      JWT_ACCESS_SECRET: ci-test-access-secret-at-least-32-chars
+      JWT_REFRESH_SECRET: ci-test-refresh-secret-at-least-32-chars
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Prisma migrations (test DB)
+        run: pnpm turbo db:migrate --filter=@forethread/backend
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+      - name: Run tests with coverage
+        run: pnpm test:coverage
+        env:
+          FORCE_COLOR: '1'
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm build
+        env:
+          FORCE_COLOR: '1'
+          NODE_ENV: production

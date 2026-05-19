@@ -1,0 +1,332 @@
+import { CreateRfqDto, RfqListQueryDto, UpdateRfqDto } from '@forethread/shared-types';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+
+import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
+import { Roles, UserRole } from '../../common/decorators/roles.decorator';
+
+import { SubmitQuoteDto, UpdateQuoteDto } from './quote-response.dto';
+import { QuoteResponseService } from './quote-response.service';
+import { RfqExportService } from './rfq-export.service';
+import type { UpdateLineItemDto } from './rfqs.service';
+import { RfqsService } from './rfqs.service';
+
+@ApiTags('RFQs')
+@ApiBearerAuth()
+@Controller('rfqs')
+export class RfqsController {
+  constructor(
+    private readonly rfqsService: RfqsService,
+    private readonly rfqExportService: RfqExportService,
+    private readonly quoteResponseService: QuoteResponseService,
+  ) {}
+
+  // ── GET /v1/rfqs ───────────────────────────────────────────────────────────
+
+  @Get()
+  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @ApiOperation({ summary: 'List RFQs accessible to the current user' })
+  @ApiResponse({ status: 200, description: 'Paginated list of RFQs' })
+  async listRfqs(@Query() query: RfqListQueryDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.rfqsService.listRfqs(query, user);
+  }
+
+  // ── POST /v1/rfqs ──────────────────────────────────────────────────────────
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @ApiOperation({ summary: 'Create a new RFQ' })
+  @ApiResponse({ status: 201, description: 'RFQ created' })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 404, description: 'Project or related resource not found' })
+  async createRfq(@Body() dto: CreateRfqDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.rfqsService.createRfq(dto, user);
+  }
+
+  // ── GET /v1/rfqs/export/:format ────────────────────────────────────────
+  // NOTE: Must be before :id route to avoid NestJS matching "export" as an id
+
+  @Get('export/:format')
+  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @ApiOperation({ summary: 'Export RFQs as CSV, PDF, or XLSX' })
+  @ApiResponse({ status: 200, description: 'Export file URL' })
+  @ApiResponse({ status: 400, description: 'Invalid format' })
+  async exportRfqs(
+    @Param('format') format: string,
+    @Query() query: RfqListQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.rfqExportService.exportRfqs(format, query, user);
+  }
+
+  // ── GET /v1/rfqs/:id ───────────────────────────────────────────────────────
+
+  @Get(':id')
+  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @ApiOperation({ summary: 'Get a single RFQ by ID' })
+  @ApiResponse({ status: 200, description: 'RFQ detail' })
+  @ApiResponse({ status: 404, description: 'RFQ not found' })
+  async getRfq(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.rfqsService.getRfq(id, user);
+  }
+
+  // ── PATCH /v1/rfqs/:id ─────────────────────────────────────────────────────
+
+  @Patch(':id')
+  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @ApiOperation({ summary: 'Update an RFQ (DRAFT or OPEN with no submitted responses)' })
+  @ApiResponse({ status: 200, description: 'RFQ updated' })
+  @ApiResponse({ status: 400, description: 'Validation error or invalid status' })
+  @ApiResponse({ status: 404, description: 'RFQ not found' })
+  async updateRfq(
+    @Param('id') id: string,
+    @Body() dto: UpdateRfqDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.rfqsService.updateRfq(id, dto, user);
+  }
+
+  // ── POST /v1/rfqs/:id/send ───────────────────────────────────────────────
+
+  @Post(':id/send')
+  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @ApiOperation({ summary: 'Send a draft RFQ to invited vendors' })
+  @ApiResponse({ status: 200, description: 'RFQ sent, status changed to OPEN' })
+  @ApiResponse({
+    status: 400,
+    description: 'RFQ not in DRAFT status or missing line items/vendors',
+  })
+  @ApiResponse({ status: 404, description: 'RFQ not found' })
+  async sendRfq(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.rfqsService.sendRfq(id, user);
+  }
+
+  // ── DELETE /v1/rfqs/:id ──────────────────────────────────────────────────
+
+  @Delete(':id')
+  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @ApiOperation({ summary: 'Cancel (soft-delete) an RFQ' })
+  @ApiResponse({ status: 200, description: 'RFQ cancelled' })
+  @ApiResponse({ status: 404, description: 'RFQ not found' })
+  async cancelRfq(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.rfqsService.cancelRfq(id, user);
+  }
+
+  // ── POST /v1/rfqs/:id/copy ──────────────────────────────────────────────
+
+  @Post(':id/copy')
+  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @ApiOperation({ summary: 'Duplicate an RFQ' })
+  @ApiResponse({ status: 201, description: 'RFQ duplicated' })
+  @ApiResponse({ status: 404, description: 'RFQ not found' })
+  async copyRfq(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.rfqsService.copyRfq(id, user);
+  }
+
+  // ── PATCH /v1/rfqs/:id/archive ─────────────────────────────────────────
+
+  @Patch(':id/archive')
+  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @ApiOperation({ summary: 'Archive a closed RFQ' })
+  @ApiResponse({ status: 200, description: 'RFQ archived' })
+  @ApiResponse({ status: 404, description: 'RFQ not found' })
+  async archiveRfq(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.rfqsService.archiveRfq(id, user);
+  }
+
+  // ── PATCH /v1/rfqs/:rfqId/quotes/:quoteId/approve ───────────────────────
+
+  @Patch(':rfqId/quotes/:quoteId/approve')
+  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @ApiOperation({ summary: 'Approve (award) a quote response' })
+  @ApiResponse({ status: 200, description: 'Quote approved' })
+  @ApiResponse({ status: 404, description: 'Quote not found' })
+  async approveQuote(
+    @Param('rfqId') rfqId: string,
+    @Param('quoteId') quoteId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.rfqsService.approveQuote(rfqId, quoteId, user);
+  }
+
+  // ── PATCH /v1/rfqs/:rfqId/quotes/:quoteId/decline ───────────────────────
+
+  @Patch(':rfqId/quotes/:quoteId/decline')
+  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @ApiOperation({ summary: 'Decline a quote response' })
+  @ApiResponse({ status: 200, description: 'Quote declined' })
+  @ApiResponse({ status: 404, description: 'Quote not found' })
+  async declineQuote(
+    @Param('rfqId') rfqId: string,
+    @Param('quoteId') quoteId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.rfqsService.declineQuote(rfqId, quoteId, user);
+  }
+
+  // ── PATCH /v1/rfqs/:rfqId/line-items/:lineItemId ─────────────────────────
+
+  @Patch(':rfqId/line-items/:lineItemId')
+  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @ApiOperation({ summary: 'Update a line item' })
+  @ApiResponse({ status: 200, description: 'Line item updated' })
+  @ApiResponse({ status: 404, description: 'Line item not found' })
+  async updateLineItem(
+    @Param('rfqId') rfqId: string,
+    @Param('lineItemId') lineItemId: string,
+    @Body() dto: UpdateLineItemDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.rfqsService.updateLineItem(rfqId, lineItemId, dto, user);
+  }
+
+  // ── DELETE /v1/rfqs/:rfqId/line-items/:lineItemId ─────────────────────────
+
+  @Delete(':rfqId/line-items/:lineItemId')
+  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @ApiOperation({ summary: 'Delete a line item' })
+  @ApiResponse({ status: 200, description: 'Line item deleted' })
+  @ApiResponse({ status: 404, description: 'Line item not found' })
+  async deleteLineItem(
+    @Param('rfqId') rfqId: string,
+    @Param('lineItemId') lineItemId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.rfqsService.deleteLineItem(rfqId, lineItemId, user);
+  }
+
+  // ── POST /v1/rfqs/:rfqId/documents ──────────────────────────────────────
+
+  @Post(':rfqId/documents')
+  @UseInterceptors(FileInterceptor('file'))
+  @HttpCode(HttpStatus.CREATED)
+  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @ApiOperation({ summary: 'Upload a document to an RFQ' })
+  @ApiConsumes('multipart/form-data')
+  @ApiResponse({ status: 201, description: 'Document uploaded' })
+  @ApiResponse({ status: 404, description: 'RFQ not found' })
+  async uploadDocument(
+    @Param('rfqId') rfqId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.rfqsService.uploadDocument(rfqId, file, user);
+  }
+
+  // ── DELETE /v1/rfqs/:rfqId/documents/:docId ─────────────────────────────
+
+  @Delete(':rfqId/documents/:docId')
+  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @ApiOperation({ summary: 'Delete an RFQ document' })
+  @ApiResponse({ status: 200, description: 'Document deleted' })
+  @ApiResponse({ status: 404, description: 'Document not found' })
+  async deleteDocument(
+    @Param('rfqId') rfqId: string,
+    @Param('docId') docId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.rfqsService.deleteDocument(rfqId, docId, user);
+  }
+
+  // ── POST /v1/rfqs/:rfqId/quotes ──────────────────────────────────────────
+
+  @Post(':rfqId/quotes')
+  @HttpCode(HttpStatus.CREATED)
+  @Roles(UserRole.VENDOR)
+  @ApiOperation({ summary: 'Submit a quote response for an RFQ' })
+  @ApiResponse({ status: 201, description: 'Quote submitted' })
+  @ApiResponse({ status: 400, description: 'Validation error or duplicate quote' })
+  @ApiResponse({ status: 403, description: 'Not invited or not a vendor' })
+  @ApiResponse({ status: 404, description: 'RFQ not found' })
+  async submitQuote(
+    @Param('rfqId') rfqId: string,
+    @Body() dto: SubmitQuoteDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const result = await this.quoteResponseService.submitQuote(rfqId, dto, user);
+
+    // Notify contractor that a new quote was submitted (fire-and-forget)
+    const vendorName = result.vendor?.legalName ?? 'A vendor';
+    void this.rfqsService.notifyContractorOfQuoteSubmission(rfqId, vendorName);
+
+    return result;
+  }
+
+  // ── PATCH /v1/rfqs/:rfqId/quotes/:quoteId ────────────────────────────────
+
+  @Patch(':rfqId/quotes/:quoteId')
+  @Roles(UserRole.VENDOR)
+  @ApiOperation({ summary: 'Update a submitted quote response' })
+  @ApiResponse({ status: 200, description: 'Quote updated' })
+  @ApiResponse({ status: 400, description: 'Validation error or RFQ closed' })
+  @ApiResponse({ status: 403, description: 'Not the quote owner' })
+  @ApiResponse({ status: 404, description: 'Quote not found' })
+  async updateQuote(
+    @Param('rfqId') rfqId: string,
+    @Param('quoteId') quoteId: string,
+    @Body() dto: UpdateQuoteDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const result = await this.quoteResponseService.updateQuote(rfqId, quoteId, dto, user);
+
+    // Notify contractor that vendor edited their response (fire-and-forget)
+    const vendorName = result.vendor?.legalName ?? 'A vendor';
+    void this.rfqsService.notifyContractorOfQuoteUpdate(rfqId, vendorName);
+
+    return result;
+  }
+
+  // ── GET /v1/rfqs/:rfqId/quotes/:quoteId ──────────────────────────────────
+
+  @Get(':rfqId/quotes/:quoteId')
+  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @ApiOperation({ summary: 'Get quote response detail' })
+  @ApiResponse({ status: 200, description: 'Quote detail' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  @ApiResponse({ status: 404, description: 'Quote not found' })
+  async getQuoteDetail(
+    @Param('rfqId') rfqId: string,
+    @Param('quoteId') quoteId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.quoteResponseService.getQuoteDetail(rfqId, quoteId, user);
+  }
+
+  // ── Guest (invitation-link) endpoints ──────────────────────────────────────
+
+  @Get('invitation/:token')
+  @Public()
+  @ApiOperation({ summary: 'Get RFQ details via invitation token (no auth required)' })
+  @ApiResponse({ status: 200, description: 'RFQ detail for guest vendor' })
+  @ApiResponse({ status: 404, description: 'Invalid or expired invitation token' })
+  async getGuestRfq(@Param('token') token: string) {
+    return this.quoteResponseService.getGuestRfq(token);
+  }
+
+  @Post('invitation/:token/quote')
+  @Public()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Submit a quote via invitation token (no auth required)' })
+  @ApiResponse({ status: 201, description: 'Quote submitted' })
+  @ApiResponse({ status: 400, description: 'Validation error or duplicate quote' })
+  @ApiResponse({ status: 404, description: 'Invalid or expired invitation token' })
+  async submitGuestQuote(@Param('token') token: string, @Body() dto: SubmitQuoteDto) {
+    return this.quoteResponseService.submitGuestQuote(token, dto);
+  }
+}

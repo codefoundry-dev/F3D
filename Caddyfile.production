@@ -1,0 +1,20 @@
+api.forethread.com {
+    encode zstd gzip
+
+    header {
+        # enable HSTS
+        Strict-Transport-Security "max-age=31536000;"
+        # disable clients from sniffing the media type
+        X-Content-Type-Options "nosniff"
+        # clickjacking protection
+        X-Frame-Options "DENY"
+        # keep referrer data off of HTTP connections
+        Referrer-Policy "no-referrer-when-downgrade"
+        # example CSP — uncomment & adjust as needed:
+        # Content-Security-Policy "default-src 'self';"
+    }
+
+    route /* {
+        reverse_proxy forethread-backend:3000
+    }
+}

@@ -1,0 +1,31 @@
+{
+  "threads": {
+    "title": "Messages",
+    "noThreads": "No message threads yet",
+    "searchPlaceholder": "Search conversations...",
+    "contextTypes": {
+      "RFQ": "RFQ",
+      "PURCHASE_ORDER": "Purchase Order",
+      "MATERIAL_REQUEST": "Material Request",
+      "WAREHOUSE_RELEASE_REQUEST": "Warehouse Release Request"
+    }
+  },
+  "thread": {
+    "participants": "{{count}} participants",
+    "lastMessage": "Last message",
+    "noMessages": "No messages in this thread yet",
+    "readOnly": "This conversation is read-only because the related document has been closed."
+  },
+  "compose": {
+    "placeholder": "Type a message...",
+    "send": "Send",
+    "attachFile": "Attach file",
+    "fileTooLarge": "File must be less than 10 MB",
+    "sendFailed": "Failed to send message. Please try again."
+  },
+  "attachments": {
+    "title": "Attachments",
+    "download": "Download",
+    "noAttachments": "No attachments"
+  }
+}

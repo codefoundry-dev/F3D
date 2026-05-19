@@ -1,0 +1,14 @@
+{
+  "emailRequired": "Enter a valid email address",
+  "passwordMin": "Password must be at least 8 characters",
+  "passwordUppercase": "Must include an uppercase letter",
+  "passwordNumber": "Must include a number",
+  "passwordsDoNotMatch": "Passwords do not match",
+  "nameRequired": "Name is required",
+  "roleRequired": "Role is required",
+  "companyRequired": "Company is required",
+  "required": "This field is required",
+  "passwordMinLength": "Password must be at least 8 characters",
+  "abnFormat": "ABN must be exactly 11 digits",
+  "taxCodeFormat": "Tax code must be 1-11 digits"
+}

@@ -1,0 +1,197 @@
+enum QuoteResponseStatus {
+  PENDING
+  SUBMITTED
+  APPROVED
+  DECLINED
+}
+
+enum RfqStatus {
+  DRAFT
+  OPEN
+  AWAITING_RESPONSE
+  QUOTED
+  AWARDED
+  CLOSED
+  CANCELLED
+}
+
+enum DiscountType {
+  PERCENT
+  AMOUNT
+}
+
+model Rfq {
+  id                   String          @id @default(uuid())
+  rfqNumber            String          @unique @map("rfq_number") @db.VarChar(50)
+  projectId            String          @map("project_id")
+  companyId            String          @map("company_id")
+  status               RfqStatus       @default(DRAFT)
+  currency             String          @default("AUD") @db.VarChar(3)
+  deliveryLocationId   String?         @map("delivery_location_id")
+  needByDate           DateTime?       @map("need_by_date")
+  holdForRelease       Boolean         @default(false) @map("hold_for_release")
+  earliestDeliveryDate DateTime?       @map("earliest_delivery_date")
+  pickUpDate           DateTime?       @map("pick_up_date")
+  pickUpLocation       String?         @map("pick_up_location")
+  deadlineStart        DateTime?       @map("deadline_start")
+  deadlineEnd          DateTime?       @map("deadline_end")
+  totalRequestedQty    Int             @default(0) @map("total_requested_qty")
+  message              String?
+  approvalStatus       ApprovalStatus? @map("approval_status")
+  approvedById         String?         @map("approved_by_id")
+  createdByUserId      String          @map("created_by_user_id")
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
+
+  project          Project          @relation(fields: [projectId], references: [id])
+  company          Company          @relation("RfqCompany", fields: [companyId], references: [id])
+  deliveryLocation ProjectLocation? @relation("RfqDeliveryLocation", fields: [deliveryLocationId], references: [id])
+  approvedBy       User?            @relation("RfqApprovedBy", fields: [approvedById], references: [id])
+  createdBy        User             @relation("RfqCreatedBy", fields: [createdByUserId], references: [id])
+  lineItems        RfqLineItem[]
+  invitedVendors   RfqVendor[]
+  quoteResponses   QuoteResponse[]
+  bulkOrders       BulkOrder[]
+  purchaseOrders   PurchaseOrder[]  @relation("PoSourceRfq")
+  documents        RfqDocument[]
+
+  @@index([companyId], map: "idx_rfqs_company")
+  @@index([projectId], map: "idx_rfqs_project")
+  @@index([status], map: "idx_rfqs_status")
+  @@index([deliveryLocationId], map: "idx_rfqs_delivery_location")
+  @@map("rfqs")
+}
+
+model RfqVendor {
+  id              String   @id @default(uuid())
+  rfqId           String   @map("rfq_id")
+  vendorId        String   @map("vendor_id")
+  invitedAt       DateTime @default(now()) @map("invited_at")
+  invitationToken String?  @unique @map("invitation_token") @db.VarChar(16)
+
+  rfq    Rfq     @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  vendor Company @relation("RfqInvitedVendor", fields: [vendorId], references: [id])
+
+  @@unique([rfqId, vendorId], map: "idx_rfq_vendor_unique")
+  @@index([rfqId], map: "idx_rfq_vendors_rfq")
+  @@index([vendorId], map: "idx_rfq_vendors_vendor")
+  @@map("rfq_vendors")
+}
+
+model RfqLineItem {
+  id           String  @id @default(uuid())
+  rfqId        String  @map("rfq_id")
+  materialId   String  @map("material_id")
+  quantity     Int
+  unit         String  @db.VarChar(50)
+  costCode     String? @map("cost_code") @db.VarChar(100)
+  description  String?
+  pickUp       Boolean @default(false) @map("pick_up")
+
+  rfq                Rfq                     @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  material           Material                @relation(fields: [materialId], references: [id])
+  quoteResponseItems QuoteResponseLineItem[]
+
+  @@index([materialId], map: "idx_rfq_line_items_material")
+  @@map("rfq_line_items")
+}
+
+model RfqDocument {
+  id        String   @id @default(uuid())
+  rfqId     String   @map("rfq_id")
+  fileId    String   @map("file_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  rfq  Rfq  @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  file File @relation(fields: [fileId], references: [id])
+
+  @@index([rfqId], map: "idx_rfq_documents_rfq")
+  @@map("rfq_documents")
+}
+
+enum QuoteLineItemAvailability {
+  AVAILABLE
+  PARTIALLY_AVAILABLE
+  UNAVAILABLE
+  NO_QUOTE
+}
+
+enum QuoteLineItemStatus {
+  PENDING
+  APPROVED
+  DECLINED
+}
+
+model QuoteResponse {
+  id              String    @id @default(uuid())
+  rfqId           String    @map("rfq_id")
+  vendorId        String    @map("vendor_id")
+  totalCost       Decimal   @map("total_cost") @db.Decimal(18, 4)
+  discountPercent Decimal?  @map("discount_percent") @db.Decimal(5, 2)
+  discountAmount  Decimal?  @map("discount_amount") @db.Decimal(18, 4)
+  itemsCovered    Int       @default(0) @map("items_covered")
+  totalItems      Int       @default(0) @map("total_items")
+  status          QuoteResponseStatus @default(PENDING)
+  submittedAt     DateTime? @map("submitted_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Bulk-level fields (applied to all line items unless overridden)
+  bulkDeliveryTime  DateTime? @map("bulk_delivery_time")
+  bulkDiscount      Decimal?  @map("bulk_discount") @db.Decimal(5, 2)
+  bulkTax           Decimal?  @map("bulk_tax") @db.Decimal(5, 2)
+  bulkShipment      Decimal?  @map("bulk_shipment") @db.Decimal(18, 4)
+  warehouseLocationId String? @map("warehouse_location_id")
+  validityPeriod    DateTime? @map("validity_period")
+  message           String?
+
+  rfq              Rfq                   @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  vendor           Company               @relation("QuoteResponseVendor", fields: [vendorId], references: [id])
+  warehouseLocation WarehouseLocation?   @relation(fields: [warehouseLocationId], references: [id])
+  lineItems        QuoteResponseLineItem[]
+  attachments      QuoteAttachment[]
+
+  @@map("quote_responses")
+}
+
+model QuoteAttachment {
+  id              String   @id @default(uuid())
+  quoteResponseId String   @map("quote_response_id")
+  fileId          String   @map("file_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  quoteResponse QuoteResponse @relation(fields: [quoteResponseId], references: [id], onDelete: Cascade)
+  file          File          @relation("QuoteAttachment", fields: [fileId], references: [id])
+
+  @@index([quoteResponseId], map: "idx_quote_attachments_quote")
+  @@index([fileId], map: "idx_quote_attachments_file")
+  @@map("quote_attachments")
+}
+
+model QuoteResponseLineItem {
+  id                String                    @id @default(uuid())
+  quoteResponseId   String                    @map("quote_response_id")
+  rfqLineItemId     String                    @map("rfq_line_item_id")
+  unitPrice         Decimal                   @map("unit_price") @db.Decimal(18, 4)
+  quotedQuantity    Int                       @map("quoted_quantity")
+  availability      QuoteLineItemAvailability @default(AVAILABLE)
+  deliveryDate      DateTime                  @map("delivery_date")
+  substituteItemId  String?                   @map("substitute_item_id")
+  discount          Decimal?                  @db.Decimal(18, 4)
+  discountType      DiscountType?              @map("discount_type")
+  tax               Decimal?                  @db.Decimal(5, 2)
+  taxIncluded       Boolean                   @default(false) @map("tax_included")
+  backOrderQty      Int?                      @map("back_order_qty")
+  backOrderDeliveryDate DateTime?             @map("back_order_delivery_date")
+  notes             String?
+  lineTotal         Decimal                   @default(0) @map("line_total") @db.Decimal(18, 4)
+  status            QuoteLineItemStatus       @default(PENDING)
+
+  quoteResponse  QuoteResponse @relation(fields: [quoteResponseId], references: [id], onDelete: Cascade)
+  rfqLineItem    RfqLineItem   @relation(fields: [rfqLineItemId], references: [id])
+  substituteItem Material?     @relation("QuoteSubstituteItem", fields: [substituteItemId], references: [id])
+
+  @@index([quoteResponseId], map: "idx_quote_line_items_response")
+  @@index([rfqLineItemId], map: "idx_quote_line_items_rfq_item")
+  @@map("quote_response_line_items")
+}

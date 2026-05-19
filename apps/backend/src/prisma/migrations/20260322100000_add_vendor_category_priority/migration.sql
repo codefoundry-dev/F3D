@@ -1,0 +1,25 @@
+-- CreateEnum
+CREATE TYPE "VendorCategory" AS ENUM (
+    'CONCRETE_MASONRY',
+    'METAL_STEEL',
+    'TIMBER_WOOD',
+    'ELECTRICAL',
+    'LIGHTING',
+    'PLUMBING',
+    'HVAC_VENTILATION',
+    'FINISHING',
+    'DOORS_WINDOWS_GLAZING',
+    'INSULATION_WATERPROOFING',
+    'ROOFING_FACADE',
+    'FIXINGS_HARDWARE',
+    'SAFETY_PROTECTION',
+    'GENERAL_CONSTRUCTION',
+    'GENERAL_RETAILER'
+);
+
+-- AlterTable
+ALTER TABLE "company_vendor_assignments"
+    ADD COLUMN "categories" "VendorCategory"[] DEFAULT '{}';
+
+-- AlterEnum
+ALTER TYPE "AuditAction" ADD VALUE 'VENDOR_INVITED';

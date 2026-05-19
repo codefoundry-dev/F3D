@@ -1,0 +1,87 @@
+{
+  "list": {
+    "title": "Invoices",
+    "subtitle": "Track and manage all project invoices",
+    "searchPlaceholder": "Search",
+    "filters": "Filters",
+    "createNew": "+ Create new",
+    "noInvoicesFound": "No invoices found",
+    "adjustFilters": "Try adjusting your filters or search criteria",
+    "createFirstInvoice": "Create your first invoice to get started",
+    "failedToLoad": "Failed to load invoices. Please refresh.",
+    "rowsPerPage": "Rows per page:",
+    "showing": "Showing {{from}} to {{to}} of {{total}} invoices",
+    "itemsSelected": "{{count}} item Selected",
+    "approveAll": "Approve all",
+    "exportAs": "Export as",
+    "exportCsv": "Export CSV",
+    "exportXlsx": "Export XLSX",
+    "clearFilters": "Clear Filters"
+  },
+  "columns": {
+    "invoiceId": "Invoice ID",
+    "projectName": "Project Name",
+    "projectId": "Project ID",
+    "vendorName": "Vendor name",
+    "status": "Status",
+    "relatedPo": "Related PO",
+    "totalAmount": "Total amount",
+    "dueDate": "Due Date",
+    "actions": "Actions"
+  },
+  "status": {
+    "PENDING": "Pending",
+    "APPROVED": "Approved",
+    "DISPUTED": "Disputed",
+    "PAID": "Paid",
+    "REJECTED": "Rejected"
+  },
+  "actions": {
+    "view": "View",
+    "approve": "Approve",
+    "reject": "Reject",
+    "exportAs": "Export as"
+  },
+  "filters": {
+    "status": "Status",
+    "allStatuses": "All Statuses",
+    "vendor": "Vendor",
+    "allVendors": "All Vendors",
+    "project": "Project",
+    "allProjects": "All Projects",
+    "dueDateFrom": "Due Date From",
+    "dueDateTo": "Due Date To",
+    "amountMin": "Min Amount",
+    "amountMax": "Max Amount"
+  },
+  "pagination": {
+    "back": "Back",
+    "next": "Next"
+  },
+  "invoiceDetail": {
+    "tabs": {
+      "details": "Invoice Details",
+      "attachments": "Attachments ({{count}})"
+    },
+    "approve": "Approve",
+    "decline": "Decline",
+    "invoiceInfo": "Invoice Information",
+    "project": "Project",
+    "vendor": "Vendor",
+    "relatedPo": "Related PO",
+    "totalAmount": "Total Amount",
+    "status": "Status",
+    "dueDate": "Due Date",
+    "createdAt": "Created",
+    "noData": "No data available.",
+    "noDueDate": "Not set",
+    "noPo": "None",
+    "fileName": "File Name",
+    "uploadedBy": "Uploaded By",
+    "date": "Date",
+    "actions": "Actions",
+    "noAttachments": "No attachments yet.",
+    "view": "View",
+    "download": "Download"
+  }
+}

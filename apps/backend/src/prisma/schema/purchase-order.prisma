@@ -1,0 +1,217 @@
+enum PoStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT
+  ACKNOWLEDGED
+  ACCEPTED
+  DECLINED
+  SCHEDULED_FOR_DELIVERY
+  CANCELLED
+  CLOSED
+  PARTIALLY_DELIVERED
+  DELIVERED
+  LATE_FOR_DELIVERY
+  CANCELLED_BY_VENDOR
+  INVOICED
+  DISPUTE
+  NOT_DELIVERED
+  CHANGE_PENDING
+}
+
+enum PoType {
+  STANDARD
+  BULK
+  HOLD_FOR_RELEASE
+  DRAWDOWN
+  SPLIT
+}
+
+enum PoPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ApprovalStatus {
+  NOT_REQUIRED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PoSourceOfCreation {
+  RFQ
+  BULK_DRAWDOWN
+  MATERIAL_REQUEST
+  MANUAL
+}
+
+enum PoChangeType {
+  COMMERCIAL
+  INTERNAL
+}
+
+enum PickUpTimeExpectation {
+  ASAP
+  TOMORROW
+  CUSTOM_DATE
+}
+
+model PurchaseOrder {
+  id                  String            @id @default(uuid())
+  poNumber            String            @unique @map("po_number") @db.VarChar(50)
+  documentName        String?           @map("document_name") @db.VarChar(255)
+  projectId           String            @map("project_id")
+  companyId           String            @map("company_id")
+  vendorId            String?           @map("vendor_id")
+  rfqId               String?           @map("rfq_id")
+  parentPoId          String?           @map("parent_po_id")
+
+  // Status & type
+  status              PoStatus          @default(DRAFT)
+  poType              PoType            @default(STANDARD) @map("po_type")
+  approvalStatus      ApprovalStatus    @default(NOT_REQUIRED) @map("approval_status")
+  sourceOfCreation    PoSourceOfCreation @default(MANUAL) @map("source_of_creation")
+  priority            PoPriority?       @map("priority")
+  revision            Int               @default(1)
+
+  // Delivery
+  deliveryLocationId  String?           @map("delivery_location_id")
+  pickUp              Boolean           @default(false) @map("pick_up")
+  pickUpLocation      String?           @map("pick_up_location")
+  pickUpTimeExpectation PickUpTimeExpectation? @map("pick_up_time_expectation")
+  pickUpPersonName    String?           @map("pick_up_person_name")
+  pickUpPersonPhone   String?           @map("pick_up_person_phone")
+  holdForRelease      Boolean           @default(false) @map("hold_for_release")
+  deadlineStart       DateTime?         @map("deadline_start")
+  deadlineEnd         DateTime?         @map("deadline_end")
+  plannedDeliveryDate DateTime?         @map("planned_delivery_date")
+  deliveryNotes       String?           @map("delivery_notes")
+
+  // Delivery responsible person (optional, US XX)
+  deliveryResponsibleName  String?      @map("delivery_responsible_name")
+  deliveryResponsibleEmail String?      @map("delivery_responsible_email")
+
+  // Finance
+  currency            String            @default("AUD") @db.VarChar(3)
+  subtotal            Decimal?          @map("subtotal") @db.Decimal(18, 4)
+  discountAmount      Decimal?          @map("discount_amount") @db.Decimal(18, 4)
+  taxAmount           Decimal?          @map("tax_amount") @db.Decimal(18, 4)
+  totalAmount         Decimal?          @map("total_amount") @db.Decimal(18, 4)
+  paymentTermsDays    Int?              @map("payment_terms_days")
+  warehouseLocationId String?           @map("warehouse_location_id")
+  costCode            String?           @map("cost_code") @db.VarChar(100)
+
+  // Message
+  message             String?
+
+  // Counts
+  lineItemCount       Int               @default(0) @map("line_item_count")
+  totalRequestedQty   Int               @default(0) @map("total_requested_qty")
+
+  // Issue
+  issuedAt            DateTime?         @map("issued_at")
+
+  // Audit
+  approvedById        String?           @map("approved_by_id")
+  createdByUserId     String            @map("created_by_user_id")
+  lastModifiedById    String?           @map("last_modified_by_id")
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  project          Project          @relation(fields: [projectId], references: [id])
+  company          Company          @relation("PoCompany", fields: [companyId], references: [id])
+  vendor           Company?         @relation("PoVendor", fields: [vendorId], references: [id])
+  rfq              Rfq?             @relation("PoSourceRfq", fields: [rfqId], references: [id])
+  parentPo         PurchaseOrder?   @relation("PoParentChild", fields: [parentPoId], references: [id])
+  childPos         PurchaseOrder[]  @relation("PoParentChild")
+  deliveryLocation ProjectLocation? @relation("PoDeliveryLocation", fields: [deliveryLocationId], references: [id])
+  approvedBy       User?            @relation("PoApprovedBy", fields: [approvedById], references: [id])
+  createdBy        User             @relation("PoCreatedBy", fields: [createdByUserId], references: [id])
+  lastModifiedBy   User?            @relation("PoLastModifiedBy", fields: [lastModifiedById], references: [id])
+
+  lineItems      PoLineItem[]
+  documents      PoDocument[]
+  changeRequests PoChangeRequest[]
+  drawdowns      Drawdown[]
+  invoices       Invoice[]        @relation("InvoiceRelatedPo")
+
+  @@index([companyId], map: "idx_pos_company")
+  @@index([projectId], map: "idx_pos_project")
+  @@index([vendorId], map: "idx_pos_vendor")
+  @@index([status], map: "idx_pos_status")
+  @@index([parentPoId], map: "idx_pos_parent")
+  @@index([rfqId], map: "idx_pos_rfq")
+  @@index([deliveryLocationId], map: "idx_pos_delivery_location")
+  @@map("purchase_orders")
+}
+
+model PoLineItem {
+  id                    String    @id @default(uuid())
+  purchaseOrderId       String    @map("purchase_order_id")
+  lineNumber            Int       @map("line_number")
+  materialId            String?   @map("material_id")
+  materialCode          String?   @map("material_code") @db.VarChar(100)
+  description           String?
+  quantityOrdered       Int       @map("quantity_ordered")
+  quantityDelivered     Int       @default(0) @map("quantity_delivered")
+  unitOfMeasure         String    @map("unit_of_measure") @db.VarChar(50)
+  unitPrice             Decimal   @map("unit_price") @db.Decimal(18, 4)
+  lineTotal             Decimal   @map("line_total") @db.Decimal(18, 4)
+  costCode              String?   @map("cost_code") @db.VarChar(100)
+  expectedDeliveryDate  DateTime? @map("expected_delivery_date")
+  deliveryLocationId    String?   @map("delivery_location_id")
+  notes                 String?
+  pickUp                Boolean   @default(false) @map("pick_up")
+
+  purchaseOrder    PurchaseOrder    @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  material         Material?        @relation(fields: [materialId], references: [id])
+  deliveryLocation ProjectLocation? @relation("PoLineItemDeliveryLocation", fields: [deliveryLocationId], references: [id])
+
+  @@index([purchaseOrderId], map: "idx_po_line_items_po")
+  @@index([materialId], map: "idx_po_line_items_material")
+  @@map("po_line_items")
+}
+
+model PoDocument {
+  id              String   @id @default(uuid())
+  purchaseOrderId String   @map("purchase_order_id")
+  fileId          String   @map("file_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  file          File          @relation(fields: [fileId], references: [id])
+
+  @@index([purchaseOrderId], map: "idx_po_documents_po")
+  @@map("po_documents")
+}
+
+enum PoChangeRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model PoChangeRequest {
+  id               String                @id @default(uuid())
+  purchaseOrderId  String                @map("purchase_order_id")
+  changeType       PoChangeType          @map("change_type")
+  changedFields    Json                  @map("changed_fields")
+  message          String?
+  status           PoChangeRequestStatus @default(PENDING)
+  reason           String?
+  requestedById    String                @map("requested_by_id")
+  resolvedById     String?               @map("resolved_by_id")
+  resolvedAt       DateTime?             @map("resolved_at")
+  createdAt        DateTime              @default(now()) @map("created_at")
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  requestedBy   User          @relation("PoChangeRequestedBy", fields: [requestedById], references: [id])
+  resolvedBy    User?         @relation("PoChangeApprovedBy", fields: [resolvedById], references: [id])
+
+  @@index([purchaseOrderId], map: "idx_po_change_requests_po")
+  @@index([status], map: "idx_po_change_requests_status")
+  @@map("po_change_requests")
+}

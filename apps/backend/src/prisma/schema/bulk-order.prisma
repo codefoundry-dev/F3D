@@ -1,0 +1,98 @@
+enum BulkOrderStatus {
+  ACTIVE
+  EXPIRED
+  COMPLETED
+  CANCELLED
+}
+
+enum BulkOrderChangeRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model BulkOrder {
+  id              String          @id @default(uuid())
+  bulkOrderNumber String?         @unique @map("bulk_order_number") @db.VarChar(50)
+  projectId       String          @map("project_id")
+  companyId       String          @map("company_id")
+  vendorId        String          @map("vendor_id")
+  rfqId           String?         @map("rfq_id")
+  status          BulkOrderStatus @default(ACTIVE)
+  version         Int             @default(1)
+  brands          String?
+  totalAmount     Decimal?        @map("total_amount") @db.Decimal(18, 4)
+  endDate         DateTime?       @map("end_date")
+  createdByUserId String          @map("created_by_user_id")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  project        Project                  @relation(fields: [projectId], references: [id])
+  company        Company                  @relation("BulkOrderCompany", fields: [companyId], references: [id])
+  vendor         Company                  @relation("BulkOrderVendor", fields: [vendorId], references: [id])
+  rfq            Rfq?                     @relation(fields: [rfqId], references: [id])
+  createdBy      User                     @relation("BulkOrderCreatedBy", fields: [createdByUserId], references: [id])
+  lineItems      BulkOrderLineItem[]
+  drawdowns      Drawdown[]
+  changeRequests BulkOrderChangeRequest[]
+
+  @@map("bulk_orders")
+}
+
+model BulkOrderChangeRequest {
+  id               String                       @id @default(uuid())
+  bulkOrderId      String                       @map("bulk_order_id")
+  requestedByUserId String                      @map("requested_by_user_id")
+  changes          Json
+  message          String?
+  status           BulkOrderChangeRequestStatus @default(PENDING)
+  reason           String?
+  resolvedByUserId String?                      @map("resolved_by_user_id")
+  resolvedAt       DateTime?                    @map("resolved_at")
+  createdAt        DateTime                     @default(now()) @map("created_at")
+
+  bulkOrder   BulkOrder @relation(fields: [bulkOrderId], references: [id], onDelete: Cascade)
+  requestedBy User      @relation("BulkOrderChangeRequestedBy", fields: [requestedByUserId], references: [id])
+  resolvedBy  User?     @relation("BulkOrderChangeResolvedBy", fields: [resolvedByUserId], references: [id])
+
+  @@index([bulkOrderId], map: "idx_bulk_order_change_requests_order")
+  @@index([status], map: "idx_bulk_order_change_requests_status")
+  @@map("bulk_order_change_requests")
+}
+
+model BulkOrderLineItem {
+  id               String  @id @default(uuid())
+  bulkOrderId      String  @map("bulk_order_id")
+  itemReference    String  @map("item_reference") @db.VarChar(100)
+  description      String
+  qty              Int
+  unit             String  @db.VarChar(50)
+  ordered          Int     @default(0)
+  qtyRemaining     Int     @map("qty_remaining")
+  deliveriesPercent Decimal @default(0) @map("deliveries_percent") @db.Decimal(5, 2)
+  pricePerUnit     Decimal @map("price_per_unit") @db.Decimal(18, 4)
+  totalLineInc     Decimal @map("total_line_inc") @db.Decimal(18, 4)
+
+  bulkOrder  BulkOrder  @relation(fields: [bulkOrderId], references: [id], onDelete: Cascade)
+  drawdowns  Drawdown[]
+
+  @@map("bulk_order_line_items")
+}
+
+model Drawdown {
+  id              String   @id @default(uuid())
+  bulkOrderId     String   @map("bulk_order_id")
+  lineItemId      String?  @map("line_item_id")
+  purchaseOrderId String?  @map("purchase_order_id")
+  quantity        Int
+  qtyBeforeDrawdown Int?   @map("qty_before_drawdown")
+  createdByUserId String   @map("created_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  bulkOrder     BulkOrder          @relation(fields: [bulkOrderId], references: [id], onDelete: Cascade)
+  lineItem      BulkOrderLineItem? @relation(fields: [lineItemId], references: [id])
+  purchaseOrder PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id])
+  createdBy     User               @relation("DrawdownCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@map("drawdowns")
+}

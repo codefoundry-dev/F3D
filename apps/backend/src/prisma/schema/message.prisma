@@ -1,0 +1,63 @@
+enum MessageContextType {
+  RFQ
+  PURCHASE_ORDER
+  MATERIAL_REQUEST
+  WAREHOUSE_RELEASE_REQUEST
+}
+
+model MessageThread {
+  id          String             @id @default(uuid())
+  contextType MessageContextType @map("context_type")
+  contextId   String             @map("context_id")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  participants ThreadParticipant[]
+  messages     Message[]
+
+  @@unique([contextType, contextId], map: "idx_message_thread_context_unique")
+  @@index([contextType, contextId], map: "idx_message_thread_context")
+  @@map("message_threads")
+}
+
+model ThreadParticipant {
+  id       String   @id @default(uuid())
+  threadId String   @map("thread_id")
+  userId   String   @map("user_id")
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  thread MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId], references: [id])
+
+  @@unique([threadId, userId], map: "idx_thread_participant_unique")
+  @@index([userId], map: "idx_thread_participant_user")
+  @@map("thread_participants")
+}
+
+model Message {
+  id           String   @id @default(uuid())
+  threadId     String   @map("thread_id")
+  senderUserId String   @map("sender_user_id")
+  content      String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  thread      MessageThread       @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender      User                @relation(fields: [senderUserId], references: [id])
+  attachments MessageAttachment[]
+
+  @@index([threadId, createdAt], map: "idx_messages_thread_created")
+  @@map("messages")
+}
+
+model MessageAttachment {
+  id        String   @id @default(uuid())
+  messageId String   @map("message_id")
+  fileId    String   @map("file_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  file    File    @relation(fields: [fileId], references: [id])
+
+  @@index([messageId], map: "idx_message_attachments_message")
+  @@map("message_attachments")
+}

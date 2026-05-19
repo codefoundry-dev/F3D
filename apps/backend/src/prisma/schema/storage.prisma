@@ -1,0 +1,21 @@
+model File {
+  id             String   @id @default(uuid())
+  bucket         String   @db.VarChar(100)
+  key            String   @db.VarChar(500)
+  filename       String   @db.VarChar(255)
+  mimeType       String   @map("mime_type") @db.VarChar(100)
+  size           Int
+  uploadedById   String   @map("uploaded_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  uploadedBy          User                @relation(fields: [uploadedById], references: [id])
+  documents           CompanyDocument[]
+  rfqDocuments        RfqDocument[]
+  invoiceDocuments    InvoiceDocument[]
+  poDocuments         PoDocument[]
+  messageAttachments  MessageAttachment[]
+  quoteAttachments    QuoteAttachment[]   @relation("QuoteAttachment")
+
+  @@index([uploadedById], map: "idx_files_uploaded_by")
+  @@map("files")
+}

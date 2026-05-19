@@ -1,0 +1,160 @@
+{
+  "general": {
+    "accessDenied": "Access denied",
+    "accessDeniedRoles": "Access denied. Required role(s): {{roles}}",
+    "notFound": "The requested resource was not found",
+    "internalServerError": "An unexpected error occurred",
+    "badRequest": "The request is invalid or malformed"
+  },
+  "auth": {
+    "invalidCredentials": "Invalid email or password",
+    "accountNotActivated": "ACCOUNT_NOT_ACTIVATED",
+    "invalidOtp": "Invalid OTP code",
+    "otpNotFound": "No OTP found. Please log in again.",
+    "otpExpired": "OTP has expired. Please log in again.",
+    "accountLocked": "Account locked due to too many failed OTP attempts",
+    "sessionExpired": "Session expired",
+    "invalidResetToken": "Invalid or expired reset token",
+    "invalidInvitationToken": "Invalid invitation token",
+    "invalidOrExpiredInvitationToken": "Invalid or expired invitation token",
+    "refreshTokenMissing": "Refresh token missing",
+    "invalidRefreshToken": "Invalid refresh token",
+    "accountNotActive": "User account is not active",
+    "authenticationRequired": "Authentication required"
+  },
+  "users": {
+    "notFound": "User not found",
+    "cannotCreateForOtherCompanies": "Cannot create users for other companies",
+    "cannotAssignRole": "Cannot assign this role",
+    "emailAlreadyInUse": "Email already in use",
+    "alreadyInactive": "User is already inactive",
+    "notInactive": "User is not inactive",
+    "alreadyActivated": "User has already activated their account",
+    "onlyResetActiveUsers": "Can only reset password for active users",
+    "cannotCancelInvitation": "Cannot cancel invitation for an active or inactive user",
+    "noPasswordSet": "No password set on account",
+    "currentPasswordIncorrect": "Current password is incorrect",
+    "cannotDeactivateSelf": "Cannot deactivate your own account",
+    "cannotDeactivateLastAdmin": "Cannot deactivate the last Company Admin",
+    "cannotChangeLastAdminRole": "Cannot change the role of the sole active Company Admin. Assign another Company Admin first."
+  },
+  "companies": {
+    "notFound": "Company {{id}} not found",
+    "notFoundGeneric": "Company not found",
+    "contractorNotFound": "Contractor not found",
+    "notContractor": "Company is not a Contractor",
+    "invalidVendorIds": "Some vendor IDs are invalid",
+    "vendorAssignmentNotFound": "Vendor assignment not found",
+    "contactEmailRequired": "contactEmail is required for Vendor companies"
+  },
+  "projects": {
+    "notFound": "Project not found",
+    "notMember": "Not a member of this project",
+    "endDateBeforeStart": "Expected end date must be after start date",
+    "duplicateName": "A project with this name already exists in your company",
+    "cannotChangeAssignedUsers": "Procurement Officers cannot change assigned users",
+    "cannotArchive": "Procurement Officers cannot archive projects",
+    "invalidStatusTransition": "Invalid status transition from {{from}} to {{to}}",
+    "userNotMember": "User is not a member of this project",
+    "cannotRemoveLastMember": "Cannot remove the last member from a project",
+    "cannotRemoveLastAdmin": "Cannot remove the last Company Admin from the project",
+    "cannotRemoveCreator": "Cannot remove the project creator (auto-assigned Procurement Officer)",
+    "usersNotFoundOrInactive": "Users not found or not active in the same company: {{ids}}",
+    "deliveryLocationRequired": "At least one delivery location is required",
+    "storageLocationRequired": "At least one storage location is required",
+    "defaultDeliveryRequired": "At least one default delivery location is required",
+    "defaultStorageRequired": "At least one default storage location is required",
+    "onlyOneDefaultDelivery": "Only one default delivery location is allowed",
+    "onlyOneDefaultStorage": "Only one default storage location is allowed",
+    "duplicateLocationName": "Duplicate location name: {{name}}"
+  },
+  "rfqs": {
+    "notFound": "RFQ not found",
+    "onlyClosedCanArchive": "Only closed RFQs can be archived",
+    "lineItemNotFound": "Line item not found",
+    "quoteNotFound": "Quote not found",
+    "invalidQuoteAction": "Cannot {{action}} quote with status \"{{status}}\".",
+    "projectNotFound": "Project not found",
+    "invalidDeliveryLocation": "Delivery location does not belong to the selected project",
+    "invalidMaterialIds": "Some material IDs are invalid",
+    "invalidVendorIds": "Some vendor IDs are invalid or do not belong to vendor-type companies",
+    "holdForReleaseRequiresEarliestDelivery": "Hold-for-release RFQs require an earliest delivery date",
+    "cannotEditStatus": "Cannot edit RFQ with status \"{{status}}\". Only DRAFT or OPEN (with no submitted responses) RFQs can be edited.",
+    "cannotSendNotDraft": "Cannot send RFQ with status \"{{status}}\". Only DRAFT RFQs can be sent.",
+    "mustHaveLineItems": "RFQ must have at least one line item before sending",
+    "mustHaveVendors": "RFQ must have at least one invited vendor before sending"
+  },
+  "purchaseOrders": {
+    "notFound": "Purchase Order not found",
+    "projectNotFound": "Project not found",
+    "vendorNotFound": "Vendor not found",
+    "invalidDeliveryLocation": "Delivery location does not belong to the selected project",
+    "cannotApprove": "Cannot approve PO with status \"{{status}}\". Only Pending POs can be approved.",
+    "cannotDecline": "Cannot decline PO with status \"{{status}}\".",
+    "cannotEditNonDraft": "Only Draft purchase orders can be edited. Use change request flow for issued POs.",
+    "cannotIssue": "Cannot issue PO with status \"{{status}}\". Only Draft POs can be issued.",
+    "holdForReleaseRequiresDeadline": "Hold-for-release orders require an earliest delivery date (deadlineStart).",
+    "cannotConfirm": "Cannot confirm PO with status \"{{status}}\". Only Sent POs can be confirmed by the vendor.",
+    "cannotAccept": "Cannot accept PO with status \"{{status}}\". Only Acknowledged POs can be accepted by the vendor.",
+    "cannotVendorDecline": "Cannot decline PO with status \"{{status}}\". Only Sent or Acknowledged POs can be declined by the vendor.",
+    "onlyClosedCanArchive": "Only closed purchase orders can be archived"
+  },
+  "bulkOrders": {
+    "notFound": "Bulk Order not found",
+    "lineItemNotFound": "Bulk Order line item not found",
+    "cannotModifyClosed": "Cannot modify a bulk order with status \"{{status}}\"",
+    "insufficientQuantity": "Drawdown quantity exceeds remaining quantity",
+    "changeRequestNotFound": "Change request not found",
+    "changeRequestNotPending": "Change request is not pending",
+    "cannotChangeOwnRequest": "Cannot approve or reject your own change request",
+    "alreadyCancelled": "Bulk order is already cancelled"
+  },
+  "invoices": {
+    "notFound": "Invoice not found",
+    "documentNotFound": "Document not found",
+    "cannotApprove": "Cannot approve invoice with status \"{{status}}\". Only Pending invoices can be approved.",
+    "cannotReject": "Cannot reject invoice with status \"{{status}}\". Only Pending invoices can be rejected.",
+    "noIdsProvided": "No invoice IDs provided"
+  },
+  "storage": {
+    "noFileProvided": "No file provided",
+    "fileTooLarge": "File too large (max {{size}})",
+    "fileTypeNotAllowed": "File type not allowed",
+    "onlyImagesAllowed": "Only image files are allowed",
+    "onlyImagesAllowedFormats": "Only image files are allowed (jpeg, png, webp)",
+    "fileNotFound": "File not found"
+  },
+  "export": {
+    "invalidFormatCsvPdfXlsx": "Invalid format. Must be CSV, PDF, or XLSX",
+    "invalidFormatPdfCsv": "Invalid format. Must be PDF or CSV"
+  },
+  "materials": {
+    "notFound": "Material not found",
+    "duplicateName": "A material with this name already exists"
+  },
+  "vendors": {
+    "alreadyAssigned": "This vendor is already in your vendor list",
+    "companyEmailInUse": "A vendor company with this email already exists on the platform",
+    "userEmailInUse": "A user with this email already exists",
+    "notFound": "Vendor not found",
+    "accessDenied": "You do not have access to this vendor",
+    "warehouseNotFound": "Warehouse location not found"
+  },
+  "messages": {
+    "threadNotFound": "Message thread not found",
+    "notParticipant": "You are not a participant in this thread",
+    "documentClosed": "Cannot send messages — the related document is closed"
+  },
+  "quotes": {
+    "rfqNotOpen": "Cannot submit quote — RFQ is not open for responses",
+    "notInvited": "Your company is not invited to this RFQ",
+    "alreadySubmitted": "A quote has already been submitted for this RFQ",
+    "notFound": "Quote response not found",
+    "notOwner": "You can only edit your own quote response",
+    "onlyVendor": "Only vendors can submit or update quotes",
+    "vendorNoCompany": "Vendor must be associated with a company"
+  },
+  "views": {
+    "notFound": "View not found"
+  }
+}

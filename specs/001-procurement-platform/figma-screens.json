@@ -1,0 +1,1107 @@
+{
+  "feature": "001-procurement-platform",
+  "screens": [
+    {
+      "name": "Login Page (SA)",
+      "userStory": "US1",
+      "app": "super-admin",
+      "port": 3001,
+      "route": "/login",
+      "preconditions": [],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3694:118738",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Login Page (CA)",
+      "userStory": "US1",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/login",
+      "preconditions": [],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3903:118584",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Verify OTP Page",
+      "userStory": "US1",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/verify-otp",
+      "preconditions": [
+        { "type": "navigate", "target": "/login" },
+        { "type": "type", "target": "#email", "value": "test@test.com" },
+        { "type": "type", "target": "#password", "value": "pass" },
+        { "type": "click", "target": "Log in" }
+      ],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3903:121255",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "Forgot Password Page",
+      "userStory": "US1",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/forgot-password",
+      "preconditions": [],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3903:120539",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "Reset Password Page",
+      "userStory": "US1",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/reset-password",
+      "preconditions": [],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3647:88340",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "Activate Account Page",
+      "userStory": "US1",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/activate",
+      "preconditions": [],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3647:90826",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "SA User List — Populated",
+      "userStory": "US1",
+      "app": "super-admin",
+      "port": 3001,
+      "route": "/settings/users",
+      "preconditions": [{ "type": "seed", "data": "default-users" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3944:7048",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "SA User List — Empty",
+      "userStory": "US1",
+      "app": "super-admin",
+      "port": 3001,
+      "route": "/settings/users",
+      "preconditions": [],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "4354:88550",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "SA User Detail Page",
+      "userStory": "US1",
+      "app": "super-admin",
+      "port": 3001,
+      "route": "/settings/users/:id",
+      "preconditions": [{ "type": "seed", "data": "default-users" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3647:89223",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "SA Company Detail Page",
+      "userStory": "US1",
+      "app": "super-admin",
+      "port": 3001,
+      "route": "/companies/:id",
+      "preconditions": [{ "type": "seed", "data": "default-companies" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "4326:25634",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "SA Create User Modal",
+      "userStory": "US1",
+      "app": "super-admin",
+      "port": 3001,
+      "route": "/settings/users",
+      "preconditions": [
+        { "type": "seed", "data": "default-users" },
+        { "type": "click", "target": "Invite user" }
+      ],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "4263:81265",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "CA User List — Populated",
+      "userStory": "US1",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/settings/users",
+      "preconditions": [{ "type": "seed", "data": "default-users" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "4651:133895",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "CA Create User Modal",
+      "userStory": "US1",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/settings/users",
+      "preconditions": [
+        { "type": "seed", "data": "default-users" },
+        { "type": "click", "target": "Invite user" }
+      ],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3647:91509",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "CA User Detail Page",
+      "userStory": "US1",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/settings/users/:id",
+      "preconditions": [{ "type": "seed", "data": "default-users" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3647:92239",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "User Profile Page",
+      "userStory": "US1",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/settings/profile",
+      "preconditions": [],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3647:91307",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Edit Profile Modal",
+      "userStory": "US1",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/settings/profile",
+      "preconditions": [{ "type": "click", "target": "Edit Profile" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "4673:119007",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "Company Profile Page",
+      "userStory": "US1",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/settings/company",
+      "preconditions": [],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "4354:89676",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Project List — Populated",
+      "userStory": "US2",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/projects",
+      "preconditions": [{ "type": "seed", "data": "default-projects" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Project List — Empty",
+      "userStory": "US2",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/projects",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "Create Project Page",
+      "userStory": "US2",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/projects/new",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "Project Detail Page",
+      "userStory": "US2",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/projects/:id",
+      "preconditions": [{ "type": "seed", "data": "default-projects" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Edit Project Page",
+      "userStory": "US2",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/projects/:id/edit",
+      "preconditions": [{ "type": "seed", "data": "default-projects" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "SA Dashboard",
+      "userStory": "US10",
+      "app": "super-admin",
+      "port": 3001,
+      "route": "/",
+      "preconditions": [],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "2784:5674",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "CA Dashboard — Populated",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/",
+      "preconditions": [{ "type": "seed", "data": "default-data" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3347:115416",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "CA Dashboard — Empty",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "PO Dashboard — Populated",
+      "userStory": "US10",
+      "app": "procurement-officer",
+      "port": 3002,
+      "route": "/",
+      "preconditions": [{ "type": "seed", "data": "default-data" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3345:110136",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Vendor Dashboard — Populated",
+      "userStory": "US10",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/",
+      "preconditions": [{ "type": "seed", "data": "default-data" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3350:65375",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Vendor Dashboard — Empty",
+      "userStory": "US10",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "FO Dashboard — Populated",
+      "userStory": "US10",
+      "app": "financial-officer",
+      "port": 3004,
+      "route": "/",
+      "preconditions": [{ "type": "seed", "data": "default-data" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3365:71700",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "FO Dashboard — Empty",
+      "userStory": "US10",
+      "app": "financial-officer",
+      "port": 3004,
+      "route": "/",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "WH Dashboard",
+      "userStory": "US10",
+      "app": "warehouse-officer",
+      "port": 3005,
+      "route": "/",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "RFQ List — Populated (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/rfqs",
+      "preconditions": [{ "type": "seed", "data": "default-rfqs" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "2934:9153",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "RFQ List — Empty (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/rfqs",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "RFQ List — Filtered (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/rfqs",
+      "preconditions": [
+        { "type": "seed", "data": "default-rfqs" },
+        { "type": "click", "target": "Open RFQs" }
+      ],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "2935:15074",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "RFQ List — Grouped (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/rfqs",
+      "preconditions": [
+        { "type": "seed", "data": "default-rfqs" },
+        { "type": "click", "target": "Group" },
+        { "type": "click", "target": "Group by Status" }
+      ],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "2934:13068",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "RFQ List — Vendor",
+      "userStory": "US10",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/rfqs",
+      "preconditions": [{ "type": "seed", "data": "default-rfqs" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "2934:11186",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "RFQ Detail — Details Tab (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/rfqs/:id?tab=details",
+      "preconditions": [{ "type": "seed", "data": "default-rfqs" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "2940:16919",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "RFQ Detail — Line Items Tab (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/rfqs/:id?tab=lineItems",
+      "preconditions": [{ "type": "seed", "data": "default-rfqs" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3002:33446",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "RFQ Detail — Responses Tab (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/rfqs/:id?tab=responses",
+      "preconditions": [{ "type": "seed", "data": "default-rfqs" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3171:48608",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "RFQ Detail — Documents Tab (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/rfqs/:id?tab=documents",
+      "preconditions": [{ "type": "seed", "data": "default-rfqs" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "Quote Response Detail (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/rfqs/:id/quotes/:quoteId",
+      "preconditions": [{ "type": "seed", "data": "default-rfqs" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3171:51395",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Create RFQ Page (CA)",
+      "userStory": "US3",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/rfqs/new",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "Copy RFQ Modal",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/rfqs",
+      "preconditions": [
+        { "type": "seed", "data": "default-rfqs" },
+        { "type": "click", "target": "Actions" },
+        { "type": "click", "target": "Copy RFQ" }
+      ],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "Table Management Modal",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/rfqs",
+      "preconditions": [
+        { "type": "seed", "data": "default-rfqs" },
+        { "type": "click", "target": "Settings" }
+      ],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "Create View Modal",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/rfqs",
+      "preconditions": [
+        { "type": "seed", "data": "default-rfqs" },
+        { "type": "click", "target": "Save" }
+      ],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "Edit Line Item Modal",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/rfqs/:id?tab=lineItems",
+      "preconditions": [
+        { "type": "seed", "data": "default-rfqs" },
+        { "type": "click", "target": "Edit" }
+      ],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "PO List — Populated (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/purchase-orders",
+      "preconditions": [{ "type": "seed", "data": "default-pos" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "2952:17269",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "PO List — Empty (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/purchase-orders",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "PO List — Vendor",
+      "userStory": "US10",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/purchase-orders",
+      "preconditions": [{ "type": "seed", "data": "default-pos" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "2960:32929",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "PO Detail Page (CA)",
+      "userStory": "US5",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/purchase-orders/:id",
+      "preconditions": [{ "type": "seed", "data": "default-pos" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Create PO Page (CA)",
+      "userStory": "US5",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/purchase-orders/new",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "Bulk Order List — Populated (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/bulk-orders",
+      "preconditions": [{ "type": "seed", "data": "default-bulk-orders" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3347:116189",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Bulk Order List — Empty (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/bulk-orders",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "Bulk Order List — Vendor",
+      "userStory": "US10",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/bulk-orders",
+      "preconditions": [{ "type": "seed", "data": "default-bulk-orders" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3350:70598",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Bulk Order Detail (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/bulk-orders/:id",
+      "preconditions": [{ "type": "seed", "data": "default-bulk-orders" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3349:64286",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Bulk Order Drawdown Page (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/bulk-orders/:id/drawdown",
+      "preconditions": [{ "type": "seed", "data": "default-bulk-orders" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "Bulk Order Edit Page (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/bulk-orders/:id/edit",
+      "preconditions": [{ "type": "seed", "data": "default-bulk-orders" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "Invoice List — Populated (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/invoices",
+      "preconditions": [{ "type": "seed", "data": "default-invoices" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3350:63902",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Invoice List — Empty (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/invoices",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "Invoice List — FO",
+      "userStory": "US10",
+      "app": "financial-officer",
+      "port": 3004,
+      "route": "/invoices",
+      "preconditions": [{ "type": "seed", "data": "default-invoices" }],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "3350:69959",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Invoice Detail (CA)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/invoices/:id",
+      "preconditions": [{ "type": "seed", "data": "default-invoices" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Invoice Detail (Vendor)",
+      "userStory": "US10",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/invoices/:id",
+      "preconditions": [{ "type": "seed", "data": "default-invoices" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "Upload Invoice Page (CA)",
+      "userStory": "US9",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/invoices/upload",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "Vendor List — Populated (CA)",
+      "userStory": "US6",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/vendors",
+      "preconditions": [{ "type": "seed", "data": "default-vendors" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Vendor List — Empty (CA)",
+      "userStory": "US6",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/vendors",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "Create Vendor Page (CA)",
+      "userStory": "US6",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/vendors/new",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "Settings Page (CA)",
+      "userStory": "US1",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/settings",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "SA Admin Panel",
+      "userStory": "US12",
+      "app": "super-admin",
+      "port": 3001,
+      "route": "/admin-panel",
+      "preconditions": [],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "2784:5674",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Change Password Modal",
+      "userStory": "US1",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/settings/profile",
+      "preconditions": [{ "type": "click", "target": "Change Password" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "Status Action Modal (Deactivate)",
+      "userStory": "US1",
+      "app": "super-admin",
+      "port": 3001,
+      "route": "/settings/users/:id",
+      "preconditions": [
+        { "type": "seed", "data": "default-users" },
+        { "type": "click", "target": "Deactivate" }
+      ],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "4263:84252",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "Advanced Filters Panel (RFQ)",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/rfqs",
+      "preconditions": [
+        { "type": "seed", "data": "default-rfqs" },
+        { "type": "click", "target": "Filters" }
+      ],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "2935:16079",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "RFQ Preview Panel",
+      "userStory": "US10",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/rfqs",
+      "preconditions": [
+        { "type": "seed", "data": "default-rfqs" },
+        { "type": "click", "target": "View" }
+      ],
+      "figmaFileKey": "4DRZfmvvDQJfgsFCffaceD",
+      "figmaNodeId": "2939:14592",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "PO Detail — Vendor (Actionable)",
+      "userStory": "US5",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/purchase-orders/:id",
+      "preconditions": [{ "type": "seed", "data": "default-pos-sent" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "PO Detail — Vendor (Accepted)",
+      "userStory": "US5",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/purchase-orders/:id",
+      "preconditions": [{ "type": "seed", "data": "default-pos-accepted" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Decline PO Modal — Vendor",
+      "userStory": "US5",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/purchase-orders/:id",
+      "preconditions": [
+        { "type": "seed", "data": "default-pos-sent" },
+        { "type": "click", "target": "Decline" }
+      ],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "Change Request Modal — Vendor",
+      "userStory": "US5",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/purchase-orders/:id",
+      "preconditions": [
+        { "type": "seed", "data": "default-pos-sent" },
+        { "type": "click", "target": "Change Request" }
+      ],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "PO Vendor Accept Fields",
+      "userStory": "US5",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/purchase-orders/:id",
+      "preconditions": [{ "type": "seed", "data": "default-pos-sent" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop"]
+    },
+    {
+      "name": "PO Comms Page — Vendor",
+      "userStory": "US6",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/purchase-orders/:id/comms",
+      "preconditions": [{ "type": "seed", "data": "default-pos" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "PO Comms Page (CA)",
+      "userStory": "US5",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/purchase-orders/:id/comms",
+      "preconditions": [{ "type": "seed", "data": "default-pos" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "RFQ Response Form — Vendor",
+      "userStory": "US3",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/rfqs/:id/response",
+      "preconditions": [{ "type": "seed", "data": "default-rfqs" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "RFQ Detail — Vendor",
+      "userStory": "US10",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/rfqs/:id",
+      "preconditions": [{ "type": "seed", "data": "default-rfqs" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Vendor Company Profile (Self)",
+      "userStory": "US6",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/company",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Vendor User List",
+      "userStory": "US6",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/users",
+      "preconditions": [{ "type": "seed", "data": "default-users" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Vendor User Detail",
+      "userStory": "US6",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/users/:id",
+      "preconditions": [{ "type": "seed", "data": "default-users" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Vendor My Profile",
+      "userStory": "US6",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/me",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Vendor Settings",
+      "userStory": "US6",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/settings",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "Vendor Profile (CA View)",
+      "userStory": "US6",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/vendors/:id",
+      "preconditions": [{ "type": "seed", "data": "default-vendors" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Material Catalogue (CA)",
+      "userStory": "US7",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/material-catalogue",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Bulk Order Change (CA)",
+      "userStory": "US8",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/bulk-orders/:id/change",
+      "preconditions": [{ "type": "seed", "data": "default-bulk-orders" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "Bulk Order Review Change (CA)",
+      "userStory": "US8",
+      "app": "company-admin",
+      "port": 3002,
+      "route": "/bulk-orders/:id/review-change",
+      "preconditions": [{ "type": "seed", "data": "default-bulk-orders" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Bulk Order Change — Vendor",
+      "userStory": "US8",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/bulk-orders/:id/change",
+      "preconditions": [{ "type": "seed", "data": "default-bulk-orders" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "Bulk Order Review Change — Vendor",
+      "userStory": "US8",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/bulk-orders/:id/review-change",
+      "preconditions": [{ "type": "seed", "data": "default-bulk-orders" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Bulk Order Detail — Vendor",
+      "userStory": "US8",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/bulk-orders/:id",
+      "preconditions": [{ "type": "seed", "data": "default-bulk-orders" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "Guest Invitation Page — Vendor",
+      "userStory": "US6",
+      "app": "vendor",
+      "port": 3003,
+      "route": "/invitation/:token",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "mobile"]
+    },
+    {
+      "name": "FO Invoice Detail",
+      "userStory": "US9",
+      "app": "financial-officer",
+      "port": 3004,
+      "route": "/invoices/:id",
+      "preconditions": [{ "type": "seed", "data": "default-invoices" }],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    },
+    {
+      "name": "FO My Profile",
+      "userStory": "US10",
+      "app": "financial-officer",
+      "port": 3004,
+      "route": "/me",
+      "preconditions": [],
+      "figmaFileKey": "",
+      "figmaNodeId": "",
+      "viewports": ["desktop", "tablet", "mobile"]
+    }
+  ]
+}

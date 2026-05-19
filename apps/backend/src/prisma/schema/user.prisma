@@ -1,0 +1,94 @@
+enum UserRole {
+  SUPER_ADMIN
+  COMPANY_ADMIN
+  PROCUREMENT_OFFICER
+  FINANCIAL_OFFICER
+  WAREHOUSE_OFFICER
+  FOREMAN
+  VENDOR
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  INACTIVE
+}
+
+model User {
+  id                        String     @id @default(uuid())
+  email                     String     @unique @db.VarChar(255)
+  name                      String     @db.VarChar(255)
+  position                  String     @default("") @db.VarChar(255)
+  phone                     String?    @db.VarChar(50)
+  workStatus                String?    @map("work_status") @db.VarChar(50)
+  department                String?    @db.VarChar(255)
+  avatarUrl                 String?    @map("avatar_url") @db.VarChar(500)
+  passwordHash              String?    @map("password_hash") @db.VarChar(255)
+  role                      UserRole
+  status                    UserStatus @default(INVITED)
+  companyId                 String?    @map("company_id")
+  invitedByUserId           String?    @map("invited_by_user_id")
+  invitationToken           String?    @unique @map("invitation_token") @db.VarChar(255)
+  invitationTokenExpiresAt  DateTime?  @map("invitation_token_expires_at")
+  passwordResetToken        String?    @unique @map("password_reset_token") @db.VarChar(255)
+  passwordResetExpiresAt    DateTime?  @map("password_reset_expires_at")
+  refreshTokenHash          String?    @map("refresh_token_hash") @db.VarChar(255)
+  lastLoginAt               DateTime?  @map("last_login_at")
+  deactivatedAt             DateTime?  @map("deactivated_at")
+  createdAt                 DateTime   @default(now()) @map("created_at")
+  updatedAt                 DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  company              Company?           @relation(fields: [companyId], references: [id])
+  invitedBy            User?              @relation("UserInvitations", fields: [invitedByUserId], references: [id])
+  invitedUsers         User[]             @relation("UserInvitations")
+  emailVerifications   EmailVerification[]
+  createdProjects      Project[]          @relation("ProjectCreator")
+  pointOfContactProjects Project[]        @relation("ProjectPointOfContact")
+  projectMemberships   ProjectMember[]    @relation("ProjectMemberUser")
+  assignedByMemberships ProjectMember[]   @relation("ProjectMemberAssignedBy")
+  uploadedFiles        File[]
+  auditLogs            AuditLog[]
+
+  // Procurement relations
+  approvedRfqs         Rfq[]             @relation("RfqApprovedBy")
+  createdRfqs          Rfq[]             @relation("RfqCreatedBy")
+  approvedPos          PurchaseOrder[]   @relation("PoApprovedBy")
+  createdPos           PurchaseOrder[]   @relation("PoCreatedBy")
+  lastModifiedPos      PurchaseOrder[]   @relation("PoLastModifiedBy")
+  poChangeRequests     PoChangeRequest[] @relation("PoChangeRequestedBy")
+  poChangeApprovals    PoChangeRequest[] @relation("PoChangeApprovedBy")
+  createdBulkOrders    BulkOrder[]       @relation("BulkOrderCreatedBy")
+  createdDrawdowns     Drawdown[]        @relation("DrawdownCreatedBy")
+  createdInvoices      Invoice[]         @relation("InvoiceCreatedBy")
+  createdMaterials     Material[]        @relation("MaterialCreatedBy")
+  tableViews           UserTableView[]
+
+  // Messaging relations
+  threadParticipations ThreadParticipant[]
+  sentMessages         Message[]
+
+  // Bulk order change request relations
+  bulkOrderChangeRequests         BulkOrderChangeRequest[] @relation("BulkOrderChangeRequestedBy")
+  bulkOrderChangeRequestApprovals BulkOrderChangeRequest[] @relation("BulkOrderChangeResolvedBy")
+
+  @@index([companyId, status], map: "idx_users_company_status")
+  @@index([companyId, role], map: "idx_users_company_role")
+  @@index([invitationToken], map: "idx_users_invitation_token")
+  @@index([passwordResetToken], map: "idx_users_reset_token")
+  @@map("users")
+}
+
+model EmailVerification {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  otpHash   String   @map("otp_hash") @db.VarChar(255)
+  expiresAt DateTime @map("expires_at")
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_email_verifications_user")
+  @@map("email_verifications")
+}

@@ -1,0 +1,225 @@
+{
+  "title": "Vendors",
+  "inviteVendor": "Invite vendor",
+  "createVendorCompany": "Create vendor company",
+  "searchPlaceholder": "Search by name or email",
+  "noVendorsFound": "No vendors found",
+  "addFirstVendor": "Invite your first vendor to get started",
+  "failedToLoad": "Failed to load vendors. Please refresh.",
+  "filters": {
+    "company": "Company",
+    "status": "Status",
+    "specialisation": "Specialisation",
+    "date": "Date",
+    "last7days": "Last 7 days",
+    "last30days": "Last 30 days",
+    "last90days": "Last 90 days",
+    "last12months": "Last 12 months"
+  },
+  "columns": {
+    "fullName": "Full name",
+    "email": "Email",
+    "phoneNumber": "Phone number",
+    "status": "Status",
+    "dateJoined": "Date Joined",
+    "actions": "Actions"
+  },
+  "statuses": {
+    "INVITED": "Invited",
+    "ACTIVE": "Active",
+    "DEACTIVATED": "Deactivated"
+  },
+  "actions": {
+    "viewCompanyDetails": "View company details",
+    "editCompanyDetails": "Edit company details",
+    "removeVendor": "Remove vendor",
+    "resetInvitation": "Reset Invitation",
+    "cancelInvitation": "Cancel Invitation",
+    "archiveVendor": "Archive Vendor",
+    "archiveVendors": "Archive Vendors",
+    "deactivateVendor": "Deactivate",
+    "resendInvitation": "Resend Invitation"
+  },
+  "cancelInvitationModal": {
+    "title": "Cancel Invitation",
+    "subtitle": "This action cannot be undone.",
+    "info": "<span class=\"text-destructive\">You are about to cancel the invitation for <strong class=\"font-bold\">{{name}}</strong> (<strong class=\"font-bold\">{{email}}</strong>). This will permanently remove their account from the platform.</span>",
+    "confirm": "Cancel Invitation"
+  },
+  "resetInvitationModal": {
+    "title": "Reset Invitation",
+    "subtitle": "A new invitation will be sent to this vendor.",
+    "info": "A new invitation link will be sent to <strong class=\"font-bold\">{{email}}</strong>. The previous invitation link will be invalidated.",
+    "confirm": "Reset Invitation"
+  },
+  "archiveVendorModal": {
+    "title": "Archive Vendor",
+    "subtitle": "This vendor will lose access to the system immediately.",
+    "info": "<span class=\"text-destructive\">You are going to archive the vendor <strong class=\"font-bold\">{{name}}</strong> (<strong class=\"font-bold\">{{email}}</strong>). After archiving, the vendor will no longer be able to log in and will receive a notification by email.</span>",
+    "confirm": "Archive Vendor"
+  },
+  "deactivateVendorModal": {
+    "title": "Deactivate Vendor",
+    "subtitle": "This vendor will lose access to the system immediately.",
+    "info": "<span class=\"text-destructive\">You are going to deactivate the vendor <strong class=\"font-bold\">{{name}}</strong> (<strong class=\"font-bold\">{{email}}</strong>). After deactivation, the vendor will no longer be able to log in and will receive a notification by email.</span>",
+    "confirm": "Deactivate Vendor"
+  },
+  "archiveVendorsModal": {
+    "title": "Archive All Vendors",
+    "subtitle": "All active vendors of this company will lose access to the system immediately.",
+    "info": "<span class=\"text-destructive\">You are going to archive all active vendors of <strong class=\"font-bold\">{{companyName}}</strong>. After archiving, they will no longer be able to log in and will receive a notification by email.</span>",
+    "confirm": "Archive All Vendors"
+  },
+  "cancelInvitationSuccess": "Invitation has been cancelled successfully",
+  "resetInvitationSuccess": "Invitation has been reset successfully",
+  "archiveVendorSuccess": {
+    "title": "Vendor Archived",
+    "description": "The vendor <strong>{{email}}</strong> has been successfully archived. They will no longer have access to the system.",
+    "note": "An email notification has been sent to the vendor.",
+    "backButton": "Back to Vendors",
+    "redirecting": "Redirecting to \"Vendors\" page in {{seconds}} seconds..."
+  },
+  "archiveVendorsSuccess": {
+    "title": "Vendors Archived",
+    "description": "All active vendors of <strong>{{companyName}}</strong> have been successfully archived. They will no longer have access to the system.",
+    "note": "Email notifications have been sent to all archived vendors.",
+    "backButton": "Back to Vendors",
+    "redirecting": "Redirecting to \"Vendors\" page in {{seconds}} seconds..."
+  },
+  "deactivateVendorSuccess": {
+    "title": "Vendor Deactivated",
+    "description": "The vendor <strong>{{email}}</strong> has been successfully deactivated. They will no longer have access to the system.",
+    "note": "An email notification has been sent to the vendor.",
+    "backButton": "Back to Vendors",
+    "redirecting": "Redirecting to \"Vendors\" page in {{seconds}} seconds..."
+  },
+  "vendorCategories": {
+    "CONCRETE_MASONRY": "Concrete & Masonry",
+    "METAL_STEEL": "Metal & Steel",
+    "TIMBER_WOOD": "Timber & Wood",
+    "ELECTRICAL": "Electrical",
+    "LIGHTING": "Lighting",
+    "PLUMBING": "Plumbing",
+    "HVAC_VENTILATION": "HVAC & Ventilation",
+    "FINISHING": "Finishing",
+    "DOORS_WINDOWS_GLAZING": "Doors, Windows & Glazing",
+    "INSULATION_WATERPROOFING": "Insulation & Waterproofing",
+    "ROOFING_FACADE": "Roofing & Facade",
+    "FIXINGS_HARDWARE": "Fixings & Hardware",
+    "SAFETY_PROTECTION": "Safety & Protection",
+    "GENERAL_CONSTRUCTION": "General Construction",
+    "GENERAL_RETAILER": "General Retailer"
+  },
+  "inviteModal": {
+    "title": "Add a new vendor account",
+    "subtitle": "Invite a vendor representative to join the platform",
+    "company": "Company",
+    "companyPlaceholder": "Select company",
+    "addVendorCompany": "Add vendor company",
+    "companyName": "Company name",
+    "companyNamePlaceholder": "Company Name",
+    "companyEmail": "Company email",
+    "companyEmailPlaceholder": "admin@example.com",
+    "representativeName": "Representative name",
+    "representativeNamePlaceholder": "Name Surname",
+    "representativeEmail": "Representative email",
+    "representativeEmailPlaceholder": "admin@example.com",
+    "position": "Position",
+    "positionOptional": "(optional)",
+    "positionPlaceholder": "Enter position",
+    "sendInvitation": "Send Invitation",
+    "sending": "Sending...",
+    "emailInUse": "A user with this email already exists",
+    "alreadyAssigned": "This vendor is already in your vendor list",
+    "inviteError": "Failed to send vendor invitation. Please try again."
+  },
+  "inviteSuccess": {
+    "title": "Invitation has been sent successfully",
+    "subtitle": "An invitation has been sent to the provided email address.",
+    "info": "The user <strong>{{email}}</strong> will receive an activation email with a secure link to set their password. Once the password is set, they will become a member of the company and gain access to the system.",
+    "expiry": "The activation link will expire in 30 days. The user and their data will remain in the system, allowing you to resend the link if needed",
+    "backToVendors": "Back to Vendors",
+    "redirecting": "Redirecting to \"Vendors\" page in {{seconds}} seconds...",
+    "alreadyExistedTitle": "Vendor added to your list",
+    "alreadyExisted": "This vendor already exists on the platform and has been added to your vendor list."
+  },
+  "profile": {
+    "title": "Vendor Profile",
+    "companyInfo": "Company Information",
+    "legalInfo": "Legal Information",
+    "legalName": "Legal name",
+    "tradeName": "Trade name",
+    "abn": "ABN",
+    "taxCode": "Tax code",
+    "legalAddress": "Legal address",
+    "contactEmail": "Contact email",
+    "contactPhone": "Contact phone",
+    "website": "Website",
+    "specialisations": "Specialisations",
+    "saveChanges": "Save changes",
+    "saving": "Saving...",
+    "saveSuccess": "Profile updated successfully",
+    "saveError": "Failed to update profile"
+  },
+  "warehouses": {
+    "title": "Warehouse Locations",
+    "addWarehouse": "Add warehouse",
+    "name": "Name",
+    "city": "City",
+    "postcode": "Postcode",
+    "address": "Address",
+    "noWarehouses": "No warehouse locations added",
+    "deleteConfirm": "Are you sure you want to delete this warehouse?",
+    "deleteSuccess": "Warehouse deleted",
+    "saveSuccess": "Warehouse saved"
+  },
+  "representatives": {
+    "title": "Sales Representatives",
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone",
+    "position": "Position",
+    "noRepresentatives": "No representatives found"
+  },
+  "userInvite": {
+    "title": "Invite User",
+    "name": "Name",
+    "email": "Email",
+    "position": "Position",
+    "sendInvitation": "Send Invitation",
+    "success": "Invitation sent successfully",
+    "emailInUse": "A user with this email already exists"
+  },
+  "editVendorModal": {
+    "title": "Edit User Details",
+    "subtitle": "Update the user's personal information and account details.",
+    "fullName": "Full name",
+    "namePlaceholder": "Name Surname",
+    "email": "Email",
+    "emailPlaceholder": "user@example.com",
+    "phone": "Phone",
+    "phonePlaceholder": "+1 234 567 890",
+    "position": "Position",
+    "positionPlaceholder": "Enter position",
+    "department": "Department",
+    "departmentPlaceholder": "Enter department",
+    "submitChanges": "Save Changes",
+    "submitting": "Saving...",
+    "updateSuccess": "Vendor details updated successfully",
+    "updateError": "Failed to update vendor details. Please try again."
+  },
+  "createCompanyModal": {
+    "title": "Create vendor company",
+    "subtitle": "Add a new vendor company to the platform",
+    "companyName": "Company name",
+    "companyNamePlaceholder": "Company Name",
+    "companyEmail": "Company email",
+    "companyEmailPlaceholder": "admin@example.com",
+    "specialisation": "Specialisation",
+    "specialisationPlaceholder": "Choose specialisation",
+    "createCompany": "Create company",
+    "creating": "Creating...",
+    "createError": "Failed to create vendor company. Please try again.",
+    "success": "\"{{companyName}}\" has been successfully created"
+  }
+}

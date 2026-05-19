@@ -1,0 +1,130 @@
+{
+  "title": "Dashboard",
+  "subtitle": "Monitor and manage your activities",
+  "placeholder": "Dashboard — content added in later phases",
+  "welcome": "Welcome, {{name}}",
+  "pendingRfqs": "Pending RFQs",
+  "openPos": "Open POs",
+  "kpi": {
+    "platformStatus": "Overall Platform Status",
+    "allOperational": "All Systems Operational",
+    "activeUsers": "Active Users",
+    "totalCompanies": "Total Companies",
+    "dbPerformance": "Database Performance",
+    "thisWeek": "this week",
+    "rfqs": "RFQs",
+    "pos": "POs",
+    "quotes": "Quotes",
+    "invoicesLabel": "Invoices",
+    "pending": "pending",
+    "overdue": "overdue"
+  },
+  "quickActions": {
+    "title": "Quick action",
+    "userManagement": "User Management",
+    "companyManagement": "Company Management",
+    "materialCatalogue": "Public Material Catalogue",
+    "adminPanel": "Admin Panel",
+    "uploadInvoice": "Upload invoice",
+    "createPo": "Create PO",
+    "deliveryReport": "Delivery report",
+    "createRfq": "Create RFQ",
+    "addVendor": "Add vendor",
+    "newBlank": "New (blank)"
+  },
+  "quoteResponses": {
+    "title": "Quote responses",
+    "all": "All",
+    "received": "Received",
+    "pending": "Pending",
+    "acknowledged": "Acknowledged",
+    "noResponses": "No quote responses yet",
+    "items": "{{covered}}/{{total}} items",
+    "decline": "Decline",
+    "approve": "Approve"
+  },
+  "recentOrders": {
+    "title": "Recent Orders",
+    "noOrders": "No recent orders"
+  },
+  "purchaseOrders": {
+    "title": "Purchase orders",
+    "all": "All",
+    "pending": "Pending",
+    "acknowledged": "Acknowledged",
+    "noPOs": "No pending purchase orders",
+    "decline": "Decline",
+    "approve": "Approve"
+  },
+  "invoicesPendingApproval": {
+    "title": "Invoices pending approval",
+    "noInvoices": "No invoices pending approval",
+    "reject": "Reject",
+    "approve": "Approve"
+  },
+  "vendor": {
+    "rfqsWaiting": {
+      "title": "RFQs waiting for quote",
+      "noRfqs": "No RFQs waiting for quote",
+      "response": "Response"
+    },
+    "invoices": {
+      "title": "Invoices",
+      "noInvoices": "No invoices"
+    },
+    "activePOs": {
+      "title": "Active POs",
+      "noPOs": "No active purchase orders",
+      "poNumber": "PO Number",
+      "projectName": "Project Name",
+      "projectId": "Project ID",
+      "contractorName": "Contractor Name",
+      "poStatus": "PO Status",
+      "revision": "Revision",
+      "poType": "PO Type",
+      "pickUp": "Pick Up"
+    }
+  },
+  "finance": {
+    "uploadInvoice": "Upload invoice",
+    "totalPendingAmount": "Total Pending Invoice Amount",
+    "invoiceCount": "{{count}} invoice(s)",
+    "invoicesDueThisWeek": "Invoices Due This Week",
+    "disputedInvoices": "Disputed Invoices",
+    "weeklyChange": "{{value}} this week",
+    "invoicesPending": {
+      "title": "Invoices pending approval",
+      "noInvoices": "No invoices pending"
+    },
+    "disputed": {
+      "title": "Disputed Invoices",
+      "noInvoices": "No disputed invoices"
+    }
+  },
+  "platformState": {
+    "title": "Platform State",
+    "subtitle": "Real-time status of critical platform components",
+    "component": "Component",
+    "status": "Status",
+    "lastSuccessfulRun": "Last Successful Run",
+    "lastError": "Last Error",
+    "errorInfo": "Error Info",
+    "actions": "Actions",
+    "noErrors": "—",
+    "type": "Type",
+    "integration": "Integration",
+    "service": "Service",
+    "close": "Close",
+    "integrationDisabled": "{{name}} has been disabled",
+    "integrationEnabled": "{{name}} has been enabled",
+    "reloadSuccess": "{{name}} reloaded successfully"
+  },
+  "recentChanges": {
+    "title": "Recent platform-level changes",
+    "noChanges": "No recent changes"
+  },
+  "googleAnalytics": {
+    "title": "Google analytic",
+    "placeholder": "Analytics integration — coming soon"
+  }
+}

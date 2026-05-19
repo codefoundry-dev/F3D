@@ -1,0 +1,23 @@
+{
+  "name": "@forethread/config",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared TypeScript and tooling configuration for Forethread monorepo",
+  "exports": {
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./tsconfig.react.json": "./tsconfig.react.json",
+    "./tsconfig.react-native.json": "./tsconfig.react-native.json",
+    "./tsconfig.node.json": "./tsconfig.node.json",
+    "./tailwind": "./tailwind/index.ts"
+  },
+  "files": [
+    "tsconfig.base.json",
+    "tsconfig.react.json",
+    "tsconfig.react-native.json",
+    "tsconfig.node.json",
+    "tailwind"
+  ],
+  "devDependencies": {
+    "tailwindcss": "^3.4.12"
+  }
+}
