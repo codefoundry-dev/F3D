@@ -1,0 +1,64 @@
+import { UserRole } from '@forethread/shared-types';
+import { render, screen } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import { useAuthStore } from '@/features/auth/state/auth.store';
+
+import { HomeRedirect } from './HomeRedirect';
+
+function setUser(role: UserRole | null) {
+  if (role === null) {
+    useAuthStore.getState().clearAuth();
+    return;
+  }
+  useAuthStore.getState().setAuth({
+    id: 'u1',
+    name: 'Test',
+    email: 't@example.com',
+    role,
+    companyId: null,
+  });
+}
+
+function renderHome() {
+  return render(
+    <MemoryRouter initialEntries={['/']}>
+      <Routes>
+        <Route path="/" element={<HomeRedirect />} />
+        <Route path="/admin-panel" element={<div>admin-panel-page</div>} />
+        <Route path="/invoices" element={<div>invoices-page</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe('HomeRedirect', () => {
+  beforeEach(() => {
+    useAuthStore.getState().clearAuth();
+  });
+
+  it('redirects SUPER_ADMIN to /admin-panel', () => {
+    setUser(UserRole.SUPER_ADMIN);
+    renderHome();
+    expect(screen.getByText('admin-panel-page')).toBeInTheDocument();
+  });
+
+  it('redirects FINANCIAL_OFFICER to /invoices', () => {
+    setUser(UserRole.FINANCIAL_OFFICER);
+    renderHome();
+    expect(screen.getByText('invoices-page')).toBeInTheDocument();
+  });
+
+  it('renders the dashboard placeholder for COMPANY_ADMIN (home is /)', () => {
+    setUser(UserRole.COMPANY_ADMIN);
+    renderHome();
+    expect(screen.getByText('Dashboard')).toBeInTheDocument();
+  });
+
+  it('renders the dashboard placeholder when there is no user yet', () => {
+    setUser(null);
+    renderHome();
+    expect(screen.getByText('Dashboard')).toBeInTheDocument();
+  });
+});
