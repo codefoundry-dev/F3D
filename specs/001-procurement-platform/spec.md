@@ -24,6 +24,75 @@ hardcoded status cleanup (T760–T764)) **Last Updated**: 2026-03-18 **Input**: 
 based on initial FRD document + designer wireframe documentation (2026-03-03) + Figma Epic 2:
 Dashboard designs (node 3344-58649) + Full product backlog CSV (2026-03-10, 6 epics)
 
+## Release 1 Scope Decisions (locked 2026-05-19)
+
+This block is the authoritative Release 1 scope. Where any user story, acceptance scenario, or functional requirement elsewhere in this document conflicts with this block, the block wins. The PRD §0 carries the same decisions.
+
+### Direct contradictions resolved (spec wins / PRD wins per row)
+
+| Topic | Release 1 decision |
+|---|---|
+| Currency (PRD §5.6 vs spec FR-070) | **Per-document** — AUD default, user picks per RFQ/PO/Invoice/Bulk Order. PRD §5.6 amended. |
+| Bulk Order source (PRD §4.5.6 vs spec FR-037) | **Created only from approved RFQ responses.** Standalone creation deferred to v2. PRD §4.5.6 amended. |
+| Approval engine (ADR-0006 vs spec FR-009) | **Minimal engine: single-stage, single-role.** Quorum + multi-stage + 3-deep OOO chain deferred to v2. ADR-0006 amended. |
+| RFQ sources (PRD §4.5.3 vs spec FR-020) | BOM, **Material Request(s)**, manual, copy, saved material list. File upload deferred. |
+
+### ADR amendments (see `docs/adr/*.md` for full text)
+
+- **ADR-0002 — Token-only commits.** No commit-action OTP. No rotation on vendor email change. Long-lived per-document tokens authorise all vendor actions (read/draft/commit). Per-document revocation preserved.
+- **ADR-0006 — Minimal approval engine.** Single-stage, single-role. Closed v1 actions: **PO above threshold, Invoice above threshold, Major Change Order, Bulk Order amend.** OOO = delegate + escalate to Company Admin (no chain).
+- **ADR-0008 — Edit-until-sync.** Replace 15-min on-device window with "editable on-device until first successful sync; then immutable." Append-only events, idempotency, tiered media, GPS-only retained.
+- **ADR-0012 — ERP deferred to v2.** No Xero. Finance Officer marks invoices Paid manually. `ErpAdapter` interface preserved as architectural placeholder.
+
+### Deferred to v2 (no v1 build)
+
+- ERP integration (Xero) — full.
+- Inventory system (Epic 7 / US-13) — warehouses, On-hand/Reserved/In-transit/Damaged states, ATP, low-stock alerts, transfers, project-locked warehouses, bulk upload, usage reports, calendar.
+- Field Purchase Report (FPR).
+- Aggregated/bundled catalogue products.
+- Public catalogue contribution flow (Contractor propose → SA approve).
+- Vendor tagging + tag-based RFQ vendor selection.
+- Handwritten list Tier-B extraction.
+- Mobile read-only documents view (Foreman browse).
+- Vendor picker filters (rating / category / activation).
+- Performance budgets as CI gates.
+- Send-delivery-notes dedicated UI (use PO Thread).
+- Warehouse leg of Stock-and-Bulk Check.
+- Vendor commit-action OTP.
+- Token rotation on vendor email change.
+- 15-min on-device field-event edit window (replaced by edit-until-sync).
+- Quorum / multi-stage approvals / 3-deep OOO chains.
+
+### Added to v1 (additions beyond the original spec)
+
+| Area | v1 addition |
+|---|---|
+| Document Extraction | Full **Tier B / Tier C** review surfaces per ADR-0005. Configurable confidence threshold (default 0.85). Telemetry from day one. |
+| Three-way match | Full ADR-0004: continuous re-run, Contractor-configurable tolerance (default ±2%), asymmetric over-delivery, line-level acceptance. |
+| Threads | Full ADR-0010: per-thread reply addresses, email-in pipeline (sender auth, attachments, AV scan, quoted-chain stripping), **Unified Inbox**, auto-close + Contractor-only reopen. |
+| Notifications | Full ADR-0011: 5-min email digest per `(recipient, parent_document)`, always-immediate types (overdue payment, overdue approval), per-event-per-channel preference matrix, role + project subscriber resolution. |
+| Vendor management | **Rating per-PO** (on-time / quality / accuracy → 1–5 aggregate). **ABN mandatory before first RFQ selection.** **"Set a password" activation link in every vendor-facing email.** |
+| Vendor activation perks | **All four**: dashboard, chat / Unified Inbox, profile, multi-user invites. |
+| Invoice arrival | Upload **+ email-in** (`inbound@invoice.forethread.app`). Unidentified invoices in a **Super Admin routing queue**. |
+| Invoice state machine | **Full 8-state**: Received → Identified → Matched → Disputed → Approved → Awaiting Payment → Paid → Voided. Voided retains audit trail. **Paid set manually.** |
+| RFQ lifecycle | **Read-only on first vendor response.** Edits require cancel + reissue. |
+| BOM versioning | **Mutable until first RFQ, then immutable.** Subsequent edits = new revision. |
+| Out-of-Office | Date range + single delegate. Delegate-OOO → escalate to Company Admin. |
+| Approval thresholds | Company Admin sets per Contractor, **no platform default** — must be set during onboarding. |
+| Action tokens | Long-lived per-document, reusable, scoped to `(vendor, document, allowed-actions)`, per-document revocable. No rotation. |
+| Foreman dashboard | Active MRs + pending delivery confirmations + sync queue badge. |
+| Field PWA flows | Photo of printed list → MR (Tier-B). In-app notepad + promote-to-MR. **Upload invoice at delivery time** (Tier-C, creates Invoice linked to delivery+PO). |
+| Multi-tenancy | **Super Admin BYPASSRLS audit** (actor + rationale). Per-entity **History tab** on every document. **Same vendor email under different Contractors = different records.** |
+| Bulk Order visibility | Vendors see only child POs. Drawdown PO surfaces "From Bulk Order [BO-####]" card with remaining qty/spend (internal users only). |
+| Currency in emails | Every price in every vendor-facing email includes currency code explicitly. Subject lines include currency code when price is referenced. |
+| NFRs | **WCAG 2.2 AA** on web. **7-year audit retention.** **Document extraction quality telemetry** from day one. (Formal performance budgets deferred.) |
+
+### Conflict-resolution rule
+
+Where this block conflicts with an FR, AC, or user story below, **this block takes precedence**. The body of the spec has been amended in place where practical; remaining unamended text below predates 2026-05-19.
+
+---
+
 ### Epic 1 — Implementation Gap Tracker
 
 | US   | AC # | Criterion                                         | Backend | Frontend | Status                                                                                                                                                                      |
@@ -242,6 +311,19 @@ their workspace.
 - [x] **Given** an invitation link is older than 30 days, **When** the user clicks it, **Then** an
       error is shown and the Super Admin can resend a fresh invitation.
 
+**Release 1 additions (per §0):**
+
+- [ ] **Given** any active user, **When** they set Out-of-Office, **Then** they specify a date
+      range and a single delegate. While the OOO window is active, any approval routed to that
+      user is automatically re-routed to the delegate. If the delegate is also OOO, the request
+      **escalates directly to the Company Admin** (no 3-deep chain in Release 1).
+- [ ] **Given** a user has been inactive (no login) for longer than the Contractor-configured
+      inactivity threshold, **When** the user appears in any user-picker, **Then** their work-status
+      shows "Inactive". Otherwise: "OOO" (during active OOO window) or "Active".
+- [ ] **Given** approval routing fires while an approver is OOO, **When** the routing executes,
+      **Then** the audit log records `original_target`, `effective_target` (the delegate or
+      Company Admin), and the reason ("OOO delegation" or "OOO chain escalated to CA").
+
 ---
 
 ### User Story 2 - Project Creation & Management (Priority: P2)
@@ -324,6 +406,13 @@ end-to-end testable.
 - [ ] **Given** an RFQ has been sent to vendors, **When** a Procurement Officer edits the RFQ before
       any vendor submits a response, **Then** the changes are saved and vendors are notified of the
       update.
+- [ ] **Given** an RFQ has at least one vendor response, **When** a Procurement Officer attempts to
+      edit the RFQ, **Then** the system blocks the edit; the only ways to change scope are (a)
+      cancel + reissue (notifying all invited vendors and invalidating their tokens) or (b) award
+      and close (Release 1 behaviour per §0).
+- [ ] **Given** a vendor submits a quote response, **When** the system processes the submission,
+      **Then** the action token alone authorises the commit — **no commit-action OTP is sent in
+      Release 1** (ADR-0002 amendment).
 - [ ] **Given** a user adds line items to an RFQ and confirms them, **When** those items exist in
       active bulk orders, **Then** the system notifies the user per item and suggests drawdown; if
       confirmed, items are removed from the RFQ and drawdown is initiated.
@@ -664,6 +753,31 @@ visible in the contractor's vendor list with correct details.
       party sends a message in the in-app communication thread, **Then** the other party receives an
       in-app and email notification; messages are timestamped and linked to the document.
 
+**Release 1 additions (per §0):**
+
+- [ ] **Given** a Contractor user adds or updates a vendor, **When** they save without an ABN,
+      **Then** the vendor is saved (ABN is optional at add) but the system **prevents that vendor
+      from being selected for any RFQ until an ABN is provided**.
+- [ ] **Given** any vendor-facing email is sent (RFQ invitation, PO, dispute, thread reply, payment
+      notice), **When** the email is composed, **Then** it includes a "set a password to activate
+      your account" link as a footer/CTA. Activation is always one click away from any vendor email
+      (ADR-0001).
+- [ ] **Given** an Activated vendor logs in, **When** they view the platform, **Then** they have
+      access to **all four activation perks**: dashboard (RFQs/POs/invoices), chat UI / Unified
+      Inbox, profile management (business name / ABN / address / contacts / payment terms / sales
+      rep / certifications), and multi-user invites (invite colleagues as additional vendor users).
+- [ ] **Given** the same vendor email appears under two different Contractors, **When** either
+      Contractor views their vendor list, **Then** each sees an independent vendor record — there
+      is no global vendor pool; each Contractor controls their own list (ADR-0009).
+- [ ] **Given** a Foreman submits a delivery confirmation on a PO, **When** they complete the
+      per-line outcome capture, **Then** they are prompted to rate the vendor on **on-time /
+      quality / accuracy** for that PO; the three ratings aggregate to a 1–5 score surfaced on the
+      vendor profile. _Release 1: rating data exists on the profile; not exposed as a vendor-picker
+      filter._
+- [ ] **Given** vendor tagging is not in Release 1 (per §0), **When** a user attempts to create or
+      filter by a tag, **Then** the option is hidden from the vendor management UI. ~~"Send RFQ to
+      all vendors with matching tag"~~ is also unavailable in v1.
+
 ---
 
 ### User Story 7 - Material Catalogue Management (Priority: P7)
@@ -729,6 +843,24 @@ delivers value: users have a working catalogue to drive procurement.
       changes are saved immediately but don't impact existing RFQs, POs, invoices, or material
       requests.
 
+**Release 1 additions / amendments (per §0):**
+
+- [ ] **Given** a BOM has no child RFQ yet, **When** the user edits and saves the BOM, **Then** the
+      edit overwrites the BOM in place (mutable). **Given** a BOM has at least one RFQ created
+      against it, **When** the user edits, **Then** the BOM becomes **immutable** and the edit
+      creates a **new BOM revision**; existing RFQs/POs continue to reference the revision they
+      were created against.
+- [ ] **Given** a catalogue item has at least one received Quote, **When** any user views the item
+      detail, **Then** they see **per-item price history** (min / max / average / last) computed
+      across the Contractor's received quotes for that item. Public catalogue items show anonymised
+      cross-Contractor ranges; Super Admin sees per-Contractor detail.
+- [ ] **Given** the public catalogue exists, **When** a Contractor user views it, **Then** it is
+      **read-only** in Release 1. ~~Contributing a private item to the public catalogue~~ is
+      deferred to v2.
+- [ ] **Given** ~~aggregated/bundled products~~ are deferred to v2, **When** a user creates a
+      catalogue item, **Then** the "bundle" option is not available; every catalogue item is a
+      single SKU in v1.
+
 ---
 
 ### User Story 8 - Bulk Order Management (Priority: P8)
@@ -755,6 +887,15 @@ reduced accordingly.
 - [ ] **Given** a Procurement Officer creates a bulk order from an approved RFQ response, **When**
       they define the end date, **Then** the system tracks available quantities and auto-suggests
       drawdowns when those materials appear in future RFQ or PO creation flows.
+      _Release 1: Bulk Orders can ONLY be created from approved RFQ responses (per §0). Standalone
+      Bulk Order creation deferred to v2._
+- [ ] **Given** a drawdown PO is created against a Bulk Order, **When** any internal user opens the
+      drawdown PO detail page, **Then** a "From Bulk Order [BO-####]" card surfaces showing
+      remaining quantity / spend on the parent. **Vendors never see the parent Bulk Order** —
+      ADR-0003 confirmed.
+- [ ] **Given** a Bulk Order amend (price or ceiling) is proposed, **When** the change is submitted,
+      **Then** it routes through the minimal approval engine (single-stage, single-role per §0) and
+      does NOT retroactively affect historical drawdown POs.
 - [ ] **Given** a bulk order is assigned to a specific project, **When** a user not assigned to that
       project opens the PO creation flow, **Then** the bulk order does not appear as an available
       option for drawdown.
@@ -822,6 +963,27 @@ marked as ready for payment. Verify a complete audit trail is visible in the his
 - [ ] **Given** a user uploads an invoice and links it to multiple POs, **When** reconciliation is
       initiated, **Then** the system aggregates ordered and delivered quantities across all linked
       POs into a single reconciliation table.
+
+**Release 1 additions (per §0):**
+
+- [ ] **Given** a vendor sends an invoice to `inbound@invoice.forethread.app` (or a per-Contractor
+      sub-address), **When** the system receives the email, **Then** it runs Tier-C extraction to
+      identify vendor + PO and creates an Invoice record in the matched Contractor's queue.
+      Supported attachments: PDF, PNG, JPG, multi-attachment per email.
+- [ ] **Given** an email-in invoice cannot be resolved to a Contractor (no PO match, unknown
+      vendor), **When** extraction completes, **Then** the invoice lands in a **Super Admin
+      routing queue** with the original email + extracted fields. The Super Admin picks the target
+      Contractor + linked PO (or rejects with a reply email).
+- [ ] **Given** an invoice exists in any state, **When** the user views its state, **Then** the
+      state is one of: Received → Identified → Matched → Disputed → Approved → Awaiting Payment →
+      Paid → Voided. Voided invoices retain full audit trail and remain visible.
+- [ ] **Given** an invoice is in Awaiting Payment, **When** the Finance Officer clicks "Mark as
+      Paid", **Then** the invoice transitions to Paid; actor + timestamp are recorded.
+      **Release 1: this is the only path to Paid** — no ERP webhook (ADR-0012 deferred to v2).
+- [ ] **Given** three-way match runs continuously, **When** any change to PO / delivery aggregate /
+      invoice occurs, **Then** the match re-runs; quantities within the Contractor-configured
+      tolerance (default ±2%) auto-match; over-delivery in any amount blocks auto-match and
+      requires explicit Finance Officer approval (ADR-0004 asymmetric rule).
 
 ---
 
@@ -1274,7 +1436,9 @@ Super Admin receives a notification and can retry the job from the panel.
 
 ---
 
-### User Story 13 - Warehouse Operations Management (Priority: P13)
+### User Story 13 - Warehouse Operations Management (Priority: P13) — **DEFERRED TO v2**
+
+**Release 1 status:** Entire Inventory epic (Epic 7) is deferred to v2 per the Release 1 Scope Decisions block at the top of this document. The story below is retained for v2 reference. **No tasks generated for Release 1.** The warehouse leg of Stock-and-Bulk Check is also deferred; field deliveries do not propagate to warehouse state in v1.
 
 A Warehouse Officer can view incoming warehouse requests from office or field workers, confirm items
 in stock, prepare items for pickup or dispatch, and manage inventory via barcode scanning and manual
@@ -1366,6 +1530,36 @@ queue. Confirm a delivery by marking 3 of 4 items as received and reporting 1 de
       report, **Then** the office team and vendor receive a notification with the defect details and
       photos, and a message thread is opened on the PO.
 
+**Release 1 additions (per §0):**
+
+- [ ] **Given** a Foreman logs into the PWA, **When** the home screen renders, **Then** they see a
+      **Foreman dashboard** with: active Material Requests, pending delivery confirmations, and a
+      sync queue badge showing `N events not yet synced`.
+- [ ] **Given** a Foreman creates a field event (MR, delivery report, vendor rating), **When** the
+      event is submitted, **Then** it is **editable on-device until the first successful sync to
+      the server**. After server ack, the event is immutable on every device (ADR-0008 amendment).
+      No 15-minute timer.
+- [ ] **Given** a Foreman receives a printed material list on site, **When** they tap "Photo of
+      printed list" in the MR flow, **Then** Tier-B extraction parses the line items, the Foreman
+      reviews / corrects, and submits the MR. Free-text lines are not permitted (catalogue resolution
+      required, per ADR-0005).
+- [ ] **Given** a Foreman wants to capture an ad-hoc material need, **When** they open the
+      **in-app notepad**, **Then** they can write free-text notes; any note can be **promoted to a
+      Material Request** later (notepad-to-MR flow).
+- [ ] **Given** a Foreman is confirming delivery and the driver hands over a paper invoice, **When**
+      the Foreman taps "Upload invoice", **Then** they photograph it; the system runs Tier-C
+      extraction and creates an Invoice record linked to the delivery + PO (kicks off the invoice
+      flow without requiring email later).
+- [ ] **Given** a Foreman wants to message Procurement after delivery, **When** they send a note,
+      **Then** the message is posted to the PO Thread (ADR-0010) — there is **no dedicated
+      delivery-note UI** in Release 1.
+- [ ] **Given** a Foreman submits a delivery confirmation, **When** they finish the per-line
+      outcome capture, **Then** they are prompted to rate the vendor (on-time / quality / accuracy
+      → 1–5 aggregate, see US-6 Release 1 additions).
+- [ ] **Given** ~~handwritten list extraction~~ and ~~mobile read-only documents view~~ are
+      deferred to v2 (per §0), **When** a Foreman opens the field PWA, **Then** those options are
+      not present.
+
 ---
 
 ### User Story 15 - Change Orders for Purchase Orders (Priority: P15)
@@ -1431,6 +1625,94 @@ purchase orders without losing audit trail or vendor alignment.
 1 new item, provide a reason, submit. Verify the system classifies it as Minor or Major. If Minor,
 verify new PO version is created. If Major, verify it routes to approver and returns
 Approved/Rejected with full change log visible.
+
+**Release 1 note (per §0):** Major Change Orders route through the **minimal approval engine**
+(single-stage, single-role per ADR-0006 amendment). The Company Admin picks one approver role per
+Contractor for Major Change Orders. Quorum, multi-stage chains, and per-CO approver picking are all
+deferred to v2.
+
+---
+
+### User Story 16 - Document Extraction (Architectural Primitive, Priority: P3 / cross-cutting)
+
+The platform exposes a single internal `DocumentExtraction` primitive that handles every "upload-and-parse" flow: BOM upload, private catalogue import, photo of printed list (MR), vendor quote PDF, invoice upload, invoice email-in, upload-invoice-at-delivery. All flows share one data shape (`source_file`, `extracted_fields[]`, `per_field_confidence`, `item_match_candidates[]`) so the underlying provider (multimodal LLM today, something else later) can be swapped without touching UI code.
+
+**Why this priority**: Eight upload flows currently risk inventing their own confirmation step, error display, and confidence rendering. ADR-0005 names this as the failure mode of the previous build.
+
+**Independent Test**: Upload a sample BOM PDF; verify the extraction produces the standard shape; verify the review screen renders Tier-B form-with-source-on-click; confirm low-confidence fields are highlighted; submit. Then upload a sample invoice PDF; verify the same primitive produces the same shape but renders Tier-C side-by-side review.
+
+**Acceptance Scenarios**:
+
+- [ ] **Given** any document upload (BOM, catalogue import, MR photo, quote PDF, invoice), **When** the parsing layer completes, **Then** a `DocumentExtraction` record is produced with the standard fields (source_file, extracted_fields[], per_field_confidence, item_match_candidates[]).
+- [ ] **Given** a BOM / catalogue import / MR photo / receipt extraction, **When** the user opens review, **Then** the screen renders **Tier B**: pre-filled form with low-confidence fields visually highlighted; original source is one click away.
+- [ ] **Given** a vendor quote PDF or invoice extraction, **When** the user opens review, **Then** the screen renders **Tier C**: mandatory side-by-side original-source-and-form. The form cannot be submitted without the original visible.
+- [ ] **Given** Tier-C vendor quote review on the tokenized path, **When** the vendor reviews extracted quote data, **Then** they review side-by-side without a login (per ADR-0001/ADR-0002 token-only).
+- [ ] **Given** any extraction produces an "unmatched item" (no catalogue ID at or above the Contractor-configured confidence threshold), **When** the document advances, **Then** the user must resolve the unmatched item to a catalogue ID before submission. Vendors can only pick from the Contractor's catalogue — vendors cannot create catalogue items. Free-text lines are not permitted in Release 1 (FPR deferred).
+- [ ] **Given** a Company Admin configures the confidence threshold, **When** they save a value, **Then** all subsequent extractions in that Contractor use the new threshold. Default: 0.85.
+- [ ] **Given** any extraction completes, **When** the result is persisted, **Then** **telemetry** is recorded (document type, per-field confidence, user corrections per field) for precision/recall monitoring (NFR commitment per §0).
+
+---
+
+### User Story 17 - Threads, Email-In, and Unified Inbox (Architectural Primitive, Priority: P6 / cross-cutting)
+
+The platform has per-document chat threads (one per RFQ, PO, Bulk Order, Invoice, Material Request, Warehouse Release Request). Every thread has a unique per-thread reply address. Vendors can reply via email-in from their inbox; their reply produces a Message indistinguishable from a web-posted one. All users (including vendors) see a Unified Inbox listing every thread they participate in.
+
+**Why this priority**: ADR-0010 makes email-in load-bearing for the email-first vendor promise. Without it, vendors must click a tokenized link every time they want to say "yes, that delivery date works."
+
+**Independent Test**: Send an RFQ to a vendor; verify the vendor's email contains a per-thread reply address; have the vendor reply from their email client with a PDF attachment; verify the reply lands as a Message in the thread (with the attachment) and surfaces in the Contractor's Unified Inbox.
+
+**Acceptance Scenarios**:
+
+- [ ] **Given** any new business document is created with a vendor participant, **When** the document is sent, **Then** a Thread is auto-opened and the vendor's first email includes `thread-<thread_id>+<reply_token>@reply.forethread.app` as Reply-To.
+- [ ] **Given** the vendor replies from their email client, **When** the inbound mail pipeline receives the message, **Then** it (1) authenticates the sender against the reply token's `vendor_id`, (2) strips quoted reply chains, (3) scans attachments (AV scan, size limit, extension allowlist: PDF / PNG / JPG / HEIC / XLSX / XLS / DOCX / CSV), (4) posts a Message to the Thread with `posted_via = "email"`.
+- [ ] **Given** the vendor replies from an address that does not match the vendor record, **When** the system processes the inbound mail, **Then** it bounces with a generic deliverability error; the Contractor sees a UI hint on next web visit explaining how to update the vendor's email.
+- [ ] **Given** posting a Message via email-in, **When** the inbound mail is parsed, **Then** **no OTP is required** — posting is a read/draft-tier action (per ADR-0002 amendment, this is moot in Release 1 since no commit OTP is ever sent).
+- [ ] **Given** a parent document reaches a terminal state (RFQ awarded, PO completed / cancelled, Invoice paid / voided), **When** the state transition fires, **Then** the Thread becomes read-only. A Contractor user (not a vendor) can reopen the Thread; the reopen action is audit-logged.
+- [ ] **Given** any user (Contractor or activated Vendor), **When** they open their **Unified Inbox**, **Then** they see all Threads they participate in, ordered by latest message, filterable by parent document type (RFQ / PO / Bulk Order / Invoice / MR / WRR).
+- [ ] **Given** the vendor is Unactivated, **When** they receive a thread message, **Then** they receive an email only (no in-app surface). They reply via the per-thread reply address.
+- [ ] **Given** subscriber resolution, **When** a Thread message is posted, **Then** notification recipients are resolved from `role + project assignment` (not per-document follow/unfollow lists) per ADR-0011.
+
+---
+
+### User Story 18 - Three-Way Match Policy (Architectural Primitive, Priority: P9 / cross-cutting)
+
+Every PO line is tracked across Ordered → Delivered → Invoiced. Match runs continuously — every change to PO, delivery aggregate, or invoice re-triggers re-run for affected lines. Tolerances are Contractor-configurable; the rule is symmetric on price but **asymmetric on quantity** (over-delivery in any amount always requires Finance Officer approval).
+
+**Why this priority**: ADR-0004 is the platform's value-prop ("catch invoice errors before payment"). Without explicit tolerance and asymmetry rules, every variance opens a dispute (fatigue) or every variance passes (defeats the platform).
+
+**Independent Test**: Create a PO for 100 bags of cement at $20/bag. Submit a delivery for 99 bags (under-delivery, 1%). Upload an invoice for 99 bags at $20. Verify auto-match. Now submit a second delivery for an extra 5 bags (over-delivery). Verify the line is flagged "Requires Finance Officer approval" and document-level approval is blocked until handled.
+
+**Acceptance Scenarios**:
+
+- [ ] **Given** any change to a PO line, delivery report, or invoice, **When** the change is committed, **Then** the three-way match for affected lines re-runs server-side. Dashboards always show the current view; there is no "freeze" step.
+- [ ] **Given** under-delivery within the Contractor's quantity tolerance (default ±2%), **When** the match runs, **Then** the line auto-matches.
+- [ ] **Given** exact quantity match, **When** the match runs, **Then** the line auto-matches.
+- [ ] **Given** over-delivery in any amount, **When** the match runs, **Then** the line **never** auto-matches; it is flagged "Requires Finance Officer approval". The Finance Officer may explicitly approve, which bumps the PO Ordered quantity so subsequent matches stay clean.
+- [ ] **Given** unit price within the Contractor's symmetric price tolerance (default ±2%), **When** the match runs, **Then** the line auto-matches on price. Outside tolerance: flagged for review.
+- [ ] **Given** Document Extraction produces an item match below the Contractor's confidence threshold, **When** the match runs, **Then** the line is held for manual review (human picks the correct catalogue item) before match completes.
+- [ ] **Given** a Company Admin updates the tolerance values, **When** they save, **Then** all subsequent matches in that Contractor use the new tolerances. Defaults: quantity ±2%, price ±2%, confidence 0.85. **Per-vendor or per-category granularity is out of scope for v1.**
+- [ ] **Given** a Finance Officer rejects an invoice line, **When** the rejection is saved, **Then** a Dispute thread is automatically opened on that line; the vendor is notified per ADR-0011; document-level "Approve invoice" is blocked until all rejected lines are resolved.
+- [ ] **Given** over-delivery approval, **When** the Finance Officer approves the excess, **Then** the system enforces this server-side (the UI can pre-fill an approval prompt but cannot bypass the rule).
+
+---
+
+### User Story 19 - Action Token Management (Architectural Primitive, Priority: P3 / cross-cutting)
+
+Every vendor-facing email carries an action token that authorises the vendor's interaction with the system without a session. **Release 1: token-only commits** — the token alone authorises every vendor action (read, draft, AND commit). No commit-action OTP. No rotation on vendor email change.
+
+**Why this priority**: Token-only vendor commits means the token is the entire authorisation story. Token lifetime, scope, and revocation become load-bearing decisions.
+
+**Independent Test**: Create an RFQ; send it to a vendor; capture the token from the email link. Open the link in a private browser — confirm read access. Submit a quote without an OTP prompt. From the Contractor side, revoke the token for that vendor; reload the link and confirm "Token no longer valid" page.
+
+**Acceptance Scenarios**:
+
+- [ ] **Given** a Contractor sends any vendor-facing email (RFQ, PO, dispute, thread reply, payment notice), **When** the email is generated, **Then** it carries a per-document, per-vendor action token scoped to `(vendor_id, document_id, allowed_actions)`.
+- [ ] **Given** an action token is valid, **When** the vendor clicks the link, **Then** they can read the document, draft responses, AND **commit (submit) without an OTP prompt** in Release 1 (ADR-0002 amendment).
+- [ ] **Given** a vendor forwards their email to a colleague, **When** the colleague clicks the link, **Then** the colleague has the same authority as the vendor (token-only authority). _Release 1 risk accepted; OTP gate may be reintroduced in v2 if abuse is observed._
+- [ ] **Given** a Contractor user views the vendor's record on a specific document, **When** they click "Revoke token", **Then** the action token for that vendor on that document is invalidated immediately; subsequent clicks on the email link show a "Token revoked — contact the contractor" page. The Contractor can issue a fresh token to a new email address.
+- [ ] **Given** a vendor's email address on file is updated in their record, **When** the Contractor saves the update, **Then** existing tokens **remain valid** in Release 1 (no rotation). v2 will rotate on email change.
+- [ ] **Given** a token is presented to the system, **When** the token-validation middleware processes it, **Then** it resolves `current_contractor_id` from the token before opening the transaction (RLS per ADR-0009).
+- [ ] **Given** a token belongs to a document that has reached a terminal state (RFQ awarded, PO completed, Invoice paid/voided), **When** the vendor attempts a commit action, **Then** the system rejects with a "Document is no longer accepting changes" message. Read access remains.
 
 ---
 
@@ -1757,6 +2039,218 @@ Approved/Rejected with full change log visible.
   status update, RFQ response received, PO approved, and warehouse request ready.
 - **FR-073**: Super Admin MUST be able to view and manage company subscription status (active,
   trial, expired) from the company management panel.
+
+**Release 1 Functional Requirements (added 2026-05-19 per §0)**
+
+These FRs supplement the body above. Where they conflict with earlier FRs, these win.
+
+_Vendors, tokens, and authentication_
+
+- **FR-R1-001**: All vendor commit actions (quote submit, PO acknowledge / decline, delivery confirm,
+  dispute reply, change-request approval) MUST be authorised by the per-document action token alone
+  in Release 1. **No commit-action OTP is sent to vendors.** ADR-0002 amendment.
+- **FR-R1-002**: Action tokens MUST be long-lived (= document lifetime), reusable, scoped to
+  `(vendor_id, document_id, allowed_actions)`. Tokens MUST NOT rotate on vendor email change in
+  Release 1.
+- **FR-R1-003**: Tokens MUST be per-document revocable by the Contractor; revoked tokens MUST return
+  a clear "token revoked" page on subsequent access.
+- **FR-R1-004**: Token-validation middleware MUST resolve `current_contractor_id` from the token
+  before opening any database transaction (RLS per ADR-0009).
+- **FR-R1-005**: Every vendor-facing email (RFQ, PO, dispute, thread reply, payment notice) MUST
+  include a "set a password to activate your account" link as a footer / CTA (ADR-0001 activation
+  entry point).
+- **FR-R1-006**: Activated vendors MUST have access to all four activation perks: dashboard, chat UI
+  / Unified Inbox, profile management, multi-user invites.
+- **FR-R1-007**: The same vendor email under different Contractors MUST produce independent vendor
+  records (no global vendor pool, per ADR-0009).
+- **FR-R1-008**: Vendor ABN MAY be empty at vendor add but MUST be present before that vendor can be
+  selected for any RFQ.
+- **FR-R1-009**: System MUST capture vendor ratings (on-time / quality / accuracy) at delivery
+  confirmation; the three ratings aggregate to a 1–5 score visible on the vendor profile.
+
+_RFQ lifecycle_
+
+- **FR-R1-010**: RFQ MUST become read-only once any vendor has submitted a response; subsequent
+  scope changes MUST require cancel + reissue (cancel notifies all invited vendors and invalidates
+  their tokens).
+- **FR-R1-011**: RFQ creation sources are: BOM, Material Request(s), manual entry, copy of existing
+  RFQ, saved material list. (File upload deferred to v2.)
+
+_BOM versioning_
+
+- **FR-R1-012**: BOMs MUST be mutable until the first RFQ is created against them, then immutable.
+  Subsequent edits MUST create a new BOM revision; existing RFQs and POs continue to reference the
+  revision they were created against.
+
+_Bulk Orders_
+
+- **FR-R1-013**: Bulk Orders MUST be created only from approved RFQ responses in Release 1.
+  Standalone Bulk Order creation is deferred to v2.
+- **FR-R1-014**: Vendors MUST NOT see Bulk Order records — only the child drawdown POs (ADR-0003).
+- **FR-R1-015**: Drawdown PO detail pages MUST surface a "From Bulk Order [BO-####]" card with
+  remaining qty / spend on the parent, visible only to internal users.
+- **FR-R1-016**: Bulk Order amend (price or ceiling) MUST route through the minimal approval engine
+  (FR-R1-024) and MUST NOT retroactively affect historical drawdown POs.
+
+_Document Extraction_
+
+- **FR-R1-017**: System MUST expose a single `DocumentExtraction` primitive (source_file,
+  extracted_fields[], per_field_confidence, item_match_candidates[]) used by every upload flow:
+  BOM, catalogue import, MR photo, vendor quote PDF, invoice upload, invoice email-in,
+  upload-invoice-at-delivery.
+- **FR-R1-018**: Review surfaces MUST be tiered: Tier B (pre-filled form, low-confidence fields
+  highlighted, original source on click) for catalogue / BOM / MR photos / receipts; Tier C
+  (mandatory side-by-side original + form) for vendor quote PDFs and invoices.
+- **FR-R1-019**: System MUST require resolution of unmatched items (below the Contractor's
+  confidence threshold) to a catalogue ID before the document advances. Vendors MUST NOT be able to
+  create catalogue items. Free-text lines are not permitted in Release 1 (FPR deferred).
+- **FR-R1-020**: Document extraction confidence threshold MUST be Contractor-configurable, default
+  0.85.
+- **FR-R1-021**: System MUST record per-extraction telemetry (document type, per-field confidence,
+  user corrections per field) from day one.
+
+_Three-way match_
+
+- **FR-R1-022**: Three-way match MUST run continuously — every change to PO / delivery aggregate /
+  invoice MUST re-trigger match for affected lines.
+- **FR-R1-023**: Match tolerances MUST be Contractor-configurable. Quantity is asymmetric:
+  under-delivery within tolerance auto-matches (default ±2%); exact matches auto-match;
+  **over-delivery in any amount never auto-matches and always requires Finance Officer approval**.
+  Price is symmetric ±2% default. Outside tolerance: flagged for review.
+
+_Approval engine_
+
+- **FR-R1-024**: System MUST provide a minimal approval engine in Release 1: single-stage,
+  single-role. Multi-stage chains and quorum (`N of M`) are deferred to v2. ADR-0006 amendment.
+- **FR-R1-025**: Approvable actions in Release 1 are the closed list: PO above threshold, Invoice
+  above threshold, Major Change Order, Bulk Order amend. Adding new approvable actions requires a
+  code change.
+- **FR-R1-026**: Company Admin MUST set PO and Invoice approval thresholds per Contractor. **No
+  platform default** — thresholds MUST be configured during onboarding before any PO or Invoice
+  can be created.
+- **FR-R1-027**: Out-of-Office MUST support date range + single delegate. If the delegate is also
+  OOO, the request MUST escalate directly to the Company Admin (no 3-deep chain in Release 1).
+- **FR-R1-028**: Audit log MUST record approval routing as `(actor, original_target,
+  effective_target, reason)` even in Release 1 (forward-compatible with v2 quorum / multi-stage).
+
+_Notifications_
+
+- **FR-R1-029**: System MUST batch emails in a 5-minute window per `(recipient, parent_document)`
+  and send one digest email per window per parent.
+- **FR-R1-030**: Always-immediate notification types (bypass digest regardless of user preference):
+  overdue payment, overdue approval. _OTP no longer applies in Release 1 — no commit OTP._
+- **FR-R1-031**: Each user MUST have a per-event-type, per-channel preference matrix. Default
+  matrix: both channels for approvals / money / exceptions; in-app only for catalogue / project /
+  vendor-profile / thread-message events.
+- **FR-R1-032**: Notification recipients MUST be resolved from role + project assignment (no
+  per-document follow / unfollow watch lists in Release 1).
+- **FR-R1-033**: Unactivated vendors MUST receive email-only notifications (no in-app surface
+  exists for them).
+
+_Threads & email-in_
+
+- **FR-R1-034**: Every business document with a vendor participant MUST auto-open a Thread on
+  creation. The Thread MUST have a unique per-thread reply address of the form
+  `thread-<thread_id>+<reply_token>@reply.forethread.app`.
+- **FR-R1-035**: Inbound email pipeline MUST (a) authenticate sender against the reply token's
+  `vendor_id`, (b) strip quoted reply chains, (c) AV-scan attachments and apply an extension
+  allowlist (PDF / PNG / JPG / HEIC / XLSX / XLS / DOCX / CSV), (d) post a Message to the Thread
+  with `posted_via = "email"`.
+- **FR-R1-036**: Sender-vendor mismatch MUST bounce with a generic deliverability error; the
+  Contractor MUST see a UI hint on next web visit.
+- **FR-R1-037**: Threads MUST auto-close on parent terminal state (RFQ awarded, PO completed /
+  cancelled, Invoice paid / voided). Contractor users (not vendors) MAY reopen; reopen MUST be
+  audit-logged.
+- **FR-R1-038**: All users (Contractor + Activated Vendor) MUST have a **Unified Inbox** listing
+  all Threads they participate in, ordered by latest message, filterable by parent document type.
+
+_Invoice email-in & state machine_
+
+- **FR-R1-039**: System MUST accept invoices via dedicated inbound email
+  (`inbound@invoice.forethread.app` or per-Contractor sub-addressing). Inbound MUST support PDF,
+  PNG, JPG, multi-attachment per email.
+- **FR-R1-040**: Email-in invoices that cannot be resolved to a Contractor MUST land in a **Super
+  Admin routing queue**; the Super Admin MUST be able to assign the invoice to a Contractor + PO
+  or reject with a reply email.
+- **FR-R1-041**: Invoice state machine MUST implement: Received → Identified → Matched → Disputed
+  → Approved → Awaiting Payment → Paid → Voided. Voided invoices MUST retain audit trail and
+  remain visible in history.
+- **FR-R1-042**: Invoice Paid transition MUST be a manual UI action by the Finance Officer in
+  Release 1; actor + timestamp MUST be audit-logged. (ERP webhook deferred to v2 per ADR-0012.)
+
+_Field PWA_
+
+- **FR-R1-043**: Field events (MR, delivery report, vendor rating) MUST be append-only;
+  edit-existing-record APIs MUST NOT exist for field events.
+- **FR-R1-044**: Field events MUST be editable on-device until the first successful sync to the
+  server, then immutable on every device (ADR-0008 amendment). No 15-minute timer.
+- **FR-R1-045**: Field events MUST carry a client-generated idempotency key; the server MUST
+  dedupe duplicate submissions.
+- **FR-R1-046**: Photos MUST be captured with each event: thumbnail (~100KB target) uploads as
+  soon as any network is present; full-resolution original uploads as a background job that
+  prefers Wi-Fi and resumes across app launches.
+- **FR-R1-047**: GPS MUST be auto-captured; no manual GPS entry. If GPS is unavailable, the event
+  records `gps: null` and the server flags it; it does NOT block submission.
+- **FR-R1-048**: Field PWA MUST cache project-scoped data (active projects, open POs, pending
+  deliveries, recently-used catalogue items) for offline reads.
+- **FR-R1-049**: Foreman home screen MUST be a dashboard showing: active MRs + pending delivery
+  confirmations + sync queue badge (`N events not yet synced`).
+- **FR-R1-050**: Field PWA MUST support "photo of printed list" → MR with Tier-B extraction.
+- **FR-R1-051**: Field PWA MUST support an in-app notepad with free-text notes and a
+  "promote-to-MR" action.
+- **FR-R1-052**: Field PWA MUST support upload-invoice-at-delivery: Foreman photographs a paper
+  invoice during delivery confirmation; Tier-C extraction creates an Invoice record linked to the
+  delivery + PO.
+- **FR-R1-053**: Foreman delivery-note communication MUST use the PO Thread (no dedicated UI).
+
+_Stock-and-Bulk Check_
+
+- **FR-R1-054**: Stock-and-Bulk Check MUST fire on Procurement Officer open of a Material Request.
+- **FR-R1-055**: In Release 1, the check covers active Bulk Orders only (warehouse leg deferred
+  with Epic 7).
+- **FR-R1-056**: When bulk coverage fully covers an MR, the "issue full RFQ" affordance MUST be
+  disabled by default; "partial RFQ for uncovered remainder" MUST be offered. Company Admin MAY
+  flip the Contractor to advisory mode.
+- **FR-R1-057**: When the Officer accepts a plan (drawdowns + residual RFQ), the system MUST
+  execute it as a single transaction; if any artefact fails to create, all MUST roll back.
+
+_Multi-tenancy & audit_
+
+- **FR-R1-058**: Every business document MUST expose a "History" tab showing the immutable audit
+  events for that document.
+- **FR-R1-059**: Super Admin BYPASSRLS sessions MUST be logged with actor + rationale; the log
+  MUST be append-only and visible in the Super Admin audit view.
+- **FR-R1-060**: Audit events MUST be retained for 7 years (AU statutory record-keeping).
+
+_Currency_
+
+- **FR-R1-061**: System MUST display every price in every vendor-facing email with an explicit
+  currency code (e.g. `AUD $1,250.00`). Subject lines MUST include the currency code where price
+  is referenced.
+
+_NFRs_
+
+- **FR-R1-062**: Web UI MUST meet WCAG 2.2 AA: keyboard navigation, screen-reader labels on all
+  controls, colour-not-only state indication, focus management, contrast ratios.
+- **FR-R1-063**: Mobile PWA MUST meet tap-target ≥ 44pt, high-contrast mode, large-text mode.
+- **FR-R1-064**: Formal performance budgets are deferred (informal targets in PRD §6.3).
+
+_Deferred / amended (no v1 build)_
+
+- **FR-R1-D01**: Inventory system (Epic 7 / US-13) — deferred to v2. The original FR-056–FR-059
+  (warehouse operations) are not in Release 1.
+- **FR-R1-D02**: Field Purchase Report (FPR) — deferred to v2.
+- **FR-R1-D03**: Aggregated/bundled catalogue products — deferred to v2.
+- **FR-R1-D04**: Public catalogue contribution flow — deferred to v2.
+- **FR-R1-D05**: Vendor tagging + tag-based RFQ selection — deferred to v2.
+- **FR-R1-D06**: Handwritten list Tier-B extraction — deferred to v2.
+- **FR-R1-D07**: Mobile read-only documents view (Foreman browse) — deferred to v2.
+- **FR-R1-D08**: Vendor picker filters (rating / category / activation state) — deferred to v2.
+- **FR-R1-D09**: ERP integration (Xero) — entire scope deferred to v2 (ADR-0012 amendment).
+- **FR-R1-D10**: FR-070 ("per-document currency selection from predefined list") **wins** over
+  PRD §5.6 "one currency per Contractor" — currency is per document in v1.
+- **FR-R1-D11**: FR-037 ("Bulk Orders only from approved RFQs") **wins** over PRD §4.5.6
+  "standalone Bulk Order creation" — Bulk Orders are RFQ-only in v1.
 
 ### Key Entities
 
