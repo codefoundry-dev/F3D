@@ -18,6 +18,70 @@ const VerifyOtpPage = lazy(() => import('@/features/auth/ui/VerifyOtpPage'));
 const ForgotPasswordPage = lazy(() => import('@/features/auth/ui/ForgotPasswordPage'));
 const ActivateAccountPage = lazy(() => import('@/features/auth/ui/ActivateAccountPage'));
 const ResetPasswordPage = lazy(() => import('@/features/auth/ui/ResetPasswordPage'));
+const UserProfilePage = lazy(() => import('@/features/profile/pages/UserProfilePage'));
+const SettingsPage = lazy(() => import('@/features/settings/pages/SettingsPage'));
+const ProjectListPage = lazy(() => import('@/features/projects/pages/ProjectListPage'));
+const CreateProjectPage = lazy(() => import('@/features/projects/pages/CreateProjectPage'));
+const ProjectDetailPage = lazy(() => import('@/features/projects/pages/ProjectDetailPage'));
+const EditProjectPage = lazy(() => import('@/features/projects/pages/EditProjectPage'));
+const RfqListRoleSwitch = lazy(() => import('@/features/rfqs/RfqListRoleSwitch'));
+const RfqDetailRoleSwitch = lazy(() => import('@/features/rfqs/RfqDetailRoleSwitch'));
+const MaterialDetailRoleSwitch = lazy(() => import('@/features/rfqs/MaterialDetailRoleSwitch'));
+const CreateRfqPage = lazy(() => import('@/features/rfqs/buyer/pages/CreateRfqPage'));
+const QuoteResponseDetailPage = lazy(
+  () => import('@/features/rfqs/buyer/pages/QuoteResponseDetailPage'),
+);
+const RfqResponsePage = lazy(() => import('@/features/rfqs/vendor/pages/RfqResponsePage'));
+const GuestInvitationPage = lazy(() => import('@/features/rfqs/vendor/pages/GuestInvitationPage'));
+const PurchaseOrderListRoleSwitch = lazy(
+  () => import('@/features/purchase-orders/PurchaseOrderListRoleSwitch'),
+);
+const PurchaseOrderDetailRoleSwitch = lazy(
+  () => import('@/features/purchase-orders/PurchaseOrderDetailRoleSwitch'),
+);
+const PurchaseOrderCommsRoleSwitch = lazy(
+  () => import('@/features/purchase-orders/PurchaseOrderCommsRoleSwitch'),
+);
+const CreatePurchaseOrderPage = lazy(
+  () => import('@/features/purchase-orders/buyer/pages/CreatePurchaseOrderPage'),
+);
+const ChangeRequestPage = lazy(
+  () => import('@/features/purchase-orders/vendor/pages/ChangeRequestPage'),
+);
+const BulkOrderListRoleSwitch = lazy(
+  () => import('@/features/bulk-orders/BulkOrderListRoleSwitch'),
+);
+const BulkOrderDetailRoleSwitch = lazy(
+  () => import('@/features/bulk-orders/BulkOrderDetailRoleSwitch'),
+);
+const BulkOrderChangeRoleSwitch = lazy(
+  () => import('@/features/bulk-orders/BulkOrderChangeRoleSwitch'),
+);
+const BulkOrderReviewChangeRoleSwitch = lazy(
+  () => import('@/features/bulk-orders/BulkOrderReviewChangeRoleSwitch'),
+);
+const BulkOrderDrawdownPage = lazy(
+  () => import('@/features/bulk-orders/buyer/pages/BulkOrderDrawdownPage'),
+);
+const BulkOrderEditPage = lazy(
+  () => import('@/features/bulk-orders/buyer/pages/BulkOrderEditPage'),
+);
+const InvoiceListRoleSwitch = lazy(() => import('@/features/invoices/InvoiceListRoleSwitch'));
+const InvoiceDetailRoleSwitch = lazy(() => import('@/features/invoices/InvoiceDetailRoleSwitch'));
+const UploadInvoicePage = lazy(() => import('@/features/invoices/buyer/pages/UploadInvoicePage'));
+const VendorListPage = lazy(() => import('@/features/vendors/pages/VendorListPage'));
+const CreateVendorPage = lazy(() => import('@/features/vendors/pages/CreateVendorPage'));
+const VendorProfilePage = lazy(() => import('@/features/vendors/pages/VendorProfilePage'));
+const MaterialCataloguePage = lazy(
+  () => import('@/features/material-catalogue/pages/MaterialCataloguePage'),
+);
+const UserListRoleSwitch = lazy(() => import('@/features/users/UserListRoleSwitch'));
+const UserDetailRoleSwitch = lazy(() => import('@/features/users/UserDetailRoleSwitch'));
+const CompanyDetailPage = lazy(() => import('@/features/companies/pages/CompanyDetailPage'));
+const AdminPanelPage = lazy(() => import('@/features/admin-panel/pages/AdminPanelPage'));
+const CompanyProfileRoleSwitch = lazy(
+  () => import('@/features/company-profile/CompanyProfileRoleSwitch'),
+);
 
 // ── Allowed-role sets, derived from each role's app today ───────────
 // (Source of truth for the migration; see apps/web/MIGRATION.md.)
@@ -38,13 +102,23 @@ const RFQ_VIEWERS = [
 ] as const;
 const PO_VIEWERS = RFQ_VIEWERS;
 const BULK_ORDER_VIEWERS = RFQ_VIEWERS;
-const INVOICE_VIEWERS = [
+const INVOICE_LIST_VIEWERS = [
+  UserRole.COMPANY_ADMIN,
+  UserRole.PROCUREMENT_OFFICER,
+  UserRole.FINANCIAL_OFFICER,
+] as const;
+const INVOICE_DETAIL_VIEWERS = [
   UserRole.COMPANY_ADMIN,
   UserRole.PROCUREMENT_OFFICER,
   UserRole.FINANCIAL_OFFICER,
   UserRole.VENDOR,
 ] as const;
 const USERS_VIEWERS = [UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.VENDOR] as const;
+const COMPANY_PROFILE_VIEWERS = [
+  UserRole.COMPANY_ADMIN,
+  UserRole.PROCUREMENT_OFFICER,
+  UserRole.VENDOR,
+] as const;
 const SUPER_ONLY = [UserRole.SUPER_ADMIN] as const;
 const VENDOR_ONLY = [UserRole.VENDOR] as const;
 
@@ -69,7 +143,7 @@ export const routes: RouteObject[] = [
       // ── Always-public ─────────────────────────────────────────────
       { path: ROUTES.activate, element: withSuspense(<ActivateAccountPage />) },
       { path: ROUTES.resetPassword, element: withSuspense(<ResetPasswordPage />) },
-      { path: ROUTES.guestInvitation, element: <ComingSoon page="Guest invitation" /> },
+      { path: ROUTES.guestInvitation, element: withSuspense(<GuestInvitationPage />) },
 
       // ── Authenticated ─────────────────────────────────────────────
       {
@@ -80,32 +154,40 @@ export const routes: RouteObject[] = [
             element: <AppLayout />,
             children: [
               { path: ROUTES.home, element: <HomeRedirect /> },
-              { path: ROUTES.me, element: <ComingSoon page="My profile" /> },
-              { path: ROUTES.settings, element: <ComingSoon page="Settings" /> },
-              { path: ROUTES.companyProfile, element: <ComingSoon page="Company profile" /> },
+              { path: ROUTES.me, element: withSuspense(<UserProfilePage />) },
+              { path: ROUTES.settings, element: withSuspense(<SettingsPage />) },
+              {
+                element: <RoleRoute allow={COMPANY_PROFILE_VIEWERS} />,
+                children: [
+                  {
+                    path: ROUTES.companyProfile,
+                    element: withSuspense(<CompanyProfileRoleSwitch />),
+                  },
+                ],
+              },
 
               // RFQs
               {
                 element: <RoleRoute allow={RFQ_VIEWERS} />,
                 children: [
-                  { path: ROUTES.rfqs, element: <ComingSoon page="RFQs" /> },
-                  { path: ROUTES.rfqDetail, element: <ComingSoon page="RFQ detail" /> },
+                  { path: ROUTES.rfqs, element: withSuspense(<RfqListRoleSwitch />) },
+                  { path: ROUTES.rfqDetail, element: withSuspense(<RfqDetailRoleSwitch />) },
                 ],
               },
               {
                 element: <RoleRoute allow={BUYER_SIDE} />,
                 children: [
-                  { path: ROUTES.rfqNew, element: <ComingSoon page="Create RFQ" /> },
+                  { path: ROUTES.rfqNew, element: withSuspense(<CreateRfqPage />) },
                   {
                     path: ROUTES.quoteResponseDetail,
-                    element: <ComingSoon page="Quote response detail" />,
+                    element: withSuspense(<QuoteResponseDetailPage />),
                   },
                 ],
               },
               {
                 element: <RoleRoute allow={VENDOR_ONLY} />,
                 children: [
-                  { path: ROUTES.rfqResponse, element: <ComingSoon page="Vendor RFQ response" /> },
+                  { path: ROUTES.rfqResponse, element: withSuspense(<RfqResponsePage />) },
                 ],
               },
 
@@ -113,14 +195,17 @@ export const routes: RouteObject[] = [
               {
                 element: <RoleRoute allow={PO_VIEWERS} />,
                 children: [
-                  { path: ROUTES.purchaseOrders, element: <ComingSoon page="Purchase orders" /> },
+                  {
+                    path: ROUTES.purchaseOrders,
+                    element: withSuspense(<PurchaseOrderListRoleSwitch />),
+                  },
                   {
                     path: ROUTES.purchaseOrderDetail,
-                    element: <ComingSoon page="Purchase order detail" />,
+                    element: withSuspense(<PurchaseOrderDetailRoleSwitch />),
                   },
                   {
                     path: ROUTES.purchaseOrderComms,
-                    element: <ComingSoon page="Purchase order comms" />,
+                    element: withSuspense(<PurchaseOrderCommsRoleSwitch />),
                   },
                 ],
               },
@@ -129,7 +214,7 @@ export const routes: RouteObject[] = [
                 children: [
                   {
                     path: ROUTES.purchaseOrderNew,
-                    element: <ComingSoon page="Create purchase order" />,
+                    element: withSuspense(<CreatePurchaseOrderPage />),
                   },
                 ],
               },
@@ -138,7 +223,7 @@ export const routes: RouteObject[] = [
                 children: [
                   {
                     path: ROUTES.purchaseOrderChangeRequest,
-                    element: <ComingSoon page="PO change request" />,
+                    element: withSuspense(<ChangeRequestPage />),
                   },
                 ],
               },
@@ -147,18 +232,21 @@ export const routes: RouteObject[] = [
               {
                 element: <RoleRoute allow={BULK_ORDER_VIEWERS} />,
                 children: [
-                  { path: ROUTES.bulkOrders, element: <ComingSoon page="Bulk orders" /> },
+                  {
+                    path: ROUTES.bulkOrders,
+                    element: withSuspense(<BulkOrderListRoleSwitch />),
+                  },
                   {
                     path: ROUTES.bulkOrderDetail,
-                    element: <ComingSoon page="Bulk order detail" />,
+                    element: withSuspense(<BulkOrderDetailRoleSwitch />),
                   },
                   {
                     path: ROUTES.bulkOrderChange,
-                    element: <ComingSoon page="Bulk order change" />,
+                    element: withSuspense(<BulkOrderChangeRoleSwitch />),
                   },
                   {
                     path: ROUTES.bulkOrderReviewChange,
-                    element: <ComingSoon page="Bulk order review change" />,
+                    element: withSuspense(<BulkOrderReviewChangeRoleSwitch />),
                   },
                 ],
               },
@@ -167,9 +255,9 @@ export const routes: RouteObject[] = [
                 children: [
                   {
                     path: ROUTES.bulkOrderDrawdown,
-                    element: <ComingSoon page="Bulk order drawdown" />,
+                    element: withSuspense(<BulkOrderDrawdownPage />),
                   },
-                  { path: ROUTES.bulkOrderEdit, element: <ComingSoon page="Bulk order edit" /> },
+                  { path: ROUTES.bulkOrderEdit, element: withSuspense(<BulkOrderEditPage />) },
                 ],
               },
 
@@ -177,25 +265,33 @@ export const routes: RouteObject[] = [
               {
                 element: <RoleRoute allow={BUYER_SIDE} />,
                 children: [
-                  { path: ROUTES.projects, element: <ComingSoon page="Projects" /> },
-                  { path: ROUTES.projectsNew, element: <ComingSoon page="Create project" /> },
-                  { path: ROUTES.projectDetail, element: <ComingSoon page="Project detail" /> },
-                  { path: ROUTES.projectEdit, element: <ComingSoon page="Edit project" /> },
+                  { path: ROUTES.projects, element: withSuspense(<ProjectListPage />) },
+                  { path: ROUTES.projectsNew, element: withSuspense(<CreateProjectPage />) },
+                  { path: ROUTES.projectDetail, element: withSuspense(<ProjectDetailPage />) },
+                  { path: ROUTES.projectEdit, element: withSuspense(<EditProjectPage />) },
                 ],
               },
 
               // Invoices
               {
-                element: <RoleRoute allow={INVOICE_VIEWERS} />,
+                element: <RoleRoute allow={INVOICE_LIST_VIEWERS} />,
                 children: [
-                  { path: ROUTES.invoices, element: <ComingSoon page="Invoices" /> },
-                  { path: ROUTES.invoiceDetail, element: <ComingSoon page="Invoice detail" /> },
+                  { path: ROUTES.invoices, element: withSuspense(<InvoiceListRoleSwitch />) },
+                ],
+              },
+              {
+                element: <RoleRoute allow={INVOICE_DETAIL_VIEWERS} />,
+                children: [
+                  {
+                    path: ROUTES.invoiceDetail,
+                    element: withSuspense(<InvoiceDetailRoleSwitch />),
+                  },
                 ],
               },
               {
                 element: <RoleRoute allow={BUYER_SIDE} />,
                 children: [
-                  { path: ROUTES.invoiceUpload, element: <ComingSoon page="Upload invoice" /> },
+                  { path: ROUTES.invoiceUpload, element: withSuspense(<UploadInvoicePage />) },
                 ],
               },
 
@@ -203,29 +299,29 @@ export const routes: RouteObject[] = [
               {
                 element: <RoleRoute allow={BUYER_SIDE} />,
                 children: [
-                  { path: ROUTES.vendors, element: <ComingSoon page="Vendors" /> },
-                  { path: ROUTES.vendorNew, element: <ComingSoon page="Add vendor" /> },
-                  { path: ROUTES.vendorDetail, element: <ComingSoon page="Vendor detail" /> },
+                  { path: ROUTES.vendors, element: withSuspense(<VendorListPage />) },
+                  { path: ROUTES.vendorNew, element: withSuspense(<CreateVendorPage />) },
+                  { path: ROUTES.vendorDetail, element: withSuspense(<VendorProfilePage />) },
                   {
                     path: ROUTES.materialCatalogue,
-                    element: <ComingSoon page="Material catalogue" />,
+                    element: withSuspense(<MaterialCataloguePage />),
                   },
                 ],
               },
               {
                 element: <RoleRoute allow={[...RFQ_VIEWERS]} />,
                 children: [
-                  { path: ROUTES.materialDetail, element: <ComingSoon page="Material detail" /> },
+                  { path: ROUTES.materialDetail, element: withSuspense(<MaterialDetailRoleSwitch />) },
                 ],
               },
 
               // Users (company users for buyer admins; vendor users for vendors;
-              // platform users for super-admin — page chosen by RoleSwitch later)
+              // platform users for super-admin — page chosen by RoleSwitch).
               {
                 element: <RoleRoute allow={USERS_VIEWERS} />,
                 children: [
-                  { path: ROUTES.users, element: <ComingSoon page="Users" /> },
-                  { path: ROUTES.userDetail, element: <ComingSoon page="User detail" /> },
+                  { path: ROUTES.users, element: withSuspense(<UserListRoleSwitch />) },
+                  { path: ROUTES.userDetail, element: withSuspense(<UserDetailRoleSwitch />) },
                 ],
               },
 
@@ -234,8 +330,8 @@ export const routes: RouteObject[] = [
                 element: <RoleRoute allow={SUPER_ONLY} />,
                 children: [
                   { path: ROUTES.companies, element: <ComingSoon page="Companies" /> },
-                  { path: ROUTES.companyDetail, element: <ComingSoon page="Company detail" /> },
-                  { path: ROUTES.adminPanel, element: <ComingSoon page="Admin panel" /> },
+                  { path: ROUTES.companyDetail, element: withSuspense(<CompanyDetailPage />) },
+                  { path: ROUTES.adminPanel, element: withSuspense(<AdminPanelPage />) },
                 ],
               },
 

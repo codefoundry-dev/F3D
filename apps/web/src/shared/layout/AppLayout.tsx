@@ -1,10 +1,12 @@
 import { useTranslation } from '@forethread/i18n';
+import { useAvatarUrl, useProfile } from '@forethread/profile-shared';
 import {
   AvatarWithStatus,
   NotificationBell,
   PageHeader,
   SearchInput,
   Sidebar,
+  type WorkStatusType,
 } from '@forethread/ui-components';
 import LogoIcon from '@forethread/ui-components/assets/icons/logo.svg?react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -23,6 +25,8 @@ export function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const role = useUserRole();
+  const { data: avatarUrl } = useAvatarUrl();
+  const { data: profile } = useProfile();
 
   const sidebarItems = getSidebarItemsForRole(role, location.pathname, {
     projects: t('nav:projects'),
@@ -58,7 +62,12 @@ export function AppLayout() {
                 type="button"
                 className="flex items-center text-sm text-card-foreground hover:text-foreground"
               >
-                <AvatarWithStatus name={currentUser?.name ?? ''} size={34} />
+                <AvatarWithStatus
+                  name={currentUser?.name ?? ''}
+                  avatarUrl={avatarUrl}
+                  workStatus={profile?.workStatus as WorkStatusType}
+                  size={34}
+                />
               </button>
 
               <div className="absolute right-0 pt-1 w-48 hidden group-hover:block z-10">

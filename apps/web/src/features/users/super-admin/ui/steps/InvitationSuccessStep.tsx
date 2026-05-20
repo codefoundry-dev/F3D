@@ -1,0 +1,55 @@
+import { useTranslation } from '@forethread/i18n';
+import { Button, IconBadge } from '@forethread/ui-components';
+import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
+import { useEffect, useState } from 'react';
+
+interface InvitationSuccessStepProps {
+  email: string;
+  onClose: () => void;
+}
+
+const COUNTDOWN_SECONDS = 3;
+
+export function InvitationSuccessStep({ email, onClose }: InvitationSuccessStepProps) {
+  const { t } = useTranslation(['users', 'common']);
+  const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
+
+  useEffect(() => {
+    if (countdown <= 0) {
+      onClose();
+      return;
+    }
+    const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [countdown, onClose]);
+
+  return (
+    <div className="flex flex-col items-center text-center">
+      <IconBadge
+        icon={<CheckCircleIcon className="w-6 h-6 text-success" />}
+        className="bg-success/10"
+      />
+
+      <h2 className="text-lg font-semibold text-foreground mt-4">{t('invitationSuccess.title')}</h2>
+      <p className="text-sm text-muted-foreground mt-1">{t('invitationSuccess.subtitle')}</p>
+
+      {/* Email info box */}
+      <div className="w-full mt-5 rounded-xl bg-success/10 border border-success/20 px-4 py-3">
+        <p className="text-sm text-success">{t('invitationSuccess.emailSent', { email })}</p>
+      </div>
+
+      {/* Expiry note */}
+      <p className="text-xs text-muted-foreground mt-3">{t('invitationSuccess.linkExpiry')}</p>
+
+      {/* Back button */}
+      <Button onClick={onClose} className="w-full mt-5">
+        {t('invitationSuccess.backToUsers')}
+      </Button>
+
+      {/* Countdown */}
+      <p className="text-xs text-muted-foreground mt-3">
+        {t('invitationSuccess.redirecting', { seconds: countdown })}
+      </p>
+    </div>
+  );
+}

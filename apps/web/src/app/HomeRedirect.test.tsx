@@ -1,11 +1,15 @@
 import { UserRole } from '@forethread/shared-types';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuthStore } from '@/features/auth/state/auth.store';
 
 import { HomeRedirect } from './HomeRedirect';
+
+vi.mock('@/features/dashboard/DashboardRoleSwitch', () => ({
+  DashboardRoleSwitch: () => <div>dashboard-role-switch</div>,
+}));
 
 function setUser(role: UserRole | null) {
   if (role === null) {
@@ -50,15 +54,15 @@ describe('HomeRedirect', () => {
     expect(screen.getByText('invoices-page')).toBeInTheDocument();
   });
 
-  it('renders the dashboard placeholder for COMPANY_ADMIN (home is /)', () => {
+  it('renders the role-switched dashboard for COMPANY_ADMIN (home is /)', () => {
     setUser(UserRole.COMPANY_ADMIN);
     renderHome();
-    expect(screen.getByText('Dashboard')).toBeInTheDocument();
+    expect(screen.getByText('dashboard-role-switch')).toBeInTheDocument();
   });
 
-  it('renders the dashboard placeholder when there is no user yet', () => {
+  it('renders the role-switched dashboard when there is no user yet', () => {
     setUser(null);
     renderHome();
-    expect(screen.getByText('Dashboard')).toBeInTheDocument();
+    expect(screen.getByText('dashboard-role-switch')).toBeInTheDocument();
   });
 });
