@@ -1,4 +1,4 @@
-import { UserRole } from '@forethread/shared-types';
+import { UserRole } from '@forethread/shared-types/client';
 
 /**
  * Landing path for each role after login. Used by:

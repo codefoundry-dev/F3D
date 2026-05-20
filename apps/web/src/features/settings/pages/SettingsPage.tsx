@@ -1,5 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
-import { UserRole } from '@forethread/shared-types';
+import { UserRole } from '@forethread/shared-types/client';
 import ArrowRightIcon from '@forethread/ui-components/assets/icons/arrow-right.svg?react';
 import DepartmentIcon from '@forethread/ui-components/assets/icons/department.svg?react';
 import NewUserIcon from '@forethread/ui-components/assets/icons/new-user.svg?react';

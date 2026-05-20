@@ -1,4 +1,4 @@
-import { UserRole } from '@forethread/shared-types';
+import { UserRole } from '@forethread/shared-types/client';
 import { PageLoader } from '@forethread/ui-components';
 import { lazy, Suspense } from 'react';
 

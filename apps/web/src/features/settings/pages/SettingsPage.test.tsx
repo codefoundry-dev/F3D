@@ -1,4 +1,4 @@
-import { UserRole } from '@forethread/shared-types';
+import { UserRole } from '@forethread/shared-types/client';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 vi.mock('@forethread/i18n', () => ({

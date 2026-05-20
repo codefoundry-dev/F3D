@@ -1,4 +1,4 @@
-import { UserRole } from '@forethread/shared-types';
+import { UserRole } from '@forethread/shared-types/client';
 import { Navigate } from 'react-router-dom';
 
 import { useUserRole } from './useUserRole';

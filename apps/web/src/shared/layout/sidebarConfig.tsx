@@ -1,4 +1,4 @@
-import { UserRole } from '@forethread/shared-types';
+import { UserRole } from '@forethread/shared-types/client';
 import type { SidebarNavItem } from '@forethread/ui-components';
 import BulkOrdersIcon from '@forethread/ui-components/assets/icons/bulk-orders.svg?react';
 import InvoiceIcon from '@forethread/ui-components/assets/icons/invoice.svg?react';

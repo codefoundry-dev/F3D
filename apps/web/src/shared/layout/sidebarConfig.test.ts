@@ -1,4 +1,4 @@
-import { UserRole } from '@forethread/shared-types';
+import { UserRole } from '@forethread/shared-types/client';
 import { describe, expect, it } from 'vitest';
 
 import { getSidebarItemsForRole } from './sidebarConfig';

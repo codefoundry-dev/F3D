@@ -1,4 +1,4 @@
-import { CompanyStatus, CompanyType } from '@forethread/shared-types';
+import { CompanyStatus, CompanyType } from '@forethread/shared-types/client';
 
 import { getApiClient } from '../client';
 

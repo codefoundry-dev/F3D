@@ -1,4 +1,4 @@
-import { CreateRfqDto, UpdateRfqDto } from '@forethread/shared-types';
+import type { CreateRfqDto, UpdateRfqDto } from '@forethread/shared-types';
 import { AxiosRequestConfig } from 'axios';
 
 import { getApiClient } from '../client';
