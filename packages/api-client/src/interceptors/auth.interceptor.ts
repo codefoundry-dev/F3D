@@ -76,8 +76,10 @@ export function applyAuthInterceptor(client: AxiosInstance): void {
       originalRequest._retry = true;
 
       try {
-        // Call refresh — cookies are sent automatically via withCredentials
-        await client.post('/auth/refresh', null, { skipErrorHandler: true });
+        // Call refresh — cookies are sent automatically via withCredentials.
+        // Body must be an object (not null), otherwise axios serializes `null` to the
+        // literal string "null" and Express's strict JSON parser rejects it.
+        await client.post('/auth/refresh', {}, { skipErrorHandler: true });
 
         // Replay queued requests
         state.pendingRequests.forEach((req) => req.resolve(req.retry()));
