@@ -24,9 +24,7 @@ import { CreateBulkOrderChangeRequestDto, RejectChangeRequestDto } from './bulk-
 
 @Injectable()
 export class BulkOrderChangeService {
-  private readonly vendorAppUrl: string;
-  private readonly companyAdminAppUrl: string;
-  private readonly procurementOfficerAppUrl: string;
+  private readonly webAppUrl: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -34,12 +32,7 @@ export class BulkOrderChangeService {
     private readonly emailService: EmailService,
     config: ConfigService,
   ) {
-    this.vendorAppUrl = config.get<string>('VENDOR_APP_URL', 'http://localhost:3003');
-    this.companyAdminAppUrl = config.get<string>('COMPANY_ADMIN_APP_URL', 'http://localhost:3002');
-    this.procurementOfficerAppUrl = config.get<string>(
-      'PROCUREMENT_OFFICER_APP_URL',
-      'http://localhost:3005',
-    );
+    this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
   }
 
   // ── Propose a change ─────────────────────────────────────────────────────
@@ -358,14 +351,8 @@ export class BulkOrderChangeService {
 
   // ── Email notification helpers ─────────────────────────────────────────
 
-  private getBulkOrderUrl(bulkOrderId: string, role: PrismaUserRole): string {
-    const base =
-      role === PrismaUserRole.VENDOR
-        ? this.vendorAppUrl
-        : role === PrismaUserRole.PROCUREMENT_OFFICER
-          ? this.procurementOfficerAppUrl
-          : this.companyAdminAppUrl;
-    return `${base}/bulk-orders/${bulkOrderId}`;
+  private getBulkOrderUrl(bulkOrderId: string, _role: PrismaUserRole): string {
+    return `${this.webAppUrl}/bulk-orders/${bulkOrderId}`;
   }
 
   private async getCounterpartyEmails(

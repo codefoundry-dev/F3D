@@ -11,56 +11,32 @@ describe('getAppUrlForRole', () => {
     jest.clearAllMocks();
   });
 
-  it('returns the correct URL for SUPER_ADMIN role', () => {
+  it('returns WEB_APP_URL for every role', () => {
     (mockConfig.get as jest.Mock).mockImplementation((key: string) => {
-      if (key === 'SUPER_ADMIN_APP_URL') return 'http://localhost:3001';
+      if (key === 'WEB_APP_URL') return 'http://localhost:5179';
       return undefined;
     });
 
-    expect(getAppUrlForRole(mockConfig, 'SUPER_ADMIN')).toBe('http://localhost:3001');
+    expect(getAppUrlForRole(mockConfig, 'SUPER_ADMIN')).toBe('http://localhost:5179');
+    expect(getAppUrlForRole(mockConfig, 'COMPANY_ADMIN')).toBe('http://localhost:5179');
+    expect(getAppUrlForRole(mockConfig, 'VENDOR')).toBe('http://localhost:5179');
+    expect(getAppUrlForRole(mockConfig, 'FOREMAN')).toBe('http://localhost:5179');
   });
 
-  it('returns the correct URL for COMPANY_ADMIN role', () => {
-    (mockConfig.get as jest.Mock).mockImplementation((key: string) => {
-      if (key === 'COMPANY_ADMIN_APP_URL') return 'http://localhost:3002';
-      return undefined;
-    });
-
-    expect(getAppUrlForRole(mockConfig, 'COMPANY_ADMIN')).toBe('http://localhost:3002');
-  });
-
-  it('returns the correct URL for VENDOR role', () => {
-    (mockConfig.get as jest.Mock).mockImplementation((key: string) => {
-      if (key === 'VENDOR_APP_URL') return 'http://localhost:3003';
-      return undefined;
-    });
-
-    expect(getAppUrlForRole(mockConfig, 'VENDOR')).toBe('http://localhost:3003');
-  });
-
-  it('maps Foreman to CompanyAdmin app URL', () => {
-    (mockConfig.get as jest.Mock).mockImplementation((key: string) => {
-      if (key === 'COMPANY_ADMIN_APP_URL') return 'http://localhost:3002';
-      return undefined;
-    });
-
-    expect(getAppUrlForRole(mockConfig, 'FOREMAN')).toBe('http://localhost:3002');
-  });
-
-  it('falls back to APP_URL for unknown roles', () => {
+  it('falls back to APP_URL when WEB_APP_URL is not set', () => {
     (mockConfig.get as jest.Mock).mockImplementation((key: string, defaultVal?: string) => {
-      if (key === 'APP_URL') return 'http://localhost:3001';
+      if (key === 'APP_URL') return 'http://localhost:3000';
       return defaultVal;
     });
 
-    expect(getAppUrlForRole(mockConfig, 'UnknownRole')).toBe('http://localhost:3001');
+    expect(getAppUrlForRole(mockConfig, 'COMPANY_ADMIN')).toBe('http://localhost:3000');
   });
 
-  it('falls back to default localhost:3001 when no env vars set', () => {
+  it('falls back to default localhost:5179 when no env vars set', () => {
     (mockConfig.get as jest.Mock).mockImplementation((_key: string, defaultVal?: string) => {
       return defaultVal;
     });
 
-    expect(getAppUrlForRole(mockConfig, 'UnknownRole')).toBe('http://localhost:3001');
+    expect(getAppUrlForRole(mockConfig, 'UnknownRole')).toBe('http://localhost:5179');
   });
 });

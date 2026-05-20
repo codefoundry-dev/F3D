@@ -18,7 +18,7 @@ async function bootstrap(): Promise<void> {
   const port = configService.get<number>('PORT', 3000);
   const nodeEnv = configService.get<string>('NODE_ENV', 'development');
   const corsOrigins = configService
-    .get<string>('CORS_ORIGINS', 'http://localhost:3001')
+    .get<string>('CORS_ORIGINS', 'http://localhost:5179')
     .split(',')
     .map((o) => o.trim());
 

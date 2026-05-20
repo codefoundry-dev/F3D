@@ -1818,7 +1818,7 @@ describe('RfqsService', () => {
       expect(mockEmailService.sendRfqReceivedEmail).toHaveBeenCalledWith(
         'active@vendor.com',
         'RFQ-1',
-        'http://localhost:3003/rfqs',
+        'http://localhost:5179/rfqs',
       );
     });
 

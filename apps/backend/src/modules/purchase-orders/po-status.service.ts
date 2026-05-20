@@ -25,8 +25,7 @@ import { PurchaseOrdersService } from './purchase-orders.service';
 
 @Injectable()
 export class PoStatusService {
-  private readonly vendorAppUrl: string;
-  private readonly companyAdminAppUrl: string;
+  private readonly webAppUrl: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -36,8 +35,7 @@ export class PoStatusService {
     private readonly poExportService: PoExportService,
     config: ConfigService,
   ) {
-    this.vendorAppUrl = config.get<string>('VENDOR_APP_URL', 'http://localhost:3003');
-    this.companyAdminAppUrl = config.get<string>('COMPANY_ADMIN_APP_URL', 'http://localhost:3002');
+    this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
   }
 
   // ── Issue Purchase Order ───────────────────────────────────────────────
@@ -337,7 +335,7 @@ export class PoStatusService {
       // PDF generation failure is non-critical — send email without attachment
     }
 
-    const viewUrl = `${this.vendorAppUrl}/purchase-orders/${poId}`;
+    const viewUrl = `${this.webAppUrl}/purchase-orders/${poId}`;
 
     await Promise.all(
       vendorUsers.map((u) =>
@@ -355,7 +353,7 @@ export class PoStatusService {
   ): Promise<void> {
     if (companyAdmins.length === 0) return;
 
-    const viewUrl = `${this.companyAdminAppUrl}/purchase-orders/${poId}`;
+    const viewUrl = `${this.webAppUrl}/purchase-orders/${poId}`;
 
     await Promise.all(
       companyAdmins.map((u) =>

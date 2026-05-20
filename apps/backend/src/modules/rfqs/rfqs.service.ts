@@ -84,8 +84,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 @Injectable()
 export class RfqsService {
-  private readonly vendorAppUrl: string;
-  private readonly companyAdminAppUrl: string;
+  private readonly webAppUrl: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -93,8 +92,7 @@ export class RfqsService {
     private readonly emailService: EmailService,
     config: ConfigService,
   ) {
-    this.vendorAppUrl = config.get<string>('VENDOR_APP_URL', 'http://localhost:3003');
-    this.companyAdminAppUrl = config.get<string>('COMPANY_ADMIN_APP_URL', 'http://localhost:3002');
+    this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
   }
 
   // ── List RFQs ──────────────────────────────────────────────────────────────
@@ -1044,8 +1042,8 @@ export class RfqsService {
       // otherwise → invitation link for guest access
       const hasActiveUser = iv.vendor.users.some((u) => u.status === 'ACTIVE');
       const replyUrl = hasActiveUser
-        ? `${this.vendorAppUrl}/rfqs`
-        : `${this.vendorAppUrl}/invitation/${token}`;
+        ? `${this.webAppUrl}/rfqs`
+        : `${this.webAppUrl}/invitation/${token}`;
 
       const emails = iv.vendor.users.map((u) => u.email);
 
@@ -1077,7 +1075,7 @@ export class RfqsService {
       });
 
       const rfqNumber = rfq.rfqNumber ?? rfqId.slice(0, 8).toUpperCase();
-      const viewUrl = `${this.companyAdminAppUrl}/rfqs`;
+      const viewUrl = `${this.webAppUrl}/rfqs`;
 
       await Promise.all(
         contractors.map((u) =>
@@ -1112,7 +1110,7 @@ export class RfqsService {
 
       const rfqNumber = rfq.rfqNumber ?? rfqId.slice(0, 8).toUpperCase();
 
-      const viewUrl = `${this.companyAdminAppUrl}/rfqs`;
+      const viewUrl = `${this.webAppUrl}/rfqs`;
 
       await Promise.all(
         contractors.map((u) =>

@@ -30,8 +30,7 @@ const PoChangeRequestStatus = {
 
 @Injectable()
 export class PoChangeService {
-  private readonly vendorAppUrl: string;
-  private readonly companyAdminAppUrl: string;
+  private readonly webAppUrl: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -39,8 +38,7 @@ export class PoChangeService {
     private readonly emailService: EmailService,
     config: ConfigService,
   ) {
-    this.vendorAppUrl = config.get<string>('VENDOR_APP_URL', 'http://localhost:3003');
-    this.companyAdminAppUrl = config.get<string>('COMPANY_ADMIN_APP_URL', 'http://localhost:3002');
+    this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
   }
 
   // ── Propose a change ─────────────────────────────────────────────────────
@@ -96,9 +94,7 @@ export class PoChangeService {
     // Notify the other party (fire-and-forget)
     const isVendor = user.role === UserRole.VENDOR;
     const recipients = isVendor ? (po.company?.users ?? []) : (po.vendor?.users ?? []);
-    const viewUrl = isVendor
-      ? `${this.companyAdminAppUrl}/purchase-orders/${poId}`
-      : `${this.vendorAppUrl}/purchase-orders/${poId}`;
+    const viewUrl = `${this.webAppUrl}/purchase-orders/${poId}`;
     const proposedBy = changeRequest.requestedBy?.name ?? 'A user';
 
     Promise.all(
@@ -231,10 +227,7 @@ export class PoChangeService {
     });
     if (!po) return;
 
-    const viewUrl =
-      requester.role === PrismaUserRole.VENDOR
-        ? `${this.vendorAppUrl}/purchase-orders/${poId}`
-        : `${this.companyAdminAppUrl}/purchase-orders/${poId}`;
+    const viewUrl = `${this.webAppUrl}/purchase-orders/${poId}`;
 
     if (outcome === 'approved') {
       await this.emailService.sendChangeRequestApprovedEmail(requester.email, po.poNumber, viewUrl);

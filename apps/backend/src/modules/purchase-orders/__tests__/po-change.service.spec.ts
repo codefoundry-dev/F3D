@@ -142,7 +142,7 @@ describe('PoChangeService', () => {
         'admin@contractor.com',
         'PO-0001',
         'Vendor User',
-        'http://localhost:3002/purchase-orders/po-1',
+        'http://localhost:5179/purchase-orders/po-1',
       );
     });
 
@@ -161,7 +161,7 @@ describe('PoChangeService', () => {
         'vendor@vendor.com',
         'PO-0001',
         'CA Admin',
-        'http://localhost:3003/purchase-orders/po-1',
+        'http://localhost:5179/purchase-orders/po-1',
       );
     });
 
@@ -275,7 +275,7 @@ describe('PoChangeService', () => {
       expect(mockEmailService.sendChangeRequestApprovedEmail).toHaveBeenCalledWith(
         'vendor@test.com',
         'PO-0001',
-        'http://localhost:3003/purchase-orders/po-1',
+        'http://localhost:5179/purchase-orders/po-1',
       );
     });
 
@@ -306,7 +306,7 @@ describe('PoChangeService', () => {
       expect(mockEmailService.sendChangeRequestApprovedEmail).toHaveBeenCalledWith(
         'other-admin@contractor.com',
         'PO-0002',
-        'http://localhost:3002/purchase-orders/po-1',
+        'http://localhost:5179/purchase-orders/po-1',
       );
     });
   });
@@ -387,7 +387,7 @@ describe('PoChangeService', () => {
       expect(mockEmailService.sendChangeRequestRejectedEmail).toHaveBeenCalledWith(
         'vendor@test.com',
         'PO-0001',
-        'http://localhost:3003/purchase-orders/po-1',
+        'http://localhost:5179/purchase-orders/po-1',
       );
     });
 

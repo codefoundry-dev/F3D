@@ -41,7 +41,6 @@ export default defineConfig({
   ],
   /* Start servers manually before running tests:
    *   pnpm --filter backend dev
-   *   pnpm --filter super-admin-app dev
-   *   pnpm --filter company-admin-app dev
+   *   pnpm --filter @forethread/web dev
    */
 });

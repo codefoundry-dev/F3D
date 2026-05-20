@@ -783,23 +783,21 @@ describe('BulkOrderChangeService', () => {
       await new Promise((r) => setTimeout(r, 50));
 
       expect(mockEmailService.sendChangeRequestApprovedEmail).toHaveBeenCalledTimes(3);
-      // COMPANY_ADMIN gets companyAdminAppUrl
+      // All roles share the unified WEB_APP_URL
       expect(mockEmailService.sendChangeRequestApprovedEmail).toHaveBeenCalledWith(
         'ca@test.com',
         expect.stringContaining('BO-'),
-        expect.stringContaining('http://localhost:3002/bulk-orders/bo-1'),
+        expect.stringContaining('/bulk-orders/bo-1'),
       );
-      // PROCUREMENT_OFFICER gets procurementOfficerAppUrl
       expect(mockEmailService.sendChangeRequestApprovedEmail).toHaveBeenCalledWith(
         'po@test.com',
         expect.stringContaining('BO-'),
-        expect.stringContaining('http://localhost:3005/bulk-orders/bo-1'),
+        expect.stringContaining('/bulk-orders/bo-1'),
       );
-      // VENDOR gets vendorAppUrl
       expect(mockEmailService.sendChangeRequestApprovedEmail).toHaveBeenCalledWith(
         'v@test.com',
         expect.stringContaining('BO-'),
-        expect.stringContaining('http://localhost:3003/bulk-orders/bo-1'),
+        expect.stringContaining('/bulk-orders/bo-1'),
       );
     });
 
@@ -827,7 +825,7 @@ describe('BulkOrderChangeService', () => {
       expect(mockEmailService.sendChangeRequestRejectedEmail).toHaveBeenCalledWith(
         'v@test.com',
         expect.stringContaining('BO-'),
-        expect.stringContaining('http://localhost:3003/bulk-orders/bo-1'),
+        expect.stringContaining('http://localhost:5179/bulk-orders/bo-1'),
       );
     });
 

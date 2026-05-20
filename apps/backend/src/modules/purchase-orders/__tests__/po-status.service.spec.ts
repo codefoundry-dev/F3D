@@ -703,7 +703,7 @@ describe('PoStatusService', () => {
         'admin@contractor.com',
         'PO-0001',
         'VendorCo',
-        'http://localhost:3002/purchase-orders/po-1',
+        'http://localhost:5179/purchase-orders/po-1',
         'Out of stock',
       );
     });

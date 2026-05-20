@@ -21,7 +21,7 @@ export interface AuthState {
 /**
  * Factory that creates a Zustand auth store with app-specific persistence key.
  *
- * @param persistName - Unique localStorage key per app (e.g. 'forethread-company-auth')
+ * @param persistName - Unique localStorage key per app (e.g. 'forethread-web-auth')
  */
 export function createAuthStore(persistName: string) {
   return create<AuthState>()(
