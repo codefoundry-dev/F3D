@@ -66,6 +66,7 @@ test-results
 
 # Misc
 .cache
+.prettiercache
 tmp/
 temp/
 *.timestamp-*.mjs
