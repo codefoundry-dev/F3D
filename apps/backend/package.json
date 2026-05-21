@@ -21,7 +21,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
-    "db:seed": "ts-node prisma/seed.ts",
+    "db:seed": "node --env-file=.env -r ts-node/register prisma/seed.ts",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset --force",
     "clean": "rm -rf dist"
