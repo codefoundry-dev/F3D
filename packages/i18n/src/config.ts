@@ -18,6 +18,7 @@ import companyEn from './locales/en/company.json';
 import errorsEn from './locales/en/errors.json';
 import vendorsEn from './locales/en/vendors.json';
 import vendorUsersEn from './locales/en/vendorUsers.json';
+import rolesEn from './locales/en/roles.json';
 
 export const defaultNS = 'common';
 
@@ -40,6 +41,7 @@ export const resources = {
     errors: errorsEn,
     vendors: vendorsEn,
     vendorUsers: vendorUsersEn,
+    roles: rolesEn,
   },
 } as const;
 

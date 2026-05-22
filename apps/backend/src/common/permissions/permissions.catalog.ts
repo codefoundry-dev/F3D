@@ -125,6 +125,10 @@ export const PERMISSIONS = {
   'po.approveChange': 'Approve a PO change request',
   'po.rejectChange': 'Reject a PO change request',
 
+  // ── Roles & permissions (admin) ─────────────────────────────────────────
+  'role.list': 'List built-in roles and the permissions granted to each',
+  'role.update': 'Grant or revoke permissions on a built-in role',
+
   // ── Users ───────────────────────────────────────────────────────────────
   'user.list': 'List users',
   'user.create': 'Create and invite users',
@@ -243,6 +247,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'po.listChangeRequests',
     'po.approveChange',
     'po.rejectChange',
+
+    'role.list',
+    'role.update',
 
     'user.list',
     'user.create',

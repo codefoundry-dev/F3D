@@ -14,6 +14,9 @@ vi.mock('@forethread/ui-components/assets/icons/department.svg?react', () => ({
 vi.mock('@forethread/ui-components/assets/icons/new-user.svg?react', () => ({
   default: () => <div />,
 }));
+vi.mock('@forethread/ui-components/assets/icons/settings.svg?react', () => ({
+  default: () => <div />,
+}));
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', () => ({
@@ -92,5 +95,25 @@ describe('SettingsPage', () => {
     render(<SettingsPage />);
     fireEvent.click(screen.getByText('company'));
     expect(mockNavigate).toHaveBeenCalledWith('/company');
+  });
+
+  it('shows the roles link for COMPANY_ADMIN and navigates to /settings/roles', () => {
+    mockUseUserRole.mockReturnValue(UserRole.COMPANY_ADMIN);
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByText('title'));
+    expect(mockNavigate).toHaveBeenCalledWith('/settings/roles');
+  });
+
+  it('shows the roles link for SUPER_ADMIN', () => {
+    mockUseUserRole.mockReturnValue(UserRole.SUPER_ADMIN);
+    render(<SettingsPage />);
+    expect(screen.getByText('title')).toBeInTheDocument();
+  });
+
+  it('hides the roles link for PROCUREMENT_OFFICER', () => {
+    mockUseUserRole.mockReturnValue(UserRole.PROCUREMENT_OFFICER);
+    render(<SettingsPage />);
+    // 'title' is the i18n key for roles section
+    expect(screen.queryByText('title')).not.toBeInTheDocument();
   });
 });

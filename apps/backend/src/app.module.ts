@@ -27,6 +27,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { ProjectsModule } from './modules/projects/projects.module';
 import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 import { RfqsModule } from './modules/rfqs/rfqs.module';
+import { RolesModule } from './modules/roles/roles.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { UsersModule } from './modules/users/users.module';
 import { VendorsModule } from './modules/vendors/vendors.module';
@@ -82,6 +83,7 @@ import { PrismaModule } from './prisma/prisma.module';
     ProjectsModule,
     RfqsModule,
     PurchaseOrdersModule,
+    RolesModule,
     BulkOrdersModule,
     InvoicesModule,
     MaterialsModule,

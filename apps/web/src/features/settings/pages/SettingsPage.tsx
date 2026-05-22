@@ -3,6 +3,7 @@ import { UserRole } from '@forethread/shared-types/client';
 import ArrowRightIcon from '@forethread/ui-components/assets/icons/arrow-right.svg?react';
 import DepartmentIcon from '@forethread/ui-components/assets/icons/department.svg?react';
 import NewUserIcon from '@forethread/ui-components/assets/icons/new-user.svg?react';
+import SettingsIcon from '@forethread/ui-components/assets/icons/settings.svg?react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -46,8 +47,11 @@ const COMPANY_PROFILE_ROLES: readonly UserRole[] = [
   UserRole.VENDOR,
 ];
 
+const ROLES_ADMIN_ROLES: readonly UserRole[] = [UserRole.COMPANY_ADMIN, UserRole.SUPER_ADMIN];
+
 export default function SettingsPage() {
   const { t } = useTranslation('nav');
+  const { t: tRoles } = useTranslation('roles');
   const navigate = useNavigate();
   const role = useUserRole();
 
@@ -67,6 +71,14 @@ export default function SettingsPage() {
       subtitle: t('companySubtitle'),
       route: ROUTES.companyProfile,
       visible: role !== null && COMPANY_PROFILE_ROLES.includes(role),
+    },
+    {
+      key: 'roles',
+      icon: <SettingsIcon className="w-6 h-6" />,
+      title: tRoles('title'),
+      subtitle: tRoles('subtitle'),
+      route: ROUTES.roles,
+      visible: role !== null && ROLES_ADMIN_ROLES.includes(role),
     },
   ].filter((item) => item.visible);
 

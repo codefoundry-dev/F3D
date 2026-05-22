@@ -73,6 +73,8 @@ export const ROUTES = {
   me: '/me',
   companyProfile: '/company',
   settings: '/settings',
+  roles: '/settings/roles',
+  roleEdit: '/settings/roles/:role',
 } as const;
 
 export type RouteKey = keyof typeof ROUTES;

@@ -27,6 +27,7 @@ export * from './endpoints/dashboard';
 export * from './endpoints/vendors';
 export * from './endpoints/messages';
 export * from './endpoints/views';
+export * from './endpoints/roles';
 
 // Query key factory
 export { queryKeys } from './queryKeys';

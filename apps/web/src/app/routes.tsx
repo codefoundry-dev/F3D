@@ -20,6 +20,8 @@ const ActivateAccountPage = lazy(() => import('@/features/auth/ui/ActivateAccoun
 const ResetPasswordPage = lazy(() => import('@/features/auth/ui/ResetPasswordPage'));
 const UserProfilePage = lazy(() => import('@/features/profile/pages/UserProfilePage'));
 const SettingsPage = lazy(() => import('@/features/settings/pages/SettingsPage'));
+const RoleListPage = lazy(() => import('@/features/roles/pages/RoleListPage'));
+const RoleEditPage = lazy(() => import('@/features/roles/pages/RoleEditPage'));
 const ProjectListPage = lazy(() => import('@/features/projects/pages/ProjectListPage'));
 const CreateProjectPage = lazy(() => import('@/features/projects/pages/CreateProjectPage'));
 const ProjectDetailPage = lazy(() => import('@/features/projects/pages/ProjectDetailPage'));
@@ -332,6 +334,17 @@ export const routes: RouteObject[] = [
                   { path: ROUTES.companies, element: <ComingSoon page="Companies" /> },
                   { path: ROUTES.companyDetail, element: withSuspense(<CompanyDetailPage />) },
                   { path: ROUTES.adminPanel, element: withSuspense(<AdminPanelPage />) },
+                ],
+              },
+
+              // Roles & permissions (Company Admin / Super Admin)
+              {
+                element: (
+                  <RoleRoute allow={[UserRole.COMPANY_ADMIN, UserRole.SUPER_ADMIN]} />
+                ),
+                children: [
+                  { path: ROUTES.roles, element: withSuspense(<RoleListPage />) },
+                  { path: ROUTES.roleEdit, element: withSuspense(<RoleEditPage />) },
                 ],
               },
 

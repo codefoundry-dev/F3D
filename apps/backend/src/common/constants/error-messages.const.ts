@@ -210,4 +210,11 @@ export const ERR = {
   views: {
     notFound: errors.views.notFound,
   },
+
+  // ── Roles & permissions ──────────────────────────────────
+  roles: {
+    unknownRole: (role: string) => t(errors.roles.unknownRole, { role }),
+    unknownPermission: (key: string) => t(errors.roles.unknownPermission, { key }),
+    cannotModifySuperAdmin: errors.roles.cannotModifySuperAdmin,
+  },
 } as const;

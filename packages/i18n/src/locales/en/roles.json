@@ -1,0 +1,39 @@
+{
+  "title": "Roles & permissions",
+  "subtitle": "Configure which permissions each built-in role has. Changes take effect on the next request.",
+  "rolesHeading": "Roles",
+  "roleNames": {
+    "SUPER_ADMIN": "Super Admin",
+    "COMPANY_ADMIN": "Company Admin",
+    "PROCUREMENT_OFFICER": "Procurement Officer",
+    "FINANCIAL_OFFICER": "Financial Officer",
+    "WAREHOUSE_OFFICER": "Warehouse Officer",
+    "FOREMAN": "Foreman",
+    "VENDOR": "Vendor"
+  },
+  "permissionCount": "{{count}} permissions",
+  "edit": "Edit permissions",
+  "save": "Save changes",
+  "saving": "Saving…",
+  "cancel": "Cancel",
+  "back": "Back to roles",
+  "saved": "Permissions updated",
+  "saveError": "Failed to save permissions",
+  "noChanges": "No changes to save",
+  "superAdminLocked": "The Super Admin role has every permission and cannot be edited.",
+  "domains": {
+    "dashboard": "Dashboards",
+    "project": "Projects",
+    "company": "Companies",
+    "invoice": "Invoices",
+    "material": "Materials",
+    "bulkOrder": "Bulk orders",
+    "message": "Messages",
+    "vendor": "Vendors",
+    "rfq": "RFQs",
+    "po": "Purchase orders",
+    "role": "Roles & permissions",
+    "user": "Users",
+    "other": "Other"
+  }
+}

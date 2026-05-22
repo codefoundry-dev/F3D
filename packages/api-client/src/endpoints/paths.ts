@@ -45,6 +45,14 @@ export const AUDIT_PATHS = {
   ROOT: '/audit-logs',
 } as const;
 
+// ── Roles & permissions ─────────────────────────────────────────────────────
+export const ROLES_PATHS = {
+  ROOT: '/roles',
+  CATALOG: '/roles/permissions/catalog',
+  byRole: (role: string) => `/roles/${role}`,
+  permissions: (role: string) => `/roles/${role}/permissions`,
+} as const;
+
 export const STORAGE_PATHS = {
   UPLOAD: '/storage/upload',
   fileUrl: (id: string) => `/storage/${id}/url`,
