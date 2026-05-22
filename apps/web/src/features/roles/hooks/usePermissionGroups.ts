@@ -43,12 +43,15 @@ export function groupCatalogByDomain(catalog: PermissionCatalogEntry[]): Permiss
     const domain: PermissionDomain = (KNOWN_DOMAINS as readonly string[]).includes(prefix)
       ? prefix
       : 'other';
-    if (!byDomain.has(domain)) byDomain.set(domain, []);
-    byDomain.get(domain)!.push(entry);
+    const existing = byDomain.get(domain) ?? [];
+    existing.push(entry);
+    byDomain.set(domain, existing);
   }
 
   const order: PermissionDomain[] = [...KNOWN_DOMAINS, 'other'];
-  return order
-    .filter((d) => byDomain.has(d))
-    .map((d) => ({ domain: d, entries: byDomain.get(d)!.sort((a, b) => a.key.localeCompare(b.key)) }));
+  return order.flatMap((d) => {
+    const entries = byDomain.get(d);
+    if (!entries) return [];
+    return [{ domain: d, entries: entries.sort((a, b) => a.key.localeCompare(b.key)) }];
+  });
 }

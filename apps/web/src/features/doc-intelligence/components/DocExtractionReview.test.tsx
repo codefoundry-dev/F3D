@@ -94,7 +94,7 @@ describe('DocExtractionReview — generic JSON editor', () => {
 
     renderWithClient(<DocExtractionReview extractionId="job-1" />);
 
-    const editor = (await screen.findByTestId('extraction-editor')) as HTMLTextAreaElement;
+    const editor = (await screen.findByTestId('extraction-editor'));
     expect(editor.value).toContain('"title": "Doc"');
     expect(screen.getByTestId('extraction-status').textContent).toMatch(/Ready/i);
   });
@@ -108,7 +108,7 @@ describe('DocExtractionReview — generic JSON editor', () => {
     renderWithClient(<DocExtractionReview extractionId="job-1" />);
 
     fireEvent.click(await screen.findByRole('button', { name: /edit/i }));
-    const editor = (await screen.findByTestId('extraction-editor')) as HTMLTextAreaElement;
+    const editor = (await screen.findByTestId('extraction-editor'));
     fireEvent.change(editor, {
       target: { value: JSON.stringify({ title: 'Edited' }, null, 2) },
     });
@@ -200,7 +200,7 @@ describe('DocExtractionReview — BOM line-item table', () => {
     renderWithClient(<DocExtractionReview extractionId="job-1" />);
 
     fireEvent.click(await screen.findByRole('button', { name: /edit/i }));
-    const descriptionInput = screen.getByDisplayValue('Cement') as HTMLInputElement;
+    const descriptionInput = screen.getByDisplayValue('Cement');
     fireEvent.change(descriptionInput, { target: { value: 'Cement 25kg bag' } });
     fireEvent.click(screen.getByRole('button', { name: /save/i }));
 

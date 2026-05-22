@@ -200,14 +200,14 @@ export function DocExtractionReview({ extractionId, onConfirmed }: DocExtraction
             >
               {t('review.actions.cancel')}
             </Button>
-            <Button onClick={onSave} disabled={saveDisabled || update.isPending}>
+            <Button onClick={() => void onSave()} disabled={saveDisabled || update.isPending}>
               {t('review.actions.save')}
             </Button>
           </>
         ) : null}
         {canConfirm ? (
           <Button
-            onClick={onConfirm}
+            onClick={() => void onConfirm()}
             disabled={saveDisabled || confirm.isPending}
             data-testid="confirm-extraction"
           >

@@ -61,7 +61,7 @@ describe('BomReviewTable', () => {
     };
     render(<BomReviewTable value={value as unknown as Record<string, unknown>} onChange={onChange} />);
 
-    const qtyInput = screen.getByLabelText(/qty/i) as HTMLInputElement;
+    const qtyInput = screen.getByLabelText(/qty/i);
     fireEvent.change(qtyInput, { target: { value: '1,200' } });
 
     const next = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BomExtractionResult;

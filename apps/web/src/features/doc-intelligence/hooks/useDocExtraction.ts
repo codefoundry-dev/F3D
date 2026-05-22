@@ -36,7 +36,7 @@ export function useDocExtractionQuery(
     queryFn: () => getDocExtraction(id as string),
     enabled: Boolean(id),
     refetchInterval: (query) => {
-      const data = query.state.data as DocExtractionResponse | undefined;
+      const data = query.state.data;
       if (!data) return POLL_INTERVAL_MS;
       return TERMINAL_STATUSES.has(data.status) ? false : POLL_INTERVAL_MS;
     },

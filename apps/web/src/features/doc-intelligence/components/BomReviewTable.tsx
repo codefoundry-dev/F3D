@@ -1,9 +1,9 @@
+import { useTranslation } from '@forethread/i18n';
 import {
   type BomExtractionResult,
   type BomLineItem,
   isBomExtractionResult,
 } from '@forethread/shared-types';
-import { useTranslation } from '@forethread/i18n';
 import { Button, Input } from '@forethread/ui-components';
 import { useCallback, useMemo } from 'react';
 

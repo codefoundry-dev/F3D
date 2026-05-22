@@ -1,8 +1,8 @@
 import { useTranslation } from '@forethread/i18n';
 import { Link } from 'react-router-dom';
 
-import { useUserRole } from './useUserRole';
 import { homePathForRole } from './roleHome';
+import { useUserRole } from './useUserRole';
 
 export default function Forbidden() {
   const { t } = useTranslation(['common']);
