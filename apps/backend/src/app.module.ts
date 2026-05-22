@@ -8,10 +8,10 @@ import { ClsModule } from 'nestjs-cls';
 
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
-import { RolesGuard } from './common/guards/roles.guard';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { WinstonLoggerModule } from './common/logger/winston.logger';
+import { PermissionsGuard, PermissionsModule } from './common/permissions';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BulkOrdersModule } from './modules/bulk-orders/bulk-orders.module';
@@ -65,6 +65,9 @@ import { PrismaModule } from './prisma/prisma.module';
     // ── Database ────────────────────────────────────────────────────────────
     PrismaModule,
 
+    // ── Permissions (global guard + bootstrap) ─────────────────────────────
+    PermissionsModule,
+
     // ── Logger ─────────────────────────────────────────────────────────────
     WinstonLoggerModule,
 
@@ -106,7 +109,7 @@ import { PrismaModule } from './prisma/prisma.module';
       useClass: TransformInterceptor,
     },
 
-    // ── Global guards (throttler → jwt → roles) ─────────────────────────────
+    // ── Global guards (throttler → jwt → permissions) ───────────────────────
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
@@ -117,7 +120,7 @@ import { PrismaModule } from './prisma/prisma.module';
     },
     {
       provide: APP_GUARD,
-      useClass: RolesGuard,
+      useClass: PermissionsGuard,
     },
   ],
 })

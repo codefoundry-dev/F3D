@@ -1,0 +1,30 @@
+/// Canonical permission catalog. Rows are upserted by PermissionsBootstrap
+/// at backend startup from src/common/permissions/permissions.catalog.ts.
+model Permission {
+  id          String   @id @default(uuid())
+  key         String   @unique @db.VarChar(100)
+  description String   @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+/// Join table assigning a permission to a built-in UserRole. The default rows
+/// are seeded by PermissionsBootstrap from the catalog; Company Admin overrides
+/// in a later release (FOR-195) mutate this table at runtime, so PermissionsGuard
+/// queries it on every request.
+model RolePermission {
+  id           String   @id @default(uuid())
+  role         UserRole
+  permissionId String   @map("permission_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([role, permissionId], map: "uq_role_permissions_role_permission")
+  @@index([role], map: "idx_role_permissions_role")
+  @@map("role_permissions")
+}

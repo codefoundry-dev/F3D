@@ -20,6 +20,8 @@ export const ERR = {
   general: {
     accessDenied: errors.general.accessDenied,
     accessDeniedRoles: (roles: string) => t(errors.general.accessDeniedRoles, { roles }),
+    accessDeniedPermissions: (permissions: string) =>
+      t(errors.general.accessDeniedPermissions, { permissions }),
     notFound: errors.general.notFound,
     internalServerError: errors.general.internalServerError,
     badRequest: errors.general.badRequest,

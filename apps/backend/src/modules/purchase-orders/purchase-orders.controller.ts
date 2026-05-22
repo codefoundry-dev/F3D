@@ -22,7 +22,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles, UserRole } from '../../common/decorators/roles.decorator';
+import { RequirePermissions } from '../../common/permissions';
 
 import { CreatePoChangeRequestDto, RejectPoChangeRequestDto } from './po-change.dto';
 import { PoChangeService } from './po-change.service';
@@ -49,12 +49,7 @@ export class PurchaseOrdersController {
   // ── GET /v1/purchase-orders ────────────────────────────────────────────────
 
   @Get()
-  @Roles(
-    UserRole.COMPANY_ADMIN,
-    UserRole.PROCUREMENT_OFFICER,
-    UserRole.FINANCIAL_OFFICER,
-    UserRole.VENDOR,
-  )
+  @RequirePermissions('po.list')
   @ApiOperation({ summary: 'List purchase orders accessible to the current user' })
   @ApiResponse({ status: 200, description: 'Paginated list of purchase orders' })
   async listPurchaseOrders(@Query() query: PoListQueryDto, @CurrentUser() user: AuthenticatedUser) {
@@ -65,7 +60,7 @@ export class PurchaseOrdersController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('po.create')
   @ApiOperation({ summary: 'Create a new purchase order' })
   @ApiResponse({ status: 201, description: 'Purchase order created' })
   async createPurchaseOrder(
@@ -79,7 +74,7 @@ export class PurchaseOrdersController {
 
   @Post('validate-items')
   @HttpCode(HttpStatus.OK)
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('po.validateItems')
   @ApiOperation({ summary: 'Check line items against bulk orders and approved RFQs' })
   @ApiResponse({ status: 200, description: 'Validation suggestions' })
   async validateItems(@Body() dto: ValidatePoItemsDto, @CurrentUser() user: AuthenticatedUser) {
@@ -89,7 +84,7 @@ export class PurchaseOrdersController {
   // ── PATCH /v1/purchase-orders/:id ───────────────────────────────────────
 
   @Patch(':id')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('po.update')
   @ApiOperation({ summary: 'Update a draft purchase order' })
   @ApiResponse({ status: 200, description: 'Purchase order updated' })
   @ApiResponse({ status: 400, description: 'PO is not in DRAFT status' })
@@ -105,7 +100,7 @@ export class PurchaseOrdersController {
   // ── POST /v1/purchase-orders/:id/issue ──────────────────────────────────
 
   @Post(':id/issue')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('po.issue')
   @ApiOperation({ summary: 'Issue a draft purchase order (DRAFT → SENT)' })
   @ApiResponse({ status: 200, description: 'Purchase order issued' })
   @ApiResponse({ status: 400, description: 'PO is not in DRAFT status' })
@@ -117,7 +112,7 @@ export class PurchaseOrdersController {
   // ── POST /v1/purchase-orders/:id/confirm ──────────────────────────────────
 
   @Post(':id/confirm')
-  @Roles(UserRole.VENDOR)
+  @RequirePermissions('po.confirm')
   @ApiOperation({ summary: 'Vendor confirms receipt of a purchase order' })
   @ApiResponse({ status: 200, description: 'PO confirmed by vendor' })
   @ApiResponse({ status: 400, description: 'PO is not in SENT status' })
@@ -129,7 +124,7 @@ export class PurchaseOrdersController {
   // ── PATCH /v1/purchase-orders/:id/accept ──────────────────────────────────
 
   @Patch(':id/accept')
-  @Roles(UserRole.VENDOR)
+  @RequirePermissions('po.accept')
   @ApiOperation({ summary: 'Vendor accepts a purchase order (ACKNOWLEDGED → ACCEPTED)' })
   @ApiResponse({ status: 200, description: 'PO accepted by vendor' })
   @ApiResponse({ status: 400, description: 'PO is not in ACKNOWLEDGED status' })
@@ -145,7 +140,7 @@ export class PurchaseOrdersController {
   // ── PATCH /v1/purchase-orders/:id/vendor-decline ──────────────────────────
 
   @Patch(':id/vendor-decline')
-  @Roles(UserRole.VENDOR)
+  @RequirePermissions('po.vendorDecline')
   @ApiOperation({ summary: 'Vendor declines a purchase order' })
   @ApiResponse({ status: 200, description: 'PO declined by vendor' })
   @ApiResponse({ status: 400, description: 'PO cannot be declined in current status' })
@@ -161,12 +156,7 @@ export class PurchaseOrdersController {
   // ── GET /v1/purchase-orders/export/:format ────────────────────────────────
 
   @Get('export/:format')
-  @Roles(
-    UserRole.COMPANY_ADMIN,
-    UserRole.PROCUREMENT_OFFICER,
-    UserRole.FINANCIAL_OFFICER,
-    UserRole.VENDOR,
-  )
+  @RequirePermissions('po.export')
   @ApiOperation({ summary: 'Export purchase orders as CSV, XLSX, or PDF' })
   @ApiResponse({ status: 200, description: 'Export file URL' })
   async exportPurchaseOrders(
@@ -180,7 +170,7 @@ export class PurchaseOrdersController {
   // ── GET /v1/purchase-orders/:id/export/:format ────────────────────────────
 
   @Get(':id/export/:format')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('po.exportSingle')
   @ApiOperation({ summary: 'Export a single purchase order as PDF' })
   @ApiResponse({ status: 200, description: 'Export file URL' })
   async exportSinglePo(
@@ -196,7 +186,7 @@ export class PurchaseOrdersController {
   @Post(':poId/documents')
   @UseInterceptors(FileInterceptor('file'))
   @HttpCode(HttpStatus.CREATED)
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('po.uploadDocument')
   @ApiOperation({ summary: 'Upload a document to a purchase order' })
   @ApiConsumes('multipart/form-data')
   @ApiResponse({ status: 201, description: 'Document uploaded' })
@@ -212,7 +202,7 @@ export class PurchaseOrdersController {
   // ── DELETE /v1/purchase-orders/:poId/documents/:docId ───────────────────
 
   @Delete(':poId/documents/:docId')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('po.deleteDocument')
   @ApiOperation({ summary: 'Delete a PO document' })
   @ApiResponse({ status: 200, description: 'Document deleted' })
   @ApiResponse({ status: 404, description: 'Document not found' })
@@ -227,7 +217,7 @@ export class PurchaseOrdersController {
   // ── POST /v1/purchase-orders/:id/copy ─────────────────────────────────────
 
   @Post(':id/copy')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('po.copy')
   @ApiOperation({ summary: 'Duplicate a purchase order as a new Draft' })
   @ApiResponse({ status: 201, description: 'PO duplicated' })
   @ApiResponse({ status: 404, description: 'PO not found' })
@@ -238,7 +228,7 @@ export class PurchaseOrdersController {
   // ── PATCH /v1/purchase-orders/:id/archive ───────────────────────────────
 
   @Patch(':id/archive')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('po.archive')
   @ApiOperation({ summary: 'Archive a closed purchase order' })
   @ApiResponse({ status: 200, description: 'PO archived' })
   @ApiResponse({ status: 400, description: 'PO is not in CLOSED status' })
@@ -250,12 +240,7 @@ export class PurchaseOrdersController {
   // ── GET /v1/purchase-orders/:id ────────────────────────────────────────────
 
   @Get(':id')
-  @Roles(
-    UserRole.COMPANY_ADMIN,
-    UserRole.PROCUREMENT_OFFICER,
-    UserRole.FINANCIAL_OFFICER,
-    UserRole.VENDOR,
-  )
+  @RequirePermissions('po.read')
   @ApiOperation({ summary: 'Get a single purchase order by ID' })
   @ApiResponse({ status: 200, description: 'Purchase order detail' })
   @ApiResponse({ status: 404, description: 'Purchase order not found' })
@@ -266,7 +251,7 @@ export class PurchaseOrdersController {
   // ── PATCH /v1/purchase-orders/:id/approve ────────────────────────────────
 
   @Patch(':id/approve')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('po.approve')
   @ApiOperation({ summary: 'Approve a purchase order' })
   @ApiResponse({ status: 200, description: 'PO approved' })
   @ApiResponse({ status: 400, description: 'PO cannot be approved in its current status' })
@@ -278,7 +263,7 @@ export class PurchaseOrdersController {
   // ── PATCH /v1/purchase-orders/:id/decline ────────────────────────────────
 
   @Patch(':id/decline')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('po.decline')
   @ApiOperation({ summary: 'Decline a purchase order' })
   @ApiResponse({ status: 200, description: 'PO declined' })
   @ApiResponse({ status: 400, description: 'PO cannot be declined in its current status' })
@@ -291,7 +276,7 @@ export class PurchaseOrdersController {
 
   @Post(':id/change-requests')
   @HttpCode(HttpStatus.CREATED)
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('po.proposeChange')
   @ApiOperation({ summary: 'Propose a change to a purchase order' })
   @ApiResponse({ status: 201, description: 'Change request created' })
   async proposePoChange(
@@ -303,12 +288,7 @@ export class PurchaseOrdersController {
   }
 
   @Get(':id/change-requests')
-  @Roles(
-    UserRole.COMPANY_ADMIN,
-    UserRole.PROCUREMENT_OFFICER,
-    UserRole.FINANCIAL_OFFICER,
-    UserRole.VENDOR,
-  )
+  @RequirePermissions('po.listChangeRequests')
   @ApiOperation({ summary: 'List change requests for a purchase order' })
   @ApiResponse({ status: 200, description: 'List of change requests' })
   async listPoChangeRequests(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
@@ -316,7 +296,7 @@ export class PurchaseOrdersController {
   }
 
   @Patch(':id/change-requests/:crId/approve')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('po.approveChange')
   @ApiOperation({ summary: 'Approve a PO change request' })
   @ApiResponse({ status: 200, description: 'Change request approved' })
   async approvePoChange(
@@ -328,7 +308,7 @@ export class PurchaseOrdersController {
   }
 
   @Patch(':id/change-requests/:crId/reject')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('po.rejectChange')
   @ApiOperation({ summary: 'Reject a PO change request' })
   @ApiResponse({ status: 200, description: 'Change request rejected' })
   async rejectPoChange(

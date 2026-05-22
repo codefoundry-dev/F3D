@@ -9,7 +9,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestj
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles, UserRole } from '../../common/decorators/roles.decorator';
+import { RequirePermissions } from '../../common/permissions';
 
 import { CreateBulkOrderChangeRequestDto, RejectChangeRequestDto } from './bulk-order-change.dto';
 import { BulkOrderChangeService } from './bulk-order-change.service';
@@ -27,12 +27,7 @@ export class BulkOrdersController {
   // ── GET /v1/bulk-orders ────────────────────────────────────────────────────
 
   @Get()
-  @Roles(
-    UserRole.COMPANY_ADMIN,
-    UserRole.PROCUREMENT_OFFICER,
-    UserRole.FINANCIAL_OFFICER,
-    UserRole.VENDOR,
-  )
+  @RequirePermissions('bulkOrder.list')
   @ApiOperation({ summary: 'List bulk orders accessible to the current user' })
   @ApiResponse({ status: 200, description: 'Paginated list of bulk orders' })
   async listBulkOrders(
@@ -45,7 +40,7 @@ export class BulkOrdersController {
   // ── POST /v1/bulk-orders ───────────────────────────────────────────────────
 
   @Post()
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('bulkOrder.create')
   @ApiOperation({ summary: 'Create a new bulk order' })
   @ApiResponse({ status: 201, description: 'Bulk order created' })
   async createBulkOrder(@Body() dto: CreateBulkOrderDto, @CurrentUser() user: AuthenticatedUser) {
@@ -55,12 +50,7 @@ export class BulkOrdersController {
   // ── GET /v1/bulk-orders/:id ────────────────────────────────────────────────
 
   @Get(':id')
-  @Roles(
-    UserRole.COMPANY_ADMIN,
-    UserRole.PROCUREMENT_OFFICER,
-    UserRole.FINANCIAL_OFFICER,
-    UserRole.VENDOR,
-  )
+  @RequirePermissions('bulkOrder.read')
   @ApiOperation({ summary: 'Get a single bulk order by ID' })
   @ApiResponse({ status: 200, description: 'Bulk order detail with line items' })
   @ApiResponse({ status: 404, description: 'Bulk order not found' })
@@ -71,7 +61,7 @@ export class BulkOrdersController {
   // ── PATCH /v1/bulk-orders/:id ──────────────────────────────────────────────
 
   @Patch(':id')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('bulkOrder.update')
   @ApiOperation({ summary: 'Update a bulk order (brands, endDate, status)' })
   @ApiResponse({ status: 200, description: 'Bulk order updated' })
   async updateBulkOrder(
@@ -85,7 +75,7 @@ export class BulkOrdersController {
   // ── DELETE /v1/bulk-orders/:id ─────────────────────────────────────────────
 
   @Delete(':id')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('bulkOrder.delete')
   @ApiOperation({ summary: 'Delete a bulk order' })
   @ApiResponse({ status: 200, description: 'Bulk order deleted' })
   async deleteBulkOrder(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
@@ -95,7 +85,7 @@ export class BulkOrdersController {
   // ── PATCH /v1/bulk-orders/:id/line-items/:lineItemId ───────────────────────
 
   @Patch(':id/line-items/:lineItemId')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('bulkOrder.updateLineItem')
   @ApiOperation({ summary: 'Update a single line item in a bulk order' })
   @ApiResponse({ status: 200, description: 'Line item updated' })
   async updateLineItem(
@@ -110,7 +100,7 @@ export class BulkOrdersController {
   // ── POST /v1/bulk-orders/:id/drawdowns ─────────────────────────────────────
 
   @Post(':id/drawdowns')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('bulkOrder.createDrawdown')
   @ApiOperation({ summary: 'Create a drawdown from a bulk order line item' })
   @ApiResponse({ status: 201, description: 'Drawdown created' })
   async createDrawdown(
@@ -124,7 +114,7 @@ export class BulkOrdersController {
   // ── POST /v1/bulk-orders/:id/change-requests ─────────────────────────────
 
   @Post(':id/change-requests')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('bulkOrder.proposeChange')
   @ApiOperation({ summary: 'Propose changes to an active bulk agreement' })
   @ApiResponse({ status: 201, description: 'Change request created' })
   async proposeChange(
@@ -138,12 +128,7 @@ export class BulkOrdersController {
   // ── GET /v1/bulk-orders/:id/change-requests ──────────────────────────────
 
   @Get(':id/change-requests')
-  @Roles(
-    UserRole.COMPANY_ADMIN,
-    UserRole.PROCUREMENT_OFFICER,
-    UserRole.FINANCIAL_OFFICER,
-    UserRole.VENDOR,
-  )
+  @RequirePermissions('bulkOrder.listChangeRequests')
   @ApiOperation({ summary: 'List change requests for a bulk order' })
   @ApiResponse({ status: 200, description: 'List of change requests' })
   async listChangeRequests(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
@@ -153,7 +138,7 @@ export class BulkOrdersController {
   // ── PATCH /v1/bulk-orders/:id/change-requests/:crId/approve ──────────────
 
   @Patch(':id/change-requests/:crId/approve')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('bulkOrder.approveChange')
   @ApiOperation({ summary: 'Approve a pending change proposal' })
   @ApiResponse({ status: 200, description: 'Change request approved, bulk order updated' })
   async approveChange(
@@ -167,7 +152,7 @@ export class BulkOrdersController {
   // ── PATCH /v1/bulk-orders/:id/change-requests/:crId/reject ───────────────
 
   @Patch(':id/change-requests/:crId/reject')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('bulkOrder.rejectChange')
   @ApiOperation({ summary: 'Reject a change proposal with optional reason' })
   @ApiResponse({ status: 200, description: 'Change request rejected' })
   async rejectChange(
@@ -182,7 +167,7 @@ export class BulkOrdersController {
   // ── POST /v1/bulk-orders/:id/cancel ──────────────────────────────────────
 
   @Post(':id/cancel')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('bulkOrder.cancel')
   @ApiOperation({ summary: 'Cancel a bulk agreement' })
   @ApiResponse({ status: 200, description: 'Bulk order cancelled' })
   async cancelBulkOrder(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {

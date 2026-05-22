@@ -1,7 +1,6 @@
 import { ExecutionContext, createParamDecorator } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import { Request } from 'express';
-
-import { UserRole } from './roles.decorator';
 
 export interface AuthenticatedUser {
   id: string;

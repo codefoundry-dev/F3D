@@ -2,7 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles, UserRole } from '../../common/decorators/roles.decorator';
+import { RequirePermissions } from '../../common/permissions';
 
 import { DashboardService } from './dashboard.service';
 
@@ -15,7 +15,7 @@ export class DashboardController {
   // ── GET /v1/dashboard/po-ca ────────────────────────────────────────────────
 
   @Get('po-ca')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('dashboard.viewPoCa')
   @ApiOperation({ summary: 'Get PO/CA dashboard data' })
   @ApiResponse({ status: 200, description: 'Dashboard aggregates for PO/CA roles' })
   async getPoCaDashboard(@CurrentUser() user: AuthenticatedUser) {
@@ -25,7 +25,7 @@ export class DashboardController {
   // ── GET /v1/dashboard/vendor ───────────────────────────────────────────────
 
   @Get('vendor')
-  @Roles(UserRole.VENDOR)
+  @RequirePermissions('dashboard.viewVendor')
   @ApiOperation({ summary: 'Get vendor dashboard data' })
   @ApiResponse({ status: 200, description: 'Dashboard data for vendor role' })
   async getVendorDashboard(@CurrentUser() user: AuthenticatedUser) {
@@ -35,7 +35,7 @@ export class DashboardController {
   // ── GET /v1/dashboard/finance ──────────────────────────────────────────────
 
   @Get('finance')
-  @Roles(UserRole.FINANCIAL_OFFICER)
+  @RequirePermissions('dashboard.viewFinance')
   @ApiOperation({ summary: 'Get finance dashboard data' })
   @ApiResponse({ status: 200, description: 'KPI metrics and invoice data for finance role' })
   async getFinanceDashboard(@CurrentUser() user: AuthenticatedUser) {
@@ -45,7 +45,7 @@ export class DashboardController {
   // ── GET /v1/dashboard/super-admin ──────────────────────────────────────────
 
   @Get('super-admin')
-  @Roles(UserRole.SUPER_ADMIN)
+  @RequirePermissions('dashboard.viewSuperAdmin')
   @ApiOperation({ summary: 'Get super admin dashboard data' })
   @ApiResponse({ status: 200, description: 'Platform-wide metrics for super admin' })
   async getSuperAdminDashboard() {
@@ -55,7 +55,7 @@ export class DashboardController {
   // ── GET /v1/dashboard/admin-panel ──────────────────────────────────────────
 
   @Get('admin-panel')
-  @Roles(UserRole.SUPER_ADMIN)
+  @RequirePermissions('dashboard.viewAdminPanel')
   @ApiOperation({ summary: 'Get admin panel platform state (integrations, jobs, notifications)' })
   @ApiResponse({ status: 200, description: 'Platform component statuses for admin panel' })
   async getAdminPanelState() {
@@ -65,7 +65,7 @@ export class DashboardController {
   // ── GET /v1/dashboard/warehouse ────────────────────────────────────────────
 
   @Get('warehouse')
-  @Roles(UserRole.WAREHOUSE_OFFICER)
+  @RequirePermissions('dashboard.viewWarehouse')
   @ApiOperation({ summary: 'Get warehouse dashboard data' })
   @ApiResponse({ status: 200, description: 'Delivery and inventory data for warehouse role' })
   async getWarehouseDashboard(@CurrentUser() user: AuthenticatedUser) {

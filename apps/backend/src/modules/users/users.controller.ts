@@ -18,11 +18,10 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermissions } from '../../common/permissions';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 
@@ -125,7 +124,7 @@ export class UsersController {
   }
 
   @Get()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.VENDOR)
+  @RequirePermissions('user.list')
   @ApiOperation({ summary: 'List users (SuperAdmin: all; CompanyAdmin/Vendor: own company)' })
   @ApiResponse({ status: 200, description: 'Paginated user list' })
   async listUsers(@Query() query: UserListQueryDto, @CurrentUser() user: AuthUser) {
@@ -135,7 +134,7 @@ export class UsersController {
   }
 
   @Post()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN)
+  @RequirePermissions('user.create')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create and invite a new user' })
   @ApiResponse({ status: 201, description: 'User created and invitation sent' })
@@ -154,12 +153,7 @@ export class UsersController {
   }
 
   @Patch(':id')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.COMPANY_ADMIN,
-    UserRole.PROCUREMENT_OFFICER,
-    UserRole.VENDOR,
-  )
+  @RequirePermissions('user.update')
   @ApiOperation({ summary: 'Update user' })
   @ApiResponse({ status: 200, description: 'Updated user' })
   updateUser(@Param('id') id: string, @Body() dto: UpdateUserDto, @CurrentUser() user: AuthUser) {
@@ -167,7 +161,7 @@ export class UsersController {
   }
 
   @Patch(':id/deactivate')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN)
+  @RequirePermissions('user.deactivate')
   @ApiOperation({ summary: 'Deactivate user' })
   @ApiResponse({ status: 200, description: 'User deactivated' })
   @ApiResponse({ status: 400, description: 'Cannot deactivate sole admin' })
@@ -176,7 +170,7 @@ export class UsersController {
   }
 
   @Patch(':id/reactivate')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN)
+  @RequirePermissions('user.reactivate')
   @ApiOperation({ summary: 'Reactivate deactivated user' })
   @ApiResponse({ status: 200, description: 'User reactivated' })
   reactivateUser(@Param('id') id: string) {
@@ -184,7 +178,7 @@ export class UsersController {
   }
 
   @Post(':id/initiate-reset-password')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN)
+  @RequirePermissions('user.initiateResetPassword')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Admin-initiated password reset for a user' })
   @ApiResponse({ status: 200, description: 'Password reset email sent' })
@@ -194,7 +188,7 @@ export class UsersController {
   }
 
   @Post(':id/resend-invitation')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN)
+  @RequirePermissions('user.resendInvitation')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Resend invitation email to pending user' })
   @ApiResponse({ status: 200, description: 'Invitation resent' })
@@ -203,7 +197,7 @@ export class UsersController {
   }
 
   @Delete(':id/invitation')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN)
+  @RequirePermissions('user.cancelInvitation')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Cancel pending invitation and remove user' })
   @ApiResponse({ status: 200, description: 'Invitation cancelled' })

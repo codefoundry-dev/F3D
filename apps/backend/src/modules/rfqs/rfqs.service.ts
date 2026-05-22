@@ -15,17 +15,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  CompanyType,
-  Prisma,
-  QuoteResponseStatus,
-  RfqStatus,
-  UserRole as PrismaUserRole,
-} from '@prisma/client';
+import { CompanyType, Prisma, QuoteResponseStatus, RfqStatus, UserRole } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '../../common/decorators/roles.decorator';
 import { nextSequentialNumber } from '../../common/utils/sequential-number.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../notifications/email.service';
@@ -1015,7 +1008,7 @@ export class RfqsService {
               select: {
                 id: true,
                 users: {
-                  where: { role: PrismaUserRole.VENDOR },
+                  where: { role: UserRole.VENDOR },
                   select: { email: true, status: true },
                 },
               },
@@ -1068,7 +1061,7 @@ export class RfqsService {
       const contractors = await this.prisma.user.findMany({
         where: {
           companyId: rfq.companyId,
-          role: { in: [PrismaUserRole.COMPANY_ADMIN, PrismaUserRole.PROCUREMENT_OFFICER] },
+          role: { in: [UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER] },
           status: 'ACTIVE',
         },
         select: { email: true },
@@ -1102,7 +1095,7 @@ export class RfqsService {
       const contractors = await this.prisma.user.findMany({
         where: {
           companyId: rfq.companyId,
-          role: { in: [PrismaUserRole.COMPANY_ADMIN, PrismaUserRole.PROCUREMENT_OFFICER] },
+          role: { in: [UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER] },
           status: 'ACTIVE',
         },
         select: { email: true },

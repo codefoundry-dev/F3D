@@ -5,13 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  AuditAction,
-  PoChangeType,
-  PoStatus,
-  UserRole,
-  UserRole as PrismaUserRole,
-} from '@prisma/client';
+import { AuditAction, PoChangeType, PoStatus, UserRole } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -54,11 +48,11 @@ export class PoChangeService {
         poNumber: true,
         company: {
           select: {
-            users: { where: { role: PrismaUserRole.COMPANY_ADMIN }, select: { email: true } },
+            users: { where: { role: UserRole.COMPANY_ADMIN }, select: { email: true } },
           },
         },
         vendor: {
-          select: { users: { where: { role: PrismaUserRole.VENDOR }, select: { email: true } } },
+          select: { users: { where: { role: UserRole.VENDOR }, select: { email: true } } },
         },
       },
     });

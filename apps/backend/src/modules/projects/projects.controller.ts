@@ -22,7 +22,7 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { Throttle } from '@nestjs/throttler';
 
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles, UserRole } from '../../common/decorators/roles.decorator';
+import { RequirePermissions } from '../../common/permissions';
 
 import { ProjectAccessGuard } from './guards/project-access.guard';
 import { ProjectsService } from './projects.service';
@@ -36,13 +36,7 @@ export class ProjectsController {
   // ── GET /v1/projects ───────────────────────────────────────────────────────
 
   @Get()
-  @Roles(
-    UserRole.COMPANY_ADMIN,
-    UserRole.PROCUREMENT_OFFICER,
-    UserRole.FINANCIAL_OFFICER,
-    UserRole.WAREHOUSE_OFFICER,
-    UserRole.FOREMAN,
-  )
+  @RequirePermissions('project.list')
   @ApiOperation({ summary: 'List projects accessible to the current user' })
   @ApiResponse({ status: 200, type: PaginatedProjectsResponseDto })
   async listProjects(@Query() query: ProjectListQueryDto, @CurrentUser() user: AuthenticatedUser) {
@@ -52,7 +46,7 @@ export class ProjectsController {
   // ── POST /v1/projects ──────────────────────────────────────────────────────
 
   @Post()
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('project.create')
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new project' })
@@ -78,7 +72,7 @@ export class ProjectsController {
   // ── PATCH /v1/projects/:id ─────────────────────────────────────────────────
 
   @Patch(':id')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('project.update')
   @UseGuards(ProjectAccessGuard)
   @ApiOperation({ summary: 'Update project details' })
   @ApiResponse({ status: 200, description: 'Project updated successfully' })
@@ -96,7 +90,7 @@ export class ProjectsController {
   // ── POST /v1/projects/:id/members ──────────────────────────────────────────
 
   @Post(':id/members')
-  @Roles(UserRole.COMPANY_ADMIN)
+  @RequirePermissions('project.manageMembers')
   @UseGuards(ProjectAccessGuard)
   @ApiOperation({ summary: 'Add users to a project' })
   @ApiResponse({ status: 200, description: 'Members added successfully' })
@@ -113,7 +107,7 @@ export class ProjectsController {
   // ── DELETE /v1/projects/:id/members/:userId ────────────────────────────────
 
   @Delete(':id/members/:userId')
-  @Roles(UserRole.COMPANY_ADMIN)
+  @RequirePermissions('project.manageMembers')
   @UseGuards(ProjectAccessGuard)
   @ApiOperation({ summary: 'Remove a user from a project' })
   @ApiResponse({ status: 200, description: 'Member removed successfully' })

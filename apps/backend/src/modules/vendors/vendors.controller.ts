@@ -11,10 +11,9 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
 
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermissions } from '../../common/permissions';
 
 import { VendorInviteService } from './vendor-invite.service';
 import { VendorUserInviteService } from './vendor-user-invite.service';
@@ -39,7 +38,7 @@ export class VendorsController {
   ) {}
 
   @Post('invite')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('vendor.invite')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Invite a vendor to join the platform' })
   @ApiResponse({ status: 201, description: 'Vendor invited successfully' })
@@ -49,7 +48,7 @@ export class VendorsController {
   }
 
   @Get()
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('vendor.list')
   @ApiOperation({ summary: 'List vendors for the current contractor' })
   @ApiResponse({ status: 200, description: 'Paginated vendor list' })
   listVendors(@Query() query: VendorListQueryDto, @CurrentUser() user: AuthenticatedUser) {
@@ -59,7 +58,7 @@ export class VendorsController {
   // ── Vendor Profile (US-3.07) ──────────────────────────────────────────────
 
   @Get(':id/profile')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('vendor.readProfile')
   @ApiOperation({ summary: 'Get vendor company profile' })
   @ApiResponse({ status: 200, description: 'Vendor profile' })
   @ApiResponse({ status: 404, description: 'Vendor not found' })
@@ -68,7 +67,7 @@ export class VendorsController {
   }
 
   @Patch(':id/profile')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('vendor.updateProfile')
   @ApiOperation({ summary: 'Update vendor company profile' })
   @ApiResponse({ status: 200, description: 'Vendor profile updated' })
   @ApiResponse({ status: 404, description: 'Vendor not found' })
@@ -83,7 +82,7 @@ export class VendorsController {
   // ── Warehouses (US-3.07) ──────────────────────────────────────────────────
 
   @Post(':id/warehouses')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('vendor.warehouse.create')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Add a warehouse location to vendor' })
   @ApiResponse({ status: 201, description: 'Warehouse created' })
@@ -97,7 +96,7 @@ export class VendorsController {
   }
 
   @Patch(':id/warehouses/:whId')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('vendor.warehouse.update')
   @ApiOperation({ summary: 'Update a warehouse location' })
   @ApiResponse({ status: 200, description: 'Warehouse updated' })
   @ApiResponse({ status: 404, description: 'Warehouse not found' })
@@ -111,7 +110,7 @@ export class VendorsController {
   }
 
   @Delete(':id/warehouses/:whId')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('vendor.warehouse.delete')
   @ApiOperation({ summary: 'Delete a warehouse location' })
   @ApiResponse({ status: 200, description: 'Warehouse deleted' })
   @ApiResponse({ status: 404, description: 'Warehouse not found' })
@@ -126,7 +125,7 @@ export class VendorsController {
   // ── Vendor User Invitation (US-3.10) ──────────────────────────────────────
 
   @Post(':companyId/users/invite')
-  @Roles(UserRole.VENDOR)
+  @RequirePermissions('vendor.user.invite')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Invite a new user to the vendor company' })
   @ApiResponse({ status: 201, description: 'User invitation sent' })
@@ -140,7 +139,7 @@ export class VendorsController {
   }
 
   @Post(':companyId/users/:userId/resend-invitation')
-  @Roles(UserRole.VENDOR)
+  @RequirePermissions('vendor.user.resendInvitation')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Resend invitation to a vendor user' })
   @ApiResponse({ status: 200, description: 'Invitation resent' })
@@ -154,7 +153,7 @@ export class VendorsController {
   }
 
   @Delete(':companyId/users/:userId/invitation')
-  @Roles(UserRole.VENDOR)
+  @RequirePermissions('vendor.user.cancelInvitation')
   @ApiOperation({ summary: 'Cancel a pending vendor user invitation' })
   @ApiResponse({ status: 200, description: 'Invitation cancelled' })
   @ApiResponse({ status: 404, description: 'User not found' })
@@ -169,7 +168,7 @@ export class VendorsController {
   // ── Representatives (US-3.12) ─────────────────────────────────────────────
 
   @Get(':id/representatives')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('vendor.representatives.read')
   @ApiOperation({ summary: 'Get vendor company representatives' })
   @ApiResponse({ status: 200, description: 'List of vendor representatives' })
   @ApiResponse({ status: 404, description: 'Vendor not found' })

@@ -10,11 +10,11 @@ import {
   QuoteLineItemAvailability,
   QuoteResponseStatus,
   RfqStatus,
+  UserRole,
 } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '../../common/decorators/roles.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 

@@ -4,11 +4,10 @@ import {
   buildPaginationMeta,
 } from '@forethread/shared-types';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { MaterialStatus, Prisma } from '@prisma/client';
+import { MaterialStatus, Prisma, UserRole } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '../../common/decorators/roles.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()

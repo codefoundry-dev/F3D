@@ -17,7 +17,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles, UserRole } from '../../common/decorators/roles.decorator';
+import { RequirePermissions } from '../../common/permissions';
 
 import { InvoiceExportService } from './invoice-export.service';
 import { InvoicesService } from './invoices.service';
@@ -35,7 +35,7 @@ export class InvoicesController {
   // NOTE: Must be before :id route to avoid NestJS matching "export" as an id
 
   @Get('export/:format')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.FINANCIAL_OFFICER)
+  @RequirePermissions('invoice.export')
   @ApiOperation({ summary: 'Export invoices as CSV, PDF, or XLSX' })
   @ApiResponse({ status: 200, description: 'Export file URL' })
   @ApiResponse({ status: 400, description: 'Invalid format' })
@@ -50,12 +50,7 @@ export class InvoicesController {
   // ── GET /v1/invoices/:id/export/:format ───────────────────────────────────
 
   @Get(':id/export/:format')
-  @Roles(
-    UserRole.COMPANY_ADMIN,
-    UserRole.PROCUREMENT_OFFICER,
-    UserRole.FINANCIAL_OFFICER,
-    UserRole.VENDOR,
-  )
+  @RequirePermissions('invoice.exportSingle')
   @ApiOperation({ summary: 'Export a single invoice as CSV, PDF, or XLSX' })
   @ApiResponse({ status: 200, description: 'Export file URL' })
   @ApiResponse({ status: 400, description: 'Invalid format' })
@@ -71,12 +66,7 @@ export class InvoicesController {
   // ── GET /v1/invoices ───────────────────────────────────────────────────────
 
   @Get()
-  @Roles(
-    UserRole.COMPANY_ADMIN,
-    UserRole.PROCUREMENT_OFFICER,
-    UserRole.FINANCIAL_OFFICER,
-    UserRole.VENDOR,
-  )
+  @RequirePermissions('invoice.list')
   @ApiOperation({ summary: 'List invoices accessible to the current user' })
   @ApiResponse({ status: 200, description: 'Paginated list of invoices' })
   async listInvoices(@Query() query: InvoiceListQueryDto, @CurrentUser() user: AuthenticatedUser) {
@@ -86,12 +76,7 @@ export class InvoicesController {
   // ── GET /v1/invoices/:id ───────────────────────────────────────────────────
 
   @Get(':id')
-  @Roles(
-    UserRole.COMPANY_ADMIN,
-    UserRole.PROCUREMENT_OFFICER,
-    UserRole.FINANCIAL_OFFICER,
-    UserRole.VENDOR,
-  )
+  @RequirePermissions('invoice.read')
   @ApiOperation({ summary: 'Get a single invoice by ID' })
   @ApiResponse({ status: 200, description: 'Invoice detail' })
   @ApiResponse({ status: 404, description: 'Invoice not found' })
@@ -102,7 +87,7 @@ export class InvoicesController {
   // ── PATCH /v1/invoices/:id/approve ─────────────────────────────────────────
 
   @Patch(':id/approve')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.FINANCIAL_OFFICER)
+  @RequirePermissions('invoice.approve')
   @ApiOperation({ summary: 'Approve a pending invoice' })
   @ApiResponse({ status: 200, description: 'Invoice approved' })
   @ApiResponse({ status: 400, description: 'Invoice is not in Pending status' })
@@ -114,7 +99,7 @@ export class InvoicesController {
   // ── PATCH /v1/invoices/:id/reject ──────────────────────────────────────────
 
   @Patch(':id/reject')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.FINANCIAL_OFFICER)
+  @RequirePermissions('invoice.reject')
   @ApiOperation({ summary: 'Reject a pending or disputed invoice' })
   @ApiResponse({ status: 200, description: 'Invoice rejected' })
   @ApiResponse({ status: 400, description: 'Invoice cannot be rejected in its current status' })
@@ -126,7 +111,7 @@ export class InvoicesController {
   // ── POST /v1/invoices/bulk-approve ─────────────────────────────────────────
 
   @Post('bulk-approve')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.FINANCIAL_OFFICER)
+  @RequirePermissions('invoice.bulkApprove')
   @ApiOperation({ summary: 'Bulk approve multiple pending invoices' })
   @ApiResponse({ status: 200, description: 'Invoices approved' })
   @ApiResponse({ status: 400, description: 'No invoice IDs provided' })
@@ -142,12 +127,7 @@ export class InvoicesController {
   @Post(':invoiceId/documents')
   @UseInterceptors(FileInterceptor('file'))
   @HttpCode(HttpStatus.CREATED)
-  @Roles(
-    UserRole.COMPANY_ADMIN,
-    UserRole.PROCUREMENT_OFFICER,
-    UserRole.FINANCIAL_OFFICER,
-    UserRole.VENDOR,
-  )
+  @RequirePermissions('invoice.uploadDocument')
   @ApiOperation({ summary: 'Upload a document to an invoice' })
   @ApiConsumes('multipart/form-data')
   @ApiResponse({ status: 201, description: 'Document uploaded' })
@@ -163,7 +143,7 @@ export class InvoicesController {
   // ── DELETE /v1/invoices/:invoiceId/documents/:docId ───────────────────────
 
   @Delete(':invoiceId/documents/:docId')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.FINANCIAL_OFFICER)
+  @RequirePermissions('invoice.deleteDocument')
   @ApiOperation({ summary: 'Delete an invoice document' })
   @ApiResponse({ status: 200, description: 'Document deleted' })
   @ApiResponse({ status: 404, description: 'Document not found' })

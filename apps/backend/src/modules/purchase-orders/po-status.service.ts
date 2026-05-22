@@ -7,15 +7,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  ApprovalStatus,
-  PoStatus as PrismaPoStatus,
-  UserRole as PrismaUserRole,
-} from '@prisma/client';
+import { ApprovalStatus, PoStatus as PrismaPoStatus, UserRole } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '../../common/decorators/roles.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../notifications/email.service';
 
@@ -67,7 +62,7 @@ export class PoStatusService {
         vendor: {
           select: {
             id: true,
-            users: { where: { role: PrismaUserRole.VENDOR }, select: { email: true } },
+            users: { where: { role: UserRole.VENDOR }, select: { email: true } },
           },
         },
       },
@@ -251,7 +246,7 @@ export class PoStatusService {
         company: {
           select: {
             users: {
-              where: { role: PrismaUserRole.COMPANY_ADMIN },
+              where: { role: UserRole.COMPANY_ADMIN },
               select: { email: true },
             },
           },

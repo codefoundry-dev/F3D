@@ -18,7 +18,7 @@ import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '
 
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
-import { Roles, UserRole } from '../../common/decorators/roles.decorator';
+import { RequirePermissions } from '../../common/permissions';
 
 import { SubmitQuoteDto, UpdateQuoteDto } from './quote-response.dto';
 import { QuoteResponseService } from './quote-response.service';
@@ -39,7 +39,7 @@ export class RfqsController {
   // ── GET /v1/rfqs ───────────────────────────────────────────────────────────
 
   @Get()
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('rfq.list')
   @ApiOperation({ summary: 'List RFQs accessible to the current user' })
   @ApiResponse({ status: 200, description: 'Paginated list of RFQs' })
   async listRfqs(@Query() query: RfqListQueryDto, @CurrentUser() user: AuthenticatedUser) {
@@ -50,7 +50,7 @@ export class RfqsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('rfq.create')
   @ApiOperation({ summary: 'Create a new RFQ' })
   @ApiResponse({ status: 201, description: 'RFQ created' })
   @ApiResponse({ status: 400, description: 'Validation error' })
@@ -63,7 +63,7 @@ export class RfqsController {
   // NOTE: Must be before :id route to avoid NestJS matching "export" as an id
 
   @Get('export/:format')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('rfq.export')
   @ApiOperation({ summary: 'Export RFQs as CSV, PDF, or XLSX' })
   @ApiResponse({ status: 200, description: 'Export file URL' })
   @ApiResponse({ status: 400, description: 'Invalid format' })
@@ -78,7 +78,7 @@ export class RfqsController {
   // ── GET /v1/rfqs/:id ───────────────────────────────────────────────────────
 
   @Get(':id')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('rfq.read')
   @ApiOperation({ summary: 'Get a single RFQ by ID' })
   @ApiResponse({ status: 200, description: 'RFQ detail' })
   @ApiResponse({ status: 404, description: 'RFQ not found' })
@@ -89,7 +89,7 @@ export class RfqsController {
   // ── PATCH /v1/rfqs/:id ─────────────────────────────────────────────────────
 
   @Patch(':id')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('rfq.update')
   @ApiOperation({ summary: 'Update an RFQ (DRAFT or OPEN with no submitted responses)' })
   @ApiResponse({ status: 200, description: 'RFQ updated' })
   @ApiResponse({ status: 400, description: 'Validation error or invalid status' })
@@ -105,7 +105,7 @@ export class RfqsController {
   // ── POST /v1/rfqs/:id/send ───────────────────────────────────────────────
 
   @Post(':id/send')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('rfq.send')
   @ApiOperation({ summary: 'Send a draft RFQ to invited vendors' })
   @ApiResponse({ status: 200, description: 'RFQ sent, status changed to OPEN' })
   @ApiResponse({
@@ -120,7 +120,7 @@ export class RfqsController {
   // ── DELETE /v1/rfqs/:id ──────────────────────────────────────────────────
 
   @Delete(':id')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('rfq.cancel')
   @ApiOperation({ summary: 'Cancel (soft-delete) an RFQ' })
   @ApiResponse({ status: 200, description: 'RFQ cancelled' })
   @ApiResponse({ status: 404, description: 'RFQ not found' })
@@ -131,7 +131,7 @@ export class RfqsController {
   // ── POST /v1/rfqs/:id/copy ──────────────────────────────────────────────
 
   @Post(':id/copy')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('rfq.copy')
   @ApiOperation({ summary: 'Duplicate an RFQ' })
   @ApiResponse({ status: 201, description: 'RFQ duplicated' })
   @ApiResponse({ status: 404, description: 'RFQ not found' })
@@ -142,7 +142,7 @@ export class RfqsController {
   // ── PATCH /v1/rfqs/:id/archive ─────────────────────────────────────────
 
   @Patch(':id/archive')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('rfq.archive')
   @ApiOperation({ summary: 'Archive a closed RFQ' })
   @ApiResponse({ status: 200, description: 'RFQ archived' })
   @ApiResponse({ status: 404, description: 'RFQ not found' })
@@ -153,7 +153,7 @@ export class RfqsController {
   // ── PATCH /v1/rfqs/:rfqId/quotes/:quoteId/approve ───────────────────────
 
   @Patch(':rfqId/quotes/:quoteId/approve')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('rfq.approveQuote')
   @ApiOperation({ summary: 'Approve (award) a quote response' })
   @ApiResponse({ status: 200, description: 'Quote approved' })
   @ApiResponse({ status: 404, description: 'Quote not found' })
@@ -168,7 +168,7 @@ export class RfqsController {
   // ── PATCH /v1/rfqs/:rfqId/quotes/:quoteId/decline ───────────────────────
 
   @Patch(':rfqId/quotes/:quoteId/decline')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('rfq.declineQuote')
   @ApiOperation({ summary: 'Decline a quote response' })
   @ApiResponse({ status: 200, description: 'Quote declined' })
   @ApiResponse({ status: 404, description: 'Quote not found' })
@@ -183,7 +183,7 @@ export class RfqsController {
   // ── PATCH /v1/rfqs/:rfqId/line-items/:lineItemId ─────────────────────────
 
   @Patch(':rfqId/line-items/:lineItemId')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('rfq.updateLineItem')
   @ApiOperation({ summary: 'Update a line item' })
   @ApiResponse({ status: 200, description: 'Line item updated' })
   @ApiResponse({ status: 404, description: 'Line item not found' })
@@ -199,7 +199,7 @@ export class RfqsController {
   // ── DELETE /v1/rfqs/:rfqId/line-items/:lineItemId ─────────────────────────
 
   @Delete(':rfqId/line-items/:lineItemId')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('rfq.deleteLineItem')
   @ApiOperation({ summary: 'Delete a line item' })
   @ApiResponse({ status: 200, description: 'Line item deleted' })
   @ApiResponse({ status: 404, description: 'Line item not found' })
@@ -216,7 +216,7 @@ export class RfqsController {
   @Post(':rfqId/documents')
   @UseInterceptors(FileInterceptor('file'))
   @HttpCode(HttpStatus.CREATED)
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('rfq.uploadDocument')
   @ApiOperation({ summary: 'Upload a document to an RFQ' })
   @ApiConsumes('multipart/form-data')
   @ApiResponse({ status: 201, description: 'Document uploaded' })
@@ -232,7 +232,7 @@ export class RfqsController {
   // ── DELETE /v1/rfqs/:rfqId/documents/:docId ─────────────────────────────
 
   @Delete(':rfqId/documents/:docId')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('rfq.deleteDocument')
   @ApiOperation({ summary: 'Delete an RFQ document' })
   @ApiResponse({ status: 200, description: 'Document deleted' })
   @ApiResponse({ status: 404, description: 'Document not found' })
@@ -248,7 +248,7 @@ export class RfqsController {
 
   @Post(':rfqId/quotes')
   @HttpCode(HttpStatus.CREATED)
-  @Roles(UserRole.VENDOR)
+  @RequirePermissions('rfq.submitQuote')
   @ApiOperation({ summary: 'Submit a quote response for an RFQ' })
   @ApiResponse({ status: 201, description: 'Quote submitted' })
   @ApiResponse({ status: 400, description: 'Validation error or duplicate quote' })
@@ -271,7 +271,7 @@ export class RfqsController {
   // ── PATCH /v1/rfqs/:rfqId/quotes/:quoteId ────────────────────────────────
 
   @Patch(':rfqId/quotes/:quoteId')
-  @Roles(UserRole.VENDOR)
+  @RequirePermissions('rfq.updateQuote')
   @ApiOperation({ summary: 'Update a submitted quote response' })
   @ApiResponse({ status: 200, description: 'Quote updated' })
   @ApiResponse({ status: 400, description: 'Validation error or RFQ closed' })
@@ -295,7 +295,7 @@ export class RfqsController {
   // ── GET /v1/rfqs/:rfqId/quotes/:quoteId ──────────────────────────────────
 
   @Get(':rfqId/quotes/:quoteId')
-  @Roles(UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR)
+  @RequirePermissions('rfq.readQuoteDetail')
   @ApiOperation({ summary: 'Get quote response detail' })
   @ApiResponse({ status: 200, description: 'Quote detail' })
   @ApiResponse({ status: 403, description: 'Access denied' })

@@ -18,11 +18,10 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermissions } from '../../common/permissions';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 
@@ -62,7 +61,7 @@ export class CompaniesController {
   }
 
   @Post()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('company.create')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new company' })
   @ApiResponse({ status: 201, description: 'Company created' })
@@ -99,7 +98,7 @@ export class CompaniesController {
   }
 
   @Post(':id/vendors')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER)
+  @RequirePermissions('company.assignVendors')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Assign vendors to a contractor company' })
   @ApiResponse({ status: 201, description: 'Vendors assigned' })
@@ -112,7 +111,7 @@ export class CompaniesController {
   }
 
   @Delete(':id/vendors/:vendorId')
-  @Roles(UserRole.SUPER_ADMIN)
+  @RequirePermissions('company.removeVendorAssignment')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Remove vendor from contractor company' })
   @ApiResponse({ status: 200, description: 'Vendor unassigned' })

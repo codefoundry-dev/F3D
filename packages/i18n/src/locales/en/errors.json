@@ -2,6 +2,7 @@
   "general": {
     "accessDenied": "Access denied",
     "accessDeniedRoles": "Access denied. Required role(s): {{roles}}",
+    "accessDeniedPermissions": "Access denied. Missing permission(s): {{permissions}}",
     "notFound": "The requested resource was not found",
     "internalServerError": "An unexpected error occurred",
     "badRequest": "The request is invalid or malformed"

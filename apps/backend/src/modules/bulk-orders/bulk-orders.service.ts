@@ -7,11 +7,10 @@ import {
   buildPaginationMeta,
 } from '@forethread/shared-types';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { BulkOrderStatus, Prisma } from '@prisma/client';
+import { BulkOrderStatus, Prisma, UserRole } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '../../common/decorators/roles.decorator';
 import { nextSequentialNumber } from '../../common/utils/sequential-number.util';
 import { PrismaService } from '../../prisma/prisma.service';
 

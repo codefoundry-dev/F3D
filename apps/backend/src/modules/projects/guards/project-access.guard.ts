@@ -5,11 +5,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import { Request } from 'express';
 
 import { ERR } from '../../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../../common/decorators/current-user.decorator';
-import { UserRole } from '../../../common/decorators/roles.decorator';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()

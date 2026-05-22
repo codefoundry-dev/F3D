@@ -10,12 +10,11 @@ import {
   BulkOrderChangeRequestStatus,
   BulkOrderStatus,
   Prisma,
-  UserRole as PrismaUserRole,
+  UserRole,
 } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '../../common/decorators/roles.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../notifications/email.service';
@@ -351,7 +350,7 @@ export class BulkOrderChangeService {
 
   // ── Email notification helpers ─────────────────────────────────────────
 
-  private getBulkOrderUrl(bulkOrderId: string, _role: PrismaUserRole): string {
+  private getBulkOrderUrl(bulkOrderId: string, _role: UserRole): string {
     return `${this.webAppUrl}/bulk-orders/${bulkOrderId}`;
   }
 
@@ -362,8 +361,8 @@ export class BulkOrderChangeService {
     const isRequesterVendor = requesterCompanyId === bo.vendorId;
     const counterpartyCompanyId = isRequesterVendor ? bo.companyId : bo.vendorId;
     const counterpartyRoles = isRequesterVendor
-      ? [PrismaUserRole.COMPANY_ADMIN, PrismaUserRole.PROCUREMENT_OFFICER]
-      : [PrismaUserRole.VENDOR];
+      ? [UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER]
+      : [UserRole.VENDOR];
 
     const users = await this.prisma.user.findMany({
       where: {
@@ -391,9 +390,7 @@ export class BulkOrderChangeService {
         bo,
         requesterCompanyId,
       );
-      const counterpartyRole = isVendorCounterparty
-        ? PrismaUserRole.VENDOR
-        : PrismaUserRole.COMPANY_ADMIN;
+      const counterpartyRole = isVendorCounterparty ? UserRole.VENDOR : UserRole.COMPANY_ADMIN;
       const viewUrl = `${this.getBulkOrderUrl(bo.id, counterpartyRole)}/review-change`;
 
       await Promise.all(
@@ -413,11 +410,7 @@ export class BulkOrderChangeService {
     cancelledByName?: string,
   ): Promise<void> {
     try {
-      const allRoles = [
-        PrismaUserRole.COMPANY_ADMIN,
-        PrismaUserRole.PROCUREMENT_OFFICER,
-        PrismaUserRole.VENDOR,
-      ];
+      const allRoles = [UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR];
 
       const users = await this.prisma.user.findMany({
         where: {

@@ -17,11 +17,11 @@ import {
   PoStatus as PrismaPoStatus,
   PoType as PrismaPoType,
   Prisma,
+  UserRole,
 } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '../../common/decorators/roles.decorator';
 import { nextSequentialNumber } from '../../common/utils/sequential-number.util';
 import { PrismaService } from '../../prisma/prisma.service';
 
