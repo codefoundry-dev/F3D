@@ -77,6 +77,9 @@ model User {
   editedDocExtractions    DocExtraction[] @relation("DocExtractionLastEditedBy")
   confirmedDocExtractions DocExtraction[] @relation("DocExtractionConfirmedBy")
 
+  // Tokenized vendor access (FOR-201)
+  issuedAccessTokens AccessToken[] @relation("AccessTokenCreatedBy")
+
   @@index([companyId, status], map: "idx_users_company_status")
   @@index([companyId, role], map: "idx_users_company_role")
   @@index([invitationToken], map: "idx_users_invitation_token")

@@ -12,6 +12,8 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { WinstonLoggerModule } from './common/logger/winston.logger';
 import { PermissionsGuard, PermissionsModule } from './common/permissions';
+import { AccessTokenGuard } from './modules/access-tokens/access-token.guard';
+import { AccessTokensModule } from './modules/access-tokens/access-tokens.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BulkOrdersModule } from './modules/bulk-orders/bulk-orders.module';
@@ -76,6 +78,7 @@ import { PrismaModule } from './prisma/prisma.module';
     // ── Domain modules ──────────────────────────────────────────────────────
     NotificationsModule,
     AuditModule,
+    AccessTokensModule,
     AuthModule,
     UsersModule,
     CompaniesModule,
@@ -113,7 +116,7 @@ import { PrismaModule } from './prisma/prisma.module';
       useClass: TransformInterceptor,
     },
 
-    // ── Global guards (throttler → jwt → permissions) ───────────────────────
+    // ── Global guards (throttler → jwt → access-token → permissions) ────────
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
@@ -121,6 +124,10 @@ import { PrismaModule } from './prisma/prisma.module';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: AccessTokenGuard,
     },
     {
       provide: APP_GUARD,

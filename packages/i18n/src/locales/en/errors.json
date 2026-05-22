@@ -173,5 +173,15 @@
     "notReadyForConfirm": "Extraction job must be completed before it can be confirmed",
     "alreadyConfirmed": "Extraction job has already been confirmed",
     "geminiNotConfigured": "Gemini API is not configured on this server"
+  },
+  "accessTokens": {
+    "missing": "Access token is required",
+    "malformed": "Access token is malformed",
+    "invalid": "Access token is invalid or has expired",
+    "expired": "Access token has expired",
+    "alreadyUsed": "Access token has already been used",
+    "revoked": "Access token has been revoked",
+    "tooManyAttempts": "Too many attempts. Access token has been locked.",
+    "wrongPurpose": "Access token is not valid for this action"
   }
 }

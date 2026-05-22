@@ -231,4 +231,16 @@ export const ERR = {
     alreadyConfirmed: errors.docExtractions.alreadyConfirmed,
     geminiNotConfigured: errors.docExtractions.geminiNotConfigured,
   },
+
+  // ── Access tokens (tokenized vendor links — FOR-201) ─────
+  accessTokens: {
+    missing: errors.accessTokens.missing,
+    malformed: errors.accessTokens.malformed,
+    invalid: errors.accessTokens.invalid,
+    expired: errors.accessTokens.expired,
+    alreadyUsed: errors.accessTokens.alreadyUsed,
+    revoked: errors.accessTokens.revoked,
+    tooManyAttempts: errors.accessTokens.tooManyAttempts,
+    wrongPurpose: errors.accessTokens.wrongPurpose,
+  },
 } as const;
