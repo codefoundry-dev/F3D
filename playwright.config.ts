@@ -1,5 +1,15 @@
 import { defineConfig, devices } from '@playwright/test';
 
+/**
+ * The legacy per-role apps (super-admin / company-admin / vendor-app on ports
+ * 3001 / 3002 / 3003) were removed in commit 545972f. Tests now run against the
+ * unified `apps/web` Vite dev server. ADR-0013 captures the consolidation.
+ *
+ * Start servers manually before running:
+ *   pnpm --filter backend dev          # API on :3000
+ *   pnpm --filter @forethread/web dev  # Web on :5179
+ *   docker compose up mailhog          # Mailhog on :8025 for OTP capture
+ */
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: false,
@@ -10,37 +20,13 @@ export default defineConfig({
   reporter: [['html', { open: 'never' }], ['list']],
   use: {
     trace: 'on-first-retry',
-    baseURL: process.env.BASE_URL,
+    baseURL: process.env.BASE_URL ?? 'http://localhost:5179',
     actionTimeout: 10000,
   },
   projects: [
     {
-      name: 'super-admin',
-      use: {
-        ...devices['Desktop Chrome'],
-        baseURL: 'http://localhost:3001',
-      },
-      testMatch: /us010[1-5]|us07-material|us12-system/,
-    },
-    {
-      name: 'company-admin',
-      use: {
-        ...devices['Desktop Chrome'],
-        baseURL: 'http://localhost:3002',
-      },
-      testMatch: /us010[6-9]|us02|us0[3-689](?!0)|us10[0-9]{2}|us1[1-5]/,
-    },
-    {
-      name: 'vendor-app',
-      use: {
-        ...devices['Desktop Chrome'],
-        baseURL: 'http://localhost:3003',
-      },
-      testMatch: /us030[0-9]/,
+      name: 'web',
+      use: { ...devices['Desktop Chrome'] },
     },
   ],
-  /* Start servers manually before running tests:
-   *   pnpm --filter backend dev
-   *   pnpm --filter @forethread/web dev
-   */
 });

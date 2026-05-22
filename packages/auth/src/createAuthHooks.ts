@@ -78,6 +78,7 @@ export function createAuthHooks(otpSessionKey: string, useAuthStore: UseAuthStor
               email: user.email,
               role: user.role,
               companyId: user.companyId,
+              permissions: user.permissions ?? [],
             });
           }
         })
@@ -126,6 +127,7 @@ export function createAuthHooks(otpSessionKey: string, useAuthStore: UseAuthStor
           email: user.email,
           role: user.role,
           companyId: user.companyId,
+          permissions: user.permissions ?? [],
         });
 
         clearOtpSession();

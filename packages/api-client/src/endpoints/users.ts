@@ -64,6 +64,11 @@ export interface UserResponse {
   updatedAt: string;
   company: { id: string; legalName: string; type: string } | null;
   projects?: { id: string; name: string }[];
+  /**
+   * Permission keys granted to this user's role. Populated by GET /users/me;
+   * other user-response shapes may omit it.
+   */
+  permissions?: string[];
 }
 
 export interface PaginationMeta {

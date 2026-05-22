@@ -64,6 +64,8 @@ export interface CompanyResponse {
   createdAt: string;
   updatedAt: string;
   _count?: { users: number };
+  /** Set on createCompany when an existing vendor row was reused instead of creating a duplicate. */
+  alreadyExisted?: boolean;
 }
 
 export interface PaginatedCompaniesResponse {

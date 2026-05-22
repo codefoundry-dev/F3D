@@ -110,6 +110,9 @@ const mockPrisma = {
   company: {
     findMany: jest.fn(),
   },
+  companyVendorAssignment: {
+    findMany: jest.fn(),
+  },
   user: {
     findMany: jest.fn(),
   },
@@ -1417,7 +1420,10 @@ describe('RfqsService', () => {
       mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
       mockPrisma.projectLocation.findUnique.mockResolvedValue({ id: 'loc-1', projectId: 'proj-1' });
       mockPrisma.material.findMany.mockResolvedValue([{ id: 'mat-1' }, { id: 'mat-2' }]);
-      mockPrisma.company.findMany.mockResolvedValue([{ id: 'vendor-1' }, { id: 'vendor-2' }]);
+      mockPrisma.companyVendorAssignment.findMany.mockResolvedValue([
+        { vendorId: 'vendor-1' },
+        { vendorId: 'vendor-2' },
+      ]);
       mockPrisma.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
         const txProxy = {
           rfq: { create: jest.fn().mockResolvedValue({ id: 'rfq-new' }) },
@@ -1502,11 +1508,11 @@ describe('RfqsService', () => {
       );
     });
 
-    it('throws BadRequestException when some vendor IDs are invalid', async () => {
+    it('throws BadRequestException when some vendor IDs are not assigned to the contractor', async () => {
       mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
       mockPrisma.projectLocation.findUnique.mockResolvedValue({ id: 'loc-1', projectId: 'proj-1' });
       mockPrisma.material.findMany.mockResolvedValue([{ id: 'mat-1' }, { id: 'mat-2' }]);
-      mockPrisma.company.findMany.mockResolvedValue([{ id: 'vendor-1' }]); // only 1 of 2
+      mockPrisma.companyVendorAssignment.findMany.mockResolvedValue([{ vendorId: 'vendor-1' }]); // only 1 of 2
 
       await expect(service.createRfq(createDto as never, procOfficer)).rejects.toThrow(
         BadRequestException,
@@ -1517,10 +1523,40 @@ describe('RfqsService', () => {
       mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
       mockPrisma.projectLocation.findUnique.mockResolvedValue({ id: 'loc-1', projectId: 'proj-1' });
       mockPrisma.material.findMany.mockResolvedValue([{ id: 'mat-1' }, { id: 'mat-2' }]);
-      mockPrisma.company.findMany.mockResolvedValue([{ id: 'vendor-1' }, { id: 'vendor-2' }]);
+      mockPrisma.companyVendorAssignment.findMany.mockResolvedValue([
+        { vendorId: 'vendor-1' },
+        { vendorId: 'vendor-2' },
+      ]);
 
       const holdDto = { ...createDto, holdForRelease: true, earliestDeliveryDate: null };
       await expect(service.createRfq(holdDto as never, procOfficer)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    // ── FOR-197: M:N vendor scoping ─────────────────────────────────────
+    it('scopes vendor validation to the contractor company (M:N assignment check)', async () => {
+      setupCreateSuccess();
+
+      await service.createRfq(createDto as never, procOfficer);
+
+      expect(mockPrisma.companyVendorAssignment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            contractorId: 'comp-1',
+            vendorId: { in: ['vendor-1', 'vendor-2'] },
+          }),
+        }),
+      );
+    });
+
+    it('rejects vendor IDs that exist on the platform but are not assigned to this contractor', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockPrisma.projectLocation.findUnique.mockResolvedValue({ id: 'loc-1', projectId: 'proj-1' });
+      mockPrisma.material.findMany.mockResolvedValue([{ id: 'mat-1' }, { id: 'mat-2' }]);
+      mockPrisma.companyVendorAssignment.findMany.mockResolvedValue([]); // none assigned
+
+      await expect(service.createRfq(createDto as never, procOfficer)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -1668,7 +1704,7 @@ describe('RfqsService', () => {
         projectId: 'proj-1',
         _count: { quoteResponses: 0 },
       });
-      mockPrisma.company.findMany.mockResolvedValue([]); // none found
+      mockPrisma.companyVendorAssignment.findMany.mockResolvedValue([]); // none assigned
 
       await expect(
         service.updateRfq('rfq-1', { vendorIds: ['bad-vendor'] } as never, procOfficer),
@@ -2121,7 +2157,7 @@ describe('RfqsService', () => {
     it('updates with lineItems, vendorIds, and attachmentIds together', async () => {
       mockPrisma.rfq.findUnique.mockResolvedValueOnce(draftRfq).mockResolvedValueOnce(getRfqResult);
       mockPrisma.material.findMany.mockResolvedValue([{ id: 'mat-1' }]);
-      mockPrisma.company.findMany.mockResolvedValue([{ id: 'v-1' }]);
+      mockPrisma.companyVendorAssignment.findMany.mockResolvedValue([{ vendorId: 'v-1' }]);
       mockPrisma.$transaction.mockResolvedValue([]);
 
       await service.updateRfq(

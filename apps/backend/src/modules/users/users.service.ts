@@ -14,6 +14,7 @@ import { Transform } from 'class-transformer';
 import { IsString, IsEmail, IsOptional, IsEnum, MinLength } from 'class-validator';
 
 import { ERR } from '../../common/constants/error-messages.const';
+import { PermissionsService } from '../../common/permissions';
 import { getAppUrlForRole } from '../../common/utils/app-url.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService, AuditAction } from '../audit/audit.service';
@@ -187,6 +188,7 @@ export class UsersService {
     private readonly emailService: EmailService,
     private readonly config: ConfigService,
     private readonly auditService: AuditService,
+    private readonly permissionsService: PermissionsService,
   ) {}
 
   async listUsers(query: UserListQueryDto, requestingUser: AuthUser) {
@@ -530,7 +532,9 @@ export class UsersService {
     });
 
     if (!user) throw new NotFoundException(ERR.users.notFound);
-    return user;
+
+    const granted = await this.permissionsService.getPermissionsForRole(user.role);
+    return { ...user, permissions: Array.from(granted) };
   }
 
   async updateMe(userId: string, dto: UpdateMeDto) {

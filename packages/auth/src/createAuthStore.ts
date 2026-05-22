@@ -7,6 +7,12 @@ export interface AuthUser {
   email: string;
   role: string;
   companyId: string | null;
+  /**
+   * Permission keys (e.g. `rfq.create`, `po.approve`) granted to this user's
+   * role, as returned by GET /users/me. Empty when the session has not yet
+   * been verified or the backend predates permission-based RBAC.
+   */
+  permissions?: string[];
 }
 
 export interface AuthState {

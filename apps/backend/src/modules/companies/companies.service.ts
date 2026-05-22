@@ -198,29 +198,46 @@ export class CompaniesService {
 
     const { assignedContractorIds, ...companyData } = dto;
 
-    const company = await this.prisma.company.create({ data: companyData });
+    // Reuse an existing vendor row when one matches by contactEmail or abn.
+    // Why: contractors create vendors via the same dialog and would otherwise
+    // produce duplicate Company rows for the same real-world vendor.
+    const existingVendor =
+      dto.type === CompanyType.VENDOR
+        ? await this.findExistingVendor(dto.contactEmail, dto.abn)
+        : null;
+
+    const company = existingVendor ?? (await this.prisma.company.create({ data: companyData }));
 
     if (dto.type === CompanyType.VENDOR) {
-      // Auto-assign vendor to the requesting contractor's company
+      const contractorIds = new Set<string>();
       if (user && user.role !== UserRole.SUPER_ADMIN && user.companyId) {
-        await this.prisma.companyVendorAssignment.create({
-          data: { vendorId: company.id, contractorId: user.companyId },
-        });
+        contractorIds.add(user.companyId);
       }
+      for (const id of assignedContractorIds ?? []) contractorIds.add(id);
 
-      if (assignedContractorIds?.length) {
+      if (contractorIds.size > 0) {
         await this.prisma.companyVendorAssignment.createMany({
-          data: assignedContractorIds
-            .filter((contractorId) => contractorId !== user?.companyId)
-            .map((contractorId) => ({
-              vendorId: company.id,
-              contractorId,
-            })),
+          data: Array.from(contractorIds).map((contractorId) => ({
+            vendorId: company.id,
+            contractorId,
+          })),
+          skipDuplicates: true,
         });
       }
     }
 
-    return company;
+    return { ...company, alreadyExisted: existingVendor !== null };
+  }
+
+  private async findExistingVendor(contactEmail?: string, abn?: string) {
+    const or: Array<Record<string, string>> = [];
+    if (contactEmail) or.push({ contactEmail });
+    if (abn) or.push({ abn });
+    if (or.length === 0) return null;
+
+    return this.prisma.company.findFirst({
+      where: { type: CompanyType.VENDOR, OR: or },
+    });
   }
 
   async getCompany(id: string, requestingUser: RequestingUser) {

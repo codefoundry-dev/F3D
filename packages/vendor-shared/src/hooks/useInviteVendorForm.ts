@@ -115,6 +115,7 @@ export function useInviteVendorForm({ onClose, onSuccess }: UseInviteVendorFormP
     companyId: string,
     companyName: string,
     companyEmail: string,
+    _alreadyExisted: boolean,
   ) => {
     setCreatedCompany({ id: companyId, name: companyName, email: companyEmail });
     setIsCreateCompanyOpen(false);

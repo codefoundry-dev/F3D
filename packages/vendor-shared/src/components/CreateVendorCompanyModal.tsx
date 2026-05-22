@@ -32,7 +32,12 @@ type CreateVendorCompanyFormValues = z.infer<typeof createVendorCompanySchema>;
 
 interface CreateVendorCompanyModalProps {
   onClose: () => void;
-  onSuccess: (companyId: string, companyName: string, companyEmail: string) => void;
+  onSuccess: (
+    companyId: string,
+    companyName: string,
+    companyEmail: string,
+    alreadyExisted: boolean,
+  ) => void;
 }
 
 export function CreateVendorCompanyModal({ onClose, onSuccess }: CreateVendorCompanyModalProps) {
@@ -69,7 +74,7 @@ export function CreateVendorCompanyModal({ onClose, onSuccess }: CreateVendorCom
       },
       {
         onSuccess: (response) => {
-          onSuccess(response.id, response.legalName, data.companyEmail);
+          onSuccess(response.id, response.legalName, data.companyEmail, !!response.alreadyExisted);
         },
         onError: () => {
           setErrorKey('createError');

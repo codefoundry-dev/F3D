@@ -103,6 +103,18 @@ async function main() {
       role: 'VENDOR' as const,
       companyId: vendorCompany.id,
     },
+    {
+      email: 'warehouse@testcontractor.local',
+      name: 'Warehouse Officer',
+      role: 'WAREHOUSE_OFFICER' as const,
+      companyId: contractorCompany.id,
+    },
+    {
+      email: 'foreman@testcontractor.local',
+      name: 'Foreman',
+      role: 'FOREMAN' as const,
+      companyId: contractorCompany.id,
+    },
   ];
 
   for (const userData of testUsers) {
@@ -156,6 +168,28 @@ async function main() {
     },
   });
   console.log(`✅ Activated: ${financialOfficer.email}`);
+
+  const warehouseOfficer = await prisma.user.update({
+    where: { email: 'warehouse@testcontractor.local' },
+    data: {
+      status: 'ACTIVE',
+      passwordHash: testPasswordHash,
+      invitationToken: null,
+      invitationTokenExpiresAt: null,
+    },
+  });
+  console.log(`✅ Activated: ${warehouseOfficer.email}`);
+
+  const foreman = await prisma.user.update({
+    where: { email: 'foreman@testcontractor.local' },
+    data: {
+      status: 'ACTIVE',
+      passwordHash: testPasswordHash,
+      invitationToken: null,
+      invitationTokenExpiresAt: null,
+    },
+  });
+  console.log(`✅ Activated: ${foreman.email}`);
 
   // ── Test Projects ────────────────────────────────────────────────────────
 
@@ -908,6 +942,229 @@ async function main() {
   }
   console.log(`✅ Invoices: ${invoiceIds.length} created (5 PENDING, 5 DISPUTED, 3 other)`);
 
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  // FOR-197 \u2014 M:N vendor relationship test data
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+
+  console.log('\n\ud83c\udf31 Seeding FOR-197 M:N vendor data (Rexel x 2 contractors)...');
+
+  const northsideContractor = await prisma.company.upsert({
+    where: { abn: 'TEST-CONTRACTOR-002' },
+    update: {},
+    create: {
+      type: 'CONTRACTOR',
+      legalName: 'Northside Builders Pty Ltd',
+      tradeName: 'Northside',
+      abn: 'TEST-CONTRACTOR-002',
+      contactEmail: 'admin@northside.local',
+      status: 'ACTIVE',
+      specialisations: ['Residential', 'Commercial'],
+    },
+  });
+  console.log(`\u2705 Contractor company: ${northsideContractor.legalName}`);
+
+  const northsideAdmin = await prisma.user.upsert({
+    where: { email: 'companyadmin@northside.local' },
+    update: {},
+    create: {
+      email: 'companyadmin@northside.local',
+      name: 'Northside Admin',
+      role: 'COMPANY_ADMIN',
+      status: 'ACTIVE',
+      passwordHash: testPasswordHash,
+      companyId: northsideContractor.id,
+    },
+  });
+
+  const northsideProcurement = await prisma.user.upsert({
+    where: { email: 'procurement@northside.local' },
+    update: {},
+    create: {
+      email: 'procurement@northside.local',
+      name: 'Northside Procurement',
+      role: 'PROCUREMENT_OFFICER',
+      status: 'ACTIVE',
+      passwordHash: testPasswordHash,
+      companyId: northsideContractor.id,
+    },
+  });
+
+  const northsideProject = await prisma.project.upsert({
+    where: {
+      companyId_name: { companyId: northsideContractor.id, name: 'Riverside Apartments' },
+    },
+    update: {},
+    create: {
+      companyId: northsideContractor.id,
+      name: 'Riverside Apartments',
+      description: '40-unit residential build',
+      type: 'Residential',
+      status: 'ONGOING',
+      plannedBudget: 800000,
+      currency: 'AUD',
+      startDate: new Date('2026-02-01'),
+      expectedEndDate: new Date('2026-12-31'),
+      createdByUserId: northsideAdmin.id,
+      pointOfContactId: northsideProcurement.id,
+    },
+  });
+
+  const northsideLocationExists = await prisma.projectLocation.count({
+    where: { projectId: northsideProject.id },
+  });
+  if (northsideLocationExists === 0) {
+    await prisma.projectLocation.create({
+      data: {
+        projectId: northsideProject.id,
+        type: 'DELIVERY',
+        address: '500 River Rd, Brisbane QLD 4000',
+        label: 'Riverside Site',
+        isDefault: true,
+      },
+    });
+  }
+
+  for (const userId of [northsideAdmin.id, northsideProcurement.id]) {
+    await prisma.projectMember.upsert({
+      where: { projectId_userId: { projectId: northsideProject.id, userId } },
+      update: {},
+      create: {
+        projectId: northsideProject.id,
+        userId,
+        assignedByUserId: northsideAdmin.id,
+      },
+    });
+  }
+
+  // Rexel: ONE vendor row shared by both contractors
+  const rexelVendor = await prisma.company.upsert({
+    where: { abn: 'TEST-VENDOR-REXEL' },
+    update: {},
+    create: {
+      type: 'VENDOR',
+      legalName: 'Rexel Electrical Supplies',
+      tradeName: 'Rexel',
+      abn: 'TEST-VENDOR-REXEL',
+      contactEmail: 'orders@rexel.local',
+      status: 'ACTIVE',
+      specialisations: ['ELECTRICAL', 'LIGHTING'],
+      legalAddress: '100 Voltage Way, Sydney NSW 2000',
+    },
+  });
+  console.log(`\u2705 Shared vendor: ${rexelVendor.legalName} (single Company row)`);
+
+  for (const contractorId of [contractorCompany.id, northsideContractor.id]) {
+    await prisma.companyVendorAssignment.upsert({
+      where: {
+        vendorId_contractorId: { vendorId: rexelVendor.id, contractorId },
+      },
+      update: {},
+      create: { vendorId: rexelVendor.id, contractorId },
+    });
+  }
+  console.log('\u2705 Vendor assignments: Rexel -> TestCo + Northside');
+
+  await prisma.user.upsert({
+    where: { email: 'rep@rexel.local' },
+    update: {},
+    create: {
+      email: 'rep@rexel.local',
+      name: 'Rachel Rex',
+      role: 'VENDOR',
+      status: 'ACTIVE',
+      passwordHash: testPasswordHash,
+      companyId: rexelVendor.id,
+      position: 'Senior Sales',
+      phone: '+61 400 444 555',
+    },
+  });
+
+  const northsideDeliveryLocation = await prisma.projectLocation.findFirst({
+    where: { projectId: northsideProject.id, type: 'DELIVERY', isDefault: true },
+  });
+
+  const rexelLoopSpecs = [
+    {
+      contractor: contractorCompany,
+      project: alphaProject,
+      deliveryLocation: alphaDeliveryLocation,
+      createdBy: procurementOfficer,
+      rfqNumber: 'RFQ-REXEL-001',
+    },
+    {
+      contractor: northsideContractor,
+      project: northsideProject,
+      deliveryLocation: northsideDeliveryLocation,
+      createdBy: northsideProcurement,
+      rfqNumber: 'RFQ-REXEL-002',
+    },
+  ];
+
+  for (const spec of rexelLoopSpecs) {
+    const rfq = await prisma.rfq.upsert({
+      where: { rfqNumber: spec.rfqNumber },
+      update: {},
+      create: {
+        rfqNumber: spec.rfqNumber,
+        projectId: spec.project.id,
+        companyId: spec.contractor.id,
+        status: 'AWARDED',
+        deliveryLocationId: spec.deliveryLocation?.id ?? null,
+        deadlineStart: new Date('2026-06-01'),
+        deadlineEnd: new Date('2026-06-15'),
+        totalRequestedQty: 250,
+        createdByUserId: spec.createdBy.id,
+      },
+    });
+
+    await prisma.rfqVendor.upsert({
+      where: { rfqId_vendorId: { rfqId: rfq.id, vendorId: rexelVendor.id } },
+      update: {},
+      create: { rfqId: rfq.id, vendorId: rexelVendor.id },
+    });
+
+    const lineCount = await prisma.rfqLineItem.count({ where: { rfqId: rfq.id } });
+    if (lineCount === 0) {
+      await prisma.rfqLineItem.create({
+        data: {
+          rfqId: rfq.id,
+          materialId: materials[0].id,
+          quantity: 250,
+          unit: materialUoms[0],
+          description: 'Electrical rebar bundle',
+        },
+      });
+    }
+
+    const existingQuote = await prisma.quoteResponse.findFirst({
+      where: { rfqId: rfq.id, vendorId: rexelVendor.id },
+    });
+    if (!existingQuote) {
+      await prisma.quoteResponse.create({
+        data: {
+          rfqId: rfq.id,
+          vendorId: rexelVendor.id,
+          totalCost: 32500.0,
+          itemsCovered: 1,
+          totalItems: 1,
+          status: 'APPROVED',
+          submittedAt: new Date(),
+        },
+      });
+    }
+  }
+  console.log('\u2705 RFQ -> quote loop: 2 RFQs (one per contractor) routed through Rexel');
+
+  const rexelRows = await prisma.company.count({
+    where: { type: 'VENDOR', contactEmail: 'orders@rexel.local' },
+  });
+  const rexelAssignments = await prisma.companyVendorAssignment.count({
+    where: { vendorId: rexelVendor.id },
+  });
+  console.log(
+    `\ud83d\udcca M:N invariant - Rexel Company rows: ${rexelRows} (expected 1), assignments: ${rexelAssignments} (expected 2)`,
+  );
+
   console.log('\n\ud83c\udf89 Seed complete!');
   console.log('\n\ud83d\udccb Login credentials:');
   console.log('  Super Admin: superadmin@forethread.local / Dev@123456');
@@ -915,6 +1172,10 @@ async function main() {
   console.log('  Procurement Officer: procurement@testcontractor.local / Dev@123456');
   console.log('  Financial Officer: financial@testcontractor.local / Dev@123456');
   console.log('  Vendor: vendor@testvendor.local / Dev@123456');
+  console.log('  Warehouse Officer: warehouse@testcontractor.local / Dev@123456');
+  console.log('  Foreman: foreman@testcontractor.local / Dev@123456');
+  console.log('  Northside Admin: companyadmin@northside.local / Dev@123456');
+  console.log('  Northside Procurement: procurement@northside.local / Dev@123456');
   console.log('\n\ud83d\udccb Test projects:');
   console.log('  Alpha Construction (Planned) \u2014 2 members');
   console.log('  Beta Fitout (Ongoing) \u2014 2 members');

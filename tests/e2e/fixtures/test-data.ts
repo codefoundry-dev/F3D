@@ -60,6 +60,19 @@ export const FIELD_WORKER = {
   password: process.env.TEST_FW_PASSWORD ?? 'Dev@123456',
 };
 
+/** FOR-197: second contractor used to prove vendors are M:N. */
+export const NORTHSIDE_ADMIN = {
+  email: process.env.TEST_NORTHSIDE_ADMIN_EMAIL ?? 'companyadmin@northside.local',
+  password: process.env.TEST_NORTHSIDE_ADMIN_PASSWORD ?? 'Dev@123456',
+};
+
+/** FOR-197: shared vendor seeded against both contractors. */
+export const REXEL_VENDOR = {
+  legalName: 'Rexel Electrical Supplies',
+  contactEmail: 'orders@rexel.local',
+  abn: 'TEST-VENDOR-REXEL',
+};
+
 export const PASSWORD_RULES = {
   valid: 'NewPass123!',
   tooShort: 'Abc1!',

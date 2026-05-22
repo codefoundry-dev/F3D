@@ -62,6 +62,11 @@ const mockAuditService = {
   log: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockPermissionsService = {
+  getPermissionsForRole: jest.fn().mockResolvedValue(new Set<string>()),
+  roleHasPermission: jest.fn().mockResolvedValue(true),
+};
+
 const superAdmin = { id: 'sa-1', role: UserRole.SUPER_ADMIN, companyId: null };
 const companyAdmin = { id: 'ca-1', role: UserRole.COMPANY_ADMIN, companyId: 'comp-1' };
 
@@ -75,6 +80,7 @@ describe('UsersService', () => {
       mockEmailService as never,
       mockConfig as never,
       mockAuditService as never,
+      mockPermissionsService as never,
     );
   });
 
@@ -577,10 +583,27 @@ describe('UsersService', () => {
   // ── getMe ──────────────────────────────────────────────────────────────
 
   describe('getMe', () => {
-    it('returns the user', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({ id: 'u-1', name: 'Me' });
+    it('returns the user with the permission keys granted to their role', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u-1',
+        name: 'Me',
+        role: UserRole.COMPANY_ADMIN,
+      });
+      mockPermissionsService.getPermissionsForRole.mockResolvedValueOnce(
+        new Set(['rfq.create', 'po.approve']),
+      );
+
       const result = await service.getMe('u-1');
-      expect(result).toEqual({ id: 'u-1', name: 'Me' });
+
+      expect(mockPermissionsService.getPermissionsForRole).toHaveBeenCalledWith(
+        UserRole.COMPANY_ADMIN,
+      );
+      expect(result).toEqual({
+        id: 'u-1',
+        name: 'Me',
+        role: UserRole.COMPANY_ADMIN,
+        permissions: ['rfq.create', 'po.approve'],
+      });
     });
 
     it('throws NotFoundException when user not found', async () => {

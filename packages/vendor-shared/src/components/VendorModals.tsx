@@ -63,9 +63,13 @@ export function VendorModals({
       {isCreateCompanyModalOpen && (
         <CreateVendorCompanyModal
           onClose={onCloseCreateCompanyModal}
-          onSuccess={(_companyId, companyName) => {
+          onSuccess={(_companyId, companyName, _companyEmail, alreadyExisted) => {
             onCloseCreateCompanyModal();
-            notificationService.success(t('createCompanyModal.success', { companyName }));
+            notificationService.success(
+              alreadyExisted
+                ? t('createCompanyModal.successReused', { companyName })
+                : t('createCompanyModal.success', { companyName }),
+            );
           }}
         />
       )}

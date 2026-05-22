@@ -420,14 +420,10 @@ export class RfqsService {
       throw new BadRequestException(ERR.rfqs.invalidMaterialIds);
     }
 
-    // Validate all vendorIds exist and are vendor-type companies
-    const vendors = await this.prisma.company.findMany({
-      where: { id: { in: dto.vendorIds }, type: CompanyType.VENDOR },
-      select: { id: true },
-    });
-    if (vendors.length !== dto.vendorIds.length) {
-      throw new BadRequestException(ERR.rfqs.invalidVendorIds);
-    }
+    // Validate all vendorIds exist, are vendor-type companies, and are assigned to this contractor.
+    // Why: enforces the M:N relationship — a contractor can only invite vendors on their list,
+    // not arbitrary platform vendors belonging to other contractors.
+    await this.assertVendorsAssigned(dto.vendorIds, user.companyId);
 
     // Hold-for-release requires earliestDeliveryDate
     if (dto.holdForRelease && !dto.earliestDeliveryDate) {
@@ -545,15 +541,9 @@ export class RfqsService {
       }
     }
 
-    // Validate vendorIds if provided
+    // Validate vendorIds if provided — same M:N scope check as createRfq.
     if (dto.vendorIds) {
-      const vendors = await this.prisma.company.findMany({
-        where: { id: { in: dto.vendorIds }, type: CompanyType.VENDOR },
-        select: { id: true },
-      });
-      if (vendors.length !== dto.vendorIds.length) {
-        throw new BadRequestException(ERR.rfqs.invalidVendorIds);
-      }
+      await this.assertVendorsAssigned(dto.vendorIds, rfq.companyId);
     }
 
     // Hold-for-release validation
@@ -1134,6 +1124,28 @@ export class RfqsService {
   private assertCompanyAccess(user: AuthenticatedUser, companyId: string): void {
     if (user.role !== UserRole.SUPER_ADMIN && user.companyId !== companyId) {
       throw new ForbiddenException(ERR.general.accessDenied);
+    }
+  }
+
+  private async assertVendorsAssigned(
+    vendorIds: string[],
+    contractorId: string | null | undefined,
+  ): Promise<void> {
+    if (vendorIds.length === 0) return;
+    if (!contractorId) throw new BadRequestException(ERR.rfqs.invalidVendorIds);
+
+    const assignments = await this.prisma.companyVendorAssignment.findMany({
+      where: {
+        contractorId,
+        vendorId: { in: vendorIds },
+        vendor: { type: CompanyType.VENDOR },
+      },
+      select: { vendorId: true },
+    });
+
+    const assignedIds = new Set(assignments.map((a) => a.vendorId));
+    if (assignedIds.size !== new Set(vendorIds).size) {
+      throw new BadRequestException(ERR.rfqs.invalidVendorIds);
     }
   }
 

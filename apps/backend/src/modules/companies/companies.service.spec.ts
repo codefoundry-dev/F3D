@@ -11,6 +11,7 @@ describe('CompaniesService', () => {
   let prisma: {
     company: {
       findMany: jest.Mock;
+      findFirst: jest.Mock;
       count: jest.Mock;
       create: jest.Mock;
       findUnique: jest.Mock;
@@ -31,6 +32,7 @@ describe('CompaniesService', () => {
     prisma = {
       company: {
         findMany: jest.fn(),
+        findFirst: jest.fn(),
         count: jest.fn(),
         create: jest.fn(),
         findUnique: jest.fn(),
@@ -123,7 +125,7 @@ describe('CompaniesService', () => {
       expect(prisma.company.create).toHaveBeenCalledWith({
         data: { type: CompanyType.CONTRACTOR, legalName: 'Acme' },
       });
-      expect(result).toEqual(created);
+      expect(result).toEqual({ ...created, alreadyExisted: false });
     });
 
     it('should throw BadRequestException for Vendor without contactEmail', async () => {
@@ -140,6 +142,7 @@ describe('CompaniesService', () => {
         assignedContractorIds: ['c1', 'c2'],
       };
       const created = { id: 'v1', type: CompanyType.VENDOR, legalName: 'Vendor Co' };
+      prisma.company.findFirst.mockResolvedValue(null);
       prisma.company.create.mockResolvedValue(created);
       prisma.companyVendorAssignment.createMany.mockResolvedValue({ count: 2 });
 
@@ -151,8 +154,9 @@ describe('CompaniesService', () => {
           { vendorId: 'v1', contractorId: 'c1' },
           { vendorId: 'v1', contractorId: 'c2' },
         ],
+        skipDuplicates: true,
       });
-      expect(result).toEqual(created);
+      expect(result).toEqual({ ...created, alreadyExisted: false });
     });
 
     it('should not create assignments for vendor without assignedContractorIds', async () => {
@@ -161,6 +165,7 @@ describe('CompaniesService', () => {
         legalName: 'Vendor Co',
         contactEmail: 'v@test.com',
       };
+      prisma.company.findFirst.mockResolvedValue(null);
       prisma.company.create.mockResolvedValue({ id: 'v1' });
 
       await service.createCompany(dto);
@@ -197,13 +202,82 @@ describe('CompaniesService', () => {
         contactEmail: 'v@test.com',
       };
       const created = { id: 'v1', type: CompanyType.VENDOR, legalName: 'Vendor Co' };
+      prisma.company.findFirst.mockResolvedValue(null);
       prisma.company.create.mockResolvedValue(created);
-      prisma.companyVendorAssignment.createMany.mockResolvedValue({ count: 0 });
+      prisma.companyVendorAssignment.createMany.mockResolvedValue({ count: 1 });
 
       await service.createCompany(dto, companyAdmin);
 
-      expect(prisma.companyVendorAssignment.create).toHaveBeenCalledWith({
-        data: { vendorId: 'v1', contractorId: 'c1' },
+      expect(prisma.companyVendorAssignment.createMany).toHaveBeenCalledWith({
+        data: [{ vendorId: 'v1', contractorId: 'c1' }],
+        skipDuplicates: true,
+      });
+    });
+
+    // ── FOR-197: M:N de-dup ──────────────────────────────────────────────
+    it('reuses existing vendor (matched by contactEmail) and only adds the new assignment', async () => {
+      const dto: CreateCompanyDto = {
+        type: CompanyType.VENDOR as never,
+        legalName: 'Rexel',
+        contactEmail: 'orders@rexel.local',
+      };
+      const existing = { id: 'rexel-1', type: CompanyType.VENDOR, legalName: 'Rexel' };
+      prisma.company.findFirst.mockResolvedValue(existing);
+      prisma.companyVendorAssignment.createMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.createCompany(dto, companyAdmin);
+
+      expect(prisma.company.findFirst).toHaveBeenCalledWith({
+        where: { type: CompanyType.VENDOR, OR: [{ contactEmail: 'orders@rexel.local' }] },
+      });
+      expect(prisma.company.create).not.toHaveBeenCalled();
+      expect(prisma.companyVendorAssignment.createMany).toHaveBeenCalledWith({
+        data: [{ vendorId: 'rexel-1', contractorId: 'c1' }],
+        skipDuplicates: true,
+      });
+      expect(result).toEqual({ ...existing, alreadyExisted: true });
+    });
+
+    it('reuses existing vendor when matched by ABN even with different contactEmail', async () => {
+      const dto: CreateCompanyDto = {
+        type: CompanyType.VENDOR as never,
+        legalName: 'Rexel',
+        contactEmail: 'sales@rexel.local',
+        abn: '12345678901',
+      };
+      const existing = { id: 'rexel-1', type: CompanyType.VENDOR, legalName: 'Rexel' };
+      prisma.company.findFirst.mockResolvedValue(existing);
+      prisma.companyVendorAssignment.createMany.mockResolvedValue({ count: 1 });
+
+      await service.createCompany(dto, companyAdmin);
+
+      expect(prisma.company.findFirst).toHaveBeenCalledWith({
+        where: {
+          type: CompanyType.VENDOR,
+          OR: [{ contactEmail: 'sales@rexel.local' }, { abn: '12345678901' }],
+        },
+      });
+      expect(prisma.company.create).not.toHaveBeenCalled();
+    });
+
+    it('does not duplicate the assignment when contractor re-creates a vendor already on their list', async () => {
+      const dto: CreateCompanyDto = {
+        type: CompanyType.VENDOR as never,
+        legalName: 'Rexel',
+        contactEmail: 'orders@rexel.local',
+      };
+      const existing = { id: 'rexel-1', type: CompanyType.VENDOR, legalName: 'Rexel' };
+      prisma.company.findFirst.mockResolvedValue(existing);
+      // createMany with skipDuplicates returns count: 0 when the unique pair already exists
+      prisma.companyVendorAssignment.createMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.createCompany(dto, companyAdmin)).resolves.toEqual({
+        ...existing,
+        alreadyExisted: true,
+      });
+      expect(prisma.companyVendorAssignment.createMany).toHaveBeenCalledWith({
+        data: [{ vendorId: 'rexel-1', contractorId: 'c1' }],
+        skipDuplicates: true,
       });
     });
   });

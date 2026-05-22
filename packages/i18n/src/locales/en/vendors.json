@@ -220,6 +220,7 @@
     "createCompany": "Create company",
     "creating": "Creating...",
     "createError": "Failed to create vendor company. Please try again.",
-    "success": "\"{{companyName}}\" has been successfully created"
+    "success": "\"{{companyName}}\" has been successfully created",
+    "successReused": "\"{{companyName}}\" already exists on the platform and has been added to your vendor list"
   }
 }

@@ -131,8 +131,9 @@ export interface AuthTokens {
 }
 
 /**
- * Full login flow: POST /login → capture OTP from mock email → POST /verify-otp
- * Returns access + refresh tokens ready for use in subsequent requests.
+ * Full login flow: POST /login → capture OTP from mock email → POST /verify-otp.
+ * The controller sets jwt + jwt_refresh cookies and returns only `{ success: true }`,
+ * so we parse the Set-Cookie header to extract the bearer tokens used by `authRequest`.
  */
 export async function loginUser(email: string, password: string): Promise<AuthTokens> {
   const server = app.getHttpServer();
@@ -143,7 +144,10 @@ export async function loginUser(email: string, password: string): Promise<AuthTo
     .send({ email, password })
     .expect(200);
 
-  const userId = loginRes.body.data.userId;
+  const userId = loginRes.body.data?.userId ?? loginRes.body.userId;
+  if (!userId) {
+    throw new Error(`Login did not return a userId for ${email}: ${JSON.stringify(loginRes.body)}`);
+  }
 
   // Step 2: Get OTP from mock email service
   const sentEmail = mockEmailService.getLastEmailTo(email);
@@ -157,11 +161,29 @@ export async function loginUser(email: string, password: string): Promise<AuthTo
     .send({ userId, otp: sentEmail.otp })
     .expect(200);
 
-  return {
-    accessToken: otpRes.body.data.accessToken,
-    refreshToken: otpRes.body.data.refreshToken,
-    userId,
-  };
+  const setCookieHeader = otpRes.headers['set-cookie'];
+  const cookies = Array.isArray(setCookieHeader)
+    ? setCookieHeader
+    : [setCookieHeader].filter(Boolean);
+
+  const accessToken = extractCookieValue(cookies, 'jwt');
+  const refreshToken = extractCookieValue(cookies, 'jwt_refresh');
+  if (!accessToken || !refreshToken) {
+    throw new Error(`verify-otp did not set jwt cookies for ${email}: ${JSON.stringify(cookies)}`);
+  }
+
+  return { accessToken, refreshToken, userId };
+}
+
+function extractCookieValue(cookies: string[], name: string): string | null {
+  for (const raw of cookies) {
+    const [pair] = raw.split(';');
+    const eq = pair.indexOf('=');
+    if (eq === -1) continue;
+    const key = pair.slice(0, eq).trim();
+    if (key === name) return decodeURIComponent(pair.slice(eq + 1));
+  }
+  return null;
 }
 
 /**
@@ -193,6 +215,10 @@ export const SEED_USERS = {
   },
   financialOfficer: {
     email: 'financial@testcontractor.local',
+    password: 'Dev@123456',
+  },
+  northsideAdmin: {
+    email: 'companyadmin@northside.local',
     password: 'Dev@123456',
   },
 } as const;

@@ -8,7 +8,7 @@ import { ErrorPage } from '@/shared/components/ErrorPage';
 import { GuestRoute } from '@/shared/components/GuestRoute';
 import { PrivateRoute } from '@/shared/components/PrivateRoute';
 import { AppLayout } from '@/shared/layout/AppLayout';
-import { Forbidden, RoleRoute } from '@/shared/role';
+import { Forbidden, PermissionRoute, RoleRoute } from '@/shared/role';
 
 import { HomeRedirect } from './HomeRedirect';
 import { ROUTES } from './route-config';
@@ -179,7 +179,10 @@ export const routes: RouteObject[] = [
               {
                 element: <RoleRoute allow={BUYER_SIDE} />,
                 children: [
-                  { path: ROUTES.rfqNew, element: withSuspense(<CreateRfqPage />) },
+                  {
+                    element: <PermissionRoute require={['rfq.create']} />,
+                    children: [{ path: ROUTES.rfqNew, element: withSuspense(<CreateRfqPage />) }],
+                  },
                   {
                     path: ROUTES.quoteResponseDetail,
                     element: withSuspense(<QuoteResponseDetailPage />),
@@ -215,8 +218,13 @@ export const routes: RouteObject[] = [
                 element: <RoleRoute allow={BUYER_SIDE} />,
                 children: [
                   {
-                    path: ROUTES.purchaseOrderNew,
-                    element: withSuspense(<CreatePurchaseOrderPage />),
+                    element: <PermissionRoute require={['po.create']} />,
+                    children: [
+                      {
+                        path: ROUTES.purchaseOrderNew,
+                        element: withSuspense(<CreatePurchaseOrderPage />),
+                      },
+                    ],
                   },
                 ],
               },
@@ -313,7 +321,10 @@ export const routes: RouteObject[] = [
               {
                 element: <RoleRoute allow={[...RFQ_VIEWERS]} />,
                 children: [
-                  { path: ROUTES.materialDetail, element: withSuspense(<MaterialDetailRoleSwitch />) },
+                  {
+                    path: ROUTES.materialDetail,
+                    element: withSuspense(<MaterialDetailRoleSwitch />),
+                  },
                 ],
               },
 
@@ -337,14 +348,16 @@ export const routes: RouteObject[] = [
                 ],
               },
 
-              // Roles & permissions (Company Admin / Super Admin)
+              // Roles & permissions — gated by the same backend permission keys
+              // (`role.list`, `role.update`) that the API enforces.
               {
-                element: (
-                  <RoleRoute allow={[UserRole.COMPANY_ADMIN, UserRole.SUPER_ADMIN]} />
-                ),
+                element: <PermissionRoute require={['role.list']} />,
                 children: [
                   { path: ROUTES.roles, element: withSuspense(<RoleListPage />) },
-                  { path: ROUTES.roleEdit, element: withSuspense(<RoleEditPage />) },
+                  {
+                    element: <PermissionRoute require={['role.update']} />,
+                    children: [{ path: ROUTES.roleEdit, element: withSuspense(<RoleEditPage />) }],
+                  },
                 ],
               },
 
