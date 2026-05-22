@@ -16,11 +16,18 @@ model Permission {
 /// are seeded by PermissionsBootstrap from the catalog; Company Admin overrides
 /// in a later release (FOR-195) mutate this table at runtime, so PermissionsGuard
 /// queries it on every request.
+///
+/// `thresholdAmount` (FOR-196) is the optional monetary cap on threshold-aware
+/// approval permissions (e.g. `po.approve`, `invoice.approve`). A null value
+/// means unlimited; a non-null value means the role can only approve documents
+/// whose total amount is at most this value. Anything above routes to a higher
+/// tier (Phase 2 will chain delegations — Release 1 is single-step).
 model RolePermission {
-  id           String   @id @default(uuid())
-  role         UserRole
-  permissionId String   @map("permission_id")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id              String   @id @default(uuid())
+  role            UserRole
+  permissionId    String   @map("permission_id")
+  thresholdAmount Decimal? @map("threshold_amount") @db.Decimal(18, 4)
+  createdAt       DateTime @default(now()) @map("created_at")
 
   permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 

@@ -61,6 +61,7 @@ describe('RolesController', () => {
       ['rfq.read'],
       'actor-1',
       '10.0.0.5',
+      undefined,
     );
     expect(result).toEqual({ role: 'VENDOR', permissionKeys: ['rfq.read'] });
   });

@@ -13,6 +13,7 @@ interface MockPrisma {
     findMany: jest.Mock;
     groupBy: jest.Mock;
     create: jest.Mock;
+    update: jest.Mock;
     deleteMany: jest.Mock;
   };
   $transaction: jest.Mock;
@@ -30,6 +31,7 @@ describe('RolesService', () => {
         findMany: jest.fn(),
         groupBy: jest.fn(),
         create: jest.fn().mockReturnValue({ __op: 'create' }),
+        update: jest.fn().mockReturnValue({ __op: 'update' }),
         deleteMany: jest.fn().mockReturnValue({ __op: 'deleteMany' }),
       },
       $transaction: jest.fn().mockResolvedValue([]),
@@ -69,15 +71,40 @@ describe('RolesService', () => {
   describe('getRoleDetail', () => {
     it('returns the sorted catalog-known permission keys for a role', async () => {
       prisma.rolePermission.findMany.mockResolvedValue([
-        { permission: { key: 'rfq.read' } },
-        { permission: { key: 'rfq.create' } },
-        { permission: { key: 'legacy.unknown' } },
+        { thresholdAmount: null, permission: { key: 'rfq.read' } },
+        { thresholdAmount: null, permission: { key: 'rfq.create' } },
+        { thresholdAmount: null, permission: { key: 'legacy.unknown' } },
       ]);
 
       const result = await service.getRoleDetail(UserRole.PROCUREMENT_OFFICER);
 
       expect(result.role).toBe(UserRole.PROCUREMENT_OFFICER);
       expect(result.permissionKeys).toEqual(['rfq.create', 'rfq.read']);
+      expect(result.thresholds).toEqual({});
+    });
+
+    it('returns the thresholds for granted threshold-aware permissions', async () => {
+      prisma.rolePermission.findMany.mockResolvedValue([
+        { thresholdAmount: { toString: () => '25000' }, permission: { key: 'po.approve' } },
+        { thresholdAmount: null, permission: { key: 'invoice.approve' } },
+        { thresholdAmount: null, permission: { key: 'po.read' } },
+      ]);
+
+      const result = await service.getRoleDetail(UserRole.PROCUREMENT_OFFICER);
+
+      expect(result.permissionKeys).toEqual(
+        expect.arrayContaining(['po.approve', 'invoice.approve', 'po.read']),
+      );
+      expect(result.thresholds).toEqual({ 'po.approve': 25000 });
+    });
+
+    it('omits thresholds for non-threshold-aware permissions even if the column is populated', async () => {
+      prisma.rolePermission.findMany.mockResolvedValue([
+        { thresholdAmount: { toString: () => '1000' }, permission: { key: 'po.read' } },
+      ]);
+
+      const result = await service.getRoleDetail(UserRole.PROCUREMENT_OFFICER);
+      expect(result.thresholds).toEqual({});
     });
 
     it('rejects an unknown role with 404', async () => {
@@ -86,17 +113,25 @@ describe('RolesService', () => {
   });
 
   describe('updateRolePermissions', () => {
-    function arrangeCurrent(currentKeys: string[]) {
+    function arrangeCurrent(
+      currentKeys: string[],
+      currentThresholds: Record<string, number> = {},
+    ) {
       prisma.permission.findMany.mockResolvedValue([
         { id: 'p-rfq.read', key: 'rfq.read' },
         { id: 'p-rfq.create', key: 'rfq.create' },
         { id: 'p-po.approve', key: 'po.approve' },
+        { id: 'p-invoice.approve', key: 'invoice.approve' },
       ]);
       prisma.rolePermission.findMany.mockImplementation((args: { where?: unknown }) => {
         if (args.where) {
           return Promise.resolve(
             currentKeys.map((k) => ({
               permissionId: `p-${k}`,
+              thresholdAmount:
+                currentThresholds[k] !== undefined
+                  ? { toString: () => String(currentThresholds[k]) }
+                  : null,
               permission: { key: k },
             })),
           );
@@ -121,12 +156,20 @@ describe('RolesService', () => {
       arrangeCurrent(['rfq.read', 'po.approve']);
       prisma.rolePermission.findMany
         .mockResolvedValueOnce([
-          { permissionId: 'p-rfq.read', permission: { key: 'rfq.read' } },
-          { permissionId: 'p-po.approve', permission: { key: 'po.approve' } },
+          {
+            permissionId: 'p-rfq.read',
+            thresholdAmount: null,
+            permission: { key: 'rfq.read' },
+          },
+          {
+            permissionId: 'p-po.approve',
+            thresholdAmount: null,
+            permission: { key: 'po.approve' },
+          },
         ])
         .mockResolvedValueOnce([
-          { permission: { key: 'rfq.read' } },
-          { permission: { key: 'rfq.create' } },
+          { thresholdAmount: null, permission: { key: 'rfq.read' } },
+          { thresholdAmount: null, permission: { key: 'rfq.create' } },
         ]);
 
       const result = await service.updateRolePermissions(
@@ -141,7 +184,11 @@ describe('RolesService', () => {
       // 1 create + 1 deleteMany
       expect(txOps).toHaveLength(2);
       expect(prisma.rolePermission.create).toHaveBeenCalledWith({
-        data: { role: UserRole.PROCUREMENT_OFFICER, permissionId: 'p-rfq.create' },
+        data: {
+          role: UserRole.PROCUREMENT_OFFICER,
+          permissionId: 'p-rfq.create',
+          thresholdAmount: null,
+        },
       });
       expect(prisma.rolePermission.deleteMany).toHaveBeenCalledWith({
         where: { role: UserRole.PROCUREMENT_OFFICER, permissionId: { in: ['p-po.approve'] } },
@@ -157,6 +204,7 @@ describe('RolesService', () => {
           role: UserRole.PROCUREMENT_OFFICER,
           added: ['rfq.create'],
           removed: ['po.approve'],
+          thresholds: [],
         },
         ipAddress: '10.0.0.1',
       });
@@ -168,9 +216,13 @@ describe('RolesService', () => {
       arrangeCurrent(['rfq.read']);
       prisma.rolePermission.findMany
         .mockResolvedValueOnce([
-          { permissionId: 'p-rfq.read', permission: { key: 'rfq.read' } },
+          {
+            permissionId: 'p-rfq.read',
+            thresholdAmount: null,
+            permission: { key: 'rfq.read' },
+          },
         ])
-        .mockResolvedValueOnce([{ permission: { key: 'rfq.read' } }]);
+        .mockResolvedValueOnce([{ thresholdAmount: null, permission: { key: 'rfq.read' } }]);
 
       await service.updateRolePermissions(UserRole.VENDOR, ['rfq.read'], 'actor-1');
 
@@ -183,7 +235,7 @@ describe('RolesService', () => {
       arrangeCurrent([]);
       prisma.rolePermission.findMany
         .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ permission: { key: 'rfq.read' } }]);
+        .mockResolvedValueOnce([{ thresholdAmount: null, permission: { key: 'rfq.read' } }]);
 
       await service.updateRolePermissions(
         UserRole.FOREMAN,
@@ -192,6 +244,153 @@ describe('RolesService', () => {
       );
 
       expect(prisma.rolePermission.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('creates a new grant with the supplied threshold for a threshold-aware permission', async () => {
+      arrangeCurrent([]);
+      prisma.rolePermission.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
+            thresholdAmount: { toString: () => '25000' },
+            permission: { key: 'po.approve' },
+          },
+        ]);
+
+      await service.updateRolePermissions(
+        UserRole.PROCUREMENT_OFFICER,
+        ['po.approve'],
+        'actor-1',
+        undefined,
+        { 'po.approve': 25000 },
+      );
+
+      expect(prisma.rolePermission.create).toHaveBeenCalledWith({
+        data: {
+          role: UserRole.PROCUREMENT_OFFICER,
+          permissionId: 'p-po.approve',
+          thresholdAmount: 25000,
+        },
+      });
+    });
+
+    it('updates the threshold on an existing grant when it changes', async () => {
+      arrangeCurrent(['po.approve'], { 'po.approve': 10000 });
+      prisma.rolePermission.findMany
+        .mockResolvedValueOnce([
+          {
+            permissionId: 'p-po.approve',
+            thresholdAmount: { toString: () => '10000' },
+            permission: { key: 'po.approve' },
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            thresholdAmount: { toString: () => '50000' },
+            permission: { key: 'po.approve' },
+          },
+        ]);
+
+      await service.updateRolePermissions(
+        UserRole.PROCUREMENT_OFFICER,
+        ['po.approve'],
+        'actor-1',
+        undefined,
+        { 'po.approve': 50000 },
+      );
+
+      expect(prisma.rolePermission.update).toHaveBeenCalledWith({
+        where: {
+          role_permissionId: {
+            role: UserRole.PROCUREMENT_OFFICER,
+            permissionId: 'p-po.approve',
+          },
+        },
+        data: { thresholdAmount: 50000 },
+      });
+
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            thresholds: [{ key: 'po.approve', threshold: 50000 }],
+          }),
+        }),
+      );
+    });
+
+    it('clears a threshold to null (unlimited) when explicitly set to null', async () => {
+      arrangeCurrent(['po.approve'], { 'po.approve': 10000 });
+      prisma.rolePermission.findMany
+        .mockResolvedValueOnce([
+          {
+            permissionId: 'p-po.approve',
+            thresholdAmount: { toString: () => '10000' },
+            permission: { key: 'po.approve' },
+          },
+        ])
+        .mockResolvedValueOnce([
+          { thresholdAmount: null, permission: { key: 'po.approve' } },
+        ]);
+
+      await service.updateRolePermissions(
+        UserRole.COMPANY_ADMIN,
+        ['po.approve'],
+        'actor-1',
+        undefined,
+        { 'po.approve': null },
+      );
+
+      expect(prisma.rolePermission.update).toHaveBeenCalledWith({
+        where: {
+          role_permissionId: {
+            role: UserRole.COMPANY_ADMIN,
+            permissionId: 'p-po.approve',
+          },
+        },
+        data: { thresholdAmount: null },
+      });
+    });
+
+    it('rejects a threshold for a permission that is not granted', async () => {
+      arrangeCurrent([]);
+
+      await expect(
+        service.updateRolePermissions(
+          UserRole.PROCUREMENT_OFFICER,
+          ['rfq.read'],
+          'actor-1',
+          undefined,
+          { 'po.approve': 25000 },
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects a threshold on a permission that is not threshold-aware', async () => {
+      arrangeCurrent([]);
+
+      await expect(
+        service.updateRolePermissions(
+          UserRole.PROCUREMENT_OFFICER,
+          ['rfq.read'],
+          'actor-1',
+          undefined,
+          { 'rfq.read': 100 } as Record<string, number>,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects a negative threshold value', async () => {
+      arrangeCurrent([]);
+
+      await expect(
+        service.updateRolePermissions(
+          UserRole.PROCUREMENT_OFFICER,
+          ['po.approve'],
+          'actor-1',
+          undefined,
+          { 'po.approve': -1 },
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

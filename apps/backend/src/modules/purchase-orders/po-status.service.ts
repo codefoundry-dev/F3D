@@ -11,6 +11,7 @@ import { ApprovalStatus, PoStatus as PrismaPoStatus, UserRole } from '@prisma/cl
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { ApprovalAuthorizationService } from '../../common/permissions';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../notifications/email.service';
 
@@ -28,6 +29,7 @@ export class PoStatusService {
     private readonly purchaseOrdersService: PurchaseOrdersService,
     private readonly emailService: EmailService,
     private readonly poExportService: PoExportService,
+    private readonly approvalAuth: ApprovalAuthorizationService,
     config: ConfigService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
@@ -109,7 +111,13 @@ export class PoStatusService {
   async approvePurchaseOrder(id: string, user: AuthenticatedUser) {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id },
-      select: { id: true, status: true, companyId: true },
+      select: {
+        id: true,
+        status: true,
+        companyId: true,
+        totalAmount: true,
+        currency: true,
+      },
     });
 
     if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
@@ -120,6 +128,22 @@ export class PoStatusService {
 
     if (po.status !== PrismaPoStatus.DRAFT && po.status !== PrismaPoStatus.SENT) {
       throw new BadRequestException(ERR.purchaseOrders.cannotApprove(po.status));
+    }
+
+    // SUPER_ADMIN bypasses threshold checks — the role exists to break the
+    // glass on otherwise-locked workflows, and approval still records who
+    // performed it via approvedById for audit.
+    if (user.role !== UserRole.SUPER_ADMIN) {
+      const decision = await this.approvalAuth.evaluate(user.role, 'po.approve', po.totalAmount);
+      if (decision.outcome === 'belowThreshold') {
+        throw new ForbiddenException(
+          ERR.purchaseOrders.approvalThresholdExceeded(
+            (po.totalAmount ?? 0).toString(),
+            decision.threshold.toString(),
+            po.currency,
+          ),
+        );
+      }
     }
 
     const updated = await this.prisma.purchaseOrder.update({

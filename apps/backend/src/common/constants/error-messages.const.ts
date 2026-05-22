@@ -133,6 +133,8 @@ export const ERR = {
     cannotVendorDecline: (status: string) =>
       t(errors.purchaseOrders.cannotVendorDecline, { status }),
     onlyClosedCanArchive: errors.purchaseOrders.onlyClosedCanArchive,
+    approvalThresholdExceeded: (amount: string, threshold: string, currency: string) =>
+      t(errors.purchaseOrders.approvalThresholdExceeded, { amount, threshold, currency }),
   },
 
   // ── Bulk Orders ──────────────────────────────────────────
@@ -216,5 +218,8 @@ export const ERR = {
     unknownRole: (role: string) => t(errors.roles.unknownRole, { role }),
     unknownPermission: (key: string) => t(errors.roles.unknownPermission, { key }),
     cannotModifySuperAdmin: errors.roles.cannotModifySuperAdmin,
+    thresholdNotSupported: (key: string) => t(errors.roles.thresholdNotSupported, { key }),
+    thresholdRequiresGrant: (key: string) => t(errors.roles.thresholdRequiresGrant, { key }),
+    invalidThreshold: (key: string) => t(errors.roles.invalidThreshold, { key }),
   },
 } as const;

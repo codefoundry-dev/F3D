@@ -5,10 +5,10 @@ import { groupCatalogByDomain } from './usePermissionGroups';
 describe('groupCatalogByDomain', () => {
   it('groups entries by the prefix of the permission key', () => {
     const result = groupCatalogByDomain([
-      { key: 'rfq.create', description: '' },
-      { key: 'rfq.read', description: '' },
-      { key: 'po.approve', description: '' },
-      { key: 'user.list', description: '' },
+      { key: 'rfq.create', description: '', thresholdAware: false },
+      { key: 'rfq.read', description: '', thresholdAware: false },
+      { key: 'po.approve', description: '', thresholdAware: false },
+      { key: 'user.list', description: '', thresholdAware: false },
     ]);
 
     expect(result.map((g) => g.domain)).toEqual(['rfq', 'po', 'user']);
@@ -20,8 +20,8 @@ describe('groupCatalogByDomain', () => {
 
   it('lumps unknown prefixes into the "other" bucket', () => {
     const result = groupCatalogByDomain([
-      { key: 'unknownDomain.action', description: '' },
-      { key: 'rfq.read', description: '' },
+      { key: 'unknownDomain.action', description: '', thresholdAware: false },
+      { key: 'rfq.read', description: '', thresholdAware: false },
     ]);
 
     const buckets = result.map((g) => g.domain);
@@ -31,9 +31,9 @@ describe('groupCatalogByDomain', () => {
 
   it('returns groups in canonical domain order, not insertion order', () => {
     const result = groupCatalogByDomain([
-      { key: 'user.list', description: '' },
-      { key: 'dashboard.viewPoCa', description: '' },
-      { key: 'rfq.read', description: '' },
+      { key: 'user.list', description: '', thresholdAware: false },
+      { key: 'dashboard.viewPoCa', description: '', thresholdAware: false },
+      { key: 'rfq.read', description: '', thresholdAware: false },
     ]);
 
     expect(result.map((g) => g.domain)).toEqual(['dashboard', 'rfq', 'user']);

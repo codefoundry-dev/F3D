@@ -14,6 +14,15 @@ import {
   useUpdateRolePermissions,
 } from '../services/roles.service';
 
+/** Empty input = unlimited (null in DTO). Otherwise must parse as a finite number ≥ 0. */
+function parseThresholdInput(value: string): number | null | 'invalid' {
+  const trimmed = value.trim();
+  if (trimmed === '') return null;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed < 0) return 'invalid';
+  return parsed;
+}
+
 function isUserRole(value: string): value is UserRole {
   return (Object.values(UserRole) as string[]).includes(value);
 }
@@ -40,11 +49,17 @@ function RoleEditor({ role }: RoleEditorProps) {
   const updateMutation = useUpdateRolePermissions(role);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [thresholdInputs, setThresholdInputs] = useState<Record<string, string>>({});
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     if (detailQuery.data && !hydrated) {
       setSelected(new Set(detailQuery.data.permissionKeys));
+      const inputs: Record<string, string> = {};
+      for (const [key, value] of Object.entries(detailQuery.data.thresholds)) {
+        inputs[key] = String(value);
+      }
+      setThresholdInputs(inputs);
       setHydrated(true);
     }
   }, [detailQuery.data, hydrated]);
@@ -53,6 +68,14 @@ function RoleEditor({ role }: RoleEditorProps) {
     () => (catalogQuery.data ? groupCatalogByDomain(catalogQuery.data) : []),
     [catalogQuery.data],
   );
+
+  const thresholdAwareByKey = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const entry of catalogQuery.data ?? []) {
+      map.set(entry.key, entry.thresholdAware);
+    }
+    return map;
+  }, [catalogQuery.data]);
 
   if (detailQuery.isLoading || catalogQuery.isLoading || !hydrated) {
     return (
@@ -71,9 +94,26 @@ function RoleEditor({ role }: RoleEditorProps) {
   }
 
   const original = new Set(detailQuery.data.permissionKeys);
-  const isDirty =
-    selected.size !== original.size ||
-    [...selected].some((k) => !original.has(k));
+  const originalThresholds = detailQuery.data.thresholds;
+  const permissionsDirty =
+    selected.size !== original.size || [...selected].some((k) => !original.has(k));
+  const thresholdsDirty = (() => {
+    const grantedThresholdKeys = [...selected].filter((k) => thresholdAwareByKey.get(k));
+    const seen = new Set<string>();
+    for (const key of grantedThresholdKeys) {
+      seen.add(key);
+      const input = thresholdInputs[key] ?? '';
+      const parsed = parseThresholdInput(input);
+      // Invalid input is a pending change — surface validation on Save instead
+      // of silently letting the user re-press a no-op button.
+      if (parsed === 'invalid') return true;
+      const previous = originalThresholds[key] ?? null;
+      if (parsed !== previous) return true;
+    }
+    // A previously-set threshold for a now-revoked permission is implicitly cleared
+    return Object.keys(originalThresholds).some((k) => !seen.has(k));
+  })();
+  const isDirty = permissionsDirty || thresholdsDirty;
   const isSuperAdmin = role === UserRole.SUPER_ADMIN;
 
   const toggle = (key: string) => {
@@ -86,13 +126,35 @@ function RoleEditor({ role }: RoleEditorProps) {
     });
   };
 
+  const setThresholdInput = (key: string, value: string) => {
+    if (isSuperAdmin) return;
+    setThresholdInputs((prev) => ({ ...prev, [key]: value }));
+  };
+
   const handleSave = async () => {
     if (!isDirty) {
       notificationService.info(t('noChanges'));
       return;
     }
+
+    // Validate threshold inputs before submit
+    const thresholds: Record<string, number | null> = {};
+    for (const key of selected) {
+      if (!thresholdAwareByKey.get(key)) continue;
+      const parsed = parseThresholdInput(thresholdInputs[key] ?? '');
+      if (parsed === 'invalid') {
+        notificationService.error(t('invalidThreshold'));
+        return;
+      }
+      if (parsed !== null) {
+        thresholds[key] = parsed;
+      } else {
+        thresholds[key] = null;
+      }
+    }
+
     try {
-      await updateMutation.mutateAsync({ permissionKeys: [...selected] });
+      await updateMutation.mutateAsync({ permissionKeys: [...selected], thresholds });
       notificationService.success(t('saved'));
       navigate(ROUTES.roles);
     } catch {
@@ -131,17 +193,47 @@ function RoleEditor({ role }: RoleEditorProps) {
               {t(`domains.${group.domain}`)}
             </h2>
             <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
-              {group.entries.map((entry) => (
-                <li key={entry.key}>
-                  <Checkbox
-                    checked={selected.has(entry.key)}
-                    onChange={() => toggle(entry.key)}
-                    disabled={isSuperAdmin}
-                    label={entry.description}
-                  />
-                  <p className="text-xs text-muted-foreground ml-7 font-mono">{entry.key}</p>
-                </li>
-              ))}
+              {group.entries.map((entry) => {
+                const isChecked = selected.has(entry.key);
+                const showThreshold = entry.thresholdAware && isChecked;
+                return (
+                  <li key={entry.key}>
+                    <Checkbox
+                      checked={isChecked}
+                      onChange={() => toggle(entry.key)}
+                      disabled={isSuperAdmin}
+                      label={entry.description}
+                    />
+                    <p className="text-xs text-muted-foreground ml-7 font-mono">{entry.key}</p>
+                    {showThreshold && (
+                      <div className="ml-7 mt-2">
+                        <label
+                          htmlFor={`threshold-${entry.key}`}
+                          className="block text-xs font-medium text-foreground mb-1"
+                        >
+                          {t('thresholdLabel')}
+                        </label>
+                        <input
+                          id={`threshold-${entry.key}`}
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          step="any"
+                          value={thresholdInputs[entry.key] ?? ''}
+                          placeholder={t('thresholdPlaceholder')}
+                          onChange={(e) => setThresholdInput(entry.key, e.target.value)}
+                          disabled={isSuperAdmin}
+                          data-testid={`threshold-${entry.key}`}
+                          className="w-40 rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {t('thresholdHint')}
+                        </p>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </section>
         ))}

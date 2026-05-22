@@ -21,6 +21,10 @@
   "saveError": "Failed to save permissions",
   "noChanges": "No changes to save",
   "superAdminLocked": "The Super Admin role has every permission and cannot be edited.",
+  "thresholdLabel": "Approval threshold",
+  "thresholdPlaceholder": "Unlimited",
+  "thresholdHint": "Leave blank for no limit. Documents above this amount route to a higher-tier approver.",
+  "invalidThreshold": "Threshold must be a non-negative number or blank.",
   "domains": {
     "dashboard": "Dashboards",
     "project": "Projects",

@@ -103,6 +103,10 @@ const mockPoExportService = {
   generatePoPdfBuffer: jest.fn(),
 };
 
+const mockApprovalAuth = {
+  evaluate: jest.fn(),
+};
+
 const mockConfig = {
   get: jest.fn((_key: string, fallback: string) => fallback),
 };
@@ -117,10 +121,13 @@ describe('PoStatusService', () => {
       mockPurchaseOrdersService as never,
       mockEmailService as never,
       mockPoExportService as never,
+      mockApprovalAuth as never,
       mockConfig as never,
     );
     // Default: getPurchaseOrder returns fullPoDetail-shaped response
     mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue(fullPoDetail);
+    // Default: approval authorization grants the action (null threshold = unlimited).
+    mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
   });
 
   describe('approvePurchaseOrder', () => {
@@ -244,6 +251,85 @@ describe('PoStatusService', () => {
 
       const result = await service.approvePurchaseOrder('po-2', companyAdmin);
       expect(result.status).toBe('ACKNOWLEDGED');
+    });
+
+    it('rejects the approval when the PO total exceeds the role threshold', async () => {
+      const procurementOfficer = {
+        id: 'po-u-1',
+        email: 'po@test.com',
+        role: UserRole.PROCUREMENT_OFFICER,
+        companyId: 'comp-1',
+      };
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-big',
+        status: 'DRAFT',
+        companyId: 'comp-1',
+        totalAmount: { toString: () => '30000' },
+        currency: 'AUD',
+      });
+      mockApprovalAuth.evaluate.mockResolvedValue({
+        outcome: 'belowThreshold',
+        threshold: { toString: () => '25000' },
+      });
+
+      await expect(service.approvePurchaseOrder('po-big', procurementOfficer)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(mockApprovalAuth.evaluate).toHaveBeenCalledWith(
+        UserRole.PROCUREMENT_OFFICER,
+        'po.approve',
+        expect.anything(),
+      );
+      expect(mockPrisma.purchaseOrder.update).not.toHaveBeenCalled();
+    });
+
+    it('approves a PO whose total is within the role threshold', async () => {
+      const procurementOfficer = {
+        id: 'po-u-1',
+        email: 'po@test.com',
+        role: UserRole.PROCUREMENT_OFFICER,
+        companyId: 'comp-1',
+      };
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-small',
+        status: 'DRAFT',
+        companyId: 'comp-1',
+        totalAmount: { toString: () => '5000' },
+        currency: 'AUD',
+      });
+      mockApprovalAuth.evaluate.mockResolvedValue({
+        outcome: 'allowed',
+        threshold: { toString: () => '25000' },
+      });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        id: 'po-small',
+        status: 'ACKNOWLEDGED',
+        project: { name: 'Small' },
+        vendor: { legalName: 'V' },
+      });
+
+      const result = await service.approvePurchaseOrder('po-small', procurementOfficer);
+      expect(result.status).toBe('ACKNOWLEDGED');
+    });
+
+    it('bypasses threshold checks for SUPER_ADMIN', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-sa',
+        status: 'DRAFT',
+        companyId: 'any-company',
+        totalAmount: { toString: () => '999999' },
+        currency: 'AUD',
+      });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        id: 'po-sa',
+        status: 'ACKNOWLEDGED',
+        project: { name: 'SA' },
+        vendor: { legalName: 'V' },
+      });
+
+      await service.approvePurchaseOrder('po-sa', superAdmin);
+
+      expect(mockApprovalAuth.evaluate).not.toHaveBeenCalled();
     });
   });
 

@@ -98,7 +98,8 @@
     "cannotConfirm": "Cannot confirm PO with status \"{{status}}\". Only Sent POs can be confirmed by the vendor.",
     "cannotAccept": "Cannot accept PO with status \"{{status}}\". Only Acknowledged POs can be accepted by the vendor.",
     "cannotVendorDecline": "Cannot decline PO with status \"{{status}}\". Only Sent or Acknowledged POs can be declined by the vendor.",
-    "onlyClosedCanArchive": "Only closed purchase orders can be archived"
+    "onlyClosedCanArchive": "Only closed purchase orders can be archived",
+    "approvalThresholdExceeded": "PO total {{amount}} {{currency}} exceeds your approval threshold of {{threshold}} {{currency}}. A higher-tier approver must approve this PO."
   },
   "bulkOrders": {
     "notFound": "Bulk Order not found",
@@ -161,6 +162,9 @@
   "roles": {
     "unknownRole": "Unknown role: {{role}}",
     "unknownPermission": "Unknown permission key: {{key}}",
-    "cannotModifySuperAdmin": "The SUPER_ADMIN role has every permission and cannot be edited"
+    "cannotModifySuperAdmin": "The SUPER_ADMIN role has every permission and cannot be edited",
+    "thresholdNotSupported": "Permission \"{{key}}\" does not support a monetary threshold",
+    "thresholdRequiresGrant": "Cannot set a threshold for \"{{key}}\" — the permission must also be granted",
+    "invalidThreshold": "Threshold for \"{{key}}\" must be a non-negative number or null"
   }
 }

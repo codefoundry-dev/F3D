@@ -57,6 +57,12 @@ export class RolesController {
     @Req() req: Request,
   ) {
     const ip = (req.ip ?? req.socket.remoteAddress) ?? undefined;
-    return this.rolesService.updateRolePermissions(role, dto.permissionKeys, user.id, ip);
+    return this.rolesService.updateRolePermissions(
+      role,
+      dto.permissionKeys,
+      user.id,
+      ip,
+      dto.thresholds,
+    );
   }
 }

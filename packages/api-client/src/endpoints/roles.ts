@@ -8,6 +8,7 @@ import { ROLES_PATHS } from './paths';
 export interface PermissionCatalogEntry {
   key: string;
   description: string;
+  thresholdAware: boolean;
 }
 
 export interface RoleSummary {
@@ -18,10 +19,14 @@ export interface RoleSummary {
 export interface RoleDetail {
   role: UserRole;
   permissionKeys: string[];
+  /** Sparse map: only granted threshold-aware permissions with a finite cap. */
+  thresholds: Record<string, number>;
 }
 
 export interface UpdateRolePermissionsDto {
   permissionKeys: string[];
+  /** Optional. Null entries clear the cap (= unlimited). */
+  thresholds?: Record<string, number | null>;
 }
 
 export async function getPermissionCatalog(): Promise<PermissionCatalogEntry[]> {

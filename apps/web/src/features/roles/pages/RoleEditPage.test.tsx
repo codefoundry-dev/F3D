@@ -72,10 +72,10 @@ vi.mock('../services/roles.service', () => ({
 import RoleEditPage from './RoleEditPage';
 
 function arrange({
-  detail = { permissionKeys: ['rfq.read'] },
+  detail = { permissionKeys: ['rfq.read'], thresholds: {} },
   catalog = [
-    { key: 'rfq.read', description: 'Read an RFQ' },
-    { key: 'rfq.create', description: 'Create an RFQ' },
+    { key: 'rfq.read', description: 'Read an RFQ', thresholdAware: false },
+    { key: 'rfq.create', description: 'Create an RFQ', thresholdAware: false },
   ],
   isPending = false,
   mutateAsync = vi.fn().mockResolvedValue(undefined),
@@ -137,9 +137,91 @@ describe('RoleEditPage', () => {
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
     expect(mutateAsync.mock.calls[0][0]).toEqual({
       permissionKeys: expect.arrayContaining(['rfq.read', 'rfq.create']),
+      thresholds: {},
     });
     expect(mockSuccess).toHaveBeenCalled();
     expect(mockNavigate).toHaveBeenCalledWith('/settings/roles');
+  });
+
+  it('renders a threshold input next to a checked threshold-aware permission', () => {
+    arrange({
+      detail: { permissionKeys: ['po.approve'], thresholds: { 'po.approve': 25000 } },
+      catalog: [
+        { key: 'po.approve', description: 'Approve a purchase order', thresholdAware: true },
+        { key: 'po.read', description: 'Read a purchase order', thresholdAware: false },
+      ],
+    });
+    render(<RoleEditPage />);
+    const input = screen.getByTestId('threshold-po.approve') as HTMLInputElement;
+    expect(input.value).toBe('25000');
+    expect(screen.queryByTestId('threshold-po.read')).toBeNull();
+  });
+
+  it('hides the threshold input when the permission is unchecked', () => {
+    arrange({
+      detail: { permissionKeys: ['po.approve'], thresholds: { 'po.approve': 25000 } },
+      catalog: [
+        { key: 'po.approve', description: 'Approve a purchase order', thresholdAware: true },
+      ],
+    });
+    render(<RoleEditPage />);
+    expect(screen.getByTestId('threshold-po.approve')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Approve a purchase order'));
+    expect(screen.queryByTestId('threshold-po.approve')).toBeNull();
+  });
+
+  it('sends thresholds with the granted permissions on save', async () => {
+    const { mutateAsync } = arrange({
+      detail: { permissionKeys: ['po.approve'], thresholds: { 'po.approve': 10000 } },
+      catalog: [
+        { key: 'po.approve', description: 'Approve a purchase order', thresholdAware: true },
+      ],
+    });
+    render(<RoleEditPage />);
+    const input = screen.getByTestId('threshold-po.approve') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '50000' } });
+    fireEvent.click(screen.getByText('save'));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    expect(mutateAsync.mock.calls[0][0]).toEqual({
+      permissionKeys: ['po.approve'],
+      thresholds: { 'po.approve': 50000 },
+    });
+  });
+
+  it('treats blank threshold input as unlimited (null)', async () => {
+    const { mutateAsync } = arrange({
+      detail: { permissionKeys: ['po.approve'], thresholds: { 'po.approve': 10000 } },
+      catalog: [
+        { key: 'po.approve', description: 'Approve a purchase order', thresholdAware: true },
+      ],
+    });
+    render(<RoleEditPage />);
+    const input = screen.getByTestId('threshold-po.approve') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.click(screen.getByText('save'));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    expect(mutateAsync.mock.calls[0][0]).toEqual({
+      permissionKeys: ['po.approve'],
+      thresholds: { 'po.approve': null },
+    });
+  });
+
+  it('blocks save and shows an error when a threshold is negative', async () => {
+    const { mutateAsync } = arrange({
+      detail: { permissionKeys: ['po.approve'], thresholds: {} },
+      catalog: [
+        { key: 'po.approve', description: 'Approve a purchase order', thresholdAware: true },
+      ],
+    });
+    render(<RoleEditPage />);
+    const input = screen.getByTestId('threshold-po.approve') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '-5' } });
+    fireEvent.click(screen.getByText('save'));
+
+    await waitFor(() => expect(mockError).toHaveBeenCalled());
+    expect(mutateAsync).not.toHaveBeenCalled();
   });
 
   it('disables every checkbox and Save when editing SUPER_ADMIN', () => {

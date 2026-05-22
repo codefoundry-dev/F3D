@@ -144,6 +144,22 @@ export type PermissionKey = keyof typeof PERMISSIONS;
 
 export const ALL_PERMISSION_KEYS = Object.keys(PERMISSIONS) as PermissionKey[];
 
+/**
+ * Permissions that may carry an optional monetary threshold on the
+ * RolePermission row (FOR-196). A null threshold means unlimited; a non-null
+ * value caps the document total amount a holder can approve.
+ *
+ * Limited to PO and invoice approval in Release 1 per the ADR-0006 closed
+ * list of approvable actions.
+ */
+export const THRESHOLD_AWARE_PERMISSIONS = ['po.approve', 'invoice.approve'] as const;
+
+export type ThresholdAwarePermissionKey = (typeof THRESHOLD_AWARE_PERMISSIONS)[number];
+
+export function isThresholdAware(key: string): key is ThresholdAwarePermissionKey {
+  return (THRESHOLD_AWARE_PERMISSIONS as readonly string[]).includes(key);
+}
+
 const ALL_KEYS_LIST: PermissionKey[] = ALL_PERMISSION_KEYS;
 
 /**
