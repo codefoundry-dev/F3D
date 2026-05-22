@@ -94,7 +94,7 @@ describe('DocExtractionReview — generic JSON editor', () => {
 
     renderWithClient(<DocExtractionReview extractionId="job-1" />);
 
-    const editor = (await screen.findByTestId('extraction-editor'));
+    const editor = await screen.findByTestId<HTMLTextAreaElement>('extraction-editor');
     expect(editor.value).toContain('"title": "Doc"');
     expect(screen.getByTestId('extraction-status').textContent).toMatch(/Ready/i);
   });

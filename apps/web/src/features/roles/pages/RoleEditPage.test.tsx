@@ -113,8 +113,8 @@ describe('RoleEditPage', () => {
 
     const readBox = screen.getByLabelText('Read an RFQ');
     const createBox = screen.getByLabelText('Create an RFQ');
-    expect(readBox.checked).toBe(true);
-    expect(createBox.checked).toBe(false);
+    expect(readBox).toBeChecked();
+    expect(createBox).not.toBeChecked();
   });
 
   it('disables Save until a permission is toggled', () => {
@@ -153,7 +153,7 @@ describe('RoleEditPage', () => {
     });
     render(<RoleEditPage />);
     const input = screen.getByTestId('threshold-po.approve');
-    expect(input.value).toBe('25000');
+    expect(input).toHaveValue('25000');
     expect(screen.queryByTestId('threshold-po.read')).toBeNull();
   });
 
@@ -233,6 +233,6 @@ describe('RoleEditPage', () => {
     expect(saveButton).toBeDisabled();
 
     const checkboxes = screen.getAllByRole('checkbox');
-    for (const cb of checkboxes) expect(cb.disabled).toBe(true);
+    for (const cb of checkboxes) expect(cb).toBeDisabled();
   });
 });
