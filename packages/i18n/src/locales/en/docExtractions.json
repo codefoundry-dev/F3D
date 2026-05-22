@@ -1,0 +1,34 @@
+{
+  "review": {
+    "title": "Review extracted data",
+    "subtitle": "Confirm or edit the AI-extracted fields before saving.",
+    "statuses": {
+      "PENDING": "Waiting to start…",
+      "PROCESSING": "Extracting…",
+      "COMPLETED": "Ready for review",
+      "CONFIRMED": "Confirmed",
+      "FAILED": "Failed"
+    },
+    "actions": {
+      "edit": "Edit",
+      "save": "Save changes",
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "retry": "Try again"
+    },
+    "empty": "No fields were extracted.",
+    "errorTitle": "Extraction failed",
+    "errorBody": "The AI extractor returned an error: {{code}}. {{message}}",
+    "noFile": "No file attached.",
+    "field": {
+      "type": "Document type",
+      "filename": "File"
+    }
+  },
+  "upload": {
+    "title": "Upload document",
+    "dropHint": "Drag a PDF or image here, or click to choose a file.",
+    "submit": "Start extraction",
+    "submitting": "Uploading…"
+  }
+}

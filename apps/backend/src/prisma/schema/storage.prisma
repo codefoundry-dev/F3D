@@ -15,6 +15,7 @@ model File {
   poDocuments         PoDocument[]
   messageAttachments  MessageAttachment[]
   quoteAttachments    QuoteAttachment[]   @relation("QuoteAttachment")
+  docExtractions      DocExtraction[]
 
   @@index([uploadedById], map: "idx_files_uploaded_by")
   @@map("files")

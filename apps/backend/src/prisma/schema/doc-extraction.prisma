@@ -1,0 +1,43 @@
+enum DocExtractionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CONFIRMED
+  FAILED
+}
+
+enum DocExtractionType {
+  BOM
+  QUOTE
+  INVOICE
+  GENERIC
+}
+
+model DocExtraction {
+  id              String              @id @default(uuid())
+  type            DocExtractionType
+  status          DocExtractionStatus @default(PENDING)
+  fileId          String              @map("file_id")
+  rawResult       Json?               @map("raw_result")
+  editedResult    Json?               @map("edited_result")
+  errorCode       String?             @map("error_code") @db.VarChar(64)
+  errorMessage    String?             @map("error_message")
+  model           String?             @db.VarChar(100)
+  promptTokens    Int?                @map("prompt_tokens")
+  completionTokens Int?               @map("completion_tokens")
+  createdByUserId String              @map("created_by_user_id")
+  companyId       String?             @map("company_id")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  completedAt     DateTime?           @map("completed_at")
+  confirmedAt     DateTime?           @map("confirmed_at")
+
+  file      File    @relation(fields: [fileId], references: [id])
+  createdBy User    @relation("DocExtractionCreatedBy", fields: [createdByUserId], references: [id])
+  company   Company? @relation("DocExtractionCompany", fields: [companyId], references: [id])
+
+  @@index([createdByUserId], map: "idx_doc_extractions_created_by")
+  @@index([companyId, status], map: "idx_doc_extractions_company_status")
+  @@index([type, status], map: "idx_doc_extractions_type_status")
+  @@map("doc_extractions")
+}

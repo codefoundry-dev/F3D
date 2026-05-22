@@ -222,4 +222,13 @@ export const ERR = {
     thresholdRequiresGrant: (key: string) => t(errors.roles.thresholdRequiresGrant, { key }),
     invalidThreshold: (key: string) => t(errors.roles.invalidThreshold, { key }),
   },
+
+  // ── Document extractions ─────────────────────────────────
+  docExtractions: {
+    notFound: errors.docExtractions.notFound,
+    notReadyForEdit: errors.docExtractions.notReadyForEdit,
+    notReadyForConfirm: errors.docExtractions.notReadyForConfirm,
+    alreadyConfirmed: errors.docExtractions.alreadyConfirmed,
+    geminiNotConfigured: errors.docExtractions.geminiNotConfigured,
+  },
 } as const;

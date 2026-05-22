@@ -17,6 +17,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { BulkOrdersModule } from './modules/bulk-orders/bulk-orders.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { DocIntelligenceModule } from './modules/doc-intelligence/doc-intelligence.module';
 import { GeminiModule } from './modules/gemini/gemini.module';
 import { GoogleModule } from './modules/google/google.module';
 import { HealthModule } from './modules/health/health.module';
@@ -80,6 +81,7 @@ import { PrismaModule } from './prisma/prisma.module';
     CompaniesModule,
     GoogleModule,
     GeminiModule,
+    DocIntelligenceModule,
     ProjectsModule,
     RfqsModule,
     PurchaseOrdersModule,

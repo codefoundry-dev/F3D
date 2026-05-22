@@ -129,6 +129,13 @@ export const PERMISSIONS = {
   'role.list': 'List built-in roles and the permissions granted to each',
   'role.update': 'Grant or revoke permissions on a built-in role',
 
+  // ── Document intelligence ────────────────────────────────────────────────
+  'docExtraction.create': 'Upload a document for AI extraction',
+  'docExtraction.read': 'Read a document extraction job',
+  'docExtraction.update': 'Edit a document extraction result',
+  'docExtraction.confirm': 'Confirm an extracted document result',
+  'docExtraction.delete': 'Delete a document extraction job',
+
   // ── Users ───────────────────────────────────────────────────────────────
   'user.list': 'List users',
   'user.create': 'Create and invite users',
@@ -275,6 +282,12 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'user.initiateResetPassword',
     'user.resendInvitation',
     'user.cancelInvitation',
+
+    'docExtraction.create',
+    'docExtraction.read',
+    'docExtraction.update',
+    'docExtraction.confirm',
+    'docExtraction.delete',
   ],
 
   PROCUREMENT_OFFICER: [
@@ -366,6 +379,12 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'po.rejectChange',
 
     'user.update',
+
+    'docExtraction.create',
+    'docExtraction.read',
+    'docExtraction.update',
+    'docExtraction.confirm',
+    'docExtraction.delete',
   ],
 
   FINANCIAL_OFFICER: [
@@ -395,6 +414,11 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'po.read',
     'po.export',
     'po.listChangeRequests',
+
+    'docExtraction.create',
+    'docExtraction.read',
+    'docExtraction.update',
+    'docExtraction.confirm',
   ],
 
   WAREHOUSE_OFFICER: [
@@ -478,5 +502,10 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
 
     'user.list',
     'user.update',
+
+    'docExtraction.create',
+    'docExtraction.read',
+    'docExtraction.update',
+    'docExtraction.confirm',
   ],
 };

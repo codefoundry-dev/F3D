@@ -243,3 +243,18 @@ export enum QuickFilter {
   AWARDED_RFQS = 'AwardedRfqs',
   CLOSED_RFQS = 'ClosedRfqs',
 }
+
+export enum DocExtractionType {
+  BOM = 'BOM',
+  QUOTE = 'QUOTE',
+  INVOICE = 'INVOICE',
+  GENERIC = 'GENERIC',
+}
+
+export enum DocExtractionStatus {
+  PENDING = 'PENDING',
+  PROCESSING = 'PROCESSING',
+  COMPLETED = 'COMPLETED',
+  CONFIRMED = 'CONFIRMED',
+  FAILED = 'FAILED',
+}

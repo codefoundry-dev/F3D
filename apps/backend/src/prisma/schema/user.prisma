@@ -72,6 +72,9 @@ model User {
   bulkOrderChangeRequests         BulkOrderChangeRequest[] @relation("BulkOrderChangeRequestedBy")
   bulkOrderChangeRequestApprovals BulkOrderChangeRequest[] @relation("BulkOrderChangeResolvedBy")
 
+  // Document intelligence
+  docExtractions DocExtraction[] @relation("DocExtractionCreatedBy")
+
   @@index([companyId, status], map: "idx_users_company_status")
   @@index([companyId, role], map: "idx_users_company_role")
   @@index([invitationToken], map: "idx_users_invitation_token")

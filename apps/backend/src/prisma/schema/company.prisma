@@ -71,6 +71,9 @@ model Company {
   invoicesAsCompany     Invoice[]         @relation("InvoiceCompany")
   invoicesAsVendor      Invoice[]         @relation("InvoiceVendor")
 
+  // Document intelligence
+  docExtractions        DocExtraction[]   @relation("DocExtractionCompany")
+
   @@index([type], map: "idx_companies_type")
   @@index([legalName], map: "idx_companies_legal_name")
   @@map("companies")

@@ -166,5 +166,12 @@
     "thresholdNotSupported": "Permission \"{{key}}\" does not support a monetary threshold",
     "thresholdRequiresGrant": "Cannot set a threshold for \"{{key}}\" — the permission must also be granted",
     "invalidThreshold": "Threshold for \"{{key}}\" must be a non-negative number or null"
+  },
+  "docExtractions": {
+    "notFound": "Extraction job not found",
+    "notReadyForEdit": "Extraction job is not in a state that can be edited",
+    "notReadyForConfirm": "Extraction job must be completed before it can be confirmed",
+    "alreadyConfirmed": "Extraction job has already been confirmed",
+    "geminiNotConfigured": "Gemini API is not configured on this server"
   }
 }

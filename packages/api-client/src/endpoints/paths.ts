@@ -59,6 +59,13 @@ export const STORAGE_PATHS = {
   byId: (id: string) => `/storage/${id}`,
 } as const;
 
+// ── Document Intelligence ───────────────────────────────────────────────────
+export const DOC_EXTRACTIONS_PATHS = {
+  ROOT: '/doc-extractions',
+  byId: (id: string) => `/doc-extractions/${id}`,
+  confirm: (id: string) => `/doc-extractions/${id}/confirm`,
+} as const;
+
 // ── Projects ─────────────────────────────────────────────────────────────────
 export const PROJECTS_PATHS = {
   ROOT: '/projects',
