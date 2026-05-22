@@ -26,6 +26,7 @@ import { GeminiService } from '../gemini/gemini.service';
 import { GeminiError } from '../gemini/gemini.types';
 import { StorageService } from '../storage/storage.service';
 
+import { normalizeBomResult } from './doc-intelligence.bom';
 import { buildExtractionPrompt } from './doc-intelligence.prompts';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -141,13 +142,14 @@ export class DocIntelligenceService {
       });
 
       const parsed = this.parseJson(result.text);
+      const normalized = this.normalizeForType(job.type, parsed);
 
       await this.prisma.docExtraction.update({
         where: { id: extractionId },
         data: {
           status: DocExtractionStatus.COMPLETED,
           rawResult: parsed as Prisma.InputJsonValue,
-          editedResult: parsed as Prisma.InputJsonValue,
+          editedResult: normalized as Prisma.InputJsonValue,
           model: result.model,
           promptTokens: result.usage?.promptTokenCount ?? null,
           completionTokens: result.usage?.candidatesTokenCount ?? null,
@@ -167,6 +169,16 @@ export class DocIntelligenceService {
         },
       });
     }
+  }
+
+  private normalizeForType(
+    type: DocExtractionType,
+    parsed: Record<string, unknown>,
+  ): Record<string, unknown> {
+    if (type === DocExtractionType.BOM) {
+      return normalizeBomResult(parsed) as unknown as Record<string, unknown>;
+    }
+    return parsed;
   }
 
   private parseJson(raw: string): Record<string, unknown> {
@@ -258,7 +270,11 @@ export class DocIntelligenceService {
     }
     return this.prisma.docExtraction.update({
       where: { id },
-      data: { editedResult: editedResult as Prisma.InputJsonValue },
+      data: {
+        editedResult: editedResult as Prisma.InputJsonValue,
+        lastEditedByUserId: user.id,
+        lastEditedAt: new Date(),
+      },
       include: { file: true },
     });
   }
@@ -275,12 +291,20 @@ export class DocIntelligenceService {
     if (job.status !== DocExtractionStatus.COMPLETED) {
       throw new BadRequestException(ERR.docExtractions.notReadyForConfirm);
     }
+    const now = new Date();
     return this.prisma.docExtraction.update({
       where: { id },
       data: {
         status: DocExtractionStatus.CONFIRMED,
-        confirmedAt: new Date(),
-        ...(editedResult ? { editedResult: editedResult as Prisma.InputJsonValue } : {}),
+        confirmedAt: now,
+        confirmedByUserId: user.id,
+        ...(editedResult
+          ? {
+              editedResult: editedResult as Prisma.InputJsonValue,
+              lastEditedByUserId: user.id,
+              lastEditedAt: now,
+            }
+          : {}),
       },
       include: { file: true },
     });

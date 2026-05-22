@@ -1,5 +1,6 @@
 import type { DocExtractionResponse } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import type { BomExtractionResult } from '@forethread/shared-types';
 import { Button } from '@forethread/ui-components';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -8,6 +9,8 @@ import {
   useDocExtractionQuery,
   useUpdateDocExtraction,
 } from '../hooks/useDocExtraction';
+
+import { BomReviewTable } from './BomReviewTable';
 
 export interface DocExtractionReviewProps {
   /** Extraction job ID returned by createDocExtraction(). */
@@ -18,8 +21,9 @@ export interface DocExtractionReviewProps {
 
 /**
  * Reusable review surface for any AI-extracted document. Polls the job until
- * it settles, then renders a JSON-editor pane so the user can fix mistakes
- * before confirming.
+ * it settles, then renders either:
+ *  - the BOM line-item table when the job's type is BOM (FOR-200), or
+ *  - a plain JSON editor for QUOTE / INVOICE / GENERIC types.
  */
 export function DocExtractionReview({ extractionId, onConfirmed }: DocExtractionReviewProps) {
   const { t } = useTranslation(['docExtractions']);
@@ -28,15 +32,25 @@ export function DocExtractionReview({ extractionId, onConfirmed }: DocExtraction
   const confirm = useConfirmDocExtraction(extractionId);
   const job = query.data;
 
+  const isBom = job?.type === 'BOM';
+
+  // Generic JSON editor state (used for QUOTE / INVOICE / GENERIC).
   const [draft, setDraft] = useState<string>('');
   const [parseError, setParseError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
 
-  // Seed the JSON editor whenever a fresh editedResult lands.
+  // BOM table state — held as the canonical BOM shape so we can pass it to
+  // the table without lossy round-trips through JSON.
+  const [bomDraft, setBomDraft] = useState<BomExtractionResult | null>(null);
+
+  // Seed editors when a fresh editedResult lands.
   useEffect(() => {
     if (!job?.editedResult) return;
     setDraft(JSON.stringify(job.editedResult, null, 2));
-  }, [job?.editedResult]);
+    if (job.type === 'BOM') {
+      setBomDraft(job.editedResult as unknown as BomExtractionResult);
+    }
+  }, [job?.editedResult, job?.type]);
 
   const onDraftChange = useCallback((value: string) => {
     setDraft(value);
@@ -49,18 +63,29 @@ export function DocExtractionReview({ extractionId, onConfirmed }: DocExtraction
   }, []);
 
   const onSave = useCallback(async () => {
+    if (isBom) {
+      if (!bomDraft) return;
+      await update.mutateAsync(bomDraft as unknown as Record<string, unknown>);
+      setIsEditing(false);
+      return;
+    }
     if (parseError) return;
     const parsed = JSON.parse(draft) as Record<string, unknown>;
     await update.mutateAsync(parsed);
     setIsEditing(false);
-  }, [parseError, draft, update]);
+  }, [isBom, bomDraft, parseError, draft, update]);
 
   const onConfirm = useCallback(async () => {
-    if (parseError) return;
-    const final = isEditing ? (JSON.parse(draft) as Record<string, unknown>) : undefined;
+    let final: Record<string, unknown> | undefined;
+    if (isBom) {
+      final = isEditing && bomDraft ? (bomDraft as unknown as Record<string, unknown>) : undefined;
+    } else {
+      if (parseError) return;
+      final = isEditing ? (JSON.parse(draft) as Record<string, unknown>) : undefined;
+    }
     const next = await confirm.mutateAsync(final);
     onConfirmed?.(next);
-  }, [parseError, draft, isEditing, confirm, onConfirmed]);
+  }, [isBom, isEditing, bomDraft, parseError, draft, confirm, onConfirmed]);
 
   const statusLabel = useMemo(() => {
     if (!job) return t('review.statuses.PENDING');
@@ -92,6 +117,7 @@ export function DocExtractionReview({ extractionId, onConfirmed }: DocExtraction
   const isPolling = job.status === 'PENDING' || job.status === 'PROCESSING';
   const canEdit = job.status === 'COMPLETED';
   const canConfirm = job.status === 'COMPLETED';
+  const saveDisabled = isBom ? false : !!parseError;
 
   return (
     <section className="p-6 space-y-4" aria-labelledby="doc-extraction-review-title">
@@ -126,6 +152,12 @@ export function DocExtractionReview({ extractionId, onConfirmed }: DocExtraction
         <div className="border rounded-md p-6 text-sm text-muted-foreground" role="status">
           {statusLabel}
         </div>
+      ) : isBom ? (
+        <BomReviewTable
+          value={(isEditing ? bomDraft : job.editedResult) as Record<string, unknown> | null}
+          readOnly={!isEditing}
+          onChange={setBomDraft}
+        />
       ) : (
         <div className="space-y-2">
           <label htmlFor="extraction-editor" className="text-sm font-medium">
@@ -160,6 +192,7 @@ export function DocExtractionReview({ extractionId, onConfirmed }: DocExtraction
               onClick={() => {
                 if (job.editedResult) {
                   setDraft(JSON.stringify(job.editedResult, null, 2));
+                  if (isBom) setBomDraft(job.editedResult as unknown as BomExtractionResult);
                 }
                 setIsEditing(false);
                 setParseError(null);
@@ -167,7 +200,7 @@ export function DocExtractionReview({ extractionId, onConfirmed }: DocExtraction
             >
               {t('review.actions.cancel')}
             </Button>
-            <Button onClick={onSave} disabled={!!parseError || update.isPending}>
+            <Button onClick={onSave} disabled={saveDisabled || update.isPending}>
               {t('review.actions.save')}
             </Button>
           </>
@@ -175,7 +208,7 @@ export function DocExtractionReview({ extractionId, onConfirmed }: DocExtraction
         {canConfirm ? (
           <Button
             onClick={onConfirm}
-            disabled={!!parseError || confirm.isPending}
+            disabled={saveDisabled || confirm.isPending}
             data-testid="confirm-extraction"
           >
             {t('review.actions.confirm')}

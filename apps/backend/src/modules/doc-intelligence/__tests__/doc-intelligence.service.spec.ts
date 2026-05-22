@@ -190,7 +190,7 @@ describe('DocIntelligenceService', () => {
         type: DocExtractionType.BOM,
       });
       gemini.generate.mockResolvedValue({
-        text: '{"title":"Concrete BOM","items":[{"description":"Cement"}]}',
+        text: '{"title":"Concrete BOM","items":[{"description":"Cement","quantity":"50","unit":"BAGS","targetPrice":"$12.50"}]}',
         model: 'gemini-2.5-flash',
         usage: { promptTokenCount: 12, candidatesTokenCount: 8 },
       });
@@ -209,9 +209,24 @@ describe('DocIntelligenceService', () => {
       const completed = updates.find(
         (u) => u.data.status === DocExtractionStatus.COMPLETED,
       );
+      // rawResult keeps Gemini's raw payload; editedResult is normalized so the
+      // BOM review UI gets numeric qty / canonical UoM / numeric targetPrice.
+      expect(completed?.data.rawResult).toMatchObject({
+        title: 'Concrete BOM',
+        items: [{ description: 'Cement', quantity: '50' }],
+      });
+      expect(completed?.data.editedResult).toMatchObject({
+        title: 'Concrete BOM',
+        items: [
+          {
+            description: 'Cement',
+            quantity: 50,
+            unit: 'bag',
+            targetPrice: 12.5,
+          },
+        ],
+      });
       expect(completed?.data).toMatchObject({
-        rawResult: { title: 'Concrete BOM', items: [{ description: 'Cement' }] },
-        editedResult: { title: 'Concrete BOM', items: [{ description: 'Cement' }] },
         model: 'gemini-2.5-flash',
         promptTokens: 12,
         completionTokens: 8,
@@ -220,7 +235,10 @@ describe('DocIntelligenceService', () => {
 
     it('strips markdown code fences before parsing JSON', async () => {
       const { service, prisma, gemini } = makeService();
-      prisma.docExtraction.findUnique.mockResolvedValue({ id: 'job-1', type: 'BOM' });
+      prisma.docExtraction.findUnique.mockResolvedValue({
+        id: 'job-1',
+        type: DocExtractionType.GENERIC,
+      });
       gemini.generate.mockResolvedValue({
         text: '```json\n{"title":"X","items":[]}\n```',
         model: 'gemini-2.5-flash',
@@ -231,7 +249,9 @@ describe('DocIntelligenceService', () => {
       const completed = prisma.docExtraction.update.mock.calls
         .map((c) => c[0])
         .find((u) => u.data.status === DocExtractionStatus.COMPLETED);
+      // GENERIC type → no normalization, raw passes straight through to edited.
       expect(completed?.data.rawResult).toEqual({ title: 'X', items: [] });
+      expect(completed?.data.editedResult).toEqual({ title: 'X', items: [] });
     });
 
     it('marks job FAILED with MALFORMED_RESPONSE when Gemini returns non-JSON', async () => {
@@ -344,11 +364,14 @@ describe('DocIntelligenceService', () => {
 
       const result = await service.updateExtraction('job-1', { foo: 'bar' }, baseUser);
       expect(result).toMatchObject({ id: 'job-1' });
-      expect(prisma.docExtraction.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: { editedResult: { foo: 'bar' } },
-        }),
+      const updateCall = prisma.docExtraction.update.mock.calls.find(
+        (c) => c[0].data.editedResult,
       );
+      expect(updateCall?.[0].data).toMatchObject({
+        editedResult: { foo: 'bar' },
+        lastEditedByUserId: 'user-1',
+      });
+      expect(updateCall?.[0].data.lastEditedAt).toBeInstanceOf(Date);
     });
 
     it('rejects edits when job is PROCESSING', async () => {
@@ -389,9 +412,15 @@ describe('DocIntelligenceService', () => {
           data: expect.objectContaining({
             status: DocExtractionStatus.CONFIRMED,
             editedResult: { title: 'final' },
+            confirmedByUserId: 'user-1',
+            lastEditedByUserId: 'user-1',
           }),
         }),
       );
+      const confirmCall = prisma.docExtraction.update.mock.calls.find(
+        (c) => c[0].data.status === DocExtractionStatus.CONFIRMED,
+      );
+      expect(confirmCall?.[0].data.confirmedAt).toBeInstanceOf(Date);
     });
 
     it('refuses to confirm when not in COMPLETED', async () => {

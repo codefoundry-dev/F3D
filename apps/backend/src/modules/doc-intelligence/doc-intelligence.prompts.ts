@@ -7,15 +7,30 @@ Use null for values you cannot find; never invent data. Strip trailing whitespac
 const TYPE_PROMPTS: Record<DocExtractionType, string> = {
   BOM: `${BASE_INSTRUCTION}
 
+This document is a construction Bill of Materials (BOM). Each row represents
+a material the contractor needs to source. Extract every line item — do not
+collapse rows. Preserve the order they appear in the document.
+
+For each item:
+- "description": full material description as written (trim whitespace).
+- "quantity": numeric quantity, parsed from the qty column. Use null if absent.
+- "unit": unit of measure (e.g. "ea", "m", "m2", "kg", "bag", "pallet"). Lowercase.
+- "targetPrice": the contractor's target / estimated unit price as a plain number.
+  Strip currency symbols and thousand separators. Null if no price column.
+- "notes": any per-row note (size, grade, spec reference). Null when empty.
+
+Drop rows that have no description AND no quantity (header / blank rows).
+
 Return JSON shaped exactly like:
 {
   "title": string | null,
   "projectName": string | null,
+  "currency": string | null,
   "items": Array<{
     "description": string,
     "quantity": number | null,
     "unit": string | null,
-    "unitPrice": number | null,
+    "targetPrice": number | null,
     "notes": string | null
   }>,
   "notes": string | null

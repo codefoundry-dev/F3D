@@ -15,6 +15,7 @@ export * from './dtos/dashboard.dto';
 export * from './dtos/material.dto';
 export * from './dtos/vendor.dto';
 export * from './dtos/doc-extraction.dto';
+export * from './dtos/bom.dto';
 
 // Validation utils
 export * from './validation';

@@ -178,6 +178,77 @@ describe('Doc Extractions (e2e)', () => {
       .expect(401);
   });
 
+  // FOR-200 ─────────────────────────────────────────────────────────────────
+
+  it('normalizes BOM extraction output and surfaces it as a confirmed BOM', async () => {
+    geminiMock.generate.mockResolvedValueOnce({
+      text: JSON.stringify({
+        title: '  Tower 5 BOM ',
+        projectName: 'Tower 5',
+        currency: 'aud',
+        items: [
+          {
+            description: 'Cement 25kg bag',
+            qty: '50',
+            uom: 'BAGS',
+            unitPrice: '$12.50',
+          },
+          { description: 'Rebar #4', quantity: '1,200', unit: 'LM', targetPrice: '2.15' },
+        ],
+        notes: '  includes pickup ',
+      }),
+      model: 'gemini-2.5-flash',
+      usage: { promptTokenCount: 50, candidatesTokenCount: 20 },
+    });
+
+    const createRes = await request(app.getHttpServer())
+      .post('/v1/doc-extractions')
+      .set('Authorization', `Bearer ${pmTokens.accessToken}`)
+      .field('type', 'BOM')
+      .attach('file', Buffer.from('%PDF-bom'), {
+        filename: 'tower-5-bom.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(201);
+
+    const job = await pollUntilSettled(app, pmTokens.accessToken, createRes.body.data.id);
+    expect(job.status).toBe('COMPLETED');
+
+    // Raw stays exactly as Gemini returned it; edited is normalized.
+    const raw = job.rawResult as { items: Array<{ qty?: string }> };
+    expect(raw.items[0].qty).toBe('50');
+
+    const edited = job.editedResult as {
+      title: string;
+      projectName: string;
+      currency: string;
+      items: Array<{ description: string; quantity: number; unit: string; targetPrice: number | null }>;
+    };
+    expect(edited.title).toBe('Tower 5 BOM');
+    expect(edited.projectName).toBe('Tower 5');
+    expect(edited.currency).toBe('AUD');
+    expect(edited.items).toEqual([
+      { description: 'Cement 25kg bag', quantity: 50, unit: 'bag', targetPrice: 12.5, notes: null },
+      { description: 'Rebar #4', quantity: 1200, unit: 'm', targetPrice: 2.15, notes: null },
+    ]);
+
+    // Confirm so it lands as a CONFIRMED BOM.
+    await request(app.getHttpServer())
+      .post(`/v1/doc-extractions/${job.id}/confirm`)
+      .set('Authorization', `Bearer ${pmTokens.accessToken}`)
+      .send({})
+      .expect(200);
+
+    // Per FOR-200 AC: confirmed BOMs are reachable for downstream RFQ creation.
+    const listRes = await request(app.getHttpServer())
+      .get('/v1/doc-extractions?type=BOM&status=CONFIRMED')
+      .set('Authorization', `Bearer ${pmTokens.accessToken}`)
+      .expect(200);
+
+    const ids = (listRes.body.data.items as Array<{ id: string }>).map((i) => i.id);
+    expect(ids).toContain(job.id);
+  });
+
   it('supports the full edit → confirm → delete lifecycle', async () => {
     const createRes = await request(app.getHttpServer())
       .post('/v1/doc-extractions')
@@ -198,6 +269,9 @@ describe('Doc Extractions (e2e)', () => {
       .send({ editedResult: { title: 'Edited BOM', items: [] } })
       .expect(200);
     expect(editRes.body.data.editedResult).toEqual({ title: 'Edited BOM', items: [] });
+    // FOR-200: audit trail — the editor is recorded.
+    expect(editRes.body.data.lastEditedByUserId).toBe(pmTokens.userId);
+    expect(editRes.body.data.lastEditedAt).not.toBeNull();
 
     const confirmRes = await request(app.getHttpServer())
       .post(`/v1/doc-extractions/${id}/confirm`)
@@ -206,6 +280,7 @@ describe('Doc Extractions (e2e)', () => {
       .expect(200);
     expect(confirmRes.body.data.status).toBe('CONFIRMED');
     expect(confirmRes.body.data.confirmedAt).not.toBeNull();
+    expect(confirmRes.body.data.confirmedByUserId).toBe(pmTokens.userId);
 
     await request(app.getHttpServer())
       .post(`/v1/doc-extractions/${id}/confirm`)

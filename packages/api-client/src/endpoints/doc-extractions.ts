@@ -34,10 +34,13 @@ export interface DocExtractionResponse {
   model: string | null;
   usage: DocExtractionUsage | null;
   createdByUserId: string;
+  lastEditedByUserId: string | null;
+  confirmedByUserId: string | null;
   companyId: string | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
+  lastEditedAt: string | null;
   confirmedAt: string | null;
 }
 

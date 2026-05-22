@@ -73,7 +73,9 @@ model User {
   bulkOrderChangeRequestApprovals BulkOrderChangeRequest[] @relation("BulkOrderChangeResolvedBy")
 
   // Document intelligence
-  docExtractions DocExtraction[] @relation("DocExtractionCreatedBy")
+  docExtractions          DocExtraction[] @relation("DocExtractionCreatedBy")
+  editedDocExtractions    DocExtraction[] @relation("DocExtractionLastEditedBy")
+  confirmedDocExtractions DocExtraction[] @relation("DocExtractionConfirmedBy")
 
   @@index([companyId, status], map: "idx_users_company_status")
   @@index([companyId, role], map: "idx_users_company_role")

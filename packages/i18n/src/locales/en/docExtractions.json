@@ -25,6 +25,23 @@
       "filename": "File"
     }
   },
+  "bom": {
+    "title": "Bill of Materials line items",
+    "documentTitle": "BOM title",
+    "projectName": "Project",
+    "empty": "No line items yet. Use \"Add row\" to start.",
+    "columns": {
+      "description": "Description",
+      "quantity": "Qty",
+      "unit": "UoM",
+      "targetPrice": "Target price",
+      "notes": "Notes"
+    },
+    "actions": {
+      "addRow": "Add row",
+      "removeRow": "Remove row"
+    }
+  },
   "upload": {
     "title": "Upload document",
     "dropHint": "Drag a PDF or image here, or click to choose a file.",

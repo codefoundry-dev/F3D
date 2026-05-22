@@ -31,10 +31,13 @@ export function toExtractionResponse(job: ExtractionWithFile): DocExtractionResp
             completionTokens: job.completionTokens,
           },
     createdByUserId: job.createdByUserId,
+    lastEditedByUserId: job.lastEditedByUserId,
+    confirmedByUserId: job.confirmedByUserId,
     companyId: job.companyId,
     createdAt: job.createdAt.toISOString(),
     updatedAt: job.updatedAt.toISOString(),
     completedAt: job.completedAt ? job.completedAt.toISOString() : null,
+    lastEditedAt: job.lastEditedAt ? job.lastEditedAt.toISOString() : null,
     confirmedAt: job.confirmedAt ? job.confirmedAt.toISOString() : null,
   };
 }

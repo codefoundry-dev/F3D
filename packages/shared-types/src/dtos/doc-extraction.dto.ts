@@ -129,6 +129,12 @@ export class DocExtractionResponseDto {
   createdByUserId!: string;
 
   @ApiPropertyOptional()
+  lastEditedByUserId!: string | null;
+
+  @ApiPropertyOptional()
+  confirmedByUserId!: string | null;
+
+  @ApiPropertyOptional()
   companyId!: string | null;
 
   @ApiProperty()
@@ -139,6 +145,9 @@ export class DocExtractionResponseDto {
 
   @ApiPropertyOptional()
   completedAt!: string | null;
+
+  @ApiPropertyOptional()
+  lastEditedAt!: string | null;
 
   @ApiPropertyOptional()
   confirmedAt!: string | null;
