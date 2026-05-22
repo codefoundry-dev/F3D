@@ -157,5 +157,10 @@
   },
   "views": {
     "notFound": "View not found"
+  },
+  "roles": {
+    "unknownRole": "Unknown role: {{role}}",
+    "unknownPermission": "Unknown permission key: {{key}}",
+    "cannotModifySuperAdmin": "The SUPER_ADMIN role has every permission and cannot be edited"
   }
 }
