@@ -153,7 +153,7 @@ describe('RoleEditPage', () => {
     });
     render(<RoleEditPage />);
     const input = screen.getByTestId('threshold-po.approve');
-    expect(input).toHaveValue('25000');
+    expect(input).toHaveValue(25000);
     expect(screen.queryByTestId('threshold-po.read')).toBeNull();
   });
 
