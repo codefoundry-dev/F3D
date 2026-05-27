@@ -1,0 +1,174 @@
+name: Terraform Plan
+
+on:
+  pull_request:
+    paths:
+      - 'infrastructure/bootstrap/**'
+      - 'infrastructure/modules/**'
+      - 'infrastructure/envs/**'
+      - '.github/workflows/terraform-plan.yml'
+
+permissions:
+  id-token: write # required for OIDC to AWS
+  contents: read
+  pull-requests: write # to post the plan summary as a comment
+
+concurrency:
+  group: tf-plan-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TF_VERSION: '1.9.5'
+  AWS_REGION: eu-north-1
+
+jobs:
+  detect-changes:
+    name: Detect changed envs
+    runs-on: ubuntu-latest
+    outputs:
+      envs: ${{ steps.changes.outputs.envs }}
+      any: ${{ steps.changes.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine which envs changed
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          changed=$(git diff --name-only "$base...$head")
+          echo "$changed"
+
+          envs=()
+          # Any change under modules/ or to this workflow plans every env.
+          # Order matches apply.yml: _global first.
+          if echo "$changed" | grep -qE '^(infrastructure/modules/|\.github/workflows/terraform-plan\.yml)'; then
+            envs=("_global" "staging" "prod")
+          else
+            for e in _global staging prod; do
+              if echo "$changed" | grep -q "^infrastructure/envs/$e/"; then
+                envs+=("$e")
+              fi
+            done
+          fi
+
+          if [ ${#envs[@]} -eq 0 ]; then
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "envs=[]" >> "$GITHUB_OUTPUT"
+          else
+            echo "any=true" >> "$GITHUB_OUTPUT"
+            json=$(printf '%s\n' "${envs[@]}" | jq -R . | jq -s -c .)
+            echo "envs=$json" >> "$GITHUB_OUTPUT"
+          fi
+
+  fmt-validate:
+    name: fmt + validate
+    needs: detect-changes
+    if: needs.detect-changes.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: terraform fmt -check
+        working-directory: infrastructure
+        run: terraform fmt -check -recursive
+
+      - name: validate modules
+        shell: bash
+        working-directory: infrastructure
+        run: |
+          set -euo pipefail
+          for dir in modules/*/; do
+            echo "::group::validate $dir"
+            terraform -chdir="$dir" init -backend=false -input=false
+            terraform -chdir="$dir" validate
+            echo "::endgroup::"
+          done
+
+  plan:
+    name: plan (${{ matrix.env }})
+    needs: [detect-changes, fmt-validate]
+    if: needs.detect-changes.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: ${{ fromJson(needs.detect-changes.outputs.envs) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: terraform init
+        working-directory: infrastructure/envs/${{ matrix.env }}
+        run: terraform init -input=false
+
+      - name: terraform validate
+        working-directory: infrastructure/envs/${{ matrix.env }}
+        run: terraform validate
+
+      - name: terraform plan
+        id: plan
+        working-directory: infrastructure/envs/${{ matrix.env }}
+        env:
+          # Per-env variables resolve from repo Variables. _global doesn't
+          # declare notification_email; empty string is fine.
+          TF_VAR_notification_email: ${{ (matrix.env == 'prod' && vars.NOTIFICATION_EMAIL_PROD) || (matrix.env == 'staging' && vars.NOTIFICATION_EMAIL_STAGING) || '' }}
+        run: |
+          set -o pipefail
+          terraform plan -input=false -no-color -out=tfplan | tee plan.txt
+          {
+            echo "summary<<EOF"
+            tail -c 60000 plan.txt
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ matrix.env }}
+          path: |
+            infrastructure/envs/${{ matrix.env }}/tfplan
+            infrastructure/envs/${{ matrix.env }}/plan.txt
+          retention-days: 7
+
+      - name: Comment plan summary on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('infrastructure/envs/${{ matrix.env }}/plan.txt', 'utf8');
+            const truncated = plan.length > 55000 ? plan.slice(-55000) : plan;
+            const body = [
+              `### Terraform plan — \`${{ matrix.env }}\``,
+              '',
+              '<details><summary>Plan output</summary>',
+              '',
+              '```hcl',
+              truncated,
+              '```',
+              '',
+              '</details>',
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
