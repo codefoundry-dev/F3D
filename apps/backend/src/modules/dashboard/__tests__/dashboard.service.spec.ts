@@ -820,6 +820,21 @@ describe('DashboardService', () => {
       expect(email!.status).toBe('Healthy');
     });
 
+    it('marks email service as Healthy when RESEND_API_KEY is set', async () => {
+      delete process.env.BREVO_API_KEY;
+      delete process.env.SMTP_HOST;
+      delete process.env.MAILER_HOST;
+      process.env.RESEND_API_KEY = 're_test_key';
+      mockPrisma.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
+      mockPrisma.auditLog.findFirst.mockResolvedValue(null);
+
+      const result = await service.getAdminPanelState();
+      const email = result.components.find((c: { id: string }) => c.id === 'email-service');
+      expect(email!.status).toBe('Healthy');
+
+      delete process.env.RESEND_API_KEY;
+    });
+
     it('marks email service as Healthy when SMTP_HOST is set', async () => {
       delete process.env.BREVO_API_KEY;
       process.env.SMTP_HOST = 'smtp.test.com';
@@ -844,6 +859,7 @@ describe('DashboardService', () => {
     });
 
     it('marks email service as Warning when no email env vars', async () => {
+      delete process.env.RESEND_API_KEY;
       delete process.env.BREVO_API_KEY;
       delete process.env.SMTP_HOST;
       delete process.env.MAILER_HOST;

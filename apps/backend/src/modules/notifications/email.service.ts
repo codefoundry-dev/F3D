@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import emailTranslations from '@forethread/i18n/locales/en/emails.json';
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as Handlebars from 'handlebars';
 import * as nodemailer from 'nodemailer';
@@ -10,15 +10,29 @@ import type { Transporter } from 'nodemailer';
 
 import { EMAIL_TEMPLATES } from './email-templates.const';
 import type { EmailTemplateName } from './email-templates.const';
+import { ResendService } from './resend.service';
+
+/** A rendered message ready to hand to whichever transport is active. */
+interface EmailMessage {
+  to: string;
+  subject: string;
+  html?: string;
+  text?: string;
+  attachments?: { filename: string; content: Buffer }[];
+}
 
 @Injectable()
 export class EmailService implements OnModuleInit {
+  private readonly logger = new Logger(EmailService.name);
   private readonly transporter: Transporter;
   private readonly from: string;
   private readonly templates = new Map<string, Handlebars.TemplateDelegate>();
   private layoutTemplate!: Handlebars.TemplateDelegate;
 
-  constructor(config: ConfigService) {
+  constructor(
+    config: ConfigService,
+    private readonly resend: ResendService,
+  ) {
     this.from = config.get<string>('SMTP_FROM', 'noreply@forethread.local');
 
     const smtpUser = config.get<string>('SMTP_USER');
@@ -92,12 +106,44 @@ export class EmailService implements OnModuleInit {
     return this.layoutTemplate({ content, footer });
   }
 
+  /**
+   * Send a rendered message through the preferred transport.
+   *
+   * Resend is preferred whenever `RESEND_API_KEY` is configured; otherwise we
+   * fall back to SMTP (Mailhog in local dev). Resend failures are logged but
+   * never re-thrown — every caller treats email as fire-and-forget, matching
+   * the SMTP path whose rejections are swallowed by the caller's try/catch.
+   */
+  private async dispatch(message: EmailMessage): Promise<void> {
+    if (this.resend.isConfigured()) {
+      const result = await this.resend.send({
+        to: message.to,
+        subject: message.subject,
+        ...(message.html ? { html: message.html } : {}),
+        ...(message.text ? { text: message.text } : {}),
+        ...(message.attachments ? { attachments: message.attachments } : {}),
+      });
+      if (result.status === 'error') {
+        this.logger.warn(`Resend send failed [${result.code}]: ${result.message}`);
+      }
+      return;
+    }
+
+    await this.transporter.sendMail({
+      from: this.from,
+      to: message.to,
+      subject: message.subject,
+      ...(message.html ? { html: message.html } : {}),
+      ...(message.text ? { text: message.text } : {}),
+      ...(message.attachments ? { attachments: message.attachments } : {}),
+    });
+  }
+
   async sendInvitationEmail(to: string, activationUrl: string, name: string): Promise<void> {
     const t = this.getTranslations('invitation', { name });
 
     try {
-      await this.transporter.sendMail({
-        from: this.from,
+      await this.dispatch({
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.INVITATION, t, { activationUrl }),
@@ -112,8 +158,7 @@ export class EmailService implements OnModuleInit {
     const t = this.getTranslations('otp', { expiresMinutes });
 
     try {
-      await this.transporter.sendMail({
-        from: this.from,
+      await this.dispatch({
         to,
         subject: t.subject,
         text: this.interpolate(emailTranslations.otp.plainText, { otp, expiresMinutes }),
@@ -128,8 +173,7 @@ export class EmailService implements OnModuleInit {
     const t = this.getTranslations('passwordReset', { name });
 
     try {
-      await this.transporter.sendMail({
-        from: this.from,
+      await this.dispatch({
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.PASSWORD_RESET, t, { resetUrl }),
@@ -143,8 +187,7 @@ export class EmailService implements OnModuleInit {
     const t = this.getTranslations('deactivation', { name });
 
     try {
-      await this.transporter.sendMail({
-        from: this.from,
+      await this.dispatch({
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.DEACTIVATION, t),
@@ -158,8 +201,7 @@ export class EmailService implements OnModuleInit {
     const t = this.getTranslations('reactivation', { name });
 
     try {
-      await this.transporter.sendMail({
-        from: this.from,
+      await this.dispatch({
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.REACTIVATION, t),
@@ -173,8 +215,7 @@ export class EmailService implements OnModuleInit {
     const t = this.getTranslations('vendorInvitation', { name });
 
     try {
-      await this.transporter.sendMail({
-        from: this.from,
+      await this.dispatch({
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.VENDOR_INVITATION, t, { activationUrl }),
@@ -188,8 +229,7 @@ export class EmailService implements OnModuleInit {
     const t = this.getTranslations('vendorCompanyInvitation');
 
     try {
-      await this.transporter.sendMail({
-        from: this.from,
+      await this.dispatch({
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.VENDOR_COMPANY_INVITATION, t),
@@ -203,8 +243,7 @@ export class EmailService implements OnModuleInit {
     const t = this.getTranslations('rfqReceived', { rfqNumber });
 
     try {
-      await this.transporter.sendMail({
-        from: this.from,
+      await this.dispatch({
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.RFQ_RECEIVED, t, { replyUrl }),
@@ -225,8 +264,7 @@ export class EmailService implements OnModuleInit {
     try {
       const attachments = pdfBuffer ? [{ filename: `PO-${poNumber}.pdf`, content: pdfBuffer }] : [];
 
-      await this.transporter.sendMail({
-        from: this.from,
+      await this.dispatch({
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.PO_ISSUED, t, { viewUrl }),
@@ -247,8 +285,7 @@ export class EmailService implements OnModuleInit {
     const t = this.getTranslations('poDeclinedByVendor', { poNumber, vendorName });
 
     try {
-      await this.transporter.sendMail({
-        from: this.from,
+      await this.dispatch({
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.PO_DECLINED_BY_VENDOR, t, { viewUrl, reason }),
@@ -267,8 +304,7 @@ export class EmailService implements OnModuleInit {
     const t = this.getTranslations('changeRequestProposed', { bulkId, proposedBy });
 
     try {
-      await this.transporter.sendMail({
-        from: this.from,
+      await this.dispatch({
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.CHANGE_REQUEST_PROPOSED, t, { viewUrl }),
@@ -282,8 +318,7 @@ export class EmailService implements OnModuleInit {
     const t = this.getTranslations('changeRequestApproved', { bulkId });
 
     try {
-      await this.transporter.sendMail({
-        from: this.from,
+      await this.dispatch({
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.CHANGE_REQUEST_APPROVED, t, { viewUrl }),
@@ -297,8 +332,7 @@ export class EmailService implements OnModuleInit {
     const t = this.getTranslations('changeRequestRejected', { bulkId });
 
     try {
-      await this.transporter.sendMail({
-        from: this.from,
+      await this.dispatch({
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.CHANGE_REQUEST_REJECTED, t, { viewUrl }),
@@ -316,8 +350,7 @@ export class EmailService implements OnModuleInit {
     const t = this.getTranslations('bulkOrderCancelled', { bulkId, cancelledBy });
 
     try {
-      await this.transporter.sendMail({
-        from: this.from,
+      await this.dispatch({
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.BULK_ORDER_CANCELLED, t),
@@ -336,8 +369,7 @@ export class EmailService implements OnModuleInit {
     const t = this.getTranslations('quoteUpdated', { rfqNumber, vendorName });
 
     try {
-      await this.transporter.sendMail({
-        from: this.from,
+      await this.dispatch({
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.QUOTE_UPDATED, t, { viewUrl }),
@@ -356,8 +388,7 @@ export class EmailService implements OnModuleInit {
     const t = this.getTranslations('quoteSubmitted', { rfqNumber, vendorName });
 
     try {
-      await this.transporter.sendMail({
-        from: this.from,
+      await this.dispatch({
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.QUOTE_SUBMITTED, t, { viewUrl }),
@@ -380,8 +411,7 @@ export class EmailService implements OnModuleInit {
     });
 
     try {
-      await this.transporter.sendMail({
-        from: this.from,
+      await this.dispatch({
         to: adminEmail,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.INVITATION_EXPIRED_NOTIFICATION, t),

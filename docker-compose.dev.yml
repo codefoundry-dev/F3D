@@ -94,6 +94,11 @@ services:
       SMTP_USER: ''
       SMTP_PASS: ''
       SMTP_FROM: noreply@forethread.local
+      # Resend — preferred transport. When RESEND_API_KEY is set, all outbound
+      # email sends via Resend and the SMTP/Mailhog settings above are ignored.
+      # Leave unset to fall back to Mailhog. Provide via shell env or root .env.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM: ${RESEND_FROM:-noreply@forethread.local}
       CORS_ORIGINS: http://localhost:5179
       LOG_LEVEL: debug
     depends_on:
