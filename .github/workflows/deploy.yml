@@ -20,7 +20,7 @@ on:
         options: [staging, prod]
 
 permissions:
-  id-token: write   # OIDC -> AWS
+  id-token: write # OIDC -> AWS
   contents: read
 
 concurrency:
@@ -35,7 +35,7 @@ env:
 jobs:
   build-and-push:
     name: build + push (${{ github.event.inputs.env || 'staging' }})
-    runs-on: ubuntu-24.04-arm   # native arm64 - no QEMU, no pnpm-install crash
+    runs-on: ubuntu-24.04-arm # native arm64 - no QEMU, no pnpm-install crash
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
       ecr_uri: ${{ steps.meta.outputs.ecr_uri }}
@@ -90,15 +90,49 @@ jobs:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Resolve EC2 instance ID from SSM
+      - name: Resolve EC2 instance ID and wait for SSM readiness
         id: target
+        # Resilient to concurrent Terraform Apply runs that may be replacing
+        # the EC2 instance. Two symptoms this guards against:
+        #   1. SSM param /forethread/<env>/ec2/backend/instance-id is updated by
+        #      terraform at the END of its apply, so during a replacement it
+        #      briefly holds the OLD instance ID. SendCommand against an
+        #      instance mid-destroy yields InvalidInstanceId.
+        #   2. After apply finishes, the new instance still needs ~30-60s for
+        #      its SSM agent to register. SendCommand during that window also
+        #      fails with InvalidInstanceId.
+        # We re-fetch the SSM param each iteration (so we pick up the new ID
+        # once terraform writes it) and verify EC2 State=running AND SSM
+        # PingStatus=Online before handing off to the SendCommand step. Total
+        # ceiling 30 min covers the worst-case observed staging apply (~26m).
         run: |
           set -euo pipefail
-          INSTANCE_ID=$(aws ssm get-parameter \
-            --name "/forethread/${TARGET_ENV}/ec2/backend/instance-id" \
-            --query 'Parameter.Value' --output text)
-          echo "instance_id=${INSTANCE_ID}" >> "$GITHUB_OUTPUT"
-          echo "Target instance: ${INSTANCE_ID}"
+          MAX_ATTEMPTS=${SSM_READY_MAX_ATTEMPTS:-90}
+          for i in $(seq 1 "$MAX_ATTEMPTS"); do
+            INSTANCE_ID=$(aws ssm get-parameter \
+              --name "/forethread/${TARGET_ENV}/ec2/backend/instance-id" \
+              --query 'Parameter.Value' --output text)
+            STATE=$(aws ec2 describe-instances \
+              --instance-ids "$INSTANCE_ID" \
+              --query 'Reservations[0].Instances[0].State.Name' \
+              --output text 2>/dev/null || echo "missing")
+            PING="Offline"
+            if [ "$STATE" = "running" ]; then
+              PING=$(aws ssm describe-instance-information \
+                --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
+                --query 'InstanceInformationList[0].PingStatus' \
+                --output text 2>/dev/null || echo "Offline")
+            fi
+            echo "[$i/$MAX_ATTEMPTS] instance=$INSTANCE_ID state=$STATE ssm=$PING"
+            if [ "$STATE" = "running" ] && [ "$PING" = "Online" ]; then
+              echo "instance_id=${INSTANCE_ID}" >> "$GITHUB_OUTPUT"
+              echo "::notice::Target instance ${INSTANCE_ID} is running and SSM-Online."
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "::error::Instance never reached running+SSM-Online within $(( MAX_ATTEMPTS * 20 / 60 )) minutes."
+          exit 1
 
       - name: Send deploy command via SSM
         id: send
