@@ -211,6 +211,20 @@ data "aws_iam_policy_document" "deploy" {
     resources = ["*"]
   }
 
+  # ----- SSM agent readiness check -----
+  # The deploy workflow polls describe-instance-information to confirm the
+  # target instance's SSM agent is registered + Online (PingStatus) before it
+  # issues SendCommand — otherwise SendCommand races the agent and fails with
+  # InvalidInstanceId after a fresh launch/replacement. DescribeInstanceInformation
+  # does not support resource-level permissions or tag conditions, so it must be
+  # granted on "*".
+  statement {
+    sid       = "SsmDescribeInstanceInformation"
+    effect    = "Allow"
+    actions   = ["ssm:DescribeInstanceInformation"]
+    resources = ["*"]
+  }
+
   # ----- EC2 read-only: needed by the deploy workflow's smoke test to look up
   # the target instance's public IP. ec2:DescribeInstances does not support
   # resource-level permissions or tag conditions.
