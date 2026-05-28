@@ -1,0 +1,219 @@
+#!/bin/bash
+# forethread-${env}-backend-ec2 cloud-init bootstrap.
+#
+# Stages the runtime: Docker, Compose v2 plugin, CloudWatch agent, Caddy
+# config, and a docker-compose.yml that pulls the backend image from ECR.
+# The application image is NOT baked here; the first deploy via SSM
+# RunCommand pulls the latest tag and brings up the backend.
+set -euo pipefail
+
+############################################
+# Base packages
+############################################
+
+dnf update -y
+dnf install -y \
+  amazon-cloudwatch-agent \
+  docker \
+  jq
+
+systemctl enable --now docker
+
+############################################
+# Docker Compose v2 plugin (Amazon Linux 2023 doesn't ship it)
+############################################
+
+DOCKER_PLUGINS_DIR=/usr/local/lib/docker/cli-plugins
+mkdir -p "$${DOCKER_PLUGINS_DIR}"
+curl -fSL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-aarch64" \
+  -o "$${DOCKER_PLUGINS_DIR}/docker-compose"
+chmod +x "$${DOCKER_PLUGINS_DIR}/docker-compose"
+
+############################################
+# ECR login so `docker compose pull` can fetch the backend image
+############################################
+#
+# Retry to survive IAM eventual-consistency. Terraform `depends_on` guarantees
+# the role-policy attachment exists before the instance launches, but IAM
+# propagation to EC2's STS endpoint can still lag by a handful of seconds.
+# Without this loop, `set -euo pipefail` would halt cloud-init on the first
+# AccessDeniedException and leave the box without Caddy/compose configs.
+
+for i in 1 2 3 4 5 6; do
+  if aws ecr get-login-password --region ${region} \
+      | docker login \
+          --username AWS \
+          --password-stdin \
+          ${aws_account_id}.dkr.ecr.${region}.amazonaws.com; then
+    break
+  fi
+  echo "ECR login attempt $i failed, sleeping 10s and retrying..."
+  sleep 10
+done
+
+############################################
+# Workdir + Caddyfile
+############################################
+
+install -d -m 0755 /opt/forethread-backend
+install -d -m 0755 /var/log/caddy
+
+cat > /opt/forethread-backend/Caddyfile <<'CADDY_EOF'
+%{ if domain_name != "" ~}
+# Domain configured - Caddy obtains a real Let's Encrypt cert via HTTP-01 and
+# auto-redirects HTTP -> HTTPS.
+${domain_name} {
+  encode gzip
+  @connect {
+    method CONNECT
+  }
+  respond @connect "" 405
+  reverse_proxy backend:${app_port}
+  log {
+    output file /var/log/caddy/access.log
+  }
+}
+%{ else ~}
+# No domain configured (typical pre-launch state). Serve plain HTTP only.
+http://:80 {
+  encode gzip
+  @connect {
+    method CONNECT
+  }
+  respond @connect "" 405
+  reverse_proxy backend:${app_port}
+  log {
+    output file /var/log/caddy/access.log
+  }
+}
+%{ endif ~}
+CADDY_EOF
+
+############################################
+# /etc/forethread/backend.env - populated by the deploy workflow
+############################################
+#
+# This file holds the runtime environment (DATABASE_URL, REDIS_URL, JWT
+# secrets, etc.). The deploy workflow fetches values from SSM Parameter Store
+# (/forethread/<env>/*) and Secrets Manager (/forethread-backend/<env>/*)
+# and writes them here before bringing the container up. We seed a minimal
+# fallback so the compose file does not fail to parse on first boot, when
+# the env file does not yet exist.
+
+install -d -m 0755 /etc/forethread
+
+if [ ! -f /etc/forethread/backend.env ]; then
+  cat > /etc/forethread/backend.env <<ENV_EOF
+# Populated by the deploy workflow. The values below are placeholders so the
+# container can start in a degraded state; replace via deploy.
+NODE_ENV=production
+PORT=${app_port}
+LOG_LEVEL=info
+ENV_EOF
+  chmod 0640 /etc/forethread/backend.env
+fi
+
+############################################
+# docker-compose.yml - Caddy + backend
+############################################
+
+cat > /opt/forethread-backend/docker-compose.yml <<'COMPOSE_EOF'
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /opt/forethread-backend/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - /var/log/caddy:/var/log/caddy
+
+  backend:
+    image: ${ecr_repository_url}:latest
+    restart: unless-stopped
+    expose:
+      - "${app_port}"
+    env_file:
+      - /etc/forethread/backend.env
+    environment:
+      NODE_ENV: production
+      PORT: "${app_port}"
+      AWS_REGION: ${region}
+      FORETHREAD_ENV: ${env}
+      SSM_PREFIX: ${ssm_prefix}
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${region}
+        awslogs-group: ${log_group_name}
+        awslogs-stream: backend
+        awslogs-create-group: "false"
+
+volumes:
+  caddy_data:
+  caddy_config:
+COMPOSE_EOF
+
+############################################
+# CloudWatch agent - ship host-side logs
+############################################
+#
+# Single braces (`{instance_id}`) are evaluated by the agent at runtime, not
+# by Terraform — they do not need escaping.
+
+cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CW_EOF'
+{
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/caddy/access.log",
+            "log_group_name": "${host_log_group_name}",
+            "log_stream_name": "{instance_id}/caddy/access",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "/var/log/messages",
+            "log_group_name": "${host_log_group_name}",
+            "log_stream_name": "{instance_id}/system",
+            "timezone": "UTC"
+          }
+        ]
+      }
+    }
+  }
+}
+CW_EOF
+
+systemctl enable --now amazon-cloudwatch-agent
+
+############################################
+# First-time start
+############################################
+#
+# On initial provision the backend image tag may not exist yet (CI hasn't run
+# a deploy). Pull caddy explicitly and start ONLY the caddy service with
+# --no-deps so missing backend never blocks Caddy from coming up. The first
+# SSM-driven deploy will land the backend image and bring it up.
+
+docker pull caddy:2-alpine
+
+cd /opt/forethread-backend
+docker compose up -d --no-deps caddy
+
+############################################
+# SSM Agent - install + enable
+############################################
+#
+# AL2023 ARM64 (Graviton) does NOT ship with the SSM Agent preinstalled,
+# unlike the x86_64 variant. Without this block, instances never register
+# with Systems Manager and become opaque to ops (no Session Manager, no
+# SendCommand). The deploy workflow uses `aws ssm send-command` and would
+# fail without this.
+
+dnf install -y "https://s3.${region}.amazonaws.com/amazon-ssm-${region}/latest/linux_arm64/amazon-ssm-agent.rpm"
+systemctl enable --now amazon-ssm-agent

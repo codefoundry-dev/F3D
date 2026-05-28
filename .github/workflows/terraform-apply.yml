@@ -1,0 +1,199 @@
+name: Terraform Apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infrastructure/bootstrap/**'
+      - 'infrastructure/modules/**'
+      - 'infrastructure/envs/**'
+      - '.github/workflows/terraform-apply.yml'
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 'Environment to apply'
+        required: true
+        type: choice
+        options: [_global, prod, staging]
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: tf-apply-${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  TF_VERSION: '1.9.5'
+  AWS_REGION: eu-north-1
+
+jobs:
+  detect-changes:
+    name: Detect envs to apply
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    outputs:
+      envs: ${{ steps.changes.outputs.envs }}
+      any: ${{ steps.changes.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Determine envs to apply from push
+        id: changes
+        shell: bash
+        env:
+          STAGING_EMAIL: ${{ vars.NOTIFICATION_EMAIL_STAGING }}
+          PROD_EMAIL: ${{ vars.NOTIFICATION_EMAIL_PROD }}
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only HEAD^ HEAD)
+          echo "$changed"
+
+          envs=()
+          # Order matters: _global first so account-wide IAM lands before any
+          # per-env app changes that may depend on it. fail-fast skips the rest
+          # if _global breaks.
+          if echo "$changed" | grep -qE '^(infrastructure/modules/|\.github/workflows/terraform-apply\.yml)'; then
+            envs=("_global" "staging" "prod")
+          else
+            for e in _global staging prod; do
+              if echo "$changed" | grep -q "^infrastructure/envs/$e/"; then
+                envs+=("$e")
+              fi
+            done
+          fi
+
+          # Filter out envs whose NOTIFICATION_EMAIL_<ENV> repo variable is
+          # empty. The observability module would otherwise create an SNS
+          # email subscription with an empty endpoint and fail. _global has
+          # no email variable so it is always allowed. To bring prod into
+          # the auto-apply matrix, set NOTIFICATION_EMAIL_PROD in repo vars.
+          filtered=()
+          for e in "${envs[@]}"; do
+            case "$e" in
+              _global)
+                filtered+=("$e")
+                ;;
+              staging)
+                if [ -n "${STAGING_EMAIL:-}" ]; then
+                  filtered+=("$e")
+                else
+                  echo "::warning::Skipping staging apply - NOTIFICATION_EMAIL_STAGING repo variable is empty."
+                fi
+                ;;
+              prod)
+                if [ -n "${PROD_EMAIL:-}" ]; then
+                  filtered+=("$e")
+                else
+                  echo "::warning::Skipping prod apply - NOTIFICATION_EMAIL_PROD repo variable is empty. Set it in repo Variables to enable automatic prod applies."
+                fi
+                ;;
+            esac
+          done
+
+          if [ ${#filtered[@]} -eq 0 ]; then
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "envs=[]" >> "$GITHUB_OUTPUT"
+          else
+            echo "any=true" >> "$GITHUB_OUTPUT"
+            json=$(printf '%s\n' "${filtered[@]}" | jq -R . | jq -s -c .)
+            echo "envs=$json" >> "$GITHUB_OUTPUT"
+          fi
+
+  apply-on-push:
+    name: apply (${{ matrix.env }})
+    needs: detect-changes
+    if: github.event_name == 'push' && needs.detect-changes.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        env: ${{ fromJson(needs.detect-changes.outputs.envs) }}
+    environment: ${{ matrix.env }} # GitHub environment gate - protect prod with reviewers
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: terraform init
+        working-directory: infrastructure/envs/${{ matrix.env }}
+        run: terraform init -input=false
+
+      - name: terraform apply
+        id: apply
+        working-directory: infrastructure/envs/${{ matrix.env }}
+        env:
+          TF_VAR_notification_email: ${{ (matrix.env == 'prod' && vars.NOTIFICATION_EMAIL_PROD) || (matrix.env == 'staging' && vars.NOTIFICATION_EMAIL_STAGING) || '' }}
+        run: terraform apply -input=false -auto-approve -lock-timeout=5m
+
+      # Cancellation safety net: if the runner is killed mid-apply, terraform
+      # doesn't get a chance to release its state lock. This step inspects the
+      # DynamoDB lock table and releases the lock IFF its owner is a CI runner.
+      - name: release orphaned CI lock if apply was cancelled / killed
+        if: failure() || cancelled()
+        working-directory: infrastructure/envs/${{ matrix.env }}
+        run: |
+          set -euo pipefail
+          LOCK_KEY="forethread-tfstate-eu-north-1/envs/${{ matrix.env }}/terraform.tfstate-md5"
+          INFO=$(aws dynamodb get-item \
+            --region "${{ env.AWS_REGION }}" \
+            --table-name forethread-tfstate-lock \
+            --key "{\"LockID\":{\"S\":\"$LOCK_KEY\"}}" \
+            --query 'Item.Info.S' \
+            --output text 2>/dev/null || true)
+          if [ -z "$INFO" ] || [ "$INFO" = "None" ]; then
+            echo "No state lock to release."
+            exit 0
+          fi
+          WHO=$(echo "$INFO" | jq -r '.Who // empty')
+          LOCK_ID=$(echo "$INFO" | jq -r '.ID // empty')
+          case "$WHO" in
+            runner@*)
+              echo "::warning::Releasing orphaned CI lock $LOCK_ID held by $WHO"
+              terraform force-unlock -force "$LOCK_ID"
+              ;;
+            *)
+              echo "::warning::Lock $LOCK_ID is held by '$WHO' (not a CI runner). Refusing to auto-release; investigate manually."
+              exit 1
+              ;;
+          esac
+
+  apply-manual:
+    name: apply (${{ inputs.env }}) [manual]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: terraform init
+        working-directory: infrastructure/envs/${{ inputs.env }}
+        run: terraform init -input=false
+
+      - name: terraform apply
+        working-directory: infrastructure/envs/${{ inputs.env }}
+        env:
+          TF_VAR_notification_email: ${{ (inputs.env == 'prod' && vars.NOTIFICATION_EMAIL_PROD) || (inputs.env == 'staging' && vars.NOTIFICATION_EMAIL_STAGING) || '' }}
+        run: terraform apply -input=false -auto-approve
