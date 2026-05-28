@@ -1,0 +1,179 @@
+name: Deploy backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/backend/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/deploy.yml'
+      - 'scripts/remote-deploy.sh'
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 'Environment to deploy'
+        required: true
+        type: choice
+        default: staging
+        options: [staging, prod]
+
+permissions:
+  id-token: write   # OIDC -> AWS
+  contents: read
+
+concurrency:
+  # Serialize deploys per-environment so two pushes can't race on `docker compose up`.
+  group: deploy-${{ github.event.inputs.env || 'staging' }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-north-1
+  TARGET_ENV: ${{ github.event.inputs.env || 'staging' }}
+
+jobs:
+  build-and-push:
+    name: build + push (${{ github.event.inputs.env || 'staging' }})
+    runs-on: ubuntu-24.04-arm   # native arm64 - no QEMU, no pnpm-install crash
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      ecr_uri: ${{ steps.meta.outputs.ecr_uri }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute image metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          SHORT_SHA=$(git rev-parse --short=12 HEAD)
+          ECR_URI="814383264167.dkr.ecr.${AWS_REGION}.amazonaws.com/forethread-${TARGET_ENV}-backend"
+          echo "image_tag=sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "ecr_uri=${ECR_URI}" >> "$GITHUB_OUTPUT"
+          echo "Building ${ECR_URI}:sha-${SHORT_SHA} (also tagged :latest)"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/backend/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.ecr_uri }}:${{ steps.meta.outputs.image_tag }}
+            ${{ steps.meta.outputs.ecr_uri }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: ssm deploy (${{ github.event.inputs.env || 'staging' }})
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.env || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve EC2 instance ID from SSM
+        id: target
+        run: |
+          set -euo pipefail
+          INSTANCE_ID=$(aws ssm get-parameter \
+            --name "/forethread/${TARGET_ENV}/ec2/backend/instance-id" \
+            --query 'Parameter.Value' --output text)
+          echo "instance_id=${INSTANCE_ID}" >> "$GITHUB_OUTPUT"
+          echo "Target instance: ${INSTANCE_ID}"
+
+      - name: Send deploy command via SSM
+        id: send
+        run: |
+          set -euo pipefail
+
+          # Pull the remote script from this checkout so it's the same commit
+          # as the image we just pushed. Encode it for safe transport in JSON.
+          REMOTE_SCRIPT=$(cat scripts/remote-deploy.sh)
+
+          # Build the command payload. The remote script runs as root via SSM.
+          PARAMS=$(jq -n --arg s "$REMOTE_SCRIPT" --arg env "$TARGET_ENV" \
+            '{commands: ["export FORETHREAD_ENV=\($env)", $s]}')
+
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids ${{ steps.target.outputs.instance_id }} \
+            --document-name AWS-RunShellScript \
+            --parameters "$PARAMS" \
+            --comment "deploy ${TARGET_ENV} (run ${GITHUB_RUN_ID})" \
+            --cloud-watch-output-config "CloudWatchOutputEnabled=true,CloudWatchLogGroupName=/forethread-backend/${TARGET_ENV}/host" \
+            --query 'Command.CommandId' --output text)
+          echo "cmd_id=${CMD_ID}" >> "$GITHUB_OUTPUT"
+          echo "SSM Command ID: ${CMD_ID}"
+
+      - name: Wait for SSM command to finish
+        run: |
+          set -euo pipefail
+          CMD_ID="${{ steps.send.outputs.cmd_id }}"
+          INSTANCE_ID="${{ steps.target.outputs.instance_id }}"
+
+          for i in $(seq 1 60); do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$CMD_ID" \
+              --instance-id "$INSTANCE_ID" \
+              --query 'Status' --output text 2>/dev/null || echo "Pending")
+            echo "[$i] status=$STATUS"
+            case "$STATUS" in
+              Success) exit 0 ;;
+              Failed|Cancelled|TimedOut)
+                echo "--- stdout ---"
+                aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query 'StandardOutputContent' --output text
+                echo "--- stderr ---"
+                aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query 'StandardErrorContent' --output text
+                exit 1
+                ;;
+            esac
+            sleep 5
+          done
+          echo "::error::SSM command did not finish within 5 minutes."
+          exit 1
+
+      - name: Show deploy output
+        if: always()
+        run: |
+          aws ssm get-command-invocation \
+            --command-id "${{ steps.send.outputs.cmd_id }}" \
+            --instance-id "${{ steps.target.outputs.instance_id }}" \
+            --query 'StandardOutputContent' --output text || true
+
+      - name: Smoke test (health check)
+        run: |
+          set -euo pipefail
+          PUBLIC_IP=$(aws ec2 describe-instances \
+            --instance-ids ${{ steps.target.outputs.instance_id }} \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          echo "Probing http://${PUBLIC_IP}/v1/health (via Caddy proxy)"
+          # Caddy will 308-redirect to HTTPS for the domain-configured site, so
+          # we follow redirects and accept self-signed/missing certs for v1.
+          for i in $(seq 1 12); do
+            CODE=$(curl -kfsS -o /tmp/probe.out -w '%{http_code}' -L --max-time 5 "http://${PUBLIC_IP}/v1/health" || true)
+            echo "[$i] HTTP ${CODE}"
+            if [ "$CODE" = "200" ]; then
+              cat /tmp/probe.out
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::warning::Health check did not return 200 within 60s. Container may still be starting; check CloudWatch logs."
