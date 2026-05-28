@@ -9,6 +9,11 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+    // Prefer .ts over .js so the mirrored CommonJS .js files that
+    // packages/shared-types emits next to its .ts sources (needed at runtime
+    // by the @nestjs/swagger CLI plugin's relative requires) don't shadow
+    // the TypeScript sources during Rollup's static export analysis.
+    extensions: ['.mjs', '.ts', '.mts', '.tsx', '.js', '.jsx', '.json'],
   },
   server: {
     port: 5179,

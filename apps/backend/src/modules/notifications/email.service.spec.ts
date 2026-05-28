@@ -91,10 +91,12 @@ jest.mock(
 import { ConfigService } from '@nestjs/config';
 
 import { EmailService } from './email.service';
+import type { ResendService } from './resend.service';
 
 describe('EmailService', () => {
   let service: EmailService;
   let configService: jest.Mocked<ConfigService>;
+  let resendService: { isConfigured: jest.Mock; send: jest.Mock };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -113,7 +115,12 @@ describe('EmailService', () => {
       }),
     } as unknown as jest.Mocked<ConfigService>;
 
-    service = new EmailService(configService);
+    resendService = {
+      isConfigured: jest.fn().mockReturnValue(false),
+      send: jest.fn().mockResolvedValue({ status: 'queued', id: 'resend-id' }),
+    };
+
+    service = new EmailService(configService, resendService as unknown as ResendService);
     service.onModuleInit();
   });
 
@@ -142,7 +149,7 @@ describe('EmailService', () => {
         }),
       } as unknown as jest.Mocked<ConfigService>;
 
-      new EmailService(authConfig);
+      new EmailService(authConfig, resendService as unknown as ResendService);
 
       expect(mockCreateTransport).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -158,7 +165,7 @@ describe('EmailService', () => {
       fs.existsSync.mockReturnValue(true);
       fs.readdirSync.mockReturnValue(['header.html', 'footer.html']);
 
-      const svc = new EmailService(configService);
+      const svc = new EmailService(configService, resendService as unknown as ResendService);
       svc.onModuleInit();
 
       const Handlebars = require('handlebars');
@@ -166,7 +173,7 @@ describe('EmailService', () => {
     });
 
     it('should throw when template is not found in renderEmail', () => {
-      const svc = new EmailService(configService);
+      const svc = new EmailService(configService, resendService as unknown as ResendService);
       svc.onModuleInit();
 
       // Access private renderEmail via sending with invalid template
@@ -550,6 +557,69 @@ describe('EmailService', () => {
 
       await expect(
         service.sendQuoteUpdatedEmail('user@test.com', 'RFQ-001', 'VendorCo', 'https://view.test'),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('transport selection (Resend preferred over SMTP)', () => {
+    it('routes through Resend and skips SMTP when Resend is configured', async () => {
+      resendService.isConfigured.mockReturnValue(true);
+
+      await service.sendInvitationEmail('user@test.com', 'https://activate.test', 'John');
+
+      expect(resendService.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'user@test.com',
+          subject: 'Welcome to Forethread — Activate Your Account',
+        }),
+      );
+      expect(mockSendMail).not.toHaveBeenCalled();
+    });
+
+    it('does not pass an SMTP from address to Resend (Resend uses RESEND_FROM)', async () => {
+      resendService.isConfigured.mockReturnValue(true);
+
+      await service.sendInvitationEmail('user@test.com', 'https://activate.test', 'John');
+
+      const payload = resendService.send.mock.calls[0][0] as Record<string, unknown>;
+      expect(payload).not.toHaveProperty('from');
+    });
+
+    it('forwards the PDF attachment to Resend on PO issued emails', async () => {
+      resendService.isConfigured.mockReturnValue(true);
+      const pdfBuffer = Buffer.from('fake-pdf');
+
+      await service.sendPoIssuedEmail('vendor@test.com', 'PO-001', 'https://view.test', pdfBuffer);
+
+      expect(resendService.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attachments: [{ filename: 'PO-PO-001.pdf', content: pdfBuffer }],
+        }),
+      );
+      expect(mockSendMail).not.toHaveBeenCalled();
+    });
+
+    it('falls back to SMTP when Resend is not configured', async () => {
+      resendService.isConfigured.mockReturnValue(false);
+
+      await service.sendInvitationEmail('user@test.com', 'https://activate.test', 'John');
+
+      expect(mockSendMail).toHaveBeenCalledWith(
+        expect.objectContaining({ from: 'test@forethread.local', to: 'user@test.com' }),
+      );
+      expect(resendService.send).not.toHaveBeenCalled();
+    });
+
+    it('does not throw when Resend returns an error result', async () => {
+      resendService.isConfigured.mockReturnValue(true);
+      resendService.send.mockResolvedValue({
+        status: 'error',
+        code: 'RATE_LIMITED',
+        message: 'Too many requests',
+      });
+
+      await expect(
+        service.sendInvitationEmail('user@test.com', 'https://activate.test', 'John'),
       ).resolves.toBeUndefined();
     });
   });

@@ -627,6 +627,7 @@ export class DashboardService {
 
     // 2. Email/Notification service — check config presence
     const emailConfigured = !!(
+      process.env.RESEND_API_KEY ??
       process.env.BREVO_API_KEY ??
       process.env.SMTP_HOST ??
       process.env.MAILER_HOST
@@ -640,7 +641,7 @@ export class DashboardService {
       lastError: emailConfigured ? null : new Date().toISOString(),
       errorInfo: emailConfigured
         ? null
-        : 'Email service not configured (no SMTP/Brevo credentials)',
+        : 'Email service not configured (no Resend/SMTP/Brevo credentials)',
     });
 
     // 3. File storage (MinIO) — check config presence

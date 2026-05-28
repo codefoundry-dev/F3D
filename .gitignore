@@ -11,6 +11,12 @@ out
 .expo
 .turbo
 
+# shared-types: dist/*.js is mirrored into src/ at build time so the
+# @nestjs/swagger plugin's relative require()s resolve at runtime. Treat the
+# generated siblings as build artefacts.
+packages/shared-types/src/**/*.js
+packages/shared-types/src/**/*.js.map
+
 # Environment variables (NEVER commit these)
 .env
 .env.*

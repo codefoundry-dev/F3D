@@ -14,7 +14,7 @@
     "./client": "./src/client.ts"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/mirror-dist-to-src.cjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts --max-warnings 0",
     "clean": "rm -rf dist"
