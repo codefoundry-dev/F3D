@@ -61,16 +61,35 @@ FROM node:20-alpine AS runner
 
 RUN apk add --no-cache dumb-init openssl
 
-WORKDIR /app
+# Preserve the workspace layout at runtime. The @nestjs/swagger CLI plugin
+# inlines relative `require(...)` calls for DTO types whose source lives in a
+# workspace package (e.g. @forethread/shared-types). Those relative paths are
+# computed from apps/backend/src up to the workspace root and back into
+# packages/shared-types/dist, so the runtime tree has to mirror that layout
+# or the requires overflow past `/` and fail to resolve.
+WORKDIR /app/apps/backend
 
 ENV NODE_ENV=production
 
 # Copy the full deployed bundle (includes dist, node_modules, prisma files)
+# into the workspace-relative apps/backend location.
 COPY --from=builder /app/deploy ./
 
+# Place workspace packages at their workspace-relative locations so the
+# swagger-plugin-emitted relative requires (../../../../../packages/...)
+# resolve from apps/backend/dist/modules/<X>/.
+COPY --from=builder /app/packages/shared-types/dist /app/packages/shared-types/dist
+
+# Make shared-types' transitive deps (class-validator, class-transformer, etc.)
+# resolvable from inside the shared-types files via Node's parent-node_modules
+# lookup. The pnpm-deployed flat node_modules lives under apps/backend; symlink
+# it into the shared-types tree so a require('class-validator') from
+# /app/packages/shared-types/dist/... walks up and finds it.
+RUN ln -s /app/apps/backend/node_modules /app/packages/shared-types/node_modules
+
 # Copy entrypoint script (from build context, not builder)
-COPY apps/backend/docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
+COPY apps/backend/docker-entrypoint.sh /app/apps/backend/docker-entrypoint.sh
+RUN chmod +x /app/apps/backend/docker-entrypoint.sh
 
 # Non-root user for security
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nestjs
@@ -82,5 +101,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD wget -qO- http://localhost:3000/v1/health || exit 1
 
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+ENTRYPOINT ["/app/apps/backend/docker-entrypoint.sh"]
 CMD ["start"]
