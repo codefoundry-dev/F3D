@@ -185,6 +185,15 @@ resource "aws_instance" "this" {
     ignore_changes = [ami]
   }
 
+  # Without these explicit edges, terraform may launch the instance in parallel
+  # with the role-policy attachments. user_data hits ECR within seconds of boot
+  # and fails with AccessDenied before the runtime policy is in effect, halting
+  # cloud-init under `set -euo pipefail`. See README "Known pitfalls".
+  depends_on = [
+    aws_iam_role_policy_attachment.runtime,
+    aws_iam_role_policy_attachment.ssm_managed_core,
+  ]
+
   # Project=forethread is load-bearing: the deploy role's SSM SendCommand
   # statement gates on aws:ResourceTag/Project == "forethread".
   tags = merge(var.tags, {

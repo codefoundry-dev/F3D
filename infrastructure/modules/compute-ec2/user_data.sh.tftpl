@@ -32,12 +32,24 @@ chmod +x "$${DOCKER_PLUGINS_DIR}/docker-compose"
 ############################################
 # ECR login so `docker compose pull` can fetch the backend image
 ############################################
+#
+# Retry to survive IAM eventual-consistency. Terraform `depends_on` guarantees
+# the role-policy attachment exists before the instance launches, but IAM
+# propagation to EC2's STS endpoint can still lag by a handful of seconds.
+# Without this loop, `set -euo pipefail` would halt cloud-init on the first
+# AccessDeniedException and leave the box without Caddy/compose configs.
 
-aws ecr get-login-password --region ${region} \
-  | docker login \
-      --username AWS \
-      --password-stdin \
-      ${aws_account_id}.dkr.ecr.${region}.amazonaws.com
+for i in 1 2 3 4 5 6; do
+  if aws ecr get-login-password --region ${region} \
+      | docker login \
+          --username AWS \
+          --password-stdin \
+          ${aws_account_id}.dkr.ecr.${region}.amazonaws.com; then
+    break
+  fi
+  echo "ECR login attempt $i failed, sleeping 10s and retrying..."
+  sleep 10
+done
 
 ############################################
 # Workdir + Caddyfile
