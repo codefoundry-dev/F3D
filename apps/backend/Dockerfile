@@ -62,11 +62,11 @@ FROM node:20-alpine AS runner
 RUN apk add --no-cache dumb-init openssl
 
 # Preserve the workspace layout at runtime. The @nestjs/swagger CLI plugin
-# inlines relative `require(...)` calls for DTO types whose source lives in a
-# workspace package (e.g. @forethread/shared-types). Those relative paths are
-# computed from apps/backend/src up to the workspace root and back into
-# packages/shared-types/dist, so the runtime tree has to mirror that layout
-# or the requires overflow past `/` and fail to resolve.
+# inlines relative `require(...)` calls for DTO types from workspace packages
+# (e.g. @forethread/shared-types). Those paths are computed from
+# apps/backend/dist/modules/<X>/*.js up to the workspace root and back into
+# packages/shared-types/src/<dto>, so the runtime tree has to mirror that
+# layout or the requires fail to resolve.
 WORKDIR /app/apps/backend
 
 ENV NODE_ENV=production
@@ -75,18 +75,12 @@ ENV NODE_ENV=production
 # into the workspace-relative apps/backend location.
 COPY --from=builder /app/deploy ./
 
-# Place workspace packages at their workspace-relative locations so the
-# swagger-plugin-emitted relative requires (../../../../../packages/...)
-# resolve from apps/backend/dist/modules/<X>/.
-#
-# The plugin's TS-resolution path can land on either ".../src/<dto>" (when
-# it resolves via package.json `types: ./src/index.ts`) or ".../dist/<dto>"
-# (when it sees `dist/index.d.ts` co-located with `main`), depending on
-# whether shared-types/dist exists at backend-compile time. We can't
-# reliably predict which it will emit per build, so we stage the built
-# dist JS at *both* locations — same files, two reachable paths.
-COPY --from=builder /app/packages/shared-types/dist /app/packages/shared-types/dist
-COPY --from=builder /app/packages/shared-types/dist /app/packages/shared-types/src
+# Stage shared-types/src at its workspace-relative location so the
+# swagger-plugin-emitted relative requires (../../../../../packages/shared-types/src/<dto>)
+# resolve from apps/backend/dist/modules/<X>/*.js. The .js siblings under
+# src/ are produced by packages/shared-types's build step
+# (scripts/mirror-dist-to-src.cjs) so Node `require()` finds a real file.
+COPY --from=builder /app/packages/shared-types/src /app/packages/shared-types/src
 
 # Make shared-types' transitive deps (class-validator, class-transformer, etc.)
 # resolvable from inside the shared-types files via Node's parent-node_modules
