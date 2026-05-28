@@ -78,7 +78,15 @@ COPY --from=builder /app/deploy ./
 # Place workspace packages at their workspace-relative locations so the
 # swagger-plugin-emitted relative requires (../../../../../packages/...)
 # resolve from apps/backend/dist/modules/<X>/.
+#
+# The plugin's TS-resolution path can land on either ".../src/<dto>" (when
+# it resolves via package.json `types: ./src/index.ts`) or ".../dist/<dto>"
+# (when it sees `dist/index.d.ts` co-located with `main`), depending on
+# whether shared-types/dist exists at backend-compile time. We can't
+# reliably predict which it will emit per build, so we stage the built
+# dist JS at *both* locations — same files, two reachable paths.
 COPY --from=builder /app/packages/shared-types/dist /app/packages/shared-types/dist
+COPY --from=builder /app/packages/shared-types/dist /app/packages/shared-types/src
 
 # Make shared-types' transitive deps (class-validator, class-transformer, etc.)
 # resolvable from inside the shared-types files via Node's parent-node_modules
