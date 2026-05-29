@@ -43,6 +43,19 @@ function makeFile(overrides: Partial<Express.Multer.File> = {}): Express.Multer.
   };
 }
 
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+/** Build a real .xlsx buffer so the spreadsheet path exercises exceljs for real. */
+async function buildBomXlsx(): Promise<Buffer> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const ExcelJS = require('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('BOM');
+  sheet.addRow(['Description', 'Qty', 'Unit']);
+  sheet.addRow(['Cement 25kg bag', 50, 'bag']);
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
 function makeQuery(
   overrides: Partial<{ page: number; limit: number }> = {},
 ): import('@forethread/shared-types').DocExtractionListQueryDto {
@@ -157,6 +170,40 @@ describe('DocIntelligenceService', () => {
       expect(result).toMatchObject({ id: 'job-1' });
     });
 
+    it('accepts .xlsx spreadsheet uploads', async () => {
+      const { service, prisma, storage, gemini } = makeService();
+      prisma.file.create.mockResolvedValue({ id: 'file-1' });
+      prisma.docExtraction.create.mockResolvedValue({
+        id: 'job-1',
+        type: 'BOM',
+        status: 'PENDING',
+        file: { id: 'file-1' },
+      });
+      prisma.docExtraction.findUnique.mockResolvedValue({ id: 'job-1', type: 'BOM' });
+      prisma.docExtraction.update.mockResolvedValue({});
+      gemini.generate.mockResolvedValue({
+        text: '{"title":"Sheet BOM","items":[]}',
+        model: 'gemini-2.5-flash',
+      });
+
+      const file = makeFile({
+        originalname: 'bom.xlsx',
+        mimetype: XLSX_MIME,
+        buffer: await buildBomXlsx(),
+      });
+      const result = await service.createExtraction(
+        { type: DocExtractionType.BOM, file },
+        baseUser,
+      );
+
+      expect(storage.upload).toHaveBeenCalledWith(
+        expect.stringMatching(/^doc-extractions\/.+\.xlsx$/),
+        expect.any(Buffer),
+        XLSX_MIME,
+      );
+      expect(result).toMatchObject({ id: 'job-1' });
+    });
+
     it('rejects unsupported MIME types', async () => {
       const { service } = makeService();
       const file = makeFile({ mimetype: 'text/plain' });
@@ -231,6 +278,32 @@ describe('DocIntelligenceService', () => {
         promptTokens: 12,
         completionTokens: 8,
       });
+    });
+
+    it('parses .xlsx uploads to text and sends them to Gemini without an inline document', async () => {
+      const { service, prisma, gemini } = makeService();
+      prisma.docExtraction.findUnique.mockResolvedValue({
+        id: 'job-1',
+        type: DocExtractionType.BOM,
+      });
+      gemini.generate.mockResolvedValue({
+        text: '{"title":"Sheet BOM","items":[]}',
+        model: 'gemini-2.5-flash',
+      });
+
+      await service.runExtraction('job-1', await buildBomXlsx(), XLSX_MIME);
+
+      expect(gemini.generate).toHaveBeenCalledTimes(1);
+      const call = gemini.generate.mock.calls[0][0];
+      // Spreadsheets go in as prompt text, never as an inline Gemini document.
+      expect(call.documents).toBeUndefined();
+      expect(call.prompt).toContain('# Sheet: BOM');
+      expect(call.prompt).toContain('Cement 25kg bag\t50\tbag');
+
+      const completed = prisma.docExtraction.update.mock.calls
+        .map((c) => c[0])
+        .find((u) => u.data.status === DocExtractionStatus.COMPLETED);
+      expect(completed?.data.rawResult).toMatchObject({ title: 'Sheet BOM' });
     });
 
     it('strips markdown code fences before parsing JSON', async () => {

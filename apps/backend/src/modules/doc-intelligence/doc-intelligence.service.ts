@@ -23,18 +23,33 @@ import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GeminiService } from '../gemini/gemini.service';
-import { GeminiError } from '../gemini/gemini.types';
+import { GeminiError, type GeminiMimeType } from '../gemini/gemini.types';
 import { StorageService } from '../storage/storage.service';
 
 import { normalizeBomResult } from './doc-intelligence.bom';
 import { buildExtractionPrompt } from './doc-intelligence.prompts';
+import { spreadsheetToText } from './doc-intelligence.spreadsheet';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-const ACCEPTED_MIME_TYPES: ReadonlySet<string> = new Set([
+
+// Gemini's document API understands these natively — they are sent as inline data.
+const GEMINI_NATIVE_MIME_TYPES: ReadonlySet<string> = new Set([
   'application/pdf',
   'image/png',
   'image/jpeg',
   'image/webp',
+]);
+
+// Spreadsheets can't be attached to Gemini directly, so we parse them to text
+// and fold the contents into the prompt. Only the OpenXML (.xlsx) format is
+// supported — exceljs cannot read the legacy binary .xls format.
+const SPREADSHEET_MIME_TYPES: ReadonlySet<string> = new Set([
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]);
+
+const ACCEPTED_MIME_TYPES: ReadonlySet<string> = new Set([
+  ...GEMINI_NATIVE_MIME_TYPES,
+  ...SPREADSHEET_MIME_TYPES,
 ]);
 
 export interface CreateExtractionInput {
@@ -60,9 +75,9 @@ export class DocIntelligenceService {
   // ── Create extraction ────────────────────────────────────────────────────
 
   /**
-   * Persist the uploaded PDF/image, create a PENDING extraction record, and
-   * kick off the Gemini call asynchronously. The HTTP request returns as soon
-   * as the record is created so the client can poll for status.
+   * Persist the uploaded PDF/image/spreadsheet, create a PENDING extraction
+   * record, and kick off the Gemini call asynchronously. The HTTP request
+   * returns as soon as the record is created so the client can poll for status.
    */
   async createExtraction(
     input: CreateExtractionInput,
@@ -135,11 +150,16 @@ export class DocIntelligenceService {
 
     try {
       const prompt = buildExtractionPrompt(job.type, promptHint);
-      const result = await this.gemini.generate({
-        prompt,
-        documents: [{ mimeType: mimeType as 'application/pdf', data: fileBuffer }],
-        generationConfig: { responseMimeType: 'application/json' },
-      });
+      const result = SPREADSHEET_MIME_TYPES.has(mimeType)
+        ? await this.gemini.generate({
+            prompt: await this.buildSpreadsheetPrompt(prompt, fileBuffer),
+            generationConfig: { responseMimeType: 'application/json' },
+          })
+        : await this.gemini.generate({
+            prompt,
+            documents: [{ mimeType: mimeType as GeminiMimeType, data: fileBuffer }],
+            generationConfig: { responseMimeType: 'application/json' },
+          });
 
       const parsed = this.parseJson(result.text);
       const normalized = this.normalizeForType(job.type, parsed);
@@ -169,6 +189,19 @@ export class DocIntelligenceService {
         },
       });
     }
+  }
+
+  /**
+   * Gemini can't ingest spreadsheets directly, so we serialise the workbook to
+   * tab-separated text and fold it into the prompt as the "attached document".
+   */
+  private async buildSpreadsheetPrompt(basePrompt: string, fileBuffer: Buffer): Promise<string> {
+    const sheetText = await spreadsheetToText(fileBuffer);
+    return `${basePrompt}
+
+The document is a spreadsheet, provided below as tab-separated values. Each "# Sheet:" line starts a new worksheet. Treat the rows below as the attached document.
+
+${sheetText}`;
   }
 
   private normalizeForType(

@@ -44,8 +44,14 @@
   },
   "upload": {
     "title": "Upload document",
-    "dropHint": "Drag a PDF or image here, or click to choose a file.",
+    "dropHint": "Drag a PDF, Excel, or image here, or click to choose a file.",
     "submit": "Start extraction",
-    "submitting": "Uploading…"
+    "submitting": "Uploading…",
+    "bomHeading": "Convert a project BOM",
+    "bomSubheading": "Upload a Bill of Materials (PDF, Excel, or image). The AI extracts the line items for you to review and confirm.",
+    "changeFile": "Choose a different file",
+    "back": "Back to RFQs",
+    "error": "Could not start extraction. {{message}}",
+    "confirmed": "BOM saved — line items are ready for RFQ creation."
   }
 }

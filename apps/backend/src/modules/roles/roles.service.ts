@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
-import { Type } from 'class-transformer';
-import { IsArray, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsArray, IsObject, IsOptional, IsString } from 'class-validator';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import {
@@ -13,10 +12,6 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService, AuditAction } from '../audit/audit.service';
 
-class PermissionThresholdsDto {
-  [key: string]: number | null;
-}
-
 export class UpdateRolePermissionsDto {
   @IsArray()
   @IsString({ each: true })
@@ -24,13 +19,17 @@ export class UpdateRolePermissionsDto {
 
   /**
    * Optional map of threshold-aware permission key → monetary cap.
-   * A null value or missing entry means "unlimited" (no cap). Non
-   * threshold-aware keys present in this object are rejected.
+   * A null value or missing entry means "unlimited" (no cap).
+   *
+   * This is a dynamic-key map, so it deliberately does NOT use
+   * `@ValidateNested` against a fixed-shape DTO: under the global
+   * `forbidNonWhitelisted` pipe that would reject every permission key as a
+   * non-whitelisted property ("thresholds.property po.approve should not
+   * exist"). `@IsObject` keeps the pipe from recursing; the shape, bounds,
+   * and grant rules are validated server-side in `parseThresholds`.
    */
   @IsOptional()
   @IsObject()
-  @ValidateNested()
-  @Type(() => PermissionThresholdsDto)
   thresholds?: Record<string, number | null>;
 }
 

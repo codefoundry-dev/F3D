@@ -116,7 +116,48 @@ describe('GeminiService', () => {
       expect(body.generationConfig).toEqual({
         temperature: 0,
         responseMimeType: 'application/json',
+        thinkingConfig: { thinkingBudget: 0 },
       });
+    });
+
+    it('disables thinking by default even when no generationConfig is passed', async () => {
+      const service = createService();
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(okJson({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }));
+
+      await service.generate({ prompt: 'hi' });
+
+      const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body as string);
+      expect(body.generationConfig).toEqual({ thinkingConfig: { thinkingBudget: 0 } });
+    });
+
+    it('honours a positive GEMINI_THINKING_BUDGET cap', async () => {
+      const service = createService({ GEMINI_THINKING_BUDGET: '512' });
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(okJson({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }));
+
+      await service.generate({ prompt: 'hi' });
+
+      const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body as string);
+      expect(body.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 512 });
+    });
+
+    it('leaves thinkingConfig unset (dynamic) when GEMINI_THINKING_BUDGET is -1', async () => {
+      const service = createService({ GEMINI_THINKING_BUDGET: '-1' });
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(okJson({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }));
+
+      await service.generate({
+        prompt: 'hi',
+        generationConfig: { responseMimeType: 'application/json' },
+      });
+
+      const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body as string);
+      expect(body.generationConfig).toEqual({ responseMimeType: 'application/json' });
+      expect(body.generationConfig.thinkingConfig).toBeUndefined();
     });
   });
 

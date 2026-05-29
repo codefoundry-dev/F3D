@@ -279,6 +279,7 @@ export default function RfqListPage() {
                     className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-[18px] leading-6 font-medium font-[Inter] hover:bg-muted transition-colors w-full text-left"
                     onClick={() => {
                       createDD.setIsOpen(false);
+                      navigate(ROUTES.rfqFromBom);
                     }}
                   >
                     Converting a project BOM

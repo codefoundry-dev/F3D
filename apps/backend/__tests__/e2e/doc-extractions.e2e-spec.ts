@@ -134,6 +134,35 @@ describe('Doc Extractions (e2e)', () => {
     expect(job.usage).toMatchObject({ promptTokens: 100, completionTokens: 30 });
   });
 
+  it('accepts an .xlsx upload, parsing it to prompt text instead of an inline document', async () => {
+    geminiMock.generate.mockClear();
+
+    const createRes = await request(app.getHttpServer())
+      .post('/v1/doc-extractions')
+      .set('Authorization', `Bearer ${pmTokens.accessToken}`)
+      .field('type', 'BOM')
+      .attach('file', await buildBomXlsx(), {
+        filename: 'bom.xlsx',
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      .expect(201);
+
+    expect(createRes.body.data.file.filename).toBe('bom.xlsx');
+
+    const job = await pollUntilSettled(app, pmTokens.accessToken, createRes.body.data.id);
+    expect(job.status).toBe('COMPLETED');
+
+    // The spreadsheet must reach Gemini as prompt text, never as an inline document.
+    const calls = geminiMock.generate.mock.calls;
+    const call = calls[calls.length - 1][0] as {
+      prompt: string;
+      documents?: unknown[];
+    };
+    expect(call.documents).toBeUndefined();
+    expect(call.prompt).toContain('# Sheet: BOM');
+    expect(call.prompt).toContain('Cement 25kg bag');
+  });
+
   it('marks the job FAILED when Gemini returns malformed JSON', async () => {
     geminiMock.generate.mockResolvedValueOnce({
       text: 'not really JSON at all',
@@ -308,6 +337,16 @@ interface ExtractionJob {
   errorCode: string | null;
   usage: { promptTokens: number; completionTokens: number } | null;
   confirmedAt: string | null;
+}
+
+async function buildBomXlsx(): Promise<Buffer> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const ExcelJS = require('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('BOM');
+  sheet.addRow(['Description', 'Qty', 'Unit']);
+  sheet.addRow(['Cement 25kg bag', 50, 'bag']);
+  return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
 async function pollUntilSettled(

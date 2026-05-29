@@ -23,6 +23,12 @@ export interface GeminiGenerationConfig {
   maxOutputTokens?: number;
   responseMimeType?: 'text/plain' | 'application/json';
   responseSchema?: Record<string, unknown>;
+  /**
+   * Controls Gemini 2.5 "thinking". A budget of 0 disables thinking entirely
+   * (fastest, best for deterministic schema extraction); -1 lets the model
+   * decide dynamically; a positive value caps the thinking tokens.
+   */
+  thinkingConfig?: { thinkingBudget?: number; includeThoughts?: boolean };
 }
 
 export interface GeminiGenerateOptions {
