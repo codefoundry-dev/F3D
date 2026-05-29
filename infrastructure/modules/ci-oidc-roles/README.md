@@ -2,10 +2,10 @@
 
 Account-wide GitHub Actions OIDC provider + two IAM roles:
 
-| Role                                       | Used by                                    | Permissions                                                                                                       |
-| ------------------------------------------ | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| `forethread-github-actions-terraform-role` | `infrastructure/**` plan + apply workflows | `AdministratorAccess` (v1 — tighten later)                                                                        |
-| `forethread-github-actions-deploy-role`    | Backend image build + deploy workflow      | ECR push to `forethread-*`, SSM SendCommand to `Project=forethread` instances, read on `/forethread/*` SSM params |
+| Role                                       | Used by                                    | Permissions                                                                                                                                                               |
+| ------------------------------------------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `forethread-github-actions-terraform-role` | `infrastructure/**` plan + apply workflows | `AdministratorAccess` (v1 — tighten later)                                                                                                                                |
+| `forethread-github-actions-deploy-role`    | Backend image build + deploy workflow      | ECR push to `forethread-*`, SSM SendCommand to `Project=forethread` instances, DescribeInstanceInformation for the SSM-readiness gate, read on `/forethread/*` SSM params |
 
 Lives in `envs/_global/` because there is one OIDC provider per AWS account and account-wide IAM
 roles outlive any single env.

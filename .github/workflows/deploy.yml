@@ -116,12 +116,21 @@ jobs:
               --instance-ids "$INSTANCE_ID" \
               --query 'Reservations[0].Instances[0].State.Name' \
               --output text 2>/dev/null || echo "missing")
-            PING="Offline"
+            PING="n/a"
             if [ "$STATE" = "running" ]; then
-              PING=$(aws ssm describe-instance-information \
-                --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
-                --query 'InstanceInformationList[0].PingStatus' \
-                --output text 2>/dev/null || echo "Offline")
+              # Capture stderr so an IAM/throttling failure is surfaced rather
+              # than silently coerced into a fake status. Note: a real PingStatus
+              # is only ever Online/ConnectionLost/Inactive; an unregistered agent
+              # yields an empty result, which we report as "None".
+              if PING=$(aws ssm describe-instance-information \
+                  --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
+                  --query 'InstanceInformationList[0].PingStatus' \
+                  --output text 2>/tmp/ssm_err); then
+                [ -z "$PING" ] && PING="None"
+              else
+                echo "::warning::describe-instance-information failed (check deploy role has ssm:DescribeInstanceInformation): $(cat /tmp/ssm_err)"
+                PING="error"
+              fi
             fi
             echo "[$i/$MAX_ATTEMPTS] instance=$INSTANCE_ID state=$STATE ssm=$PING"
             if [ "$STATE" = "running" ] && [ "$PING" = "Online" ]; then
