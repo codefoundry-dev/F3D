@@ -157,12 +157,23 @@ aws ecr get-login-password --region "$REGION" \
   | docker login --username AWS --password-stdin "${ECR_URI%/*}"
 
 ############################################
-# 6. Pull + restart the backend service via docker compose
+# 6. Pull image, apply migrations, (re)start the backend service
 ############################################
 
 cd /opt/forethread-backend
 log "docker compose pull backend..."
 docker compose pull backend
+
+# Apply pending Prisma migrations before the app starts. `migrate deploy` only
+# applies migrations that have not run yet (no schema-from-diff, no data loss)
+# and is a no-op when the DB is already current, so it is safe to run on every
+# deploy. It runs as a one-shot container via the entrypoint's `migrate` command
+# (waits for the DB, then `prisma migrate deploy`); -T disables TTY allocation
+# for the non-interactive SSM context. Without this the backend boots against an
+# unmigrated database and crash-loops (e.g. "table public.permissions does not
+# exist"). `set -e` aborts the deploy if a migration fails.
+log "Applying database migrations (prisma migrate deploy)..."
+docker compose run --rm -T backend migrate
 
 log "docker compose up -d backend..."
 docker compose up -d backend
