@@ -247,6 +247,31 @@ describe('Roles & permissions (e2e — direct JWT)', () => {
         .expect(400);
     });
 
+    it('configures and persists a per-permission threshold (FOR-196)', async () => {
+      const beforeRes = await auth(caToken)('get', '/v1/roles/FOREMAN').expect(200);
+      const before: string[] = beforeRes.body.data.permissionKeys;
+      const granted = Array.from(new Set([...before, 'po.approve']));
+
+      // The dynamic-key thresholds map must pass the forbidNonWhitelisted pipe
+      await auth(caToken)('put', '/v1/roles/FOREMAN/permissions')
+        .send({ permissionKeys: granted, thresholds: { 'po.approve': 25000 } })
+        .expect(200);
+
+      const afterRes = await auth(caToken)('get', '/v1/roles/FOREMAN').expect(200);
+      expect(afterRes.body.data.thresholds['po.approve']).toBe(25000);
+
+      // Restore — dropping po.approve also clears its threshold
+      await auth(caToken)('put', '/v1/roles/FOREMAN/permissions')
+        .send({ permissionKeys: before })
+        .expect(200);
+    });
+
+    it('rejects a threshold on a non-threshold-aware permission with 400', async () => {
+      await auth(caToken)('put', '/v1/roles/FOREMAN/permissions')
+        .send({ permissionKeys: ['rfq.read'], thresholds: { 'rfq.read': 100 } })
+        .expect(400);
+    });
+
     it('forbids a non-admin user (FINANCIAL_OFFICER) from editing role permissions', async () => {
       await auth(foToken)('put', '/v1/roles/VENDOR/permissions')
         .send({ permissionKeys: [] })

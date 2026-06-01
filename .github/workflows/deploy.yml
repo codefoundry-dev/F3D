@@ -22,6 +22,7 @@ on:
 permissions:
   id-token: write # OIDC -> AWS
   contents: read
+  actions: read # deploy job polls the Actions API to wait out any in-flight Terraform Apply
 
 concurrency:
   # Serialize deploys per-environment so two pushes can't race on `docker compose up`.
@@ -90,24 +91,56 @@ jobs:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Resolve EC2 instance ID and wait for SSM readiness
-        id: target
-        # Resilient to concurrent Terraform Apply runs that may be replacing
-        # the EC2 instance. Two symptoms this guards against:
-        #   1. SSM param /forethread/<env>/ec2/backend/instance-id is updated by
-        #      terraform at the END of its apply, so during a replacement it
-        #      briefly holds the OLD instance ID. SendCommand against an
-        #      instance mid-destroy yields InvalidInstanceId.
-        #   2. After apply finishes, the new instance still needs ~30-60s for
-        #      its SSM agent to register. SendCommand during that window also
-        #      fails with InvalidInstanceId.
-        # We re-fetch the SSM param each iteration (so we pick up the new ID
-        # once terraform writes it) and verify EC2 State=running AND SSM
-        # PingStatus=Online before handing off to the SendCommand step. Total
-        # ceiling 30 min covers the worst-case observed staging apply (~26m).
+      - name: Wait for any in-flight Terraform Apply to finish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # Deploy and Terraform Apply both fire on push to main. When a single
+        # push changes both infra and the backend, Terraform may be replacing
+        # the EC2 instance at the very moment we try to deploy onto it. Rather
+        # than absorb that race inside the SSM-readiness loop (which used to idle
+        # a paid runner for ~30 min and was the main cost sink), we explicitly
+        # drain any active Terraform Apply on this branch first. In the common
+        # backend-only push no apply is running, so this returns on the first
+        # poll (~2s). gh is preinstalled on GitHub-hosted runners.
         run: |
           set -euo pipefail
-          MAX_ATTEMPTS=${SSM_READY_MAX_ATTEMPTS:-90}
+          BRANCH="${GITHUB_REF_NAME}"
+          # Safety ceiling: worst-case observed apply is ~26 min. If an apply is
+          # somehow wedged past this, proceed and let the readiness gate decide.
+          DEADLINE=$(( SECONDS + 35 * 60 ))
+          while :; do
+            ACTIVE=$(gh run list \
+              --workflow terraform-apply.yml \
+              --branch "$BRANCH" \
+              --json status \
+              --jq '[.[] | select(.status != "completed")] | length')
+            if [ "${ACTIVE:-0}" -eq 0 ]; then
+              echo "No active Terraform Apply on ${BRANCH} — proceeding to deploy."
+              break
+            fi
+            if [ "$SECONDS" -ge "$DEADLINE" ]; then
+              echo "::warning::Terraform Apply still active after 35 min; proceeding anyway."
+              break
+            fi
+            echo "Terraform Apply in progress on ${BRANCH} (${ACTIVE} active run(s)) — waiting 20s…"
+            sleep 20
+          done
+
+      - name: Resolve EC2 instance ID and wait for SSM readiness
+        id: target
+        # The prior step has already drained any in-flight Terraform Apply, so
+        # the instance is in its final post-apply state and the SSM param holds
+        # the correct (new) instance ID — no need to ride out a replacement here.
+        # This gate now only has to cover the ~30-60s an SSM agent needs to
+        # register after a fresh launch, so the ceiling is a fail-fast 6 min
+        # (was 30 min, which idled a paid runner and burned the Actions budget
+        # whenever a deploy failed). It still re-fetches the param each iteration
+        # and verifies EC2 State=running AND SSM PingStatus=Online before handing
+        # off to SendCommand. Override with SSM_READY_MAX_ATTEMPTS (x20s) for the
+        # rare case of deploying mid-infra-change without the gate above.
+        run: |
+          set -euo pipefail
+          MAX_ATTEMPTS=${SSM_READY_MAX_ATTEMPTS:-18}
           for i in $(seq 1 "$MAX_ATTEMPTS"); do
             INSTANCE_ID=$(aws ssm get-parameter \
               --name "/forethread/${TARGET_ENV}/ec2/backend/instance-id" \

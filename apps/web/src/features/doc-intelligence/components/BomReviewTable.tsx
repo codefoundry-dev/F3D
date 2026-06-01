@@ -3,7 +3,7 @@ import {
   type BomExtractionResult,
   type BomLineItem,
   isBomExtractionResult,
-} from '@forethread/shared-types';
+} from '@forethread/shared-types/client';
 import { Button, Input } from '@forethread/ui-components';
 import { useCallback, useMemo } from 'react';
 
@@ -73,9 +73,7 @@ export function BomReviewTable({ value, readOnly, onChange }: BomReviewTableProp
 
   const onItemChange = useCallback(
     (index: number, patch: Partial<BomLineItem>) => {
-      updateItems((items) =>
-        items.map((item, i) => (i === index ? { ...item, ...patch } : item)),
-      );
+      updateItems((items) => items.map((item, i) => (i === index ? { ...item, ...patch } : item)));
     },
     [updateItems],
   );
@@ -152,9 +150,7 @@ export function BomReviewTable({ value, readOnly, onChange }: BomReviewTableProp
                       aria-label={t('bom.columns.description')}
                       value={item.description}
                       readOnly={readOnly}
-                      onChange={(e) =>
-                        onItemChange(index, { description: e.target.value })
-                      }
+                      onChange={(e) => onItemChange(index, { description: e.target.value })}
                     />
                   </td>
                   <td className="p-1">
@@ -173,9 +169,7 @@ export function BomReviewTable({ value, readOnly, onChange }: BomReviewTableProp
                       aria-label={t('bom.columns.unit')}
                       value={item.unit ?? ''}
                       readOnly={readOnly}
-                      onChange={(e) =>
-                        onItemChange(index, { unit: e.target.value || null })
-                      }
+                      onChange={(e) => onItemChange(index, { unit: e.target.value || null })}
                     />
                   </td>
                   <td className="p-1">
@@ -194,9 +188,7 @@ export function BomReviewTable({ value, readOnly, onChange }: BomReviewTableProp
                       aria-label={t('bom.columns.notes')}
                       value={item.notes ?? ''}
                       readOnly={readOnly}
-                      onChange={(e) =>
-                        onItemChange(index, { notes: e.target.value || null })
-                      }
+                      onChange={(e) => onItemChange(index, { notes: e.target.value || null })}
                     />
                   </td>
                   <td className="p-1 text-right">
@@ -223,12 +215,7 @@ export function BomReviewTable({ value, readOnly, onChange }: BomReviewTableProp
 
       {!readOnly ? (
         <div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onAddRow}
-            data-testid="bom-add-row"
-          >
+          <Button type="button" variant="outline" onClick={onAddRow} data-testid="bom-add-row">
             {t('bom.actions.addRow')}
           </Button>
         </div>

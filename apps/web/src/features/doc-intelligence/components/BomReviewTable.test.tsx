@@ -1,4 +1,4 @@
-import type { BomExtractionResult } from '@forethread/shared-types';
+import type { BomExtractionResult } from '@forethread/shared-types/client';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -25,7 +25,9 @@ describe('BomReviewTable', () => {
         { description: 'Rebar', quantity: 1200, unit: 'm', targetPrice: 2.15, notes: 'grade 60' },
       ],
     };
-    render(<BomReviewTable value={value as unknown as Record<string, unknown>} onChange={vi.fn()} />);
+    render(
+      <BomReviewTable value={value as unknown as Record<string, unknown>} onChange={vi.fn()} />,
+    );
 
     expect(screen.getByTestId('bom-row-0')).toBeInTheDocument();
     expect(screen.getByTestId('bom-row-1')).toBeInTheDocument();
@@ -37,11 +39,11 @@ describe('BomReviewTable', () => {
     const onChange = vi.fn();
     const value: BomExtractionResult = {
       ...emptyBom(),
-      items: [
-        { description: 'Cement', quantity: 50, unit: 'bag', targetPrice: null, notes: null },
-      ],
+      items: [{ description: 'Cement', quantity: 50, unit: 'bag', targetPrice: null, notes: null }],
     };
-    render(<BomReviewTable value={value as unknown as Record<string, unknown>} onChange={onChange} />);
+    render(
+      <BomReviewTable value={value as unknown as Record<string, unknown>} onChange={onChange} />,
+    );
 
     fireEvent.change(screen.getByDisplayValue('Cement'), {
       target: { value: 'Cement 25kg bag' },
@@ -59,7 +61,9 @@ describe('BomReviewTable', () => {
       ...emptyBom(),
       items: [{ description: 'Rebar', quantity: 0, unit: null, targetPrice: null, notes: null }],
     };
-    render(<BomReviewTable value={value as unknown as Record<string, unknown>} onChange={onChange} />);
+    render(
+      <BomReviewTable value={value as unknown as Record<string, unknown>} onChange={onChange} />,
+    );
 
     const qtyInput = screen.getByLabelText(/qty/i);
     fireEvent.change(qtyInput, { target: { value: '1,200' } });
@@ -72,11 +76,11 @@ describe('BomReviewTable', () => {
     const onChange = vi.fn();
     const value: BomExtractionResult = {
       ...emptyBom(),
-      items: [
-        { description: 'Cement', quantity: 50, unit: 'bag', targetPrice: 12.5, notes: null },
-      ],
+      items: [{ description: 'Cement', quantity: 50, unit: 'bag', targetPrice: 12.5, notes: null }],
     };
-    render(<BomReviewTable value={value as unknown as Record<string, unknown>} onChange={onChange} />);
+    render(
+      <BomReviewTable value={value as unknown as Record<string, unknown>} onChange={onChange} />,
+    );
 
     fireEvent.click(screen.getByTestId('bom-add-row'));
 
@@ -100,7 +104,9 @@ describe('BomReviewTable', () => {
         { description: 'Rebar', quantity: 1200, unit: 'm', targetPrice: 2.15, notes: null },
       ],
     };
-    render(<BomReviewTable value={value as unknown as Record<string, unknown>} onChange={onChange} />);
+    render(
+      <BomReviewTable value={value as unknown as Record<string, unknown>} onChange={onChange} />,
+    );
 
     fireEvent.click(screen.getByTestId('bom-remove-row-0'));
 
@@ -112,12 +118,14 @@ describe('BomReviewTable', () => {
   it('disables add / remove controls when readOnly', () => {
     const value: BomExtractionResult = {
       ...emptyBom(),
-      items: [
-        { description: 'Cement', quantity: 50, unit: 'bag', targetPrice: 12.5, notes: null },
-      ],
+      items: [{ description: 'Cement', quantity: 50, unit: 'bag', targetPrice: 12.5, notes: null }],
     };
     render(
-      <BomReviewTable value={value as unknown as Record<string, unknown>} readOnly onChange={vi.fn()} />,
+      <BomReviewTable
+        value={value as unknown as Record<string, unknown>}
+        readOnly
+        onChange={vi.fn()}
+      />,
     );
 
     expect(screen.queryByTestId('bom-add-row')).not.toBeInTheDocument();

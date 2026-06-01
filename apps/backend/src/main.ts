@@ -1,3 +1,5 @@
+import { setDefaultResultOrder } from 'node:dns';
+
 import { ClassSerializerInterceptor, Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
@@ -6,6 +8,14 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 
 import { AppModule } from './app.module';
+
+// Node 18+ defaults DNS resolution to "verbatim" order, which often returns the
+// IPv6 (AAAA) address first. On hosts with broken IPv6, outbound HTTPS (e.g. the
+// Gemini API) stalls until the dead IPv6 connection attempt times out — which
+// surfaces as request timeouts. Prefer IPv4 unless explicitly overridden.
+setDefaultResultOrder(
+  (process.env.DNS_RESULT_ORDER as 'ipv4first' | 'verbatim' | undefined) ?? 'ipv4first',
+);
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {

@@ -3,6 +3,10 @@
 // Enums
 export * from './enums/index';
 
+// Dependency-free DTO types & guards (bom.dto has no @nestjs/swagger decorators,
+// so it is safe to ship to the browser — unlike the rest of ./dtos/*).
+export * from './dtos/bom.dto';
+
 // Validation utils
 export * from './validation';
 

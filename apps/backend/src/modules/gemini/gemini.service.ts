@@ -5,12 +5,17 @@ import {
   GeminiError,
   type GeminiGenerateOptions,
   type GeminiGenerateResult,
+  type GeminiGenerationConfig,
   type GeminiPart,
   type GeminiUsageMetadata,
 } from './gemini.types';
 
 const DEFAULT_MODEL = 'gemini-2.5-flash';
-const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 60_000;
+// Gemini 2.5 models enable "thinking" by default, which adds latency that
+// pushes multimodal extraction past the timeout. 0 disables it (best for
+// deterministic schema extraction); -1 restores dynamic thinking.
+const DEFAULT_THINKING_BUDGET = 0;
 const DEFAULT_MAX_RETRIES = 2;
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
@@ -31,12 +36,18 @@ export class GeminiService {
   private readonly apiKey: string;
   private readonly defaultModel: string;
   private readonly timeoutMs: number;
+  private readonly thinkingBudget: number;
 
   constructor(private readonly config: ConfigService) {
     this.apiKey = this.config.get<string>('GEMINI_API_KEY', '');
     this.defaultModel = this.config.get<string>('GEMINI_MODEL', DEFAULT_MODEL);
-    this.timeoutMs = Number(
+    this.timeoutMs = toFiniteNumber(
       this.config.get<string>('GEMINI_TIMEOUT_MS', String(DEFAULT_TIMEOUT_MS)),
+      DEFAULT_TIMEOUT_MS,
+    );
+    this.thinkingBudget = toFiniteNumber(
+      this.config.get<string>('GEMINI_THINKING_BUDGET', String(DEFAULT_THINKING_BUDGET)),
+      DEFAULT_THINKING_BUDGET,
     );
   }
 
@@ -57,14 +68,27 @@ export class GeminiService {
       })),
     ];
 
+    const generationConfig = this.resolveGenerationConfig(options.generationConfig);
     const body = {
       contents: [{ role: 'user', parts }],
-      ...(options.generationConfig ? { generationConfig: options.generationConfig } : {}),
+      ...(generationConfig ? { generationConfig } : {}),
     };
 
     const url = `${BASE_URL}/models/${encodeURIComponent(model)}:generateContent`;
     const response = await this.callWithRetry(url, body, options.signal);
     return this.parseResponse(response, model);
+  }
+
+  /**
+   * Fold the configured thinking budget into the caller's generationConfig.
+   * A negative budget means "let the model decide" (Gemini's dynamic default),
+   * so we leave thinkingConfig unset and pass the caller's config through as-is.
+   */
+  private resolveGenerationConfig(
+    caller: GeminiGenerationConfig | undefined,
+  ): GeminiGenerationConfig | undefined {
+    if (this.thinkingBudget < 0) return caller;
+    return { ...caller, thinkingConfig: { thinkingBudget: this.thinkingBudget } };
   }
 
   private async callWithRetry(
@@ -184,4 +208,10 @@ export class GeminiService {
     }
     return { text, model, usage: payload.usageMetadata };
   }
+}
+
+/** Parse an env-sourced numeric string, falling back when it isn't a finite number. */
+function toFiniteNumber(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }

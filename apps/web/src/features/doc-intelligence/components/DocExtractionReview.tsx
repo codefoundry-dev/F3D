@@ -1,6 +1,6 @@
 import type { DocExtractionResponse } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import type { BomExtractionResult } from '@forethread/shared-types';
+import type { BomExtractionResult } from '@forethread/shared-types/client';
 import { Button } from '@forethread/ui-components';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 

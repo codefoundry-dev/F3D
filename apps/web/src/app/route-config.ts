@@ -25,6 +25,7 @@ export const ROUTES = {
   // ── RFQs ───────────────────────────────────────────────────────────
   rfqs: '/rfqs',
   rfqNew: '/rfqs/new',
+  rfqFromBom: '/rfqs/from-bom',
   rfqDetail: '/rfqs/:id',
   rfqResponse: '/rfqs/:id/response',
   quoteResponseDetail: '/rfqs/:id/quotes/:quoteId',

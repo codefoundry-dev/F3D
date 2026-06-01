@@ -30,6 +30,7 @@ const RfqListRoleSwitch = lazy(() => import('@/features/rfqs/RfqListRoleSwitch')
 const RfqDetailRoleSwitch = lazy(() => import('@/features/rfqs/RfqDetailRoleSwitch'));
 const MaterialDetailRoleSwitch = lazy(() => import('@/features/rfqs/MaterialDetailRoleSwitch'));
 const CreateRfqPage = lazy(() => import('@/features/rfqs/buyer/pages/CreateRfqPage'));
+const BomConversionPage = lazy(() => import('@/features/rfqs/buyer/pages/BomConversionPage'));
 const QuoteResponseDetailPage = lazy(
   () => import('@/features/rfqs/buyer/pages/QuoteResponseDetailPage'),
 );
@@ -181,7 +182,13 @@ export const routes: RouteObject[] = [
                 children: [
                   {
                     element: <PermissionRoute require={['rfq.create']} />,
-                    children: [{ path: ROUTES.rfqNew, element: withSuspense(<CreateRfqPage />) }],
+                    children: [
+                      { path: ROUTES.rfqNew, element: withSuspense(<CreateRfqPage />) },
+                      {
+                        path: ROUTES.rfqFromBom,
+                        element: withSuspense(<BomConversionPage />),
+                      },
+                    ],
                   },
                   {
                     path: ROUTES.quoteResponseDetail,
