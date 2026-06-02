@@ -147,6 +147,7 @@ model QuoteResponse {
   bulkShipment      Decimal?  @map("bulk_shipment") @db.Decimal(18, 4)
   warehouseLocationId String? @map("warehouse_location_id")
   validityPeriod    DateTime? @map("validity_period")
+  paymentTerms      String?   @map("payment_terms")
   message           String?
 
   rfq              Rfq                   @relation(fields: [rfqId], references: [id], onDelete: Cascade)

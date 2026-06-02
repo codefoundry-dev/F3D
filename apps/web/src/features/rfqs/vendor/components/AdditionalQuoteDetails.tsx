@@ -16,6 +16,9 @@ export interface AdditionalQuoteDetailsProps {
   onRemoveAttachment: (id: string) => void;
   uploadError: string | null;
   isUploading: boolean;
+  /** When provided, a quote-level payment terms input is rendered. */
+  paymentTerms?: string;
+  onPaymentTermsChange?: (v: string) => void;
 }
 
 export function AdditionalQuoteDetails({
@@ -28,6 +31,8 @@ export function AdditionalQuoteDetails({
   onRemoveAttachment,
   uploadError,
   isUploading,
+  paymentTerms,
+  onPaymentTermsChange,
 }: AdditionalQuoteDetailsProps) {
   const { t } = useTranslation('rfqs');
 
@@ -78,6 +83,22 @@ export function AdditionalQuoteDetails({
           />
         </div>
       </div>
+
+      {/* Optional: quote-level payment terms (guest portal) */}
+      {onPaymentTermsChange && (
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-foreground mb-1.5">
+            {t('guest.paymentTerms')}{' '}
+            <span className="text-muted-foreground font-normal">{t('response.optional')}</span>
+          </label>
+          <Input
+            value={paymentTerms ?? ''}
+            onChange={(e) => onPaymentTermsChange(e.target.value)}
+            placeholder={t('guest.paymentTermsPlaceholder')}
+            className="h-10"
+          />
+        </div>
+      )}
 
       {/* Row 2: Attachments */}
       <div className="mt-4 rounded-xl border border-border bg-card p-4">

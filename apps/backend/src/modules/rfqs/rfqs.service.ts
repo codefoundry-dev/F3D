@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'crypto';
+import { randomUUID } from 'crypto';
 import * as path from 'path';
 
 import {
@@ -18,12 +18,21 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { CompanyType, Prisma, QuoteResponseStatus, RfqStatus, UserRole } from '@prisma/client';
+import {
+  AccessTokenPurpose,
+  AccessTokenSubject,
+  CompanyType,
+  Prisma,
+  QuoteResponseStatus,
+  RfqStatus,
+  UserRole,
+} from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { nextSequentialNumber } from '../../common/utils/sequential-number.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { EmailAttachment, EmailService } from '../notifications/email.service';
 import { StorageService } from '../storage/storage.service';
 
@@ -93,6 +102,7 @@ export class RfqsService {
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
     private readonly emailService: EmailService,
+    private readonly accessTokens: AccessTokensService,
     config: ConfigService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
@@ -1090,6 +1100,7 @@ export class RfqsService {
       select: {
         rfqNumber: true,
         ccEmails: true,
+        needByDate: true,
         documents: {
           select: {
             file: { select: { key: true, filename: true, mimeType: true } },
@@ -1121,13 +1132,21 @@ export class RfqsService {
     const attachments = await this.buildRfqAttachments(rfq.documents);
     const cc = rfq.ccEmails ?? [];
 
-    // Generate short invitation codes for each vendor and send emails
-    for (const iv of rfq.invitedVendors) {
-      const token = await this.generateShortCode();
+    const ttlMs = this.invitationTokenTtlMs(rfq.needByDate);
 
-      await this.prisma.rfqVendor.update({
-        where: { id: iv.id },
-        data: { invitationToken: token },
+    // Issue a single-use access token (A15) per vendor and send emails. The
+    // token is presented in the guest invitation link and burned on submit.
+    for (const iv of rfq.invitedVendors) {
+      const { token } = await this.accessTokens.issueToken({
+        subjectType: AccessTokenSubject.RFQ,
+        subjectId: rfqId,
+        purpose: AccessTokenPurpose.QUOTE_SUBMIT,
+        ttlMs,
+        // Generous attempt budget: the GET landing page validates (and bumps
+        // attempts) on every load, so a vendor reviewing the RFQ before
+        // submitting must not get locked out.
+        maxAttempts: 50,
+        metadata: { rfqVendorId: iv.id, vendorId: iv.vendor.id },
       });
 
       // Build reply URL: if vendor has active users → link to vendor app,
@@ -1243,18 +1262,17 @@ export class RfqsService {
     }
   }
 
-  private async generateShortCode(): Promise<string> {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-    const bytes = randomBytes(10);
-    const code = Array.from(bytes)
-      .map((byte) => chars[byte % chars.length])
-      .join('');
-
-    const existing = await this.prisma.rfqVendor.findUnique({
-      where: { invitationToken: code },
-    });
-    if (existing) return this.generateShortCode();
-    return code;
+  /**
+   * Lifetime for a vendor invitation token. Defaults to 30 days, but extends to
+   * cover the RFQ need-by date (plus a 7-day grace) when that is further out, so
+   * the link never expires before the vendor is expected to respond.
+   */
+  private invitationTokenTtlMs(needByDate: Date | null): number {
+    const DEFAULT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+    const GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+    if (!needByDate) return DEFAULT_TTL_MS;
+    const untilNeedBy = needByDate.getTime() - Date.now() + GRACE_MS;
+    return Math.max(DEFAULT_TTL_MS, untilNeedBy);
   }
 
   // ── Access validation ───────────────────────────────────────────────────

@@ -1,4 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
+import { UserRole, UserStatus } from '@prisma/client';
+import request from 'supertest';
 
 import type { PrismaService } from '../../src/prisma/prisma.service';
 
@@ -12,14 +14,14 @@ import {
   SEED_USERS,
   teardownTestApp,
 } from './test-helpers';
-import request from 'supertest';
 
 /**
  * FOR-203 — RFQ multi-vendor tokenized send.
  *
  * Proves the send action end-to-end through the HTTP layer:
  *   • CC recipients are normalised and persisted on the RFQ.
- *   • Each invited vendor gets its OWN unique invitation token.
+ *   • Each invited vendor gets its OWN A15 invitation token (delivered in the
+ *     email link, never stored in plaintext).
  *   • The Public guest endpoint resolves a token to ONLY that vendor's RFQ
  *     view — vendor A's token never reveals vendor B's identity.
  */
@@ -30,7 +32,8 @@ describe('RFQ tokenized send (e2e)', () => {
 
   let admin: AuthTokens;
 
-  const createdVendorIds: string[] = [];
+  const vendors: { id: string; email: string }[] = [];
+  const createdUserIds: string[] = [];
   let rfqId: string;
 
   beforeAll(async () => {
@@ -43,37 +46,44 @@ describe('RFQ tokenized send (e2e)', () => {
   });
 
   afterAll(async () => {
-    // Clean up the RFQ + vendors this spec created.
     if (rfqId) {
+      await prisma.accessToken.deleteMany({ where: { subjectId: rfqId } });
       await prisma.rfqVendor.deleteMany({ where: { rfqId } });
       await prisma.rfqLineItem.deleteMany({ where: { rfqId } });
       await prisma.rfq.delete({ where: { id: rfqId } }).catch(() => undefined);
     }
-    for (const vendorId of createdVendorIds) {
-      await prisma.companyVendorAssignment.deleteMany({ where: { vendorId } });
-      await prisma.company.delete({ where: { id: vendorId } }).catch(() => undefined);
+    for (const userId of createdUserIds) {
+      await prisma.user.delete({ where: { id: userId } }).catch(() => undefined);
+    }
+    for (const vendor of vendors) {
+      await prisma.companyVendorAssignment.deleteMany({ where: { vendorId: vendor.id } });
+      await prisma.company.delete({ where: { id: vendor.id } }).catch(() => undefined);
     }
     await teardownTestApp();
   });
 
-  /** Poll the DB until every invited vendor of the RFQ has an invitation token. */
-  async function waitForTokens(id: string, expected: number): Promise<string[]> {
+  /**
+   * Token generation + email send is fire-and-forget. Poll the mock mailbox
+   * until every invited vendor has received an `/invitation/<token>` link, then
+   * return an email → token map.
+   */
+  async function waitForInvitationLinks(emails: string[]): Promise<Map<string, string>> {
     for (let attempt = 0; attempt < 40; attempt++) {
-      const rows = await prisma.rfqVendor.findMany({
-        where: { rfqId: id },
-        select: { invitationToken: true },
-      });
-      const tokens = rows.map((r) => r.invitationToken).filter((t): t is string => !!t);
-      if (tokens.length >= expected) return tokens;
+      const map = new Map<string, string>();
+      for (const sent of emailService.sentEmails) {
+        if (sent.url?.includes('/invitation/')) {
+          map.set(sent.to, sent.url.split('/invitation/')[1]);
+        }
+      }
+      if (emails.every((email) => map.has(email))) return map;
       await new Promise((r) => setTimeout(r, 100));
     }
-    throw new Error(`Timed out waiting for ${expected} invitation tokens on RFQ ${id}`);
+    throw new Error(`Timed out waiting for invitation links for ${emails.join(', ')}`);
   }
 
   it('sends an RFQ to 3 vendors → 3 distinct tokens → each vendor sees only their own RFQ', async () => {
     emailService.clear();
 
-    // A TestCo project with a delivery location + a material to quote.
     const contractor = await prisma.company.findFirst({
       where: { abn: 'TEST-CONTRACTOR-001' },
       select: { id: true },
@@ -96,21 +106,30 @@ describe('RFQ tokenized send (e2e)', () => {
     const material = await prisma.material.findFirst({ select: { id: true } });
     expect(material).not.toBeNull();
 
-    // Create 3 invitation-only vendors (no users → guest token flow), each
-    // assigned to TestCo via the create-company endpoint.
+    // Create 3 invitation-only vendors, each with a single non-active (INVITED)
+    // user → the send path emails them a guest `/invitation/<token>` link.
     const stamp = Date.now();
     for (let i = 0; i < 3; i++) {
+      const email = `vendor-${i}-${stamp}@for203.local`;
       const res = await authRequest('post', '/v1/companies', admin.accessToken)
-        .send({
-          type: 'VENDOR',
-          legalName: `Tokenized Vendor ${i}-${stamp}`,
-          contactEmail: `vendor-${i}-${stamp}@for203.local`,
-        })
+        .send({ type: 'VENDOR', legalName: `Tokenized Vendor ${i}-${stamp}`, contactEmail: email })
         .expect(201);
-      createdVendorIds.push(res.body.data.id);
+      const id = res.body.data.id;
+      vendors.push({ id, email });
+
+      const user = await prisma.user.create({
+        data: {
+          email,
+          name: `Vendor Contact ${i}`,
+          role: UserRole.VENDOR,
+          status: UserStatus.INVITED,
+          companyId: id,
+        },
+        select: { id: true },
+      });
+      createdUserIds.push(user.id);
     }
-    // Sanity: three DISTINCT vendor companies.
-    expect(new Set(createdVendorIds).size).toBe(3);
+    expect(new Set(vendors.map((v) => v.id)).size).toBe(3);
 
     // Create the RFQ as a draft.
     const createRes = await authRequest('post', '/v1/rfqs', admin.accessToken)
@@ -118,7 +137,7 @@ describe('RFQ tokenized send (e2e)', () => {
         projectId: project!.id,
         deliveryLocationId,
         deadlineEnd: '2026-12-01',
-        vendorIds: createdVendorIds,
+        vendorIds: vendors.map((v) => v.id),
         lineItems: [{ materialId: material!.id, quantity: 7, uom: 'pcs', costCode: 'CC-203' }],
       })
       .expect(201);
@@ -138,30 +157,23 @@ describe('RFQ tokenized send (e2e)', () => {
     expect(persisted!.status).toBe('OPEN');
     expect(persisted!.ccEmails).toEqual(['buyer@acme.com', 'pm@acme.com']);
 
-    // Token generation + notification is fire-and-forget → poll until ready.
-    const tokens = await waitForTokens(rfqId, 3);
-
-    // Exactly one unique token per vendor.
+    // Each vendor receives its own invitation link.
+    const linkByEmail = await waitForInvitationLinks(vendors.map((v) => v.email));
+    const tokens = vendors.map((v) => linkByEmail.get(v.email)!);
     expect(tokens).toHaveLength(3);
     expect(new Set(tokens).size).toBe(3);
 
     // Each vendor's token resolves ONLY to that vendor's RFQ view.
-    const vendorRows = await prisma.rfqVendor.findMany({
-      where: { rfqId },
-      select: { vendorId: true, invitationToken: true },
-    });
-
     const server = getHttpServer();
-    for (const row of vendorRows) {
-      const guest = await request(server)
-        .get(`/v1/rfqs/invitation/${row.invitationToken}`)
-        .expect(200);
+    for (const vendor of vendors) {
+      const token = linkByEmail.get(vendor.email)!;
+      const guest = await request(server).get(`/v1/rfqs/invitation/${token}`).expect(200);
       expect(guest.body.data.id).toBe(rfqId);
       // Isolation: the token reveals its OWN vendor, never a sibling vendor.
-      expect(guest.body.data.vendorId).toBe(row.vendorId);
+      expect(guest.body.data.vendorId).toBe(vendor.id);
     }
 
-    // A bogus token is rejected (no cross-vendor leakage).
-    await request(server).get('/v1/rfqs/invitation/not-a-real-token').expect(404);
+    // A bogus token is rejected (403 from the access-token guard, no leakage).
+    await request(server).get('/v1/rfqs/invitation/not-a-real-token').expect(403);
   });
 });

@@ -11,6 +11,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -98,6 +99,11 @@ export class SubmitQuoteDto {
   @IsOptional()
   @IsDateString()
   validityPeriod?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  paymentTerms?: string;
 
   @IsOptional()
   @IsString()

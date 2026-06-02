@@ -383,6 +383,7 @@ export interface SubmitQuoteInput {
   bulkShipment?: number;
   warehouseLocationId?: string;
   validityPeriod?: string;
+  paymentTerms?: string;
   message?: string;
   attachmentIds?: string[];
 }
@@ -484,6 +485,13 @@ export interface GuestRfqDetail {
     quantity: number;
     description: string | null;
     costCode: string | null;
+  }>;
+  attachments: Array<{
+    id: string;
+    filename: string;
+    mimeType: string;
+    size: number;
+    url: string;
   }>;
   vendorName: string;
   vendorId: string;

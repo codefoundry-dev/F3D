@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
 import * as multer from 'multer';
 
+import { AccessTokensModule } from '../access-tokens/access-tokens.module';
 import { AuditModule } from '../audit/audit.module';
 import { ExportModule } from '../export/export.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -18,6 +19,7 @@ import { RfqsService } from './rfqs.service';
     StorageModule,
     AuditModule,
     NotificationsModule,
+    AccessTokensModule,
     MulterModule.register({ storage: multer.memoryStorage() }),
   ],
   controllers: [RfqsController],
