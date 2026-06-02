@@ -125,8 +125,11 @@ S3_FORCE_PATH_STYLE=false
 # Observability
 SENTRY_DSN=${SENTRY_DSN}
 
-# CORS - relaxed for first boot; tighten when frontend URL is known
-CORS_ORIGINS=*
+# CORS - the deployed Vercel frontend origin. The web api-client sends cookies
+# (withCredentials: true), so this MUST be the exact origin — a browser rejects
+# "*" with credentialed requests, and NestJS treats ["*"] as a literal (matches
+# nothing). Comma-separate to allow more origins (e.g. preview deploys).
+CORS_ORIGINS=https://forethread-main.vercel.app
 
 # Rate limiting
 THROTTLE_TTL_MS=60000
@@ -139,9 +142,11 @@ GEMINI_MODEL=gemini-2.5-flash
 GEMINI_TIMEOUT_MS=60000
 GEMINI_THINKING_BUDGET=0
 
-# App URLs - placeholder until DNS is pointed
-APP_URL=http://localhost:3000
-WEB_APP_URL=http://localhost:5179
+# App URLs. APP_URL is the backend's own public base (behind Caddy at the
+# api-stage domain); WEB_APP_URL is the deployed frontend, used to build links
+# in outbound emails and the vendor tokenized-portal flow.
+APP_URL=https://api-stage.forethread.com
+WEB_APP_URL=https://forethread-main.vercel.app
 EOF
 
 chmod 0640 /etc/forethread/backend.env.tmp
