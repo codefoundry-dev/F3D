@@ -17,6 +17,8 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
 }));
 
+const mockUseConfirmedBoms = vi.hoisted(() => vi.fn());
+
 vi.mock('../services/rfqs.service', () => ({
   useSaveRfqDraft: () => mockSaveDraft,
   useUpdateRfq: () => mockUpdateDraft,
@@ -24,6 +26,10 @@ vi.mock('../services/rfqs.service', () => ({
   useRfqMaterials: mockUseRfqMaterials,
   useAssignedVendors: mockUseAssignedVendors,
   useProjectDeliveryLocations: mockUseProjectDeliveryLocations,
+}));
+
+vi.mock('@/features/doc-intelligence', () => ({
+  useConfirmedBoms: mockUseConfirmedBoms,
 }));
 
 // Simple deterministic stand-ins for design-system components. The page's real
@@ -63,6 +69,22 @@ vi.mock('@forethread/ui-components', () => ({
       onChange={(e: any) => props.onChange?.(e.target.value)}
     />
   ),
+  RadioGroup: (props: any) => (
+    <div role="radiogroup">
+      {props.options.map((o: any) => (
+        <label key={o.value}>
+          <input
+            type="radio"
+            name={props.name}
+            checked={props.value === o.value}
+            onChange={() => props.onChange?.(o.value)}
+          />
+          {o.label}
+        </label>
+      ))}
+    </div>
+  ),
+  Badge: (props: any) => <span>{props.children}</span>,
   FormField: ({ children, label, error }: any) => (
     <div>
       <label>{label}</label>
@@ -113,6 +135,7 @@ function setupData() {
     ],
     isLoading: false,
   });
+  mockUseConfirmedBoms.mockReturnValue({ data: { items: [], meta: {} } });
 }
 
 function selectProject() {
@@ -200,6 +223,7 @@ describe('CreateRfqPage', () => {
     expect(firstUpdate.id).toBe('draft-1');
     expect(firstUpdate.dto.lineItems).toEqual([
       {
+        source: 'CATALOG',
         materialId: MATERIAL_ID,
         quantity: 50,
         uom: 'bag',

@@ -3,6 +3,7 @@ import * as path from 'path';
 
 import {
   CreateRfqDto,
+  CreateRfqLineItemDto,
   RfqListQueryDto,
   SaveRfqDraftDto,
   SendRfqDto,
@@ -27,6 +28,12 @@ import { EmailAttachment, EmailService } from '../notifications/email.service';
 import { StorageService } from '../storage/storage.service';
 
 import { normalizeCcEmails } from './rfq-cc.util';
+import {
+  catalogMaterialIds,
+  isValidRfqLineItemInput,
+  normalizeRfqLineItem,
+  resolveRfqLineItemMaterialName,
+} from './rfq-line-item.util';
 import { VENDOR_STATUS_MAP, VENDOR_STATUS_TO_RFQ } from './vendor-status.constants';
 
 /** Prisma includes shared by list & detail queries */
@@ -246,7 +253,9 @@ export class RfqsService {
         id: li.id,
         projectName: rfq.project.name,
         materialId: li.materialId,
-        materialName: (li as unknown as { material: { name: string } }).material.name,
+        materialName: resolveRfqLineItemMaterialName(
+          li as unknown as { material: { name: string } | null; materialName: string | null },
+        ),
         description: li.description,
         quantity: li.quantity,
         unit: li.unit,
@@ -357,7 +366,8 @@ export class RfqsService {
         totalRequestedQty: source.totalRequestedQty,
         lineItems: {
           create: source.lineItems.map((li) => ({
-            materialId: (li as Record<string, unknown>).materialId as string | undefined,
+            materialId: (li as Record<string, unknown>).materialId as string | null,
+            materialName: (li as Record<string, unknown>).materialName as string | null,
             quantity: li.quantity,
             unit: li.unit,
             description: li.description,
@@ -394,6 +404,27 @@ export class RfqsService {
     return { success: true };
   }
 
+  /**
+   * Validate a set of line items regardless of source (FOR-204): each must carry
+   * a catalog material or a free-text name, and every referenced catalog
+   * material id must exist. BOM-sourced lines (name only) skip the id check.
+   */
+  private async assertLineItemsValid(lineItems: CreateRfqLineItemDto[]) {
+    if (lineItems.some((li) => !isValidRfqLineItemInput(li))) {
+      throw new BadRequestException(ERR.rfqs.invalidLineItem);
+    }
+    const materialIds = catalogMaterialIds(lineItems);
+    if (materialIds.length === 0) return;
+    const uniqueIds = [...new Set(materialIds)];
+    const materials = await this.prisma.material.findMany({
+      where: { id: { in: uniqueIds } },
+      select: { id: true },
+    });
+    if (materials.length !== uniqueIds.length) {
+      throw new BadRequestException(ERR.rfqs.invalidMaterialIds);
+    }
+  }
+
   // ── Create RFQ ────────────────────────────────────────────────────────────
 
   async createRfq(dto: CreateRfqDto, user: AuthenticatedUser) {
@@ -413,15 +444,8 @@ export class RfqsService {
       throw new BadRequestException(ERR.rfqs.invalidDeliveryLocation);
     }
 
-    // Validate all materialIds exist
-    const materialIds = dto.lineItems.map((li) => li.materialId);
-    const materials = await this.prisma.material.findMany({
-      where: { id: { in: materialIds } },
-      select: { id: true },
-    });
-    if (materials.length !== materialIds.length) {
-      throw new BadRequestException(ERR.rfqs.invalidMaterialIds);
-    }
+    // Validate line items (catalog or BOM source) and their catalog material ids
+    await this.assertLineItemsValid(dto.lineItems);
 
     // Validate all vendorIds exist, are vendor-type companies, and are assigned to this contractor.
     // Why: enforces the M:N relationship — a contractor can only invite vendors on their list,
@@ -455,14 +479,7 @@ export class RfqsService {
           message: dto.message,
           totalRequestedQty,
           lineItems: {
-            create: dto.lineItems.map((li) => ({
-              materialId: li.materialId,
-              quantity: li.quantity,
-              unit: li.uom,
-              costCode: li.costCode,
-              description: li.notes,
-              pickUp: li.pickUp ?? false,
-            })),
+            create: dto.lineItems.map((li) => normalizeRfqLineItem(li)),
           },
           invitedVendors: {
             create: dto.vendorIds.map((vendorId) => ({ vendorId })),
@@ -514,16 +531,9 @@ export class RfqsService {
       }
     }
 
-    // Validate materialIds (when line items provided)
+    // Validate line items (catalog or BOM source) when provided
     if (dto.lineItems && dto.lineItems.length > 0) {
-      const materialIds = dto.lineItems.map((li) => li.materialId);
-      const materials = await this.prisma.material.findMany({
-        where: { id: { in: materialIds } },
-        select: { id: true },
-      });
-      if (materials.length !== new Set(materialIds).size) {
-        throw new BadRequestException(ERR.rfqs.invalidMaterialIds);
-      }
+      await this.assertLineItemsValid(dto.lineItems);
     }
 
     // Validate vendor assignment scope (when vendors provided)
@@ -560,14 +570,7 @@ export class RfqsService {
           ...(dto.lineItems && dto.lineItems.length > 0
             ? {
                 lineItems: {
-                  create: dto.lineItems.map((li) => ({
-                    materialId: li.materialId,
-                    quantity: li.quantity,
-                    unit: li.uom,
-                    costCode: li.costCode,
-                    description: li.notes,
-                    pickUp: li.pickUp ?? false,
-                  })),
+                  create: dto.lineItems.map((li) => normalizeRfqLineItem(li)),
                 },
               }
             : {}),
@@ -635,16 +638,9 @@ export class RfqsService {
       }
     }
 
-    // Validate materialIds if lineItems provided
+    // Validate line items (catalog or BOM source) if provided
     if (dto.lineItems) {
-      const materialIds = dto.lineItems.map((li) => li.materialId);
-      const materials = await this.prisma.material.findMany({
-        where: { id: { in: materialIds } },
-        select: { id: true },
-      });
-      if (materials.length !== materialIds.length) {
-        throw new BadRequestException(ERR.rfqs.invalidMaterialIds);
-      }
+      await this.assertLineItemsValid(dto.lineItems);
     }
 
     // Validate vendorIds if provided — same M:N scope check as createRfq.
@@ -692,15 +688,7 @@ export class RfqsService {
       txOps.push(this.prisma.rfqLineItem.deleteMany({ where: { rfqId: id } }));
       txOps.push(
         this.prisma.rfqLineItem.createMany({
-          data: dto.lineItems.map((li) => ({
-            rfqId: id,
-            materialId: li.materialId,
-            quantity: li.quantity,
-            unit: li.uom,
-            costCode: li.costCode,
-            description: li.notes,
-            pickUp: li.pickUp ?? false,
-          })),
+          data: dto.lineItems.map((li) => ({ rfqId: id, ...normalizeRfqLineItem(li) })),
         }),
       );
     }
@@ -874,7 +862,9 @@ export class RfqsService {
     return {
       id: updated.id,
       materialId: updated.materialId,
-      materialName: (updated as unknown as { material: { name: string } }).material.name,
+      materialName: resolveRfqLineItemMaterialName(
+        updated as unknown as { material: { name: string } | null; materialName: string | null },
+      ),
       description: updated.description,
       quantity: updated.quantity,
       unit: updated.unit,

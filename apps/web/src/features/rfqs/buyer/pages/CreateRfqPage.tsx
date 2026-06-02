@@ -1,5 +1,6 @@
 import type { SaveRfqDraftValues } from '@forethread/shared-types/client';
 import {
+  RfqLineItemSource,
   rfqStepProjectSchema,
   rfqStepMaterialsSchema,
   rfqStepVendorsSchema,
@@ -10,6 +11,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { useConfirmedBoms } from '@/features/doc-intelligence';
 
 import { StepDelivery, type DeliveryStepValues } from '../components/create/StepDelivery';
 import { StepIndicator } from '../components/create/StepIndicator';
@@ -41,14 +43,27 @@ function buildPayload(
   const payload: SaveRfqDraftValues = { projectId };
 
   if (upToStep >= 1 && lineItems.length > 0) {
-    payload.lineItems = lineItems.map((item) => ({
-      materialId: item.materialId,
-      quantity: item.quantity,
-      uom: item.uom,
-      costCode: item.costCode,
-      notes: item.notes,
-      pickUp: item.pickUp,
-    }));
+    payload.lineItems = lineItems.map((item) =>
+      item.source === 'BOM'
+        ? {
+            source: RfqLineItemSource.BOM,
+            materialName: item.materialName,
+            quantity: item.quantity,
+            uom: item.uom,
+            costCode: item.costCode,
+            notes: item.notes,
+            pickUp: item.pickUp,
+          }
+        : {
+            source: RfqLineItemSource.CATALOG,
+            materialId: item.materialId,
+            quantity: item.quantity,
+            uom: item.uom,
+            costCode: item.costCode,
+            notes: item.notes,
+            pickUp: item.pickUp,
+          },
+    );
   }
   if (upToStep >= 2 && vendorIds.length > 0) {
     payload.vendorIds = vendorIds;
@@ -92,6 +107,8 @@ export default function CreateRfqPage() {
   const { data: vendors = [], isLoading: vendorsLoading } = useAssignedVendors();
   const { data: locations = [], isLoading: locationsLoading } =
     useProjectDeliveryLocations(projectId);
+  const { data: confirmedBomsPage } = useConfirmedBoms();
+  const confirmedBoms = confirmedBomsPage?.items ?? [];
 
   // ── Mutations (save-as-you-go) ─────────────────────────────────────────────
   const saveDraft = useSaveRfqDraft();
@@ -222,6 +239,7 @@ export default function CreateRfqPage() {
             lineItems={lineItems}
             onAdd={(item) => setLineItems((prev) => [...prev, item])}
             onRemove={(index) => setLineItems((prev) => prev.filter((_, i) => i !== index))}
+            confirmedBoms={confirmedBoms}
             error={errors.lineItems}
           />
         )}

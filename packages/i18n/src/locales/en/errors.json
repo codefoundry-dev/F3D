@@ -78,6 +78,7 @@
     "projectNotFound": "Project not found",
     "invalidDeliveryLocation": "Delivery location does not belong to the selected project",
     "invalidMaterialIds": "Some material IDs are invalid",
+    "invalidLineItem": "Each line item needs a catalog material or a material name",
     "invalidVendorIds": "Some vendor IDs are invalid or do not belong to vendor-type companies",
     "holdForReleaseRequiresEarliestDelivery": "Hold-for-release RFQs require an earliest delivery date",
     "cannotEditStatus": "Cannot edit RFQ with status \"{{status}}\". Only DRAFT or OPEN (with no submitted responses) RFQs can be edited.",

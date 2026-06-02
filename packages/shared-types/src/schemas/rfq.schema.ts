@@ -18,14 +18,27 @@ export const rfqListQuerySchema = z.object({
 
 export type RfqListQueryValues = z.infer<typeof rfqListQuerySchema>;
 
-export const createRfqLineItemSchema = z.object({
-  materialId: z.string().uuid(),
-  quantity: z.number().min(0.01),
-  uom: z.string().min(1),
-  costCode: z.string().optional(),
-  notes: z.string().optional(),
-  pickUp: z.boolean().optional(),
-});
+/**
+ * A single RFQ line item, normalized across its two sources (FOR-204):
+ *  - catalog: `materialId` references an approved Material.
+ *  - BOM: `materialName` carries the parsed name, no catalog material yet.
+ * Either a `materialId` or a non-empty `materialName` must be present.
+ */
+export const createRfqLineItemSchema = z
+  .object({
+    source: z.enum(['CATALOG', 'BOM']).optional(),
+    materialId: z.string().uuid().optional(),
+    materialName: z.string().trim().min(1).max(255).optional(),
+    quantity: z.number().min(0.01),
+    uom: z.string().min(1),
+    costCode: z.string().optional(),
+    notes: z.string().optional(),
+    pickUp: z.boolean().optional(),
+  })
+  .refine((li) => Boolean(li.materialId) || Boolean(li.materialName), {
+    message: 'A line item needs a catalog material or a material name',
+    path: ['materialId'],
+  });
 
 export const createRfqSchema = z.object({
   projectId: z.string().uuid(),

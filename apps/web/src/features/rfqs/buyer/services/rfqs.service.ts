@@ -19,7 +19,12 @@ export function useSaveRfqDraft() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (dto: SaveRfqDraftValues) => saveRfqDraft(dto, { skipErrorHandler: true }),
+    // SaveRfqDraftValues (zod) types `lineItems[].source` as a 'CATALOG' | 'BOM'
+    // string union, whereas the api-client DTO types it as the RfqLineItemSource
+    // enum. The runtime values are identical; the cast bridges the nominal gap
+    // without importing the swagger-laden root barrel into the Vite bundle.
+    mutationFn: (dto: SaveRfqDraftValues) =>
+      saveRfqDraft(dto as Parameters<typeof saveRfqDraft>[0], { skipErrorHandler: true }),
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ['rfqs'] });
       queryClient.setQueryData(['rfqs', data.id], data);
@@ -32,7 +37,7 @@ export function useUpdateRfq() {
 
   return useMutation({
     mutationFn: ({ id, dto }: { id: string; dto: UpdateRfqValues }) =>
-      updateRfq(id, dto, { skipErrorHandler: true }),
+      updateRfq(id, dto as Parameters<typeof updateRfq>[1], { skipErrorHandler: true }),
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ['rfqs'] });
       queryClient.setQueryData(['rfqs', data.id], data);
