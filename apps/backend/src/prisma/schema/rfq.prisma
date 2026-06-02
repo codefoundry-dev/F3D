@@ -37,6 +37,7 @@ model Rfq {
   deadlineEnd          DateTime?       @map("deadline_end")
   totalRequestedQty    Int             @default(0) @map("total_requested_qty")
   message              String?
+  ccEmails             String[]        @default([]) @map("cc_emails")
   approvalStatus       ApprovalStatus? @map("approval_status")
   approvedById         String?         @map("approved_by_id")
   createdByUserId      String          @map("created_by_user_id")

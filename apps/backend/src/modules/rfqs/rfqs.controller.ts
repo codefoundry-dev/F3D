@@ -2,6 +2,7 @@ import {
   CreateRfqDto,
   RfqListQueryDto,
   SaveRfqDraftDto,
+  SendRfqDto,
   UpdateRfqDto,
 } from '@forethread/shared-types';
 import {
@@ -124,6 +125,7 @@ export class RfqsController {
   // ── POST /v1/rfqs/:id/send ───────────────────────────────────────────────
 
   @Post(':id/send')
+  @HttpCode(HttpStatus.OK)
   @RequirePermissions('rfq.send')
   @ApiOperation({ summary: 'Send a draft RFQ to invited vendors' })
   @ApiResponse({ status: 200, description: 'RFQ sent, status changed to OPEN' })
@@ -132,8 +134,12 @@ export class RfqsController {
     description: 'RFQ not in DRAFT status or missing line items/vendors',
   })
   @ApiResponse({ status: 404, description: 'RFQ not found' })
-  async sendRfq(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.rfqsService.sendRfq(id, user);
+  async sendRfq(
+    @Param('id') id: string,
+    @Body() dto: SendRfqDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.rfqsService.sendRfq(id, dto, user);
   }
 
   // ── DELETE /v1/rfqs/:id ──────────────────────────────────────────────────

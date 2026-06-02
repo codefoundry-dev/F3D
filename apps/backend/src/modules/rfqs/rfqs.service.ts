@@ -5,6 +5,7 @@ import {
   CreateRfqDto,
   RfqListQueryDto,
   SaveRfqDraftDto,
+  SendRfqDto,
   UpdateRfqDto,
   VendorRfqStatus,
   buildPaginationMeta,
@@ -22,9 +23,10 @@ import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { nextSequentialNumber } from '../../common/utils/sequential-number.util';
 import { PrismaService } from '../../prisma/prisma.service';
-import { EmailService } from '../notifications/email.service';
+import { EmailAttachment, EmailService } from '../notifications/email.service';
 import { StorageService } from '../storage/storage.service';
 
+import { normalizeCcEmails } from './rfq-cc.util';
 import { VENDOR_STATUS_MAP, VENDOR_STATUS_TO_RFQ } from './vendor-status.constants';
 
 /** Prisma includes shared by list & detail queries */
@@ -732,7 +734,7 @@ export class RfqsService {
 
   // ── Send RFQ ─────────────────────────────────────────────────────────────
 
-  async sendRfq(id: string, user: AuthenticatedUser) {
+  async sendRfq(id: string, dto: SendRfqDto, user: AuthenticatedUser) {
     const rfq = await this.prisma.rfq.findUnique({
       where: { id },
       select: {
@@ -758,9 +760,11 @@ export class RfqsService {
       throw new BadRequestException(ERR.rfqs.mustHaveVendors);
     }
 
+    const ccEmails = normalizeCcEmails(dto?.cc);
+
     await this.prisma.rfq.update({
       where: { id },
-      data: { status: RfqStatus.OPEN },
+      data: { status: RfqStatus.OPEN, ccEmails },
     });
 
     // Generate invitation tokens for each vendor and notify via email (fire-and-forget)
@@ -1095,6 +1099,12 @@ export class RfqsService {
       where: { id: rfqId },
       select: {
         rfqNumber: true,
+        ccEmails: true,
+        documents: {
+          select: {
+            file: { select: { key: true, filename: true, mimeType: true } },
+          },
+        },
         invitedVendors: {
           select: {
             id: true,
@@ -1116,6 +1126,11 @@ export class RfqsService {
 
     const rfqNumber = rfq.rfqNumber ?? rfqId.slice(0, 8).toUpperCase();
 
+    // Download the RFQ documents once so every vendor email carries the same
+    // attachments without re-fetching from S3 per recipient.
+    const attachments = await this.buildRfqAttachments(rfq.documents);
+    const cc = rfq.ccEmails ?? [];
+
     // Generate short invitation codes for each vendor and send emails
     for (const iv of rfq.invitedVendors) {
       const token = await this.generateShortCode();
@@ -1135,9 +1150,38 @@ export class RfqsService {
       const emails = iv.vendor.users.map((u) => u.email);
 
       await Promise.all(
-        emails.map((email) => this.emailService.sendRfqReceivedEmail(email, rfqNumber, replyUrl)),
+        emails.map((email) =>
+          this.emailService.sendRfqReceivedEmail(email, rfqNumber, replyUrl, { cc, attachments }),
+        ),
       );
     }
+  }
+
+  /**
+   * Download RFQ documents from object storage into in-memory attachments for
+   * the outbound vendor emails. A document that fails to download is skipped so
+   * one bad file never blocks the whole send.
+   */
+  private async buildRfqAttachments(
+    documents: { file: { key: string; filename: string; mimeType: string } }[],
+  ): Promise<EmailAttachment[]> {
+    const settled = await Promise.all(
+      documents.map(async ({ file }): Promise<EmailAttachment | null> => {
+        try {
+          const { body } = await this.storageService.getObject(file.key);
+          if (!body) return null;
+          return {
+            filename: file.filename,
+            content: body,
+            contentType: file.mimeType,
+          };
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    return settled.filter((a): a is EmailAttachment => a !== null);
   }
 
   async notifyContractorOfQuoteSubmission(rfqId: string, vendorName: string): Promise<void> {

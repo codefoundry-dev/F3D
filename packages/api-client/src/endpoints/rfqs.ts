@@ -1,4 +1,9 @@
-import type { CreateRfqDto, SaveRfqDraftDto, UpdateRfqDto } from '@forethread/shared-types';
+import type {
+  CreateRfqDto,
+  SaveRfqDraftDto,
+  SendRfqDto,
+  UpdateRfqDto,
+} from '@forethread/shared-types';
 import { AxiosRequestConfig } from 'axios';
 
 import { getApiClient } from '../client';
@@ -239,13 +244,17 @@ export async function updateRfq(
   return resp.data;
 }
 
-export async function sendRfq(id: string, config?: AxiosRequestConfig): Promise<RfqDetail> {
-  const { data } = await getApiClient().post<{ data: RfqDetail }>(
+export async function sendRfq(
+  id: string,
+  data?: SendRfqDto,
+  config?: AxiosRequestConfig,
+): Promise<RfqDetail> {
+  const { data: resp } = await getApiClient().post<{ data: RfqDetail }>(
     RFQS_PATHS.send(id),
-    undefined,
+    data,
     config,
   );
-  return data.data;
+  return resp.data;
 }
 
 export async function deleteRfq(id: string, config?: AxiosRequestConfig): Promise<void> {

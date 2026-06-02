@@ -49,6 +49,7 @@ const otherCompanyUser = {
 const mockStorageService = {
   upload: jest.fn(),
   delete: jest.fn(),
+  getObject: jest.fn(),
 };
 
 const mockEmailService = {
@@ -1885,7 +1886,7 @@ describe('RfqsService', () => {
     it('throws NotFoundException when RFQ not found', async () => {
       mockPrisma.rfq.findUnique.mockResolvedValue(null);
 
-      await expect(service.sendRfq('rfq-1', procOfficer)).rejects.toThrow(NotFoundException);
+      await expect(service.sendRfq('rfq-1', {}, procOfficer)).rejects.toThrow(NotFoundException);
     });
 
     it('throws ForbiddenException for different company', async () => {
@@ -1896,7 +1897,7 @@ describe('RfqsService', () => {
         _count: { lineItems: 1, invitedVendors: 1 },
       });
 
-      await expect(service.sendRfq('rfq-1', procOfficer)).rejects.toThrow(ForbiddenException);
+      await expect(service.sendRfq('rfq-1', {}, procOfficer)).rejects.toThrow(ForbiddenException);
     });
 
     it('throws BadRequestException when RFQ is not DRAFT', async () => {
@@ -1907,7 +1908,7 @@ describe('RfqsService', () => {
         _count: { lineItems: 1, invitedVendors: 1 },
       });
 
-      await expect(service.sendRfq('rfq-1', procOfficer)).rejects.toThrow(BadRequestException);
+      await expect(service.sendRfq('rfq-1', {}, procOfficer)).rejects.toThrow(BadRequestException);
     });
 
     it('throws BadRequestException when RFQ has no line items', async () => {
@@ -1918,7 +1919,7 @@ describe('RfqsService', () => {
         _count: { lineItems: 0, invitedVendors: 1 },
       });
 
-      await expect(service.sendRfq('rfq-1', procOfficer)).rejects.toThrow(BadRequestException);
+      await expect(service.sendRfq('rfq-1', {}, procOfficer)).rejects.toThrow(BadRequestException);
     });
 
     it('throws BadRequestException when RFQ has no invited vendors', async () => {
@@ -1929,7 +1930,7 @@ describe('RfqsService', () => {
         _count: { lineItems: 3, invitedVendors: 0 },
       });
 
-      await expect(service.sendRfq('rfq-1', procOfficer)).rejects.toThrow(BadRequestException);
+      await expect(service.sendRfq('rfq-1', {}, procOfficer)).rejects.toThrow(BadRequestException);
     });
 
     it('sends RFQ and generates invitation tokens for vendors', async () => {
@@ -1943,6 +1944,8 @@ describe('RfqsService', () => {
         // generateInvitationTokensAndNotify
         .mockResolvedValueOnce({
           rfqNumber: 'RFQ-1',
+          ccEmails: [],
+          documents: [],
           invitedVendors: [
             {
               id: 'iv-1',
@@ -1993,7 +1996,7 @@ describe('RfqsService', () => {
         .mockResolvedValueOnce(null);
       mockEmailService.sendRfqReceivedEmail.mockResolvedValue(undefined);
 
-      const result = await service.sendRfq('rfq-1', procOfficer);
+      const result = await service.sendRfq('rfq-1', {}, procOfficer);
       expect(result.status).toBe('OPEN');
 
       // Wait for fire-and-forget
@@ -2006,6 +2009,7 @@ describe('RfqsService', () => {
         'active@vendor.com',
         'RFQ-1',
         'http://localhost:5179/rfqs',
+        { cc: [], attachments: [] },
       );
     });
 
@@ -2019,6 +2023,8 @@ describe('RfqsService', () => {
         })
         .mockResolvedValueOnce({
           rfqNumber: null,
+          ccEmails: [],
+          documents: [],
           invitedVendors: [
             {
               id: 'iv-1',
@@ -2062,7 +2068,7 @@ describe('RfqsService', () => {
       mockPrisma.rfqVendor.findUnique.mockResolvedValue(null);
       mockEmailService.sendRfqReceivedEmail.mockResolvedValue(undefined);
 
-      await service.sendRfq('rfq-1', procOfficer);
+      await service.sendRfq('rfq-1', {}, procOfficer);
 
       await new Promise((r) => setTimeout(r, 50));
 
@@ -2070,6 +2076,7 @@ describe('RfqsService', () => {
         'pending@vendor.com',
         expect.any(String),
         expect.stringContaining('/invitation/'),
+        { cc: [], attachments: [] },
       );
     });
 
@@ -2082,7 +2089,7 @@ describe('RfqsService', () => {
           _count: { lineItems: 2, invitedVendors: 1 },
         })
         // generateInvitationTokensAndNotify (fire-and-forget)
-        .mockResolvedValueOnce({ rfqNumber: 'RFQ-1', invitedVendors: [] })
+        .mockResolvedValueOnce({ rfqNumber: 'RFQ-1', ccEmails: [], documents: [], invitedVendors: [] })
         // getRfq call after update
         .mockResolvedValueOnce({
           id: 'rfq-1',
@@ -2114,12 +2121,213 @@ describe('RfqsService', () => {
         });
       mockPrisma.rfq.update.mockResolvedValue({});
 
-      const result = await service.sendRfq('rfq-1', procOfficer);
+      const result = await service.sendRfq('rfq-1', {}, procOfficer);
       expect(result.status).toBe('OPEN');
       expect(mockPrisma.rfq.update).toHaveBeenCalledWith({
         where: { id: 'rfq-1' },
-        data: { status: 'OPEN' },
+        data: { status: 'OPEN', ccEmails: [] },
       });
+    });
+
+    it('normalizes and persists CC recipients on send', async () => {
+      mockPrisma.rfq.findUnique
+        .mockResolvedValueOnce({
+          id: 'rfq-1',
+          status: 'DRAFT',
+          companyId: 'comp-1',
+          _count: { lineItems: 2, invitedVendors: 1 },
+        })
+        .mockResolvedValueOnce({ rfqNumber: 'RFQ-1', ccEmails: [], documents: [], invitedVendors: [] })
+        .mockResolvedValueOnce({
+          id: 'rfq-1',
+          rfqNumber: 'RFQ-1',
+          status: 'OPEN',
+          currency: 'AUD',
+          companyId: 'comp-1',
+          projectId: 'proj-1',
+          project: { name: 'Proj' },
+          createdBy: { id: 'po-1', name: 'PO' },
+          approvedBy: null,
+          lineItems: [],
+          quoteResponses: [],
+          invitedVendors: [],
+          documents: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          deadlineStart: null,
+          deadlineEnd: null,
+          deliveryLocationId: null,
+          needByDate: null,
+          holdForRelease: false,
+          earliestDeliveryDate: null,
+          message: null,
+          totalRequestedQty: 0,
+          pickUpLocation: null,
+          pickUpDate: null,
+          approvalStatus: null,
+        });
+      mockPrisma.rfq.update.mockResolvedValue({});
+
+      await service.sendRfq(
+        'rfq-1',
+        { cc: ['  Buyer@Acme.com ', 'buyer@acme.com', 'pm@acme.com'] },
+        procOfficer,
+      );
+
+      expect(mockPrisma.rfq.update).toHaveBeenCalledWith({
+        where: { id: 'rfq-1' },
+        data: { status: 'OPEN', ccEmails: ['buyer@acme.com', 'pm@acme.com'] },
+      });
+    });
+
+    it('downloads RFQ documents and attaches them to vendor emails with CC', async () => {
+      mockPrisma.rfq.findUnique
+        .mockResolvedValueOnce({
+          id: 'rfq-1',
+          status: 'DRAFT',
+          companyId: 'comp-1',
+          _count: { lineItems: 2, invitedVendors: 1 },
+        })
+        // generateInvitationTokensAndNotify
+        .mockResolvedValueOnce({
+          rfqNumber: 'RFQ-1',
+          ccEmails: ['pm@acme.com'],
+          documents: [
+            { file: { key: 'rfq-documents/rfq-1/spec.pdf', filename: 'spec.pdf', mimeType: 'application/pdf' } },
+          ],
+          invitedVendors: [
+            {
+              id: 'iv-1',
+              vendor: {
+                id: 'v-1',
+                users: [{ email: 'active@vendor.com', status: 'ACTIVE' }],
+              },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          id: 'rfq-1',
+          rfqNumber: 'RFQ-1',
+          status: 'OPEN',
+          currency: 'AUD',
+          companyId: 'comp-1',
+          projectId: 'proj-1',
+          project: { name: 'Proj' },
+          createdBy: { id: 'po-1', name: 'PO' },
+          approvedBy: null,
+          lineItems: [],
+          quoteResponses: [],
+          invitedVendors: [],
+          documents: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          deadlineStart: null,
+          deadlineEnd: null,
+          deliveryLocationId: null,
+          needByDate: null,
+          holdForRelease: false,
+          earliestDeliveryDate: null,
+          message: null,
+          totalRequestedQty: 0,
+          pickUpLocation: null,
+          pickUpDate: null,
+          approvalStatus: null,
+        });
+      mockPrisma.rfq.update.mockResolvedValue({});
+      mockPrisma.rfqVendor.update.mockResolvedValue({});
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue(null);
+      const pdf = Buffer.from('pdf-bytes');
+      mockStorageService.getObject.mockResolvedValue({ body: pdf, contentType: 'application/pdf' });
+      mockEmailService.sendRfqReceivedEmail.mockResolvedValue(undefined);
+
+      await service.sendRfq('rfq-1', { cc: ['pm@acme.com'] }, procOfficer);
+
+      // Wait for fire-and-forget
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockStorageService.getObject).toHaveBeenCalledWith('rfq-documents/rfq-1/spec.pdf');
+      expect(mockEmailService.sendRfqReceivedEmail).toHaveBeenCalledWith(
+        'active@vendor.com',
+        'RFQ-1',
+        'http://localhost:5179/rfqs',
+        {
+          cc: ['pm@acme.com'],
+          attachments: [{ filename: 'spec.pdf', content: pdf, contentType: 'application/pdf' }],
+        },
+      );
+    });
+
+    it('skips documents that fail to download without blocking the send', async () => {
+      mockPrisma.rfq.findUnique
+        .mockResolvedValueOnce({
+          id: 'rfq-1',
+          status: 'DRAFT',
+          companyId: 'comp-1',
+          _count: { lineItems: 2, invitedVendors: 1 },
+        })
+        .mockResolvedValueOnce({
+          rfqNumber: 'RFQ-1',
+          ccEmails: [],
+          documents: [
+            { file: { key: 'rfq-documents/rfq-1/bad.pdf', filename: 'bad.pdf', mimeType: 'application/pdf' } },
+            { file: { key: 'rfq-documents/rfq-1/ok.pdf', filename: 'ok.pdf', mimeType: 'application/pdf' } },
+          ],
+          invitedVendors: [
+            {
+              id: 'iv-1',
+              vendor: { id: 'v-1', users: [{ email: 'active@vendor.com', status: 'ACTIVE' }] },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          id: 'rfq-1',
+          rfqNumber: 'RFQ-1',
+          status: 'OPEN',
+          currency: 'AUD',
+          companyId: 'comp-1',
+          projectId: 'proj-1',
+          project: { name: 'Proj' },
+          createdBy: { id: 'po-1', name: 'PO' },
+          approvedBy: null,
+          lineItems: [],
+          quoteResponses: [],
+          invitedVendors: [],
+          documents: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          deadlineStart: null,
+          deadlineEnd: null,
+          deliveryLocationId: null,
+          needByDate: null,
+          holdForRelease: false,
+          earliestDeliveryDate: null,
+          message: null,
+          totalRequestedQty: 0,
+          pickUpLocation: null,
+          pickUpDate: null,
+          approvalStatus: null,
+        });
+      mockPrisma.rfq.update.mockResolvedValue({});
+      mockPrisma.rfqVendor.update.mockResolvedValue({});
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue(null);
+      const okPdf = Buffer.from('ok');
+      mockStorageService.getObject
+        .mockRejectedValueOnce(new Error('S3 down'))
+        .mockResolvedValueOnce({ body: okPdf, contentType: 'application/pdf' });
+      mockEmailService.sendRfqReceivedEmail.mockResolvedValue(undefined);
+
+      await service.sendRfq('rfq-1', {}, procOfficer);
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockEmailService.sendRfqReceivedEmail).toHaveBeenCalledWith(
+        'active@vendor.com',
+        'RFQ-1',
+        'http://localhost:5179/rfqs',
+        {
+          cc: [],
+          attachments: [{ filename: 'ok.pdf', content: okPdf, contentType: 'application/pdf' }],
+        },
+      );
     });
   });
 

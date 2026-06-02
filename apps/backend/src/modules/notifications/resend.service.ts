@@ -38,6 +38,7 @@ export class ResendService {
     const payload: CreateEmailOptions = {
       from: options.from ?? this.defaultFrom,
       to: options.to,
+      ...(options.cc ? { cc: options.cc } : {}),
       subject: options.subject,
       ...(options.html ? { html: options.html } : {}),
       ...(options.text ? { text: options.text } : {}),

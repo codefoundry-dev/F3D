@@ -19,6 +19,8 @@ export interface SentEmail {
   html?: string;
   otp?: string; // Extracted OTP for convenience
   url?: string; // Extracted URL for convenience
+  cc?: string[]; // CC recipients (RFQ send)
+  attachments?: { filename: string }[]; // Attachment metadata (RFQ send)
 }
 
 export class MockEmailService {
@@ -63,6 +65,24 @@ export class MockEmailService {
     this.sentEmails.push({
       to,
       subject: 'Forethread — Your Account Has Been Deactivated',
+    });
+  }
+
+  async sendRfqReceivedEmail(
+    to: string,
+    rfqNumber: string,
+    replyUrl: string,
+    options?: { cc?: string[]; attachments?: { filename: string }[] },
+  ): Promise<void> {
+    this.sentEmails.push({
+      to,
+      subject: `RFQ ${rfqNumber}`,
+      html: `<a href="${replyUrl}">View RFQ</a>`,
+      url: replyUrl,
+      ...(options?.cc ? { cc: options.cc } : {}),
+      ...(options?.attachments
+        ? { attachments: options.attachments.map((a) => ({ filename: a.filename })) }
+        : {}),
     });
   }
 }
