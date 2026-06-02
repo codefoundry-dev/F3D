@@ -1,4 +1,4 @@
-import type { CreateRfqDto, UpdateRfqDto } from '@forethread/shared-types';
+import type { CreateRfqDto, SaveRfqDraftDto, UpdateRfqDto } from '@forethread/shared-types';
 import { AxiosRequestConfig } from 'axios';
 
 import { getApiClient } from '../client';
@@ -208,6 +208,18 @@ export async function createRfq(
 ): Promise<RfqDetail> {
   const { data: resp } = await getApiClient().post<{ data: RfqDetail }>(
     RFQS_PATHS.ROOT,
+    data,
+    config,
+  );
+  return resp.data;
+}
+
+export async function saveRfqDraft(
+  data: SaveRfqDraftDto,
+  config?: AxiosRequestConfig,
+): Promise<RfqDetail> {
+  const { data: resp } = await getApiClient().post<{ data: RfqDetail }>(
+    RFQS_PATHS.DRAFT,
     data,
     config,
   );

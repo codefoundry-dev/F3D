@@ -1,4 +1,9 @@
-import { CreateRfqDto, RfqListQueryDto, UpdateRfqDto } from '@forethread/shared-types';
+import {
+  CreateRfqDto,
+  RfqListQueryDto,
+  SaveRfqDraftDto,
+  UpdateRfqDto,
+} from '@forethread/shared-types';
 import {
   Body,
   Controller,
@@ -57,6 +62,20 @@ export class RfqsController {
   @ApiResponse({ status: 404, description: 'Project or related resource not found' })
   async createRfq(@Body() dto: CreateRfqDto, @CurrentUser() user: AuthenticatedUser) {
     return this.rfqsService.createRfq(dto, user);
+  }
+
+  // ── POST /v1/rfqs/draft ──────────────────────────────────────────────────
+  // NOTE: Must be before :id routes to avoid NestJS matching "draft" as an id
+
+  @Post('draft')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('rfq.create')
+  @ApiOperation({ summary: 'Create a partial RFQ DRAFT (save-as-you-go)' })
+  @ApiResponse({ status: 201, description: 'Draft RFQ created' })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 404, description: 'Project or related resource not found' })
+  async saveRfqDraft(@Body() dto: SaveRfqDraftDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.rfqsService.saveRfqDraft(dto, user);
   }
 
   // ── GET /v1/rfqs/export/:format ────────────────────────────────────────

@@ -1,0 +1,86 @@
+import {
+  saveRfqDraft,
+  updateRfq,
+  getRfq,
+  getProjects,
+  getProject,
+  getMaterials,
+  getVendors,
+  type ProjectListParams,
+  type MaterialListQueryParams,
+  type VendorListParams,
+} from '@forethread/api-client';
+import type { SaveRfqDraftValues, UpdateRfqValues } from '@forethread/shared-types/client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+// ── RFQ draft mutations (save-as-you-go, FOR-202) ────────────────────────────
+
+export function useSaveRfqDraft() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (dto: SaveRfqDraftValues) => saveRfqDraft(dto, { skipErrorHandler: true }),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ['rfqs'] });
+      queryClient.setQueryData(['rfqs', data.id], data);
+    },
+  });
+}
+
+export function useUpdateRfq() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: UpdateRfqValues }) =>
+      updateRfq(id, dto, { skipErrorHandler: true }),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ['rfqs'] });
+      queryClient.setQueryData(['rfqs', data.id], data);
+    },
+  });
+}
+
+export function useRfq(id: string | undefined) {
+  return useQuery({
+    queryKey: ['rfqs', id],
+    queryFn: () => getRfq(id as string),
+    enabled: !!id,
+  });
+}
+
+// ── Data-source queries used by the create-RFQ steps ─────────────────────────
+
+export function useRfqProjects(params?: ProjectListParams) {
+  return useQuery({
+    queryKey: ['projects', params],
+    queryFn: () => getProjects({ limit: 100, ...params }, { skipErrorHandler: true }),
+    select: (data) => data.items,
+  });
+}
+
+/** Delivery locations for the selected project (step 4 options). */
+export function useProjectDeliveryLocations(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ['projects', projectId, 'delivery-locations'],
+    queryFn: () => getProject(projectId as string),
+    enabled: !!projectId,
+    select: (project) => project.locations.filter((l) => l.type === 'DELIVERY'),
+  });
+}
+
+export function useRfqMaterials(params?: MaterialListQueryParams) {
+  return useQuery({
+    queryKey: ['materials', params],
+    queryFn: () => getMaterials({ limit: 50, ...params }),
+    select: (data) => data.items,
+  });
+}
+
+/** Vendors assigned to the contractor (step 3 options). */
+export function useAssignedVendors(params?: VendorListParams) {
+  return useQuery({
+    queryKey: ['vendors', params],
+    queryFn: () => getVendors({ limit: 100, status: 'ACTIVE', ...params }),
+    select: (data) => data.items,
+  });
+}

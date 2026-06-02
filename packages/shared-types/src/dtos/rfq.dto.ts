@@ -142,6 +142,63 @@ export class UpdateRfqDto {
   attachmentIds?: string[];
 }
 
+/**
+ * Draft save-as-you-go DTO (FOR-202).
+ *
+ * Unlike CreateRfqDto, every field except `projectId` is optional and there are
+ * no `ArrayMinSize` constraints — this lets the multi-step form persist a DRAFT
+ * after step 1 (project chosen) and keep PATCHing as later steps are completed.
+ * `projectId` stays required because the Rfq.projectId column is non-nullable.
+ */
+export class SaveRfqDraftDto {
+  @IsUUID()
+  projectId!: string;
+
+  @IsDateString()
+  @IsOptional()
+  deadlineEnd?: string;
+
+  @IsUUID()
+  @IsOptional()
+  deliveryLocationId?: string;
+
+  @IsDateString()
+  @IsOptional()
+  needByDate?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  holdForRelease?: boolean;
+
+  @IsDateString()
+  @IsOptional()
+  earliestDeliveryDate?: string;
+
+  @IsString()
+  @IsOptional()
+  currency?: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateRfqLineItemDto)
+  @IsOptional()
+  lineItems?: CreateRfqLineItemDto[];
+
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @IsOptional()
+  vendorIds?: string[];
+
+  @IsString()
+  @IsOptional()
+  message?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  attachmentIds?: string[];
+}
+
 export class ValidateRfqBulkDto {}
 
 // ── List / Query DTOs ───────────────────────────────────────────────────────

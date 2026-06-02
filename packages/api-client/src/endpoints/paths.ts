@@ -77,6 +77,7 @@ export const PROJECTS_PATHS = {
 // ── RFQs ─────────────────────────────────────────────────────────────────────
 export const RFQS_PATHS = {
   ROOT: '/rfqs',
+  DRAFT: '/rfqs/draft',
   byId: (id: string) => `/rfqs/${id}`,
   copy: (id: string) => `/rfqs/${id}/copy`,
   archive: (id: string) => `/rfqs/${id}/archive`,
