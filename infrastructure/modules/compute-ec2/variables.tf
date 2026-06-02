@@ -18,6 +18,12 @@ variable "public_subnet_id" {
   type        = string
 }
 
+variable "ami_id" {
+  description = "Explicit AMI ID for the EC2 instance. When empty, the latest Amazon Linux 2023 arm64 AMI is resolved via the data source. Pin this (per env) to stop routine applies from rebuilding the box on new AMI releases; with lifecycle.ignore_changes=[ami], an AMI roll becomes a deliberate bump-and-taint."
+  type        = string
+  default     = ""
+}
+
 variable "instance_type" {
   description = "EC2 instance type. Default t4g.small (Graviton/ARM64) for prod; pass t4g.micro for staging."
   type        = string

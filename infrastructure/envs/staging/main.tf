@@ -72,9 +72,19 @@ module "storage" {
 module "compute" {
   source = "../../modules/compute-ec2"
 
-  env                  = local.env
-  vpc_id               = module.network.vpc_id
-  public_subnet_id     = module.network.public_subnet_ids[0]
+  env    = local.env
+  vpc_id = module.network.vpc_id
+  # public_subnet_ids is ordered [eu-north-1a, eu-north-1b]. Pinned to [1] (1b):
+  # eu-north-1a ran out of t4g.micro capacity on 2026-06-02 mid-apply, which
+  # terminated the instance and then failed to recreate it, leaving staging with
+  # no backend. 1b had capacity. Single-AZ by design; revisit (multi-AZ / ASG)
+  # if this recurs.
+  public_subnet_id = module.network.public_subnet_ids[1]
+  # Pin the AMI so routine applies never silently rebuild the box on a new Amazon
+  # AL2023 release (this is the AMI the running instance was validated on). Roll
+  # deliberately: bump this value, then `terraform apply` (lifecycle ignores ami
+  # drift, so a change here is picked up only on create/taint).
+  ami_id               = "ami-014049af4c3409183"
   instance_type        = var.ec2_instance_type
   root_volume_size_gb  = var.ec2_root_volume_size_gb
   app_port             = 3000
