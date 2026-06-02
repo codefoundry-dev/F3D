@@ -4,6 +4,8 @@ const mockMutate = vi.fn();
 
 vi.mock('@forethread/api-client', () => ({
   submitGuestQuote: vi.fn(),
+  submitGuestQuoteExtraction: vi.fn(),
+  getGuestQuoteExtraction: vi.fn(),
 }));
 
 vi.mock('@tanstack/react-query', () => ({
@@ -14,7 +16,10 @@ vi.mock('@tanstack/react-query', () => ({
     },
     isPending: false,
     error: null,
+    reset: vi.fn(),
   }),
+  // The quote-extraction poll is idle in these tests (no PDF uploaded).
+  useQuery: () => ({ data: undefined, isError: false }),
 }));
 
 import { useGuestRfqResponse } from './useGuestRfqResponse';
@@ -239,5 +244,35 @@ describe('useGuestRfqResponse', () => {
       result.current.setShowInfo(true);
     });
     expect(result.current.showInfo).toBe(true);
+  });
+
+  it('defaults to manual entry mode and can switch to upload', () => {
+    const { result } = renderHook(() =>
+      useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),
+    );
+    expect(result.current.mode).toBe('manual');
+    expect(result.current.extractionPhase).toBe('idle');
+
+    act(() => {
+      result.current.setMode('upload');
+    });
+    expect(result.current.mode).toBe('upload');
+  });
+
+  it('restores a clean manual form when switching back from upload', () => {
+    const { result } = renderHook(() =>
+      useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),
+    );
+    act(() => {
+      result.current.updateLineItem(0, 'unitPrice', '99');
+      result.current.setMode('upload');
+    });
+    act(() => {
+      result.current.setMode('manual');
+    });
+    // Switching back to manual discards any extraction-driven prefill.
+    expect(result.current.mode).toBe('manual');
+    expect(result.current.lineItems[0].unitPrice).toBe('');
+    expect(result.current.lineItems[0].included).toBe(true);
   });
 });

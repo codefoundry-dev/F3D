@@ -398,6 +398,24 @@
     "successTitle": "Quote Submitted Successfully",
     "successDescription": "Your quote has been sent to the contractor. You will be notified when they respond.",
     "successHint": "You can close this page. To manage your quotes, activate your account using the link in your invitation email.",
-    "tryAgain": "Try Again"
+    "tryAgain": "Try Again",
+    "modeManual": "Enter manually",
+    "modeUpload": "Upload quote PDF",
+    "modeManualHint": "Fill in your prices line by line.",
+    "modeUploadHint": "Upload your existing quote and we'll read the prices for you to review.",
+    "uploadTitle": "Upload your quote",
+    "uploadDropzone": "Drag and drop your quote here, or click to browse",
+    "uploadFormats": "Supported formats: PDF, PNG, JPG. Max size: 10 MB",
+    "uploadInvalidType": "Please upload a PDF or image file (PDF, PNG, JPG).",
+    "uploadTooLarge": "File is too large. Maximum size is 10 MB.",
+    "extracting": "Reading your quote… this can take up to a minute.",
+    "extractionFailed": "We couldn't read this quote automatically.",
+    "extractionFailedHint": "Switch to manual entry to fill in your prices, or try uploading a clearer copy.",
+    "extractionReady": "We read {{count}} line item(s) from your quote.",
+    "reviewBanner": "Review the values we extracted below and correct anything before submitting.",
+    "reviewUnmatched": "{{count}} item(s) from your PDF could not be matched to this RFQ and were left out. Add them manually if needed.",
+    "replaceFile": "Replace file",
+    "removeFile": "Remove",
+    "sourceAttached": "Your uploaded quote will be attached to this submission."
   }
 }

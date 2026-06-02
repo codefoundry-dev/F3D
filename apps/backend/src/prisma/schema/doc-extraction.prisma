@@ -30,6 +30,11 @@ model DocExtraction {
   lastEditedAt        DateTime?           @map("last_edited_at")
   confirmedByUserId   String?             @map("confirmed_by_user_id")
   companyId           String?             @map("company_id")
+  // Set when a guest vendor uploads a quote PDF through the tokenized RFQ portal
+  // (FOR-206). Scopes the public, token-less poll endpoint to guest QUOTE jobs
+  // and links the extraction back to its RFQ. Plain scalar (no relation) to keep
+  // doc-intelligence decoupled from the RFQ module.
+  rfqId               String?             @map("rfq_id")
   createdAt           DateTime            @default(now()) @map("created_at")
   updatedAt           DateTime            @updatedAt @map("updated_at")
   completedAt         DateTime?           @map("completed_at")
@@ -44,5 +49,6 @@ model DocExtraction {
   @@index([createdByUserId], map: "idx_doc_extractions_created_by")
   @@index([companyId, status], map: "idx_doc_extractions_company_status")
   @@index([type, status], map: "idx_doc_extractions_type_status")
+  @@index([rfqId], map: "idx_doc_extractions_rfq")
   @@map("doc_extractions")
 }

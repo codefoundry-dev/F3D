@@ -94,6 +94,8 @@ export const RFQS_PATHS = {
   document: (rfqId: string, docId: string) => `/rfqs/${rfqId}/documents/${docId}`,
   guestRfq: (token: string) => `/rfqs/invitation/${token}`,
   guestQuote: (token: string) => `/rfqs/invitation/${token}/quote`,
+  guestQuoteExtraction: (token: string) => `/rfqs/invitation/${token}/quote-extraction`,
+  guestQuoteExtractionStatus: (id: string) => `/rfqs/invitation/quote-extraction/${id}`,
 } as const;
 
 // ── Purchase Orders ──────────────────────────────────────────────────────────

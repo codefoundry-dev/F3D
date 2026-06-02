@@ -6,6 +6,7 @@ import {
   UpdateRfqDto,
 } from '@forethread/shared-types';
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -25,6 +26,7 @@ import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { RequirePermissions } from '../../common/permissions';
+import { toExtractionResponse } from '../doc-intelligence/doc-intelligence.mapper';
 
 import { SubmitQuoteDto, UpdateQuoteDto } from './quote-response.dto';
 import { QuoteResponseService } from './quote-response.service';
@@ -334,6 +336,42 @@ export class RfqsController {
   }
 
   // ── Guest (invitation-link) endpoints ──────────────────────────────────────
+
+  // Declared before `GET invitation/:token` so the static `quote-extraction`
+  // segment is not swallowed by the `:token` wildcard.
+  @Get('invitation/quote-extraction/:id')
+  @Public()
+  @ApiOperation({
+    summary: 'Poll a guest quote PDF extraction by id (no auth required)',
+  })
+  @ApiResponse({ status: 200, description: 'Quote extraction status / result' })
+  @ApiResponse({ status: 404, description: 'Extraction not found' })
+  async getGuestQuoteExtraction(@Param('id') id: string) {
+    const job = await this.quoteResponseService.getGuestQuoteExtraction(id);
+    return toExtractionResponse(job);
+  }
+
+  @Post('invitation/:token/quote-extraction')
+  @Public()
+  @HttpCode(HttpStatus.CREATED)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({
+    summary: 'Upload a quote PDF and start a Gemini extraction (no auth required)',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiResponse({ status: 201, description: 'Extraction job created (PENDING/PROCESSING)' })
+  @ApiResponse({ status: 400, description: 'Invalid file or RFQ not open' })
+  @ApiResponse({ status: 404, description: 'Invalid or expired invitation token' })
+  async createGuestQuoteExtraction(
+    @Param('token') token: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('file is required');
+    }
+    const job = await this.quoteResponseService.createGuestQuoteExtraction(token, file);
+    return toExtractionResponse(job);
+  }
 
   @Get('invitation/:token')
   @Public()

@@ -8,6 +8,7 @@ import { AxiosRequestConfig } from 'axios';
 
 import { getApiClient } from '../client';
 
+import type { DocExtractionResponse } from './doc-extractions';
 import { RFQS_PATHS } from './paths';
 import type { PaginationMeta } from './users';
 
@@ -509,6 +510,36 @@ export async function submitGuestQuote(
   const { data } = await getApiClient().post<{ data: QuoteResponseDetail }>(
     RFQS_PATHS.guestQuote(token),
     input,
+  );
+  return data.data;
+}
+
+// ── Guest quote PDF extraction (FOR-206) ──────────────────────────────────────
+
+/**
+ * Upload a quote PDF from the vendor portal and start a Gemini extraction.
+ * Returns the extraction job (PENDING/PROCESSING); poll it with
+ * {@link getGuestQuoteExtraction}.
+ */
+export async function submitGuestQuoteExtraction(
+  token: string,
+  file: File,
+): Promise<DocExtractionResponse> {
+  const form = new FormData();
+  form.append('file', file);
+
+  const { data } = await getApiClient().post<{ data: DocExtractionResponse }>(
+    RFQS_PATHS.guestQuoteExtraction(token),
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return data.data;
+}
+
+/** Poll a guest quote extraction by its id (token-less; the id is unguessable). */
+export async function getGuestQuoteExtraction(id: string): Promise<DocExtractionResponse> {
+  const { data } = await getApiClient().get<{ data: DocExtractionResponse }>(
+    RFQS_PATHS.guestQuoteExtractionStatus(id),
   );
   return data.data;
 }
