@@ -153,7 +153,9 @@ locals {
 }
 
 resource "aws_instance" "this" {
-  ami           = data.aws_ami.al2023_arm64.id
+  # Pinned ami_id when provided (deterministic, no drift-rebuild); otherwise fall
+  # back to the latest AL2023 arm64 from the data source.
+  ami           = var.ami_id != "" ? var.ami_id : data.aws_ami.al2023_arm64.id
   instance_type = var.instance_type
   subnet_id     = var.public_subnet_id
 
