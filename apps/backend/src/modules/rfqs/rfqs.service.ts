@@ -4,6 +4,7 @@ import * as path from 'path';
 import {
   CreateRfqDto,
   RfqListQueryDto,
+  SaveRfqDraftDto,
   UpdateRfqDto,
   VendorRfqStatus,
   buildPaginationMeta,
@@ -474,6 +475,109 @@ export class RfqsService {
             rfqId: created.id,
             fileId,
           })),
+        });
+      }
+
+      return created;
+    });
+
+    return this.getRfq(rfq.id, user);
+  }
+
+  // ── Save RFQ draft (save-as-you-go, FOR-202) ───────────────────────────────
+
+  /**
+   * Persist a partial RFQ as a DRAFT for the multi-step create form. Only the
+   * project is required; any other slice (line items, vendors, delivery) is
+   * persisted when present. Whatever validations apply to a given slice still
+   * run (location belongs to project, materials exist, vendors are assigned),
+   * but missing slices are simply skipped so the form can save after step 1.
+   */
+  async saveRfqDraft(dto: SaveRfqDraftDto, user: AuthenticatedUser) {
+    // Validate project exists and belongs to user's company
+    const project = await this.prisma.project.findUnique({
+      where: { id: dto.projectId },
+      select: { id: true, companyId: true },
+    });
+    if (!project) throw new NotFoundException(ERR.rfqs.projectNotFound);
+    this.assertCompanyAccess(user, project.companyId);
+
+    // Validate deliveryLocationId belongs to the project (when provided)
+    if (dto.deliveryLocationId) {
+      const location = await this.prisma.projectLocation.findUnique({
+        where: { id: dto.deliveryLocationId },
+      });
+      if (location?.projectId !== dto.projectId) {
+        throw new BadRequestException(ERR.rfqs.invalidDeliveryLocation);
+      }
+    }
+
+    // Validate materialIds (when line items provided)
+    if (dto.lineItems && dto.lineItems.length > 0) {
+      const materialIds = dto.lineItems.map((li) => li.materialId);
+      const materials = await this.prisma.material.findMany({
+        where: { id: { in: materialIds } },
+        select: { id: true },
+      });
+      if (materials.length !== new Set(materialIds).size) {
+        throw new BadRequestException(ERR.rfqs.invalidMaterialIds);
+      }
+    }
+
+    // Validate vendor assignment scope (when vendors provided)
+    if (dto.vendorIds && dto.vendorIds.length > 0) {
+      await this.assertVendorsAssigned(dto.vendorIds, user.companyId);
+    }
+
+    // Hold-for-release requires earliestDeliveryDate
+    if (dto.holdForRelease && !dto.earliestDeliveryDate) {
+      throw new BadRequestException(ERR.rfqs.holdForReleaseRequiresEarliestDelivery);
+    }
+
+    const totalRequestedQty = (dto.lineItems ?? []).reduce((sum, li) => sum + li.quantity, 0);
+    const rfqNumber = await nextSequentialNumber(this.prisma, 'rfq', 'RFQ', user.companyId ?? '');
+
+    const rfq = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.rfq.create({
+        data: {
+          rfqNumber,
+          companyId: user.companyId ?? '',
+          projectId: dto.projectId,
+          createdByUserId: user.id,
+          status: RfqStatus.DRAFT,
+          currency: dto.currency ?? 'AUD',
+          deliveryLocationId: dto.deliveryLocationId ?? null,
+          needByDate: dto.needByDate ? new Date(dto.needByDate) : null,
+          holdForRelease: dto.holdForRelease ?? false,
+          earliestDeliveryDate: dto.earliestDeliveryDate
+            ? new Date(dto.earliestDeliveryDate)
+            : null,
+          deadlineEnd: dto.deadlineEnd ? new Date(dto.deadlineEnd) : null,
+          message: dto.message,
+          totalRequestedQty,
+          ...(dto.lineItems && dto.lineItems.length > 0
+            ? {
+                lineItems: {
+                  create: dto.lineItems.map((li) => ({
+                    materialId: li.materialId,
+                    quantity: li.quantity,
+                    unit: li.uom,
+                    costCode: li.costCode,
+                    description: li.notes,
+                    pickUp: li.pickUp ?? false,
+                  })),
+                },
+              }
+            : {}),
+          ...(dto.vendorIds && dto.vendorIds.length > 0
+            ? { invitedVendors: { create: dto.vendorIds.map((vendorId) => ({ vendorId })) } }
+            : {}),
+        } as never,
+      });
+
+      if (dto.attachmentIds && dto.attachmentIds.length > 0) {
+        await tx.rfqDocument.createMany({
+          data: dto.attachmentIds.map((fileId) => ({ rfqId: created.id, fileId })),
         });
       }
 

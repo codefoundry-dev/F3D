@@ -46,3 +46,61 @@ export type CreateRfqValues = z.infer<typeof createRfqSchema>;
 export const updateRfqSchema = createRfqSchema.partial();
 
 export type UpdateRfqValues = z.infer<typeof updateRfqSchema>;
+
+// ── Draft save-as-you-go (FOR-202) ──────────────────────────────────────────
+// Mirrors SaveRfqDraftDto: projectId required, everything else optional so a
+// partial draft can be persisted between steps.
+export const saveRfqDraftSchema = z.object({
+  projectId: z.string().uuid(),
+  deadlineEnd: z.string().datetime().optional(),
+  deliveryLocationId: z.string().uuid().optional(),
+  needByDate: z.string().datetime().optional(),
+  holdForRelease: z.boolean().optional(),
+  earliestDeliveryDate: z.string().datetime().optional(),
+  currency: z.string().optional(),
+  lineItems: z.array(createRfqLineItemSchema).optional(),
+  vendorIds: z.array(z.string().uuid()).optional(),
+  message: z.string().optional(),
+  attachmentIds: z.array(z.string()).optional(),
+});
+
+export type SaveRfqDraftValues = z.infer<typeof saveRfqDraftSchema>;
+
+// ── Per-step schemas (multi-step create form, FOR-202) ──────────────────────
+// Each step validates only its own slice before the user may advance.
+
+/** Step 1 — Project */
+export const rfqStepProjectSchema = z.object({
+  projectId: z.string().uuid({ message: 'Select a project' }),
+});
+
+/** Step 2 — Materials */
+export const rfqStepMaterialsSchema = z.object({
+  lineItems: z.array(createRfqLineItemSchema).min(1, { message: 'Add at least one material' }),
+});
+
+/** Step 3 — Vendors */
+export const rfqStepVendorsSchema = z.object({
+  vendorIds: z.array(z.string().uuid()).min(1, { message: 'Invite at least one vendor' }),
+});
+
+/** Step 4 — Delivery & specs */
+export const rfqStepDeliverySchema = z
+  .object({
+    deadlineEnd: z.string().datetime({ message: 'Set a response deadline' }),
+    deliveryLocationId: z.string().uuid({ message: 'Select a delivery location' }),
+    needByDate: z.string().datetime().optional(),
+    holdForRelease: z.boolean().optional(),
+    earliestDeliveryDate: z.string().datetime().optional(),
+    currency: z.string().optional(),
+    message: z.string().optional(),
+  })
+  .refine((v) => !v.holdForRelease || !!v.earliestDeliveryDate, {
+    message: 'Hold-for-release requires an earliest delivery date',
+    path: ['earliestDeliveryDate'],
+  });
+
+export type RfqStepProjectValues = z.infer<typeof rfqStepProjectSchema>;
+export type RfqStepMaterialsValues = z.infer<typeof rfqStepMaterialsSchema>;
+export type RfqStepVendorsValues = z.infer<typeof rfqStepVendorsSchema>;
+export type RfqStepDeliveryValues = z.infer<typeof rfqStepDeliverySchema>;

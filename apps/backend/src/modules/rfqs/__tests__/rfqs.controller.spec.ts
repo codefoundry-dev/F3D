@@ -9,6 +9,7 @@ import { RfqsService } from '../rfqs.service';
 const mockRfqsService = {
   listRfqs: jest.fn(),
   getRfq: jest.fn(),
+  saveRfqDraft: jest.fn(),
   copyRfq: jest.fn(),
   archiveRfq: jest.fn(),
   approveQuote: jest.fn(),
@@ -77,6 +78,18 @@ describe('RfqsController', () => {
 
       const result = await controller.getRfq('rfq-1', mockUser);
       expect(mockRfqsService.getRfq).toHaveBeenCalledWith('rfq-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('saveRfqDraft', () => {
+    it('delegates to service with dto and user', async () => {
+      const dto = { projectId: 'proj-1' };
+      const expected = { id: 'rfq-draft', status: 'DRAFT' };
+      mockRfqsService.saveRfqDraft.mockResolvedValue(expected);
+
+      const result = await controller.saveRfqDraft(dto as never, mockUser);
+      expect(mockRfqsService.saveRfqDraft).toHaveBeenCalledWith(dto, mockUser);
       expect(result).toEqual(expected);
     });
   });

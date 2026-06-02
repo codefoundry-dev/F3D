@@ -1562,6 +1562,157 @@ describe('RfqsService', () => {
     });
   });
 
+  // ── saveRfqDraft (FOR-202) ───────────────────────────────────────────
+
+  describe('saveRfqDraft', () => {
+    function setupDraftDetail() {
+      // getRfq call after the draft is created
+      mockPrisma.rfq.findUnique.mockResolvedValue({
+        id: 'rfq-draft',
+        rfqNumber: 'RFQ-00001',
+        status: RfqStatus.DRAFT,
+        currency: 'AUD',
+        companyId: 'comp-1',
+        projectId: 'proj-1',
+        project: { name: 'TestProj' },
+        createdBy: { id: 'po-1', name: 'PO User' },
+        approvedBy: null,
+        lineItems: [],
+        quoteResponses: [],
+        invitedVendors: [],
+        documents: [],
+        createdAt: new Date('2026-03-01'),
+        updatedAt: new Date('2026-03-01'),
+        deadlineStart: null,
+        deadlineEnd: null,
+        deliveryLocationId: null,
+        needByDate: null,
+        holdForRelease: false,
+        earliestDeliveryDate: null,
+        message: null,
+        totalRequestedQty: 0,
+        pickUpLocation: null,
+        pickUpDate: null,
+        approvalStatus: null,
+      });
+    }
+
+    function mockTx() {
+      mockPrisma.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
+        const txProxy = {
+          rfq: { create: jest.fn().mockResolvedValue({ id: 'rfq-draft' }) },
+          rfqDocument: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
+        };
+        return cb(txProxy);
+      });
+    }
+
+    it('persists a draft with only a project (no line items or vendors)', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockTx();
+      setupDraftDetail();
+
+      const result = await service.saveRfqDraft({ projectId: 'proj-1' } as never, procOfficer);
+
+      expect(result.id).toBe('rfq-draft');
+      expect(result.status).toBe(RfqStatus.DRAFT);
+      // No cross-entity validation runs when those slices are absent
+      expect(mockPrisma.projectLocation.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.material.findMany).not.toHaveBeenCalled();
+      expect(mockPrisma.companyVendorAssignment.findMany).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when project not found', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue(null);
+      await expect(
+        service.saveRfqDraft({ projectId: 'proj-x' } as never, procOfficer),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException when project belongs to another company', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'other-comp' });
+      await expect(
+        service.saveRfqDraft({ projectId: 'proj-1' } as never, procOfficer),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('validates delivery location belongs to the project when provided', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockPrisma.projectLocation.findUnique.mockResolvedValue({
+        id: 'loc-1',
+        projectId: 'other-proj',
+      });
+      await expect(
+        service.saveRfqDraft(
+          { projectId: 'proj-1', deliveryLocationId: 'loc-1' } as never,
+          procOfficer,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('validates material IDs when line items provided', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockPrisma.material.findMany.mockResolvedValue([{ id: 'mat-1' }]); // only 1 of 2
+      await expect(
+        service.saveRfqDraft(
+          {
+            projectId: 'proj-1',
+            lineItems: [
+              { materialId: 'mat-1', quantity: 1, uom: 'kg' },
+              { materialId: 'mat-2', quantity: 2, uom: 'kg' },
+            ],
+          } as never,
+          procOfficer,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('validates vendor assignment scope when vendors provided', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockPrisma.companyVendorAssignment.findMany.mockResolvedValue([]); // none assigned
+      await expect(
+        service.saveRfqDraft(
+          { projectId: 'proj-1', vendorIds: ['vendor-1'] } as never,
+          procOfficer,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws when holdForRelease is set without earliestDeliveryDate', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      await expect(
+        service.saveRfqDraft({ projectId: 'proj-1', holdForRelease: true } as never, procOfficer),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('persists provided line items and vendors after validation', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockPrisma.material.findMany.mockResolvedValue([{ id: 'mat-1' }]);
+      mockPrisma.companyVendorAssignment.findMany.mockResolvedValue([{ vendorId: 'vendor-1' }]);
+      mockTx();
+      setupDraftDetail();
+
+      const result = await service.saveRfqDraft(
+        {
+          projectId: 'proj-1',
+          lineItems: [{ materialId: 'mat-1', quantity: 3, uom: 'kg' }],
+          vendorIds: ['vendor-1'],
+        } as never,
+        procOfficer,
+      );
+
+      expect(result.id).toBe('rfq-draft');
+      expect(mockPrisma.companyVendorAssignment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            contractorId: 'comp-1',
+            vendorId: { in: ['vendor-1'] },
+          }),
+        }),
+      );
+    });
+  });
+
   // ── updateRfq ────────────────────────────────────────────────────────
 
   describe('updateRfq', () => {
