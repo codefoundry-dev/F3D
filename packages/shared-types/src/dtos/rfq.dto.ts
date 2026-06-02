@@ -16,15 +16,27 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-import { RfqStatus, VendorRfqStatus, QuickFilter } from '../enums';
+import { RfqStatus, VendorRfqStatus, QuickFilter, RfqLineItemSource } from '../enums';
 
 import { BasePaginationQueryDto, PaginationMetaDto } from './pagination.dto';
 
 // ── Create / Update DTOs ────────────────────────────────────────────────────
 
 export class CreateRfqLineItemDto {
+  @ApiPropertyOptional({ enum: RfqLineItemSource, description: 'Origin of the line item (FOR-204)' })
+  @IsEnum(RfqLineItemSource)
+  @IsOptional()
+  source?: RfqLineItemSource;
+
+  @ApiPropertyOptional({ description: 'Catalog material id (catalog-sourced items)' })
   @IsUUID()
-  materialId!: string;
+  @IsOptional()
+  materialId?: string;
+
+  @ApiPropertyOptional({ description: 'Free-text material name (BOM-sourced items without a catalog match)' })
+  @IsString()
+  @IsOptional()
+  materialName?: string;
 
   @IsNumber()
   @Min(0.01)

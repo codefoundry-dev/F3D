@@ -235,6 +235,16 @@ export enum MaterialStatus {
   ARCHIVED = 'ARCHIVED',
 }
 
+/**
+ * Where an RFQ line item originated (FOR-204). CATALOG items reference an
+ * approved Material; BOM items come from a parsed bill of materials and carry a
+ * free-text material name with no catalog material (yet).
+ */
+export enum RfqLineItemSource {
+  CATALOG = 'CATALOG',
+  BOM = 'BOM',
+}
+
 export enum QuickFilter {
   MY_RFQS = 'MyRfqs',
   OPEN_RFQS = 'OpenRfqs',

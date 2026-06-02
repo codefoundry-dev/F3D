@@ -116,13 +116,13 @@ export class PoValidationService {
     // ── Build suggestions per line item ────────────────────────────────────
     const suggestions = dto.lineItems.map((li, index) => {
       // RFQ match: by materialId or by material name
-      const rfqMatch = rfqMatches.find(
-        (m) =>
-          (li.materialId !== null &&
-            li.materialId !== undefined &&
-            m.materialId === li.materialId) ||
-          li.materialName?.toLowerCase() === m.material.name.toLowerCase(),
-      );
+      const liName = li.materialName?.trim().toLowerCase();
+      const rfqMatch = rfqMatches.find((m) => {
+        if (li.materialId !== null && li.materialId !== undefined && m.materialId === li.materialId)
+          return true;
+        const mName = (m.material?.name ?? m.materialName)?.trim().toLowerCase();
+        return Boolean(liName) && liName === mName;
+      });
       const approvedQuote = rfqMatch?.rfq.quoteResponses[0];
 
       // Bulk order match: by description or itemReference

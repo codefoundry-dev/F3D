@@ -82,7 +82,10 @@ model RfqVendor {
 model RfqLineItem {
   id           String  @id @default(uuid())
   rfqId        String  @map("rfq_id")
-  materialId   String  @map("material_id")
+  // Nullable since FOR-204: catalog items reference a Material, while BOM-sourced
+  // items carry a free-text materialName with no catalog material (yet).
+  materialId   String? @map("material_id")
+  materialName String? @map("material_name") @db.VarChar(255)
   quantity     Int
   unit         String  @db.VarChar(50)
   costCode     String? @map("cost_code") @db.VarChar(100)
@@ -90,7 +93,7 @@ model RfqLineItem {
   pickUp       Boolean @default(false) @map("pick_up")
 
   rfq                Rfq                     @relation(fields: [rfqId], references: [id], onDelete: Cascade)
-  material           Material                @relation(fields: [materialId], references: [id])
+  material           Material?               @relation(fields: [materialId], references: [id])
   quoteResponseItems QuoteResponseLineItem[]
 
   @@index([materialId], map: "idx_rfq_line_items_material")

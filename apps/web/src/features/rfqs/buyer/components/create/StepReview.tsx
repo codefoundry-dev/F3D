@@ -68,8 +68,11 @@ export function StepReview({
         ) : (
           <ul className="border-t border-border divide-y divide-border" data-testid="review-line-items">
             {lineItems.map((item, index) => (
-              <li key={`${item.materialId}-${index}`} className="py-2">
-                <p className="text-sm font-medium text-foreground">{item.materialName}</p>
+              <li key={index} className="py-2">
+                <p className="text-sm font-medium text-foreground">
+                  {item.materialName}
+                  {item.source === 'BOM' ? ' (BOM)' : ''}
+                </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {item.quantity} {item.uom}
                   {item.costCode ? ` · ${item.costCode}` : ''}

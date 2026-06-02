@@ -109,6 +109,7 @@ export const ERR = {
     projectNotFound: errors.rfqs.projectNotFound,
     invalidDeliveryLocation: errors.rfqs.invalidDeliveryLocation,
     invalidMaterialIds: errors.rfqs.invalidMaterialIds,
+    invalidLineItem: errors.rfqs.invalidLineItem,
     invalidVendorIds: errors.rfqs.invalidVendorIds,
     holdForReleaseRequiresEarliestDelivery: errors.rfqs.holdForReleaseRequiresEarliestDelivery,
     cannotEditStatus: (status: string) => t(errors.rfqs.cannotEditStatus, { status }),
