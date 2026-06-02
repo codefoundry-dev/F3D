@@ -14,6 +14,23 @@ const mockAuditService = {
   log: jest.fn(),
 };
 
+const mockAccessTokens = {
+  validateToken: jest.fn(),
+  consumeToken: jest.fn(),
+};
+
+const mockStorage = {
+  getSignedUrl: jest.fn(),
+};
+
+/** Build a $transaction tx stub whose quoteResponse.create resolves to `quote`. */
+function txWith(create: jest.Mock) {
+  return {
+    quoteResponse: { create },
+    accessToken: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+  };
+}
+
 const vendorUser = {
   id: 'vendor-user-1',
   role: UserRole.VENDOR,
@@ -52,7 +69,21 @@ describe('QuoteResponseService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new QuoteResponseService(mockPrisma as never, mockAuditService as never);
+    service = new QuoteResponseService(
+      mockPrisma as never,
+      mockAuditService as never,
+      mockAccessTokens as never,
+      mockStorage as never,
+    );
+    // Default: a valid QUOTE_SUBMIT token for RFQ rfq-1 / vendor vendor-co-1.
+    mockAccessTokens.validateToken.mockResolvedValue({
+      id: 'tok-1',
+      subjectId: 'rfq-1',
+      purpose: 'QUOTE_SUBMIT',
+      subjectType: 'RFQ',
+      metadata: { rfqVendorId: 'rv-1', vendorId: 'vendor-co-1' },
+    });
+    mockStorage.getSignedUrl.mockResolvedValue('https://signed.example/doc');
   });
 
   // ── submitQuote ───────────────────────────────────────────────────────────
@@ -71,12 +102,7 @@ describe('QuoteResponseService', () => {
       };
 
       mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-        const tx = {
-          quoteResponse: {
-            create: jest.fn().mockResolvedValue(createdQuote),
-          },
-        };
-        return fn(tx);
+        return fn(txWith(jest.fn().mockResolvedValue(createdQuote)));
       });
       mockAuditService.log.mockResolvedValue(undefined);
 
@@ -490,6 +516,7 @@ describe('QuoteResponseService', () => {
 
   describe('getGuestRfq', () => {
     const baseRfqVendor = {
+      rfqId: 'rfq-1',
       rfq: {
         id: 'rfq-1',
         rfqNumber: 'RFQ-001',
@@ -499,6 +526,7 @@ describe('QuoteResponseService', () => {
         company: { legalName: 'ContractorCo' },
         project: { name: 'Project Alpha' },
         deliveryLocation: { label: 'Warehouse A', address: '123 Main St' },
+        documents: [],
         lineItems: [
           {
             id: 'li-1',
@@ -628,12 +656,64 @@ describe('QuoteResponseService', () => {
 
       expect(result.lineItems[0].materialName).toBe('');
     });
+
+    it('should map RFQ documents to downloadable signed URLs', async () => {
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue({
+        ...baseRfqVendor,
+        rfq: {
+          ...baseRfqVendor.rfq,
+          documents: [
+            {
+              file: {
+                id: 'file-1',
+                key: 'rfq-documents/rfq-1/spec.pdf',
+                filename: 'spec.pdf',
+                mimeType: 'application/pdf',
+                size: 2048,
+              },
+            },
+          ],
+        },
+      });
+      mockStorage.getSignedUrl.mockResolvedValue('https://signed.example/spec.pdf');
+
+      const result = await service.getGuestRfq('valid-token');
+
+      expect(mockStorage.getSignedUrl).toHaveBeenCalledWith('rfq-documents/rfq-1/spec.pdf');
+      expect(result.attachments).toEqual([
+        {
+          id: 'file-1',
+          filename: 'spec.pdf',
+          mimeType: 'application/pdf',
+          size: 2048,
+          url: 'https://signed.example/spec.pdf',
+        },
+      ]);
+    });
+
+    it('should validate the token with QUOTE_SUBMIT purpose and RFQ subject', async () => {
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue(baseRfqVendor);
+
+      await service.getGuestRfq('valid-token');
+
+      expect(mockAccessTokens.validateToken).toHaveBeenCalledWith('valid-token', {
+        expectedPurpose: 'QUOTE_SUBMIT',
+        expectedSubjectType: 'RFQ',
+      });
+    });
+
+    it('should propagate token validation failures (expired/used/invalid)', async () => {
+      mockAccessTokens.validateToken.mockRejectedValue(new ForbiddenException('Token expired'));
+
+      await expect(service.getGuestRfq('used-token')).rejects.toThrow(ForbiddenException);
+    });
   });
 
   // ── submitGuestQuote ─────────────────────────────────────────────────────
 
   describe('submitGuestQuote', () => {
     const guestRfqVendor = {
+      rfqId: 'rfq-1',
       rfq: {
         id: 'rfq-1',
         status: 'OPEN',
@@ -641,6 +721,7 @@ describe('QuoteResponseService', () => {
         company: { legalName: 'ContractorCo' },
         project: { name: 'Project Alpha' },
         deliveryLocation: { label: 'Warehouse A', address: '123 Main St' },
+        documents: [],
       },
       vendor: { legalName: 'VendorCo' },
       vendorId: 'vendor-co-1',
@@ -702,12 +783,7 @@ describe('QuoteResponseService', () => {
       };
 
       mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-        const tx = {
-          quoteResponse: {
-            create: jest.fn().mockResolvedValue(createdQuote),
-          },
-        };
-        return fn(tx);
+        return fn(txWith(jest.fn().mockResolvedValue(createdQuote)));
       });
 
       const result = await service.submitGuestQuote('valid-token', guestSubmitDto as never);
@@ -730,35 +806,31 @@ describe('QuoteResponseService', () => {
 
       // Submit only li-1, so li-2 should become NO_QUOTE
       mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-        const tx = {
-          quoteResponse: {
-            create: jest.fn().mockImplementation(
-              (args: {
-                data: {
-                  lineItems: {
-                    createMany: {
-                      data: Array<{ rfqLineItemId: string; availability: string }>;
-                    };
-                  };
+        const create = jest.fn().mockImplementation(
+          (args: {
+            data: {
+              lineItems: {
+                createMany: {
+                  data: Array<{ rfqLineItemId: string; availability: string }>;
                 };
-              }) => {
-                const allItems = args.data.lineItems.createMany.data;
-                const noQuoteItem = allItems.find((li) => li.rfqLineItemId === 'li-2');
-                expect(noQuoteItem).toBeDefined();
-                expect(noQuoteItem?.availability).toBe('NO_QUOTE');
+              };
+            };
+          }) => {
+            const allItems = args.data.lineItems.createMany.data;
+            const noQuoteItem = allItems.find((li) => li.rfqLineItemId === 'li-2');
+            expect(noQuoteItem).toBeDefined();
+            expect(noQuoteItem?.availability).toBe('NO_QUOTE');
 
-                return {
-                  id: 'guest-quote-1',
-                  rfqId: 'rfq-1',
-                  vendorId: 'vendor-co-1',
-                  lineItems: allItems,
-                  vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
-                };
-              },
-            ),
+            return {
+              id: 'guest-quote-1',
+              rfqId: 'rfq-1',
+              vendorId: 'vendor-co-1',
+              lineItems: allItems,
+              vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
+            };
           },
-        };
-        return fn(tx);
+        );
+        return fn(txWith(create));
       });
 
       await service.submitGuestQuote('valid-token', guestSubmitDto as never);
@@ -805,12 +877,7 @@ describe('QuoteResponseService', () => {
       };
 
       mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-        const tx = {
-          quoteResponse: {
-            create: jest.fn().mockResolvedValue(createdQuote),
-          },
-        };
-        return fn(tx);
+        return fn(txWith(jest.fn().mockResolvedValue(createdQuote)));
       });
 
       const result = await service.submitGuestQuote('valid-token', fullDto as never);
@@ -845,12 +912,7 @@ describe('QuoteResponseService', () => {
       };
 
       mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-        const tx = {
-          quoteResponse: {
-            create: jest.fn().mockResolvedValue(createdQuote),
-          },
-        };
-        return fn(tx);
+        return fn(txWith(jest.fn().mockResolvedValue(createdQuote)));
       });
 
       const result = await service.submitGuestQuote('valid-token', minimalDto as never);
@@ -894,25 +956,79 @@ describe('QuoteResponseService', () => {
       };
 
       mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-        const tx = {
-          quoteResponse: {
-            create: jest.fn().mockImplementation((args: { data: { itemsCovered: number } }) => {
-              // Only li-2 is AVAILABLE, so itemsCovered should be 1
-              expect(args.data.itemsCovered).toBe(1);
-              return {
-                id: 'guest-quote-4',
-                rfqId: 'rfq-1',
-                vendorId: 'vendor-co-1',
-                lineItems: [],
-                vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
-              };
-            }),
-          },
-        };
-        return fn(tx);
+        const create = jest.fn().mockImplementation((args: { data: { itemsCovered: number } }) => {
+          // Only li-2 is AVAILABLE, so itemsCovered should be 1
+          expect(args.data.itemsCovered).toBe(1);
+          return {
+            id: 'guest-quote-4',
+            rfqId: 'rfq-1',
+            vendorId: 'vendor-co-1',
+            lineItems: [],
+            vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
+          };
+        });
+        return fn(txWith(create));
       });
 
       await service.submitGuestQuote('valid-token', dtoWithNoQuoteItem as never);
+    });
+
+    it('should burn the token and persist paymentTerms', async () => {
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue(guestRfqVendor);
+      mockPrisma.quoteResponse.findFirst.mockResolvedValue(null);
+      mockAuditService.log.mockResolvedValue(undefined);
+
+      const create = jest.fn().mockImplementation((args: { data: { paymentTerms: string } }) => {
+        expect(args.data.paymentTerms).toBe('Net 30');
+        return {
+          id: 'guest-quote-5',
+          rfqId: 'rfq-1',
+          vendorId: 'vendor-co-1',
+          lineItems: [],
+          vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
+        };
+      });
+      const burnMock = jest.fn().mockResolvedValue({ count: 1 });
+
+      mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+        return fn({
+          quoteResponse: { create },
+          accessToken: { updateMany: burnMock },
+        });
+      });
+
+      const result = await service.submitGuestQuote('valid-token', {
+        ...guestSubmitDto,
+        paymentTerms: 'Net 30',
+      } as never);
+
+      expect(result.id).toBe('guest-quote-5');
+      expect(burnMock).toHaveBeenCalledWith({
+        where: { id: 'tok-1', usedAt: null, revokedAt: null },
+        data: { usedAt: expect.any(Date) },
+      });
+    });
+
+    it('should throw ForbiddenException when the token is consumed concurrently', async () => {
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue(guestRfqVendor);
+      mockPrisma.quoteResponse.findFirst.mockResolvedValue(null);
+
+      mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+        return fn({
+          quoteResponse: {
+            create: jest.fn().mockResolvedValue({
+              id: 'guest-quote-6',
+              lineItems: [],
+              vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
+            }),
+          },
+          accessToken: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+        });
+      });
+
+      await expect(
+        service.submitGuestQuote('valid-token', guestSubmitDto as never),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

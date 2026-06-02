@@ -58,6 +58,10 @@ const mockEmailService = {
   sendQuoteUpdatedEmail: jest.fn(),
 };
 
+const mockAccessTokens = {
+  issueToken: jest.fn(),
+};
+
 const mockConfig = {
   get: jest.fn((_key: string, fallback: string) => fallback),
 };
@@ -129,8 +133,13 @@ describe('RfqsService', () => {
       mockPrisma as never,
       mockStorageService as never,
       mockEmailService as never,
+      mockAccessTokens as never,
       mockConfig as never,
     );
+    mockAccessTokens.issueToken.mockResolvedValue({
+      token: 'issued-token-xyz',
+      record: { id: 'tok-1' },
+    });
   });
 
   // ── listRfqs ────────────────────────────────────────────────────────────
@@ -2002,7 +2011,14 @@ describe('RfqsService', () => {
       // Wait for fire-and-forget
       await new Promise((r) => setTimeout(r, 50));
 
-      expect(mockPrisma.rfqVendor.update).toHaveBeenCalled();
+      expect(mockAccessTokens.issueToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subjectType: 'RFQ',
+          subjectId: 'rfq-1',
+          purpose: 'QUOTE_SUBMIT',
+          metadata: { rfqVendorId: 'iv-1', vendorId: 'v-1' },
+        }),
+      );
       expect(mockEmailService.sendRfqReceivedEmail).toHaveBeenCalledTimes(2);
       // Active user → /rfqs URL, not invitation URL
       expect(mockEmailService.sendRfqReceivedEmail).toHaveBeenCalledWith(
@@ -2075,7 +2091,7 @@ describe('RfqsService', () => {
       expect(mockEmailService.sendRfqReceivedEmail).toHaveBeenCalledWith(
         'pending@vendor.com',
         expect.any(String),
-        expect.stringContaining('/invitation/'),
+        'http://localhost:5179/invitation/issued-token-xyz',
         { cc: [], attachments: [] },
       );
     });

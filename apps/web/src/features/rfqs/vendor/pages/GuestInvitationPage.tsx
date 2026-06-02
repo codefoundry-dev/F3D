@@ -1,4 +1,4 @@
-import { type GuestRfqDetail, getGuestRfq } from '@forethread/api-client';
+import { type GuestRfqDetail, getGuestRfq, isApiError } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
   Alert,
@@ -29,10 +29,13 @@ export default function GuestInvitationPage() {
     data: rfq,
     isLoading,
     isError,
+    error,
   } = useQuery({
     queryKey: ['guest-rfq', token],
     queryFn: () => getGuestRfq(token ?? ''),
     enabled: !!token,
+    // Don't retry — a rejected token is terminal, and each attempt is rate-limited.
+    retry: false,
   });
 
   if (isLoading) {
@@ -44,11 +47,18 @@ export default function GuestInvitationPage() {
   }
 
   if (isError || !rfq || !token) {
+    // A 403 means the token has been used (quote already submitted), expired or
+    // revoked — distinct from a malformed/unknown link.
+    const usedOrExpired = isApiError(error, 403);
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="max-w-md text-center p-8">
-          <Alert variant="destructive">{t('guest.invalidToken')}</Alert>
-          <p className="text-sm text-muted-foreground mt-4">{t('guest.invalidTokenHint')}</p>
+          <Alert variant="destructive">
+            {usedOrExpired ? t('guest.usedToken') : t('guest.invalidToken')}
+          </Alert>
+          <p className="text-sm text-muted-foreground mt-4">
+            {usedOrExpired ? t('guest.usedTokenHint') : t('guest.invalidTokenHint')}
+          </p>
         </div>
       </div>
     );
@@ -153,6 +163,49 @@ function GuestResponseContent({ rfq, token }: { rfq: GuestRfqDetail; token: stri
         </div>
       </div>
 
+      {/* ═══ Attachments ═══ */}
+      {rfq.attachments.length > 0 && (
+        <div className="px-6 pt-4 max-w-[1400px] mx-auto w-full">
+          <div className="rounded-lg border border-border bg-card p-4">
+            <h2 className="text-base font-bold text-foreground mb-3">{t('guest.attachments')}</h2>
+            <ul className="space-y-2">
+              {rfq.attachments.map((file) => (
+                <li key={file.id}>
+                  <a
+                    href={file.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                  >
+                    <FileTextIcon className="w-4 h-4" />
+                    <span className="font-medium">{file.filename}</span>
+                    <span className="text-muted-foreground">({t('guest.download')})</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ Validation errors ═══ */}
+      {form.validationErrors.length > 0 && (
+        <div className="px-6 pt-4 max-w-[1400px] mx-auto w-full">
+          <Alert variant="destructive">
+            <p className="font-medium mb-1">{t('guest.validationTitle')}</p>
+            <ul className="list-disc pl-5 space-y-1">
+              {form.validationErrors.map((err, i) => (
+                <li key={i}>
+                  {err.type === 'NO_ITEMS'
+                    ? t('guest.validationNoItems')
+                    : t('guest.validationLineItem', { material: err.material })}
+                </li>
+              ))}
+            </ul>
+          </Alert>
+        </div>
+      )}
+
       {/* ═══ Form ═══ */}
       <div className="flex-1 px-6 py-4 max-w-[1400px] mx-auto w-full space-y-4">
         <BulkLevelDefaults
@@ -176,6 +229,8 @@ function GuestResponseContent({ rfq, token }: { rfq: GuestRfqDetail; token: stri
         <AdditionalQuoteDetails
           validityPeriod={form.validityPeriod}
           onValidityPeriodChange={form.setValidityPeriod}
+          paymentTerms={form.paymentTerms}
+          onPaymentTermsChange={form.setPaymentTerms}
           additionalNotes={form.additionalNotes}
           onAdditionalNotesChange={form.setAdditionalNotes}
           attachments={[]}

@@ -23,6 +23,35 @@ function safeFloat(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+/**
+ * A blocking validation problem with the quote form. Structured (not
+ * pre-translated) so the page owns the copy and tests stay locale-agnostic.
+ */
+export type QuoteValidationError =
+  | { type: 'NO_ITEMS' }
+  | { type: 'LINE_ITEM'; index: number; material: string };
+
+/**
+ * Each included line item must have a positive unit price, a positive available
+ * quantity and a delivery date; at least one line item must be included.
+ */
+export function validateGuestQuote(lineItems: LineItemFormState[]): QuoteValidationError[] {
+  const included = lineItems.filter((item) => item.included);
+  if (included.length === 0) return [{ type: 'NO_ITEMS' }];
+
+  const errors: QuoteValidationError[] = [];
+  lineItems.forEach((item, index) => {
+    if (!item.included) return;
+    const hasPrice = safeFloat(item.unitPrice) > 0;
+    const hasQty = safeFloat(item.availQty) > 0;
+    const hasDate = item.deliveryDate.trim().length > 0;
+    if (!hasPrice || !hasQty || !hasDate) {
+      errors.push({ type: 'LINE_ITEM', index, material: item.materialName });
+    }
+  });
+  return errors;
+}
+
 function initGuestLineItems(lineItems: GuestRfqDetail['lineItems']): LineItemFormState[] {
   return lineItems.map((item) => ({
     rfqLineItemId: item.id,
@@ -127,10 +156,12 @@ export function useGuestRfqResponse(rfq: GuestRfqDetail, token: string) {
   }, [lineItems, bulkDefaults.bulkDiscount, bulkDefaults.bulkTax]);
 
   const [validityPeriod, setValidityPeriod] = useState('');
+  const [paymentTerms, setPaymentTerms] = useState('');
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [showInfo, setShowInfo] = useState(false);
 
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<QuoteValidationError[]>([]);
 
   const buildSubmitInput = useCallback((): SubmitQuoteInput => {
     const includedLineItems: SubmitQuoteLineItemInput[] = lineItems
@@ -166,10 +197,11 @@ export function useGuestRfqResponse(rfq: GuestRfqDetail, token: string) {
     if (bulkDefaults.bulkTax) input.bulkTax = safeFloat(bulkDefaults.bulkTax);
     if (bulkDefaults.shipment) input.bulkShipment = safeFloat(bulkDefaults.shipment);
     if (validityPeriod) input.validityPeriod = validityPeriod;
+    if (paymentTerms) input.paymentTerms = paymentTerms;
     if (additionalNotes) input.message = additionalNotes;
 
     return input;
-  }, [lineItems, bulkDefaults, validityPeriod, additionalNotes]);
+  }, [lineItems, bulkDefaults, validityPeriod, paymentTerms, additionalNotes]);
 
   const submitMutation = useMutation({
     mutationFn: (input: SubmitQuoteInput) => submitGuestQuote(token, input),
@@ -177,9 +209,13 @@ export function useGuestRfqResponse(rfq: GuestRfqDetail, token: string) {
   });
 
   const handleSubmit = useCallback(() => {
+    const errors = validateGuestQuote(lineItems);
+    setValidationErrors(errors);
+    if (errors.length > 0) return;
+
     setSubmitSuccess(false);
     submitMutation.mutate(buildSubmitInput());
-  }, [buildSubmitInput, submitMutation]);
+  }, [lineItems, buildSubmitInput, submitMutation]);
 
   return {
     bulkDefaults,
@@ -193,6 +229,8 @@ export function useGuestRfqResponse(rfq: GuestRfqDetail, token: string) {
     totals,
     validityPeriod,
     setValidityPeriod,
+    paymentTerms,
+    setPaymentTerms,
     additionalNotes,
     setAdditionalNotes,
     showInfo,
@@ -201,5 +239,6 @@ export function useGuestRfqResponse(rfq: GuestRfqDetail, token: string) {
     isSubmitting: submitMutation.isPending,
     submitError: submitMutation.error ? submitMutation.error.message : null,
     submitSuccess,
+    validationErrors,
   };
 }

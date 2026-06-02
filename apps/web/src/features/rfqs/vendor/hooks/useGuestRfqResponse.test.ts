@@ -157,24 +157,79 @@ describe('useGuestRfqResponse', () => {
     expect(result.current.additionalNotes).toBe('Guest note');
   });
 
-  it('handleSubmit calls mutate', () => {
+  /** Fill the first line item with valid values and drop the rest. */
+  const fillValidQuote = (result: { current: ReturnType<typeof useGuestRfqResponse> }) => {
+    act(() => {
+      result.current.updateLineItem(0, 'availQty', '10');
+      result.current.updateLineItem(0, 'unitPrice', '50');
+      result.current.updateLineItem(0, 'deliveryDate', '2026-07-01');
+      result.current.toggleInclude(1);
+    });
+  };
+
+  it('handleSubmit calls mutate when the quote is valid', () => {
     const { result } = renderHook(() =>
       useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),
     );
+    fillValidQuote(result);
     act(() => {
       result.current.handleSubmit();
     });
     expect(mockMutate).toHaveBeenCalled();
+    expect(result.current.validationErrors).toHaveLength(0);
   });
 
   it('sets submitSuccess on successful mutation', () => {
     const { result } = renderHook(() =>
       useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),
     );
+    fillValidQuote(result);
     act(() => {
       result.current.handleSubmit();
     });
     expect(result.current.submitSuccess).toBe(true);
+  });
+
+  it('blocks submit and reports per-line errors when required fields are missing', () => {
+    const { result } = renderHook(() =>
+      useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),
+    );
+    // No unit price / qty / delivery date set on either included line.
+    act(() => {
+      result.current.handleSubmit();
+    });
+    expect(mockMutate).not.toHaveBeenCalled();
+    expect(result.current.validationErrors).toHaveLength(2);
+    expect(result.current.validationErrors[0]).toMatchObject({ type: 'LINE_ITEM', index: 0 });
+  });
+
+  it('blocks submit with a NO_ITEMS error when nothing is included', () => {
+    const { result } = renderHook(() =>
+      useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),
+    );
+    act(() => {
+      result.current.toggleInclude(0);
+      result.current.toggleInclude(1);
+    });
+    act(() => {
+      result.current.handleSubmit();
+    });
+    expect(mockMutate).not.toHaveBeenCalled();
+    expect(result.current.validationErrors).toEqual([{ type: 'NO_ITEMS' }]);
+  });
+
+  it('includes payment terms in the submit payload', () => {
+    const { result } = renderHook(() =>
+      useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),
+    );
+    fillValidQuote(result);
+    act(() => {
+      result.current.setPaymentTerms('Net 30');
+    });
+    act(() => {
+      result.current.handleSubmit();
+    });
+    expect(mockMutate).toHaveBeenCalledWith(expect.objectContaining({ paymentTerms: 'Net 30' }));
   });
 
   it('manages showInfo state', () => {

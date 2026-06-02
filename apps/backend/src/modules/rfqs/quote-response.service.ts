@@ -5,6 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  AccessTokenPurpose,
+  AccessTokenSubject,
   AuditAction,
   DiscountType,
   QuoteLineItemAvailability,
@@ -16,7 +18,9 @@ import {
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { AuditService } from '../audit/audit.service';
+import { StorageService } from '../storage/storage.service';
 
 import type { SubmitQuoteDto, UpdateQuoteDto } from './quote-response.dto';
 
@@ -31,6 +35,8 @@ export class QuoteResponseService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly accessTokens: AccessTokensService,
+    private readonly storageService: StorageService,
   ) {}
 
   // ── Submit Quote ────────────────────────────────────────────────────────────
@@ -390,34 +396,76 @@ export class QuoteResponseService {
 
   // ── Guest (invitation link) access ──────────────────────────────────────────
 
-  private async resolveInvitationToken(token: string) {
-    const rfqVendor = await this.prisma.rfqVendor.findUnique({
-      where: { invitationToken: token },
+  /**
+   * Prisma include for the RFQ scope shown on / submitted from the guest portal.
+   * `documents.file` carries the storage key used to mint signed download URLs.
+   */
+  private static readonly GUEST_RFQ_VENDOR_INCLUDE = {
+    rfq: {
       include: {
-        rfq: {
-          include: {
-            lineItems: {
-              include: { material: { select: { id: true, name: true, uom: true } } },
-            },
-            project: { select: { name: true } },
-            company: { select: { legalName: true } },
-            deliveryLocation: true,
-          },
+        lineItems: {
+          include: { material: { select: { id: true, name: true, uom: true } } },
         },
-        vendor: { select: { id: true, legalName: true } },
+        project: { select: { name: true } },
+        company: { select: { legalName: true } },
+        deliveryLocation: true,
+        documents: {
+          include: {
+            file: { select: { id: true, key: true, filename: true, mimeType: true, size: true } },
+          },
+          orderBy: { createdAt: 'desc' as const },
+        },
       },
+    },
+    vendor: { select: { id: true, legalName: true } },
+  } as const;
+
+  /**
+   * Resolve a vendor invitation via the A15 access-token system. Validates the
+   * token (purpose QUOTE_SUBMIT, subject RFQ) — bumping its attempt counter and
+   * rejecting expired/used/revoked tokens — then loads the invited vendor + RFQ
+   * scope. Does NOT consume the token; callers burn it after a successful submit.
+   */
+  private async resolveInvitationToken(token: string) {
+    const tokenRecord = await this.accessTokens.validateToken(token, {
+      expectedPurpose: AccessTokenPurpose.QUOTE_SUBMIT,
+      expectedSubjectType: AccessTokenSubject.RFQ,
     });
 
-    if (!rfqVendor) {
+    const metadata = (tokenRecord.metadata ?? {}) as {
+      rfqVendorId?: string;
+      vendorId?: string;
+    };
+
+    const where = metadata.rfqVendorId
+      ? { id: metadata.rfqVendorId }
+      : { rfqId_vendorId: { rfqId: tokenRecord.subjectId, vendorId: metadata.vendorId ?? '' } };
+
+    const rfqVendor = await this.prisma.rfqVendor.findUnique({
+      where,
+      include: QuoteResponseService.GUEST_RFQ_VENDOR_INCLUDE,
+    });
+
+    if (!rfqVendor || rfqVendor.rfqId !== tokenRecord.subjectId) {
       throw new NotFoundException('Invalid or expired invitation token');
     }
 
-    return rfqVendor;
+    return { rfqVendor, tokenRecord };
   }
 
   async getGuestRfq(token: string) {
-    const rfqVendor = await this.resolveInvitationToken(token);
+    const { rfqVendor } = await this.resolveInvitationToken(token);
     const rfq = rfqVendor.rfq;
+
+    const attachments = await Promise.all(
+      rfq.documents.map(async ({ file }) => ({
+        id: file.id,
+        filename: file.filename,
+        mimeType: file.mimeType,
+        size: file.size,
+        url: await this.storageService.getSignedUrl(file.key),
+      })),
+    );
 
     return {
       id: rfq.id,
@@ -436,13 +484,14 @@ export class QuoteResponseService {
         description: li.description,
         costCode: li.costCode,
       })),
+      attachments,
       vendorName: rfqVendor.vendor.legalName,
       vendorId: rfqVendor.vendorId,
     };
   }
 
   async submitGuestQuote(token: string, dto: SubmitQuoteDto) {
-    const rfqVendor = await this.resolveInvitationToken(token);
+    const { rfqVendor, tokenRecord } = await this.resolveInvitationToken(token);
     const rfq = rfqVendor.rfq;
 
     if (!OPEN_STATUSES.includes(rfq.status)) {
@@ -525,6 +574,7 @@ export class QuoteResponseService {
           bulkShipment: dto.bulkShipment ?? null,
           warehouseLocationId: dto.warehouseLocationId ?? null,
           validityPeriod: dto.validityPeriod ? new Date(dto.validityPeriod) : null,
+          paymentTerms: dto.paymentTerms ?? null,
           message: dto.message ?? null,
           lineItems: {
             createMany: { data: allLineItems },
@@ -548,12 +598,26 @@ export class QuoteResponseService {
         },
       });
 
+      // Burn the single-use token in the same transaction so a quote can never
+      // be persisted without consuming its link (and vice-versa). updateMany is
+      // atomic, so concurrent submits race here and only one wins.
+      const burned = await tx.accessToken.updateMany({
+        where: { id: tokenRecord.id, usedAt: null, revokedAt: null },
+        data: { usedAt: new Date() },
+      });
+      if (burned.count === 0) {
+        throw new ForbiddenException(ERR.accessTokens.alreadyUsed);
+      }
+
       return quote;
     });
 
+    // A guest submitter has no platform user account, but audit_logs.performed_by
+    // is a required FK to a user. Attribute the entry to the RFQ creator and
+    // record the true (guest vendor) actor in the metadata.
     await this.auditService.log({
       action: AuditAction.QUOTE_SUBMITTED,
-      performedById: rfqVendor.vendorId,
+      performedById: rfq.createdByUserId,
       targetType: 'QuoteResponse',
       targetId: result.id,
       targetLabel: `Guest quote for RFQ ${rfq.id}`,
