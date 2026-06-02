@@ -16,6 +16,7 @@ export interface ResendAttachment {
 
 export interface ResendSendOptions {
   to: string | string[];
+  cc?: string | string[];
   subject: string;
   html?: string;
   text?: string;

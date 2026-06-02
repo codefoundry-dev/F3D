@@ -66,6 +66,16 @@ export const saveRfqDraftSchema = z.object({
 
 export type SaveRfqDraftValues = z.infer<typeof saveRfqDraftSchema>;
 
+// ── Send RFQ (FOR-203) ──────────────────────────────────────────────────────
+// Optional CC recipients copied on the outbound vendor emails when the RFQ is
+// sent. Attachments travel from the RFQ's uploaded documents, so they are not
+// part of this payload.
+export const sendRfqSchema = z.object({
+  cc: z.array(z.string().email()).optional(),
+});
+
+export type SendRfqValues = z.infer<typeof sendRfqSchema>;
+
 // ── Per-step schemas (multi-step create form, FOR-202) ──────────────────────
 // Each step validates only its own slice before the user may advance.
 

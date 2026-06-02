@@ -12,13 +12,21 @@ import { EMAIL_TEMPLATES } from './email-templates.const';
 import type { EmailTemplateName } from './email-templates.const';
 import { ResendService } from './resend.service';
 
+/** An attachment ready to hand to whichever transport is active. */
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType?: string;
+}
+
 /** A rendered message ready to hand to whichever transport is active. */
 interface EmailMessage {
   to: string;
+  cc?: string[];
   subject: string;
   html?: string;
   text?: string;
-  attachments?: { filename: string; content: Buffer }[];
+  attachments?: EmailAttachment[];
 }
 
 @Injectable()
@@ -115,9 +123,12 @@ export class EmailService implements OnModuleInit {
    * the SMTP path whose rejections are swallowed by the caller's try/catch.
    */
   private async dispatch(message: EmailMessage): Promise<void> {
+    const hasCc = message.cc && message.cc.length > 0;
+
     if (this.resend.isConfigured()) {
       const result = await this.resend.send({
         to: message.to,
+        ...(hasCc ? { cc: message.cc } : {}),
         subject: message.subject,
         ...(message.html ? { html: message.html } : {}),
         ...(message.text ? { text: message.text } : {}),
@@ -132,6 +143,7 @@ export class EmailService implements OnModuleInit {
     await this.transporter.sendMail({
       from: this.from,
       to: message.to,
+      ...(hasCc ? { cc: message.cc } : {}),
       subject: message.subject,
       ...(message.html ? { html: message.html } : {}),
       ...(message.text ? { text: message.text } : {}),
@@ -239,14 +251,23 @@ export class EmailService implements OnModuleInit {
     }
   }
 
-  async sendRfqReceivedEmail(to: string, rfqNumber: string, replyUrl: string): Promise<void> {
+  async sendRfqReceivedEmail(
+    to: string,
+    rfqNumber: string,
+    replyUrl: string,
+    options?: { cc?: string[]; attachments?: EmailAttachment[] },
+  ): Promise<void> {
     const t = this.getTranslations('rfqReceived', { rfqNumber });
 
     try {
       await this.dispatch({
         to,
+        ...(options?.cc && options.cc.length > 0 ? { cc: options.cc } : {}),
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.RFQ_RECEIVED, t, { replyUrl }),
+        ...(options?.attachments && options.attachments.length > 0
+          ? { attachments: options.attachments }
+          : {}),
       });
     } catch {
       // fire-and-forget: email failures are non-critical

@@ -1,10 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
   IsDateString,
+  IsEmail,
   IsEnum,
   IsInt,
   IsNumber,
@@ -200,6 +201,28 @@ export class SaveRfqDraftDto {
 }
 
 export class ValidateRfqBulkDto {}
+
+/**
+ * Send-RFQ DTO (FOR-203).
+ *
+ * The body is optional on the `POST /rfqs/:id/send` action; when present it
+ * carries the CC recipients that should be copied on the outbound vendor
+ * emails. Attachments are not listed here — they travel from the RFQ's already
+ * uploaded documents, so the send action attaches them automatically.
+ */
+export class SendRfqDto {
+  @ApiPropertyOptional({ type: [String], description: 'CC email recipients for the vendor emails' })
+  @Transform(({ value }: { value: unknown }): unknown => {
+    if (!Array.isArray(value)) return value;
+    return (value as unknown[])
+      .map((v) => (typeof v === 'string' ? v.trim() : v))
+      .filter((v) => v !== '');
+  })
+  @IsArray()
+  @IsEmail({}, { each: true })
+  @IsOptional()
+  cc?: string[];
+}
 
 // ── List / Query DTOs ───────────────────────────────────────────────────────
 
