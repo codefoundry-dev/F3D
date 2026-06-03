@@ -192,6 +192,25 @@ export class RfqsController {
     return this.rfqsService.approveQuote(rfqId, quoteId, user);
   }
 
+  // ── POST /v1/rfqs/:rfqId/quotes/:quoteId/award ──────────────────────────
+
+  @Post(':rfqId/quotes/:quoteId/award')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('rfq.approveQuote')
+  @ApiOperation({
+    summary: 'Award a quote: approve it and auto-create a draft PO from it (FOR-209)',
+  })
+  @ApiResponse({ status: 201, description: 'Quote awarded; draft PO created' })
+  @ApiResponse({ status: 400, description: 'Quote is not in an awardable state' })
+  @ApiResponse({ status: 404, description: 'Quote not found' })
+  async awardQuote(
+    @Param('rfqId') rfqId: string,
+    @Param('quoteId') quoteId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.rfqsService.awardQuote(rfqId, quoteId, user);
+  }
+
   // ── PATCH /v1/rfqs/:rfqId/quotes/:quoteId/decline ───────────────────────
 
   @Patch(':rfqId/quotes/:quoteId/decline')

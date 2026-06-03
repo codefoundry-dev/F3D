@@ -87,6 +87,7 @@ export const RFQS_PATHS = {
   quoteAudit: (rfqId: string) => `/rfqs/${rfqId}/quote-audit`,
   quoteComparison: (rfqId: string) => `/rfqs/${rfqId}/quote-comparison`,
   approveQuote: (rfqId: string, quoteId: string) => `/rfqs/${rfqId}/quotes/${quoteId}/approve`,
+  awardQuote: (rfqId: string, quoteId: string) => `/rfqs/${rfqId}/quotes/${quoteId}/award`,
   declineQuote: (rfqId: string, quoteId: string) => `/rfqs/${rfqId}/quotes/${quoteId}/decline`,
   lineItem: (rfqId: string, lineItemId: string) => `/rfqs/${rfqId}/line-items/${lineItemId}`,
   send: (id: string) => `/rfqs/${id}/send`,

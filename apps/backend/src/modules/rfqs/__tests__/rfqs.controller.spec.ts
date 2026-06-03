@@ -13,6 +13,7 @@ const mockRfqsService = {
   copyRfq: jest.fn(),
   archiveRfq: jest.fn(),
   approveQuote: jest.fn(),
+  awardQuote: jest.fn(),
   declineQuote: jest.fn(),
   updateLineItem: jest.fn(),
   deleteLineItem: jest.fn(),
@@ -137,6 +138,24 @@ describe('RfqsController', () => {
 
       const result = await controller.approveQuote('rfq-1', 'q-1', mockUser);
       expect(mockRfqsService.approveQuote).toHaveBeenCalledWith('rfq-1', 'q-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('awardQuote', () => {
+    it('delegates to service and returns the created PO reference', async () => {
+      const expected = {
+        id: 'q-1',
+        vendorName: 'VendorCo',
+        status: 'APPROVED',
+        totalCost: 15000,
+        purchaseOrderId: 'po-1',
+        poNumber: 'PO-00001',
+      };
+      mockRfqsService.awardQuote.mockResolvedValue(expected);
+
+      const result = await controller.awardQuote('rfq-1', 'q-1', mockUser);
+      expect(mockRfqsService.awardQuote).toHaveBeenCalledWith('rfq-1', 'q-1', mockUser);
       expect(result).toEqual(expected);
     });
   });

@@ -22,8 +22,12 @@ import {
   AccessTokenPurpose,
   AccessTokenSubject,
   CompanyType,
+  PoSourceOfCreation,
+  PoStatus,
+  PoType,
   Prisma,
   QuoteAuditAction,
+  QuoteLineItemAvailability,
   QuoteResponseStatus,
   RfqStatus,
   UserRole,
@@ -834,6 +838,145 @@ export class RfqsService {
     };
   }
 
+  // ── Award Quote (FOR-209) ────────────────────────────────────────────────────
+
+  /**
+   * Award a received quote: approve it, mark the RFQ AWARDED, and auto-create a
+   * draft Purchase Order pre-filled from the awarded quote's line items so the
+   * contractor can review and issue it. The award decision is captured on the
+   * RFQ's quote audit trail (APPROVED). The quote approval, RFQ status change,
+   * audit entry and PO creation all run in one transaction so they are
+   * all-or-nothing.
+   */
+  async awardQuote(rfqId: string, quoteId: string, user: AuthenticatedUser) {
+    const quote = await this.prisma.quoteResponse.findUnique({
+      where: { id: quoteId },
+      include: {
+        rfq: {
+          select: {
+            companyId: true,
+            projectId: true,
+            currency: true,
+            deliveryLocationId: true,
+            holdForRelease: true,
+            deadlineStart: true,
+            deadlineEnd: true,
+          },
+        },
+        lineItems: {
+          include: {
+            rfqLineItem: {
+              select: {
+                materialId: true,
+                materialName: true,
+                unit: true,
+                costCode: true,
+                description: true,
+                pickUp: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!quote) throw new NotFoundException(ERR.rfqs.quoteNotFound);
+    this.assertCompanyAccess(user, quote.rfq.companyId);
+    this.assertQuoteAwardable(quote.status);
+
+    // Derive PO lines from the awarded quote, dropping lines the vendor did not
+    // actually quote (NO_QUOTE). qty × unit mirrors the PO module's line total.
+    const poLineItems = quote.lineItems
+      .filter((li) => li.availability !== QuoteLineItemAvailability.NO_QUOTE)
+      .map((li, idx) => {
+        const unitPrice = Number(li.unitPrice);
+        return {
+          lineNumber: idx + 1,
+          materialId: li.rfqLineItem.materialId,
+          description: li.rfqLineItem.description ?? li.rfqLineItem.materialName,
+          quantityOrdered: li.quotedQuantity,
+          unitOfMeasure: li.rfqLineItem.unit,
+          unitPrice,
+          lineTotal: li.quotedQuantity * unitPrice,
+          costCode: li.rfqLineItem.costCode,
+          expectedDeliveryDate: li.deliveryDate,
+          notes: li.notes,
+          pickUp: li.rfqLineItem.pickUp,
+        };
+      });
+
+    const subtotal = poLineItems.reduce((sum, li) => sum + li.lineTotal, 0);
+    const totalRequestedQty = poLineItems.reduce((sum, li) => sum + li.quantityOrdered, 0);
+    // Number generated before the transaction, mirroring the PO module's own
+    // creation path (count scoped to the contractor's company).
+    const poNumber = await nextSequentialNumber(
+      this.prisma,
+      'purchaseOrder',
+      'PO',
+      quote.rfq.companyId,
+    );
+
+    const { quoteResult, purchaseOrder } = await this.prisma.$transaction(async (tx) => {
+      const quoteResult = await tx.quoteResponse.update({
+        where: { id: quoteId },
+        data: { status: QuoteResponseStatus.APPROVED },
+        include: { vendor: { select: { legalName: true } } },
+      });
+
+      await tx.rfq.update({
+        where: { id: rfqId },
+        data: { status: RfqStatus.AWARDED },
+      });
+
+      await tx.quoteAudit.create({
+        data: {
+          quoteResponseId: quoteId,
+          rfqId,
+          vendorId: quote.vendorId,
+          action: QuoteAuditAction.APPROVED,
+          source: quote.source,
+          performedById: user.id,
+        },
+      });
+
+      const purchaseOrder = await tx.purchaseOrder.create({
+        data: {
+          poNumber,
+          companyId: quote.rfq.companyId,
+          projectId: quote.rfq.projectId,
+          vendorId: quote.vendorId,
+          rfqId,
+          createdByUserId: user.id,
+          status: PoStatus.DRAFT,
+          poType: PoType.STANDARD,
+          sourceOfCreation: PoSourceOfCreation.RFQ,
+          currency: quote.rfq.currency,
+          deliveryLocationId: quote.rfq.deliveryLocationId,
+          holdForRelease: quote.rfq.holdForRelease,
+          deadlineStart: quote.rfq.deadlineStart,
+          deadlineEnd: quote.rfq.deadlineEnd,
+          message: quote.message,
+          subtotal,
+          totalAmount: subtotal,
+          lineItemCount: poLineItems.length,
+          totalRequestedQty,
+          lineItems: { create: poLineItems },
+        },
+        select: { id: true, poNumber: true },
+      });
+
+      return { quoteResult, purchaseOrder };
+    });
+
+    return {
+      id: quoteResult.id,
+      vendorName: quoteResult.vendor.legalName,
+      status: quoteResult.status,
+      totalCost: Number(quoteResult.totalCost),
+      purchaseOrderId: purchaseOrder.id,
+      poNumber: purchaseOrder.poNumber,
+    };
+  }
+
   // ── Decline Quote ──────────────────────────────────────────────────────────
 
   async declineQuote(_rfqId: string, quoteId: string, user: AuthenticatedUser) {
@@ -1339,6 +1482,17 @@ export class RfqsService {
   private assertQuotePending(status: QuoteResponseStatus, action: string): void {
     if (status !== QuoteResponseStatus.PENDING) {
       throw new BadRequestException(ERR.rfqs.invalidQuoteAction(action, status));
+    }
+  }
+
+  /**
+   * A quote can be awarded while it is still awaiting a decision — a received
+   * (SUBMITTED) quote, or a PENDING placeholder. Already-APPROVED quotes (and
+   * DECLINED ones) cannot be awarded again.
+   */
+  private assertQuoteAwardable(status: QuoteResponseStatus): void {
+    if (status !== QuoteResponseStatus.SUBMITTED && status !== QuoteResponseStatus.PENDING) {
+      throw new BadRequestException(ERR.rfqs.invalidQuoteAction('award', status));
     }
   }
 
