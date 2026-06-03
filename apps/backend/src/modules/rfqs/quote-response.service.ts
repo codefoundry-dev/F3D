@@ -20,6 +20,7 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { AuditService } from '../audit/audit.service';
+import { DocIntelligenceService } from '../doc-intelligence/doc-intelligence.service';
 import { StorageService } from '../storage/storage.service';
 
 import type { SubmitQuoteDto, UpdateQuoteDto } from './quote-response.dto';
@@ -37,6 +38,7 @@ export class QuoteResponseService {
     private readonly auditService: AuditService,
     private readonly accessTokens: AccessTokensService,
     private readonly storageService: StorageService,
+    private readonly docIntelligence: DocIntelligenceService,
   ) {}
 
   // ── Submit Quote ────────────────────────────────────────────────────────────
@@ -625,6 +627,43 @@ export class QuoteResponseService {
     });
 
     return result;
+  }
+
+  // ── Guest quote PDF extraction (FOR-206) ────────────────────────────────────
+
+  /**
+   * Start a Gemini extraction of a quote PDF a guest vendor uploaded through the
+   * tokenized portal. Validates the invitation token (bumping its attempt
+   * counter once) but does NOT consume it — the vendor still submits the quote
+   * afterwards via {@link submitGuestQuote}. Delegates the upload + async
+   * extraction to the doc-intelligence pipeline, tagging the job with the RFQ so
+   * the poll endpoint can be scoped to guest quote jobs.
+   */
+  async createGuestQuoteExtraction(token: string, file: Express.Multer.File) {
+    const { rfqVendor } = await this.resolveInvitationToken(token);
+    const rfq = rfqVendor.rfq;
+
+    if (!OPEN_STATUSES.includes(rfq.status)) {
+      throw new BadRequestException(`Cannot submit quote: RFQ status is ${rfq.status}`);
+    }
+
+    return this.docIntelligence.createGuestQuoteExtraction({
+      file,
+      rfqId: rfq.id,
+      attributedUserId: rfq.createdByUserId,
+      companyId: rfq.companyId,
+    });
+  }
+
+  /**
+   * Poll a guest quote extraction by its (unguessable) id. Intentionally
+   * token-less: `validateToken` bumps the attempt counter on every call, which a
+   * 1.5s status poll over a 30–60s Gemini run would quickly exhaust. The
+   * extraction id is a server-minted UUID and the job only ever holds the
+   * vendor's own uploaded quote data, so addressing by id is sufficient.
+   */
+  getGuestQuoteExtraction(id: string) {
+    return this.docIntelligence.getGuestQuoteExtraction(id);
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────────

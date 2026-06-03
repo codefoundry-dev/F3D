@@ -23,6 +23,11 @@ const mockStorage = {
   getSignedUrl: jest.fn(),
 };
 
+const mockDocIntelligence = {
+  createGuestQuoteExtraction: jest.fn(),
+  getGuestQuoteExtraction: jest.fn(),
+};
+
 /** Build a $transaction tx stub whose quoteResponse.create resolves to `quote`. */
 function txWith(create: jest.Mock) {
   return {
@@ -74,6 +79,7 @@ describe('QuoteResponseService', () => {
       mockAuditService as never,
       mockAccessTokens as never,
       mockStorage as never,
+      mockDocIntelligence as never,
     );
     // Default: a valid QUOTE_SUBMIT token for RFQ rfq-1 / vendor vendor-co-1.
     mockAccessTokens.validateToken.mockResolvedValue({

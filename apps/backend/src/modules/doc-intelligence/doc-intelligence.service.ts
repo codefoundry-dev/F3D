@@ -1,16 +1,8 @@
 import { randomUUID } from 'crypto';
 import * as path from 'path';
 
-import {
-  DocExtractionListQueryDto,
-  buildPaginationMeta,
-} from '@forethread/shared-types';
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { DocExtractionListQueryDto, buildPaginationMeta } from '@forethread/shared-types';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   DocExtractionStatus,
   DocExtractionType,
@@ -28,6 +20,7 @@ import { StorageService } from '../storage/storage.service';
 
 import { normalizeBomResult } from './doc-intelligence.bom';
 import { buildExtractionPrompt } from './doc-intelligence.prompts';
+import { normalizeQuoteResult } from './doc-intelligence.quote';
 import { spreadsheetToText } from './doc-intelligence.spreadsheet';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -58,7 +51,7 @@ export interface CreateExtractionInput {
   file: Express.Multer.File;
 }
 
-interface ExtractionWithFile extends DocExtraction {
+export interface ExtractionWithFile extends DocExtraction {
   file: PrismaFile;
 }
 
@@ -122,9 +115,89 @@ export class DocIntelligenceService {
     });
 
     // Fire-and-forget the actual extraction.
-    void this.runExtraction(extraction.id, input.file.buffer, input.file.mimetype, input.promptHint);
+    void this.runExtraction(
+      extraction.id,
+      input.file.buffer,
+      input.file.mimetype,
+      input.promptHint,
+    );
 
     return extraction;
+  }
+
+  // ── Guest quote extraction (tokenized vendor portal, FOR-206) ─────────────
+
+  /**
+   * Create a QUOTE extraction for a guest vendor who uploaded their quote PDF
+   * through the tokenized RFQ portal. There is no authenticated user, so — as
+   * with the guest audit-log entries — the upload and extraction are attributed
+   * to the RFQ creator, and the job is tagged with `rfqId` so the public poll
+   * endpoint can be scoped to guest quote jobs only.
+   *
+   * The caller (RFQ service) is responsible for validating the invitation token
+   * before invoking this.
+   */
+  async createGuestQuoteExtraction(input: {
+    file: Express.Multer.File;
+    rfqId: string;
+    attributedUserId: string;
+    companyId: string | null;
+  }): Promise<ExtractionWithFile> {
+    if (!input.file) throw new BadRequestException(ERR.storage.noFileProvided);
+    if (input.file.size > MAX_FILE_SIZE) {
+      throw new BadRequestException(ERR.storage.fileTooLarge('10MB'));
+    }
+    if (!ACCEPTED_MIME_TYPES.has(input.file.mimetype)) {
+      throw new BadRequestException(ERR.storage.fileTypeNotAllowed);
+    }
+    if (!this.gemini.isConfigured()) {
+      throw new BadRequestException(ERR.docExtractions.geminiNotConfigured);
+    }
+
+    const ext = path.extname(input.file.originalname) || '';
+    const key = `doc-extractions/${randomUUID()}${ext}`;
+    const uploaded = await this.storage.upload(key, input.file.buffer, input.file.mimetype);
+
+    const fileRecord = await this.prisma.file.create({
+      data: {
+        bucket: uploaded.bucket,
+        key: uploaded.key,
+        filename: input.file.originalname,
+        mimeType: input.file.mimetype,
+        size: input.file.size,
+        uploadedById: input.attributedUserId,
+      },
+    });
+
+    const extraction = await this.prisma.docExtraction.create({
+      data: {
+        type: DocExtractionType.QUOTE,
+        status: DocExtractionStatus.PENDING,
+        fileId: fileRecord.id,
+        createdByUserId: input.attributedUserId,
+        companyId: input.companyId,
+        rfqId: input.rfqId,
+      },
+      include: { file: true },
+    });
+
+    void this.runExtraction(extraction.id, input.file.buffer, input.file.mimetype);
+
+    return extraction;
+  }
+
+  /**
+   * Fetch a guest quote extraction for the public poll endpoint. Scoped to
+   * QUOTE jobs created via the vendor portal (`rfqId` set) so the token-less,
+   * UUID-addressed poll can never expose internal BOM/invoice extractions.
+   */
+  async getGuestQuoteExtraction(id: string): Promise<ExtractionWithFile> {
+    const job = await this.prisma.docExtraction.findFirst({
+      where: { id, type: DocExtractionType.QUOTE, rfqId: { not: null } },
+      include: { file: true },
+    });
+    if (!job) throw new NotFoundException(ERR.docExtractions.notFound);
+    return job;
   }
 
   // ── Run extraction (async) ──────────────────────────────────────────────
@@ -210,6 +283,9 @@ ${sheetText}`;
   ): Record<string, unknown> {
     if (type === DocExtractionType.BOM) {
       return normalizeBomResult(parsed) as unknown as Record<string, unknown>;
+    }
+    if (type === DocExtractionType.QUOTE) {
+      return normalizeQuoteResult(parsed) as unknown as Record<string, unknown>;
     }
     return parsed;
   }

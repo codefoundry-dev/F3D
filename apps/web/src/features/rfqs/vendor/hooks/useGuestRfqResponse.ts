@@ -4,10 +4,16 @@ import {
   type SubmitQuoteLineItemInput,
   submitGuestQuote,
 } from '@forethread/api-client';
+import { type QuoteExtractionResult, EMPTY_QUOTE_RESULT } from '@forethread/shared-types/client';
 import { useMutation } from '@tanstack/react-query';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
+import { matchExtractedQuote } from './matchExtractedQuote';
+import { useQuoteExtraction } from './useQuoteExtraction';
 import type { BulkDefaults, LineItemFormState, QuoteTotals } from './useRfqResponse';
+
+/** How the vendor is entering their quote: by hand, or by uploading a PDF. */
+export type ResponseMode = 'manual' | 'upload';
 
 const INITIAL_BULK_DEFAULTS: BulkDefaults = {
   bulkAvailability: '',
@@ -89,6 +95,48 @@ export function useGuestRfqResponse(rfq: GuestRfqDetail, token: string) {
 
   const [lineItems, setLineItems] = useState<LineItemFormState[]>(() =>
     initGuestLineItems(rfq.lineItems),
+  );
+
+  // ── Quote entry mode + PDF extraction (FOR-206) ─────────────────────────────
+  const [mode, setMode] = useState<ResponseMode>('manual');
+  const [sourceFileId, setSourceFileId] = useState<string | null>(null);
+  const [matchStats, setMatchStats] = useState<{ matched: number; unmatched: number } | null>(null);
+  const extraction = useQuoteExtraction(token);
+  const appliedExtractionIdRef = useRef<string | null>(null);
+
+  // When a quote PDF finishes extracting, match its items onto the RFQ line
+  // items and pre-fill the (still editable) form for the vendor to review.
+  useEffect(() => {
+    const job = extraction.job;
+    if (job?.status !== 'COMPLETED') return;
+    if (appliedExtractionIdRef.current === job.id) return;
+    appliedExtractionIdRef.current = job.id;
+
+    const result = (job.editedResult ?? job.rawResult) as unknown as QuoteExtractionResult | null;
+    const {
+      lineItems: prefilled,
+      matchedCount,
+      unmatchedCount,
+    } = matchExtractedQuote(initGuestLineItems(rfq.lineItems), result ?? EMPTY_QUOTE_RESULT);
+    setLineItems(prefilled);
+    setSourceFileId(job.file.id);
+    setMatchStats({ matched: matchedCount, unmatched: unmatchedCount });
+  }, [extraction.job, rfq.lineItems]);
+
+  const switchMode = useCallback(
+    (next: ResponseMode) => {
+      setMode(next);
+      if (next === 'manual') {
+        // Returning to manual entry discards the extraction + its attachment so
+        // a half-read PDF can't silently ride along with a hand-entered quote.
+        extraction.reset();
+        appliedExtractionIdRef.current = null;
+        setSourceFileId(null);
+        setMatchStats(null);
+        setLineItems(initGuestLineItems(rfq.lineItems));
+      }
+    },
+    [extraction, rfq.lineItems],
   );
 
   const toggleInclude = useCallback((index: number) => {
@@ -199,9 +247,11 @@ export function useGuestRfqResponse(rfq: GuestRfqDetail, token: string) {
     if (validityPeriod) input.validityPeriod = validityPeriod;
     if (paymentTerms) input.paymentTerms = paymentTerms;
     if (additionalNotes) input.message = additionalNotes;
+    // Attach the uploaded quote PDF so the contractor can see the original source.
+    if (sourceFileId) input.attachmentIds = [sourceFileId];
 
     return input;
-  }, [lineItems, bulkDefaults, validityPeriod, paymentTerms, additionalNotes]);
+  }, [lineItems, bulkDefaults, validityPeriod, paymentTerms, additionalNotes, sourceFileId]);
 
   const submitMutation = useMutation({
     mutationFn: (input: SubmitQuoteInput) => submitGuestQuote(token, input),
@@ -240,5 +290,16 @@ export function useGuestRfqResponse(rfq: GuestRfqDetail, token: string) {
     submitError: submitMutation.error ? submitMutation.error.message : null,
     submitSuccess,
     validationErrors,
+    // PDF-upload mode (FOR-206)
+    mode,
+    setMode: switchMode,
+    extractionPhase: extraction.phase,
+    extractionFileName: extraction.fileName,
+    extractionItemCount: extraction.job?.editedResult
+      ? ((extraction.job.editedResult as unknown as QuoteExtractionResult).items?.length ?? 0)
+      : 0,
+    uploadQuote: extraction.upload,
+    uploadError: extraction.uploadError,
+    matchStats,
   };
 }

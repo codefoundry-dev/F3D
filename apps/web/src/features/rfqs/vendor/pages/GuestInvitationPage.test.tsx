@@ -51,6 +51,15 @@ const mockGuestForm = vi.hoisted(() => ({
     validationErrors: [] as Array<
       { type: 'NO_ITEMS' } | { type: 'LINE_ITEM'; index: number; material: string }
     >,
+    // PDF-upload mode (FOR-206)
+    mode: 'manual' as 'manual' | 'upload',
+    setMode: vi.fn(),
+    extractionPhase: 'idle' as 'idle' | 'uploading' | 'processing' | 'completed' | 'failed',
+    extractionFileName: null as string | null,
+    extractionItemCount: 0,
+    uploadQuote: vi.fn(),
+    uploadError: null as string | null,
+    matchStats: null as { matched: number; unmatched: number } | null,
   },
 }));
 
@@ -273,7 +282,13 @@ describe('GuestInvitationPage', () => {
         vendorName: 'Vendor Inc',
         lineItems: [],
         attachments: [
-          { id: 'f-1', filename: 'spec.pdf', mimeType: 'application/pdf', size: 100, url: 'https://signed/spec.pdf' },
+          {
+            id: 'f-1',
+            filename: 'spec.pdf',
+            mimeType: 'application/pdf',
+            size: 100,
+            url: 'https://signed/spec.pdf',
+          },
         ],
       },
       isLoading: false,
