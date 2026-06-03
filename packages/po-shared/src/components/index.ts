@@ -22,6 +22,7 @@ export { NoPurchaseOrderRequired } from './NoPurchaseOrderRequired';
 // PO creation components
 export { Stepper } from './Stepper';
 export { PoBasicInfoStep } from './PoBasicInfoStep';
+export { PoDeliveriesSection } from './PoDeliveriesSection';
 export { PoCreateLineItemsStep } from './PoCreateLineItemsStep';
 export { PoReviewStep } from './PoReviewStep';
 export { CreatePoWizard } from './CreatePoWizard';

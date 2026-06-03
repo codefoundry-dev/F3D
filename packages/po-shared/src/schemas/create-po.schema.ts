@@ -21,6 +21,29 @@ export const lineItemSchema = z.object({
   notes: z.string().optional(),
 });
 
+// FOR-210: a single header-level delivery row. Both fields are optional, but a
+// non-empty row must carry at least a location or a date (mirrors the backend
+// 400 rule). Fully-empty trailing rows are stripped via preprocess below.
+export const deliveryRowSchema = z
+  .object({
+    deliveryLocationId: z.string().optional(),
+    deliveryDate: z.string().optional(),
+    notes: z.string().optional(),
+  })
+  .refine((row) => Boolean(row.deliveryLocationId) || Boolean(row.deliveryDate), {
+    message: 'Add a location or a date',
+    path: ['deliveryLocationId'],
+  });
+
+/** A delivery row is "empty" when it has neither a location nor a date. */
+export function isEmptyDeliveryRow(row: {
+  deliveryLocationId?: string;
+  deliveryDate?: string;
+  notes?: string;
+}): boolean {
+  return !row?.deliveryLocationId && !row?.deliveryDate;
+}
+
 export const formSchema = z.object({
   // Step 1
   documentName: z.string().min(1, 'Required'),
@@ -44,6 +67,17 @@ export const formSchema = z.object({
     },
     z.array(lineItemSchema).min(1, 'At least one line item required'),
   ),
+  // Step 1 — multi-delivery (FOR-210). Preprocess strips empty trailing rows
+  // before validation, mirroring the lineItems pattern.
+  deliveries: z
+    .preprocess((val) => {
+      if (!Array.isArray(val)) return val;
+      return val.filter(
+        (row: Record<string, unknown>) =>
+          row && typeof row === 'object' && (row.deliveryLocationId || row.deliveryDate),
+      );
+    }, z.array(deliveryRowSchema))
+    .optional(),
   // Step 3
   message: z.string().optional(),
 });
@@ -72,3 +106,30 @@ export const EMPTY_LINE_ITEM = {
   description: '',
   notes: '',
 };
+
+export const EMPTY_DELIVERY_ROW = {
+  deliveryLocationId: '',
+  deliveryDate: '',
+  notes: '',
+};
+
+/**
+ * FOR-210: map form delivery rows to the API `PoDeliveryInput[]` shape, dropping
+ * fully-empty rows and converting dates to ISO-8601. Extracted as a pure helper
+ * so it can be unit-tested independently of the form.
+ */
+export function mapDeliveriesToPayload(
+  rows:
+    | { deliveryLocationId?: string; deliveryDate?: string; notes?: string }[]
+    | undefined,
+): { deliveryLocationId?: string; deliveryDate?: string; notes?: string }[] | undefined {
+  if (!rows) return undefined;
+  const mapped = rows
+    .filter((row) => !isEmptyDeliveryRow(row))
+    .map((row) => ({
+      deliveryLocationId: row.deliveryLocationId || undefined,
+      deliveryDate: row.deliveryDate ? new Date(row.deliveryDate).toISOString() : undefined,
+      notes: row.notes || undefined,
+    }));
+  return mapped.length > 0 ? mapped : undefined;
+}

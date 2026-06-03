@@ -6,6 +6,7 @@ import {
   getProjects,
   getProject,
   getCompanyVendors,
+  getMe,
   type PoListParams,
   type CreatePurchaseOrderInput,
 } from '@forethread/api-client';
@@ -49,6 +50,17 @@ export function useCompanyVendors() {
     queryKey: ['company-vendors', companyId],
     queryFn: () => getCompanyVendors(companyId ?? ''),
     enabled: !!companyId,
+  });
+}
+
+/**
+ * FOR-210: surfaces the current user's profile (including `poApprovalThreshold`)
+ * so the PO detail page can decide whether sending requires approval.
+ */
+export function useMe() {
+  return useQuery({
+    queryKey: ['me'],
+    queryFn: () => getMe(),
   });
 }
 

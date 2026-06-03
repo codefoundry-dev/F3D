@@ -200,6 +200,7 @@
     "deliveryLocation": "Delivery Location",
     "pickUpLocation": "Pick-up Location",
     "deliveryNotes": "Delivery Notes",
+    "deliverySchedule": "Delivery Schedule",
     "deadlineRange": "Deadline",
     "plannedDeliveryDate": "Planned Delivery Date",
     "issuedAt": "Issued At",
@@ -387,7 +388,21 @@
     "itemMaterial": "Item/Material",
     "description": "Description",
     "unit": "Unit",
-    "totalLineCost": "Total line cost"
+    "totalLineCost": "Total line cost",
+    "deliveriesTitle": "Delivery schedule",
+    "deliveriesSubtitle": "Add one or more delivery drops for this PO. Each row needs at least a location or a date.",
+    "deliveryRow": "Delivery {{index}}",
+    "addDelivery": "Add delivery",
+    "removeDelivery": "Remove",
+    "deliveryNotes": "Delivery notes",
+    "deliveryNotesPlaceholder": "Add any notes for this delivery..."
+  },
+  "send": {
+    "send": "Send",
+    "submitForApproval": "Submit for Approval",
+    "sent": "Purchase order sent",
+    "submittedForApproval": "Purchase order submitted for approval",
+    "failed": "Failed to send purchase order. Please try again."
   },
   "approvedQuotes": {
     "title": "Add from Approved quotes",

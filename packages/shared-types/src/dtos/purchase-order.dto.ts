@@ -108,6 +108,20 @@ export class CreatePoLineItemDto {
   pickUp?: boolean;
 }
 
+export class CreatePoDeliveryDto {
+  @IsUUID()
+  @IsOptional()
+  deliveryLocationId?: string;
+
+  @IsDateString()
+  @IsOptional()
+  deliveryDate?: string;
+
+  @IsString()
+  @IsOptional()
+  notes?: string;
+}
+
 export class CreatePurchaseOrderDto {
   @IsOptional()
   @IsString()
@@ -208,6 +222,12 @@ export class CreatePurchaseOrderDto {
   @ValidateNested({ each: true })
   @Type(() => CreatePoLineItemDto)
   lineItems!: CreatePoLineItemDto[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreatePoDeliveryDto)
+  @IsOptional()
+  deliveries?: CreatePoDeliveryDto[];
 }
 
 export class UpdatePurchaseOrderDto {
@@ -310,6 +330,12 @@ export class UpdatePurchaseOrderDto {
   @Type(() => CreatePoLineItemDto)
   @IsOptional()
   lineItems?: CreatePoLineItemDto[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreatePoDeliveryDto)
+  @IsOptional()
+  deliveries?: CreatePoDeliveryDto[];
 }
 
 // ── Response DTOs ────────────────────────────────────────────────────────────

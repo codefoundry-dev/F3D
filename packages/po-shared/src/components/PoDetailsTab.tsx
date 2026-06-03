@@ -67,6 +67,36 @@ export function PoDetailsTab({
                 label={t('detailFields.deliveryLocation')}
                 value={po.deliveryLocationName ?? '-'}
               />
+              {po.deliveries && po.deliveries.length > 0 && (
+                <div className="flex flex-col gap-2 pt-1">
+                  <SectionTitle>{t('detailFields.deliverySchedule')}</SectionTitle>
+                  <div className="flex flex-col gap-2">
+                    {po.deliveries.map((d) => (
+                      <div
+                        key={d.id}
+                        className="rounded-lg border border-foreground/10 p-3 grid grid-cols-2 gap-x-8 gap-y-2"
+                      >
+                        <DetailField
+                          label={t('detailFields.deliveryLocation')}
+                          value={d.deliveryLocationName ?? '-'}
+                        />
+                        <DetailField
+                          label={t('detailFields.plannedDeliveryDate')}
+                          value={d.deliveryDate ? formatDate(d.deliveryDate) : '-'}
+                        />
+                        {d.notes && (
+                          <div className="col-span-2">
+                            <DetailField
+                              label={t('detailFields.deliveryNotes')}
+                              value={d.notes}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           {vendorAcceptSlot && (
@@ -192,6 +222,19 @@ export function PoDetailsTab({
           label={t('detailFields.plannedDeliveryDate')}
           value={formatDate(po.plannedDeliveryDate)}
         />
+        {po.deliveries && po.deliveries.length > 0 && (
+          <div className="flex flex-col gap-1.5 pt-1">
+            <SectionTitle>{t('detailFields.deliverySchedule')}</SectionTitle>
+            {po.deliveries.map((d) => (
+              <div key={d.id} className="text-sm text-foreground">
+                <span>{d.deliveryLocationName ?? '-'}</span>
+                {d.deliveryDate && (
+                  <span className="text-muted-foreground"> · {formatDate(d.deliveryDate)}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <SectionDivider />

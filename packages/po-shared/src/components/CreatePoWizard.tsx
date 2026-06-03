@@ -56,6 +56,9 @@ export function CreatePoWizard({
     fields,
     append,
     remove,
+    deliveryFields,
+    appendDelivery,
+    removeDelivery,
     canContinue,
     handleContinue,
     handleBack,
@@ -130,6 +133,9 @@ export function CreatePoWizard({
             locationOptions={locationOptions}
             watchedProjectId={watchedProjectId}
             lockedFields={lockedFields}
+            deliveryFields={deliveryFields}
+            appendDelivery={appendDelivery}
+            removeDelivery={removeDelivery}
           />
         )}
 

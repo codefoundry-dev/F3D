@@ -1,4 +1,5 @@
 import {
+  CreatePoDeliveryDto,
   CreatePoLineItemDto,
   CreatePurchaseOrderDto,
   PoListQueryDto,
@@ -203,6 +204,10 @@ export class PurchaseOrdersService {
         approvedBy: { select: { id: true, name: true } },
         lastModifiedBy: { select: { id: true, name: true } },
         deliveryLocation: { select: { label: true, address: true } },
+        deliveries: {
+          orderBy: { sequence: 'asc' },
+          include: { deliveryLocation: { select: { label: true, address: true } } },
+        },
         lineItems: { include: { material: { select: { name: true } } } },
         documents: {
           include: {
@@ -278,6 +283,14 @@ export class PurchaseOrdersService {
         deliveryLocation: li.deliveryLocationId,
         notes: li.notes,
         pickUp: li.pickUp,
+      })),
+      deliveries: (po.deliveries ?? []).map((d) => ({
+        id: d.id,
+        deliveryLocationId: d.deliveryLocationId,
+        deliveryLocationName: d.deliveryLocation?.label ?? d.deliveryLocation?.address ?? null,
+        deliveryDate: d.deliveryDate?.toISOString() ?? null,
+        notes: d.notes,
+        sequence: d.sequence,
       })),
       documents: po.documents.map((d) => ({
         id: d.id,
@@ -374,6 +387,55 @@ export class PurchaseOrdersService {
     }
   }
 
+  // ── Delivery rows helper ────────────────────────────────────────────────
+
+  /**
+   * Validate header-level delivery rows (FOR-210) and return the nested-create
+   * payload with a stable `sequence`. Each row must carry at least a location
+   * or a date, and any supplied location must belong to the PO's project.
+   */
+  private async buildDeliveryRows(
+    deliveries: CreatePoDeliveryDto[] | undefined,
+    projectId: string,
+  ): Promise<
+    Array<{
+      deliveryLocationId: string | null;
+      deliveryDate: Date | null;
+      notes: string | null;
+      sequence: number;
+    }>
+  > {
+    if (!deliveries || deliveries.length === 0) return [];
+
+    const locationIds = [
+      ...new Set(deliveries.map((d) => d.deliveryLocationId).filter(Boolean)),
+    ] as string[];
+
+    const validLocationIds = new Set<string>();
+    if (locationIds.length > 0) {
+      const locations = await this.prisma.projectLocation.findMany({
+        where: { id: { in: locationIds }, projectId },
+        select: { id: true },
+      });
+      for (const loc of locations) validLocationIds.add(loc.id);
+    }
+
+    return deliveries.map((d, idx) => {
+      if (!d.deliveryLocationId && !d.deliveryDate) {
+        throw new BadRequestException(ERR.purchaseOrders.invalidDeliveryRow);
+      }
+      if (d.deliveryLocationId && !validLocationIds.has(d.deliveryLocationId)) {
+        throw new BadRequestException(ERR.purchaseOrders.invalidDeliveryLocation);
+      }
+      return {
+        deliveryLocationId: d.deliveryLocationId ?? null,
+        deliveryDate: d.deliveryDate ? new Date(d.deliveryDate) : null,
+        notes: d.notes ?? null,
+        sequence: idx,
+      };
+    });
+  }
+
   // ── Create Purchase Order ───────────────────────────────────────────────
 
   async createPurchaseOrder(dto: CreatePurchaseOrderDto, user: AuthenticatedUser) {
@@ -429,6 +491,9 @@ export class PurchaseOrdersService {
       };
     });
 
+    // Build and validate header-level delivery rows (FOR-210)
+    const deliveryRows = await this.buildDeliveryRows(dto.deliveries, dto.projectId);
+
     const subtotal = lineItems.reduce((sum, li) => sum + li.lineTotal, 0);
     const poNumber = await nextSequentialNumber(
       this.prisma,
@@ -474,6 +539,7 @@ export class PurchaseOrdersService {
         lineItemCount: lineItems.length,
         totalRequestedQty: lineItems.reduce((sum, li) => sum + li.quantityOrdered, 0),
         lineItems: { create: lineItems },
+        ...(deliveryRows.length > 0 && { deliveries: { create: deliveryRows } }),
       },
     });
 
@@ -520,6 +586,12 @@ export class PurchaseOrdersService {
       }
     }
 
+    // Build/validate header-level delivery rows when provided (FOR-210).
+    // Replacing deliveries works independently of whether lineItems are sent.
+    const deliveryRows = dto.deliveries
+      ? await this.buildDeliveryRows(dto.deliveries, po.projectId)
+      : undefined;
+
     if (dto.lineItems) {
       // Delete old and create new line items in a transaction
       const lineItems = dto.lineItems.map((li: CreatePoLineItemDto, idx: number) => {
@@ -545,6 +617,7 @@ export class PurchaseOrdersService {
 
       await this.prisma.$transaction([
         this.prisma.poLineItem.deleteMany({ where: { purchaseOrderId: id } }),
+        ...(deliveryRows ? [this.prisma.poDelivery.deleteMany({ where: { purchaseOrderId: id } })] : []),
         this.prisma.purchaseOrder.update({
           where: { id },
           data: {
@@ -593,53 +666,62 @@ export class PurchaseOrdersService {
             totalRequestedQty: lineItems.reduce((sum, li) => sum + li.quantityOrdered, 0),
             lastModifiedById: user.id,
             lineItems: { create: lineItems },
+            ...(deliveryRows && { deliveries: { create: deliveryRows } }),
           },
         }),
       ]);
     } else {
-      await this.prisma.purchaseOrder.update({
-        where: { id },
-        data: {
-          ...(dto.documentName !== undefined && { documentName: dto.documentName }),
-          ...(dto.vendorId && { vendorId: dto.vendorId }),
-          ...(dto.deliveryLocationId && { deliveryLocationId: dto.deliveryLocationId }),
-          ...(dto.plannedDeliveryDate && {
-            plannedDeliveryDate: new Date(dto.plannedDeliveryDate),
-          }),
-          ...(dto.poType && { poType: dto.poType as unknown as PrismaPoType }),
-          ...(dto.priority !== undefined && {
-            priority: dto.priority as unknown as Prisma.PurchaseOrderUpdateInput['priority'],
-          }),
-          ...(dto.holdForRelease !== undefined && { holdForRelease: dto.holdForRelease }),
-          ...(dto.deadlineStart !== undefined && {
-            deadlineStart: dto.deadlineStart ? new Date(dto.deadlineStart) : null,
-          }),
-          ...(dto.deadlineEnd !== undefined && {
-            deadlineEnd: dto.deadlineEnd ? new Date(dto.deadlineEnd) : null,
-          }),
-          ...(dto.pickUp !== undefined && { pickUp: dto.pickUp }),
-          ...(dto.pickUpLocation !== undefined && { pickUpLocation: dto.pickUpLocation }),
-          ...(dto.pickUpTimeExpectation !== undefined && {
-            pickUpTimeExpectation:
-              dto.pickUpTimeExpectation as unknown as Prisma.PurchaseOrderUpdateInput['pickUpTimeExpectation'],
-          }),
-          ...(dto.pickUpPersonName !== undefined && { pickUpPersonName: dto.pickUpPersonName }),
-          ...(dto.pickUpPersonPhone !== undefined && { pickUpPersonPhone: dto.pickUpPersonPhone }),
-          ...(dto.currency && { currency: dto.currency }),
-          ...(dto.paymentTermsDays !== undefined && { paymentTermsDays: dto.paymentTermsDays }),
-          ...(dto.costCode !== undefined && { costCode: dto.costCode }),
-          ...(dto.rfqId !== undefined && { rfqId: dto.rfqId }),
-          ...(dto.deliveryNotes !== undefined && { deliveryNotes: dto.deliveryNotes }),
-          ...(dto.message !== undefined && { message: dto.message }),
-          ...(dto.deliveryResponsibleName !== undefined && {
-            deliveryResponsibleName: dto.deliveryResponsibleName,
-          }),
-          ...(dto.deliveryResponsibleEmail !== undefined && {
-            deliveryResponsibleEmail: dto.deliveryResponsibleEmail,
-          }),
-          lastModifiedById: user.id,
-        },
-      });
+      const data: Prisma.PurchaseOrderUncheckedUpdateInput = {
+        ...(deliveryRows && { deliveries: { create: deliveryRows } }),
+        ...(dto.documentName !== undefined && { documentName: dto.documentName }),
+        ...(dto.vendorId && { vendorId: dto.vendorId }),
+        ...(dto.deliveryLocationId && { deliveryLocationId: dto.deliveryLocationId }),
+        ...(dto.plannedDeliveryDate && {
+          plannedDeliveryDate: new Date(dto.plannedDeliveryDate),
+        }),
+        ...(dto.poType && { poType: dto.poType as unknown as PrismaPoType }),
+        ...(dto.priority !== undefined && {
+          priority: dto.priority as unknown as Prisma.PurchaseOrderUpdateInput['priority'],
+        }),
+        ...(dto.holdForRelease !== undefined && { holdForRelease: dto.holdForRelease }),
+        ...(dto.deadlineStart !== undefined && {
+          deadlineStart: dto.deadlineStart ? new Date(dto.deadlineStart) : null,
+        }),
+        ...(dto.deadlineEnd !== undefined && {
+          deadlineEnd: dto.deadlineEnd ? new Date(dto.deadlineEnd) : null,
+        }),
+        ...(dto.pickUp !== undefined && { pickUp: dto.pickUp }),
+        ...(dto.pickUpLocation !== undefined && { pickUpLocation: dto.pickUpLocation }),
+        ...(dto.pickUpTimeExpectation !== undefined && {
+          pickUpTimeExpectation:
+            dto.pickUpTimeExpectation as unknown as Prisma.PurchaseOrderUpdateInput['pickUpTimeExpectation'],
+        }),
+        ...(dto.pickUpPersonName !== undefined && { pickUpPersonName: dto.pickUpPersonName }),
+        ...(dto.pickUpPersonPhone !== undefined && { pickUpPersonPhone: dto.pickUpPersonPhone }),
+        ...(dto.currency && { currency: dto.currency }),
+        ...(dto.paymentTermsDays !== undefined && { paymentTermsDays: dto.paymentTermsDays }),
+        ...(dto.costCode !== undefined && { costCode: dto.costCode }),
+        ...(dto.rfqId !== undefined && { rfqId: dto.rfqId }),
+        ...(dto.deliveryNotes !== undefined && { deliveryNotes: dto.deliveryNotes }),
+        ...(dto.message !== undefined && { message: dto.message }),
+        ...(dto.deliveryResponsibleName !== undefined && {
+          deliveryResponsibleName: dto.deliveryResponsibleName,
+        }),
+        ...(dto.deliveryResponsibleEmail !== undefined && {
+          deliveryResponsibleEmail: dto.deliveryResponsibleEmail,
+        }),
+        lastModifiedById: user.id,
+      };
+
+      if (deliveryRows) {
+        // Replace delivery rows atomically alongside the metadata update.
+        await this.prisma.$transaction([
+          this.prisma.poDelivery.deleteMany({ where: { purchaseOrderId: id } }),
+          this.prisma.purchaseOrder.update({ where: { id }, data }),
+        ]);
+      } else {
+        await this.prisma.purchaseOrder.update({ where: { id }, data });
+      }
     }
 
     return this.getPurchaseOrder(id, user);

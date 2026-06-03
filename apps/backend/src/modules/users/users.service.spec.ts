@@ -41,6 +41,9 @@ const mockPrisma = {
   companyVendorAssignment: {
     findFirst: jest.fn(),
   },
+  rolePermission: {
+    findFirst: jest.fn().mockResolvedValue(null),
+  },
   $transaction: jest.fn(),
 };
 mockPrisma.$transaction.mockImplementation((fn: (tx: typeof mockPrisma) => Promise<unknown>) =>
@@ -592,6 +595,7 @@ describe('UsersService', () => {
       mockPermissionsService.getPermissionsForRole.mockResolvedValueOnce(
         new Set(['rfq.create', 'po.approve']),
       );
+      mockPrisma.rolePermission.findFirst.mockResolvedValueOnce({ thresholdAmount: null });
 
       const result = await service.getMe('u-1');
 
@@ -603,7 +607,47 @@ describe('UsersService', () => {
         name: 'Me',
         role: UserRole.COMPANY_ADMIN,
         permissions: ['rfq.create', 'po.approve'],
+        poApprovalThreshold: null,
       });
+    });
+
+    it('exposes the numeric po.approve threshold for a capped role', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u-2',
+        name: 'PO',
+        role: UserRole.PROCUREMENT_OFFICER,
+      });
+      mockPermissionsService.getPermissionsForRole.mockResolvedValueOnce(new Set(['po.approve']));
+      mockPrisma.rolePermission.findFirst.mockResolvedValueOnce({ thresholdAmount: 25000 });
+
+      const result = await service.getMe('u-2');
+      expect(result.poApprovalThreshold).toBe(25000);
+    });
+
+    it('returns 0 when the role lacks the po.approve grant', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u-3',
+        name: 'NoApprove',
+        role: UserRole.PROCUREMENT_OFFICER,
+      });
+      mockPermissionsService.getPermissionsForRole.mockResolvedValueOnce(new Set<string>());
+      mockPrisma.rolePermission.findFirst.mockResolvedValueOnce(null);
+
+      const result = await service.getMe('u-3');
+      expect(result.poApprovalThreshold).toBe(0);
+    });
+
+    it('returns null (unlimited) for SUPER_ADMIN without a rolePermission lookup', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u-4',
+        name: 'Root',
+        role: UserRole.SUPER_ADMIN,
+      });
+      mockPermissionsService.getPermissionsForRole.mockResolvedValueOnce(new Set<string>());
+
+      const result = await service.getMe('u-4');
+      expect(result.poApprovalThreshold).toBeNull();
+      expect(mockPrisma.rolePermission.findFirst).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when user not found', async () => {

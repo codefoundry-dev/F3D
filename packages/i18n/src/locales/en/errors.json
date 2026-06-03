@@ -91,6 +91,7 @@
     "projectNotFound": "Project not found",
     "vendorNotFound": "Vendor not found",
     "invalidDeliveryLocation": "Delivery location does not belong to the selected project",
+    "invalidDeliveryRow": "Each delivery row must have a delivery location or a delivery date",
     "cannotApprove": "Cannot approve PO with status \"{{status}}\". Only Pending POs can be approved.",
     "cannotDecline": "Cannot decline PO with status \"{{status}}\".",
     "cannotEditNonDraft": "Only Draft purchase orders can be edited. Use change request flow for issued POs.",

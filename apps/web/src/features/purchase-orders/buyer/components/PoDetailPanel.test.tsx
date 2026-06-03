@@ -57,6 +57,10 @@ vi.mock('@forethread/po-shared', () => ({
   PoDocumentsTab: () => <div data-testid="po-documents-tab" />,
 }));
 
+vi.mock('./PoSendButton', () => ({
+  PoSendButton: () => <div data-testid="po-send-button" />,
+}));
+
 vi.mock('@/app/route-config', () => ({
   ROUTES: {
     purchaseOrderDetail: '/purchase-orders/:id',

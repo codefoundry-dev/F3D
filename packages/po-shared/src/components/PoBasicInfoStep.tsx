@@ -7,7 +7,15 @@ import {
   Checkbox,
   onDigitsOnly,
 } from '@forethread/ui-components';
-import { type Control, type FieldErrors, type UseFormRegister, Controller } from 'react-hook-form';
+import {
+  type Control,
+  type FieldErrors,
+  type UseFormRegister,
+  type UseFieldArrayReturn,
+  Controller,
+} from 'react-hook-form';
+
+import { PoDeliveriesSection } from './PoDeliveriesSection';
 
 import type { FormValues } from '../schemas/create-po.schema';
 
@@ -20,6 +28,10 @@ interface PoBasicInfoStepProps {
   locationOptions: { value: string; label: string }[];
   watchedProjectId: string;
   lockedFields?: Set<string>;
+  /** FOR-210: multi-delivery field-array controls. */
+  deliveryFields: UseFieldArrayReturn<FormValues, 'deliveries'>['fields'];
+  appendDelivery: UseFieldArrayReturn<FormValues, 'deliveries'>['append'];
+  removeDelivery: UseFieldArrayReturn<FormValues, 'deliveries'>['remove'];
 }
 
 export function PoBasicInfoStep({
@@ -31,6 +43,9 @@ export function PoBasicInfoStep({
   locationOptions,
   watchedProjectId,
   lockedFields,
+  deliveryFields,
+  appendDelivery,
+  removeDelivery,
 }: PoBasicInfoStepProps) {
   const { t } = useTranslation('purchaseOrders');
 
@@ -200,6 +215,20 @@ export function PoBasicInfoStep({
               />
               <span className="text-base text-foreground">{t('create.holdForRelease')}</span>
             </div>
+          </div>
+
+          {/* FOR-210: Multi-delivery schedule */}
+          <div className="border-t border-border pt-6">
+            <PoDeliveriesSection
+              register={register}
+              control={control}
+              errors={errors}
+              fields={deliveryFields}
+              append={appendDelivery}
+              remove={removeDelivery}
+              locationOptions={locationOptions}
+              watchedProjectId={watchedProjectId}
+            />
           </div>
         </div>
       </div>

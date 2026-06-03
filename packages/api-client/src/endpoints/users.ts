@@ -69,6 +69,13 @@ export interface UserResponse {
    * other user-response shapes may omit it.
    */
   permissions?: string[];
+  /**
+   * FOR-210: the current user's `po.approve` threshold (in the company's
+   * currency). Populated by GET /users/me. `null` means unlimited approval
+   * authority; `0` means any positive PO total requires approval; a number is
+   * the max PO total the user may send without approval.
+   */
+  poApprovalThreshold?: number | null;
 }
 
 export interface PaginationMeta {

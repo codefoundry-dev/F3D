@@ -1,3 +1,4 @@
+import type { PoDeliveryInput, PoDeliveryResponse } from '@forethread/shared-types/client';
 import { AxiosRequestConfig } from 'axios';
 
 import { getApiClient } from '../client';
@@ -59,6 +60,8 @@ export interface CreatePurchaseOrderInput {
   message?: string;
   rfqId?: string;
   lineItems: CreatePoLineItemInput[];
+  /** FOR-210: optional header-level multi-delivery rows. */
+  deliveries?: PoDeliveryInput[];
 }
 
 export type UpdatePurchaseOrderInput = Partial<Omit<CreatePurchaseOrderInput, 'projectId'>>;
@@ -191,6 +194,8 @@ export interface PoDetail {
   company: { id: string; name: string };
   lineItems: PoLineItemDetail[];
   documents: PoDocumentDetail[];
+  /** FOR-210: header-level multi-delivery rows. */
+  deliveries: PoDeliveryResponse[];
   invoices: Array<{ id: string; status: string; totalAmount: number }>;
   createdAt: string;
   updatedAt: string;

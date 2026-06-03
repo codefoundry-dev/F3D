@@ -50,7 +50,11 @@ export type {
 export {
   formSchema,
   lineItemSchema,
+  deliveryRowSchema,
+  isEmptyDeliveryRow,
+  mapDeliveriesToPayload,
   EMPTY_LINE_ITEM,
+  EMPTY_DELIVERY_ROW,
   STEP1_FIELDS,
   STEP2_FIELDS,
 } from './schemas/create-po.schema';
@@ -73,6 +77,7 @@ export {
 export { formatCurrency, formatPrice } from './utils/format';
 export { rfqToFormDefaults, bulkOrderToFormDefaults } from './utils/source-to-form';
 export { filterPoItems } from './utils/filter-pos';
+export { requiresApproval } from './utils/approval';
 
 // Stores
 export { createPoTableStore, EMPTY_PO_FILTERS } from './stores';
