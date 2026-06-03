@@ -223,6 +223,17 @@ describe('useGuestRfqResponse', () => {
     expect(result.current.validationErrors).toEqual([{ type: 'NO_ITEMS' }]);
   });
 
+  it('tags the submit payload with source FORM for manual entry', () => {
+    const { result } = renderHook(() =>
+      useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),
+    );
+    fillValidQuote(result);
+    act(() => {
+      result.current.handleSubmit();
+    });
+    expect(mockMutate).toHaveBeenCalledWith(expect.objectContaining({ source: 'FORM' }));
+  });
+
   it('includes payment terms in the submit payload', () => {
     const { result } = renderHook(() =>
       useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),

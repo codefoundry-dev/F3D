@@ -387,6 +387,48 @@ export interface SubmitQuoteInput {
   paymentTerms?: string;
   message?: string;
   attachmentIds?: string[];
+  /** How the quote was entered: by hand (FORM) or via PDF upload (PDF). FOR-207. */
+  source?: 'FORM' | 'PDF';
+}
+
+// ── Quote audit trail (FOR-207) ───────────────────────────────────────────────
+
+export type QuoteAuditAction = 'SUBMITTED' | 'UPDATED' | 'APPROVED' | 'DECLINED';
+
+/** Summary of a quote's figures at the time an audit entry was recorded. */
+export interface QuoteAuditSnapshot {
+  totalCost: number;
+  itemsCovered: number;
+  totalItems: number;
+  bulkDiscount: number | null;
+  bulkTax: number | null;
+  bulkShipment: number | null;
+  lineItems: Array<{
+    rfqLineItemId: string;
+    unitPrice: number;
+    quotedQuantity: number;
+    lineTotal: number;
+  }>;
+}
+
+export interface QuoteAuditChanges {
+  snapshot: QuoteAuditSnapshot;
+  /** Present on UPDATED entries: scalar fields the vendor changed. */
+  fields?: Record<string, { from: unknown; to: unknown }>;
+  /** Present on UPDATED entries: line-item churn during confirmation. */
+  lineItems?: { changed: number; added: number; removed: number };
+}
+
+export interface QuoteAuditEntry {
+  id: string;
+  quoteResponseId: string;
+  action: QuoteAuditAction;
+  source: 'FORM' | 'PDF' | null;
+  vendorId: string;
+  vendorName: string;
+  performedByName: string;
+  changes: QuoteAuditChanges | null;
+  createdAt: string;
 }
 
 export interface QuoteAttachmentDto {
@@ -464,6 +506,18 @@ export async function updateQuote(
 export async function getQuoteDetail(rfqId: string, quoteId: string): Promise<QuoteResponseDetail> {
   const { data } = await getApiClient().get<{ data: QuoteResponseDetail }>(
     RFQS_PATHS.quote(rfqId, quoteId),
+  );
+  return data.data;
+}
+
+/** Fetch the per-RFQ quote audit trail (newest first). FOR-207. */
+export async function getRfqQuoteAudit(
+  rfqId: string,
+  config?: AxiosRequestConfig,
+): Promise<QuoteAuditEntry[]> {
+  const { data } = await getApiClient().get<{ data: QuoteAuditEntry[] }>(
+    RFQS_PATHS.quoteAudit(rfqId),
+    config,
   );
   return data.data;
 }

@@ -20,6 +20,20 @@ enum DiscountType {
   AMOUNT
 }
 
+/// How a vendor entered their quote: by hand (B4 form) or by PDF upload (B5).
+enum QuoteSource {
+  FORM
+  PDF
+}
+
+/// Lifecycle events captured in the per-RFQ quote audit trail (FOR-207).
+enum QuoteAuditAction {
+  SUBMITTED
+  UPDATED
+  APPROVED
+  DECLINED
+}
+
 model Rfq {
   id                   String          @id @default(uuid())
   rfqNumber            String          @unique @map("rfq_number") @db.VarChar(50)
@@ -52,6 +66,7 @@ model Rfq {
   lineItems        RfqLineItem[]
   invitedVendors   RfqVendor[]
   quoteResponses   QuoteResponse[]
+  quoteAudits      QuoteAudit[]
   bulkOrders       BulkOrder[]
   purchaseOrders   PurchaseOrder[]  @relation("PoSourceRfq")
   documents        RfqDocument[]
@@ -136,6 +151,7 @@ model QuoteResponse {
   itemsCovered    Int       @default(0) @map("items_covered")
   totalItems      Int       @default(0) @map("total_items")
   status          QuoteResponseStatus @default(PENDING)
+  source          QuoteSource @default(FORM)
   submittedAt     DateTime? @map("submitted_at")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
@@ -155,8 +171,35 @@ model QuoteResponse {
   warehouseLocation WarehouseLocation?   @relation(fields: [warehouseLocationId], references: [id])
   lineItems        QuoteResponseLineItem[]
   attachments      QuoteAttachment[]
+  audits           QuoteAudit[]
 
   @@map("quote_responses")
+}
+
+/// Per-RFQ quote audit trail (FOR-207). Records every quote lifecycle event —
+/// submission (form vs PDF), edits, and approval/decline — so the contractor can
+/// see who did what, when, and how from the RFQ detail view. performedById is
+/// null for guest (tokenized) submits, where performedByLabel carries the
+/// vendor's legal name instead.
+model QuoteAudit {
+  id               String           @id @default(uuid())
+  quoteResponseId  String           @map("quote_response_id")
+  rfqId            String           @map("rfq_id")
+  vendorId         String           @map("vendor_id")
+  action           QuoteAuditAction
+  source           QuoteSource?
+  performedById    String?          @map("performed_by_id")
+  performedByLabel String?          @map("performed_by_label") @db.VarChar(255)
+  changes          Json?
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  quoteResponse QuoteResponse @relation(fields: [quoteResponseId], references: [id], onDelete: Cascade)
+  rfq           Rfq           @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  performedBy   User?         @relation(fields: [performedById], references: [id])
+
+  @@index([rfqId], map: "idx_quote_audits_rfq")
+  @@index([quoteResponseId], map: "idx_quote_audits_quote")
+  @@map("quote_audits")
 }
 
 model QuoteAttachment {

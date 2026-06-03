@@ -30,6 +30,7 @@ const mockQuoteResponseService = {
   submitQuote: jest.fn(),
   updateQuote: jest.fn(),
   getQuoteDetail: jest.fn(),
+  getQuoteAudit: jest.fn(),
   getGuestRfq: jest.fn(),
   submitGuestQuote: jest.fn(),
 };
@@ -254,6 +255,18 @@ describe('RfqsController', () => {
         mockUser,
       );
       expect(result).toEqual({ id: 'q-1' });
+    });
+  });
+
+  describe('getQuoteAudit', () => {
+    it('delegates to quote response service', async () => {
+      const trail = [{ id: 'audit-1', action: 'SUBMITTED' }];
+      mockQuoteResponseService.getQuoteAudit.mockResolvedValue(trail);
+
+      const result = await controller.getQuoteAudit('rfq-1', mockUser);
+
+      expect(mockQuoteResponseService.getQuoteAudit).toHaveBeenCalledWith('rfq-1', mockUser);
+      expect(result).toEqual(trail);
     });
   });
 

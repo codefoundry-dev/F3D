@@ -9,8 +9,11 @@ import {
   AccessTokenSubject,
   AuditAction,
   DiscountType,
+  Prisma,
+  QuoteAuditAction,
   QuoteLineItemAvailability,
   QuoteResponseStatus,
+  QuoteSource,
   RfqStatus,
   UserRole,
 } from '@prisma/client';
@@ -40,6 +43,252 @@ export class QuoteResponseService {
     private readonly storageService: StorageService,
     private readonly docIntelligence: DocIntelligenceService,
   ) {}
+
+  /** Standard relation graph returned by every quote create/update path. */
+  private static readonly QUOTE_WRITE_INCLUDE = {
+    lineItems: {
+      include: {
+        rfqLineItem: {
+          include: { material: { select: { id: true, name: true, uom: true } } },
+        },
+        substituteItem: { select: { id: true, name: true, uom: true } },
+      },
+    },
+    attachments: {
+      include: { file: { select: { id: true, filename: true, mimeType: true, size: true } } },
+    },
+    vendor: { select: { id: true, legalName: true } },
+  } as const;
+
+  // ── Shared quote persistence (FOR-207) ───────────────────────────────────────
+
+  /**
+   * Build the full set of quote line items (submitted items + NO_QUOTE fillers
+   * for RFQ items the vendor skipped) and the derived totals. Shared by every
+   * submission path so the form (B4) and PDF (B5) flows compute quotes
+   * identically.
+   */
+  private buildQuoteWriteData(rfqLineItemIds: string[], dto: SubmitQuoteDto) {
+    const submittedLineItemIds = new Set(dto.lineItems.map((li) => li.rfqLineItemId));
+
+    const lineItemsData = dto.lineItems.map((li) => ({
+      rfqLineItemId: li.rfqLineItemId,
+      unitPrice: li.unitPrice,
+      quotedQuantity: li.quotedQuantity,
+      availability:
+        (li.availability as QuoteLineItemAvailability) ?? QuoteLineItemAvailability.AVAILABLE,
+      deliveryDate: new Date(li.deliveryDate),
+      substituteItemId: li.substituteItemId,
+      discount: li.discount,
+      discountType: li.discountType,
+      tax: li.tax,
+      taxIncluded: li.taxIncluded ?? false,
+      backOrderQty: li.backOrderQty,
+      backOrderDeliveryDate: li.backOrderDeliveryDate
+        ? new Date(li.backOrderDeliveryDate)
+        : undefined,
+      notes: li.notes,
+      lineTotal: this.calculateLineTotal(
+        li.quotedQuantity,
+        li.unitPrice,
+        li.discount,
+        li.discountType,
+      ),
+    }));
+
+    const noQuoteItems = rfqLineItemIds
+      .filter((id) => !submittedLineItemIds.has(id))
+      .map((rfqLineItemId) => ({
+        rfqLineItemId,
+        unitPrice: 0,
+        quotedQuantity: 0,
+        availability: QuoteLineItemAvailability.NO_QUOTE,
+        deliveryDate: new Date(),
+        lineTotal: 0,
+      }));
+
+    const allLineItems = [...lineItemsData, ...noQuoteItems];
+    const sumLineTotals = allLineItems.reduce((sum, li) => sum + Number(li.lineTotal), 0);
+    const totalCost = sumLineTotals + (dto.bulkShipment ?? 0);
+    const itemsCovered = dto.lineItems.filter(
+      (li) => (li.availability ?? 'AVAILABLE') !== 'NO_QUOTE',
+    ).length;
+
+    return { allLineItems, totalCost, itemsCovered, totalItems: rfqLineItemIds.length };
+  }
+
+  /** Scalar fields applied to a QuoteResponse on both create and update. */
+  private buildQuoteScalars(dto: SubmitQuoteDto) {
+    return {
+      bulkDeliveryTime: dto.bulkDeliveryTime ? new Date(dto.bulkDeliveryTime) : null,
+      bulkDiscount: dto.bulkDiscount ?? null,
+      bulkTax: dto.bulkTax ?? null,
+      bulkShipment: dto.bulkShipment ?? null,
+      warehouseLocationId: dto.warehouseLocationId ?? null,
+      validityPeriod: dto.validityPeriod ? new Date(dto.validityPeriod) : null,
+      paymentTerms: dto.paymentTerms ?? null,
+      message: dto.message ?? null,
+    };
+  }
+
+  /** Compact, queryable snapshot of a quote's money + per-line figures. */
+  private buildQuoteSnapshot(quote: {
+    totalCost: Prisma.Decimal | number;
+    itemsCovered: number;
+    totalItems: number;
+    bulkDiscount: Prisma.Decimal | number | null;
+    bulkTax: Prisma.Decimal | number | null;
+    bulkShipment: Prisma.Decimal | number | null;
+    lineItems: Array<{
+      rfqLineItemId: string;
+      unitPrice: Prisma.Decimal | number;
+      quotedQuantity: number;
+      lineTotal: Prisma.Decimal | number;
+    }>;
+  }) {
+    return {
+      totalCost: Number(quote.totalCost),
+      itemsCovered: quote.itemsCovered,
+      totalItems: quote.totalItems,
+      bulkDiscount: quote.bulkDiscount === null ? null : Number(quote.bulkDiscount),
+      bulkTax: quote.bulkTax === null ? null : Number(quote.bulkTax),
+      bulkShipment: quote.bulkShipment === null ? null : Number(quote.bulkShipment),
+      lineItems: quote.lineItems.map((li) => ({
+        rfqLineItemId: li.rfqLineItemId,
+        unitPrice: Number(li.unitPrice),
+        quotedQuantity: li.quotedQuantity,
+        lineTotal: Number(li.lineTotal),
+      })),
+    };
+  }
+
+  /**
+   * Diff a vendor's edits during confirmation: which scalar fields changed and
+   * how many line items were added / removed / repriced between the previously
+   * persisted quote and the new one. Drives the "edits made during confirmation"
+   * part of the audit trail.
+   */
+  private diffQuoteSnapshots(
+    before: ReturnType<QuoteResponseService['buildQuoteSnapshot']>,
+    after: ReturnType<QuoteResponseService['buildQuoteSnapshot']>,
+  ) {
+    const fields: Record<string, { from: unknown; to: unknown }> = {};
+    const scalarKeys = ['totalCost', 'itemsCovered', 'bulkDiscount', 'bulkTax', 'bulkShipment'] as const;
+    for (const key of scalarKeys) {
+      if (before[key] !== after[key]) fields[key] = { from: before[key], to: after[key] };
+    }
+
+    const beforeById = new Map(before.lineItems.map((li) => [li.rfqLineItemId, li]));
+    const afterById = new Map(after.lineItems.map((li) => [li.rfqLineItemId, li]));
+    let changed = 0;
+    let added = 0;
+    let removed = 0;
+    for (const [id, a] of afterById) {
+      const b = beforeById.get(id);
+      if (!b) {
+        added += 1;
+      } else if (b.unitPrice !== a.unitPrice || b.quotedQuantity !== a.quotedQuantity) {
+        changed += 1;
+      }
+    }
+    for (const id of beforeById.keys()) {
+      if (!afterById.has(id)) removed += 1;
+    }
+
+    return { fields, lineItems: { changed, added, removed }, snapshot: after };
+  }
+
+  /**
+   * The single write path for every quote submission / revision. Builds line
+   * items + totals, writes the QuoteResponse (create or full-replace update) and
+   * a {@link QuoteAuditAction} entry in one transaction, and runs an optional
+   * in-transaction hook (used by the guest path to burn its invitation token).
+   */
+  private async persistQuote(params: {
+    mode: 'create' | 'update';
+    rfqId: string;
+    vendorId: string;
+    rfqLineItemIds: string[];
+    dto: SubmitQuoteDto;
+    source: QuoteSource;
+    actor: { userId: string | null; label: string | null };
+    quoteId?: string;
+    previousSnapshot?: ReturnType<QuoteResponseService['buildQuoteSnapshot']>;
+    afterWrite?: (tx: Prisma.TransactionClient) => Promise<void>;
+  }) {
+    const { allLineItems, totalCost, itemsCovered, totalItems } = this.buildQuoteWriteData(
+      params.rfqLineItemIds,
+      params.dto,
+    );
+    const scalars = this.buildQuoteScalars(params.dto);
+
+    return this.prisma.$transaction(async (tx) => {
+      let quote: Prisma.QuoteResponseGetPayload<{
+        include: typeof QuoteResponseService.QUOTE_WRITE_INCLUDE;
+      }>;
+
+      if (params.mode === 'create') {
+        quote = await tx.quoteResponse.create({
+          data: {
+            rfqId: params.rfqId,
+            vendorId: params.vendorId,
+            status: QuoteResponseStatus.SUBMITTED,
+            source: params.source,
+            totalCost,
+            itemsCovered,
+            totalItems,
+            submittedAt: new Date(),
+            ...scalars,
+            lineItems: { createMany: { data: allLineItems } },
+            attachments: params.dto.attachmentIds?.length
+              ? { create: params.dto.attachmentIds.map((fileId) => ({ fileId })) }
+              : undefined,
+          },
+          include: QuoteResponseService.QUOTE_WRITE_INCLUDE,
+        });
+      } else {
+        const quoteId = params.quoteId as string;
+        await tx.quoteResponseLineItem.deleteMany({ where: { quoteResponseId: quoteId } });
+        await tx.quoteAttachment.deleteMany({ where: { quoteResponseId: quoteId } });
+        await tx.quoteResponseLineItem.createMany({
+          data: allLineItems.map((li) => ({ ...li, quoteResponseId: quoteId })),
+        });
+        if (params.dto.attachmentIds?.length) {
+          await tx.quoteAttachment.createMany({
+            data: params.dto.attachmentIds.map((fileId) => ({ quoteResponseId: quoteId, fileId })),
+          });
+        }
+        quote = await tx.quoteResponse.update({
+          where: { id: quoteId },
+          data: { totalCost, itemsCovered, totalItems, ...scalars },
+          include: QuoteResponseService.QUOTE_WRITE_INCLUDE,
+        });
+      }
+
+      const snapshot = this.buildQuoteSnapshot(quote);
+      const changes =
+        params.mode === 'update' && params.previousSnapshot
+          ? this.diffQuoteSnapshots(params.previousSnapshot, snapshot)
+          : { snapshot };
+
+      await tx.quoteAudit.create({
+        data: {
+          quoteResponseId: quote.id,
+          rfqId: params.rfqId,
+          vendorId: params.vendorId,
+          action: params.mode === 'create' ? QuoteAuditAction.SUBMITTED : QuoteAuditAction.UPDATED,
+          source: params.source,
+          performedById: params.actor.userId,
+          performedByLabel: params.actor.label,
+          changes: changes as Prisma.InputJsonValue,
+        },
+      });
+
+      if (params.afterWrite) await params.afterWrite(tx);
+
+      return quote;
+    });
+  }
 
   // ── Submit Quote ────────────────────────────────────────────────────────────
 
@@ -78,102 +327,14 @@ export class QuoteResponseService {
       );
     }
 
-    const rfqLineItemIds = rfq.lineItems.map((li) => li.id);
-    const submittedLineItemIds = new Set(dto.lineItems.map((li) => li.rfqLineItemId));
-    const totalItems = rfqLineItemIds.length;
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      // Build line item create data for submitted items
-      const lineItemsData = dto.lineItems.map((li) => {
-        const lineTotal = this.calculateLineTotal(
-          li.quotedQuantity,
-          li.unitPrice,
-          li.discount,
-          li.discountType,
-        );
-        return {
-          rfqLineItemId: li.rfqLineItemId,
-          unitPrice: li.unitPrice,
-          quotedQuantity: li.quotedQuantity,
-          availability:
-            (li.availability as QuoteLineItemAvailability) ?? QuoteLineItemAvailability.AVAILABLE,
-          deliveryDate: new Date(li.deliveryDate),
-          substituteItemId: li.substituteItemId,
-          discount: li.discount,
-          discountType: li.discountType,
-          tax: li.tax,
-          taxIncluded: li.taxIncluded ?? false,
-          backOrderQty: li.backOrderQty,
-          backOrderDeliveryDate: li.backOrderDeliveryDate
-            ? new Date(li.backOrderDeliveryDate)
-            : undefined,
-          notes: li.notes,
-          lineTotal,
-        };
-      });
-
-      // Build NO_QUOTE items for RFQ line items not submitted
-      const noQuoteItems = rfqLineItemIds
-        .filter((id) => !submittedLineItemIds.has(id))
-        .map((rfqLineItemId) => ({
-          rfqLineItemId,
-          unitPrice: 0,
-          quotedQuantity: 0,
-          availability: QuoteLineItemAvailability.NO_QUOTE,
-          deliveryDate: new Date(),
-          lineTotal: 0,
-        }));
-
-      const allLineItems = [...lineItemsData, ...noQuoteItems];
-
-      // Calculate totals
-      const sumLineTotals = allLineItems.reduce((sum, li) => sum + Number(li.lineTotal), 0);
-      const bulkShipmentCost = dto.bulkShipment ?? 0;
-      const totalCost = sumLineTotals + bulkShipmentCost;
-      const itemsCovered = dto.lineItems.filter(
-        (li) => (li.availability ?? 'AVAILABLE') !== 'NO_QUOTE',
-      ).length;
-
-      const quoteResponse = await tx.quoteResponse.create({
-        data: {
-          rfqId,
-          vendorId: vendorCompanyId,
-          status: QuoteResponseStatus.SUBMITTED,
-          totalCost,
-          itemsCovered,
-          totalItems,
-          submittedAt: new Date(),
-          bulkDeliveryTime: dto.bulkDeliveryTime ? new Date(dto.bulkDeliveryTime) : undefined,
-          bulkDiscount: dto.bulkDiscount,
-          bulkTax: dto.bulkTax,
-          bulkShipment: dto.bulkShipment,
-          warehouseLocationId: dto.warehouseLocationId,
-          validityPeriod: dto.validityPeriod ? new Date(dto.validityPeriod) : undefined,
-          message: dto.message,
-          lineItems: {
-            create: allLineItems,
-          },
-          attachments: dto.attachmentIds?.length
-            ? { create: dto.attachmentIds.map((fileId) => ({ fileId })) }
-            : undefined,
-        },
-        include: {
-          lineItems: {
-            include: {
-              rfqLineItem: {
-                include: { material: { select: { id: true, name: true, uom: true } } },
-              },
-              substituteItem: { select: { id: true, name: true, uom: true } },
-            },
-          },
-          attachments: {
-            include: { file: { select: { id: true, filename: true, mimeType: true, size: true } } },
-          },
-          vendor: { select: { id: true, legalName: true } },
-        },
-      });
-
-      return quoteResponse;
+    const result = await this.persistQuote({
+      mode: 'create',
+      rfqId,
+      vendorId: vendorCompanyId,
+      rfqLineItemIds: rfq.lineItems.map((li) => li.id),
+      dto,
+      source: dto.source ?? QuoteSource.FORM,
+      actor: { userId: user.id, label: null },
     });
 
     await this.auditService.log({
@@ -196,6 +357,7 @@ export class QuoteResponseService {
     const quote = await this.prisma.quoteResponse.findUnique({
       where: { id: quoteId },
       include: {
+        lineItems: true,
         rfq: { include: { lineItems: true } },
       },
     });
@@ -212,115 +374,20 @@ export class QuoteResponseService {
       throw new BadRequestException(`Cannot update quote: RFQ status is ${quote.rfq.status}`);
     }
 
-    const rfqLineItemIds = quote.rfq.lineItems.map((li) => li.id);
-    const submittedLineItemIds = new Set(dto.lineItems.map((li) => li.rfqLineItemId));
-    const totalItems = rfqLineItemIds.length;
+    // Snapshot the quote before the rewrite so the audit trail can record the
+    // vendor's edits made during confirmation.
+    const previousSnapshot = this.buildQuoteSnapshot(quote);
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      // Delete old line items and attachments
-      await tx.quoteResponseLineItem.deleteMany({
-        where: { quoteResponseId: quoteId },
-      });
-      await tx.quoteAttachment.deleteMany({
-        where: { quoteResponseId: quoteId },
-      });
-
-      // Build new line items
-      const lineItemsData = dto.lineItems.map((li) => {
-        const lineTotal = this.calculateLineTotal(
-          li.quotedQuantity,
-          li.unitPrice,
-          li.discount,
-          li.discountType,
-        );
-        return {
-          quoteResponseId: quoteId,
-          rfqLineItemId: li.rfqLineItemId,
-          unitPrice: li.unitPrice,
-          quotedQuantity: li.quotedQuantity,
-          availability:
-            (li.availability as QuoteLineItemAvailability) ?? QuoteLineItemAvailability.AVAILABLE,
-          deliveryDate: new Date(li.deliveryDate),
-          substituteItemId: li.substituteItemId,
-          discount: li.discount,
-          discountType: li.discountType,
-          tax: li.tax,
-          taxIncluded: li.taxIncluded ?? false,
-          backOrderQty: li.backOrderQty,
-          backOrderDeliveryDate: li.backOrderDeliveryDate
-            ? new Date(li.backOrderDeliveryDate)
-            : undefined,
-          notes: li.notes,
-          lineTotal,
-        };
-      });
-
-      const noQuoteItems = rfqLineItemIds
-        .filter((id) => !submittedLineItemIds.has(id))
-        .map((rfqLineItemId) => ({
-          quoteResponseId: quoteId,
-          rfqLineItemId,
-          unitPrice: 0,
-          quotedQuantity: 0,
-          availability: QuoteLineItemAvailability.NO_QUOTE as QuoteLineItemAvailability,
-          deliveryDate: new Date(),
-          lineTotal: 0,
-        }));
-
-      const allLineItems = [...lineItemsData, ...noQuoteItems];
-
-      // Create new line items
-      await tx.quoteResponseLineItem.createMany({ data: allLineItems });
-
-      // Calculate totals
-      const sumLineTotals = allLineItems.reduce((sum, li) => sum + Number(li.lineTotal), 0);
-      const bulkShipmentCost = dto.bulkShipment ?? 0;
-      const totalCost = sumLineTotals + bulkShipmentCost;
-      const itemsCovered = dto.lineItems.filter(
-        (li) => (li.availability ?? 'AVAILABLE') !== 'NO_QUOTE',
-      ).length;
-
-      // Create new attachments
-      if (dto.attachmentIds?.length) {
-        await tx.quoteAttachment.createMany({
-          data: dto.attachmentIds.map((fileId) => ({
-            quoteResponseId: quoteId,
-            fileId,
-          })),
-        });
-      }
-
-      const updated = await tx.quoteResponse.update({
-        where: { id: quoteId },
-        data: {
-          totalCost,
-          itemsCovered,
-          totalItems,
-          bulkDeliveryTime: dto.bulkDeliveryTime ? new Date(dto.bulkDeliveryTime) : null,
-          bulkDiscount: dto.bulkDiscount ?? null,
-          bulkTax: dto.bulkTax ?? null,
-          bulkShipment: dto.bulkShipment ?? null,
-          warehouseLocationId: dto.warehouseLocationId ?? null,
-          validityPeriod: dto.validityPeriod ? new Date(dto.validityPeriod) : null,
-          message: dto.message ?? null,
-        },
-        include: {
-          lineItems: {
-            include: {
-              rfqLineItem: {
-                include: { material: { select: { id: true, name: true, uom: true } } },
-              },
-              substituteItem: { select: { id: true, name: true, uom: true } },
-            },
-          },
-          attachments: {
-            include: { file: { select: { id: true, filename: true, mimeType: true, size: true } } },
-          },
-          vendor: { select: { id: true, legalName: true } },
-        },
-      });
-
-      return updated;
+    const result = await this.persistQuote({
+      mode: 'update',
+      quoteId,
+      rfqId,
+      vendorId: vendorCompanyId,
+      rfqLineItemIds: quote.rfq.lineItems.map((li) => li.id),
+      dto,
+      source: dto.source ?? quote.source,
+      actor: { userId: user.id, label: null },
+      previousSnapshot,
     });
 
     await this.auditService.log({
@@ -394,6 +461,58 @@ export class QuoteResponseService {
         size: a.file.size,
       })),
     };
+  }
+
+  // ── Quote Audit Trail (FOR-207) ───────────────────────────────────────────────
+
+  /**
+   * Return the per-RFQ quote audit trail for the RFQ detail view. A contractor
+   * of the RFQ's company sees every vendor's entries; a vendor sees only their
+   * own company's. Anyone else is denied.
+   */
+  async getQuoteAudit(rfqId: string, user: AuthenticatedUser) {
+    const rfq = await this.prisma.rfq.findUnique({
+      where: { id: rfqId },
+      select: { id: true, companyId: true },
+    });
+    if (!rfq) throw new NotFoundException(ERR.rfqs.notFound);
+
+    const isContractor =
+      (user.role === UserRole.COMPANY_ADMIN || user.role === UserRole.PROCUREMENT_OFFICER) &&
+      rfq.companyId === user.companyId;
+    const isVendor = user.role === UserRole.VENDOR && !!user.companyId;
+
+    if (!isContractor && !isVendor) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
+
+    const audits = await this.prisma.quoteAudit.findMany({
+      where: {
+        rfqId,
+        // Vendors are scoped to their own company's entries.
+        ...(isContractor ? {} : { vendorId: user.companyId as string }),
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        performedBy: { select: { id: true, name: true } },
+        quoteResponse: { select: { id: true, vendor: { select: { id: true, legalName: true } } } },
+      },
+    });
+
+    return audits.map((a) => ({
+      id: a.id,
+      quoteResponseId: a.quoteResponseId,
+      action: a.action,
+      source: a.source,
+      vendorId: a.vendorId,
+      vendorName: a.quoteResponse.vendor.legalName,
+      // Authed users surface their account name; guest submits fall back to the
+      // vendor label captured at submit time, then the vendor's legal name.
+      performedByName:
+        a.performedBy?.name ?? a.performedByLabel ?? a.quoteResponse.vendor.legalName,
+      changes: a.changes,
+      createdAt: a.createdAt.toISOString(),
+    }));
   }
 
   // ── Guest (invitation link) access ──────────────────────────────────────────
@@ -512,106 +631,28 @@ export class QuoteResponseService {
       throw new BadRequestException('A quote has already been submitted for this RFQ');
     }
 
-    const rfqLineItemIds = rfq.lineItems.map((li) => li.id);
-    const submittedLineItemIds = new Set(dto.lineItems.map((li) => li.rfqLineItemId));
-    const totalItems = rfqLineItemIds.length;
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      const lineItemsData = dto.lineItems.map((li) => ({
-        rfqLineItemId: li.rfqLineItemId,
-        unitPrice: li.unitPrice,
-        quotedQuantity: li.quotedQuantity,
-        availability:
-          (li.availability as QuoteLineItemAvailability) ?? QuoteLineItemAvailability.AVAILABLE,
-        deliveryDate: new Date(li.deliveryDate),
-        substituteItemId: li.substituteItemId,
-        discount: li.discount,
-        discountType: li.discountType,
-        tax: li.tax,
-        taxIncluded: li.taxIncluded ?? false,
-        backOrderQty: li.backOrderQty,
-        backOrderDeliveryDate: li.backOrderDeliveryDate
-          ? new Date(li.backOrderDeliveryDate)
-          : undefined,
-        notes: li.notes,
-        lineTotal: this.calculateLineTotal(
-          li.quotedQuantity,
-          li.unitPrice,
-          li.discount,
-          li.discountType,
-        ),
-      }));
-
-      const noQuoteItems = rfqLineItemIds
-        .filter((id) => !submittedLineItemIds.has(id))
-        .map((rfqLineItemId) => ({
-          rfqLineItemId,
-          unitPrice: 0,
-          quotedQuantity: 0,
-          availability: QuoteLineItemAvailability.NO_QUOTE as QuoteLineItemAvailability,
-          deliveryDate: new Date(),
-          lineTotal: 0,
-        }));
-
-      const allLineItems = [...lineItemsData, ...noQuoteItems];
-      const sumLineTotals = allLineItems.reduce((sum, li) => sum + Number(li.lineTotal), 0);
-      const bulkShipmentCost = dto.bulkShipment ?? 0;
-      const totalCost = sumLineTotals + bulkShipmentCost;
-      const itemsCovered = dto.lineItems.filter(
-        (li) => (li.availability ?? 'AVAILABLE') !== 'NO_QUOTE',
-      ).length;
-
-      const quote = await tx.quoteResponse.create({
-        data: {
-          rfqId: rfq.id,
-          vendorId: rfqVendor.vendorId,
-          totalCost,
-          itemsCovered,
-          totalItems,
-          status: QuoteResponseStatus.SUBMITTED,
-          submittedAt: new Date(),
-          bulkDeliveryTime: dto.bulkDeliveryTime ? new Date(dto.bulkDeliveryTime) : null,
-          bulkDiscount: dto.bulkDiscount ?? null,
-          bulkTax: dto.bulkTax ?? null,
-          bulkShipment: dto.bulkShipment ?? null,
-          warehouseLocationId: dto.warehouseLocationId ?? null,
-          validityPeriod: dto.validityPeriod ? new Date(dto.validityPeriod) : null,
-          paymentTerms: dto.paymentTerms ?? null,
-          message: dto.message ?? null,
-          lineItems: {
-            createMany: { data: allLineItems },
-          },
-          attachments: dto.attachmentIds?.length
-            ? { create: dto.attachmentIds.map((fileId) => ({ fileId })) }
-            : undefined,
-        },
-        include: {
-          lineItems: {
-            include: {
-              rfqLineItem: {
-                include: { material: { select: { id: true, name: true, uom: true } } },
-              },
-            },
-          },
-          attachments: {
-            include: { file: { select: { id: true, filename: true, mimeType: true, size: true } } },
-          },
-          vendor: { select: { id: true, legalName: true } },
-        },
-      });
-
+    const result = await this.persistQuote({
+      mode: 'create',
+      rfqId: rfq.id,
+      vendorId: rfqVendor.vendorId,
+      rfqLineItemIds: rfq.lineItems.map((li) => li.id),
+      dto,
+      source: dto.source ?? QuoteSource.FORM,
+      // Guest submitters have no platform account; record the vendor's legal
+      // name as the actor label instead of a user id.
+      actor: { userId: null, label: rfqVendor.vendor.legalName },
       // Burn the single-use token in the same transaction so a quote can never
       // be persisted without consuming its link (and vice-versa). updateMany is
       // atomic, so concurrent submits race here and only one wins.
-      const burned = await tx.accessToken.updateMany({
-        where: { id: tokenRecord.id, usedAt: null, revokedAt: null },
-        data: { usedAt: new Date() },
-      });
-      if (burned.count === 0) {
-        throw new ForbiddenException(ERR.accessTokens.alreadyUsed);
-      }
-
-      return quote;
+      afterWrite: async (tx) => {
+        const burned = await tx.accessToken.updateMany({
+          where: { id: tokenRecord.id, usedAt: null, revokedAt: null },
+          data: { usedAt: new Date() },
+        });
+        if (burned.count === 0) {
+          throw new ForbiddenException(ERR.accessTokens.alreadyUsed);
+        }
+      },
     });
 
     // A guest submitter has no platform user account, but audit_logs.performed_by

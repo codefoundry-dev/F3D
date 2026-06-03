@@ -7,6 +7,7 @@ const mockPrisma = {
   rfq: { findUnique: jest.fn() },
   rfqVendor: { findUnique: jest.fn() },
   quoteResponse: { findFirst: jest.fn(), findUnique: jest.fn() },
+  quoteAudit: { findMany: jest.fn() },
   $transaction: jest.fn(),
 };
 
@@ -32,6 +33,7 @@ const mockDocIntelligence = {
 function txWith(create: jest.Mock) {
   return {
     quoteResponse: { create },
+    quoteAudit: { create: jest.fn().mockResolvedValue({}) },
     accessToken: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
   };
 }
@@ -166,31 +168,29 @@ describe('QuoteResponseService', () => {
       const dto = { lineItems: [baseLineItemDto] };
 
       mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-        const tx = {
-          quoteResponse: {
-            create: jest.fn().mockImplementation(
-              (args: {
-                data: {
-                  lineItems: { create: Array<{ rfqLineItemId: string; availability: string }> };
-                };
-              }) => {
-                const createdLineItems = args.data.lineItems.create;
-                const noQuoteItem = createdLineItems.find((li) => li.rfqLineItemId === 'li-2');
-                expect(noQuoteItem).toBeDefined();
-                expect(noQuoteItem?.availability).toBe('NO_QUOTE');
+        const create = jest.fn().mockImplementation(
+          (args: {
+            data: {
+              lineItems: {
+                createMany: { data: Array<{ rfqLineItemId: string; availability: string }> };
+              };
+            };
+          }) => {
+            const createdLineItems = args.data.lineItems.createMany.data;
+            const noQuoteItem = createdLineItems.find((li) => li.rfqLineItemId === 'li-2');
+            expect(noQuoteItem).toBeDefined();
+            expect(noQuoteItem?.availability).toBe('NO_QUOTE');
 
-                return {
-                  id: 'quote-1',
-                  rfqId: 'rfq-1',
-                  vendorId: 'vendor-co-1',
-                  lineItems: createdLineItems,
-                  vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
-                };
-              },
-            ),
+            return {
+              id: 'quote-1',
+              rfqId: 'rfq-1',
+              vendorId: 'vendor-co-1',
+              lineItems: createdLineItems,
+              vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
+            };
           },
-        };
-        return fn(tx);
+        );
+        return fn(txWith(create));
       });
       mockAuditService.log.mockResolvedValue(undefined);
 
@@ -204,6 +204,16 @@ describe('QuoteResponseService', () => {
     const existingQuote = {
       id: 'quote-1',
       vendorId: 'vendor-co-1',
+      source: 'FORM',
+      totalCost: 1000,
+      itemsCovered: 1,
+      totalItems: 2,
+      bulkDiscount: null,
+      bulkTax: null,
+      bulkShipment: null,
+      lineItems: [
+        { rfqLineItemId: 'li-1', unitPrice: 100, quotedQuantity: 10, lineTotal: 1000 },
+      ],
       rfq: {
         ...baseRfq,
       },
@@ -233,6 +243,7 @@ describe('QuoteResponseService', () => {
           quoteResponse: {
             update: jest.fn().mockResolvedValue(updatedQuote),
           },
+          quoteAudit: { create: jest.fn().mockResolvedValue({}) },
         };
         return fn(tx);
       });
@@ -253,6 +264,69 @@ describe('QuoteResponseService', () => {
           targetId: 'quote-1',
         }),
       );
+    });
+
+    it('should record a QUOTE_UPDATED audit with a full edit diff (changed/added/removed)', async () => {
+      // Before: li-1 @100 and a soon-to-be-removed li-old.
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({
+        ...existingQuote,
+        lineItems: [
+          { rfqLineItemId: 'li-1', unitPrice: 100, quotedQuantity: 10, lineTotal: 1000 },
+          { rfqLineItemId: 'li-old', unitPrice: 5, quotedQuantity: 1, lineTotal: 5 },
+        ],
+      });
+
+      // Vendor reprices li-1 and (mock) ends with a new li-2 line, attaching a file.
+      const editedDto = {
+        attachmentIds: ['11111111-1111-1111-1111-111111111111'],
+        lineItems: [
+          { rfqLineItemId: 'li-1', unitPrice: 120, quotedQuantity: 10, deliveryDate: '2026-04-01' },
+        ],
+      };
+      const updatedQuote = {
+        id: 'quote-1',
+        rfqId: 'rfq-1',
+        vendorId: 'vendor-co-1',
+        itemsCovered: 1,
+        totalItems: 2,
+        totalCost: 1200,
+        bulkDiscount: null,
+        bulkTax: null,
+        bulkShipment: null,
+        lineItems: [
+          { rfqLineItemId: 'li-1', unitPrice: 120, quotedQuantity: 10, lineTotal: 1200 },
+          { rfqLineItemId: 'li-2', unitPrice: 60, quotedQuantity: 2, lineTotal: 120 },
+        ],
+        vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
+      };
+
+      const auditCreate = jest.fn().mockResolvedValue({});
+      const attachmentCreateMany = jest.fn().mockResolvedValue({ count: 1 });
+      mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+        return fn({
+          quoteResponseLineItem: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 2 }),
+            createMany: jest.fn().mockResolvedValue({ count: 2 }),
+          },
+          quoteAttachment: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+            createMany: attachmentCreateMany,
+          },
+          quoteResponse: { update: jest.fn().mockResolvedValue(updatedQuote) },
+          quoteAudit: { create: auditCreate },
+        });
+      });
+      mockAuditService.log.mockResolvedValue(undefined);
+
+      await service.updateQuote('rfq-1', 'quote-1', editedDto as never, vendorUser);
+
+      // Attachments were re-created from the dto.
+      expect(attachmentCreateMany).toHaveBeenCalled();
+
+      const auditArgs = auditCreate.mock.calls[0][0].data;
+      expect(auditArgs.action).toBe('UPDATED');
+      expect(auditArgs.changes.fields).toHaveProperty('totalCost', { from: 1000, to: 1200 });
+      expect(auditArgs.changes.lineItems).toEqual({ changed: 1, added: 1, removed: 1 });
     });
 
     it('should throw if user does not own the quote', async () => {
@@ -420,20 +494,21 @@ describe('QuoteResponseService', () => {
             create: jest
               .fn()
               .mockImplementation(
-                (args: { data: { lineItems: { create: Array<{ lineTotal: number }> } } }) => {
-                  const submittedItem = args.data.lineItems.create[0];
+                (args: { data: { lineItems: { createMany: { data: Array<{ lineTotal: number }> } } } }) => {
+                  const submittedItem = args.data.lineItems.createMany.data[0];
                   // 10 * 100 = 1000, 10% discount => 900
                   expect(submittedItem.lineTotal).toBe(900);
                   return {
                     id: 'quote-1',
                     rfqId: 'rfq-1',
                     vendorId: 'vendor-co-1',
-                    lineItems: args.data.lineItems.create,
+                    lineItems: args.data.lineItems.createMany.data,
                     vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
                   };
                 },
               ),
           },
+          quoteAudit: { create: jest.fn().mockResolvedValue({}) },
         };
         return fn(tx);
       });
@@ -458,20 +533,21 @@ describe('QuoteResponseService', () => {
             create: jest
               .fn()
               .mockImplementation(
-                (args: { data: { lineItems: { create: Array<{ lineTotal: number }> } } }) => {
-                  const submittedItem = args.data.lineItems.create[0];
+                (args: { data: { lineItems: { createMany: { data: Array<{ lineTotal: number }> } } } }) => {
+                  const submittedItem = args.data.lineItems.createMany.data[0];
                   // 10 * 100 = 1000, minus 150 => 850
                   expect(submittedItem.lineTotal).toBe(850);
                   return {
                     id: 'quote-1',
                     rfqId: 'rfq-1',
                     vendorId: 'vendor-co-1',
-                    lineItems: args.data.lineItems.create,
+                    lineItems: args.data.lineItems.createMany.data,
                     vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
                   };
                 },
               ),
           },
+          quoteAudit: { create: jest.fn().mockResolvedValue({}) },
         };
         return fn(tx);
       });
@@ -496,20 +572,21 @@ describe('QuoteResponseService', () => {
             create: jest
               .fn()
               .mockImplementation(
-                (args: { data: { lineItems: { create: Array<{ lineTotal: number }> } } }) => {
-                  const submittedItem = args.data.lineItems.create[0];
+                (args: { data: { lineItems: { createMany: { data: Array<{ lineTotal: number }> } } } }) => {
+                  const submittedItem = args.data.lineItems.createMany.data[0];
                   // 10 * 100 = 1000, unknown type => no discount applied
                   expect(submittedItem.lineTotal).toBe(1000);
                   return {
                     id: 'quote-1',
                     rfqId: 'rfq-1',
                     vendorId: 'vendor-co-1',
-                    lineItems: args.data.lineItems.create,
+                    lineItems: args.data.lineItems.createMany.data,
                     vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
                   };
                 },
               ),
           },
+          quoteAudit: { create: jest.fn().mockResolvedValue({}) },
         };
         return fn(tx);
       });
@@ -999,6 +1076,7 @@ describe('QuoteResponseService', () => {
       mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
         return fn({
           quoteResponse: { create },
+          quoteAudit: { create: jest.fn().mockResolvedValue({}) },
           accessToken: { updateMany: burnMock },
         });
       });
@@ -1028,6 +1106,7 @@ describe('QuoteResponseService', () => {
               vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
             }),
           },
+          quoteAudit: { create: jest.fn().mockResolvedValue({}) },
           accessToken: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
         });
       });
@@ -1035,6 +1114,182 @@ describe('QuoteResponseService', () => {
       await expect(
         service.submitGuestQuote('valid-token', guestSubmitDto as never),
       ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  // ── Quote audit trail (FOR-207) ──────────────────────────────────────────
+
+  describe('quote audit recording', () => {
+    it('records a SUBMITTED audit with source FORM and persists attachments', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue(baseRfq);
+      mockPrisma.quoteResponse.findFirst.mockResolvedValue(null);
+      mockAuditService.log.mockResolvedValue(undefined);
+
+      const auditCreate = jest.fn().mockResolvedValue({});
+      const create = jest.fn().mockImplementation(
+        (args: { data: { attachments?: { create: Array<{ fileId: string }> } } }) => {
+          // The attachmentIds from the dto are attached on create (line coverage).
+          expect(args.data.attachments?.create).toEqual([{ fileId: 'file-1' }]);
+          return {
+            id: 'quote-1',
+            rfqId: 'rfq-1',
+            vendorId: 'vendor-co-1',
+            lineItems: [],
+            vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
+          };
+        },
+      );
+      mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+        return fn({
+          quoteResponse: { create },
+          quoteAudit: { create: auditCreate },
+          accessToken: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+        });
+      });
+
+      await service.submitQuote(
+        'rfq-1',
+        { ...baseSubmitDto, attachmentIds: ['file-1'] } as never,
+        vendorUser,
+      );
+
+      const data = auditCreate.mock.calls[0][0].data;
+      expect(data.action).toBe('SUBMITTED');
+      expect(data.source).toBe('FORM');
+      expect(data.performedById).toBe('vendor-user-1');
+    });
+
+    it('records source PDF and a guest vendor label on a PDF guest submit', async () => {
+      const guestRfqVendor = {
+        rfqId: 'rfq-1',
+        rfq: {
+          id: 'rfq-1',
+          status: 'OPEN',
+          lineItems: [{ id: 'li-1' }, { id: 'li-2' }],
+          createdByUserId: 'creator-1',
+        },
+        vendor: { legalName: 'VendorCo' },
+        vendorId: 'vendor-co-1',
+      };
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue(guestRfqVendor);
+      mockPrisma.quoteResponse.findFirst.mockResolvedValue(null);
+      mockAuditService.log.mockResolvedValue(undefined);
+
+      const auditCreate = jest.fn().mockResolvedValue({});
+      mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+        return fn({
+          quoteResponse: {
+            create: jest.fn().mockResolvedValue({
+              id: 'guest-quote-pdf',
+              rfqId: 'rfq-1',
+              vendorId: 'vendor-co-1',
+              lineItems: [],
+              vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
+            }),
+          },
+          quoteAudit: { create: auditCreate },
+          accessToken: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+        });
+      });
+
+      await service.submitGuestQuote('valid-token', {
+        ...baseSubmitDto,
+        source: 'PDF',
+      } as never);
+
+      const data = auditCreate.mock.calls[0][0].data;
+      expect(data.action).toBe('SUBMITTED');
+      expect(data.source).toBe('PDF');
+      expect(data.performedById).toBeNull();
+      expect(data.performedByLabel).toBe('VendorCo');
+    });
+  });
+
+  // ── getQuoteAudit ─────────────────────────────────────────────────────────
+
+  describe('getQuoteAudit', () => {
+    const auditRows = [
+      {
+        id: 'audit-1',
+        quoteResponseId: 'quote-1',
+        action: 'SUBMITTED',
+        source: 'FORM',
+        vendorId: 'vendor-co-1',
+        performedByLabel: null,
+        performedBy: { id: 'vendor-user-1', name: 'Vendor User' },
+        quoteResponse: { id: 'quote-1', vendor: { id: 'vendor-co-1', legalName: 'VendorCo' } },
+        changes: { snapshot: { totalCost: 1000 } },
+        createdAt: new Date('2026-06-01T10:00:00Z'),
+      },
+    ];
+
+    it('returns the full trail for a contractor of the RFQ company', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue({ id: 'rfq-1', companyId: 'contractor-co-1' });
+      mockPrisma.quoteAudit.findMany.mockResolvedValue(auditRows);
+
+      const result = await service.getQuoteAudit('rfq-1', contractorUser);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        id: 'audit-1',
+        action: 'SUBMITTED',
+        source: 'FORM',
+        vendorName: 'VendorCo',
+        performedByName: 'Vendor User',
+      });
+      // Contractor sees every vendor's entries (no vendor scoping).
+      expect(mockPrisma.quoteAudit.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { rfqId: 'rfq-1' } }),
+      );
+    });
+
+    it('scopes a vendor to their own company entries', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue({ id: 'rfq-1', companyId: 'contractor-co-1' });
+      mockPrisma.quoteAudit.findMany.mockResolvedValue([]);
+
+      await service.getQuoteAudit('rfq-1', vendorUser);
+
+      expect(mockPrisma.quoteAudit.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { rfqId: 'rfq-1', vendorId: 'vendor-co-1' } }),
+      );
+    });
+
+    it('falls back to the vendor label when there is no performer account', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue({ id: 'rfq-1', companyId: 'contractor-co-1' });
+      mockPrisma.quoteAudit.findMany.mockResolvedValue([
+        { ...auditRows[0], performedBy: null, performedByLabel: 'Guest VendorCo' },
+      ]);
+
+      const result = await service.getQuoteAudit('rfq-1', contractorUser);
+
+      expect(result[0].performedByName).toBe('Guest VendorCo');
+    });
+
+    it('falls back to the vendor legal name when performer and label are both absent', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue({ id: 'rfq-1', companyId: 'contractor-co-1' });
+      mockPrisma.quoteAudit.findMany.mockResolvedValue([
+        { ...auditRows[0], performedBy: null, performedByLabel: null },
+      ]);
+
+      const result = await service.getQuoteAudit('rfq-1', contractorUser);
+
+      expect(result[0].performedByName).toBe('VendorCo');
+    });
+
+    it('throws NotFoundException when the RFQ does not exist', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue(null);
+
+      await expect(service.getQuoteAudit('rfq-x', contractorUser)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws ForbiddenException for an unrelated company admin', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue({ id: 'rfq-1', companyId: 'other-company' });
+
+      await expect(service.getQuoteAudit('rfq-1', contractorUser)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 });

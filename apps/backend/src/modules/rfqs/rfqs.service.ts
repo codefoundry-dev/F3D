@@ -23,6 +23,7 @@ import {
   AccessTokenSubject,
   CompanyType,
   Prisma,
+  QuoteAuditAction,
   QuoteResponseStatus,
   RfqStatus,
   UserRole,
@@ -799,15 +800,30 @@ export class RfqsService {
     this.assertCompanyAccess(user, quote.rfq.companyId);
     this.assertQuotePending(quote.status, 'approve');
 
-    const updated = await this.prisma.quoteResponse.update({
-      where: { id: quoteId },
-      data: { status: QuoteResponseStatus.APPROVED },
-      include: { vendor: { select: { legalName: true } } },
-    });
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.quoteResponse.update({
+        where: { id: quoteId },
+        data: { status: QuoteResponseStatus.APPROVED },
+        include: { vendor: { select: { legalName: true } } },
+      });
 
-    await this.prisma.rfq.update({
-      where: { id: rfqId },
-      data: { status: RfqStatus.AWARDED },
+      await tx.rfq.update({
+        where: { id: rfqId },
+        data: { status: RfqStatus.AWARDED },
+      });
+
+      await tx.quoteAudit.create({
+        data: {
+          quoteResponseId: quoteId,
+          rfqId,
+          vendorId: quote.vendorId,
+          action: QuoteAuditAction.APPROVED,
+          source: quote.source,
+          performedById: user.id,
+        },
+      });
+
+      return result;
     });
 
     return {
@@ -825,10 +841,25 @@ export class RfqsService {
     this.assertCompanyAccess(user, quote.rfq.companyId);
     this.assertQuotePending(quote.status, 'decline');
 
-    const updated = await this.prisma.quoteResponse.update({
-      where: { id: quoteId },
-      data: { status: QuoteResponseStatus.DECLINED },
-      include: { vendor: { select: { legalName: true } } },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.quoteResponse.update({
+        where: { id: quoteId },
+        data: { status: QuoteResponseStatus.DECLINED },
+        include: { vendor: { select: { legalName: true } } },
+      });
+
+      await tx.quoteAudit.create({
+        data: {
+          quoteResponseId: quoteId,
+          rfqId: quote.rfqId,
+          vendorId: quote.vendorId,
+          action: QuoteAuditAction.DECLINED,
+          source: quote.source,
+          performedById: user.id,
+        },
+      });
+
+      return result;
     });
 
     return {

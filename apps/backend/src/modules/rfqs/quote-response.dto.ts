@@ -1,4 +1,4 @@
-import { DiscountType } from '@prisma/client';
+import { DiscountType, QuoteSource } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsArray,
@@ -113,6 +113,11 @@ export class SubmitQuoteDto {
   @IsArray()
   @IsUUID('4', { each: true })
   attachmentIds?: string[];
+
+  /** How the quote was entered: by hand (FORM) or via PDF upload (PDF). FOR-207. */
+  @IsOptional()
+  @IsEnum(QuoteSource)
+  source?: QuoteSource;
 }
 
 export class UpdateQuoteDto extends SubmitQuoteDto {}

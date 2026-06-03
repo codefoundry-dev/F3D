@@ -16,6 +16,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { RfqDetailsTab } from '../components/RfqDetailsTab';
 import { RfqDocumentsTab } from '../components/RfqDocumentsTab';
 import { RfqLineItemsTab } from '../components/RfqLineItemsTab';
+import { RfqQuoteAuditTab } from '../components/RfqQuoteAuditTab';
 
 export default function RfqDetailPage() {
   const { t } = useTranslation('rfqs');
@@ -29,7 +30,7 @@ export default function RfqDetailPage() {
   }, [rfq, setPageTitle]);
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const validTabs: RfqTab[] = ['details', 'lineItems', 'responses', 'documents'];
+  const validTabs: RfqTab[] = ['details', 'lineItems', 'responses', 'documents', 'audit'];
   const tabParam = searchParams.get('tab') as RfqTab | null;
   const activeTab: RfqTab = tabParam && validTabs.includes(tabParam) ? tabParam : 'details';
 
@@ -60,6 +61,7 @@ export default function RfqDetailPage() {
         <RfqDetailTabs
           activeTab={activeTab}
           onTabChange={setActiveTab}
+          tabs={validTabs}
           rightSlot={
             activeTab === 'details' ? (
               <Button
@@ -100,6 +102,7 @@ export default function RfqDetailPage() {
         {activeTab === 'documents' && (
           <RfqDocumentsTab rfqId={rfq.id} documents={rfq.documents ?? []} hideUpload />
         )}
+        {activeTab === 'audit' && <RfqQuoteAuditTab rfqId={rfq.id} />}
       </div>
     </div>
   );

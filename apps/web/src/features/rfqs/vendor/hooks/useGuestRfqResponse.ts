@@ -238,7 +238,11 @@ export function useGuestRfqResponse(rfq: GuestRfqDetail, token: string) {
         return lineItem;
       });
 
-    const input: SubmitQuoteInput = { lineItems: includedLineItems };
+    const input: SubmitQuoteInput = {
+      lineItems: includedLineItems,
+      // The PDF path is exactly when an extracted quote attachment is present.
+      source: sourceFileId ? 'PDF' : 'FORM',
+    };
 
     if (bulkDefaults.bulkDeliveryTime) input.bulkDeliveryTime = bulkDefaults.bulkDeliveryTime;
     if (bulkDefaults.bulkDiscount) input.bulkDiscount = safeFloat(bulkDefaults.bulkDiscount);

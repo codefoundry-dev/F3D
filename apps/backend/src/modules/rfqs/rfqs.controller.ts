@@ -335,6 +335,18 @@ export class RfqsController {
     return this.quoteResponseService.getQuoteDetail(rfqId, quoteId, user);
   }
 
+  // ── GET /v1/rfqs/:rfqId/quote-audit ──────────────────────────────────────
+
+  @Get(':rfqId/quote-audit')
+  @RequirePermissions('rfq.read')
+  @ApiOperation({ summary: 'Get the quote audit trail for an RFQ (FOR-207)' })
+  @ApiResponse({ status: 200, description: 'Quote audit entries (newest first)' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  @ApiResponse({ status: 404, description: 'RFQ not found' })
+  async getQuoteAudit(@Param('rfqId') rfqId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.quoteResponseService.getQuoteAudit(rfqId, user);
+  }
+
   // ── Guest (invitation-link) endpoints ──────────────────────────────────────
 
   // Declared before `GET invitation/:token` so the static `quote-extraction`
