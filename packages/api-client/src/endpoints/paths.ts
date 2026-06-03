@@ -84,6 +84,7 @@ export const RFQS_PATHS = {
   export: (format: 'csv' | 'xlsx' | 'pdf') => `/rfqs/export/${format}`,
   quotes: (rfqId: string) => `/rfqs/${rfqId}/quotes`,
   quote: (rfqId: string, quoteId: string) => `/rfqs/${rfqId}/quotes/${quoteId}`,
+  quoteAudit: (rfqId: string) => `/rfqs/${rfqId}/quote-audit`,
   approveQuote: (rfqId: string, quoteId: string) => `/rfqs/${rfqId}/quotes/${quoteId}/approve`,
   declineQuote: (rfqId: string, quoteId: string) => `/rfqs/${rfqId}/quotes/${quoteId}/decline`,
   lineItem: (rfqId: string, lineItemId: string) => `/rfqs/${rfqId}/line-items/${lineItemId}`,

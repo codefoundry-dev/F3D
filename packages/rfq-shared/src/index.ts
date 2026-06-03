@@ -15,7 +15,15 @@ export {
 export type { ColumnDef } from './constants';
 
 // Hooks
-export { useRfqs, useRfq, useDropdown, useRfqSort, useRfqGrouping, useRfqExport } from './hooks';
+export {
+  useRfqs,
+  useRfq,
+  useRfqQuoteAudit,
+  useDropdown,
+  useRfqSort,
+  useRfqGrouping,
+  useRfqExport,
+} from './hooks';
 
 // Stores
 export { createRfqTableStore, EMPTY_FILTERS, usePageTitleStore } from './stores';

@@ -80,6 +80,9 @@ const mockPrisma = {
     findUnique: jest.fn(),
     update: jest.fn(),
   },
+  quoteAudit: {
+    create: jest.fn(),
+  },
   rfqLineItem: {
     findUnique: jest.fn(),
     update: jest.fn(),
@@ -1019,6 +1022,9 @@ describe('RfqsService', () => {
     const pendingQuote = {
       id: 'quote-1',
       status: QuoteResponseStatus.PENDING,
+      rfqId: 'rfq-1',
+      vendorId: 'vendor-co-1',
+      source: 'FORM',
       rfq: { companyId: 'comp-1' },
     };
 
@@ -1055,6 +1061,10 @@ describe('RfqsService', () => {
         vendor: { legalName: 'VendorCo' },
       });
       mockPrisma.rfq.update.mockResolvedValue({});
+      mockPrisma.quoteAudit.create.mockResolvedValue({});
+      mockPrisma.$transaction.mockImplementation(
+        async (cb: (tx: unknown) => Promise<unknown>) => cb(mockPrisma),
+      );
 
       const result = await service.approveQuote('rfq-1', 'quote-1', companyAdmin);
 
@@ -1073,6 +1083,9 @@ describe('RfqsService', () => {
         where: { id: 'rfq-1' },
         data: { status: RfqStatus.AWARDED },
       });
+      expect(mockPrisma.quoteAudit.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ action: 'APPROVED', quoteResponseId: 'quote-1' }),
+      });
     });
   });
 
@@ -1082,6 +1095,9 @@ describe('RfqsService', () => {
     const pendingQuote = {
       id: 'quote-2',
       status: QuoteResponseStatus.PENDING,
+      rfqId: 'rfq-1',
+      vendorId: 'vendor-co-1',
+      source: 'FORM',
       rfq: { companyId: 'comp-1' },
     };
 
@@ -1117,6 +1133,10 @@ describe('RfqsService', () => {
         totalCost: 20000,
         vendor: { legalName: 'DeclinedVendor' },
       });
+      mockPrisma.quoteAudit.create.mockResolvedValue({});
+      mockPrisma.$transaction.mockImplementation(
+        async (cb: (tx: unknown) => Promise<unknown>) => cb(mockPrisma),
+      );
 
       const result = await service.declineQuote('rfq-1', 'quote-2', companyAdmin);
 
@@ -1130,6 +1150,9 @@ describe('RfqsService', () => {
         where: { id: 'quote-2' },
         data: { status: QuoteResponseStatus.DECLINED },
         include: { vendor: { select: { legalName: true } } },
+      });
+      expect(mockPrisma.quoteAudit.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ action: 'DECLINED', quoteResponseId: 'quote-2' }),
       });
     });
   });

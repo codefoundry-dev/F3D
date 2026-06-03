@@ -155,7 +155,28 @@
     "details": "Details",
     "lineItems": "Line items",
     "responses": "Responses",
-    "documents": "Documents"
+    "documents": "Documents",
+    "audit": "Audit trail"
+  },
+  "auditTab": {
+    "title": "Quote audit trail",
+    "noEvents": "No quote activity recorded yet",
+    "loadError": "Failed to load the audit trail. Please refresh.",
+    "action": {
+      "SUBMITTED": "Quote submitted",
+      "UPDATED": "Quote updated",
+      "APPROVED": "Quote approved",
+      "DECLINED": "Quote declined"
+    },
+    "source": {
+      "FORM": "Manual form",
+      "PDF": "PDF upload"
+    },
+    "total": "Total {{amount}}",
+    "editsSummary": "{{count}} line item changed during confirmation",
+    "editsSummary_other": "{{count}} line items changed during confirmation",
+    "fieldsChanged": "{{count}} field updated",
+    "fieldsChanged_other": "{{count}} fields updated"
   },
   "detailFields": {
     "basicInformation": "Basic Information",

@@ -1,23 +1,30 @@
 import { useTranslation } from '@forethread/i18n';
 import { cn } from '@forethread/ui-components';
 
-export type RfqTab = 'details' | 'lineItems' | 'responses' | 'documents';
+export type RfqTab = 'details' | 'lineItems' | 'responses' | 'documents' | 'audit';
 
 interface RfqDetailTabsProps {
   activeTab: RfqTab;
   onTabChange: (tab: RfqTab) => void;
   rightSlot?: React.ReactNode;
+  /** Which tabs to show, in order. Defaults to the four core tabs (no audit). */
+  tabs?: RfqTab[];
 }
 
-const TABS: RfqTab[] = ['details', 'lineItems', 'responses', 'documents'];
+const DEFAULT_TABS: RfqTab[] = ['details', 'lineItems', 'responses', 'documents'];
 
-export function RfqDetailTabs({ activeTab, onTabChange, rightSlot }: RfqDetailTabsProps) {
+export function RfqDetailTabs({
+  activeTab,
+  onTabChange,
+  rightSlot,
+  tabs = DEFAULT_TABS,
+}: RfqDetailTabsProps) {
   const { t } = useTranslation('rfqs');
 
   return (
     <div className="flex items-center justify-between border-b border-foreground/10">
       <nav className="flex gap-0">
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab}
             type="button"
