@@ -534,7 +534,26 @@ export class UsersService {
     if (!user) throw new NotFoundException(ERR.users.notFound);
 
     const granted = await this.permissionsService.getPermissionsForRole(user.role);
-    return { ...user, permissions: Array.from(granted) };
+    const poApprovalThreshold = await this.resolvePoApprovalThreshold(user.role);
+    return { ...user, permissions: Array.from(granted), poApprovalThreshold };
+  }
+
+  /**
+   * Resolve the user's `po.approve` threshold for the frontend send/approve UI
+   * (FOR-210). `null` = unlimited (SUPER_ADMIN, or an uncapped grant). `0` =
+   * the role lacks the grant, so any positive PO total requires approval.
+   */
+  private async resolvePoApprovalThreshold(role: UserRole): Promise<number | null> {
+    if (role === UserRole.SUPER_ADMIN) return null;
+
+    const grant = await this.prisma.rolePermission.findFirst({
+      where: { role, permission: { key: 'po.approve' } },
+      select: { thresholdAmount: true },
+    });
+
+    if (!grant) return 0;
+    if (grant.thresholdAmount === null) return null;
+    return Number(grant.thresholdAmount);
   }
 
   async updateMe(userId: string, dto: UpdateMeDto) {

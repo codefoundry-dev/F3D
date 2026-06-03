@@ -40,7 +40,7 @@ export class PoStatusService {
   async issuePurchaseOrder(id: string, user: AuthenticatedUser) {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id },
-      select: { id: true, status: true, companyId: true },
+      select: { id: true, status: true, companyId: true, totalAmount: true, currency: true },
     });
 
     if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
@@ -51,6 +51,31 @@ export class PoStatusService {
 
     if (po.status !== PrismaPoStatus.DRAFT) {
       throw new BadRequestException(ERR.purchaseOrders.cannotIssue(po.status));
+    }
+
+    // FOR-210: approval-gated sending. SUPER_ADMIN always sends directly.
+    // Otherwise evaluate the user's `po.approve` threshold against the PO total:
+    //  - allowed       → send the PO to the vendor (DRAFT → SENT)
+    //  - belowThreshold → over the cap; route for internal approval
+    //  - notGranted     → role can't self-approve; route for internal approval
+    let requiresApproval = false;
+    if (user.role !== UserRole.SUPER_ADMIN) {
+      const decision = await this.approvalAuth.evaluate(user.role, 'po.approve', po.totalAmount);
+      requiresApproval = decision.outcome !== 'allowed';
+    }
+
+    if (requiresApproval) {
+      // Hold for internal approval — do NOT notify the vendor or set issuedAt.
+      await this.prisma.purchaseOrder.update({
+        where: { id },
+        data: {
+          status: PrismaPoStatus.PENDING_APPROVAL,
+          approvalStatus: ApprovalStatus.PENDING,
+          lastModifiedById: user.id,
+        },
+      });
+
+      return this.purchaseOrdersService.getPurchaseOrder(id, user);
     }
 
     const updated = await this.prisma.purchaseOrder.update({
@@ -126,13 +151,18 @@ export class PoStatusService {
       throw new ForbiddenException(ERR.general.accessDenied);
     }
 
-    if (po.status !== PrismaPoStatus.DRAFT && po.status !== PrismaPoStatus.SENT) {
+    if (
+      po.status !== PrismaPoStatus.DRAFT &&
+      po.status !== PrismaPoStatus.SENT &&
+      po.status !== PrismaPoStatus.PENDING_APPROVAL
+    ) {
       throw new BadRequestException(ERR.purchaseOrders.cannotApprove(po.status));
     }
 
     // SUPER_ADMIN bypasses threshold checks — the role exists to break the
     // glass on otherwise-locked workflows, and approval still records who
-    // performed it via approvedById for audit.
+    // performed it via approvedById for audit. For everyone else the approver
+    // must be authorized for the PO total.
     if (user.role !== UserRole.SUPER_ADMIN) {
       const decision = await this.approvalAuth.evaluate(user.role, 'po.approve', po.totalAmount);
       if (decision.outcome === 'belowThreshold') {
@@ -144,21 +174,42 @@ export class PoStatusService {
           ),
         );
       }
+      if (decision.outcome === 'notGranted') {
+        throw new ForbiddenException(ERR.general.accessDenied);
+      }
     }
+
+    // FOR-210: approving a PENDING_APPROVAL PO completes the held send — the PO
+    // goes out to the vendor (→ SENT, issuedAt set, vendor notified). Any other
+    // approvable status keeps the legacy → ACKNOWLEDGED behavior.
+    const isPendingApprovalSend = po.status === PrismaPoStatus.PENDING_APPROVAL;
 
     const updated = await this.prisma.purchaseOrder.update({
       where: { id },
       data: {
-        status: PrismaPoStatus.ACKNOWLEDGED,
+        status: isPendingApprovalSend ? PrismaPoStatus.SENT : PrismaPoStatus.ACKNOWLEDGED,
         approvalStatus: ApprovalStatus.APPROVED,
         approvedById: user.id,
         lastModifiedById: user.id,
+        ...(isPendingApprovalSend && { issuedAt: new Date() }),
       },
       include: {
         project: { select: { name: true } },
-        vendor: { select: { legalName: true } },
+        vendor: {
+          select: {
+            legalName: true,
+            users: { where: { role: UserRole.VENDOR }, select: { email: true } },
+          },
+        },
       },
     });
+
+    if (isPendingApprovalSend) {
+      // Send email notification to vendor with PDF attachment (fire-and-forget)
+      this.notifyVendorOfPo(id, updated.poNumber, updated.vendor?.users ?? [], user).catch(
+        () => {},
+      );
+    }
 
     return {
       id: updated.id,

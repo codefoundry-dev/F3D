@@ -47,8 +47,12 @@ const mockPrisma = {
   },
   projectLocation: {
     findUnique: jest.fn(),
+    findMany: jest.fn(),
   },
   poLineItem: {
+    deleteMany: jest.fn(),
+  },
+  poDelivery: {
     deleteMany: jest.fn(),
   },
   $transaction: jest.fn(),
@@ -936,6 +940,7 @@ describe('PurchaseOrdersService', () => {
     ],
     documents: [],
     invoices: [],
+    deliveries: [],
     deliveryLocation: null,
   };
 
@@ -1001,6 +1006,74 @@ describe('PurchaseOrdersService', () => {
       mockGetPoAfterMutation();
       const result = await service.createPurchaseOrder(baseDto as never, companyAdmin);
       expect(result.id).toBe('po-new');
+    });
+
+    // ── FOR-210: multi-delivery rows ──────────────────────────────────────
+
+    it('persists delivery rows with sequence and validated locations', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockPrisma.company.findUnique.mockResolvedValue({ id: 'v-1' });
+      mockPrisma.projectLocation.findUnique.mockResolvedValue({ id: 'loc-1', projectId: 'proj-1' });
+      mockPrisma.projectLocation.findMany.mockResolvedValue([{ id: 'loc-2' }, { id: 'loc-3' }]);
+      mockPrisma.purchaseOrder.create.mockResolvedValue({ id: 'po-new' });
+      mockGetPoAfterMutation();
+
+      const dto = {
+        ...baseDto,
+        deliveries: [
+          { deliveryLocationId: 'loc-2', deliveryDate: '2026-07-01T00:00:00.000Z', notes: 'AM' },
+          { deliveryLocationId: 'loc-3' },
+          { deliveryDate: '2026-07-05T00:00:00.000Z' },
+        ],
+      };
+
+      await service.createPurchaseOrder(dto as never, companyAdmin);
+
+      const createArg = mockPrisma.purchaseOrder.create.mock.calls[0][0];
+      expect(createArg.data.deliveries.create).toEqual([
+        {
+          deliveryLocationId: 'loc-2',
+          deliveryDate: new Date('2026-07-01T00:00:00.000Z'),
+          notes: 'AM',
+          sequence: 0,
+        },
+        { deliveryLocationId: 'loc-3', deliveryDate: null, notes: null, sequence: 1 },
+        {
+          deliveryLocationId: null,
+          deliveryDate: new Date('2026-07-05T00:00:00.000Z'),
+          notes: null,
+          sequence: 2,
+        },
+      ]);
+    });
+
+    it('rejects a delivery row with neither location nor date', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockPrisma.company.findUnique.mockResolvedValue({ id: 'v-1' });
+      mockPrisma.projectLocation.findUnique.mockResolvedValue({ id: 'loc-1', projectId: 'proj-1' });
+      mockPrisma.projectLocation.findMany.mockResolvedValue([]);
+
+      const dto = { ...baseDto, deliveries: [{ notes: 'no location, no date' }] };
+
+      await expect(service.createPurchaseOrder(dto as never, companyAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockPrisma.purchaseOrder.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a delivery location that does not belong to the project', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockPrisma.company.findUnique.mockResolvedValue({ id: 'v-1' });
+      mockPrisma.projectLocation.findUnique.mockResolvedValue({ id: 'loc-1', projectId: 'proj-1' });
+      // findMany only returns locations that belong to the project — 'loc-x' absent
+      mockPrisma.projectLocation.findMany.mockResolvedValue([]);
+
+      const dto = { ...baseDto, deliveries: [{ deliveryLocationId: 'loc-x' }] };
+
+      await expect(service.createPurchaseOrder(dto as never, companyAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockPrisma.purchaseOrder.create).not.toHaveBeenCalled();
     });
   });
 

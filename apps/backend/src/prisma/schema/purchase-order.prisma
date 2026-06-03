@@ -134,6 +134,7 @@ model PurchaseOrder {
 
   lineItems      PoLineItem[]
   documents      PoDocument[]
+  deliveries     PoDelivery[]
   changeRequests PoChangeRequest[]
   drawdowns      Drawdown[]
   invoices       Invoice[]        @relation("InvoiceRelatedPo")
@@ -186,6 +187,22 @@ model PoDocument {
 
   @@index([purchaseOrderId], map: "idx_po_documents_po")
   @@map("po_documents")
+}
+
+model PoDelivery {
+  id                 String    @id @default(uuid())
+  purchaseOrderId    String    @map("purchase_order_id")
+  deliveryLocationId String?   @map("delivery_location_id")
+  deliveryDate       DateTime? @map("delivery_date")
+  notes              String?
+  sequence           Int
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  purchaseOrder    PurchaseOrder    @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  deliveryLocation ProjectLocation? @relation("PoDeliveryRowLocation", fields: [deliveryLocationId], references: [id])
+
+  @@index([purchaseOrderId], map: "idx_po_deliveries_po")
+  @@map("po_deliveries")
 }
 
 enum PoChangeRequestStatus {

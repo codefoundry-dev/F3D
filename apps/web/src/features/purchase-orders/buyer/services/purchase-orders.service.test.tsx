@@ -6,6 +6,7 @@ vi.mock('@forethread/api-client', () => ({
   getProjects: vi.fn(),
   getProject: vi.fn(),
   getCompanyVendors: vi.fn(),
+  getMe: vi.fn(),
 }));
 
 vi.mock('@/features/auth/state/auth.store', () => ({
@@ -21,6 +22,7 @@ import {
   getProjects,
   getProject,
   getCompanyVendors,
+  getMe,
 } from '@forethread/api-client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor, act } from '@testing-library/react';
@@ -34,6 +36,7 @@ import {
   useCompanyVendors,
   useCreatePurchaseOrder,
   useIssuePurchaseOrder,
+  useMe,
 } from './purchase-orders.service';
 
 function createWrapper() {
@@ -99,6 +102,14 @@ describe('purchase-orders.service', () => {
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(createPurchaseOrder).toHaveBeenCalled();
+  });
+
+  it('useMe calls getMe and exposes poApprovalThreshold', async () => {
+    vi.mocked(getMe).mockResolvedValue({ id: 'u-1', poApprovalThreshold: 5000 } as never);
+    const { result } = renderHook(() => useMe(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(getMe).toHaveBeenCalled();
+    expect(result.current.data?.poApprovalThreshold).toBe(5000);
   });
 
   it('useIssuePurchaseOrder calls issuePurchaseOrder', async () => {

@@ -893,5 +893,239 @@ describe('PoStatusService', () => {
       const result = await service.issuePurchaseOrder('po-1', superAdmin);
       expect(result.id).toBe('po-new');
     });
+
+    // ── FOR-210: approval-gated sending ──────────────────────────────────
+
+    const procurementOfficer = {
+      id: 'po-u-1',
+      email: 'po@test.com',
+      role: UserRole.PROCUREMENT_OFFICER,
+      companyId: 'comp-1',
+    };
+
+    it('sends directly when the PO total is within the role threshold', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'DRAFT',
+        companyId: 'comp-1',
+        totalAmount: { toString: () => '5000' },
+        currency: 'AUD',
+      });
+      mockApprovalAuth.evaluate.mockResolvedValue({
+        outcome: 'allowed',
+        threshold: { toString: () => '25000' },
+      });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({ poNumber: 'PO-1', vendor: { users: [] } });
+
+      await service.issuePurchaseOrder('po-1', procurementOfficer);
+
+      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'SENT' }),
+        }),
+      );
+    });
+
+    it('sends directly with unlimited threshold (allowed, null cap)', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'DRAFT',
+        companyId: 'comp-1',
+        totalAmount: { toString: () => '999999' },
+        currency: 'AUD',
+      });
+      mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({ poNumber: 'PO-1', vendor: { users: [] } });
+
+      await service.issuePurchaseOrder('po-1', procurementOfficer);
+
+      const data = mockPrisma.purchaseOrder.update.mock.calls[0][0].data;
+      expect(data.status).toBe('SENT');
+      expect(data.issuedAt).toBeInstanceOf(Date);
+    });
+
+    it('notifies the vendor when sent directly', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'DRAFT',
+        companyId: 'comp-1',
+        totalAmount: { toString: () => '5000' },
+        currency: 'AUD',
+      });
+      mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        poNumber: 'PO-1',
+        vendor: { users: [{ email: 'vendor@test.com' }] },
+      });
+      mockPoExportService.generatePoPdfBuffer.mockResolvedValue(Buffer.from('pdf'));
+      mockEmailService.sendPoIssuedEmail.mockResolvedValue(undefined);
+
+      await service.issuePurchaseOrder('po-1', procurementOfficer);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendPoIssuedEmail).toHaveBeenCalledWith(
+        'vendor@test.com',
+        'PO-1',
+        'http://localhost:5179/purchase-orders/po-1',
+        expect.any(Buffer),
+      );
+    });
+
+    it('routes to PENDING_APPROVAL when the PO total exceeds the threshold (belowThreshold)', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-big',
+        status: 'DRAFT',
+        companyId: 'comp-1',
+        totalAmount: { toString: () => '30000' },
+        currency: 'AUD',
+      });
+      mockApprovalAuth.evaluate.mockResolvedValue({
+        outcome: 'belowThreshold',
+        threshold: { toString: () => '25000' },
+      });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({});
+
+      await service.issuePurchaseOrder('po-big', procurementOfficer);
+
+      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith({
+        where: { id: 'po-big' },
+        data: {
+          status: 'PENDING_APPROVAL',
+          approvalStatus: 'PENDING',
+          lastModifiedById: 'po-u-1',
+        },
+      });
+      expect(mockEmailService.sendPoIssuedEmail).not.toHaveBeenCalled();
+    });
+
+    it('routes to PENDING_APPROVAL when the role cannot self-approve (notGranted)', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-ng',
+        status: 'DRAFT',
+        companyId: 'comp-1',
+        totalAmount: { toString: () => '100' },
+        currency: 'AUD',
+      });
+      mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'notGranted' });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({});
+
+      await service.issuePurchaseOrder('po-ng', procurementOfficer);
+
+      const data = mockPrisma.purchaseOrder.update.mock.calls[0][0].data;
+      expect(data.status).toBe('PENDING_APPROVAL');
+      expect(data.approvalStatus).toBe('PENDING');
+      expect(data.issuedAt).toBeUndefined();
+      expect(mockEmailService.sendPoIssuedEmail).not.toHaveBeenCalled();
+    });
+
+    it('SUPER_ADMIN sends directly regardless of total, bypassing threshold checks', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-sa',
+        status: 'DRAFT',
+        companyId: 'any-company',
+        totalAmount: { toString: () => '9999999' },
+        currency: 'AUD',
+      });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({ poNumber: 'PO-SA', vendor: { users: [] } });
+
+      await service.issuePurchaseOrder('po-sa', superAdmin);
+
+      expect(mockApprovalAuth.evaluate).not.toHaveBeenCalled();
+      expect(mockPrisma.purchaseOrder.update.mock.calls[0][0].data.status).toBe('SENT');
+    });
+  });
+
+  // ── FOR-210: approving a held PO completes the send ──────────────────────
+
+  describe('approvePurchaseOrder (PENDING_APPROVAL → SENT)', () => {
+    it('transitions PENDING_APPROVAL → SENT, sets issuedAt, and notifies the vendor', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-pa',
+        status: 'PENDING_APPROVAL',
+        companyId: 'comp-1',
+        totalAmount: { toString: () => '30000' },
+        currency: 'AUD',
+      });
+      mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        id: 'po-pa',
+        status: 'SENT',
+        poNumber: 'PO-PA',
+        project: { name: 'Alpha' },
+        vendor: { legalName: 'VendorCo', users: [{ email: 'vendor@test.com' }] },
+      });
+      mockPoExportService.generatePoPdfBuffer.mockResolvedValue(Buffer.from('pdf'));
+      mockEmailService.sendPoIssuedEmail.mockResolvedValue(undefined);
+
+      const result = await service.approvePurchaseOrder('po-pa', companyAdmin);
+      expect(result.status).toBe('SENT');
+
+      const data = mockPrisma.purchaseOrder.update.mock.calls[0][0].data;
+      expect(data.status).toBe('SENT');
+      expect(data.approvalStatus).toBe('APPROVED');
+      expect(data.approvedById).toBe('ca-1');
+      expect(data.issuedAt).toBeInstanceOf(Date);
+
+      await new Promise((r) => setTimeout(r, 10));
+      expect(mockEmailService.sendPoIssuedEmail).toHaveBeenCalledWith(
+        'vendor@test.com',
+        'PO-PA',
+        'http://localhost:5179/purchase-orders/po-pa',
+        expect.any(Buffer),
+      );
+    });
+
+    it('still rejects a PENDING_APPROVAL approval that exceeds the approver threshold', async () => {
+      const procurementOfficer = {
+        id: 'po-u-1',
+        email: 'po@test.com',
+        role: UserRole.PROCUREMENT_OFFICER,
+        companyId: 'comp-1',
+      };
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-pa',
+        status: 'PENDING_APPROVAL',
+        companyId: 'comp-1',
+        totalAmount: { toString: () => '30000' },
+        currency: 'AUD',
+      });
+      mockApprovalAuth.evaluate.mockResolvedValue({
+        outcome: 'belowThreshold',
+        threshold: { toString: () => '25000' },
+      });
+
+      await expect(service.approvePurchaseOrder('po-pa', procurementOfficer)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(mockPrisma.purchaseOrder.update).not.toHaveBeenCalled();
+    });
+
+    it('keeps DRAFT → ACKNOWLEDGED behavior unchanged (no vendor notification)', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'DRAFT',
+        companyId: 'comp-1',
+        totalAmount: { toString: () => '100' },
+        currency: 'AUD',
+      });
+      mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        id: 'po-1',
+        status: 'ACKNOWLEDGED',
+        poNumber: 'PO-1',
+        project: { name: 'Alpha' },
+        vendor: { legalName: 'VendorCo', users: [] },
+      });
+
+      const result = await service.approvePurchaseOrder('po-1', companyAdmin);
+      expect(result.status).toBe('ACKNOWLEDGED');
+
+      const data = mockPrisma.purchaseOrder.update.mock.calls[0][0].data;
+      expect(data.status).toBe('ACKNOWLEDGED');
+      expect(data.issuedAt).toBeUndefined();
+
+      await new Promise((r) => setTimeout(r, 10));
+      expect(mockEmailService.sendPoIssuedEmail).not.toHaveBeenCalled();
+    });
   });
 });

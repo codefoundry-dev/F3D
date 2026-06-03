@@ -91,6 +91,10 @@ vi.mock('@forethread/ui-components/assets/icons/download.svg?react', () => ({
   default: (props: Record<string, unknown>) => <svg data-testid="icon-download" {...props} />,
 }));
 
+vi.mock('../components/PoSendButton', () => ({
+  PoSendButton: () => <div data-testid="po-send-button" />,
+}));
+
 import PurchaseOrderDetailPage from './PurchaseOrderDetailPage';
 
 const MOCK_PO = {

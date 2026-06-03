@@ -12,7 +12,13 @@ import { useForm, useFieldArray } from 'react-hook-form';
 
 import { PoSourceOfCreation, PoType } from '@forethread/shared-types/client';
 
-import { formSchema, EMPTY_LINE_ITEM, STEP1_FIELDS } from '../schemas/create-po.schema';
+import {
+  formSchema,
+  EMPTY_LINE_ITEM,
+  EMPTY_DELIVERY_ROW,
+  STEP1_FIELDS,
+  mapDeliveriesToPayload,
+} from '../schemas/create-po.schema';
 import type { FormValues, PoCreationMode } from '../schemas/create-po.schema';
 
 const CREATION_MODE_TO_SOURCE: Record<PoCreationMode, string> = {
@@ -58,6 +64,7 @@ export function usePoWizardForm({
     pickUp: false,
     holdForRelease: false,
     lineItems: [{ ...EMPTY_LINE_ITEM }],
+    deliveries: [{ ...EMPTY_DELIVERY_ROW }],
     message: '',
   };
 
@@ -70,6 +77,15 @@ export function usePoWizardForm({
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: 'lineItems',
+  });
+
+  const {
+    fields: deliveryFields,
+    append: appendDelivery,
+    remove: removeDelivery,
+  } = useFieldArray({
+    control: form.control,
+    name: 'deliveries',
   });
 
   const watchedLineItems = form.watch('lineItems') ?? [];
@@ -162,6 +178,7 @@ export function usePoWizardForm({
           : undefined,
         message: data.message ?? undefined,
         lineItems,
+        deliveries: mapDeliveriesToPayload(data.deliveries),
       };
     },
     [projectDetail],
@@ -279,6 +296,9 @@ export function usePoWizardForm({
     fields,
     append,
     remove,
+    deliveryFields,
+    appendDelivery,
+    removeDelivery,
     canContinue,
     handleContinue,
     handleBack,

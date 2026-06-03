@@ -15,6 +15,8 @@ import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?re
 import { useCallback, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 
+import { PoSendButton } from '../components/PoSendButton';
+
 export default function PurchaseOrderDetailPage() {
   const { t } = useTranslation('purchaseOrders');
   const { id } = useParams<{ id: string }>();
@@ -59,18 +61,21 @@ export default function PurchaseOrderDetailPage() {
           onTabChange={setActiveTab}
           rightSlot={
             activeTab === 'details' ? (
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={<DownloadIcon className="w-4 h-4" />}
-                onClick={() => {
-                  void exportPurchaseOrders('pdf', { search: po.id }).then(({ url }) =>
-                    window.open(url, '_blank'),
-                  );
-                }}
-              >
-                {t('actions.exportAs')}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<DownloadIcon className="w-4 h-4" />}
+                  onClick={() => {
+                    void exportPurchaseOrders('pdf', { search: po.id }).then(({ url }) =>
+                      window.open(url, '_blank'),
+                    );
+                  }}
+                >
+                  {t('actions.exportAs')}
+                </Button>
+                <PoSendButton po={po} size="sm" />
+              </div>
             ) : undefined
           }
         />

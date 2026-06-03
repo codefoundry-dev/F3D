@@ -58,6 +58,7 @@ model ProjectLocation {
 
   purchaseOrders PurchaseOrder[] @relation("PoDeliveryLocation")
   poLineItems    PoLineItem[]    @relation("PoLineItemDeliveryLocation")
+  poDeliveries   PoDelivery[]    @relation("PoDeliveryRowLocation")
   rfqs           Rfq[]           @relation("RfqDeliveryLocation")
 
   @@index([projectId], map: "idx_projectlocation_project")

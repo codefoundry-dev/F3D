@@ -124,6 +124,7 @@ export const ERR = {
     projectNotFound: errors.purchaseOrders.projectNotFound,
     vendorNotFound: errors.purchaseOrders.vendorNotFound,
     invalidDeliveryLocation: errors.purchaseOrders.invalidDeliveryLocation,
+    invalidDeliveryRow: errors.purchaseOrders.invalidDeliveryRow,
     cannotApprove: (status: string) => t(errors.purchaseOrders.cannotApprove, { status }),
     cannotDecline: (status: string) => t(errors.purchaseOrders.cannotDecline, { status }),
     cannotEditNonDraft: errors.purchaseOrders.cannotEditNonDraft,

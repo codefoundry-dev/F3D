@@ -28,6 +28,16 @@ export const createPoLineItemSchema = z.object({
   deliveryLocationId: z.string().uuid().optional(),
 });
 
+export const createPoDeliverySchema = z
+  .object({
+    deliveryLocationId: z.string().uuid().optional(),
+    deliveryDate: z.string().datetime().optional(),
+    notes: z.string().optional(),
+  })
+  .refine((d) => Boolean(d.deliveryLocationId) || Boolean(d.deliveryDate), {
+    message: 'A delivery row must have a location or a date',
+  });
+
 export const createPurchaseOrderSchema = z.object({
   projectId: z.string().uuid(),
   vendorId: z.string().uuid(),
@@ -53,6 +63,7 @@ export const createPurchaseOrderSchema = z.object({
   deliveryResponsibleName: z.string().optional(),
   deliveryResponsibleEmail: z.string().email().optional(),
   lineItems: z.array(createPoLineItemSchema).min(1),
+  deliveries: z.array(createPoDeliverySchema).optional(),
 });
 
 export type CreatePurchaseOrderValues = z.infer<typeof createPurchaseOrderSchema>;
