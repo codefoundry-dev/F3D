@@ -347,6 +347,18 @@ export class RfqsController {
     return this.quoteResponseService.getQuoteAudit(rfqId, user);
   }
 
+  // ── GET /v1/rfqs/:rfqId/quote-comparison ─────────────────────────────────
+
+  @Get(':rfqId/quote-comparison')
+  @RequirePermissions('rfq.read')
+  @ApiOperation({ summary: 'Side-by-side comparison of received quotes for an RFQ (FOR-208)' })
+  @ApiResponse({ status: 200, description: 'Comparison grid: line items × vendors' })
+  @ApiResponse({ status: 403, description: 'Access denied (contractor-only)' })
+  @ApiResponse({ status: 404, description: 'RFQ not found' })
+  async getQuoteComparison(@Param('rfqId') rfqId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.quoteResponseService.getQuoteComparison(rfqId, user);
+  }
+
   // ── Guest (invitation-link) endpoints ──────────────────────────────────────
 
   // Declared before `GET invitation/:token` so the static `quote-extraction`

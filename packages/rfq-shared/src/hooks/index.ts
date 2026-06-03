@@ -1,4 +1,4 @@
-export { useRfqs, useRfq, useRfqQuoteAudit } from './useRfqs';
+export { useRfqs, useRfq, useRfqQuoteAudit, useRfqQuoteComparison } from './useRfqs';
 export { useDropdown } from './useDropdown';
 export { useRfqSort } from './useRfqSort';
 export { useRfqGrouping } from './useRfqGrouping';

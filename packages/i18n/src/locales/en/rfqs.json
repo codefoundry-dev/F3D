@@ -155,8 +155,23 @@
     "details": "Details",
     "lineItems": "Line items",
     "responses": "Responses",
+    "comparison": "Comparison",
     "documents": "Documents",
     "audit": "Audit trail"
+  },
+  "comparisonTab": {
+    "title": "Quote comparison",
+    "noQuotes": "No quotes received yet to compare",
+    "loadError": "Failed to load the comparison. Please refresh.",
+    "lineItem": "Line item",
+    "unnamedItem": "Unnamed item",
+    "qtyUnit": "{{qty}} {{unit}}",
+    "coverage": "{{covered}} of {{total}} items quoted",
+    "noQuote": "No quote",
+    "lowest": "Lowest",
+    "vendorTotal": "Vendor total",
+    "leadTime": "Lead time",
+    "paymentTerms": "Payment terms"
   },
   "auditTab": {
     "title": "Quote audit trail",

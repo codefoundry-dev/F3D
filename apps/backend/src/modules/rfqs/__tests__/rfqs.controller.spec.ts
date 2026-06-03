@@ -31,6 +31,7 @@ const mockQuoteResponseService = {
   updateQuote: jest.fn(),
   getQuoteDetail: jest.fn(),
   getQuoteAudit: jest.fn(),
+  getQuoteComparison: jest.fn(),
   getGuestRfq: jest.fn(),
   submitGuestQuote: jest.fn(),
 };
@@ -267,6 +268,18 @@ describe('RfqsController', () => {
 
       expect(mockQuoteResponseService.getQuoteAudit).toHaveBeenCalledWith('rfq-1', mockUser);
       expect(result).toEqual(trail);
+    });
+  });
+
+  describe('getQuoteComparison', () => {
+    it('delegates to quote response service', async () => {
+      const comparison = { rfqId: 'rfq-1', currency: 'AUD', vendors: [], rows: [] };
+      mockQuoteResponseService.getQuoteComparison.mockResolvedValue(comparison);
+
+      const result = await controller.getQuoteComparison('rfq-1', mockUser);
+
+      expect(mockQuoteResponseService.getQuoteComparison).toHaveBeenCalledWith('rfq-1', mockUser);
+      expect(result).toEqual(comparison);
     });
   });
 

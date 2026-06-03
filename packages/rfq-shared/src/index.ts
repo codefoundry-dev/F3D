@@ -19,6 +19,7 @@ export {
   useRfqs,
   useRfq,
   useRfqQuoteAudit,
+  useRfqQuoteComparison,
   useDropdown,
   useRfqSort,
   useRfqGrouping,
