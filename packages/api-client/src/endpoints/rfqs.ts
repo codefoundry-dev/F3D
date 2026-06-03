@@ -522,6 +522,68 @@ export async function getRfqQuoteAudit(
   return data.data;
 }
 
+// ── Quote comparison (FOR-208) ────────────────────────────────────────────────
+
+/** One vendor column header in the comparison grid. */
+export interface QuoteComparisonVendor {
+  quoteResponseId: string;
+  vendorId: string;
+  vendorName: string;
+  status: string;
+  submittedAt: string | null;
+  paymentTerms: string | null;
+  /** Latest committed delivery date across the vendor's quoted lines. */
+  leadTimeDate: string | null;
+  /** Sum of extended costs across the lines this vendor quoted. */
+  total: number;
+  itemsCovered: number;
+  totalItems: number;
+}
+
+/** One vendor's quote for a single RFQ line item (a grid cell). */
+export interface QuoteComparisonCell {
+  vendorId: string;
+  quoteResponseId: string;
+  unitPrice: number | null;
+  quotedQuantity: number | null;
+  /** qty × unit; null when the vendor did not quote this line. */
+  extendedCost: number | null;
+  availability: string | null;
+  deliveryDate: string | null;
+  hasQuote: boolean;
+  /** True when this cell holds the lowest extended cost in its row. */
+  isLowest: boolean;
+}
+
+/** One RFQ line item row, with a cell per vendor (aligned to `vendors` order). */
+export interface QuoteComparisonRow {
+  rfqLineItemId: string;
+  materialName: string | null;
+  quantity: number;
+  unit: string;
+  cells: QuoteComparisonCell[];
+  lowestVendorId: string | null;
+}
+
+export interface QuoteComparison {
+  rfqId: string;
+  currency: string;
+  vendors: QuoteComparisonVendor[];
+  rows: QuoteComparisonRow[];
+}
+
+/** Fetch the side-by-side quote comparison grid for an RFQ (contractor-only). FOR-208. */
+export async function getRfqQuoteComparison(
+  rfqId: string,
+  config?: AxiosRequestConfig,
+): Promise<QuoteComparison> {
+  const { data } = await getApiClient().get<{ data: QuoteComparison }>(
+    RFQS_PATHS.quoteComparison(rfqId),
+    config,
+  );
+  return data.data;
+}
+
 // ── Guest (invitation link) endpoints ─────────────────────────────────────
 
 export interface GuestRfqDetail {

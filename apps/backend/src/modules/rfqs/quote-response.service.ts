@@ -26,6 +26,7 @@ import { AuditService } from '../audit/audit.service';
 import { DocIntelligenceService } from '../doc-intelligence/doc-intelligence.service';
 import { StorageService } from '../storage/storage.service';
 
+import { buildQuoteComparison } from './quote-comparison';
 import type { SubmitQuoteDto, UpdateQuoteDto } from './quote-response.dto';
 
 /** Statuses that block vendor quote submission / update */
@@ -513,6 +514,85 @@ export class QuoteResponseService {
       changes: a.changes,
       createdAt: a.createdAt.toISOString(),
     }));
+  }
+
+  // ── Quote Comparison (FOR-208) ───────────────────────────────────────────────
+
+  /** Quote statuses that count as "received" for the contractor's comparison view. */
+  private static readonly COMPARISON_STATUSES: QuoteResponseStatus[] = [
+    QuoteResponseStatus.SUBMITTED,
+    QuoteResponseStatus.APPROVED,
+  ];
+
+  /**
+   * Aggregate every received quote for an RFQ into a side-by-side comparison
+   * grid (rows = line items, columns = vendors) with the lowest extended cost
+   * per line flagged and per-vendor totals. Contractor-only: vendors must never
+   * see competitors' pricing, so this is scoped to the RFQ's owning company.
+   */
+  async getQuoteComparison(rfqId: string, user: AuthenticatedUser) {
+    const rfq = await this.prisma.rfq.findUnique({
+      where: { id: rfqId },
+      select: {
+        id: true,
+        companyId: true,
+        currency: true,
+        lineItems: {
+          select: { id: true, materialName: true, quantity: true, unit: true },
+        },
+      },
+    });
+    if (!rfq) throw new NotFoundException(ERR.rfqs.notFound);
+
+    const isContractor =
+      (user.role === UserRole.COMPANY_ADMIN || user.role === UserRole.PROCUREMENT_OFFICER) &&
+      rfq.companyId === user.companyId;
+    if (!isContractor) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
+
+    const quotes = await this.prisma.quoteResponse.findMany({
+      where: { rfqId, status: { in: QuoteResponseService.COMPARISON_STATUSES } },
+      orderBy: { submittedAt: 'asc' },
+      select: {
+        id: true,
+        vendorId: true,
+        status: true,
+        submittedAt: true,
+        paymentTerms: true,
+        bulkDeliveryTime: true,
+        vendor: { select: { legalName: true } },
+        lineItems: {
+          select: {
+            rfqLineItemId: true,
+            unitPrice: true,
+            quotedQuantity: true,
+            availability: true,
+            deliveryDate: true,
+          },
+        },
+      },
+    });
+
+    return buildQuoteComparison(
+      { id: rfq.id, currency: rfq.currency, lineItems: rfq.lineItems },
+      quotes.map((q) => ({
+        id: q.id,
+        vendorId: q.vendorId,
+        vendorName: q.vendor.legalName,
+        status: q.status,
+        submittedAt: q.submittedAt,
+        paymentTerms: q.paymentTerms,
+        bulkDeliveryTime: q.bulkDeliveryTime,
+        lineItems: q.lineItems.map((li) => ({
+          rfqLineItemId: li.rfqLineItemId,
+          unitPrice: Number(li.unitPrice),
+          quotedQuantity: li.quotedQuantity,
+          availability: li.availability,
+          deliveryDate: li.deliveryDate,
+        })),
+      })),
+    );
   }
 
   // ── Guest (invitation link) access ──────────────────────────────────────────

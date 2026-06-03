@@ -1,4 +1,10 @@
-import { getRfqs, getRfq, getRfqQuoteAudit, type RfqListParams } from '@forethread/api-client';
+import {
+  getRfqs,
+  getRfq,
+  getRfqQuoteAudit,
+  getRfqQuoteComparison,
+  type RfqListParams,
+} from '@forethread/api-client';
 import { useQuery } from '@tanstack/react-query';
 
 export function useRfqs(params?: RfqListParams) {
@@ -21,6 +27,15 @@ export function useRfqQuoteAudit(rfqId: string) {
   return useQuery({
     queryKey: ['rfqs', rfqId, 'quote-audit'],
     queryFn: () => getRfqQuoteAudit(rfqId),
+    enabled: !!rfqId,
+  });
+}
+
+/** Side-by-side quote comparison grid for the RFQ detail view (FOR-208). */
+export function useRfqQuoteComparison(rfqId: string) {
+  return useQuery({
+    queryKey: ['rfqs', rfqId, 'quote-comparison'],
+    queryFn: () => getRfqQuoteComparison(rfqId),
     enabled: !!rfqId,
   });
 }

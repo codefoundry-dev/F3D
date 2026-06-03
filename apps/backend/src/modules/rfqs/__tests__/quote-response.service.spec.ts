@@ -6,7 +6,7 @@ import { QuoteResponseService } from '../quote-response.service';
 const mockPrisma = {
   rfq: { findUnique: jest.fn() },
   rfqVendor: { findUnique: jest.fn() },
-  quoteResponse: { findFirst: jest.fn(), findUnique: jest.fn() },
+  quoteResponse: { findFirst: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
   quoteAudit: { findMany: jest.fn() },
   $transaction: jest.fn(),
 };
@@ -1288,6 +1288,87 @@ describe('QuoteResponseService', () => {
       mockPrisma.rfq.findUnique.mockResolvedValue({ id: 'rfq-1', companyId: 'other-company' });
 
       await expect(service.getQuoteAudit('rfq-1', contractorUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+  });
+
+  // ── getQuoteComparison (FOR-208) ──────────────────────────────────────────────
+
+  describe('getQuoteComparison', () => {
+    const comparisonRfq = {
+      id: 'rfq-1',
+      companyId: 'contractor-co-1',
+      currency: 'AUD',
+      lineItems: [{ id: 'li-1', materialName: 'Cement', quantity: 10, unit: 'bags' }],
+    };
+
+    const quoteRows = [
+      {
+        id: 'quote-1',
+        vendorId: 'vendor-co-1',
+        status: 'SUBMITTED',
+        submittedAt: new Date('2026-06-01T00:00:00Z'),
+        paymentTerms: 'Net 30',
+        bulkDeliveryTime: null,
+        vendor: { legalName: 'VendorCo' },
+        lineItems: [
+          {
+            rfqLineItemId: 'li-1',
+            unitPrice: { toString: () => '12.5' },
+            quotedQuantity: 10,
+            availability: 'AVAILABLE',
+            deliveryDate: new Date('2026-07-01T00:00:00Z'),
+          },
+        ],
+      },
+    ];
+
+    it('aggregates received quotes into a comparison grid for the contractor', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue(comparisonRfq);
+      mockPrisma.quoteResponse.findMany.mockResolvedValue(quoteRows);
+
+      const result = await service.getQuoteComparison('rfq-1', contractorUser);
+
+      expect(result.rfqId).toBe('rfq-1');
+      expect(result.currency).toBe('AUD');
+      expect(result.vendors).toHaveLength(1);
+      expect(result.vendors[0]).toMatchObject({
+        vendorName: 'VendorCo',
+        paymentTerms: 'Net 30',
+        total: 125,
+        itemsCovered: 1,
+        totalItems: 1,
+      });
+      expect(result.rows[0].cells[0]).toMatchObject({ extendedCost: 125, isLowest: true });
+      // Only SUBMITTED/APPROVED quotes feed the comparison.
+      expect(mockPrisma.quoteResponse.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { rfqId: 'rfq-1', status: { in: ['SUBMITTED', 'APPROVED'] } },
+        }),
+      );
+    });
+
+    it('throws NotFoundException when the RFQ does not exist', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue(null);
+
+      await expect(service.getQuoteComparison('rfq-x', contractorUser)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws ForbiddenException for an unrelated company admin', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue({ ...comparisonRfq, companyId: 'other-company' });
+
+      await expect(service.getQuoteComparison('rfq-1', contractorUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('denies a vendor — comparison is contractor-only', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue(comparisonRfq);
+
+      await expect(service.getQuoteComparison('rfq-1', vendorUser)).rejects.toThrow(
         ForbiddenException,
       );
     });
