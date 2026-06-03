@@ -1,6 +1,11 @@
 import { RfqListQueryDto, VendorRfqStatus } from '@forethread/shared-types';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { QuoteResponseStatus, RfqStatus, UserRole } from '@prisma/client';
+import {
+  QuoteLineItemAvailability,
+  QuoteResponseStatus,
+  RfqStatus,
+  UserRole,
+} from '@prisma/client';
 
 import { RfqsService } from '../rfqs.service';
 
@@ -82,6 +87,10 @@ const mockPrisma = {
   },
   quoteAudit: {
     create: jest.fn(),
+  },
+  purchaseOrder: {
+    create: jest.fn(),
+    count: jest.fn(),
   },
   rfqLineItem: {
     findUnique: jest.fn(),
@@ -1062,8 +1071,8 @@ describe('RfqsService', () => {
       });
       mockPrisma.rfq.update.mockResolvedValue({});
       mockPrisma.quoteAudit.create.mockResolvedValue({});
-      mockPrisma.$transaction.mockImplementation(
-        async (cb: (tx: unknown) => Promise<unknown>) => cb(mockPrisma),
+      mockPrisma.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) =>
+        cb(mockPrisma),
       );
 
       const result = await service.approveQuote('rfq-1', 'quote-1', companyAdmin);
@@ -1086,6 +1095,170 @@ describe('RfqsService', () => {
       expect(mockPrisma.quoteAudit.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ action: 'APPROVED', quoteResponseId: 'quote-1' }),
       });
+    });
+  });
+
+  // ── awardQuote (FOR-209) ──────────────────────────────────────────────────
+
+  describe('awardQuote', () => {
+    const awardableQuote = {
+      id: 'quote-1',
+      status: QuoteResponseStatus.SUBMITTED,
+      rfqId: 'rfq-1',
+      vendorId: 'vendor-co-1',
+      source: 'FORM',
+      message: 'Best price',
+      rfq: {
+        companyId: 'comp-1',
+        projectId: 'proj-1',
+        currency: 'AUD',
+        deliveryLocationId: 'loc-1',
+        holdForRelease: false,
+        deadlineStart: null,
+        deadlineEnd: null,
+      },
+      lineItems: [
+        {
+          unitPrice: 10,
+          quotedQuantity: 5,
+          availability: QuoteLineItemAvailability.AVAILABLE,
+          deliveryDate: new Date('2026-07-01'),
+          notes: 'line note',
+          rfqLineItem: {
+            materialId: 'mat-1',
+            materialName: 'Cement',
+            unit: 'bags',
+            costCode: 'CC-1',
+            description: null,
+            pickUp: false,
+          },
+        },
+        {
+          unitPrice: 0,
+          quotedQuantity: 0,
+          availability: QuoteLineItemAvailability.NO_QUOTE,
+          deliveryDate: new Date('2026-07-02'),
+          notes: null,
+          rfqLineItem: {
+            materialId: 'mat-2',
+            materialName: 'Sand',
+            unit: 'tonnes',
+            costCode: 'CC-2',
+            description: null,
+            pickUp: false,
+          },
+        },
+      ],
+    };
+
+    function primeAwardTransaction() {
+      mockPrisma.quoteResponse.update.mockResolvedValue({
+        id: 'quote-1',
+        status: QuoteResponseStatus.APPROVED,
+        totalCost: 50,
+        vendor: { legalName: 'VendorCo' },
+      });
+      mockPrisma.rfq.update.mockResolvedValue({});
+      mockPrisma.quoteAudit.create.mockResolvedValue({});
+      mockPrisma.purchaseOrder.count.mockResolvedValue(0);
+      mockPrisma.purchaseOrder.create.mockResolvedValue({ id: 'po-1', poNumber: 'PO-00001' });
+      mockPrisma.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) =>
+        cb(mockPrisma),
+      );
+    }
+
+    it('throws NotFoundException when quote not found', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue(null);
+      await expect(service.awardQuote('rfq-1', 'missing', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws ForbiddenException for a different company user', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue(awardableQuote);
+      await expect(service.awardQuote('rfq-1', 'quote-1', otherCompanyUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('throws BadRequestException when the quote is already APPROVED', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({
+        ...awardableQuote,
+        status: QuoteResponseStatus.APPROVED,
+      });
+      await expect(service.awardQuote('rfq-1', 'quote-1', companyAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('approves the quote, marks the RFQ AWARDED and creates a draft PO from quoted lines', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue(awardableQuote);
+      primeAwardTransaction();
+
+      const result = await service.awardQuote('rfq-1', 'quote-1', companyAdmin);
+
+      expect(result).toEqual({
+        id: 'quote-1',
+        vendorName: 'VendorCo',
+        status: QuoteResponseStatus.APPROVED,
+        totalCost: 50,
+        purchaseOrderId: 'po-1',
+        poNumber: 'PO-00001',
+      });
+
+      expect(mockPrisma.quoteResponse.update).toHaveBeenCalledWith({
+        where: { id: 'quote-1' },
+        data: { status: QuoteResponseStatus.APPROVED },
+        include: { vendor: { select: { legalName: true } } },
+      });
+      expect(mockPrisma.rfq.update).toHaveBeenCalledWith({
+        where: { id: 'rfq-1' },
+        data: { status: RfqStatus.AWARDED },
+      });
+      expect(mockPrisma.quoteAudit.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ action: 'APPROVED', quoteResponseId: 'quote-1' }),
+      });
+    });
+
+    it('derives PO line items from the quote, dropping NO_QUOTE lines', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue(awardableQuote);
+      primeAwardTransaction();
+
+      await service.awardQuote('rfq-1', 'quote-1', companyAdmin);
+
+      const poData = mockPrisma.purchaseOrder.create.mock.calls[0][0].data;
+      expect(poData).toEqual(
+        expect.objectContaining({
+          rfqId: 'rfq-1',
+          vendorId: 'vendor-co-1',
+          projectId: 'proj-1',
+          companyId: 'comp-1',
+          status: 'DRAFT',
+          sourceOfCreation: 'RFQ',
+          currency: 'AUD',
+          deliveryLocationId: 'loc-1',
+          subtotal: 50,
+          totalAmount: 50,
+          lineItemCount: 1,
+          totalRequestedQty: 5,
+        }),
+      );
+
+      // Only the AVAILABLE line is carried over; the NO_QUOTE line is dropped.
+      const createdLines = poData.lineItems.create;
+      expect(createdLines).toHaveLength(1);
+      expect(createdLines[0]).toEqual(
+        expect.objectContaining({
+          lineNumber: 1,
+          materialId: 'mat-1',
+          description: 'Cement',
+          quantityOrdered: 5,
+          unitOfMeasure: 'bags',
+          unitPrice: 10,
+          lineTotal: 50,
+          costCode: 'CC-1',
+        }),
+      );
     });
   });
 
@@ -1134,8 +1307,8 @@ describe('RfqsService', () => {
         vendor: { legalName: 'DeclinedVendor' },
       });
       mockPrisma.quoteAudit.create.mockResolvedValue({});
-      mockPrisma.$transaction.mockImplementation(
-        async (cb: (tx: unknown) => Promise<unknown>) => cb(mockPrisma),
+      mockPrisma.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) =>
+        cb(mockPrisma),
       );
 
       const result = await service.declineQuote('rfq-1', 'quote-2', companyAdmin);
@@ -2128,7 +2301,12 @@ describe('RfqsService', () => {
           _count: { lineItems: 2, invitedVendors: 1 },
         })
         // generateInvitationTokensAndNotify (fire-and-forget)
-        .mockResolvedValueOnce({ rfqNumber: 'RFQ-1', ccEmails: [], documents: [], invitedVendors: [] })
+        .mockResolvedValueOnce({
+          rfqNumber: 'RFQ-1',
+          ccEmails: [],
+          documents: [],
+          invitedVendors: [],
+        })
         // getRfq call after update
         .mockResolvedValueOnce({
           id: 'rfq-1',
@@ -2176,7 +2354,12 @@ describe('RfqsService', () => {
           companyId: 'comp-1',
           _count: { lineItems: 2, invitedVendors: 1 },
         })
-        .mockResolvedValueOnce({ rfqNumber: 'RFQ-1', ccEmails: [], documents: [], invitedVendors: [] })
+        .mockResolvedValueOnce({
+          rfqNumber: 'RFQ-1',
+          ccEmails: [],
+          documents: [],
+          invitedVendors: [],
+        })
         .mockResolvedValueOnce({
           id: 'rfq-1',
           rfqNumber: 'RFQ-1',
@@ -2232,7 +2415,13 @@ describe('RfqsService', () => {
           rfqNumber: 'RFQ-1',
           ccEmails: ['pm@acme.com'],
           documents: [
-            { file: { key: 'rfq-documents/rfq-1/spec.pdf', filename: 'spec.pdf', mimeType: 'application/pdf' } },
+            {
+              file: {
+                key: 'rfq-documents/rfq-1/spec.pdf',
+                filename: 'spec.pdf',
+                mimeType: 'application/pdf',
+              },
+            },
           ],
           invitedVendors: [
             {
@@ -2308,8 +2497,20 @@ describe('RfqsService', () => {
           rfqNumber: 'RFQ-1',
           ccEmails: [],
           documents: [
-            { file: { key: 'rfq-documents/rfq-1/bad.pdf', filename: 'bad.pdf', mimeType: 'application/pdf' } },
-            { file: { key: 'rfq-documents/rfq-1/ok.pdf', filename: 'ok.pdf', mimeType: 'application/pdf' } },
+            {
+              file: {
+                key: 'rfq-documents/rfq-1/bad.pdf',
+                filename: 'bad.pdf',
+                mimeType: 'application/pdf',
+              },
+            },
+            {
+              file: {
+                key: 'rfq-documents/rfq-1/ok.pdf',
+                filename: 'ok.pdf',
+                mimeType: 'application/pdf',
+              },
+            },
           ],
           invitedVendors: [
             {

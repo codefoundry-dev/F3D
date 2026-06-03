@@ -1,11 +1,12 @@
 import {
+  awardQuote,
   getRfqs,
   getRfq,
   getRfqQuoteAudit,
   getRfqQuoteComparison,
   type RfqListParams,
 } from '@forethread/api-client';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export function useRfqs(params?: RfqListParams) {
   return useQuery({
@@ -37,5 +38,23 @@ export function useRfqQuoteComparison(rfqId: string) {
     queryKey: ['rfqs', rfqId, 'quote-comparison'],
     queryFn: () => getRfqQuoteComparison(rfqId),
     enabled: !!rfqId,
+  });
+}
+
+/**
+ * Award a quote from the comparison view (FOR-209): approves it and auto-creates
+ * a draft PO. Invalidates the RFQ and purchase-order caches so the awarded state
+ * and the new draft PO are reflected immediately.
+ */
+export function useAwardQuote() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ rfqId, quoteId }: { rfqId: string; quoteId: string }) =>
+      awardQuote(rfqId, quoteId, { skipErrorHandler: true }),
+    onSuccess: (_result, { rfqId }) => {
+      void queryClient.invalidateQueries({ queryKey: ['rfqs', rfqId] });
+      void queryClient.invalidateQueries({ queryKey: ['rfqs'] });
+      void queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+    },
   });
 }

@@ -171,7 +171,16 @@
     "lowest": "Lowest",
     "vendorTotal": "Vendor total",
     "leadTime": "Lead time",
-    "paymentTerms": "Payment terms"
+    "paymentTerms": "Payment terms",
+    "award": "Award",
+    "awarded": "Awarded",
+    "awarding": "Awarding…",
+    "awardConfirmTitle": "Award quote to {{vendor}}?",
+    "awardConfirmMessage": "This approves {{vendor}}'s quote and creates a draft purchase order pre-filled from it. You can review and edit the draft before issuing it.",
+    "awardConfirmButton": "Award & create draft PO",
+    "awardCancel": "Cancel",
+    "awardSuccess": "Quote awarded — draft PO {{poNumber}} created",
+    "awardError": "Could not award this quote. Please try again."
   },
   "auditTab": {
     "title": "Quote audit trail",

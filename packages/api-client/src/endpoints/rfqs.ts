@@ -173,6 +173,35 @@ export async function approveQuote(
   await getApiClient().patch(RFQS_PATHS.approveQuote(rfqId, quoteId), undefined, config);
 }
 
+/** Result of awarding a quote: the approved quote plus the draft PO it spawned. FOR-209. */
+export interface AwardQuoteResult {
+  /** The awarded quote's id. */
+  id: string;
+  vendorName: string;
+  status: string;
+  totalCost: number;
+  /** Id of the draft PO auto-created from the awarded quote — redirect target. */
+  purchaseOrderId: string;
+  poNumber: string;
+}
+
+/**
+ * Award a quote: approve it and auto-create a draft Purchase Order pre-filled
+ * from the awarded quote. Returns the new PO id so the caller can redirect. FOR-209.
+ */
+export async function awardQuote(
+  rfqId: string,
+  quoteId: string,
+  config?: AxiosRequestConfig,
+): Promise<AwardQuoteResult> {
+  const { data } = await getApiClient().post<{ data: AwardQuoteResult }>(
+    RFQS_PATHS.awardQuote(rfqId, quoteId),
+    undefined,
+    config,
+  );
+  return data.data;
+}
+
 export async function declineQuote(
   rfqId: string,
   quoteId: string,

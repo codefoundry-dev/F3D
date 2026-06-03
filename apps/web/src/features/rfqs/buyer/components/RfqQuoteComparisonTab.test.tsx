@@ -1,6 +1,10 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 
 const mockUseRfqQuoteComparison = vi.hoisted(() => vi.fn());
+const mockUseAwardQuote = vi.hoisted(() => vi.fn());
+const mockMutate = vi.hoisted(() => vi.fn());
+const mockNavigate = vi.hoisted(() => vi.fn());
+const mockToast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 
 vi.mock('@forethread/i18n', () => ({
   useTranslation: () => ({
@@ -11,6 +15,15 @@ vi.mock('@forethread/i18n', () => ({
 
 vi.mock('@forethread/rfq-shared', () => ({
   useRfqQuoteComparison: mockUseRfqQuoteComparison,
+  useAwardQuote: mockUseAwardQuote,
+}));
+
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => mockNavigate,
+}));
+
+vi.mock('@/app/route-config', () => ({
+  ROUTES: { purchaseOrderDetail: '/purchase-orders/:id' },
 }));
 
 vi.mock('@forethread/ui-components', () => ({
@@ -18,6 +31,43 @@ vi.mock('@forethread/ui-components', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
   formatCurrency: (n: number | null) => (n === null ? '-' : `$${n}`),
   formatDate: (s: string | null) => s ?? '-',
+  toast: mockToast,
+  Button: ({
+    children,
+    onClick,
+    disabled,
+  }: {
+    children: React.ReactNode;
+    onClick?: () => void;
+    disabled?: boolean;
+  }) => (
+    <button type="button" onClick={onClick} disabled={disabled}>
+      {children}
+    </button>
+  ),
+  ConfirmDialog: ({
+    title,
+    confirmLabel,
+    cancelLabel,
+    onConfirm,
+    onCancel,
+  }: {
+    title: string;
+    confirmLabel: string;
+    cancelLabel: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  }) => (
+    <div data-testid="confirm-dialog">
+      <p>{title}</p>
+      <button type="button" onClick={onConfirm}>
+        {confirmLabel}
+      </button>
+      <button type="button" onClick={onCancel}>
+        {cancelLabel}
+      </button>
+    </div>
+  ),
 }));
 
 import { RfqQuoteComparisonTab } from './RfqQuoteComparisonTab';
@@ -89,6 +139,11 @@ const comparison = {
 describe('RfqQuoteComparisonTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseAwardQuote.mockReturnValue({
+      mutate: mockMutate,
+      isPending: false,
+      variables: undefined,
+    });
   });
 
   it('renders a spinner while loading', () => {
@@ -172,5 +227,76 @@ describe('RfqQuoteComparisonTab', () => {
     render(<RfqQuoteComparisonTab rfqId="rfq-1" />);
 
     expect(screen.getByText('comparisonTab.noQuote')).toBeInTheDocument();
+  });
+
+  // ── Award flow (FOR-209) ────────────────────────────────────────────────────
+
+  it('renders an Award button per awardable vendor', () => {
+    mockUseRfqQuoteComparison.mockReturnValue({
+      data: comparison,
+      isLoading: false,
+      isError: false,
+    });
+    render(<RfqQuoteComparisonTab rfqId="rfq-1" />);
+    expect(screen.getAllByText('comparisonTab.award')).toHaveLength(2);
+  });
+
+  it('shows an Awarded badge instead of a button for an already-approved vendor', () => {
+    mockUseRfqQuoteComparison.mockReturnValue({
+      data: {
+        ...comparison,
+        vendors: [{ ...comparison.vendors[0], status: 'APPROVED' }, comparison.vendors[1]],
+      },
+      isLoading: false,
+      isError: false,
+    });
+    render(<RfqQuoteComparisonTab rfqId="rfq-1" />);
+    expect(screen.getByText('comparisonTab.awarded')).toBeInTheDocument();
+    expect(screen.getAllByText('comparisonTab.award')).toHaveLength(1);
+  });
+
+  it('confirms, awards the quote, then toasts and redirects to the draft PO', () => {
+    mockMutate.mockImplementation(
+      (_vars: { rfqId: string; quoteId: string }, opts: { onSuccess: (r: unknown) => void }) =>
+        opts.onSuccess({ purchaseOrderId: 'po-9', poNumber: 'PO-00009' }),
+    );
+    mockUseRfqQuoteComparison.mockReturnValue({
+      data: comparison,
+      isLoading: false,
+      isError: false,
+    });
+    render(<RfqQuoteComparisonTab rfqId="rfq-1" />);
+
+    // Open the confirmation for the first vendor.
+    fireEvent.click(screen.getAllByText('comparisonTab.award')[0]);
+    expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
+
+    // Confirm.
+    fireEvent.click(screen.getByText('comparisonTab.awardConfirmButton'));
+
+    expect(mockMutate).toHaveBeenCalledWith(
+      { rfqId: 'rfq-1', quoteId: 'q-1' },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+    expect(mockToast.success).toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalledWith('/purchase-orders/po-9');
+  });
+
+  it('toasts an error when awarding fails', () => {
+    mockMutate.mockImplementation(
+      (_vars: { rfqId: string; quoteId: string }, opts: { onError: () => void }) => opts.onError(),
+    );
+    mockUseRfqQuoteComparison.mockReturnValue({
+      data: comparison,
+      isLoading: false,
+      isError: false,
+    });
+    render(<RfqQuoteComparisonTab rfqId="rfq-1" />);
+
+    fireEvent.click(screen.getAllByText('comparisonTab.award')[0]);
+    fireEvent.click(screen.getByText('comparisonTab.awardConfirmButton'));
+
+    expect(mockToast.error).toHaveBeenCalledWith('comparisonTab.awardError');
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });
