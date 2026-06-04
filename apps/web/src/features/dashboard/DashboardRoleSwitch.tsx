@@ -2,6 +2,7 @@ import { UserRole } from '@forethread/shared-types/client';
 import { PageLoader } from '@forethread/ui-components';
 import { lazy, Suspense } from 'react';
 
+import { ComingSoon } from '@/shared/components/ComingSoon';
 import { RoleSwitch } from '@/shared/role';
 
 /**
@@ -12,6 +13,11 @@ import { RoleSwitch } from '@/shared/role';
  * (their landing is `/invoices` and `/admin-panel` respectively), so they
  * never reach this switch via the home redirect path. The mapping is kept
  * so direct navigation to `/` keeps working for them.
+ *
+ * FOREMAN lands on `/` too, but the field-worker surface is the offline Field
+ * PWA (ADR-0008), deferred to Phase 2. Until then FOREMAN gets a "Field App"
+ * placeholder here instead of falling through to `/forbidden`. Tracked in
+ * apps/web/MIGRATION.md.
  */
 const BuyerDashboard = lazy(() => import('./pages/buyer/DashboardPage'));
 const FinanceDashboard = lazy(() => import('./pages/finance/DashboardPage'));
@@ -27,6 +33,7 @@ export function DashboardRoleSwitch() {
           [UserRole.COMPANY_ADMIN]: <BuyerDashboard />,
           [UserRole.PROCUREMENT_OFFICER]: <BuyerDashboard />,
           [UserRole.WAREHOUSE_OFFICER]: <WarehouseDashboard />,
+          [UserRole.FOREMAN]: <ComingSoon page="Field App" />,
           [UserRole.VENDOR]: <VendorDashboard />,
           [UserRole.FINANCIAL_OFFICER]: <FinanceDashboard />,
           [UserRole.SUPER_ADMIN]: <SuperAdminDashboard />,
