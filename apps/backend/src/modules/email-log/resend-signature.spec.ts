@@ -121,6 +121,38 @@ describe('verifyResendSignature', () => {
     ).toBe(false);
   });
 
+  it('uses the current clock when nowMs is omitted', () => {
+    // Sign for "now" so the default Date.now() path falls inside the tolerance window.
+    const nowTimestamp = String(Math.floor(Date.now() / 1000));
+    const signature = sign(SECRET, SVIX_ID, nowTimestamp, PAYLOAD);
+
+    expect(
+      verifyResendSignature({
+        secret: SECRET,
+        payload: PAYLOAD,
+        headers: { id: SVIX_ID, timestamp: nowTimestamp, signature },
+        // nowMs intentionally omitted — exercises the Date.now() fallback.
+      }),
+    ).toBe(true);
+  });
+
+  it('treats a secret without the whsec_ prefix as the raw base64 key', () => {
+    const rawSecret = Buffer.from('prefixless-signing-key').toString('base64');
+    const key = Buffer.from(rawSecret, 'base64');
+    const sig = createHmac('sha256', key)
+      .update(`${SVIX_ID}.${TIMESTAMP}.${PAYLOAD}`)
+      .digest('base64');
+
+    expect(
+      verifyResendSignature({
+        secret: rawSecret,
+        payload: PAYLOAD,
+        headers: { id: SVIX_ID, timestamp: TIMESTAMP, signature: `v1,${sig}` },
+        nowMs: NOW_MS,
+      }),
+    ).toBe(true);
+  });
+
   it('ignores non-v1 signature versions', () => {
     const key = Buffer.from(SECRET.slice('whsec_'.length), 'base64');
     const raw = createHmac('sha256', key)

@@ -30,6 +30,10 @@ describe('parseResendEvent', () => {
     expect(parseResendEvent({ type: 'email.delivered', data: {} })).toBeNull();
   });
 
+  it('returns null when the event type is absent', () => {
+    expect(parseResendEvent({ data: { email_id: 'em_1' } })).toBeNull();
+  });
+
   it('extracts bounce type and reason from the bounce object', () => {
     const parsed = parseResendEvent({
       type: 'email.bounced',
