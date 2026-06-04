@@ -47,9 +47,9 @@ variable "redis_snapshot_retention_limit" {
 }
 
 variable "domain_name" {
-  description = "Public DNS name pointed at the staging backend. Matches Caddyfile.staging."
+  description = "Public DNS name pointed at the staging backend; Caddy obtains a Let's Encrypt cert for it."
   type        = string
-  default     = "api-stage.forethread.com"
+  default     = "api-main.forethread.com"
 }
 
 variable "web_app_origin" {
