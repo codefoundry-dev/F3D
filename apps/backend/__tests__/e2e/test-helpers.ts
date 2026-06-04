@@ -20,7 +20,7 @@ export interface SentEmail {
   otp?: string; // Extracted OTP for convenience
   url?: string; // Extracted URL for convenience
   cc?: string[]; // CC recipients (RFQ send)
-  attachments?: { filename: string }[]; // Attachment metadata (RFQ send)
+  attachments?: { filename: string; content?: Buffer }[]; // Attachment metadata + bytes (RFQ/PO send)
 }
 
 export class MockEmailService {
@@ -83,6 +83,40 @@ export class MockEmailService {
       ...(options?.attachments
         ? { attachments: options.attachments.map((a) => ({ filename: a.filename })) }
         : {}),
+    });
+  }
+
+  // FOR-211 — PO issued to vendor with the polished PO PDF attached. Captures the
+  // PDF buffer so tests can assert the vendor received a valid attachment.
+  async sendPoIssuedEmail(
+    to: string,
+    poNumber: string,
+    viewUrl: string,
+    pdfBuffer?: Buffer,
+  ): Promise<void> {
+    this.sentEmails.push({
+      to,
+      subject: `Purchase Order ${poNumber}`,
+      html: `<a href="${viewUrl}">View PO</a>`,
+      url: viewUrl,
+      ...(pdfBuffer
+        ? { attachments: [{ filename: `PO-${poNumber}.pdf`, content: pdfBuffer }] }
+        : {}),
+    });
+  }
+
+  async sendPoDeclinedByVendorEmail(
+    to: string,
+    poNumber: string,
+    _vendorName: string,
+    viewUrl: string,
+    _reason?: string,
+  ): Promise<void> {
+    this.sentEmails.push({
+      to,
+      subject: `Purchase Order ${poNumber} declined`,
+      html: `<a href="${viewUrl}">View PO</a>`,
+      url: viewUrl,
     });
   }
 }

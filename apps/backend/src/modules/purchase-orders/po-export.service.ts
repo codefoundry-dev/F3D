@@ -4,9 +4,12 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { formatEnum } from '../../common/utils/format-enum';
-import { PdfExportService } from '../export/pdf-export.service';
+import { InvoiceExportOptions, PdfExportService } from '../export/pdf-export.service';
 
 import { PurchaseOrdersService } from './purchase-orders.service';
+
+/** Resolved single-PO detail shape (return type of PurchaseOrdersService.getPurchaseOrder). */
+type PoDetail = Awaited<ReturnType<PurchaseOrdersService['getPurchaseOrder']>>;
 
 /* ─── Column definition registry ──────────────────────────────────────────── */
 
@@ -262,82 +265,40 @@ export class PoExportService {
     throw new BadRequestException(ERR.export.invalidFormatCsvPdfXlsx);
   }
 
-  /** Export a single PO as a professional PDF (for download or email attachment) */
+  /** Export a single PO as a professional PDF (for download or archive). */
   async exportSinglePo(
     id: string,
     format: string,
     user: AuthenticatedUser,
   ): Promise<{ url: string }> {
-    const normalized = format.toUpperCase();
-    const po = await this.poService.getPurchaseOrder(id, user);
-
-    const totalAmount = `$${Number(po.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
-    const createdDate = new Date(po.createdAt).toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    });
-
-    if (normalized === 'PDF') {
-      return this.pdfExportService.exportInvoicePDF({
-        heading: 'Purchase Order',
-        date: createdDate,
-        infoLeft: {
-          label: 'PO Details',
-          lines: [
-            `PO Number: ${po.poNumber}`,
-            `Project: ${po.projectName}`,
-            `Status: ${formatEnum(po.status)}`,
-            `Type: ${formatEnum(po.poType ?? 'STANDARD')}`,
-            ...((po as Record<string, unknown>).deliveryLocationName
-              ? [`Delivery: ${String((po as Record<string, unknown>).deliveryLocationName)}`]
-              : []),
-          ],
-        },
-        infoRight: {
-          label: 'Vendor',
-          lines: [
-            ((po as Record<string, unknown>).vendorName as string) ?? '—',
-            ...(po.paymentTermsDays ? [`Payment: Net ${po.paymentTermsDays} days`] : []),
-          ],
-        },
-        columns: [
-          { header: 'Item', width: 200 },
-          { header: 'Qty', width: 60 },
-          { header: 'Unit', width: 60 },
-          { header: 'Unit Price', width: 100 },
-          { header: 'Total', width: 100 },
-        ],
-        rows: (po.lineItems ?? []).map((li: Record<string, unknown>) => ({
-          Item: str(li.materialName ?? li.description ?? ''),
-          Qty: str(li.quantity),
-          Unit: str(li.unit),
-          'Unit Price': `$${Number(li.unitPrice ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
-          Total: `$${Number(li.lineTotal ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
-        })),
-        totalRow: {
-          label: 'Total Amount',
-          value: totalAmount,
-        },
-        filenamePrefix: `po-${po.poNumber}`,
-      });
+    if (format.toUpperCase() !== 'PDF') {
+      throw new BadRequestException(ERR.export.invalidFormatCsvPdfXlsx);
     }
-
-    throw new BadRequestException(ERR.export.invalidFormatCsvPdfXlsx);
+    const po = await this.poService.getPurchaseOrder(id, user);
+    return this.pdfExportService.exportInvoicePDF(this.buildPoPdfOptions(po));
   }
 
-  /** Generate a PO PDF buffer (for email attachment — not uploaded to storage) */
+  /** Generate a PO PDF buffer (for email attachment — not uploaded to storage). */
   async generatePoPdfBuffer(id: string, user: AuthenticatedUser): Promise<Buffer> {
     const po = await this.poService.getPurchaseOrder(id, user);
+    return this.pdfExportService.generateInvoicePDFBuffer(this.buildPoPdfOptions(po));
+  }
 
-    const totalAmount = `$${Number(po.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
-    const createdDate = new Date(po.createdAt).toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    });
+  /**
+   * Build the polished PO PDF template model (FOR-211): renders number, vendor,
+   * line items, the multi-delivery schedule (FOR-210), terms and signature lines.
+   * Shared by the download and email-attachment paths so both stay in sync.
+   */
+  buildPoPdfOptions(po: PoDetail): InvoiceExportOptions {
+    const currency = po.currency || 'AUD';
+    const money = (value: unknown): string => formatMoney(value, currency);
 
-    return this.pdfExportService.generateInvoicePDFBuffer({
+    const createdDate = formatLongDate(po.createdAt);
+
+    const vendorName = po.vendor?.name ?? '—';
+    const buyerName = po.company?.name ?? '—';
+
+    return {
       heading: 'Purchase Order',
       date: createdDate,
       infoLeft: {
@@ -346,11 +307,18 @@ export class PoExportService {
           `PO Number: ${po.poNumber}`,
           `Project: ${po.projectName}`,
           `Status: ${formatEnum(po.status)}`,
+          `Type: ${formatEnum(po.poType ?? 'STANDARD')}`,
+          `Revision: ${str(po.revision)}`,
+          `Buyer: ${buyerName}`,
         ],
       },
       infoRight: {
         label: 'Vendor',
-        lines: [((po as Record<string, unknown>).vendorName as string) ?? '—'],
+        lines: [
+          vendorName,
+          ...(po.paymentTermsDays ? [`Payment: Net ${po.paymentTermsDays} days`] : []),
+          ...(po.deliveryLocationName ? [`Deliver to: ${po.deliveryLocationName}`] : []),
+        ],
       },
       columns: [
         { header: 'Item', width: 200 },
@@ -359,18 +327,70 @@ export class PoExportService {
         { header: 'Unit Price', width: 100 },
         { header: 'Total', width: 100 },
       ],
-      rows: (po.lineItems ?? []).map((li: Record<string, unknown>) => ({
+      rows: (po.lineItems ?? []).map((li) => ({
         Item: str(li.materialName ?? li.description ?? ''),
-        Qty: str(li.quantity),
-        Unit: str(li.unit),
-        'Unit Price': `$${Number(li.unitPrice ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
-        Total: `$${Number(li.lineTotal ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+        Qty: str(li.quantityOrdered),
+        Unit: str(li.unitOfMeasure),
+        'Unit Price': money(li.unitPrice),
+        Total: money(li.lineTotal),
       })),
       totalRow: {
         label: 'Total Amount',
-        value: totalAmount,
+        value: money(po.totalAmount),
       },
+      sections: [
+        {
+          label: 'Delivery Schedule',
+          emptyText: po.plannedDeliveryDate
+            ? `Planned delivery: ${formatLongDate(po.plannedDeliveryDate)}`
+            : 'No delivery schedule specified.',
+          columns: [
+            { header: '#', width: 30 },
+            { header: 'Location', width: 200 },
+            { header: 'Date', width: 130 },
+            { header: 'Notes', width: 150 },
+          ],
+          rows: (po.deliveries ?? []).map((d, i) => ({
+            '#': str(d.sequence ?? i + 1),
+            Location: str(d.deliveryLocationName ?? '—'),
+            Date: d.deliveryDate ? formatLongDate(d.deliveryDate) : '—',
+            Notes: str(d.notes ?? ''),
+          })),
+        },
+      ],
+      terms: {
+        label: 'Terms & Notes',
+        lines: [
+          po.paymentTermsDays ? `Payment terms: Net ${po.paymentTermsDays} days` : '',
+          po.deliveryResponsibleName
+            ? `Delivery contact: ${po.deliveryResponsibleName}${
+                po.deliveryResponsibleEmail ? ` (${po.deliveryResponsibleEmail})` : ''
+              }`
+            : '',
+          po.deliveryNotes ? `Delivery notes: ${po.deliveryNotes}` : '',
+          po.message ? `Message: ${po.message}` : '',
+        ],
+      },
+      signatures: [
+        { label: 'Authorised by (Buyer)', name: po.approvedBy?.name ?? po.createdBy?.name },
+        { label: 'Accepted by (Vendor)' },
+      ],
       filenamePrefix: `po-${po.poNumber}`,
-    });
+    };
   }
+}
+
+/** Format a value as currency (e.g. "$1,234.00 AUD"); blank-safe. */
+function formatMoney(value: unknown, currency: string): string {
+  const amount = Number(value ?? 0);
+  return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ${currency}`;
+}
+
+/** Format an ISO date string as "Month D, YYYY". */
+function formatLongDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }

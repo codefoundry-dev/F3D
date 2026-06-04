@@ -12,12 +12,15 @@ const companyAdmin = {
 
 const mockPoService = {
   listPurchaseOrders: jest.fn(),
+  getPurchaseOrder: jest.fn(),
 };
 
 const mockPdfExportService = {
   exportToCSV: jest.fn(),
   exportToPDF: jest.fn(),
   exportToXLSX: jest.fn(),
+  exportInvoicePDF: jest.fn(),
+  generateInvoicePDFBuffer: jest.fn(),
 };
 
 function q(overrides: Partial<PoListQueryDto> = {}): PoListQueryDto {
@@ -421,5 +424,151 @@ describe('PoExportService', () => {
     const { rows } = mockPdfExportService.exportToCSV.mock.calls[0][0];
     expect(rows[0]).toEqual(['TestCo', '', expect.any(String), 'No']);
     expect(rows[1]).toEqual(['TestCo', 'Admin', expect.any(String), 'Yes']);
+  });
+
+  // ── Single-PO PDF template (FOR-211) ──────────────────────────────────────
+  describe('single PO PDF template', () => {
+    // A fully-populated PO detail fixture with fixed dates so the template model
+    // is deterministic and snapshot-stable.
+    const poDetail = {
+      id: 'po-123',
+      poNumber: 'PO-2026-0042',
+      projectName: 'Harbour Bridge Refurb',
+      status: 'SENT',
+      poType: 'STANDARD',
+      revision: 2,
+      currency: 'AUD',
+      totalAmount: 12750.5,
+      paymentTermsDays: 30,
+      deliveryLocationName: 'Site B — Gate 4',
+      plannedDeliveryDate: '2026-07-01T00:00:00.000Z',
+      deliveryNotes: 'Call ahead 30 minutes before arrival.',
+      message: 'Please prioritise the structural steel.',
+      deliveryResponsibleName: 'Dana Reeves',
+      deliveryResponsibleEmail: 'dana@vendor.example',
+      vendor: { id: 'v-1', name: 'SteelWorks Pty Ltd' },
+      company: { id: 'c-1', name: 'BuildCo Contractors' },
+      approvedBy: { id: 'u-2', name: 'Priya Approver' },
+      createdBy: { id: 'u-1', name: 'Sam Creator' },
+      lineItems: [
+        {
+          materialName: 'Structural Steel Beam',
+          description: 'I-beam 200x100',
+          quantityOrdered: 10,
+          unitOfMeasure: 'EA',
+          unitPrice: 1200,
+          lineTotal: 12000,
+        },
+        {
+          materialName: null,
+          description: 'Delivery surcharge',
+          quantityOrdered: 1,
+          unitOfMeasure: 'EA',
+          unitPrice: 750.5,
+          lineTotal: 750.5,
+        },
+      ],
+      deliveries: [
+        {
+          sequence: 1,
+          deliveryLocationName: 'Site B — Gate 4',
+          deliveryDate: '2026-07-01T00:00:00.000Z',
+          notes: 'First drop',
+        },
+        {
+          sequence: 2,
+          deliveryLocationName: 'Site B — Yard',
+          deliveryDate: '2026-07-08T00:00:00.000Z',
+          notes: null,
+        },
+      ],
+      createdAt: '2026-06-01T00:00:00.000Z',
+    };
+
+    it('builds a stable PO PDF template model (snapshot)', () => {
+      const options = service.buildPoPdfOptions(poDetail as never);
+      expect(options).toMatchSnapshot();
+    });
+
+    it('renders all required fields: number, vendor, lines, deliveries, terms, signatures', () => {
+      const options = service.buildPoPdfOptions(poDetail as never);
+
+      // Number + vendor + buyer
+      expect(options.heading).toBe('Purchase Order');
+      expect(options.infoLeft?.lines).toEqual(expect.arrayContaining(['PO Number: PO-2026-0042']));
+      expect(options.infoRight?.lines).toEqual(expect.arrayContaining(['SteelWorks Pty Ltd']));
+
+      // Line items — Qty/Unit use the correct fields (regression: was quantity/unit)
+      expect(options.rows[0]).toEqual({
+        Item: 'Structural Steel Beam',
+        Qty: '10',
+        Unit: 'EA',
+        'Unit Price': '$1,200.00 AUD',
+        Total: '$12,000.00 AUD',
+      });
+      expect(options.totalRow).toEqual({ label: 'Total Amount', value: '$12,750.50 AUD' });
+
+      // Deliveries section
+      const deliverySection = options.sections?.find((s) => s.label === 'Delivery Schedule');
+      expect(deliverySection?.rows).toHaveLength(2);
+      expect(deliverySection?.rows[0]).toEqual({
+        '#': '1',
+        Location: 'Site B — Gate 4',
+        Date: 'July 1, 2026',
+        Notes: 'First drop',
+      });
+
+      // Terms
+      expect(options.terms?.lines).toEqual(
+        expect.arrayContaining([
+          'Payment terms: Net 30 days',
+          'Delivery contact: Dana Reeves (dana@vendor.example)',
+          'Delivery notes: Call ahead 30 minutes before arrival.',
+        ]),
+      );
+
+      // Signatures — buyer line pre-filled with approver name
+      expect(options.signatures).toEqual([
+        { label: 'Authorised by (Buyer)', name: 'Priya Approver' },
+        { label: 'Accepted by (Vendor)' },
+      ]);
+    });
+
+    it('falls back to a planned-delivery hint when there are no delivery rows', () => {
+      const options = service.buildPoPdfOptions({ ...poDetail, deliveries: [] } as never);
+      const deliverySection = options.sections?.find((s) => s.label === 'Delivery Schedule');
+      expect(deliverySection?.rows).toHaveLength(0);
+      expect(deliverySection?.emptyText).toBe('Planned delivery: July 1, 2026');
+    });
+
+    it('exportSinglePo delegates to exportInvoicePDF with the PO template', async () => {
+      mockPoService.getPurchaseOrder.mockResolvedValue(poDetail);
+      mockPdfExportService.exportInvoicePDF.mockResolvedValue({ url: 'https://storage/po.pdf' });
+
+      const result = await service.exportSinglePo('po-123', 'pdf', companyAdmin as never);
+
+      expect(result).toEqual({ url: 'https://storage/po.pdf' });
+      expect(mockPdfExportService.exportInvoicePDF).toHaveBeenCalledWith(
+        expect.objectContaining({ heading: 'Purchase Order', filenamePrefix: 'po-PO-2026-0042' }),
+      );
+    });
+
+    it('exportSinglePo rejects non-PDF formats', async () => {
+      await expect(service.exportSinglePo('po-123', 'csv', companyAdmin as never)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('generatePoPdfBuffer delegates to generateInvoicePDFBuffer and returns a Buffer', async () => {
+      mockPoService.getPurchaseOrder.mockResolvedValue(poDetail);
+      mockPdfExportService.generateInvoicePDFBuffer.mockResolvedValue(Buffer.from('%PDF-1.7 fake'));
+
+      const buffer = await service.generatePoPdfBuffer('po-123', companyAdmin as never);
+
+      expect(Buffer.isBuffer(buffer)).toBe(true);
+      expect(mockPdfExportService.generateInvoicePDFBuffer).toHaveBeenCalledWith(
+        expect.objectContaining({ filenamePrefix: 'po-PO-2026-0042' }),
+      );
+    });
   });
 });
