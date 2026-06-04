@@ -1,4 +1,9 @@
-import { getPurchaseOrders, getPurchaseOrder, type PoListParams } from '@forethread/api-client';
+import {
+  getPurchaseOrders,
+  getPurchaseOrder,
+  getPurchaseOrderEmailLog,
+  type PoListParams,
+} from '@forethread/api-client';
 import { useQuery } from '@tanstack/react-query';
 
 export function usePurchaseOrders(params?: PoListParams) {
@@ -13,5 +18,14 @@ export function usePurchaseOrder(id: string) {
     queryKey: ['purchase-orders', id],
     queryFn: () => getPurchaseOrder(id),
     enabled: !!id,
+  });
+}
+
+/** Outbound email delivery log for the PO detail view (FOR-213). */
+export function usePurchaseOrderEmailLog(poId: string) {
+  return useQuery({
+    queryKey: ['purchase-orders', poId, 'emails'],
+    queryFn: () => getPurchaseOrderEmailLog(poId),
+    enabled: !!poId,
   });
 }

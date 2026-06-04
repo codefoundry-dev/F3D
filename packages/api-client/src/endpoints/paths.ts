@@ -99,6 +99,7 @@ export const RFQS_PATHS = {
   guestQuote: (token: string) => `/rfqs/invitation/${token}/quote`,
   guestQuoteExtraction: (token: string) => `/rfqs/invitation/${token}/quote-extraction`,
   guestQuoteExtractionStatus: (id: string) => `/rfqs/invitation/quote-extraction/${id}`,
+  emails: (rfqId: string) => `/rfqs/${rfqId}/emails`,
 } as const;
 
 // ── Purchase Orders ──────────────────────────────────────────────────────────
@@ -123,6 +124,7 @@ export const PURCHASE_ORDERS_PATHS = {
     `/purchase-orders/${id}/change-requests/${crId}/approve`,
   rejectChange: (id: string, crId: string) =>
     `/purchase-orders/${id}/change-requests/${crId}/reject`,
+  emails: (poId: string) => `/purchase-orders/${poId}/emails`,
 } as const;
 
 // ── Bulk Orders ──────────────────────────────────────────────────────────────

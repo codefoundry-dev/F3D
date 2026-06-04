@@ -407,9 +407,18 @@ export class PoStatusService {
 
     const viewUrl = `${this.webAppUrl}/purchase-orders/${poId}`;
 
+    // Track each vendor email so it surfaces on the PO email log (FOR-213).
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id: poId },
+      select: { companyId: true },
+    });
+    const log = po
+      ? { companyId: po.companyId, purchaseOrderId: poId, sentByUserId: user.id }
+      : undefined;
+
     await Promise.all(
       vendorUsers.map((u) =>
-        this.emailService.sendPoIssuedEmail(u.email, poNumber, viewUrl, pdfBuffer),
+        this.emailService.sendPoIssuedEmail(u.email, poNumber, viewUrl, pdfBuffer, log),
       ),
     );
   }
@@ -425,6 +434,13 @@ export class PoStatusService {
 
     const viewUrl = `${this.webAppUrl}/purchase-orders/${poId}`;
 
+    // Track the decline notification on the PO email log (FOR-213).
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id: poId },
+      select: { companyId: true },
+    });
+    const log = po ? { companyId: po.companyId, purchaseOrderId: poId } : undefined;
+
     await Promise.all(
       companyAdmins.map((u) =>
         this.emailService.sendPoDeclinedByVendorEmail(
@@ -433,6 +449,7 @@ export class PoStatusService {
           vendorName,
           viewUrl,
           reason,
+          log,
         ),
       ),
     );

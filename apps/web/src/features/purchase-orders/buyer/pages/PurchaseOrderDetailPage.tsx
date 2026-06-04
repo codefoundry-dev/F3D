@@ -6,6 +6,7 @@ import {
   PoDetailsTab,
   PoLineItemsTab,
   PoDocumentsTab,
+  PoEmailLogTab,
   PoMessagesTab,
 } from '@forethread/po-shared';
 import type { PoTab } from '@forethread/po-shared';
@@ -29,7 +30,7 @@ export default function PurchaseOrderDetailPage() {
   }, [po, setPageTitle]);
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const validTabs: PoTab[] = ['details', 'lineItems', 'documents', 'messages'];
+  const validTabs: PoTab[] = ['details', 'lineItems', 'documents', 'emailLog', 'messages'];
   const tabParam = searchParams.get('tab') as PoTab | null;
   const activeTab: PoTab = tabParam && validTabs.includes(tabParam) ? tabParam : 'details';
 
@@ -59,6 +60,7 @@ export default function PurchaseOrderDetailPage() {
         <PoDetailTabs
           activeTab={activeTab}
           onTabChange={setActiveTab}
+          tabs={validTabs}
           rightSlot={
             activeTab === 'details' ? (
               <div className="flex items-center gap-2">
@@ -90,6 +92,7 @@ export default function PurchaseOrderDetailPage() {
         {activeTab === 'documents' && (
           <PoDocumentsTab poId={po.id} documents={po.documents ?? []} hideUpload />
         )}
+        {activeTab === 'emailLog' && <PoEmailLogTab poId={po.id} />}
         {activeTab === 'messages' && <PoMessagesTab />}
       </div>
     </div>

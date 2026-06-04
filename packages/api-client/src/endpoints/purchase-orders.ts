@@ -1,4 +1,8 @@
-import type { PoDeliveryInput, PoDeliveryResponse } from '@forethread/shared-types/client';
+import type {
+  EmailLogEntryResponse,
+  PoDeliveryInput,
+  PoDeliveryResponse,
+} from '@forethread/shared-types/client';
 import { AxiosRequestConfig } from 'axios';
 
 import { getApiClient } from '../client';
@@ -222,6 +226,18 @@ export async function getPurchaseOrders(
 export async function getPurchaseOrder(id: string, config?: AxiosRequestConfig): Promise<PoDetail> {
   const { data } = await getApiClient().get<{ data: PoDetail }>(
     PURCHASE_ORDERS_PATHS.byId(id),
+    config,
+  );
+  return data.data;
+}
+
+/** Fetch the outbound email delivery log for a PO (newest event first). FOR-213. */
+export async function getPurchaseOrderEmailLog(
+  poId: string,
+  config?: AxiosRequestConfig,
+): Promise<EmailLogEntryResponse[]> {
+  const { data } = await getApiClient().get<{ data: EmailLogEntryResponse[] }>(
+    PURCHASE_ORDERS_PATHS.emails(poId),
     config,
   );
   return data.data;

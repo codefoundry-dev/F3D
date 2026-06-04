@@ -10,6 +10,7 @@ export { PoDetailsTab } from './PoDetailsTab';
 export { PoLineItemsTab } from './PoLineItemsTab';
 export { PoDocumentsTab } from './PoDocumentsTab';
 export type { RelatedDocument } from './PoDocumentsTab';
+export { PoEmailLogTab } from './PoEmailLogTab';
 export { PoMessagesTab } from './PoMessagesTab';
 export { PoActionLogTab } from './PoActionLogTab';
 export type { PoActionLogEntry } from './PoActionLogTab';

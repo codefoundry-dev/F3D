@@ -2,6 +2,7 @@ import {
   awardQuote,
   getRfqs,
   getRfq,
+  getRfqEmailLog,
   getRfqQuoteAudit,
   getRfqQuoteComparison,
   type RfqListParams,
@@ -37,6 +38,15 @@ export function useRfqQuoteComparison(rfqId: string) {
   return useQuery({
     queryKey: ['rfqs', rfqId, 'quote-comparison'],
     queryFn: () => getRfqQuoteComparison(rfqId),
+    enabled: !!rfqId,
+  });
+}
+
+/** Outbound email delivery log for the RFQ detail view (FOR-213). */
+export function useRfqEmailLog(rfqId: string) {
+  return useQuery({
+    queryKey: ['rfqs', rfqId, 'emails'],
+    queryFn: () => getRfqEmailLog(rfqId),
     enabled: !!rfqId,
   });
 }

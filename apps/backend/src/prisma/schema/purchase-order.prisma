@@ -138,6 +138,7 @@ model PurchaseOrder {
   changeRequests PoChangeRequest[]
   drawdowns      Drawdown[]
   invoices       Invoice[]        @relation("InvoiceRelatedPo")
+  emailMessages  EmailMessage[]   @relation("PoEmailMessages")
 
   @@index([companyId], map: "idx_pos_company")
   @@index([projectId], map: "idx_pos_project")

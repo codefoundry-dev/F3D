@@ -1,7 +1,14 @@
 import { useTranslation } from '@forethread/i18n';
 import { cn } from '@forethread/ui-components';
 
-export type RfqTab = 'details' | 'lineItems' | 'responses' | 'comparison' | 'documents' | 'audit';
+export type RfqTab =
+  | 'details'
+  | 'lineItems'
+  | 'responses'
+  | 'comparison'
+  | 'documents'
+  | 'emailLog'
+  | 'audit';
 
 interface RfqDetailTabsProps {
   activeTab: RfqTab;

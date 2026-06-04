@@ -157,6 +157,7 @@
     "responses": "Responses",
     "comparison": "Comparison",
     "documents": "Documents",
+    "emailLog": "Email log",
     "audit": "Audit trail"
   },
   "comparisonTab": {
@@ -201,6 +202,21 @@
     "editsSummary_other": "{{count}} line items changed during confirmation",
     "fieldsChanged": "{{count}} field updated",
     "fieldsChanged_other": "{{count}} fields updated"
+  },
+  "emailLogTab": {
+    "empty": "No emails sent yet",
+    "emptyHint": "Emails sent to vendors for this RFQ will appear here.",
+    "loadError": "Failed to load the email log. Please refresh.",
+    "bounceAlertTitle": "{{count}} email could not be delivered",
+    "bounceAlertTitle_other": "{{count}} emails could not be delivered",
+    "bounceAlertItem": "{{email}} — {{reason}}",
+    "columns": {
+      "recipient": "Recipient",
+      "subject": "Subject",
+      "status": "Status",
+      "sentAt": "Sent",
+      "opens": "Opens"
+    }
   },
   "detailFields": {
     "basicInformation": "Basic Information",

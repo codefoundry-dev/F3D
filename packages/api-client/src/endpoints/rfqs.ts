@@ -4,6 +4,7 @@ import type {
   SendRfqDto,
   UpdateRfqDto,
 } from '@forethread/shared-types';
+import type { EmailLogEntryResponse } from '@forethread/shared-types/client';
 import { AxiosRequestConfig } from 'axios';
 
 import { getApiClient } from '../client';
@@ -546,6 +547,18 @@ export async function getRfqQuoteAudit(
 ): Promise<QuoteAuditEntry[]> {
   const { data } = await getApiClient().get<{ data: QuoteAuditEntry[] }>(
     RFQS_PATHS.quoteAudit(rfqId),
+    config,
+  );
+  return data.data;
+}
+
+/** Fetch the outbound email delivery log for an RFQ (newest event first). FOR-213. */
+export async function getRfqEmailLog(
+  rfqId: string,
+  config?: AxiosRequestConfig,
+): Promise<EmailLogEntryResponse[]> {
+  const { data } = await getApiClient().get<{ data: EmailLogEntryResponse[] }>(
+    RFQS_PATHS.emails(rfqId),
     config,
   );
   return data.data;
