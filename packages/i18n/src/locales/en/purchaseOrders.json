@@ -161,8 +161,24 @@
     "lineItems": "Line Items",
     "purchaseOrders": "Purchase Orders",
     "documents": "Documents",
+    "emailLog": "Email log",
     "messages": "Messages",
     "actionLog": "Action log"
+  },
+  "emailLogTab": {
+    "empty": "No emails sent yet",
+    "emptyHint": "Emails sent to the vendor for this purchase order will appear here.",
+    "loadError": "Failed to load the email log. Please refresh.",
+    "bounceAlertTitle": "{{count}} email could not be delivered",
+    "bounceAlertTitle_other": "{{count}} emails could not be delivered",
+    "bounceAlertItem": "{{email}} — {{reason}}",
+    "columns": {
+      "recipient": "Recipient",
+      "subject": "Subject",
+      "status": "Status",
+      "sentAt": "Sent",
+      "opens": "Opens"
+    }
   },
   "messagesTab": {
     "comingSoon": "Messages coming soon"

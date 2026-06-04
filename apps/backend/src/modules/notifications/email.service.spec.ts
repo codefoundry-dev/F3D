@@ -90,6 +90,8 @@ jest.mock(
 
 import { ConfigService } from '@nestjs/config';
 
+import type { EmailLogService } from '../email-log/email-log.service';
+
 import { EmailService } from './email.service';
 import type { ResendService } from './resend.service';
 
@@ -97,10 +99,13 @@ describe('EmailService', () => {
   let service: EmailService;
   let configService: jest.Mocked<ConfigService>;
   let resendService: { isConfigured: jest.Mock; send: jest.Mock };
+  let emailLogService: { recordOutbound: jest.Mock };
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockSendMail.mockResolvedValue({ messageId: 'test-id' });
+
+    emailLogService = { recordOutbound: jest.fn().mockResolvedValue({ id: 'log-id' }) };
 
     configService = {
       get: jest.fn((key: string, defaultValue?: unknown) => {
@@ -120,7 +125,11 @@ describe('EmailService', () => {
       send: jest.fn().mockResolvedValue({ status: 'queued', id: 'resend-id' }),
     };
 
-    service = new EmailService(configService, resendService as unknown as ResendService);
+    service = new EmailService(
+        configService,
+        resendService as unknown as ResendService,
+        emailLogService as unknown as EmailLogService,
+      );
     service.onModuleInit();
   });
 
@@ -149,7 +158,11 @@ describe('EmailService', () => {
         }),
       } as unknown as jest.Mocked<ConfigService>;
 
-      new EmailService(authConfig, resendService as unknown as ResendService);
+      new EmailService(
+        authConfig,
+        resendService as unknown as ResendService,
+        emailLogService as unknown as EmailLogService,
+      );
 
       expect(mockCreateTransport).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -165,7 +178,11 @@ describe('EmailService', () => {
       fs.existsSync.mockReturnValue(true);
       fs.readdirSync.mockReturnValue(['header.html', 'footer.html']);
 
-      const svc = new EmailService(configService, resendService as unknown as ResendService);
+      const svc = new EmailService(
+        configService,
+        resendService as unknown as ResendService,
+        emailLogService as unknown as EmailLogService,
+      );
       svc.onModuleInit();
 
       const Handlebars = require('handlebars');
@@ -173,7 +190,11 @@ describe('EmailService', () => {
     });
 
     it('should throw when template is not found in renderEmail', () => {
-      const svc = new EmailService(configService, resendService as unknown as ResendService);
+      const svc = new EmailService(
+        configService,
+        resendService as unknown as ResendService,
+        emailLogService as unknown as EmailLogService,
+      );
       svc.onModuleInit();
 
       // Access private renderEmail via sending with invalid template

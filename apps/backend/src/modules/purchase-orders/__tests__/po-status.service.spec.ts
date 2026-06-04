@@ -791,6 +791,7 @@ describe('PoStatusService', () => {
         'VendorCo',
         'http://localhost:5179/purchase-orders/po-1',
         'Out of stock',
+        expect.objectContaining({ purchaseOrderId: 'po-1' }),
       );
     });
 
@@ -968,6 +969,7 @@ describe('PoStatusService', () => {
         'PO-1',
         'http://localhost:5179/purchase-orders/po-1',
         expect.any(Buffer),
+        expect.objectContaining({ purchaseOrderId: 'po-1' }),
       );
     });
 
@@ -1072,6 +1074,7 @@ describe('PoStatusService', () => {
         'PO-PA',
         'http://localhost:5179/purchase-orders/po-pa',
         expect.any(Buffer),
+        expect.objectContaining({ purchaseOrderId: 'po-pa' }),
       );
     });
 

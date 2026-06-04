@@ -1,4 +1,8 @@
-export { usePurchaseOrders, usePurchaseOrder } from './usePurchaseOrders';
+export {
+  usePurchaseOrders,
+  usePurchaseOrder,
+  usePurchaseOrderEmailLog,
+} from './usePurchaseOrders';
 export { usePoExport } from './usePoExport';
 export { usePoSort } from './usePoSort';
 export { usePoGrouping } from './usePoGrouping';

@@ -70,6 +70,7 @@ model Rfq {
   bulkOrders       BulkOrder[]
   purchaseOrders   PurchaseOrder[]  @relation("PoSourceRfq")
   documents        RfqDocument[]
+  emailMessages    EmailMessage[]   @relation("RfqEmailMessages")
 
   @@index([companyId], map: "idx_rfqs_company")
   @@index([projectId], map: "idx_rfqs_project")

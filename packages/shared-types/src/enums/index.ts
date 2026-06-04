@@ -268,3 +268,32 @@ export enum DocExtractionStatus {
   CONFIRMED = 'CONFIRMED',
   FAILED = 'FAILED',
 }
+
+/**
+ * Rolled-up delivery status of a single outbound email (FOR-213), derived from
+ * its Resend webhook event stream. Drives the per-row status badge in the RFQ/PO
+ * email log.
+ */
+export enum EmailDeliveryStatus {
+  QUEUED = 'QUEUED',
+  SENT = 'SENT',
+  DELIVERED = 'DELIVERED',
+  DELIVERY_DELAYED = 'DELIVERY_DELAYED',
+  OPENED = 'OPENED',
+  CLICKED = 'CLICKED',
+  BOUNCED = 'BOUNCED',
+  COMPLAINED = 'COMPLAINED',
+  FAILED = 'FAILED',
+}
+
+/** A single Resend webhook event type recorded against an outbound email (FOR-213). */
+export enum EmailEventType {
+  SENT = 'SENT',
+  DELIVERED = 'DELIVERED',
+  DELIVERY_DELAYED = 'DELIVERY_DELAYED',
+  OPENED = 'OPENED',
+  CLICKED = 'CLICKED',
+  BOUNCED = 'BOUNCED',
+  COMPLAINED = 'COMPLAINED',
+  FAILED = 'FAILED',
+}

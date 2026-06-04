@@ -8,6 +8,9 @@ import * as Handlebars from 'handlebars';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 
+import { EmailLogService } from '../email-log/email-log.service';
+import type { EmailLogContext } from '../email-log/email-log.types';
+
 import { EMAIL_TEMPLATES } from './email-templates.const';
 import type { EmailTemplateName } from './email-templates.const';
 import { ResendService } from './resend.service';
@@ -27,6 +30,10 @@ interface EmailMessage {
   html?: string;
   text?: string;
   attachments?: EmailAttachment[];
+  /** Template key — recorded in the email log (FOR-213). */
+  template?: string;
+  /** When set, a successful dispatch is recorded in the email log (FOR-213). */
+  log?: EmailLogContext;
 }
 
 @Injectable()
@@ -40,6 +47,7 @@ export class EmailService implements OnModuleInit {
   constructor(
     config: ConfigService,
     private readonly resend: ResendService,
+    private readonly emailLog: EmailLogService,
   ) {
     this.from = config.get<string>('SMTP_FROM', 'noreply@forethread.local');
 
@@ -136,7 +144,9 @@ export class EmailService implements OnModuleInit {
       });
       if (result.status === 'error') {
         this.logger.warn(`Resend send failed [${result.code}]: ${result.message}`);
+        return;
       }
+      await this.recordOutbound(message, 'RESEND', result.id);
       return;
     }
 
@@ -149,6 +159,36 @@ export class EmailService implements OnModuleInit {
       ...(message.text ? { text: message.text } : {}),
       ...(message.attachments ? { attachments: message.attachments } : {}),
     });
+    await this.recordOutbound(message, 'SMTP', null);
+  }
+
+  /**
+   * Persist a successfully dispatched email to the delivery log (FOR-213) when
+   * the caller supplied linkage context. Best-effort: a logging failure must
+   * never affect the (already completed) send.
+   */
+  private async recordOutbound(
+    message: EmailMessage,
+    provider: 'RESEND' | 'SMTP',
+    providerMessageId: string | null,
+  ): Promise<void> {
+    if (!message.log || !message.template) {
+      return;
+    }
+    try {
+      await this.emailLog.recordOutbound({
+        ...message.log,
+        template: message.template,
+        toEmail: message.to,
+        subject: message.subject,
+        provider,
+        providerMessageId,
+      });
+    } catch (err) {
+      this.logger.debug(
+        `Failed to record outbound email log: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   async sendInvitationEmail(to: string, activationUrl: string, name: string): Promise<void> {
@@ -255,7 +295,7 @@ export class EmailService implements OnModuleInit {
     to: string,
     rfqNumber: string,
     replyUrl: string,
-    options?: { cc?: string[]; attachments?: EmailAttachment[] },
+    options?: { cc?: string[]; attachments?: EmailAttachment[]; log?: EmailLogContext },
   ): Promise<void> {
     const t = this.getTranslations('rfqReceived', { rfqNumber });
 
@@ -268,6 +308,8 @@ export class EmailService implements OnModuleInit {
         ...(options?.attachments && options.attachments.length > 0
           ? { attachments: options.attachments }
           : {}),
+        template: EMAIL_TEMPLATES.RFQ_RECEIVED,
+        ...(options?.log ? { log: options.log } : {}),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -279,6 +321,7 @@ export class EmailService implements OnModuleInit {
     poNumber: string,
     viewUrl: string,
     pdfBuffer?: Buffer,
+    log?: EmailLogContext,
   ): Promise<void> {
     const t = this.getTranslations('poIssued', { poNumber });
 
@@ -290,6 +333,8 @@ export class EmailService implements OnModuleInit {
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.PO_ISSUED, t, { viewUrl }),
         attachments,
+        template: EMAIL_TEMPLATES.PO_ISSUED,
+        ...(log ? { log } : {}),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -302,6 +347,7 @@ export class EmailService implements OnModuleInit {
     vendorName: string,
     viewUrl: string,
     reason?: string,
+    log?: EmailLogContext,
   ): Promise<void> {
     const t = this.getTranslations('poDeclinedByVendor', { poNumber, vendorName });
 
@@ -310,6 +356,8 @@ export class EmailService implements OnModuleInit {
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.PO_DECLINED_BY_VENDOR, t, { viewUrl, reason }),
+        template: EMAIL_TEMPLATES.PO_DECLINED_BY_VENDOR,
+        ...(log ? { log } : {}),
       });
     } catch {
       // fire-and-forget: email failures are non-critical

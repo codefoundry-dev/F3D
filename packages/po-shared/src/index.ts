@@ -25,6 +25,7 @@ export {
   PoDetailsTab,
   PoLineItemsTab,
   PoDocumentsTab,
+  PoEmailLogTab,
   PoMessagesTab,
   PoActionLogTab,
   PoCommsPage,
@@ -64,6 +65,7 @@ export type { FormValues, PoCreationMode, LockedField } from './schemas/create-p
 export {
   usePurchaseOrders,
   usePurchaseOrder,
+  usePurchaseOrderEmailLog,
   usePoExport,
   usePoSort,
   usePoGrouping,

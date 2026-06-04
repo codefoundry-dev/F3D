@@ -20,6 +20,7 @@ export {
   useRfq,
   useRfqQuoteAudit,
   useRfqQuoteComparison,
+  useRfqEmailLog,
   useAwardQuote,
   useDropdown,
   useRfqSort,

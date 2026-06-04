@@ -20,6 +20,9 @@ setDefaultResultOrder(
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
+    // Preserve the raw request body so the Resend webhook (FOR-213) can verify
+    // the Svix signature against the exact bytes Resend signed.
+    rawBody: true,
   });
 
   app.use(cookieParser());

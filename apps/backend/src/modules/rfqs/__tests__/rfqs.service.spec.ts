@@ -2221,7 +2221,11 @@ describe('RfqsService', () => {
         'active@vendor.com',
         'RFQ-1',
         'http://localhost:5179/rfqs',
-        { cc: [], attachments: [] },
+        expect.objectContaining({
+          cc: [],
+          attachments: [],
+          log: expect.objectContaining({ rfqId: 'rfq-1' }),
+        }),
       );
     });
 
@@ -2288,7 +2292,11 @@ describe('RfqsService', () => {
         'pending@vendor.com',
         expect.any(String),
         'http://localhost:5179/invitation/issued-token-xyz',
-        { cc: [], attachments: [] },
+        expect.objectContaining({
+          cc: [],
+          attachments: [],
+          log: expect.objectContaining({ rfqId: 'rfq-1' }),
+        }),
       );
     });
 
@@ -2478,10 +2486,11 @@ describe('RfqsService', () => {
         'active@vendor.com',
         'RFQ-1',
         'http://localhost:5179/rfqs',
-        {
+        expect.objectContaining({
           cc: ['pm@acme.com'],
           attachments: [{ filename: 'spec.pdf', content: pdf, contentType: 'application/pdf' }],
-        },
+          log: expect.objectContaining({ rfqId: 'rfq-1' }),
+        }),
       );
     });
 
@@ -2563,10 +2572,11 @@ describe('RfqsService', () => {
         'active@vendor.com',
         'RFQ-1',
         'http://localhost:5179/rfqs',
-        {
+        expect.objectContaining({
           cc: [],
           attachments: [{ filename: 'ok.pdf', content: okPdf, contentType: 'application/pdf' }],
-        },
+          log: expect.objectContaining({ rfqId: 'rfq-1' }),
+        }),
       );
     });
   });

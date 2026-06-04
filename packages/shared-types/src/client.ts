@@ -10,6 +10,7 @@ export * from './dtos/bom.dto';
 export * from './dtos/quote-extraction.dto';
 export * from './dtos/po-delivery.types';
 export * from './dtos/user-profile.types';
+export * from './dtos/email-log.types';
 
 // Validation utils
 export * from './validation';

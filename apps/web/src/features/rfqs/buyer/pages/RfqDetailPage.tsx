@@ -15,6 +15,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 
 import { RfqDetailsTab } from '../components/RfqDetailsTab';
 import { RfqDocumentsTab } from '../components/RfqDocumentsTab';
+import { RfqEmailLogTab } from '../components/RfqEmailLogTab';
 import { RfqLineItemsTab } from '../components/RfqLineItemsTab';
 import { RfqQuoteAuditTab } from '../components/RfqQuoteAuditTab';
 import { RfqQuoteComparisonTab } from '../components/RfqQuoteComparisonTab';
@@ -37,6 +38,7 @@ export default function RfqDetailPage() {
     'responses',
     'comparison',
     'documents',
+    'emailLog',
     'audit',
   ];
   const tabParam = searchParams.get('tab') as RfqTab | null;
@@ -111,6 +113,7 @@ export default function RfqDetailPage() {
         {activeTab === 'documents' && (
           <RfqDocumentsTab rfqId={rfq.id} documents={rfq.documents ?? []} hideUpload />
         )}
+        {activeTab === 'emailLog' && <RfqEmailLogTab rfqId={rfq.id} />}
         {activeTab === 'audit' && <RfqQuoteAuditTab rfqId={rfq.id} />}
       </div>
     </div>

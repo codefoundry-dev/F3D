@@ -1273,6 +1273,8 @@ export class RfqsService {
       where: { id: rfqId },
       select: {
         rfqNumber: true,
+        companyId: true,
+        createdByUserId: true,
         ccEmails: true,
         needByDate: true,
         documents: {
@@ -1334,7 +1336,12 @@ export class RfqsService {
 
       await Promise.all(
         emails.map((email) =>
-          this.emailService.sendRfqReceivedEmail(email, rfqNumber, replyUrl, { cc, attachments }),
+          this.emailService.sendRfqReceivedEmail(email, rfqNumber, replyUrl, {
+            cc,
+            attachments,
+            // Track each vendor email so it surfaces on the RFQ email log (FOR-213).
+            log: { companyId: rfq.companyId, rfqId, sentByUserId: rfq.createdByUserId },
+          }),
         ),
       );
     }
