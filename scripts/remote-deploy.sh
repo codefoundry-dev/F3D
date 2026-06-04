@@ -143,9 +143,9 @@ GEMINI_TIMEOUT_MS=60000
 GEMINI_THINKING_BUDGET=0
 
 # App URLs. APP_URL is the backend's own public base (behind Caddy at the
-# api-stage domain); WEB_APP_URL is the deployed frontend, used to build links
+# api-main domain); WEB_APP_URL is the deployed frontend, used to build links
 # in outbound emails and the vendor tokenized-portal flow.
-APP_URL=https://api-stage.forethread.com
+APP_URL=https://api-main.forethread.com
 WEB_APP_URL=https://forethread-main.vercel.app
 EOF
 
