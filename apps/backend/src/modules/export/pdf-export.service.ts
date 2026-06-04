@@ -35,6 +35,23 @@ export interface InvoiceTableItem {
   [key: string]: string;
 }
 
+/** An extra labelled table rendered after the main line-item table (e.g. a PO delivery schedule). */
+export interface InvoiceSection {
+  label: string;
+  columns: PdfTableColumn[];
+  rows: InvoiceTableItem[];
+  /** Message shown when there are no rows (defaults to "None"). */
+  emptyText?: string;
+}
+
+/** A signature line rendered near the bottom of the document. */
+export interface InvoiceSignatureBlock {
+  /** Caption under the signature line, e.g. "Authorised by (Buyer)". */
+  label: string;
+  /** Optional pre-filled name printed above the caption. */
+  name?: string;
+}
+
 export interface InvoiceExportOptions {
   /** Heading displayed top-right (e.g. "Invoice", "Company Profile") */
   heading: string;
@@ -50,6 +67,12 @@ export interface InvoiceExportOptions {
   rows: InvoiceTableItem[];
   /** Optional total row (label + value) */
   totalRow?: { label: string; value: string };
+  /** Optional extra tables rendered after the main table (e.g. delivery schedule). */
+  sections?: InvoiceSection[];
+  /** Optional terms / notes block rendered before the signature lines. */
+  terms?: InvoiceInfoBlock;
+  /** Optional signature lines rendered at the bottom. */
+  signatures?: InvoiceSignatureBlock[];
   filenamePrefix: string;
 }
 
@@ -218,8 +241,33 @@ export class PdfExportService {
   }
 
   async exportInvoicePDF(options: InvoiceExportOptions): Promise<{ url: string }> {
-    const { heading, date, infoLeft, infoRight, columns, rows, totalRow, filenamePrefix } = options;
+    const pdfBuffer = await this.renderInvoiceBuffer(options);
 
+    try {
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const filename = `${options.filenamePrefix}_${ts}.pdf`;
+
+      const result = await this.storageService.uploadBuffer({
+        buffer: pdfBuffer,
+        filename,
+        contentType: 'application/pdf',
+        folder: 'exports',
+      });
+
+      const url = await this.storageService.getSignedUrl(result.key);
+      return { url };
+    } catch (error: unknown) {
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  }
+
+  /** Same as exportInvoicePDF but returns the raw Buffer directly (for email attachments). */
+  async generateInvoicePDFBuffer(options: InvoiceExportOptions): Promise<Buffer> {
+    return this.renderInvoiceBuffer(options);
+  }
+
+  /** Render an invoice-style document to a PDF Buffer in-process (no storage I/O). */
+  private renderInvoiceBuffer(options: InvoiceExportOptions): Promise<Buffer> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const doc: any = new PDFDocument({
       size: 'A4',
@@ -229,206 +277,313 @@ export class PdfExportService {
     const chunks: Buffer[] = [];
     doc.on('data', (chunk: Buffer) => chunks.push(chunk));
 
-    return new Promise<{ url: string }>((resolve, reject) => {
-      doc.on('end', async () => {
-        try {
-          const pdfBuffer = Buffer.concat(chunks);
-          const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-          const filename = `${filenamePrefix}_${ts}.pdf`;
+    return new Promise<Buffer>((resolve, reject) => {
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', (error: unknown) =>
+        reject(error instanceof Error ? error : new Error(String(error))),
+      );
 
-          const result = await this.storageService.uploadBuffer({
-            buffer: pdfBuffer,
-            filename,
-            contentType: 'application/pdf',
-            folder: 'exports',
-          });
-
-          const url = await this.storageService.getSignedUrl(result.key);
-          resolve({ url });
-        } catch (error: unknown) {
-          reject(error instanceof Error ? error : new Error(String(error)));
-        }
-      });
-
-      doc.on('error', (error: Error) => reject(error));
-
-      const leftMargin = 40;
-      const rightEdge = doc.page.width - 40;
-
-      // ── Header row: Company name (left) + Heading (right) ──────────────
-      doc
-        .fontSize(18)
-        .font('Helvetica-Bold')
-        .fillColor(PDF_STYLES.text.primary)
-        .text(PDF_COMPANY.name, leftMargin, 50, { width: rightEdge - leftMargin });
-
-      doc
-        .fontSize(20)
-        .font('Helvetica-Bold')
-        .text(heading, rightEdge - 200, 50, { width: 200, align: 'right' });
-
-      let currentY = 90;
-
-      // ── Date ───────────────────────────────────────────────────────────
-      doc
-        .fontSize(10)
-        .font('Helvetica')
-        .fillColor(PDF_STYLES.text.secondary)
-        .text(`Date: ${date}`, rightEdge - 200, currentY, { width: 200, align: 'right' });
-
-      currentY += 30;
-
-      // ── Info blocks ────────────────────────────────────────────────────
-      const renderInfoBlock = (block: InvoiceInfoBlock, x: number, startY: number): number => {
-        let y = startY;
-        doc
-          .fontSize(10)
-          .font('Helvetica-Bold')
-          .fillColor(PDF_STYLES.text.primary)
-          .text(`${block.label}:`, x, y, { width: 220 });
-        y += 15;
-
-        doc.font('Helvetica');
-        for (const line of block.lines) {
-          if (line) {
-            doc.text(line, x, y, { width: 220 });
-            y += 12;
-          }
-        }
-        return y;
-      };
-
-      const infoStartY = currentY;
-      let leftEndY = currentY;
-      let rightEndY = currentY;
-
-      if (infoLeft) {
-        leftEndY = renderInfoBlock(infoLeft, leftMargin, infoStartY);
+      try {
+        this.buildInvoiceDoc(doc, options);
+      } catch (error: unknown) {
+        reject(error instanceof Error ? error : new Error(String(error)));
+        return;
       }
-
-      if (infoRight) {
-        rightEndY = renderInfoBlock(infoRight, rightEdge - 220, infoStartY);
-      }
-
-      currentY = Math.max(leftEndY, rightEndY) + 20;
-
-      // ── Table ──────────────────────────────────────────────────────────
-      if (rows.length > 0) {
-        const rowHeight = PDF_TABLE.rowHeight;
-        const colSpacing = 12;
-        const tableWidth =
-          columns.reduce((sum, col) => sum + col.width, 0) + colSpacing * (columns.length - 1);
-
-        // Header
-        doc
-          .rect(leftMargin, currentY, tableWidth, rowHeight)
-          .fillColor(PDF_STYLES.layer.header)
-          .fill()
-          .fillColor(PDF_STYLES.text.primary);
-
-        doc.fontSize(10).font('Helvetica-Bold');
-        let xPos = leftMargin + 6;
-        columns.forEach((col, i) => {
-          doc.text(col.header, xPos, currentY + PDF_TABLE.textPadding, { width: col.width });
-          if (i < columns.length - 1) xPos += col.width + colSpacing;
-        });
-
-        currentY += rowHeight;
-
-        // Rows
-        doc.font('Helvetica').fontSize(9);
-        rows.forEach((row, index) => {
-          if (currentY + rowHeight > doc.page.height - 50) {
-            doc.addPage();
-            currentY = 50;
-          }
-
-          doc
-            .rect(leftMargin, currentY, tableWidth, rowHeight)
-            .fillColor(index % 2 === 0 ? PDF_STYLES.background.cell : PDF_STYLES.layer.rowAlt)
-            .fill()
-            .fillColor(PDF_STYLES.text.primary);
-
-          xPos = leftMargin + 6;
-          columns.forEach((col, i) => {
-            doc.text(row[col.header] ?? '', xPos, currentY + PDF_TABLE.textPadding, {
-              width: col.width,
-              ellipsis: true,
-            });
-            if (i < columns.length - 1) xPos += col.width + colSpacing;
-          });
-
-          currentY += rowHeight;
-        });
-
-        // Total row
-        if (totalRow) {
-          if (currentY + rowHeight > doc.page.height - 50) {
-            doc.addPage();
-            currentY = 50;
-          }
-
-          doc
-            .rect(leftMargin, currentY, tableWidth, rowHeight)
-            .fillColor(PDF_STYLES.layer.totalRow)
-            .fill()
-            .fillColor(PDF_STYLES.text.primary);
-
-          doc.font('Helvetica-Bold').fontSize(10);
-
-          const lastCol = columns[columns.length - 1];
-          const labelWidth = tableWidth - lastCol.width - colSpacing;
-          doc.text(totalRow.label, leftMargin + 6, currentY + PDF_TABLE.textPadding, {
-            width: labelWidth,
-          });
-          doc.text(
-            totalRow.value,
-            leftMargin + 6 + labelWidth + colSpacing,
-            currentY + PDF_TABLE.textPadding,
-            {
-              width: lastCol.width,
-            },
-          );
-
-          currentY += rowHeight;
-        }
-      } else {
-        doc
-          .fontSize(10)
-          .fillColor(PDF_STYLES.text.secondary)
-          .text('No data found.', leftMargin, currentY);
-        currentY += 20;
-      }
-
-      // ── Footer ─────────────────────────────────────────────────────────
-      if (currentY + 30 > doc.page.height - 50) {
-        doc.addPage();
-        currentY = 50;
-      }
-
-      doc
-        .fontSize(8)
-        .font('Helvetica')
-        .fillColor(PDF_STYLES.text.secondary)
-        .text(
-          `Generated on ${new Date().toISOString().replace('T', ' ').slice(0, 19)}`,
-          leftMargin,
-          currentY + 24,
-          { align: 'left' },
-        );
 
       doc.end();
     });
   }
 
-  /** Same as exportInvoicePDF but returns raw Buffer (for email attachments) */
-  async generateInvoicePDFBuffer(options: InvoiceExportOptions): Promise<Buffer> {
-    const { url } = await this.exportInvoicePDF(options);
-    // Extract storage key from signed URL and download back as buffer
-    const key = decodeURIComponent(url.split('?')[0].split('/').slice(-2).join('/'));
-    const { body } = await this.storageService.getObject(key);
-    if (!body) throw new Error('Failed to retrieve generated PDF');
-    return body;
+  /** Draw the full invoice document onto an open PDFKit doc (does not call doc.end). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private buildInvoiceDoc(doc: any, options: InvoiceExportOptions): void {
+    const { heading, date, infoLeft, infoRight, columns, rows, totalRow, sections, terms } =
+      options;
+
+    const leftMargin = 40;
+    const rightEdge = doc.page.width - 40;
+
+    // ── Header row: Company name (left) + Heading (right) ──────────────
+    doc
+      .fontSize(18)
+      .font('Helvetica-Bold')
+      .fillColor(PDF_STYLES.text.primary)
+      .text(PDF_COMPANY.name, leftMargin, 50, { width: rightEdge - leftMargin });
+
+    doc
+      .fontSize(20)
+      .font('Helvetica-Bold')
+      .text(heading, rightEdge - 200, 50, { width: 200, align: 'right' });
+
+    let currentY = 90;
+
+    // ── Date ───────────────────────────────────────────────────────────
+    doc
+      .fontSize(10)
+      .font('Helvetica')
+      .fillColor(PDF_STYLES.text.secondary)
+      .text(`Date: ${date}`, rightEdge - 200, currentY, { width: 200, align: 'right' });
+
+    currentY += 30;
+
+    // ── Info blocks ────────────────────────────────────────────────────
+    const infoStartY = currentY;
+    let leftEndY = currentY;
+    let rightEndY = currentY;
+
+    if (infoLeft) {
+      leftEndY = this.drawInfoBlock(doc, infoLeft, leftMargin, infoStartY);
+    }
+
+    if (infoRight) {
+      rightEndY = this.drawInfoBlock(doc, infoRight, rightEdge - 220, infoStartY);
+    }
+
+    currentY = Math.max(leftEndY, rightEndY) + 20;
+
+    // ── Main line-item table ───────────────────────────────────────────
+    currentY = this.drawTable(doc, leftMargin, currentY, columns, rows, totalRow);
+
+    // ── Extra sections (e.g. delivery schedule) ────────────────────────
+    for (const section of sections ?? []) {
+      currentY = this.drawSectionHeading(doc, leftMargin, currentY, section.label);
+      if (section.rows.length > 0) {
+        currentY = this.drawTable(doc, leftMargin, currentY, section.columns, section.rows);
+      } else {
+        if (currentY + 20 > doc.page.height - 50) {
+          doc.addPage();
+          currentY = 50;
+        }
+        doc
+          .fontSize(9)
+          .font('Helvetica')
+          .fillColor(PDF_STYLES.text.secondary)
+          .text(section.emptyText ?? 'None', leftMargin, currentY);
+        currentY += 24;
+      }
+    }
+
+    // ── Terms / notes ──────────────────────────────────────────────────
+    if (terms?.lines.some((l) => l)) {
+      if (currentY + 40 > doc.page.height - 50) {
+        doc.addPage();
+        currentY = 50;
+      }
+      currentY = this.drawInfoBlock(doc, terms, leftMargin, currentY, rightEdge - leftMargin) + 10;
+    }
+
+    // ── Signatures ─────────────────────────────────────────────────────
+    if (options.signatures && options.signatures.length > 0) {
+      currentY = this.drawSignatures(doc, leftMargin, rightEdge, currentY, options.signatures);
+    }
+
+    // ── Footer ─────────────────────────────────────────────────────────
+    if (currentY + 30 > doc.page.height - 50) {
+      doc.addPage();
+      currentY = 50;
+    }
+
+    doc
+      .fontSize(8)
+      .font('Helvetica')
+      .fillColor(PDF_STYLES.text.secondary)
+      .text(
+        `Generated on ${new Date().toISOString().replace('T', ' ').slice(0, 19)}`,
+        leftMargin,
+        currentY + 24,
+        { align: 'left' },
+      );
+  }
+
+  /** Render a label + lines block; returns the Y after the last line. */
+  private drawInfoBlock(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    doc: any,
+    block: InvoiceInfoBlock,
+    x: number,
+    startY: number,
+    width = 220,
+  ): number {
+    let y = startY;
+    doc
+      .fontSize(10)
+      .font('Helvetica-Bold')
+      .fillColor(PDF_STYLES.text.primary)
+      .text(`${block.label}:`, x, y, { width });
+    y += 15;
+
+    doc.font('Helvetica');
+    for (const line of block.lines) {
+      if (line) {
+        doc.text(line, x, y, { width });
+        y += 12;
+      }
+    }
+    return y;
+  }
+
+  /** Render a small bold section heading; returns the Y below it. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private drawSectionHeading(doc: any, leftMargin: number, startY: number, label: string): number {
+    let currentY = startY + 8;
+    if (currentY + 24 > doc.page.height - 50) {
+      doc.addPage();
+      currentY = 50;
+    }
+    doc
+      .fontSize(11)
+      .font('Helvetica-Bold')
+      .fillColor(PDF_STYLES.text.primary)
+      .text(label, leftMargin, currentY);
+    return currentY + 18;
+  }
+
+  /** Render a table (header + rows + optional total); returns the Y below it. */
+  private drawTable(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    doc: any,
+    leftMargin: number,
+    startY: number,
+    columns: PdfTableColumn[],
+    rows: InvoiceTableItem[],
+    totalRow?: { label: string; value: string },
+  ): number {
+    let currentY = startY;
+    const rowHeight = PDF_TABLE.rowHeight;
+    const colSpacing = 12;
+
+    if (rows.length === 0 && !totalRow) {
+      doc
+        .fontSize(10)
+        .font('Helvetica')
+        .fillColor(PDF_STYLES.text.secondary)
+        .text('No data found.', leftMargin, currentY);
+      return currentY + 20;
+    }
+
+    const tableWidth =
+      columns.reduce((sum, col) => sum + col.width, 0) + colSpacing * (columns.length - 1);
+
+    // Header
+    doc
+      .rect(leftMargin, currentY, tableWidth, rowHeight)
+      .fillColor(PDF_STYLES.layer.header)
+      .fill()
+      .fillColor(PDF_STYLES.text.primary);
+
+    doc.fontSize(10).font('Helvetica-Bold');
+    let xPos = leftMargin + 6;
+    columns.forEach((col, i) => {
+      doc.text(col.header, xPos, currentY + PDF_TABLE.textPadding, { width: col.width });
+      if (i < columns.length - 1) xPos += col.width + colSpacing;
+    });
+
+    currentY += rowHeight;
+
+    // Rows
+    doc.font('Helvetica').fontSize(9);
+    rows.forEach((row, index) => {
+      if (currentY + rowHeight > doc.page.height - 50) {
+        doc.addPage();
+        currentY = 50;
+      }
+
+      doc
+        .rect(leftMargin, currentY, tableWidth, rowHeight)
+        .fillColor(index % 2 === 0 ? PDF_STYLES.background.cell : PDF_STYLES.layer.rowAlt)
+        .fill()
+        .fillColor(PDF_STYLES.text.primary);
+
+      xPos = leftMargin + 6;
+      columns.forEach((col, i) => {
+        doc.text(row[col.header] ?? '', xPos, currentY + PDF_TABLE.textPadding, {
+          width: col.width,
+          ellipsis: true,
+        });
+        if (i < columns.length - 1) xPos += col.width + colSpacing;
+      });
+
+      currentY += rowHeight;
+    });
+
+    // Total row
+    if (totalRow) {
+      if (currentY + rowHeight > doc.page.height - 50) {
+        doc.addPage();
+        currentY = 50;
+      }
+
+      doc
+        .rect(leftMargin, currentY, tableWidth, rowHeight)
+        .fillColor(PDF_STYLES.layer.totalRow)
+        .fill()
+        .fillColor(PDF_STYLES.text.primary);
+
+      doc.font('Helvetica-Bold').fontSize(10);
+
+      const lastCol = columns[columns.length - 1];
+      const labelWidth = tableWidth - lastCol.width - colSpacing;
+      doc.text(totalRow.label, leftMargin + 6, currentY + PDF_TABLE.textPadding, {
+        width: labelWidth,
+      });
+      doc.text(
+        totalRow.value,
+        leftMargin + 6 + labelWidth + colSpacing,
+        currentY + PDF_TABLE.textPadding,
+        { width: lastCol.width },
+      );
+
+      currentY += rowHeight;
+    }
+
+    return currentY;
+  }
+
+  /** Render signature lines side by side; returns the Y below them. */
+  private drawSignatures(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    doc: any,
+    leftMargin: number,
+    rightEdge: number,
+    startY: number,
+    signatures: InvoiceSignatureBlock[],
+  ): number {
+    const blockHeight = 56;
+    let currentY = startY + 24;
+
+    if (currentY + blockHeight > doc.page.height - 50) {
+      doc.addPage();
+      currentY = 50;
+    }
+
+    const gap = 24;
+    const slotWidth = (rightEdge - leftMargin - gap) / 2;
+
+    signatures.slice(0, 2).forEach((sig, i) => {
+      const x = leftMargin + i * (slotWidth + gap);
+      const lineY = currentY + 26;
+
+      // Name (printed above the line, if provided)
+      if (sig.name) {
+        doc
+          .fontSize(10)
+          .font('Helvetica')
+          .fillColor(PDF_STYLES.text.primary)
+          .text(sig.name, x, lineY - 14, { width: slotWidth });
+      }
+
+      // Signature line (thin filled rect — avoids needing vector path APIs)
+      doc.rect(x, lineY, slotWidth, 0.75).fillColor(PDF_STYLES.text.secondary).fill();
+
+      // Caption
+      doc
+        .fontSize(9)
+        .font('Helvetica')
+        .fillColor(PDF_STYLES.text.secondary)
+        .text(sig.label, x, lineY + 4, { width: slotWidth });
+    });
+
+    return currentY + blockHeight;
   }
 
   async exportToCSV(options: CsvExportOptions): Promise<{ url: string }> {

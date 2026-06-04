@@ -63,7 +63,8 @@ Thumbs.db
 prisma/migrations/.migration_lock
 
 # Testing
-__snapshots__
+# Jest unit snapshots are committed (CI fails on a missing snapshot instead of
+# writing one); only Playwright report/artifact output is ignored.
 playwright-report
 test-results
 

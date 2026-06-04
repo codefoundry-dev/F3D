@@ -1,0 +1,126 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`PoExportService single PO PDF template builds a stable PO PDF template model (snapshot) 1`] = `
+{
+  "columns": [
+    {
+      "header": "Item",
+      "width": 200,
+    },
+    {
+      "header": "Qty",
+      "width": 60,
+    },
+    {
+      "header": "Unit",
+      "width": 60,
+    },
+    {
+      "header": "Unit Price",
+      "width": 100,
+    },
+    {
+      "header": "Total",
+      "width": 100,
+    },
+  ],
+  "date": "June 1, 2026",
+  "filenamePrefix": "po-PO-2026-0042",
+  "heading": "Purchase Order",
+  "infoLeft": {
+    "label": "PO Details",
+    "lines": [
+      "PO Number: PO-2026-0042",
+      "Project: Harbour Bridge Refurb",
+      "Status: Sent",
+      "Type: Standard",
+      "Revision: 2",
+      "Buyer: BuildCo Contractors",
+    ],
+  },
+  "infoRight": {
+    "label": "Vendor",
+    "lines": [
+      "SteelWorks Pty Ltd",
+      "Payment: Net 30 days",
+      "Deliver to: Site B — Gate 4",
+    ],
+  },
+  "rows": [
+    {
+      "Item": "Structural Steel Beam",
+      "Qty": "10",
+      "Total": "$12,000.00 AUD",
+      "Unit": "EA",
+      "Unit Price": "$1,200.00 AUD",
+    },
+    {
+      "Item": "Delivery surcharge",
+      "Qty": "1",
+      "Total": "$750.50 AUD",
+      "Unit": "EA",
+      "Unit Price": "$750.50 AUD",
+    },
+  ],
+  "sections": [
+    {
+      "columns": [
+        {
+          "header": "#",
+          "width": 30,
+        },
+        {
+          "header": "Location",
+          "width": 200,
+        },
+        {
+          "header": "Date",
+          "width": 130,
+        },
+        {
+          "header": "Notes",
+          "width": 150,
+        },
+      ],
+      "emptyText": "Planned delivery: July 1, 2026",
+      "label": "Delivery Schedule",
+      "rows": [
+        {
+          "#": "1",
+          "Date": "July 1, 2026",
+          "Location": "Site B — Gate 4",
+          "Notes": "First drop",
+        },
+        {
+          "#": "2",
+          "Date": "July 8, 2026",
+          "Location": "Site B — Yard",
+          "Notes": "",
+        },
+      ],
+    },
+  ],
+  "signatures": [
+    {
+      "label": "Authorised by (Buyer)",
+      "name": "Priya Approver",
+    },
+    {
+      "label": "Accepted by (Vendor)",
+    },
+  ],
+  "terms": {
+    "label": "Terms & Notes",
+    "lines": [
+      "Payment terms: Net 30 days",
+      "Delivery contact: Dana Reeves (dana@vendor.example)",
+      "Delivery notes: Call ahead 30 minutes before arrival.",
+      "Message: Please prioritise the structural steel.",
+    ],
+  },
+  "totalRow": {
+    "label": "Total Amount",
+    "value": "$12,750.50 AUD",
+  },
+}
+`;
