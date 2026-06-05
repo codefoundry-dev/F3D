@@ -146,7 +146,11 @@ jobs:
         working-directory: infrastructure/envs/${{ matrix.env }}
         run: |
           set -euo pipefail
-          LOCK_KEY="forethread-tfstate-eu-north-1/envs/${{ matrix.env }}/terraform.tfstate-md5"
+          # The lock Info lives on the ".../terraform.tfstate" item. The
+          # "...-md5" item holds only the state Digest (no Info field), so
+          # reading Info from it always returned empty -> this cleanup never
+          # fired, and cancelled/killed applies kept orphaning the lock.
+          LOCK_KEY="forethread-tfstate-eu-north-1/envs/${{ matrix.env }}/terraform.tfstate"
           INFO=$(aws dynamodb get-item \
             --region "${{ env.AWS_REGION }}" \
             --table-name forethread-tfstate-lock \
@@ -196,4 +200,36 @@ jobs:
         working-directory: infrastructure/envs/${{ inputs.env }}
         env:
           TF_VAR_notification_email: ${{ (inputs.env == 'prod' && vars.NOTIFICATION_EMAIL_PROD) || (inputs.env == 'staging' && vars.NOTIFICATION_EMAIL_STAGING) || '' }}
-        run: terraform apply -input=false -auto-approve
+        run: terraform apply -input=false -auto-approve -lock-timeout=5m
+
+      # Same cancellation safety net as the push job: a manual apply that is
+      # cancelled/killed mid-run leaves its state lock held (terraform never gets
+      # to release it). Release it IFF a CI runner owns it.
+      - name: release orphaned CI lock if apply was cancelled / killed
+        if: failure() || cancelled()
+        working-directory: infrastructure/envs/${{ inputs.env }}
+        run: |
+          set -euo pipefail
+          LOCK_KEY="forethread-tfstate-eu-north-1/envs/${{ inputs.env }}/terraform.tfstate"
+          INFO=$(aws dynamodb get-item \
+            --region "${{ env.AWS_REGION }}" \
+            --table-name forethread-tfstate-lock \
+            --key "{\"LockID\":{\"S\":\"$LOCK_KEY\"}}" \
+            --query 'Item.Info.S' \
+            --output text 2>/dev/null || true)
+          if [ -z "$INFO" ] || [ "$INFO" = "None" ]; then
+            echo "No state lock to release."
+            exit 0
+          fi
+          WHO=$(echo "$INFO" | jq -r '.Who // empty')
+          LOCK_ID=$(echo "$INFO" | jq -r '.ID // empty')
+          case "$WHO" in
+            runner@*)
+              echo "::warning::Releasing orphaned CI lock $LOCK_ID held by $WHO"
+              terraform force-unlock -force "$LOCK_ID"
+              ;;
+            *)
+              echo "::warning::Lock $LOCK_ID is held by '$WHO' (not a CI runner). Refusing to auto-release; investigate manually."
+              exit 1
+              ;;
+          esac

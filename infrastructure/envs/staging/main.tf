@@ -74,24 +74,35 @@ module "compute" {
 
   env    = local.env
   vpc_id = module.network.vpc_id
-  # public_subnet_ids is ordered [eu-north-1a, eu-north-1b]. Pinned to [1] (1b):
-  # eu-north-1a ran out of t4g.micro capacity on 2026-06-02 mid-apply, which
-  # terminated the instance and then failed to recreate it, leaving staging with
-  # no backend. 1b had capacity. Single-AZ by design; revisit (multi-AZ / ASG)
-  # if this recurs.
-  public_subnet_id = module.network.public_subnet_ids[1]
+  # public_subnet_ids is ordered [eu-north-1a, eu-north-1b]. Pinned to [0] (1a).
+  # t4g.micro capacity in eu-north-1 bounces between AZs: 1a ran dry on
+  # 2026-06-02 (moved to 1b), then 1b ran dry on 2026-06-05 — the On-Demand
+  # Capacity Reservation below went `failed` and the apply couldn't launch — so
+  # the box was moved back to 1a. This AZ ping-pong is the known single-AZ
+  # fragility; the durable answer is a multi-AZ ASG with a mixed-instance policy.
+  # The reservation + create_before_destroy still help (hold capacity once
+  # acquired; never tear down the running box on a starved replace), but a
+  # reservation cannot manufacture capacity during a region-wide micro crunch —
+  # hence the manual AZ flip when the pinned AZ is starved. If both AZs are dry,
+  # bump ec2_instance_type to t4g.small (deeper pool) until micro frees up.
+  public_subnet_id = module.network.public_subnet_ids[0]
   # Pin the AMI so routine applies never silently rebuild the box on a new Amazon
   # AL2023 release (this is the AMI the running instance was validated on). Roll
   # deliberately: bump this value, then `terraform apply` (lifecycle ignores ami
   # drift, so a change here is picked up only on create/taint).
-  ami_id               = "ami-014049af4c3409183"
-  instance_type        = var.ec2_instance_type
-  root_volume_size_gb  = var.ec2_root_volume_size_gb
-  app_port             = 3000
-  domain_name          = var.domain_name
-  ssm_parameter_prefix = local.ssm_prefix
-  log_group_name       = module.observability.log_group_name
-  host_log_group_name  = module.observability.host_log_group_name
+  ami_id        = "ami-014049af4c3409183"
+  instance_type = var.ec2_instance_type
+  # Hold a t4g.micro slot in the instance's AZ (1a). The "open" reservation
+  # attaches to the running box with no restart. Re-enabled 2026-06-05 once the
+  # instance recovered in 1a; it was briefly false during the crunch because a
+  # reservation create cannot succeed while the AZ has zero free t4g.micro.
+  enable_capacity_reservation = true
+  root_volume_size_gb         = var.ec2_root_volume_size_gb
+  app_port                    = 3000
+  domain_name                 = var.domain_name
+  ssm_parameter_prefix        = local.ssm_prefix
+  log_group_name              = module.observability.log_group_name
+  host_log_group_name         = module.observability.host_log_group_name
 
   secret_arns_to_read     = values(module.secrets.secret_arns)
   kms_key_arns_to_decrypt = [module.secrets.kms_key_arn]
