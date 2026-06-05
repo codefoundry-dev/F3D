@@ -74,16 +74,18 @@ module "compute" {
 
   env    = local.env
   vpc_id = module.network.vpc_id
-  # public_subnet_ids is ordered [eu-north-1a, eu-north-1b]. Pinned to [1] (1b).
-  # History: eu-north-1a ran out of t4g.micro capacity on 2026-06-02 mid-apply,
-  # which terminated the instance and then failed to recreate it, leaving staging
-  # with no backend; capacity then bit 1b too. Two safety nets now de-risk this
-  # without going multi-AZ/ASG: (1) enable_capacity_reservation below holds a
-  # t4g.micro slot in this AZ so a create can't be starved, and (2) the module's
-  # instance is create_before_destroy, so a replace that can't get capacity errors
-  # the apply instead of tearing down the running box first. Revisit multi-AZ/ASG
-  # only if a hard AZ outage (not transient capacity) becomes the concern.
-  public_subnet_id = module.network.public_subnet_ids[1]
+  # public_subnet_ids is ordered [eu-north-1a, eu-north-1b]. Pinned to [0] (1a).
+  # t4g.micro capacity in eu-north-1 bounces between AZs: 1a ran dry on
+  # 2026-06-02 (moved to 1b), then 1b ran dry on 2026-06-05 — the On-Demand
+  # Capacity Reservation below went `failed` and the apply couldn't launch — so
+  # the box was moved back to 1a. This AZ ping-pong is the known single-AZ
+  # fragility; the durable answer is a multi-AZ ASG with a mixed-instance policy.
+  # The reservation + create_before_destroy still help (hold capacity once
+  # acquired; never tear down the running box on a starved replace), but a
+  # reservation cannot manufacture capacity during a region-wide micro crunch —
+  # hence the manual AZ flip when the pinned AZ is starved. If both AZs are dry,
+  # bump ec2_instance_type to t4g.small (deeper pool) until micro frees up.
+  public_subnet_id = module.network.public_subnet_ids[0]
   # Pin the AMI so routine applies never silently rebuild the box on a new Amazon
   # AL2023 release (this is the AMI the running instance was validated on). Roll
   # deliberately: bump this value, then `terraform apply` (lifecycle ignores ami
