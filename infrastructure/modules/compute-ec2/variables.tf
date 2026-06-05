@@ -115,3 +115,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "enable_capacity_reservation" {
+  description = "When true, create an On-Demand Capacity Reservation for instance_type in the instance's AZ so a replace-driven apply can always (re)launch the box. Holds capacity 24/7 at the on-demand rate (~$3.7/mo for t4g.micro). Enabled for staging after the 2026-06-02 InsufficientInstanceCapacity outage; off by default so prod opts in explicitly."
+  type        = bool
+  default     = false
+}

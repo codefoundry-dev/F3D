@@ -132,6 +132,40 @@ resource "aws_security_group_rule" "egress_all" {
 }
 
 ############################################
+# On-Demand Capacity Reservation (optional)
+############################################
+
+# The instance's AZ is derived from its subnet so the reservation lands in
+# exactly the AZ the box launches into.
+data "aws_subnet" "selected" {
+  id = var.public_subnet_id
+}
+
+# Reserves instance_type capacity in the instance's AZ so a replace-driven apply
+# can always (re)launch the backend. eu-north-1 micro pools are thin: on
+# 2026-06-02 a mid-apply InsufficientInstanceCapacity in eu-north-1a terminated
+# staging and then failed to recreate it, leaving the env with no backend.
+# instance_match_criteria = "open" so the running box consumes the reservation
+# automatically — deliberately NOT "targeted", which would deadlock the brief
+# two-instance window create_before_destroy opens during a replacement (the new
+# box would demand the single reserved slot the old box still holds).
+resource "aws_ec2_capacity_reservation" "this" {
+  count = var.enable_capacity_reservation ? 1 : 0
+
+  instance_type     = var.instance_type
+  instance_platform = "Linux/UNIX"
+  availability_zone = data.aws_subnet.selected.availability_zone
+  instance_count    = 1
+
+  instance_match_criteria = "open"
+  end_date_type           = "unlimited"
+
+  tags = merge(var.tags, {
+    Name = "forethread-${var.env}-backend-capacity"
+  })
+}
+
+############################################
 # EC2 instance
 ############################################
 
@@ -183,17 +217,30 @@ resource "aws_instance" "this" {
 
   # Don't replace the instance just because Amazon shipped a new AMI. AMI rolls
   # are a deliberate operation: bump the data source filter, taint, and apply.
+  #
+  # create_before_destroy: when user_data changes force a replacement, launch the
+  # new box BEFORE terminating the old one. If the new launch can't get capacity,
+  # the apply errors with the running box untouched — instead of the old
+  # destroy-before-create path that terminated staging first and then stranded it
+  # (the 2026-06-02 outage). Pairs with allow_reassociation on the EIP below.
   lifecycle {
-    ignore_changes = [ami]
+    ignore_changes        = [ami]
+    create_before_destroy = true
   }
 
   # Without these explicit edges, terraform may launch the instance in parallel
   # with the role-policy attachments. user_data hits ECR within seconds of boot
   # and fails with AccessDenied before the runtime policy is in effect, halting
   # cloud-init under `set -euo pipefail`. See README "Known pitfalls".
+  # The capacity reservation (when enabled) must exist before the instance
+  # launches so the open reservation is available to absorb this create — without
+  # the edge, terraform may start the instance first and hit the very capacity
+  # shortage the reservation exists to prevent. No-op when the reservation is
+  # disabled (count = 0 → empty list).
   depends_on = [
     aws_iam_role_policy_attachment.runtime,
     aws_iam_role_policy_attachment.ssm_managed_core,
+    aws_ec2_capacity_reservation.this,
   ]
 
   # Project=forethread is load-bearing: the deploy role's SSM SendCommand
@@ -219,4 +266,14 @@ resource "aws_eip" "this" {
 resource "aws_eip_association" "this" {
   allocation_id = aws_eip.this.id
   instance_id   = aws_instance.this.id
+
+  # The instance is create_before_destroy, so during a replacement the new box
+  # exists alongside the old one briefly. allow_reassociation lets the EIP move to
+  # the new instance while the old still exists, and create_before_destroy here
+  # keeps the EIP pointed at a live box across the swap (near-zero public-IP gap).
+  allow_reassociation = true
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }

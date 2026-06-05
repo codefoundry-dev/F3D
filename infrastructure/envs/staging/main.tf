@@ -74,24 +74,30 @@ module "compute" {
 
   env    = local.env
   vpc_id = module.network.vpc_id
-  # public_subnet_ids is ordered [eu-north-1a, eu-north-1b]. Pinned to [1] (1b):
-  # eu-north-1a ran out of t4g.micro capacity on 2026-06-02 mid-apply, which
-  # terminated the instance and then failed to recreate it, leaving staging with
-  # no backend. 1b had capacity. Single-AZ by design; revisit (multi-AZ / ASG)
-  # if this recurs.
+  # public_subnet_ids is ordered [eu-north-1a, eu-north-1b]. Pinned to [1] (1b).
+  # History: eu-north-1a ran out of t4g.micro capacity on 2026-06-02 mid-apply,
+  # which terminated the instance and then failed to recreate it, leaving staging
+  # with no backend; capacity then bit 1b too. Two safety nets now de-risk this
+  # without going multi-AZ/ASG: (1) enable_capacity_reservation below holds a
+  # t4g.micro slot in this AZ so a create can't be starved, and (2) the module's
+  # instance is create_before_destroy, so a replace that can't get capacity errors
+  # the apply instead of tearing down the running box first. Revisit multi-AZ/ASG
+  # only if a hard AZ outage (not transient capacity) becomes the concern.
   public_subnet_id = module.network.public_subnet_ids[1]
   # Pin the AMI so routine applies never silently rebuild the box on a new Amazon
   # AL2023 release (this is the AMI the running instance was validated on). Roll
   # deliberately: bump this value, then `terraform apply` (lifecycle ignores ami
   # drift, so a change here is picked up only on create/taint).
-  ami_id               = "ami-014049af4c3409183"
-  instance_type        = var.ec2_instance_type
-  root_volume_size_gb  = var.ec2_root_volume_size_gb
-  app_port             = 3000
-  domain_name          = var.domain_name
-  ssm_parameter_prefix = local.ssm_prefix
-  log_group_name       = module.observability.log_group_name
-  host_log_group_name  = module.observability.host_log_group_name
+  ami_id        = "ami-014049af4c3409183"
+  instance_type = var.ec2_instance_type
+  # Hold a t4g.micro slot in this AZ — see the public_subnet_id note above.
+  enable_capacity_reservation = true
+  root_volume_size_gb         = var.ec2_root_volume_size_gb
+  app_port                    = 3000
+  domain_name                 = var.domain_name
+  ssm_parameter_prefix        = local.ssm_prefix
+  log_group_name              = module.observability.log_group_name
+  host_log_group_name         = module.observability.host_log_group_name
 
   secret_arns_to_read     = values(module.secrets.secret_arns)
   kms_key_arns_to_decrypt = [module.secrets.kms_key_arn]
