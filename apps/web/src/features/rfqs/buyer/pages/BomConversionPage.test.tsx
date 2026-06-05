@@ -19,11 +19,13 @@ vi.mock('@forethread/api-client', async (importOriginal) => {
     ...actual,
     createDocExtraction: vi.fn(),
     getDocExtraction: vi.fn(),
+    confirmDocExtraction: vi.fn(),
   };
 });
 
 const mockedCreate = apiClient.createDocExtraction as unknown as ReturnType<typeof vi.fn>;
 const mockedGet = apiClient.getDocExtraction as unknown as ReturnType<typeof vi.fn>;
+const mockedConfirm = apiClient.confirmDocExtraction as unknown as ReturnType<typeof vi.fn>;
 
 function bomJob(
   overrides: Partial<apiClient.DocExtractionResponse> = {},
@@ -74,6 +76,7 @@ describe('BomConversionPage', () => {
     mockNavigate.mockReset();
     mockedCreate.mockReset();
     mockedGet.mockReset();
+    mockedConfirm.mockReset();
   });
 
   it('disables the extract button until a file is chosen', () => {
@@ -101,5 +104,25 @@ describe('BomConversionPage', () => {
 
     // The review surface renders the structured line-item table once COMPLETED.
     expect(await screen.findByTestId('bom-review-table')).toBeInTheDocument();
+  });
+
+  it('navigates into the RFQ builder carrying the confirmed BOM (FOR-200)', async () => {
+    mockedCreate.mockResolvedValue(bomJob());
+    mockedGet.mockResolvedValue(bomJob());
+    mockedConfirm.mockResolvedValue(bomJob({ status: 'CONFIRMED' }));
+
+    renderPage(<BomConversionPage />);
+
+    const file = new File(['%PDF-1.4 bom'], 'tower-5-bom.pdf', { type: 'application/pdf' });
+    fireEvent.change(screen.getByTestId('bom-file-input'), { target: { files: [file] } });
+    fireEvent.click(screen.getByTestId('bom-extract-submit'));
+
+    fireEvent.click(await screen.findByTestId('confirm-extraction'));
+
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith('/rfqs/new', {
+        state: { bomExtractionId: 'job-1' },
+      }),
+    );
   });
 });

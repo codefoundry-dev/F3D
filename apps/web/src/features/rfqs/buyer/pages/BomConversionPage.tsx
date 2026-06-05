@@ -1,3 +1,4 @@
+import type { DocExtractionResponse } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { Button, notificationService } from '@forethread/ui-components';
 import { useRef, useState } from 'react';
@@ -40,9 +41,11 @@ export default function BomConversionPage() {
     }
   };
 
-  const handleConfirmed = () => {
+  const handleConfirmed = (job: DocExtractionResponse) => {
     notificationService.success(t('upload.confirmed'));
-    navigate(ROUTES.rfqs);
+    // Carry the just-confirmed BOM straight into the RFQ builder, which seeds
+    // its Materials step from this extraction's line items (FOR-200).
+    navigate(ROUTES.rfqNew, { state: { bomExtractionId: job.id } });
   };
 
   return (

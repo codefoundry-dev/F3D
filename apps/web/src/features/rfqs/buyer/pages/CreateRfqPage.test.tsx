@@ -1,7 +1,12 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 
 const mockNavigate = vi.hoisted(() => vi.fn());
-const mockSaveDraft = vi.hoisted(() => ({ mutateAsync: vi.fn(), isPending: false, isError: false }));
+const mockUseLocation = vi.hoisted(() => vi.fn((): { state: unknown } => ({ state: null })));
+const mockSaveDraft = vi.hoisted(() => ({
+  mutateAsync: vi.fn(),
+  isPending: false,
+  isError: false,
+}));
 const mockUpdateDraft = vi.hoisted(() => ({
   mutateAsync: vi.fn(),
   isPending: false,
@@ -15,6 +20,7 @@ const mockUseProjectDeliveryLocations = vi.hoisted(() => vi.fn());
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
+  useLocation: () => mockUseLocation(),
 }));
 
 const mockUseConfirmedBoms = vi.hoisted(() => vi.fn());
@@ -152,6 +158,7 @@ async function addMaterial(qty = '50') {
 describe('CreateRfqPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseLocation.mockReturnValue({ state: null });
     mockSaveDraft.isPending = false;
     mockSaveDraft.isError = false;
     mockUpdateDraft.isPending = false;
@@ -245,7 +252,9 @@ describe('CreateRfqPage', () => {
     fireEvent.click(within(nav).getByText('Project'));
 
     // Back on the Project step
-    expect(screen.getByText('Choose the project this request for quote belongs to.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Choose the project this request for quote belongs to.'),
+    ).toBeInTheDocument();
   });
 
   it('walks all steps and saves the draft, then navigates to the RFQ detail', async () => {
@@ -288,6 +297,58 @@ describe('CreateRfqPage', () => {
     render(<CreateRfqPage />);
     selectProject();
     fireEvent.click(screen.getByTestId('next-step'));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/Something went wrong saving your draft/i);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /Something went wrong saving your draft/i,
+    );
+  });
+
+  it('seeds the Materials step from a confirmed BOM passed via route state (FOR-200)', async () => {
+    mockUseLocation.mockReturnValue({ state: { bomExtractionId: 'bom-1' } });
+    mockUseConfirmedBoms.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: 'bom-1',
+            type: 'BOM',
+            status: 'CONFIRMED',
+            file: { filename: 'tower-5-bom.pdf' },
+            editedResult: {
+              title: 'Tower 5 BOM',
+              projectName: null,
+              currency: 'AUD',
+              items: [
+                {
+                  description: 'Cement',
+                  quantity: 50,
+                  unit: 'bag',
+                  targetPrice: null,
+                  notes: null,
+                },
+                {
+                  description: 'Rebar 12mm',
+                  quantity: 200,
+                  unit: 'm',
+                  targetPrice: null,
+                  notes: null,
+                },
+              ],
+              notes: null,
+            },
+          },
+        ],
+        meta: {},
+      },
+    });
+
+    render(<CreateRfqPage />);
+
+    // Advance past Project into Materials — the BOM lines are already present,
+    // with no manual catalogue entry.
+    selectProject();
+    fireEvent.click(screen.getByTestId('next-step'));
+
+    const list = await screen.findByTestId('line-item-list');
+    expect(within(list).getByText('Cement')).toBeInTheDocument();
+    expect(within(list).getByText('Rebar 12mm')).toBeInTheDocument();
   });
 });

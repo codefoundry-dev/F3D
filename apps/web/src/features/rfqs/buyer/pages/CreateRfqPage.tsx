@@ -1,5 +1,6 @@
-import type { SaveRfqDraftValues } from '@forethread/shared-types/client';
+import type { BomLineItem, SaveRfqDraftValues } from '@forethread/shared-types/client';
 import {
+  isBomExtractionResult,
   RfqLineItemSource,
   rfqStepProjectSchema,
   rfqStepMaterialsSchema,
@@ -7,8 +8,8 @@ import {
   rfqStepDeliverySchema,
 } from '@forethread/shared-types/client';
 import { Alert, Button } from '@forethread/ui-components';
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 import { useConfirmedBoms } from '@/features/doc-intelligence';
@@ -81,8 +82,28 @@ function buildPayload(
   return payload;
 }
 
+/**
+ * Map a parsed BOM line into an RFQ line-item draft. The extraction can leave
+ * quantity/unit null, so fall back to schema-valid defaults (quantity ≥ 0.01,
+ * a non-empty UoM) — seeded lines then never block the Materials step, and the
+ * contractor can adjust or remove them before sending.
+ */
+function bomItemToDraft(item: BomLineItem): RfqLineItemDraft {
+  const quantity = typeof item.quantity === 'number' && item.quantity >= 0.01 ? item.quantity : 1;
+  const unit = item.unit?.trim() ?? '';
+  return {
+    source: 'BOM',
+    materialName: item.description,
+    quantity,
+    uom: unit.length > 0 ? unit : 'unit',
+    notes: item.notes ?? undefined,
+  };
+}
+
 export default function CreateRfqPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const seededFromBomRef = useRef(false);
 
   const [step, setStep] = useState(0);
   const [furthestReached, setFurthestReached] = useState(0);
@@ -109,6 +130,22 @@ export default function CreateRfqPage() {
     useProjectDeliveryLocations(projectId);
   const { data: confirmedBomsPage } = useConfirmedBoms();
   const confirmedBoms = confirmedBomsPage?.items ?? [];
+
+  // When the contractor arrives from "Convert a project BOM" (BomConversionPage),
+  // seed the Materials step from that confirmed BOM's parsed line items — runs
+  // once, as soon as the target extraction is available (FOR-200).
+  const bomExtractionId = (location.state as { bomExtractionId?: string } | null)?.bomExtractionId;
+  useEffect(() => {
+    if (seededFromBomRef.current || !bomExtractionId) return;
+    const bom = confirmedBomsPage?.items.find((item) => item.id === bomExtractionId);
+    if (!bom || !isBomExtractionResult(bom.editedResult)) return;
+    const drafts = bom.editedResult.items
+      .map(bomItemToDraft)
+      .filter((draft) => draft.materialName.trim().length > 0);
+    if (drafts.length === 0) return;
+    seededFromBomRef.current = true;
+    setLineItems(drafts);
+  }, [bomExtractionId, confirmedBomsPage]);
 
   // ── Mutations (save-as-you-go) ─────────────────────────────────────────────
   const saveDraft = useSaveRfqDraft();
