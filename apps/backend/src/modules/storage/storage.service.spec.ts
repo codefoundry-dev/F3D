@@ -50,6 +50,30 @@ describe('StorageService', () => {
       );
       expect(service.getBucket()).toBe('test-bucket');
     });
+
+    it('omits endpoint and static credentials in prod (AWS default chain / IAM role)', () => {
+      const { S3Client } = jest.requireMock('@aws-sdk/client-s3');
+      S3Client.mockClear();
+      const prodConfig = {
+        get: jest.fn().mockImplementation((key: string, fallback?: string) => {
+          const map: Record<string, string> = {
+            S3_REGION: 'eu-north-1',
+            S3_BUCKET: 'forethread-staging-uploads',
+          };
+          return map[key] ?? fallback;
+        }),
+      };
+      const prodService = new StorageService(prodConfig as never);
+      prodService.onModuleInit();
+
+      expect(S3Client).toHaveBeenCalledTimes(1);
+      const clientConfig = S3Client.mock.calls[0][0] as Record<string, unknown>;
+      expect(clientConfig.region).toBe('eu-north-1');
+      expect(clientConfig.endpoint).toBeUndefined();
+      expect(clientConfig.credentials).toBeUndefined();
+      expect(clientConfig.forcePathStyle).toBe(false);
+      expect(prodService.getBucket()).toBe('forethread-staging-uploads');
+    });
   });
 
   describe('upload', () => {
@@ -199,6 +223,24 @@ describe('StorageService', () => {
       const url = service.getPublicUrl('photo.jpg');
 
       expect(url).toBe('http://localhost:9000/test-bucket/photo.jpg');
+    });
+
+    it('builds a virtual-hosted AWS S3 URL when no custom endpoint is set', () => {
+      const prodConfig = {
+        get: jest.fn().mockImplementation((key: string, fallback?: string) => {
+          const map: Record<string, string> = {
+            S3_REGION: 'eu-north-1',
+            S3_BUCKET: 'forethread-staging-uploads',
+          };
+          return map[key] ?? fallback;
+        }),
+      };
+      const prodService = new StorageService(prodConfig as never);
+      prodService.onModuleInit();
+
+      expect(prodService.getPublicUrl('avatars/u1.png')).toBe(
+        'https://forethread-staging-uploads.s3.eu-north-1.amazonaws.com/avatars/u1.png',
+      );
     });
   });
 

@@ -17,17 +17,29 @@ export class StorageService implements OnModuleInit {
   constructor(private readonly config: ConfigService) {}
 
   onModuleInit(): void {
-    const endpoint = this.config.get<string>('S3_ENDPOINT', 'http://localhost:9000');
+    // These are read WITHOUT local-dev fallbacks on purpose. In staging/prod the
+    // S3_ENDPOINT and S3_ACCESS_KEY/S3_SECRET_KEY vars are intentionally unset so
+    // the backend talks to real AWS S3 via the EC2 instance IAM role. Defaulting
+    // them to MinIO/minioadmin made the client dial localhost:9000 (ECONNREFUSED)
+    // and send bogus credentials on the server.
+    const endpoint = this.config.get<string>('S3_ENDPOINT');
     const region = this.config.get<string>('S3_REGION', 'us-east-1');
-    const accessKey = this.config.get<string>('S3_ACCESS_KEY', 'minioadmin');
-    const secretKey = this.config.get<string>('S3_SECRET_KEY', 'minioadmin');
+    const accessKey = this.config.get<string>('S3_ACCESS_KEY');
+    const secretKey = this.config.get<string>('S3_SECRET_KEY');
+    const forcePathStyle =
+      this.config.get<string>('S3_FORCE_PATH_STYLE', endpoint ? 'true' : 'false') === 'true';
     this.bucket = this.config.get<string>('S3_BUCKET', 'forethread-dev');
 
     this.client = new S3Client({
-      endpoint,
       region,
-      credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
-      forcePathStyle: true, // Required for MinIO
+      // Custom endpoint only for MinIO/local dev; AWS uses its regional default.
+      ...(endpoint ? { endpoint } : {}),
+      // Static keys only for MinIO/local dev; otherwise the default AWS credential
+      // provider chain resolves the EC2 instance IAM role.
+      ...(accessKey && secretKey
+        ? { credentials: { accessKeyId: accessKey, secretAccessKey: secretKey } }
+        : {}),
+      forcePathStyle,
     });
   }
 
@@ -99,10 +111,19 @@ export class StorageService implements OnModuleInit {
     return this.upload(key, params.buffer, params.contentType);
   }
 
-  /** Build public URL for a key in the bucket (bucket must have public-read policy). */
+  /**
+   * Build a direct URL for a key in the bucket. For MinIO/local dev this is
+   * `{endpoint}/{bucket}/{key}`; for AWS S3 it's the virtual-hosted-style URL.
+   * NOTE: the staging/prod buckets block public access, so these URLs only load
+   * if the object has a public-read policy — otherwise use {@link getSignedUrl}.
+   */
   getPublicUrl(key: string): string {
-    const endpoint = this.config.get<string>('S3_ENDPOINT', 'http://localhost:9000');
-    return `${endpoint}/${this.bucket}/${key}`;
+    const endpoint = this.config.get<string>('S3_ENDPOINT');
+    if (endpoint) {
+      return `${endpoint}/${this.bucket}/${key}`;
+    }
+    const region = this.config.get<string>('S3_REGION', 'us-east-1');
+    return `https://${this.bucket}.s3.${region}.amazonaws.com/${key}`;
   }
 
   getBucket(): string {
