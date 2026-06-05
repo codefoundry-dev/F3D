@@ -4,8 +4,13 @@ import {
   type BomLineItem,
   isBomExtractionResult,
 } from '@forethread/shared-types/client';
-import { Button, Input } from '@forethread/ui-components';
+import { Badge, Button, CustomDropdown, Input } from '@forethread/ui-components';
 import { useCallback, useMemo } from 'react';
+
+export interface MaterialOption {
+  value: string;
+  label: string;
+}
 
 export interface BomReviewTableProps {
   /** Current edited result, in canonical BOM shape or anything that can be coerced. */
@@ -14,6 +19,11 @@ export interface BomReviewTableProps {
   readOnly?: boolean;
   /** Fires every keystroke so the parent can run validation / dirty tracking. */
   onChange: (next: BomExtractionResult) => void;
+  /**
+   * Public catalogue options for the manual-match picker. Supplied only while
+   * editing; when omitted the match column is read-only (badge + name only).
+   */
+  materialOptions?: MaterialOption[];
 }
 
 const EMPTY_ROW: BomLineItem = {
@@ -49,11 +59,92 @@ function parseNumberInput(raw: string): number | null {
   return numeric;
 }
 
+function toPercent(confidence: number): number {
+  return Math.round(confidence * 100);
+}
+
+/**
+ * Catalogue-match cell: a confidence badge + matched/suggested material name,
+ * plus a searchable picker (when editable) so the user can confirm a suggestion
+ * or override the match for low-confidence / unmatched lines.
+ */
+function MatchCell({
+  index,
+  item,
+  readOnly,
+  options,
+  onPick,
+}: {
+  index: number;
+  item: BomLineItem;
+  readOnly?: boolean;
+  options?: MaterialOption[];
+  onPick: (materialId: string | null, name: string | null) => void;
+}) {
+  const { t } = useTranslation(['docExtractions']);
+  const candidate = item.matchCandidates?.[0] ?? null;
+
+  let toneClass: string;
+  let badgeText: string;
+  let detail: string | null = null;
+
+  if (item.matchedMaterialId) {
+    toneClass = 'bg-green-100 text-green-800';
+    badgeText =
+      typeof item.matchConfidence === 'number'
+        ? `${toPercent(item.matchConfidence)}%`
+        : t('bom.match.manual');
+    detail = item.matchedMaterialName ?? null;
+  } else if (candidate) {
+    toneClass = 'bg-amber-100 text-amber-800';
+    badgeText = t('bom.match.review');
+    detail = t('bom.match.suggested', {
+      name: candidate.name,
+      pct: toPercent(candidate.confidence),
+    });
+  } else {
+    toneClass = 'bg-muted text-muted-foreground';
+    badgeText = t('bom.match.none');
+  }
+
+  const placeholder = candidate
+    ? t('bom.match.suggested', { name: candidate.name, pct: toPercent(candidate.confidence) })
+    : t('bom.match.pick');
+
+  return (
+    <div className="space-y-1.5" data-testid={`bom-match-${index}`}>
+      <Badge className={toneClass}>{badgeText}</Badge>
+      {detail ? (
+        <p className="text-xs text-muted-foreground truncate" title={detail}>
+          {detail}
+        </p>
+      ) : null}
+      {!readOnly && options ? (
+        <CustomDropdown
+          options={options}
+          value={item.matchedMaterialId ?? undefined}
+          onChange={(id) => onPick(id || null, options.find((o) => o.value === id)?.label ?? null)}
+          searchable
+          placeholder={placeholder}
+          searchPlaceholder={t('bom.match.search')}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * Editable line-item table for confirmed BOMs. Replaces the generic JSON
- * textarea when the user is reviewing a BOM extraction (FOR-200).
+ * textarea when the user is reviewing a BOM extraction (FOR-200). Each line
+ * also shows its catalogue match + confidence score (Epic 5) and lets the user
+ * resolve low-confidence / unmatched lines via the picker.
  */
-export function BomReviewTable({ value, readOnly, onChange }: BomReviewTableProps) {
+export function BomReviewTable({
+  value,
+  readOnly,
+  onChange,
+  materialOptions,
+}: BomReviewTableProps) {
   const { t } = useTranslation(['docExtractions']);
   const bom = useMemo(() => toBom(value), [value]);
 
@@ -127,30 +218,47 @@ export function BomReviewTable({ value, readOnly, onChange }: BomReviewTableProp
         <table className="w-full text-sm" data-testid="bom-items-table">
           <thead className="bg-muted/50 text-xs uppercase">
             <tr>
-              <th className="text-left p-2 w-[40%]">{t('bom.columns.description')}</th>
-              <th className="text-left p-2 w-[12%]">{t('bom.columns.quantity')}</th>
-              <th className="text-left p-2 w-[12%]">{t('bom.columns.unit')}</th>
-              <th className="text-left p-2 w-[14%]">{t('bom.columns.targetPrice')}</th>
-              <th className="text-left p-2 w-[18%]">{t('bom.columns.notes')}</th>
+              <th className="text-left p-2 w-[26%]">{t('bom.columns.description')}</th>
+              <th className="text-left p-2 w-[22%]">{t('bom.columns.match')}</th>
+              <th className="text-left p-2 w-[10%]">{t('bom.columns.quantity')}</th>
+              <th className="text-left p-2 w-[9%]">{t('bom.columns.unit')}</th>
+              <th className="text-left p-2 w-[13%]">{t('bom.columns.targetPrice')}</th>
+              <th className="text-left p-2 w-[16%]">{t('bom.columns.notes')}</th>
               <th className="w-10" aria-hidden />
             </tr>
           </thead>
           <tbody>
             {bom.items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-4 text-center text-muted-foreground">
+                <td colSpan={7} className="p-4 text-center text-muted-foreground">
                   {t('bom.empty')}
                 </td>
               </tr>
             ) : (
               bom.items.map((item, index) => (
-                <tr key={index} data-testid={`bom-row-${index}`}>
+                <tr key={index} data-testid={`bom-row-${index}`} className="align-top">
                   <td className="p-1">
                     <Input
                       aria-label={t('bom.columns.description')}
                       value={item.description}
                       readOnly={readOnly}
                       onChange={(e) => onItemChange(index, { description: e.target.value })}
+                    />
+                  </td>
+                  <td className="p-1">
+                    <MatchCell
+                      index={index}
+                      item={item}
+                      readOnly={readOnly}
+                      options={materialOptions}
+                      onPick={(materialId, name) =>
+                        onItemChange(index, {
+                          matchedMaterialId: materialId,
+                          matchedMaterialName: name,
+                          // A human pick is authoritative — drop the auto score.
+                          matchConfidence: null,
+                        })
+                      }
                     />
                   </td>
                   <td className="p-1">

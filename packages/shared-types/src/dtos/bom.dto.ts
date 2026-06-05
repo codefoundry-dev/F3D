@@ -1,4 +1,15 @@
 /**
+ * A candidate catalogue match for a BOM line, produced by the post-extraction
+ * matcher. `confidence` is a 0–1 token-similarity score (1 = identical
+ * descriptions). Candidates are ordered best-first.
+ */
+export interface BomCatalogueCandidate {
+  materialId: string;
+  name: string;
+  confidence: number;
+}
+
+/**
  * Bill of Materials extraction result. Specialises the generic
  * DocExtraction `editedResult` payload for BOM-typed jobs (FOR-200).
  *
@@ -12,7 +23,33 @@ export interface BomLineItem {
   unit: string | null;
   targetPrice: number | null;
   notes: string | null;
+  /**
+   * Catalogue-matching fields (optional — added after extraction by the
+   * matcher and editable in the review table). A line is considered
+   * "auto-matched" when `matchedMaterialId` is set; for an auto-match
+   * `matchConfidence` carries the similarity score, while a user-picked match
+   * leaves `matchConfidence` null (the human is the authority). Lines below the
+   * confidence threshold keep `matchedMaterialId` null and surface
+   * `matchCandidates` for manual resolution.
+   */
+  matchedMaterialId?: string | null;
+  matchedMaterialName?: string | null;
+  matchConfidence?: number | null;
+  matchCandidates?: BomCatalogueCandidate[];
 }
+
+/**
+ * Minimum similarity for a line to be auto-matched to a catalogue item.
+ * Mirrors the spec default (US-16, FR-R1-020). Lines below this are held for
+ * manual review. Not yet Contractor-configurable (future story).
+ */
+export const BOM_MATCH_CONFIDENCE_THRESHOLD = 0.85;
+
+/** Lowest similarity worth surfacing as a manual-review candidate. */
+export const BOM_MATCH_CANDIDATE_FLOOR = 0.4;
+
+/** Max candidates retained per line for the manual-match picker. */
+export const BOM_MATCH_MAX_CANDIDATES = 3;
 
 export interface BomExtractionResult {
   title: string | null;

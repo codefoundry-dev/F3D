@@ -1,11 +1,15 @@
-import type { BomExtractionResult } from '@forethread/shared-types/client';
-import { fireEvent, render, screen } from '@testing-library/react';
+import type { BomExtractionResult, BomLineItem } from '@forethread/shared-types/client';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { BomReviewTable } from './BomReviewTable';
 
 function emptyBom(): BomExtractionResult {
   return { title: null, projectName: null, currency: null, items: [], notes: null };
+}
+
+function bomWith(items: BomLineItem[]): Record<string, unknown> {
+  return { ...emptyBom(), items } as unknown as Record<string, unknown>;
 }
 
 describe('BomReviewTable', () => {
@@ -113,6 +117,96 @@ describe('BomReviewTable', () => {
     const next = onChange.mock.calls[0][0] as BomExtractionResult;
     expect(next.items).toHaveLength(1);
     expect(next.items[0].description).toBe('Rebar');
+  });
+
+  describe('catalogue match column', () => {
+    const autoMatched: BomLineItem = {
+      description: 'Cement',
+      quantity: 50,
+      unit: 'bag',
+      targetPrice: null,
+      notes: null,
+      matchedMaterialId: 'm-cement',
+      matchedMaterialName: 'Cement Bag 50kg',
+      matchConfidence: 0.92,
+      matchCandidates: [{ materialId: 'm-cement', name: 'Cement Bag 50kg', confidence: 0.92 }],
+    };
+    const lowConfidence: BomLineItem = {
+      description: 'Concrete Mix',
+      quantity: 10,
+      unit: 'm3',
+      targetPrice: null,
+      notes: null,
+      matchedMaterialId: null,
+      matchedMaterialName: null,
+      matchConfidence: null,
+      matchCandidates: [{ materialId: 'm-c30', name: 'Concrete Mix Grade 30', confidence: 0.67 }],
+    };
+    const unmatched: BomLineItem = {
+      description: 'Mystery widget',
+      quantity: 1,
+      unit: 'ea',
+      targetPrice: null,
+      notes: null,
+      matchedMaterialId: null,
+      matchedMaterialName: null,
+      matchConfidence: null,
+      matchCandidates: [],
+    };
+
+    it('shows confidence %, a review suggestion, and "No match" per line', () => {
+      render(
+        <BomReviewTable
+          value={bomWith([autoMatched, lowConfidence, unmatched])}
+          readOnly
+          onChange={vi.fn()}
+        />,
+      );
+
+      const matched = within(screen.getByTestId('bom-match-0'));
+      expect(matched.getByText('92%')).toBeInTheDocument();
+      expect(matched.getByText('Cement Bag 50kg')).toBeInTheDocument();
+
+      const review = within(screen.getByTestId('bom-match-1'));
+      expect(review.getByText('Review')).toBeInTheDocument();
+      expect(review.getByText(/Concrete Mix Grade 30 \(67%\)/)).toBeInTheDocument();
+
+      const none = within(screen.getByTestId('bom-match-2'));
+      expect(none.getByText('No match')).toBeInTheDocument();
+    });
+
+    it('does not render the picker in read-only mode', () => {
+      render(<BomReviewTable value={bomWith([unmatched])} readOnly onChange={vi.fn()} />);
+      expect(
+        within(screen.getByTestId('bom-match-0')).queryByRole('button'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('emits a manual match (confidence cleared) when a material is picked', () => {
+      const onChange = vi.fn();
+      const options = [
+        { value: 'm-cement', label: 'Cement Bag 50kg' },
+        { value: 'm-steel', label: 'Steel Rebar 12mm' },
+      ];
+      render(
+        <BomReviewTable
+          value={bomWith([unmatched])}
+          onChange={onChange}
+          materialOptions={options}
+        />,
+      );
+
+      // Open the per-row picker, then choose a catalogue material.
+      fireEvent.click(within(screen.getByTestId('bom-match-0')).getByRole('button'));
+      fireEvent.click(screen.getByRole('option', { name: 'Steel Rebar 12mm' }));
+
+      const next = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BomExtractionResult;
+      expect(next.items[0]).toMatchObject({
+        matchedMaterialId: 'm-steel',
+        matchedMaterialName: 'Steel Rebar 12mm',
+        matchConfidence: null,
+      });
+    });
   });
 
   it('disables add / remove controls when readOnly', () => {

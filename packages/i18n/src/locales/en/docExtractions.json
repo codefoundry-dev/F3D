@@ -35,7 +35,17 @@
       "quantity": "Qty",
       "unit": "UoM",
       "targetPrice": "Target price",
-      "notes": "Notes"
+      "notes": "Notes",
+      "match": "Catalogue match"
+    },
+    "match": {
+      "manual": "Matched",
+      "none": "No match",
+      "review": "Review",
+      "suggested": "{{name}} ({{pct}}%)",
+      "pick": "Match a material",
+      "search": "Search catalogue",
+      "confidence": "{{pct}}% confidence"
     },
     "actions": {
       "addRow": "Add row",
