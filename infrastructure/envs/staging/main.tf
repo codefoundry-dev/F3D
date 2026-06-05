@@ -92,11 +92,11 @@ module "compute" {
   # drift, so a change here is picked up only on create/taint).
   ami_id        = "ami-014049af4c3409183"
   instance_type = var.ec2_instance_type
-  # Temporarily false during the 2026-06-05 capacity-crunch recovery: with no
-  # t4g.micro free in 1b, a reservation create just hangs/fails and blocks the
-  # apply. Recover the instance first (1a), then flip back to true — an "open"
-  # reservation attaches to the already-running box without a restart.
-  enable_capacity_reservation = false
+  # Hold a t4g.micro slot in the instance's AZ (1a). The "open" reservation
+  # attaches to the running box with no restart. Re-enabled 2026-06-05 once the
+  # instance recovered in 1a; it was briefly false during the crunch because a
+  # reservation create cannot succeed while the AZ has zero free t4g.micro.
+  enable_capacity_reservation = true
   root_volume_size_gb         = var.ec2_root_volume_size_gb
   app_port                    = 3000
   domain_name                 = var.domain_name
