@@ -139,7 +139,10 @@ THROTTLE_LIMIT=100
 GOOGLE_PLACES_API_KEY=${PLACES_KEY}
 GEMINI_API_KEY=${GEMINI_KEY}
 GEMINI_MODEL=gemini-2.5-flash
-GEMINI_TIMEOUT_MS=60000
+# Real document extraction (multi-page docs + structured output) routinely runs
+# past 60s. A trivial generateContent from the host is ~0.4s, so the timeouts are
+# generation time, not network — 180s gives headroom before the 3x retry budget.
+GEMINI_TIMEOUT_MS=180000
 GEMINI_THINKING_BUDGET=0
 
 # App URLs. APP_URL is the backend's own public base (behind Caddy at the
