@@ -70,6 +70,8 @@ test-results
 
 # Claude Code
 .claude/settings.local.json
+# Throwaway git worktrees created by the Agent tool (isolation: worktree)
+.claude/worktrees/
 
 # Misc
 .cache
