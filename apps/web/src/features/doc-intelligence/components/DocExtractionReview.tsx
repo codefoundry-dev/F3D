@@ -9,6 +9,7 @@ import {
   useDocExtractionQuery,
   useUpdateDocExtraction,
 } from '../hooks/useDocExtraction';
+import { useMaterialOptions } from '../hooks/useMaterialOptions';
 
 import { BomReviewTable } from './BomReviewTable';
 
@@ -38,6 +39,9 @@ export function DocExtractionReview({ extractionId, onConfirmed }: DocExtraction
   const [draft, setDraft] = useState<string>('');
   const [parseError, setParseError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+
+  // Catalogue options for the BOM match picker — only fetched while editing a BOM.
+  const materialsQuery = useMaterialOptions(isBom && isEditing);
 
   // BOM table state — held as the canonical BOM shape so we can pass it to
   // the table without lossy round-trips through JSON.
@@ -157,6 +161,7 @@ export function DocExtractionReview({ extractionId, onConfirmed }: DocExtraction
           value={(isEditing ? bomDraft : job.editedResult) as Record<string, unknown> | null}
           readOnly={!isEditing}
           onChange={setBomDraft}
+          materialOptions={isEditing ? materialsQuery.data : undefined}
         />
       ) : (
         <div className="space-y-2">

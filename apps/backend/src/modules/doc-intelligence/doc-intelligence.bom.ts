@@ -1,4 +1,5 @@
 import {
+  type BomCatalogueCandidate,
   type BomExtractionResult,
   type BomLineItem,
   EMPTY_BOM_RESULT,
@@ -116,6 +117,48 @@ function normalizeString(raw: unknown): string | null {
   return trimmed.length === 0 ? null : trimmed;
 }
 
+function asNullableString(raw: unknown): string | null {
+  return typeof raw === 'string' ? raw : null;
+}
+
+function asNullableNumber(raw: unknown): number | null {
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
+}
+
+/** Keep only well-formed candidate entries from an already-matched line. */
+function normalizeCandidates(raw: unknown): BomCatalogueCandidate[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const candidates = raw
+    .map((entry): BomCatalogueCandidate | null => {
+      if (!entry || typeof entry !== 'object') return null;
+      const c = entry as Record<string, unknown>;
+      if (typeof c.materialId !== 'string' || typeof c.name !== 'string') return null;
+      return {
+        materialId: c.materialId,
+        name: c.name,
+        confidence: asNullableNumber(c.confidence) ?? 0,
+      };
+    })
+    .filter((c): c is BomCatalogueCandidate => c !== null);
+  return candidates;
+}
+
+/**
+ * Carry forward catalogue-match fields if the raw item was already annotated
+ * (e.g. re-normalising a previously matched BOM). The first extraction has no
+ * match fields yet — they are added later by the matcher — so this is a no-op
+ * in that path but keeps the function lossless on round-trips.
+ */
+function carryMatchFields(src: Record<string, unknown>, item: BomLineItem): BomLineItem {
+  if ('matchedMaterialId' in src) item.matchedMaterialId = asNullableString(src.matchedMaterialId);
+  if ('matchedMaterialName' in src)
+    item.matchedMaterialName = asNullableString(src.matchedMaterialName);
+  if ('matchConfidence' in src) item.matchConfidence = asNullableNumber(src.matchConfidence);
+  const candidates = normalizeCandidates(src.matchCandidates);
+  if (candidates) item.matchCandidates = candidates;
+  return item;
+}
+
 function normalizeItem(raw: unknown): BomLineItem | null {
   if (!raw || typeof raw !== 'object') return null;
   const v = raw as Record<string, unknown>;
@@ -131,13 +174,13 @@ function normalizeItem(raw: unknown): BomLineItem | null {
   // Drop header / blank rows.
   if (!description && quantity === null) return null;
 
-  return {
+  return carryMatchFields(v, {
     description: description ?? '',
     quantity,
     unit,
     targetPrice,
     notes,
-  };
+  });
 }
 
 /**
@@ -157,9 +200,7 @@ export function normalizeBomResult(raw: unknown): BomExtractionResult {
       ? v.lineItems
       : [];
 
-  const items = itemsArray
-    .map(normalizeItem)
-    .filter((item): item is BomLineItem => item !== null);
+  const items = itemsArray.map(normalizeItem).filter((item): item is BomLineItem => item !== null);
 
   return {
     title: normalizeString(v.title ?? v.documentTitle),

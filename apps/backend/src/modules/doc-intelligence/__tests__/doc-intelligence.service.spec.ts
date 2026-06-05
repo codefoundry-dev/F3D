@@ -1,7 +1,4 @@
-import {
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { DocExtractionStatus, DocExtractionType, UserRole } from '@prisma/client';
 
 import { AuthenticatedUser } from '../../../common/decorators/current-user.decorator';
@@ -80,6 +77,11 @@ function makeService() {
       update: jest.fn(),
       delete: jest.fn(),
     },
+    // BOM extractions match against the PUBLIC catalogue; default to empty so
+    // tests that don't care about matching aren't affected.
+    material: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     $transaction: jest.fn((arr: Promise<unknown>[]) => Promise.all(arr)),
   } as unknown as PrismaService & {
     file: { create: jest.Mock; delete: jest.Mock };
@@ -91,6 +93,7 @@ function makeService() {
       update: jest.Mock;
       delete: jest.Mock;
     };
+    material: { findMany: jest.Mock };
     $transaction: jest.Mock;
   };
 
@@ -236,6 +239,8 @@ describe('DocIntelligenceService', () => {
         id: 'job-1',
         type: DocExtractionType.BOM,
       });
+      // Catalogue has an exact match for the extracted "Cement" line.
+      prisma.material.findMany.mockResolvedValue([{ id: 'm-cement', name: 'Cement' }]);
       gemini.generate.mockResolvedValue({
         text: '{"title":"Concrete BOM","items":[{"description":"Cement","quantity":"50","unit":"BAGS","targetPrice":"$12.50"}]}',
         model: 'gemini-2.5-flash',
@@ -253,15 +258,15 @@ describe('DocIntelligenceService', () => {
           }),
         ]),
       );
-      const completed = updates.find(
-        (u) => u.data.status === DocExtractionStatus.COMPLETED,
-      );
+      const completed = updates.find((u) => u.data.status === DocExtractionStatus.COMPLETED);
       // rawResult keeps Gemini's raw payload; editedResult is normalized so the
       // BOM review UI gets numeric qty / canonical UoM / numeric targetPrice.
       expect(completed?.data.rawResult).toMatchObject({
         title: 'Concrete BOM',
         items: [{ description: 'Cement', quantity: '50' }],
       });
+      // editedResult is normalized AND annotated with the catalogue match +
+      // confidence score (exact name → auto-matched at confidence 1).
       expect(completed?.data.editedResult).toMatchObject({
         title: 'Concrete BOM',
         items: [
@@ -270,6 +275,9 @@ describe('DocIntelligenceService', () => {
             quantity: 50,
             unit: 'bag',
             targetPrice: 12.5,
+            matchedMaterialId: 'm-cement',
+            matchedMaterialName: 'Cement',
+            matchConfidence: 1,
           },
         ],
       });
@@ -437,9 +445,7 @@ describe('DocIntelligenceService', () => {
 
       const result = await service.updateExtraction('job-1', { foo: 'bar' }, baseUser);
       expect(result).toMatchObject({ id: 'job-1' });
-      const updateCall = prisma.docExtraction.update.mock.calls.find(
-        (c) => c[0].data.editedResult,
-      );
+      const updateCall = prisma.docExtraction.update.mock.calls.find((c) => c[0].data.editedResult);
       expect(updateCall?.[0].data).toMatchObject({
         editedResult: { foo: 'bar' },
         lastEditedByUserId: 'user-1',
@@ -531,10 +537,7 @@ describe('DocIntelligenceService', () => {
       prisma.docExtraction.findMany.mockResolvedValue([]);
       prisma.docExtraction.count.mockResolvedValue(0);
 
-      await service.listExtractions(
-        makeQuery(),
-        { ...baseUser, companyId: null },
-      );
+      await service.listExtractions(makeQuery(), { ...baseUser, companyId: null });
 
       const where = prisma.docExtraction.findMany.mock.calls[0][0].where;
       expect(where).toEqual(expect.objectContaining({ createdByUserId: 'user-1' }));
@@ -548,10 +551,7 @@ describe('DocIntelligenceService', () => {
       await service.listExtractions(makeQuery(), baseUser);
 
       const where = prisma.docExtraction.findMany.mock.calls[0][0].where;
-      expect(where.OR).toEqual([
-        { companyId: 'company-1' },
-        { createdByUserId: 'user-1' },
-      ]);
+      expect(where.OR).toEqual([{ companyId: 'company-1' }, { createdByUserId: 'user-1' }]);
     });
 
     it('applies no scope for SUPER_ADMIN', async () => {
@@ -559,10 +559,7 @@ describe('DocIntelligenceService', () => {
       prisma.docExtraction.findMany.mockResolvedValue([]);
       prisma.docExtraction.count.mockResolvedValue(0);
 
-      await service.listExtractions(
-        makeQuery(),
-        { ...baseUser, role: UserRole.SUPER_ADMIN },
-      );
+      await service.listExtractions(makeQuery(), { ...baseUser, role: UserRole.SUPER_ADMIN });
 
       const where = prisma.docExtraction.findMany.mock.calls[0][0].where;
       expect(where.OR).toBeUndefined();

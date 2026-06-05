@@ -1,11 +1,16 @@
 import { randomUUID } from 'crypto';
 import * as path from 'path';
 
-import { DocExtractionListQueryDto, buildPaginationMeta } from '@forethread/shared-types';
+import {
+  DocExtractionListQueryDto,
+  buildPaginationMeta,
+  type BomExtractionResult,
+} from '@forethread/shared-types';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   DocExtractionStatus,
   DocExtractionType,
+  MaterialStatus,
   Prisma,
   type DocExtraction,
   type File as PrismaFile,
@@ -19,6 +24,7 @@ import { GeminiError, type GeminiMimeType } from '../gemini/gemini.types';
 import { StorageService } from '../storage/storage.service';
 
 import { normalizeBomResult } from './doc-intelligence.bom';
+import { annotateBomWithMatches } from './doc-intelligence.match';
 import { buildExtractionPrompt } from './doc-intelligence.prompts';
 import { normalizeQuoteResult } from './doc-intelligence.quote';
 import { spreadsheetToText } from './doc-intelligence.spreadsheet';
@@ -236,13 +242,19 @@ export class DocIntelligenceService {
 
       const parsed = this.parseJson(result.text);
       const normalized = this.normalizeForType(job.type, parsed);
+      // For BOMs, enrich each line with its best catalogue match + confidence
+      // so the review table can show matches and flag low-confidence lines.
+      const editedResult =
+        job.type === DocExtractionType.BOM
+          ? await this.matchBomToCatalogue(normalized)
+          : normalized;
 
       await this.prisma.docExtraction.update({
         where: { id: extractionId },
         data: {
           status: DocExtractionStatus.COMPLETED,
           rawResult: parsed as Prisma.InputJsonValue,
-          editedResult: normalized as Prisma.InputJsonValue,
+          editedResult: editedResult as Prisma.InputJsonValue,
           model: result.model,
           promptTokens: result.usage?.promptTokenCount ?? null,
           completionTokens: result.usage?.candidatesTokenCount ?? null,
@@ -288,6 +300,33 @@ ${sheetText}`;
       return normalizeQuoteResult(parsed) as unknown as Record<string, unknown>;
     }
     return parsed;
+  }
+
+  /**
+   * Annotate a normalized BOM with catalogue matches + confidence scores
+   * against the PUBLIC material catalogue. Best-effort: any failure (DB hiccup,
+   * empty catalogue) leaves the BOM unmatched rather than failing the whole
+   * extraction — the user can still match lines manually in the review table.
+   */
+  private async matchBomToCatalogue(
+    normalized: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    try {
+      const bom = normalized as unknown as BomExtractionResult;
+      if (!Array.isArray(bom.items) || bom.items.length === 0) return normalized;
+
+      const materials = await this.prisma.material.findMany({
+        where: { status: MaterialStatus.PUBLIC },
+        select: { id: true, name: true },
+      });
+      if (materials.length === 0) return normalized;
+
+      return annotateBomWithMatches(bom, materials) as unknown as Record<string, unknown>;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'unknown error';
+      this.logger.warn(`BOM catalogue matching skipped: ${message}`);
+      return normalized;
+    }
   }
 
   private parseJson(raw: string): Record<string, unknown> {
