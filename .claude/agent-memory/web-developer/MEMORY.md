@@ -55,6 +55,9 @@
 - TanStack Query hooks live in `packages/{rfq,po}-shared/src/hooks/use{Rfqs,PurchaseOrders}.ts`;
   queryKey style `['rfqs', id, 'sub-resource']` / `['purchase-orders', id, 'sub-resource']`,
   `enabled: !!id`. Export from both the hooks `index.ts` and the package root `index.ts`.
+- GOTCHA (RFQ lineItems): zod types `lineItems[].source` as a string union but the api-client DTO
+  uses the `RfqLineItemSource` enum — nominally incompatible at `tsc`. Cast at the service boundary.
+  See [rfq-line-item-source-enum-vs-zod.md](rfq-line-item-source-enum-vs-zod.md).
 
 ## Verification Commands (this monorepo, Windows)
 
