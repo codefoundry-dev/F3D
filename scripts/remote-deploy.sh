@@ -107,7 +107,7 @@ JWT_REFRESH_EXPIRES_IN=7d
 
 # Email - Resend
 RESEND_API_KEY=${RESEND_KEY}
-RESEND_FROM=onboarding@resend.dev
+RESEND_FROM=notifications@updates.forethread.com
 
 # Email - SMTP (unused with Resend, but some code paths may read it)
 SMTP_HOST=
@@ -115,7 +115,7 @@ SMTP_PORT=0
 SMTP_SECURE=false
 SMTP_USER=
 SMTP_PASS=
-SMTP_FROM=onboarding@resend.dev
+SMTP_FROM=notifications@updates.forethread.com
 
 # S3 uploads (IAM role on the instance provides credentials; access keys left unset)
 S3_BUCKET=${S3_BUCKET}
