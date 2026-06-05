@@ -215,6 +215,14 @@ resource "aws_instance" "this" {
   user_data                   = local.user_data
   user_data_replace_on_change = true
 
+  # Fail fast on InsufficientInstanceCapacity instead of retrying for the 10m
+  # default: a starved create then errors quickly and terraform releases its
+  # state lock cleanly, rather than leaving a CI apply hanging (and at risk of
+  # being cancelled, which orphans the lock).
+  timeouts {
+    create = "5m"
+  }
+
   # Don't replace the instance just because Amazon shipped a new AMI. AMI rolls
   # are a deliberate operation: bump the data source filter, taint, and apply.
   #
