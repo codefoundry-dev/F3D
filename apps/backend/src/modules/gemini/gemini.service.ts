@@ -172,7 +172,18 @@ export class GeminiService {
       return new GeminiError('INVALID_KEY', `Gemini rejected the API key (HTTP ${status})`, status);
     }
     if (status === 429) {
-      return new GeminiError('RATE_LIMITED', 'Gemini rate limit exceeded', status);
+      // Google overloads 429 for both transient rate limits AND hard quota /
+      // prepay-credit exhaustion. The body distinguishes them: an exhausted
+      // quota will never recover within a request, so it must NOT be retried.
+      const exhausted = /credits?\s+(?:are\s+)?depleted|RESOURCE_EXHAUSTED|quota|billing/i.test(
+        bodyText,
+      );
+      const message = extractErrorMessage(bodyText);
+      return new GeminiError(
+        exhausted ? 'QUOTA_EXHAUSTED' : 'RATE_LIMITED',
+        message ?? (exhausted ? 'Gemini quota or prepay credits exhausted' : 'Gemini rate limit exceeded'),
+        status,
+      );
     }
     if (status >= 500) {
       return new GeminiError(
@@ -214,4 +225,22 @@ export class GeminiService {
 function toFiniteNumber(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+/**
+ * Pull the human-readable reason out of a Gemini error body so it reaches our
+ * logs and the failed-extraction record. Gemini errors are shaped
+ * `{ error: { message, status } }`; fall back to a trimmed raw slice when the
+ * body isn't the expected JSON.
+ */
+function extractErrorMessage(bodyText: string): string | undefined {
+  try {
+    const parsed = JSON.parse(bodyText) as { error?: { message?: string } };
+    const message = parsed.error?.message?.trim();
+    if (message) return message.slice(0, 300);
+  } catch {
+    // not JSON — fall through to the raw slice
+  }
+  const trimmed = bodyText.trim();
+  return trimmed ? trimmed.slice(0, 300) : undefined;
 }

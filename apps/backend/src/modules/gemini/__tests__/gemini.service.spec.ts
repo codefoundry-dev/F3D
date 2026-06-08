@@ -203,6 +203,34 @@ describe('GeminiService', () => {
       expect(fetchMock).toHaveBeenCalledTimes(3); // initial + 2 retries
     }, 5000);
 
+    it('maps a 429 credit/quota-exhaustion 429 to QUOTA_EXHAUSTED without retrying', async () => {
+      const service = createService();
+      const message =
+        'Your prepayment credits are depleted. Please go to AI Studio to manage billing.';
+      const fetchMock = jest.fn().mockResolvedValue(errorResponse(429, message));
+      global.fetch = fetchMock;
+
+      const err = (await service.generate({ prompt: 'x' }).catch((e) => e)) as GeminiError;
+
+      expect(err.code).toBe('QUOTA_EXHAUSTED');
+      expect(err.message).toContain('prepayment credits are depleted');
+      expect(fetchMock).toHaveBeenCalledTimes(1); // not retried — credits won't recover mid-request
+    });
+
+    it('surfaces the real Gemini error message on a transient RATE_LIMITED', async () => {
+      const service = createService();
+      const fetchMock = jest
+        .fn()
+        .mockResolvedValue(errorResponse(429, 'Too many requests, please slow down'));
+      global.fetch = fetchMock;
+
+      const err = (await service.generate({ prompt: 'x' }).catch((e) => e)) as GeminiError;
+
+      expect(err.code).toBe('RATE_LIMITED');
+      expect(err.message).toBe('Too many requests, please slow down');
+      expect(fetchMock).toHaveBeenCalledTimes(3); // still retryable
+    }, 5000);
+
     it('retries on 5xx then succeeds on the second attempt', async () => {
       const service = createService();
       const fetchMock = jest

@@ -8,7 +8,16 @@ export const rfqListQuerySchema = z.object({
     .enum(['Draft', 'Open', 'AwaitingResponse', 'Quoted', 'Awarded', 'Closed', 'Cancelled'])
     .optional(),
   quickFilter: z
-    .enum(['MyRfqs', 'OpenRfqs', 'AwaitingResponses', 'NoQuotes', 'AwardedRfqs', 'ClosedRfqs'])
+    .enum([
+      'myRfqs',
+      'openRfqs',
+      'awaitingResponses',
+      'noQuotes',
+      'awardedRfqs',
+      'closedRfqs',
+      'incoming',
+      'approvedForMe',
+    ])
     .optional(),
   projectId: z.string().uuid().optional(),
   sortBy: z.string().optional().default('createdDate'),

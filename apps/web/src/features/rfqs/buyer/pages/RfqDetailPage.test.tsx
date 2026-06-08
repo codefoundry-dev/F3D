@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -11,9 +11,35 @@ function wrapper({ children }: { children: ReactNode }) {
 const mockUseRfq = vi.hoisted(() => vi.fn());
 const mockUseParams = vi.hoisted(() => vi.fn());
 const mockUseSearchParams = vi.hoisted(() => vi.fn());
+const mockSendRfq = vi.hoisted(() => ({
+  mutateAsync: vi.fn(),
+  isPending: false,
+  isError: false,
+}));
 
 vi.mock('@forethread/i18n', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
+}));
+
+vi.mock('../services/rfqs.service', () => ({
+  useSendRfq: () => mockSendRfq,
+}));
+
+// Lightweight stand-in so the detail-page test doesn't depend on the dialog's
+// internals (Modal, CC parsing — those are covered by SendRfqDialog's own test).
+vi.mock('../components/create/SendRfqDialog', () => ({
+  SendRfqDialog: ({ vendorCount, isError, onSend, onCancel }: any) => (
+    <div role="dialog" data-testid="send-dialog">
+      <span data-testid="send-dialog-count">{vendorCount}</span>
+      {isError && <span data-testid="send-dialog-error">error</span>}
+      <button data-testid="dialog-confirm" onClick={() => onSend(['ops@acme.com'])}>
+        confirm
+      </button>
+      <button data-testid="dialog-cancel" onClick={onCancel}>
+        cancel
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock('@forethread/api-client', () => ({
@@ -83,14 +109,25 @@ vi.mock('@forethread/ui-components', () => ({
     children,
     leftIcon,
     onClick,
+    disabled,
+    title,
+    ...props
   }: {
     children: React.ReactNode;
     leftIcon?: React.ReactNode;
     variant?: string;
     size?: string;
     onClick?: () => void;
+    disabled?: boolean;
+    title?: string;
+    'data-testid'?: string;
   }) => (
-    <button data-testid="btn" onClick={onClick}>
+    <button
+      data-testid={props['data-testid'] ?? 'btn'}
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+    >
       {leftIcon}
       {children}
     </button>
@@ -152,7 +189,21 @@ describe('RfqDetailPage', () => {
     vi.clearAllMocks();
     mockUseParams.mockReturnValue({ id: 'RFQ-2024-008' });
     mockUseSearchParams.mockReturnValue([new URLSearchParams(), setSearchParams]);
+    mockSendRfq.isPending = false;
+    mockSendRfq.isError = false;
+    mockSendRfq.mutateAsync.mockResolvedValue({ ...MOCK_RFQ, status: 'OPEN' });
   });
+
+  /** A sendable DRAFT RFQ (status DRAFT, with line items + vendors). */
+  const DRAFT_RFQ = {
+    ...MOCK_RFQ,
+    status: 'DRAFT',
+    lineItems: [{ id: 'li-1', materialName: 'Cement', quantity: 5, unit: 'bag', description: null }],
+    vendors: [
+      { id: 'rv-1', vendorId: 'company-1', vendorName: 'Acme' },
+      { id: 'rv-2', vendorId: 'company-2', vendorName: 'BuildCo' },
+    ],
+  };
 
   it('renders spinner while loading', () => {
     mockUseRfq.mockReturnValue({ data: undefined, isLoading: true, isError: false });
@@ -290,5 +341,59 @@ describe('RfqDetailPage', () => {
     mockUseSearchParams.mockReturnValue([new URLSearchParams('tab=documents'), setSearchParams]);
     render(<RfqDetailPage />, { wrapper });
     expect(screen.queryByTestId('right-slot')).not.toBeInTheDocument();
+  });
+
+  // ── Send to vendors (DRAFT only) ──────────────────────────────────────────
+
+  it('shows the Send to vendors button for a DRAFT RFQ', () => {
+    mockUseRfq.mockReturnValue({ data: DRAFT_RFQ, isLoading: false, isError: false });
+    render(<RfqDetailPage />, { wrapper });
+    expect(screen.getByTestId('send-to-vendors')).toBeInTheDocument();
+  });
+
+  it('hides the Send to vendors button when the RFQ is not a draft', () => {
+    mockUseRfq.mockReturnValue({
+      data: { ...DRAFT_RFQ, status: 'OPEN' },
+      isLoading: false,
+      isError: false,
+    });
+    render(<RfqDetailPage />, { wrapper });
+    expect(screen.queryByTestId('send-to-vendors')).not.toBeInTheDocument();
+  });
+
+  it('disables Send when the draft has no line items or no vendors', () => {
+    mockUseRfq.mockReturnValue({
+      data: { ...DRAFT_RFQ, vendors: [] },
+      isLoading: false,
+      isError: false,
+    });
+    render(<RfqDetailPage />, { wrapper });
+    expect(screen.getByTestId('send-to-vendors')).toBeDisabled();
+  });
+
+  it('opens the dialog with the vendor count and sends with the RFQ id + CC', async () => {
+    mockUseRfq.mockReturnValue({ data: DRAFT_RFQ, isLoading: false, isError: false });
+    render(<RfqDetailPage />, { wrapper });
+
+    fireEvent.click(screen.getByTestId('send-to-vendors'));
+    expect(screen.getByTestId('send-dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('send-dialog-count')).toHaveTextContent('2');
+
+    fireEvent.click(screen.getByTestId('dialog-confirm'));
+    await waitFor(() =>
+      expect(mockSendRfq.mutateAsync).toHaveBeenCalledWith({
+        id: 'RFQ-2024-008',
+        cc: ['ops@acme.com'],
+      }),
+    );
+  });
+
+  it('surfaces the send error in the dialog', () => {
+    mockSendRfq.isError = true;
+    mockUseRfq.mockReturnValue({ data: DRAFT_RFQ, isLoading: false, isError: false });
+    render(<RfqDetailPage />, { wrapper });
+
+    fireEvent.click(screen.getByTestId('send-to-vendors'));
+    expect(screen.getByTestId('send-dialog-error')).toBeInTheDocument();
   });
 });

@@ -67,6 +67,10 @@ const mockAccessTokens = {
   issueToken: jest.fn(),
 };
 
+const mockPoStatusService = {
+  issuePurchaseOrder: jest.fn(),
+};
+
 const mockConfig = {
   get: jest.fn((_key: string, fallback: string) => fallback),
 };
@@ -146,12 +150,14 @@ describe('RfqsService', () => {
       mockStorageService as never,
       mockEmailService as never,
       mockAccessTokens as never,
+      mockPoStatusService as never,
       mockConfig as never,
     );
     mockAccessTokens.issueToken.mockResolvedValue({
       token: 'issued-token-xyz',
       record: { id: 'tok-1' },
     });
+    mockPoStatusService.issuePurchaseOrder.mockResolvedValue({});
   });
 
   // ── listRfqs ────────────────────────────────────────────────────────────
@@ -200,20 +206,20 @@ describe('RfqsService', () => {
       expect(where.OR).toHaveLength(2);
     });
 
-    it('applies quick filter MyRfqs', async () => {
-      await service.listRfqs(q({ quickFilter: 'MyRfqs' as never }), companyAdmin);
+    it('applies quick filter myRfqs', async () => {
+      await service.listRfqs(q({ quickFilter: 'myRfqs' as never }), companyAdmin);
       const where = mockPrisma.rfq.findMany.mock.calls[0][0].where;
       expect(where.createdByUserId).toBe('ca-1');
     });
 
-    it('applies quick filter OpenRfqs', async () => {
-      await service.listRfqs(q({ quickFilter: 'OpenRfqs' as never }), companyAdmin);
+    it('applies quick filter openRfqs', async () => {
+      await service.listRfqs(q({ quickFilter: 'openRfqs' as never }), companyAdmin);
       const where = mockPrisma.rfq.findMany.mock.calls[0][0].where;
       expect(where.status).toBe('OPEN');
     });
 
-    it('applies quick filter NoQuotes', async () => {
-      await service.listRfqs(q({ quickFilter: 'NoQuotes' as never }), companyAdmin);
+    it('applies quick filter noQuotes', async () => {
+      await service.listRfqs(q({ quickFilter: 'noQuotes' as never }), companyAdmin);
       const where = mockPrisma.rfq.findMany.mock.calls[0][0].where;
       expect(where.quoteResponses).toEqual({ none: {} });
     });
@@ -320,8 +326,8 @@ describe('RfqsService', () => {
       expect(where.status).toBe(RfqStatus.OPEN);
     });
 
-    it('MyRfqs quick filter does not set createdByUserId for vendors', async () => {
-      await service.listRfqs(q({ quickFilter: 'MyRfqs' as never }), vendor);
+    it('myRfqs quick filter does not set createdByUserId for vendors', async () => {
+      await service.listRfqs(q({ quickFilter: 'myRfqs' as never }), vendor);
       const where = mockPrisma.rfq.findMany.mock.calls[0][0].where;
       expect(where.createdByUserId).toBeUndefined();
     });
@@ -1218,6 +1224,27 @@ describe('RfqsService', () => {
       expect(mockPrisma.quoteAudit.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ action: 'APPROVED', quoteResponseId: 'quote-1' }),
       });
+    });
+
+    it('auto-sends the created PO so the winning vendor is notified (FRD §1189)', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue(awardableQuote);
+      primeAwardTransaction();
+
+      await service.awardQuote('rfq-1', 'quote-1', companyAdmin);
+
+      expect(mockPoStatusService.issuePurchaseOrder).toHaveBeenCalledWith('po-1', companyAdmin);
+    });
+
+    it('still resolves the award when auto-send fails, leaving the PO as a draft', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue(awardableQuote);
+      primeAwardTransaction();
+      mockPoStatusService.issuePurchaseOrder.mockRejectedValueOnce(new Error('SMTP down'));
+
+      const result = await service.awardQuote('rfq-1', 'quote-1', companyAdmin);
+
+      expect(result).toEqual(
+        expect.objectContaining({ purchaseOrderId: 'po-1', poNumber: 'PO-00001' }),
+      );
     });
 
     it('derives PO line items from the quote, dropping NO_QUOTE lines', async () => {
@@ -2216,11 +2243,12 @@ describe('RfqsService', () => {
         }),
       );
       expect(mockEmailService.sendRfqReceivedEmail).toHaveBeenCalledTimes(2);
-      // Active user → /rfqs URL, not invitation URL
+      // Every vendor — including those with active accounts — gets the tokenized
+      // guest invitation link (FOR-201 + ADR-0002), never the bare /rfqs list.
       expect(mockEmailService.sendRfqReceivedEmail).toHaveBeenCalledWith(
         'active@vendor.com',
         'RFQ-1',
-        'http://localhost:5179/rfqs',
+        'http://localhost:5179/invitation/issued-token-xyz',
         expect.objectContaining({
           cc: [],
           attachments: [],
@@ -2552,7 +2580,7 @@ describe('RfqsService', () => {
       expect(mockEmailService.sendRfqReceivedEmail).toHaveBeenCalledWith(
         'active@vendor.com',
         'RFQ-1',
-        'http://localhost:5179/rfqs',
+        'http://localhost:5179/invitation/issued-token-xyz',
         expect.objectContaining({
           cc: ['pm@acme.com'],
           attachments: [{ filename: 'spec.pdf', content: pdf, contentType: 'application/pdf' }],
@@ -2638,7 +2666,7 @@ describe('RfqsService', () => {
       expect(mockEmailService.sendRfqReceivedEmail).toHaveBeenCalledWith(
         'active@vendor.com',
         'RFQ-1',
-        'http://localhost:5179/rfqs',
+        'http://localhost:5179/invitation/issued-token-xyz',
         expect.objectContaining({
           cc: [],
           attachments: [{ filename: 'ok.pdf', content: okPdf, contentType: 'application/pdf' }],

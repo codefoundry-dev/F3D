@@ -12,6 +12,11 @@ const mockUpdateDraft = vi.hoisted(() => ({
   isPending: false,
   isError: false,
 }));
+const mockSendRfq = vi.hoisted(() => ({
+  mutateAsync: vi.fn(),
+  isPending: false,
+  isError: false,
+}));
 
 const mockUseRfqProjects = vi.hoisted(() => vi.fn());
 const mockUseRfqMaterials = vi.hoisted(() => vi.fn());
@@ -28,6 +33,7 @@ const mockUseConfirmedBoms = vi.hoisted(() => vi.fn());
 vi.mock('../services/rfqs.service', () => ({
   useSaveRfqDraft: () => mockSaveDraft,
   useUpdateRfq: () => mockUpdateDraft,
+  useSendRfq: () => mockSendRfq,
   useRfqProjects: mockUseRfqProjects,
   useRfqMaterials: mockUseRfqMaterials,
   useAssignedVendors: mockUseAssignedVendors,
@@ -109,6 +115,10 @@ vi.mock('@forethread/ui-components', () => ({
     </button>
   ),
   Alert: ({ children }: any) => <div role="alert">{children}</div>,
+  Modal: ({ children }: any) => <div role="dialog">{children}</div>,
+  ModalHeader: ({ children }: any) => <div>{children}</div>,
+  ModalBody: ({ children }: any) => <div>{children}</div>,
+  ModalFooter: ({ children }: any) => <div>{children}</div>,
   onDecimalOnly: vi.fn(),
 }));
 
@@ -120,7 +130,11 @@ import CreateRfqPage from './CreateRfqPage';
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const MATERIAL_ID = '22222222-2222-4222-8222-222222222222';
+// VENDOR_ID is the CompanyVendorAssignment row id; VENDOR_COMPANY_ID is the
+// vendor's Company id. The wizard must submit the Company id (what the RFQ
+// backend validates), so these are deliberately different.
 const VENDOR_ID = '33333333-3333-4333-8333-333333333333';
+const VENDOR_COMPANY_ID = '55555555-5555-4555-8555-555555555555';
 const LOCATION_ID = '44444444-4444-4444-8444-444444444444';
 
 function setupData() {
@@ -132,7 +146,7 @@ function setupData() {
     data: [{ id: MATERIAL_ID, name: 'Cement', unitOfMeasure: 'bag' }],
   });
   mockUseAssignedVendors.mockReturnValue({
-    data: [{ id: VENDOR_ID, companyName: 'Acme Supplies' }],
+    data: [{ id: VENDOR_ID, companyId: VENDOR_COMPANY_ID, companyName: 'Acme Supplies' }],
     isLoading: false,
   });
   mockUseProjectDeliveryLocations.mockReturnValue({
@@ -155,6 +169,25 @@ async function addMaterial(qty = '50') {
   fireEvent.click(screen.getByTestId('add-line-item'));
 }
 
+/** Render the wizard and walk every step until the Review step is showing. */
+async function walkToReviewStep() {
+  render(<CreateRfqPage />);
+  selectProject();
+  fireEvent.click(screen.getByTestId('next-step'));
+  await addMaterial('10');
+  fireEvent.click(screen.getByTestId('next-step'));
+  await screen.findByTestId('vendor-list');
+  fireEvent.click(within(screen.getByTestId('vendor-list')).getByRole('checkbox'));
+  fireEvent.click(screen.getByTestId('next-step'));
+  await screen.findByText('Response deadline');
+  fireEvent.change(screen.getByLabelText(/select a delivery location/i), {
+    target: { value: LOCATION_ID },
+  });
+  fireEvent.change(screen.getAllByLabelText('date')[0], { target: { value: '2030-01-15' } });
+  fireEvent.click(screen.getByTestId('next-step'));
+  await screen.findByTestId('review-line-items');
+}
+
 describe('CreateRfqPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -163,8 +196,11 @@ describe('CreateRfqPage', () => {
     mockSaveDraft.isError = false;
     mockUpdateDraft.isPending = false;
     mockUpdateDraft.isError = false;
+    mockSendRfq.isPending = false;
+    mockSendRfq.isError = false;
     mockSaveDraft.mutateAsync.mockResolvedValue({ id: 'draft-1' });
     mockUpdateDraft.mutateAsync.mockResolvedValue({ id: 'draft-1' });
+    mockSendRfq.mutateAsync.mockResolvedValue({ id: 'draft-1' });
     setupData();
   });
 
@@ -269,10 +305,16 @@ describe('CreateRfqPage', () => {
     await addMaterial('10');
     fireEvent.click(screen.getByTestId('next-step'));
 
-    // Step 3: vendors
+    // Step 3: vendors — selecting a vendor must submit its Company id, not the
+    // assignment row id, or the RFQ backend rejects it (assertVendorsAssigned).
     await screen.findByTestId('vendor-list');
     fireEvent.click(within(screen.getByTestId('vendor-list')).getByRole('checkbox'));
     fireEvent.click(screen.getByTestId('next-step'));
+    await waitFor(() =>
+      expect(mockUpdateDraft.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ dto: expect.objectContaining({ vendorIds: [VENDOR_COMPANY_ID] }) }),
+      ),
+    );
 
     // Step 4: delivery
     await screen.findByText('Response deadline');
@@ -289,6 +331,41 @@ describe('CreateRfqPage', () => {
 
     fireEvent.click(screen.getByTestId('save-as-draft'));
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/rfqs/draft-1'));
+  });
+
+  it('sends the RFQ to vendors via the confirm dialog (with CC) then navigates to the detail page', async () => {
+    await walkToReviewStep();
+
+    // Send opens a confirmation dialog rather than firing immediately.
+    fireEvent.click(screen.getByTestId('send-to-vendors'));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/will be emailed a secure link/i)).toBeInTheDocument();
+    expect(mockSendRfq.mutateAsync).not.toHaveBeenCalled();
+
+    // CC is parsed (trailing comma/space trimmed) and the saved draft id is sent.
+    fireEvent.change(screen.getByTestId('send-rfq-cc'), { target: { value: 'ops@acme.com, ' } });
+    fireEvent.click(screen.getByTestId('confirm-send-rfq'));
+
+    await waitFor(() =>
+      expect(mockSendRfq.mutateAsync).toHaveBeenCalledWith({
+        id: 'draft-1',
+        cc: ['ops@acme.com'],
+      }),
+    );
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/rfqs/draft-1'));
+  });
+
+  it('surfaces an in-dialog error when sending the RFQ fails', async () => {
+    mockSendRfq.mutateAsync.mockRejectedValueOnce(new Error('boom'));
+    mockSendRfq.isError = true;
+    await walkToReviewStep();
+
+    fireEvent.click(screen.getByTestId('send-to-vendors'));
+    fireEvent.click(await screen.findByTestId('confirm-send-rfq'));
+
+    expect(await screen.findByText(/couldn’t send this RFQ/i)).toBeInTheDocument();
+    // Dialog stays open; no navigation away on failure.
+    expect(mockNavigate).not.toHaveBeenCalledWith('/rfqs/draft-1');
   });
 
   it('shows an error alert when the draft save fails', async () => {

@@ -94,6 +94,7 @@
     "collapse": "Collapse",
     "fullscreen": "Fullscreen",
     "exportAs": "Export as",
+    "sendToVendors": "Send to vendors",
     "response": "Response",
     "editResponse": "Edit Response"
   },
@@ -149,6 +150,7 @@
   },
   "detail": {
     "noData": "No data available",
+    "sendDisabledHint": "Add at least one line item and one vendor before sending.",
     "failedToLoad": "Failed to load RFQ details. Please try again."
   },
   "tabs": {

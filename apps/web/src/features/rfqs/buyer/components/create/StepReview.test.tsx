@@ -2,9 +2,11 @@ import { render, screen, within } from '@testing-library/react';
 
 import { StepReview } from './StepReview';
 
+// id = assignment row id, companyId = vendor Company id. Selection is keyed on
+// companyId (what the RFQ backend validates), so the two differ here.
 const vendors = [
-  { id: 'v1', companyName: 'Acme Supplies' },
-  { id: 'v2', companyName: 'BuildCo' },
+  { id: 'assign-1', companyId: 'company-1', companyName: 'Acme Supplies' },
+  { id: 'assign-2', companyId: 'company-2', companyName: 'BuildCo' },
 ] as any;
 const locations = [{ id: 'l1', type: 'DELIVERY', address: '1 Build St', label: 'Site' }] as any;
 
@@ -26,7 +28,7 @@ describe('StepReview', () => {
         projectName="Tower 5"
         lineItems={lineItems}
         vendors={vendors}
-        selectedVendorIds={['v1']}
+        selectedVendorIds={['company-1']}
         delivery={delivery}
         locations={locations}
       />,
@@ -67,7 +69,7 @@ describe('StepReview', () => {
         projectName="Tower 5"
         lineItems={lineItems}
         vendors={vendors}
-        selectedVendorIds={['v1']}
+        selectedVendorIds={['company-1']}
         delivery={{ ...delivery, holdForRelease: true, earliestDeliveryDate: '2030-02-01T00:00:00.000Z' }}
         locations={locations}
       />,

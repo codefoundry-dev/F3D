@@ -106,6 +106,7 @@ export default function RfqListPage() {
     sortBy: s.sortBy || undefined,
     sortDir: s.sortBy && s.sortDir ? s.sortDir : undefined,
     groupBy: s.groupBy || undefined,
+    projectId: af.projectId[0] || undefined,
     status: af.status.length === 1 ? af.status[0] : undefined,
     deliveryLocation: af.deliveryLocation[0] || undefined,
     createdByUserId: af.createdByUserId[0] || undefined,
@@ -120,7 +121,9 @@ export default function RfqListPage() {
   const items = useMemo(() => data?.items ?? [], [data?.items]);
   const totalCount = data?.meta.total ?? 0;
 
-  const { data: allData } = useRfqs({ page: 1, limit: 500 });
+  // Fetch a wide page to populate the advanced-filter dropdowns (project /
+  // location / createdBy). limit is capped at 100 by the API (BasePaginationQueryDto).
+  const { data: allData } = useRfqs({ page: 1, limit: 100 });
   const allItems = useMemo(() => allData?.items ?? [], [allData?.items]);
 
   const { groupedItems, expandedGroups, toggleGroup } = useRfqGrouping(

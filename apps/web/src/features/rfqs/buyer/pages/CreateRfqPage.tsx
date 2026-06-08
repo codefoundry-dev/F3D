@@ -15,6 +15,7 @@ import { ROUTES } from '@/app/route-config';
 import { useConfirmedBoms } from '@/features/doc-intelligence';
 
 import { deriveBomLineNameAndNotes } from '../components/create/bom-draft';
+import { SendRfqDialog } from '../components/create/SendRfqDialog';
 import { StepDelivery, type DeliveryStepValues } from '../components/create/StepDelivery';
 import { StepIndicator } from '../components/create/StepIndicator';
 import { StepMaterials, type RfqLineItemDraft } from '../components/create/StepMaterials';
@@ -24,6 +25,7 @@ import { StepVendors } from '../components/create/StepVendors';
 import {
   useSaveRfqDraft,
   useUpdateRfq,
+  useSendRfq,
   useRfqProjects,
   useProjectDeliveryLocations,
   useRfqMaterials,
@@ -111,6 +113,7 @@ export default function CreateRfqPage() {
   const [furthestReached, setFurthestReached] = useState(0);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [draftId, setDraftId] = useState<string | null>(null);
+  const [showSendDialog, setShowSendDialog] = useState(false);
 
   // ── Form slices ───────────────────────────────────────────────────────────
   const [projectId, setProjectId] = useState('');
@@ -152,6 +155,7 @@ export default function CreateRfqPage() {
   // ── Mutations (save-as-you-go) ─────────────────────────────────────────────
   const saveDraft = useSaveRfqDraft();
   const updateDraft = useUpdateRfq();
+  const sendRfq = useSendRfq();
   const isSaving = saveDraft.isPending || updateDraft.isPending;
   const isSaveError = saveDraft.isError || updateDraft.isError;
 
@@ -192,17 +196,23 @@ export default function CreateRfqPage() {
     return false;
   };
 
-  /** Persist completed slices up to (and including) `completedStep`. */
-  const persist = async (completedStep: number) => {
+  /**
+   * Persist completed slices up to (and including) `completedStep`, returning
+   * the draft's id. Returning it (rather than relying on the async `draftId`
+   * state) lets callers act on the id in the same tick — needed so "Send" can
+   * immediately POST /rfqs/:id/send after the final save.
+   */
+  const persist = async (completedStep: number): Promise<string> => {
     const payload = buildPayload(projectId, lineItems, vendorIds, delivery, completedStep);
     if (draftId) {
       const { projectId: _omit, ...patch } = payload;
       void _omit;
       await updateDraft.mutateAsync({ id: draftId, dto: patch });
-    } else {
-      const created = await saveDraft.mutateAsync(payload);
-      setDraftId(created.id);
+      return draftId;
     }
+    const created = await saveDraft.mutateAsync(payload);
+    setDraftId(created.id);
+    return created.id;
   };
 
   const handleNext = async () => {
@@ -231,11 +241,27 @@ export default function CreateRfqPage() {
 
   const handleSaveAsDraft = async () => {
     try {
-      const id = draftId;
-      await persist(3);
-      navigate(id ? ROUTES.rfqDetail.replace(':id', id) : ROUTES.rfqs);
+      const id = await persist(3);
+      navigate(ROUTES.rfqDetail.replace(':id', id));
     } catch {
       // error surfaces via isSaveError
+    }
+  };
+
+  /**
+   * Persist the final slice, then send the RFQ to its vendors. Saving first
+   * guarantees the server has the latest line items / vendors / delivery before
+   * the send-time precondition checks run. On success the RFQ is OPEN, so we
+   * land the user on its detail page.
+   */
+  const handleConfirmSend = async (cc: string[]) => {
+    try {
+      const id = await persist(3);
+      const sent = await sendRfq.mutateAsync({ id, cc });
+      setShowSendDialog(false);
+      navigate(ROUTES.rfqDetail.replace(':id', sent.id));
+    } catch {
+      // error surfaces inside the dialog via sendRfq.isError
     }
   };
 
@@ -336,14 +362,25 @@ export default function CreateRfqPage() {
           )}
 
           {isReviewStep ? (
-            <Button
-              type="button"
-              onClick={() => void handleSaveAsDraft()}
-              isLoading={isSaving}
-              data-testid="save-as-draft"
-            >
-              Save as draft
-            </Button>
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void handleSaveAsDraft()}
+                isLoading={isSaving}
+                data-testid="save-as-draft"
+              >
+                Save as draft
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setShowSendDialog(true)}
+                disabled={isSaving || sendRfq.isPending}
+                data-testid="send-to-vendors"
+              >
+                Send to vendors
+              </Button>
+            </>
           ) : (
             <Button
               type="button"
@@ -356,6 +393,16 @@ export default function CreateRfqPage() {
           )}
         </div>
       </div>
+
+      {showSendDialog && (
+        <SendRfqDialog
+          vendorCount={vendorIds.length}
+          isSending={sendRfq.isPending}
+          isError={sendRfq.isError}
+          onCancel={() => setShowSendDialog(false)}
+          onSend={(cc) => void handleConfirmSend(cc)}
+        />
+      )}
     </div>
   );
 }

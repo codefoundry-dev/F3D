@@ -246,12 +246,17 @@ export enum RfqLineItemSource {
 }
 
 export enum QuickFilter {
-  MY_RFQS = 'MyRfqs',
-  OPEN_RFQS = 'OpenRfqs',
-  AWAITING_RESPONSES = 'AwaitingResponses',
-  NO_QUOTES = 'NoQuotes',
-  AWARDED_RFQS = 'AwardedRfqs',
-  CLOSED_RFQS = 'ClosedRfqs',
+  // Values are camelCase to match the keys sent by the web clients
+  // (PO_CA_QUICK_FILTERS / VENDOR_QUICK_FILTERS), the i18n keys, and the
+  // sibling PoQuickFilter enum. INCOMING / APPROVED_FOR_ME are vendor-only.
+  MY_RFQS = 'myRfqs',
+  OPEN_RFQS = 'openRfqs',
+  AWAITING_RESPONSES = 'awaitingResponses',
+  NO_QUOTES = 'noQuotes',
+  AWARDED_RFQS = 'awardedRfqs',
+  CLOSED_RFQS = 'closedRfqs',
+  INCOMING = 'incoming',
+  APPROVED_FOR_ME = 'approvedForMe',
 }
 
 export enum DocExtractionType {

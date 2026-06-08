@@ -13,12 +13,14 @@ import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?re
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 
+import { SendRfqDialog } from '../components/create/SendRfqDialog';
 import { RfqDetailsTab } from '../components/RfqDetailsTab';
 import { RfqDocumentsTab } from '../components/RfqDocumentsTab';
 import { RfqEmailLogTab } from '../components/RfqEmailLogTab';
 import { RfqLineItemsTab } from '../components/RfqLineItemsTab';
 import { RfqQuoteAuditTab } from '../components/RfqQuoteAuditTab';
 import { RfqQuoteComparisonTab } from '../components/RfqQuoteComparisonTab';
+import { useSendRfq } from '../services/rfqs.service';
 
 export default function RfqDetailPage() {
   const { t } = useTranslation('rfqs');
@@ -50,6 +52,23 @@ export default function RfqDetailPage() {
   );
 
   const [responsesViewMode, setResponsesViewMode] = useState<'list' | 'table'>('list');
+  const [showSendDialog, setShowSendDialog] = useState(false);
+  const sendRfq = useSendRfq();
+
+  // Close the dialog when the mutation succeeds; the RFQ cache update flips the
+  // status to OPEN, which re-renders the page without the Send button.
+  const handleSend = useCallback(
+    async (cc: string[]) => {
+      if (!rfq) return;
+      try {
+        await sendRfq.mutateAsync({ id: rfq.id, cc });
+        setShowSendDialog(false);
+      } catch {
+        // error surfaces inside the dialog via sendRfq.isError
+      }
+    },
+    [rfq, sendRfq],
+  );
 
   if (isLoading) {
     return (
@@ -74,18 +93,40 @@ export default function RfqDetailPage() {
           tabs={validTabs}
           rightSlot={
             activeTab === 'details' ? (
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={<DownloadIcon className="w-4 h-4" />}
-                onClick={() => {
-                  void exportRfqs('pdf', { search: rfq.id }).then(({ url }) =>
-                    window.open(url, '_blank'),
-                  );
-                }}
-              >
-                {t('actions.exportAs')}
-              </Button>
+              <div className="flex items-center gap-2">
+                {/* Only DRAFT RFQs can be sent; once OPEN the button disappears. */}
+                {rfq.status === 'DRAFT' && (
+                  <Button
+                    size="sm"
+                    onClick={() => setShowSendDialog(true)}
+                    disabled={
+                      sendRfq.isPending ||
+                      (rfq.lineItems?.length ?? 0) === 0 ||
+                      (rfq.vendors?.length ?? 0) === 0
+                    }
+                    title={
+                      (rfq.lineItems?.length ?? 0) === 0 || (rfq.vendors?.length ?? 0) === 0
+                        ? t('detail.sendDisabledHint')
+                        : undefined
+                    }
+                    data-testid="send-to-vendors"
+                  >
+                    {t('actions.sendToVendors')}
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<DownloadIcon className="w-4 h-4" />}
+                  onClick={() => {
+                    void exportRfqs('pdf', { search: rfq.id }).then(({ url }) =>
+                      window.open(url, '_blank'),
+                    );
+                  }}
+                >
+                  {t('actions.exportAs')}
+                </Button>
+              </div>
             ) : activeTab === 'responses' ? (
               <ResponsesViewToggle
                 viewMode={responsesViewMode}
@@ -116,6 +157,16 @@ export default function RfqDetailPage() {
         {activeTab === 'emailLog' && <RfqEmailLogTab rfqId={rfq.id} />}
         {activeTab === 'audit' && <RfqQuoteAuditTab rfqId={rfq.id} />}
       </div>
+
+      {showSendDialog && (
+        <SendRfqDialog
+          vendorCount={rfq.vendors?.length ?? 0}
+          isSending={sendRfq.isPending}
+          isError={sendRfq.isError}
+          onCancel={() => setShowSendDialog(false)}
+          onSend={(cc) => void handleSend(cc)}
+        />
+      )}
     </div>
   );
 }

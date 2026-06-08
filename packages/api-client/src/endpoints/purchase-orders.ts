@@ -320,7 +320,7 @@ export async function updatePurchaseOrder(
 }
 
 export async function issuePurchaseOrder(id: string, config?: AxiosRequestConfig): Promise<void> {
-  await getApiClient().patch(PURCHASE_ORDERS_PATHS.issue(id), undefined, config);
+  await getApiClient().post(PURCHASE_ORDERS_PATHS.issue(id), undefined, config);
 }
 
 export async function confirmPurchaseOrder(

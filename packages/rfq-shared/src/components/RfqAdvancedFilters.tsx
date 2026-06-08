@@ -19,9 +19,13 @@ export function RfqAdvancedFilters({
 }: RfqAdvancedFiltersProps) {
   const { t } = useTranslation(['rfqs', 'common']);
 
-  const projectOptions = Array.from(new Set(items.map((r) => r.projectName).filter(Boolean))).map(
-    (name) => ({ value: name, label: name }),
-  );
+  // Value must be the project id (the API filters by `projectId`, validated as
+  // a UUID); the name is only the label. Mirrors the createdBy mapping below.
+  const projectOptions = Array.from(
+    new Map(
+      items.filter((r) => r.projectId && r.projectName).map((r) => [r.projectId, r.projectName]),
+    ),
+  ).map(([id, name]) => ({ value: id, label: name }));
 
   const statusOptions = statusKeys.map((key) => ({
     value: key,
