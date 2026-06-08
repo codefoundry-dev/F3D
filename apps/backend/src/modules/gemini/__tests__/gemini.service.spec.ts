@@ -231,6 +231,42 @@ describe('GeminiService', () => {
       expect(fetchMock).toHaveBeenCalledTimes(3); // still retryable
     }, 5000);
 
+    it('surfaces a non-JSON 429 body verbatim and still detects quota exhaustion', async () => {
+      const service = createService();
+      const rawResponse = {
+        ok: false,
+        status: 429,
+        json: () => Promise.reject(new Error('not json')),
+        text: () => Promise.resolve('  Resource has been exhausted (check quota).  '),
+      } as Response;
+      const fetchMock = jest.fn().mockResolvedValue(rawResponse);
+      global.fetch = fetchMock;
+
+      const err = (await service.generate({ prompt: 'x' }).catch((e) => e)) as GeminiError;
+
+      expect(err.code).toBe('QUOTA_EXHAUSTED');
+      expect(err.message).toBe('Resource has been exhausted (check quota).'); // trimmed raw slice
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('falls back to a default message when the 429 body is empty', async () => {
+      const service = createService();
+      const emptyResponse = {
+        ok: false,
+        status: 429,
+        json: () => Promise.reject(new Error('not json')),
+        text: () => Promise.resolve('   '),
+      } as Response;
+      const fetchMock = jest.fn().mockResolvedValue(emptyResponse);
+      global.fetch = fetchMock;
+
+      const err = (await service.generate({ prompt: 'x' }).catch((e) => e)) as GeminiError;
+
+      expect(err.code).toBe('RATE_LIMITED');
+      expect(err.message).toBe('Gemini rate limit exceeded');
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    }, 5000);
+
     it('retries on 5xx then succeeds on the second attempt', async () => {
       const service = createService();
       const fetchMock = jest
