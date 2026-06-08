@@ -916,7 +916,10 @@ describe('PoStatusService', () => {
         outcome: 'allowed',
         threshold: { toString: () => '25000' },
       });
-      mockPrisma.purchaseOrder.update.mockResolvedValue({ poNumber: 'PO-1', vendor: { users: [] } });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        poNumber: 'PO-1',
+        vendor: { users: [] },
+      });
 
       await service.issuePurchaseOrder('po-1', procurementOfficer);
 
@@ -936,7 +939,10 @@ describe('PoStatusService', () => {
         currency: 'AUD',
       });
       mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
-      mockPrisma.purchaseOrder.update.mockResolvedValue({ poNumber: 'PO-1', vendor: { users: [] } });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        poNumber: 'PO-1',
+        vendor: { users: [] },
+      });
 
       await service.issuePurchaseOrder('po-1', procurementOfficer);
 
@@ -966,6 +972,34 @@ describe('PoStatusService', () => {
 
       expect(mockEmailService.sendPoIssuedEmail).toHaveBeenCalledWith(
         'vendor@test.com',
+        'PO-1',
+        'http://localhost:5179/purchase-orders/po-1',
+        expect.any(Buffer),
+        expect.objectContaining({ purchaseOrderId: 'po-1' }),
+      );
+    });
+
+    it('falls back to the company contactEmail when the vendor has no user accounts', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'DRAFT',
+        companyId: 'comp-1',
+        totalAmount: { toString: () => '5000' },
+        currency: 'AUD',
+      });
+      mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        poNumber: 'PO-1',
+        vendor: { users: [], contactEmail: 'sales@vendor.com' },
+      });
+      mockPoExportService.generatePoPdfBuffer.mockResolvedValue(Buffer.from('pdf'));
+      mockEmailService.sendPoIssuedEmail.mockResolvedValue(undefined);
+
+      await service.issuePurchaseOrder('po-1', companyAdmin);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendPoIssuedEmail).toHaveBeenCalledWith(
+        'sales@vendor.com',
         'PO-1',
         'http://localhost:5179/purchase-orders/po-1',
         expect.any(Buffer),
@@ -1028,7 +1062,10 @@ describe('PoStatusService', () => {
         totalAmount: { toString: () => '9999999' },
         currency: 'AUD',
       });
-      mockPrisma.purchaseOrder.update.mockResolvedValue({ poNumber: 'PO-SA', vendor: { users: [] } });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        poNumber: 'PO-SA',
+        vendor: { users: [] },
+      });
 
       await service.issuePurchaseOrder('po-sa', superAdmin);
 

@@ -9,6 +9,7 @@ import { AuditAction, PoChangeType, PoStatus, UserRole } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { resolveVendorEmailRecipients } from '../../common/utils/vendor-recipients.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../notifications/email.service';
@@ -52,7 +53,10 @@ export class PoChangeService {
           },
         },
         vendor: {
-          select: { users: { where: { role: UserRole.VENDOR }, select: { email: true } } },
+          select: {
+            contactEmail: true,
+            users: { where: { role: UserRole.VENDOR }, select: { email: true } },
+          },
         },
       },
     });
@@ -85,15 +89,20 @@ export class PoChangeService {
       metadata: { changeRequestId: changeRequest.id },
     });
 
-    // Notify the other party (fire-and-forget)
+    // Notify the other party (fire-and-forget). When the contractor proposes a
+    // change the recipient is the vendor, which may have been quick-added with
+    // only a contactEmail and no user accounts (US-3.01) — fall back to it.
+    // Contractors always have COMPANY_ADMIN user accounts, so no fallback there.
     const isVendor = user.role === UserRole.VENDOR;
-    const recipients = isVendor ? (po.company?.users ?? []) : (po.vendor?.users ?? []);
+    const recipientEmails = isVendor
+      ? (po.company?.users ?? []).map((u) => u.email)
+      : resolveVendorEmailRecipients(po.vendor?.users ?? [], po.vendor?.contactEmail);
     const viewUrl = `${this.webAppUrl}/purchase-orders/${poId}`;
     const proposedBy = changeRequest.requestedBy?.name ?? 'A user';
 
     Promise.all(
-      recipients.map((u) =>
-        this.emailService.sendChangeRequestProposedEmail(u.email, po.poNumber, proposedBy, viewUrl),
+      recipientEmails.map((email) =>
+        this.emailService.sendChangeRequestProposedEmail(email, po.poNumber, proposedBy, viewUrl),
       ),
     ).catch(() => {});
 

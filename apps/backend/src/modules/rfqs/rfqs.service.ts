@@ -36,6 +36,7 @@ import {
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { nextSequentialNumber } from '../../common/utils/sequential-number.util';
+import { resolveVendorEmailRecipients } from '../../common/utils/vendor-recipients.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { EmailAttachment, EmailService } from '../notifications/email.service';
@@ -1288,6 +1289,7 @@ export class RfqsService {
             vendor: {
               select: {
                 id: true,
+                contactEmail: true,
                 users: {
                   where: { role: UserRole.VENDOR },
                   select: { email: true, status: true },
@@ -1332,7 +1334,10 @@ export class RfqsService {
         ? `${this.webAppUrl}/rfqs`
         : `${this.webAppUrl}/invitation/${token}`;
 
-      const emails = iv.vendor.users.map((u) => u.email);
+      // Reach the vendor's user accounts, or fall back to the company contact
+      // email when the vendor was quick-added without a user (US-3.01) — the
+      // guest invitation link above is what those vendors use to respond.
+      const emails = resolveVendorEmailRecipients(iv.vendor.users, iv.vendor.contactEmail);
 
       await Promise.all(
         emails.map((email) =>

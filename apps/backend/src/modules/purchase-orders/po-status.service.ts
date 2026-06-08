@@ -12,6 +12,7 @@ import { ApprovalStatus, PoStatus as PrismaPoStatus, UserRole } from '@prisma/cl
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ApprovalAuthorizationService } from '../../common/permissions';
+import { resolveVendorEmailRecipients } from '../../common/utils/vendor-recipients.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../notifications/email.service';
 
@@ -89,6 +90,7 @@ export class PoStatusService {
         vendor: {
           select: {
             id: true,
+            contactEmail: true,
             users: { where: { role: UserRole.VENDOR }, select: { email: true } },
           },
         },
@@ -96,7 +98,7 @@ export class PoStatusService {
     });
 
     // Send email notification to vendor with PDF attachment (fire-and-forget)
-    this.notifyVendorOfPo(id, updated.poNumber, updated.vendor?.users ?? [], user).catch(() => {});
+    this.notifyVendorOfPo(id, updated.poNumber, updated.vendor, user).catch(() => {});
 
     return this.purchaseOrdersService.getPurchaseOrder(id, user);
   }
@@ -198,6 +200,7 @@ export class PoStatusService {
         vendor: {
           select: {
             legalName: true,
+            contactEmail: true,
             users: { where: { role: UserRole.VENDOR }, select: { email: true } },
           },
         },
@@ -206,9 +209,7 @@ export class PoStatusService {
 
     if (isPendingApprovalSend) {
       // Send email notification to vendor with PDF attachment (fire-and-forget)
-      this.notifyVendorOfPo(id, updated.poNumber, updated.vendor?.users ?? [], user).catch(
-        () => {},
-      );
+      this.notifyVendorOfPo(id, updated.poNumber, updated.vendor, user).catch(() => {});
     }
 
     return {
@@ -392,10 +393,13 @@ export class PoStatusService {
   private async notifyVendorOfPo(
     poId: string,
     poNumber: string,
-    vendorUsers: Array<{ email: string }>,
+    vendor: { users: Array<{ email: string }>; contactEmail: string | null } | null | undefined,
     user: AuthenticatedUser,
   ): Promise<void> {
-    if (vendorUsers.length === 0) return;
+    // Reach the vendor's user accounts, or fall back to the company contact
+    // email when the vendor was quick-added without a user (US-3.01).
+    const recipients = resolveVendorEmailRecipients(vendor?.users ?? [], vendor?.contactEmail);
+    if (recipients.length === 0) return;
 
     // Generate PDF buffer for email attachment
     let pdfBuffer: Buffer | undefined;
@@ -417,8 +421,8 @@ export class PoStatusService {
       : undefined;
 
     await Promise.all(
-      vendorUsers.map((u) =>
-        this.emailService.sendPoIssuedEmail(u.email, poNumber, viewUrl, pdfBuffer, log),
+      recipients.map((email) =>
+        this.emailService.sendPoIssuedEmail(email, poNumber, viewUrl, pdfBuffer, log),
       ),
     );
   }
