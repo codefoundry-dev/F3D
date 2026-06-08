@@ -351,9 +351,9 @@ describe('MaterialsService', () => {
 
     it('throws NotFound when extraction is missing', async () => {
       mockPrisma.docExtraction.findUnique.mockResolvedValue(null);
-      await expect(
-        service.importCatalogueFromExtraction('missing', superAdmin),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.importCatalogueFromExtraction('missing', superAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('throws NotFound when extraction is not a CATALOGUE type', async () => {
@@ -361,9 +361,9 @@ describe('MaterialsService', () => {
         ...confirmedExtraction([]),
         type: DocExtractionType.BOM,
       });
-      await expect(
-        service.importCatalogueFromExtraction('ext-1', superAdmin),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.importCatalogueFromExtraction('ext-1', superAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('throws Forbidden when the user cannot access the extraction', async () => {
@@ -372,9 +372,9 @@ describe('MaterialsService', () => {
         createdByUserId: 'someone-else',
         companyId: 'other-co',
       });
-      await expect(
-        service.importCatalogueFromExtraction('ext-1', companyAdmin),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.importCatalogueFromExtraction('ext-1', companyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('throws Forbidden when the extraction has not produced a result yet', async () => {
@@ -382,9 +382,9 @@ describe('MaterialsService', () => {
         ...confirmedExtraction([line({})]),
         status: DocExtractionStatus.PENDING,
       });
-      await expect(
-        service.importCatalogueFromExtraction('ext-1', superAdmin),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.importCatalogueFromExtraction('ext-1', superAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('returns zeros when there are no items', async () => {
@@ -469,9 +469,7 @@ describe('MaterialsService', () => {
       await service.importCatalogueFromExtraction('ext-1', superAdmin);
 
       // Only the Uncategorised category is created (no main category supplied).
-      const createdNames = mockPrisma.materialCategory.create.mock.calls.map(
-        (c) => c[0].data.name,
-      );
+      const createdNames = mockPrisma.materialCategory.create.mock.calls.map((c) => c[0].data.name);
       expect(createdNames).toEqual(['Uncategorised']);
       const createArg = mockPrisma.material.create.mock.calls[0][0].data;
       expect(createArg.categoryId).toBe('cat-1');
@@ -487,6 +485,120 @@ describe('MaterialsService', () => {
 
       expect(summary.total).toBe(1);
       expect(summary.skipped).toBe(1);
+      expect(summary.created).toBe(1);
+    });
+
+    it('reuses an existing category instead of creating a duplicate', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue(
+        confirmedExtraction([line({ sku: 'SK-1', mainCategory: 'Electrical' })]),
+      );
+      // 'Electrical' already exists; 'Uncategorised' fallback does not.
+      mockPrisma.materialCategory.findUnique.mockImplementation(({ where }) =>
+        Promise.resolve(
+          where.name === 'Electrical' ? { id: 'cat-existing', name: 'Electrical' } : null,
+        ),
+      );
+      mockPrisma.$queryRaw.mockResolvedValue([{ inserted: true }]);
+
+      const summary = await service.importCatalogueFromExtraction('ext-1', superAdmin);
+
+      // Only the Uncategorised fallback is newly created — Electrical is reused.
+      expect(summary.categoriesCreated).toBe(1);
+      expect(mockPrisma.materialCategory.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('allows the extraction owner (non-superadmin) to import', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue({
+        ...confirmedExtraction([line({ sku: 'SK-1' })]),
+        status: DocExtractionStatus.COMPLETED,
+        createdByUserId: companyAdmin.id,
+        companyId: null,
+      });
+      mockPrisma.$queryRaw.mockResolvedValue([{ inserted: true }]);
+
+      const summary = await service.importCatalogueFromExtraction('ext-1', companyAdmin);
+
+      expect(summary.total).toBe(1);
+    });
+
+    it('allows a same-company user (non-owner) to import', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue({
+        ...confirmedExtraction([line({ sku: 'SK-1' })]),
+        status: DocExtractionStatus.COMPLETED,
+        createdByUserId: 'someone-else',
+        companyId: companyAdmin.companyId,
+      });
+      mockPrisma.$queryRaw.mockResolvedValue([{ inserted: true }]);
+
+      const summary = await service.importCatalogueFromExtraction('ext-1', companyAdmin);
+
+      expect(summary.total).toBe(1);
+    });
+
+    it('returns zeros when the edited result is null', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue({
+        ...confirmedExtraction([]),
+        editedResult: null,
+      });
+
+      const summary = await service.importCatalogueFromExtraction('ext-1', superAdmin);
+
+      expect(summary).toEqual({
+        total: 0,
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        categoriesCreated: 0,
+      });
+    });
+
+    it('handles sku-less rows whose optional fields are all null/blank', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue(
+        confirmedExtraction([
+          line({
+            name: 'Bare',
+            sku: null,
+            brand: null,
+            upc: null,
+            description: null,
+            manufacturerPartNumber: null,
+            subCategory: null,
+            imageUrl: null,
+            uom: '',
+          }),
+        ]),
+      );
+      mockPrisma.material.findFirst.mockResolvedValue(null);
+      mockPrisma.material.create.mockResolvedValue({});
+
+      const summary = await service.importCatalogueFromExtraction('ext-1', superAdmin);
+
+      expect(summary.created).toBe(1);
+      const createArg = mockPrisma.material.create.mock.calls[0][0].data;
+      expect(createArg.brand).toBeNull();
+      expect(createArg.upc).toBeNull();
+    });
+
+    it('handles SKU rows whose optional fields are all null/blank', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue(
+        confirmedExtraction([
+          line({
+            sku: 'SK-1',
+            brand: null,
+            upc: null,
+            description: null,
+            manufacturerPartNumber: null,
+            subCategory: null,
+            imageUrl: null,
+            uom: '',
+          }),
+        ]),
+      );
+      mockPrisma.$queryRaw.mockResolvedValue([{ inserted: true }]);
+
+      const summary = await service.importCatalogueFromExtraction('ext-1', superAdmin);
+
+      expect(summary.total).toBe(1);
       expect(summary.created).toBe(1);
     });
   });

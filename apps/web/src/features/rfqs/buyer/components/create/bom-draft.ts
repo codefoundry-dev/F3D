@@ -23,7 +23,11 @@ export function deriveBomLineNameAndNotes(item: BomLineItem): {
   notes: string | undefined;
 } {
   const description = item.description.trim();
-  const existingNotes = item.notes?.trim() || undefined;
+  // Treat blank/whitespace-only notes as absent (so they don't render as empty
+  // notes). Testing `.length` rather than truthiness keeps the empty-string
+  // collapse explicit without tripping prefer-nullish-coalescing.
+  const trimmedNotes = item.notes?.trim() ?? '';
+  const existingNotes = trimmedNotes.length > 0 ? trimmedNotes : undefined;
 
   if (description.length <= RFQ_MATERIAL_NAME_MAX) {
     return { materialName: description, notes: existingNotes };
