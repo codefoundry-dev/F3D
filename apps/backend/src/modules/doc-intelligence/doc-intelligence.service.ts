@@ -247,7 +247,13 @@ export class DocIntelligenceService {
           where: { id: extractionId },
           data: {
             status: DocExtractionStatus.COMPLETED,
-            rawResult: result as unknown as Prisma.InputJsonValue,
+            // A catalogue spreadsheet is parsed directly into editedResult.
+            // Storing the same multi-MB, 62k-row object AGAIN as rawResult only
+            // doubles the GET payload (~76 MB) and OOMs the box serialising it.
+            // editedResult is the single source of truth for catalogue, so leave
+            // rawResult null. (Catalogue PDFs/images still go through Gemini below
+            // and keep their raw Gemini output.)
+            rawResult: Prisma.DbNull,
             editedResult: result as unknown as Prisma.InputJsonValue,
             model: null,
             promptTokens: null,
