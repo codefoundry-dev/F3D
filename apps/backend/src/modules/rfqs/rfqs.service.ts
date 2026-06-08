@@ -15,6 +15,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -40,6 +41,7 @@ import { resolveVendorEmailRecipients } from '../../common/utils/vendor-recipien
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { EmailAttachment, EmailService } from '../notifications/email.service';
+import { PoStatusService } from '../purchase-orders/po-status.service';
 import { StorageService } from '../storage/storage.service';
 
 import { normalizeCcEmails } from './rfq-cc.util';
@@ -102,6 +104,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 @Injectable()
 export class RfqsService {
+  private readonly logger = new Logger(RfqsService.name);
   private readonly webAppUrl: string;
 
   constructor(
@@ -109,6 +112,7 @@ export class RfqsService {
     private readonly storageService: StorageService,
     private readonly emailService: EmailService,
     private readonly accessTokens: AccessTokensService,
+    private readonly poStatusService: PoStatusService,
     config: ConfigService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
@@ -968,6 +972,22 @@ export class RfqsService {
       return { quoteResult, purchaseOrder };
     });
 
+    // Awarding notifies the winning vendor (FRD §1189): issue the freshly-created
+    // PO so it transitions DRAFT → SENT and emails the vendor. This reuses the PO
+    // module's approval gate — if the total is over the awarding user's
+    // `po.approve` threshold the PO routes to PENDING_APPROVAL and the vendor is
+    // notified only once an approver releases it. Best-effort: a failure here
+    // leaves the PO as a DRAFT the user can still send manually, so it must not
+    // fail the award itself.
+    try {
+      await this.poStatusService.issuePurchaseOrder(purchaseOrder.id, user);
+    } catch (err) {
+      this.logger.warn(
+        `Quote ${quoteId} awarded but auto-send of PO ${purchaseOrder.id} failed; ` +
+          `it remains a draft and can be sent manually. ${(err as Error).message}`,
+      );
+    }
+
     return {
       id: quoteResult.id,
       vendorName: quoteResult.vendor.legalName,
@@ -1327,12 +1347,12 @@ export class RfqsService {
         metadata: { rfqVendorId: iv.id, vendorId: iv.vendor.id },
       });
 
-      // Build reply URL: if vendor has active users → link to vendor app,
-      // otherwise → invitation link for guest access
-      const hasActiveUser = iv.vendor.users.some((u) => u.status === 'ACTIVE');
-      const replyUrl = hasActiveUser
-        ? `${this.webAppUrl}/rfqs`
-        : `${this.webAppUrl}/invitation/${token}`;
+      // Every vendor — registered or not — receives the tokenized guest link.
+      // The token authorises viewing the RFQ and submitting a quote without a
+      // login, and is scoped/audited/rate-limited per FOR-201 + ADR-0002. The
+      // invitation endpoint also serves authenticated vendors, so there is no
+      // need to branch on whether the vendor has an active user account.
+      const replyUrl = `${this.webAppUrl}/invitation/${token}`;
 
       // Reach the vendor's user accounts, or fall back to the company contact
       // email when the vendor was quick-added without a user (US-3.01) — the

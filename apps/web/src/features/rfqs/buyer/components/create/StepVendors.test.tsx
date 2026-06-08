@@ -15,9 +15,12 @@ vi.mock('@forethread/ui-components', () => ({
 
 import { StepVendors } from './StepVendors';
 
+// id = assignment row id, companyId = vendor Company id. The wizard must
+// select by companyId (what the RFQ backend validates), so these differ here
+// to guard against regressing back to vendor.id.
 const vendors = [
-  { id: 'v1', companyName: 'Acme Supplies' },
-  { id: 'v2', companyName: 'BuildCo' },
+  { id: 'assign-1', companyId: 'company-1', companyName: 'Acme Supplies' },
+  { id: 'assign-2', companyId: 'company-2', companyName: 'BuildCo' },
 ] as any;
 
 describe('StepVendors', () => {
@@ -38,18 +41,18 @@ describe('StepVendors', () => {
     expect(screen.getByText(/No assigned vendors found/i)).toBeInTheDocument();
   });
 
-  it('toggles a vendor on', () => {
+  it('toggles a vendor on by companyId', () => {
     const onToggle = vi.fn();
     render(<StepVendors vendors={vendors} selectedIds={[]} onToggle={onToggle} />);
     fireEvent.click(screen.getByLabelText('Acme Supplies'));
-    expect(onToggle).toHaveBeenCalledWith('v1', true);
+    expect(onToggle).toHaveBeenCalledWith('company-1', true);
   });
 
-  it('toggles a selected vendor off', () => {
+  it('toggles a selected vendor off by companyId', () => {
     const onToggle = vi.fn();
-    render(<StepVendors vendors={vendors} selectedIds={['v1']} onToggle={onToggle} />);
+    render(<StepVendors vendors={vendors} selectedIds={['company-1']} onToggle={onToggle} />);
     fireEvent.click(screen.getByLabelText('Acme Supplies'));
-    expect(onToggle).toHaveBeenCalledWith('v1', false);
+    expect(onToggle).toHaveBeenCalledWith('company-1', false);
   });
 
   it('renders the validation error', () => {

@@ -24,6 +24,6 @@ import { PurchaseOrdersService } from './purchase-orders.service';
     PoValidationService,
     PoChangeService,
   ],
-  exports: [PurchaseOrdersService],
+  exports: [PurchaseOrdersService, PoStatusService],
 })
 export class PurchaseOrdersModule {}

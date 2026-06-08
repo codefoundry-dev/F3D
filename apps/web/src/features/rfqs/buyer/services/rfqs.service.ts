@@ -1,6 +1,7 @@
 import {
   saveRfqDraft,
   updateRfq,
+  sendRfq,
   getRfq,
   getProjects,
   getProject,
@@ -38,6 +39,25 @@ export function useUpdateRfq() {
   return useMutation({
     mutationFn: ({ id, dto }: { id: string; dto: UpdateRfqValues }) =>
       updateRfq(id, dto as Parameters<typeof updateRfq>[1], { skipErrorHandler: true }),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ['rfqs'] });
+      queryClient.setQueryData(['rfqs', data.id], data);
+    },
+  });
+}
+
+/**
+ * Send a DRAFT RFQ to its invited vendors (FOR-202): flips the RFQ to OPEN and
+ * triggers tokenized invitation emails server-side. `cc` is an optional list of
+ * extra email recipients. Errors are surfaced inline (skipErrorHandler) so the
+ * send dialog can show them rather than a global toast.
+ */
+export function useSendRfq() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, cc }: { id: string; cc?: string[] }) =>
+      sendRfq(id, cc && cc.length > 0 ? { cc } : undefined, { skipErrorHandler: true }),
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ['rfqs'] });
       queryClient.setQueryData(['rfqs', data.id], data);
@@ -85,7 +105,7 @@ export function useRfqMaterials(params?: MaterialListQueryParams) {
 export function useAssignedVendors(params?: VendorListParams) {
   return useQuery({
     queryKey: ['vendors', params],
-    queryFn: () => getVendors({ limit: 100, status: 'ACTIVE', ...params }),
+    queryFn: () => getVendors({ limit: 100, ...params }),
     select: (data) => data.items,
   });
 }

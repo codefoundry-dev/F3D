@@ -35,7 +35,8 @@ export function StepReview({
   delivery,
   locations,
 }: StepReviewProps) {
-  const selectedVendors = vendors.filter((v) => selectedVendorIds.includes(v.id));
+  // selectedVendorIds holds Company ids (see StepVendors), so match on companyId.
+  const selectedVendors = vendors.filter((v) => selectedVendorIds.includes(v.companyId));
   const deliveryLocation = locations.find((l) => l.id === delivery.deliveryLocationId);
   const deliveryLocationLabel = deliveryLocation
     ? deliveryLocation.label

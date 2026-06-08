@@ -55,6 +55,7 @@ export type GeminiErrorCode =
   | 'NOT_CONFIGURED'
   | 'INVALID_KEY'
   | 'RATE_LIMITED'
+  | 'QUOTA_EXHAUSTED'
   | 'TIMEOUT'
   | 'MALFORMED_RESPONSE'
   | 'UPSTREAM_ERROR';

@@ -35,10 +35,15 @@ export function StepVendors({
           data-testid="vendor-list"
         >
           {vendors.map((vendor) => (
+            // Select by companyId, not vendor.id: vendor.id is the
+            // CompanyVendorAssignment row id, but the RFQ stores/validates
+            // invited vendors by their Company id (RfqVendor.vendorId →
+            // Company.id). Submitting assignment ids fails the backend's
+            // assertVendorsAssigned check with "Some vendor IDs are invalid".
             <Checkbox
               key={vendor.id}
-              checked={selectedIds.includes(vendor.id)}
-              onChange={(checked) => onToggle(vendor.id, checked)}
+              checked={selectedIds.includes(vendor.companyId)}
+              onChange={(checked) => onToggle(vendor.companyId, checked)}
               label={vendor.companyName}
             />
           ))}

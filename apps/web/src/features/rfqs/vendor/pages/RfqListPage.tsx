@@ -107,6 +107,7 @@ export default function RfqListPage() {
     sortBy: s.sortBy || undefined,
     sortDir: s.sortBy && s.sortDir ? s.sortDir : undefined,
     groupBy: s.groupBy || undefined,
+    projectId: af.projectId[0] || undefined,
     status: af.status.length === 1 ? af.status[0] : undefined,
     deliveryLocation: af.deliveryLocation[0] || undefined,
     createdByUserId: af.createdByUserId[0] || undefined,
@@ -121,8 +122,9 @@ export default function RfqListPage() {
   const items = useMemo(() => data?.items ?? [], [data?.items]);
   const totalCount = data?.meta.total ?? 0;
 
-  /* Unfiltered query to populate filter dropdown options (stable regardless of active filters) */
-  const { data: allData } = useRfqs({ page: 1, limit: 500 });
+  /* Unfiltered query to populate filter dropdown options (stable regardless of active filters).
+     limit is capped at 100 by the API (BasePaginationQueryDto). */
+  const { data: allData } = useRfqs({ page: 1, limit: 100 });
   const allItems = useMemo(() => allData?.items ?? [], [allData?.items]);
 
   /* ─── Grouping ──────────────────────────────────────────────── */
