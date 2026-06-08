@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 import CrossIcon from '../assets/icons/cross.svg?react';
 import { cn } from '../utils/cn';
@@ -15,9 +16,18 @@ export interface ModalProps {
   onClose: () => void;
   maxWidth?: string;
   children: ReactNode;
+  /**
+   * Opt-in "pinned" layout for tall / data-table modals. When true, the desktop
+   * card no longer scrolls as a whole — instead it is bounded to 90vh and its
+   * children lay out as a flex column so a `ModalHeader` / `ModalFooter` stay
+   * fixed and only the `ModalBody` (which becomes the flex child that scrolls)
+   * moves. Defaults to the legacy behaviour (whole card scrolls) so existing
+   * modals are unaffected.
+   */
+  scrollBody?: boolean;
 }
 
-export function Modal({ onClose, maxWidth, children }: ModalProps) {
+export function Modal({ onClose, maxWidth, children, scrollBody = false }: ModalProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -26,7 +36,7 @@ export function Modal({ onClose, maxWidth, children }: ModalProps) {
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  return (
+  const overlay = (
     // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <div
       role="dialog"
@@ -44,6 +54,10 @@ export function Modal({ onClose, maxWidth, children }: ModalProps) {
           'bg-card shadow-xl flex flex-col rounded-none overflow-hidden w-full h-full',
           'toolbar:w-auto toolbar:h-auto toolbar:max-h-[90vh] toolbar:rounded-lg toolbar:overflow-y-auto',
           'toolbar:min-w-[560px] toolbar:max-w-[560px]',
+          // Pinned layout: card itself stops scrolling (overflow-hidden wins over
+          // the desktop overflow-y-auto via tailwind-merge) so the header/footer
+          // stay put and the body becomes the scroll region.
+          scrollBody && 'toolbar:overflow-hidden',
           maxWidth && toDesktopOnly(maxWidth),
         )}
       >
@@ -51,6 +65,13 @@ export function Modal({ onClose, maxWidth, children }: ModalProps) {
       </div>
     </div>
   );
+
+  // Render through a portal to document.body so the `fixed inset-0` overlay is
+  // positioned against the viewport, not against any ancestor that establishes
+  // a containing block (transform / filter / will-change / contain). Without
+  // this the overlay can be clipped to the app content area and fail to cover
+  // the top bar.
+  return createPortal(overlay, document.body);
 }
 
 export function ModalCloseButton({

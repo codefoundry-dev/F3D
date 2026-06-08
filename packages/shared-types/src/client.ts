@@ -8,6 +8,7 @@ export * from './enums/index';
 // the rest of ./dtos/*).
 export * from './dtos/bom.dto';
 export * from './dtos/quote-extraction.dto';
+export * from './dtos/catalogue-extraction.dto';
 export * from './dtos/po-delivery.types';
 export * from './dtos/user-profile.types';
 export * from './dtos/email-log.types';

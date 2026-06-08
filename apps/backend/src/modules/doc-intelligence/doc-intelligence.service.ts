@@ -24,12 +24,19 @@ import { GeminiError, type GeminiMimeType } from '../gemini/gemini.types';
 import { StorageService } from '../storage/storage.service';
 
 import { normalizeBomResult } from './doc-intelligence.bom';
+import {
+  normalizeCatalogueResult,
+  spreadsheetToCatalogue,
+} from './doc-intelligence.catalogue';
 import { annotateBomWithMatches } from './doc-intelligence.match';
 import { buildExtractionPrompt } from './doc-intelligence.prompts';
 import { normalizeQuoteResult } from './doc-intelligence.quote';
 import { spreadsheetToText } from './doc-intelligence.spreadsheet';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+// Catalogue spreadsheets are large (a real Rexel export is ~11.7 MB / 62k rows);
+// they are parsed directly (no Gemini), so a higher cap is safe.
+const CATALOGUE_MAX_FILE_SIZE = 30 * 1024 * 1024; // 30 MB
 
 // Gemini's document API understands these natively — they are sent as inline data.
 const GEMINI_NATIVE_MIME_TYPES: ReadonlySet<string> = new Set([
@@ -83,13 +90,18 @@ export class DocIntelligenceService {
     user: AuthenticatedUser,
   ): Promise<ExtractionWithFile> {
     if (!input.file) throw new BadRequestException(ERR.storage.noFileProvided);
-    if (input.file.size > MAX_FILE_SIZE) {
-      throw new BadRequestException(ERR.storage.fileTooLarge('10MB'));
-    }
     if (!ACCEPTED_MIME_TYPES.has(input.file.mimetype)) {
       throw new BadRequestException(ERR.storage.fileTypeNotAllowed);
     }
-    if (!this.gemini.isConfigured()) {
+
+    // A catalogue spreadsheet is parsed directly (no Gemini), so it gets a
+    // higher size cap and does NOT require Gemini to be configured.
+    const directParse = this.isDirectCatalogueParse(input.type, input.file.mimetype);
+    const sizeLimit = directParse ? CATALOGUE_MAX_FILE_SIZE : MAX_FILE_SIZE;
+    if (input.file.size > sizeLimit) {
+      throw new BadRequestException(ERR.storage.fileTooLarge(directParse ? '30MB' : '10MB'));
+    }
+    if (!directParse && !this.gemini.isConfigured()) {
       throw new BadRequestException(ERR.docExtractions.geminiNotConfigured);
     }
 
@@ -228,6 +240,24 @@ export class DocIntelligenceService {
     });
 
     try {
+      // ── Catalogue spreadsheet: parse Excel directly, no Gemini ──────────────
+      if (this.isDirectCatalogueParse(job.type, mimeType)) {
+        const result = await spreadsheetToCatalogue(fileBuffer);
+        await this.prisma.docExtraction.update({
+          where: { id: extractionId },
+          data: {
+            status: DocExtractionStatus.COMPLETED,
+            rawResult: result as unknown as Prisma.InputJsonValue,
+            editedResult: result as unknown as Prisma.InputJsonValue,
+            model: null,
+            promptTokens: null,
+            completionTokens: null,
+            completedAt: new Date(),
+          },
+        });
+        return;
+      }
+
       const prompt = buildExtractionPrompt(job.type, promptHint);
       const result = SPREADSHEET_MIME_TYPES.has(mimeType)
         ? await this.gemini.generate({
@@ -244,6 +274,7 @@ export class DocIntelligenceService {
       const normalized = this.normalizeForType(job.type, parsed);
       // For BOMs, enrich each line with its best catalogue match + confidence
       // so the review table can show matches and flag low-confidence lines.
+      // CATALOGUE (PDF/image) is normalized but NOT catalogue-matched.
       const editedResult =
         job.type === DocExtractionType.BOM
           ? await this.matchBomToCatalogue(normalized)
@@ -289,6 +320,15 @@ The document is a spreadsheet, provided below as tab-separated values. Each "# S
 ${sheetText}`;
   }
 
+  /**
+   * True when this job is a catalogue spreadsheet — the one path that parses
+   * Excel directly (no Gemini). Catalogue PDFs/images still go through Gemini,
+   * and BOM/QUOTE spreadsheets are unchanged.
+   */
+  private isDirectCatalogueParse(type: DocExtractionType, mimeType: string): boolean {
+    return type === DocExtractionType.CATALOGUE && SPREADSHEET_MIME_TYPES.has(mimeType);
+  }
+
   private normalizeForType(
     type: DocExtractionType,
     parsed: Record<string, unknown>,
@@ -298,6 +338,9 @@ ${sheetText}`;
     }
     if (type === DocExtractionType.QUOTE) {
       return normalizeQuoteResult(parsed) as unknown as Record<string, unknown>;
+    }
+    if (type === DocExtractionType.CATALOGUE) {
+      return normalizeCatalogueResult(parsed) as unknown as Record<string, unknown>;
     }
     return parsed;
   }

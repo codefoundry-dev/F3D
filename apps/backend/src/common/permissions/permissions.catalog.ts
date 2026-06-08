@@ -48,6 +48,7 @@ export const PERMISSIONS = {
   'material.listCategories': 'List material categories',
   'material.suggestions': 'Material autocomplete suggestions',
   'material.create': 'Create materials',
+  'material.import': 'Bulk-import materials from a confirmed catalogue extraction',
 
   // ── Bulk orders ─────────────────────────────────────────────────────────
   'bulkOrder.list': 'List bulk orders',
@@ -207,6 +208,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.listCategories',
     'material.suggestions',
     'material.create',
+    'material.import',
 
     'bulkOrder.list',
     'bulkOrder.create',
@@ -314,6 +316,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.listCategories',
     'material.suggestions',
     'material.create',
+    'material.import',
 
     'bulkOrder.list',
     'bulkOrder.create',

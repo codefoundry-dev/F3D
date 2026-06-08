@@ -1,5 +1,10 @@
 # Web Developer Agent Memory
 
+## Feature Notes
+
+- [Material catalogue feature (FOR-228)](material-catalogue-feature.md) — catalogue list + import
+  flow reusing doc-intelligence upload/poll hooks; api-client MaterialListItemDto drift gotcha.
+
 ## Project Auth UI Patterns (Confirmed)
 
 - All auth form components use `space-y-6` for top-level section spacing

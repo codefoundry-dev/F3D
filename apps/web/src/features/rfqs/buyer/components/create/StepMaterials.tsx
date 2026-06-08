@@ -16,6 +16,8 @@ import { useMemo, useState } from 'react';
 
 import type { ConfirmedBomSummary } from '@/features/doc-intelligence';
 
+import { deriveBomLineNameAndNotes } from './bom-draft';
+
 /** Where a draft line item originated. Local string-union (avoids importing the
  * RfqLineItemSource enum from the shared-types root barrel, which would pull in
  * @nestjs/swagger and break Vite). */
@@ -205,12 +207,13 @@ export function StepMaterials({
         setBomError('Enter a unit of measure for each selected line');
         return;
       }
+      const { materialName, notes } = deriveBomLineNameAndNotes(item);
       drafts.push({
         source: 'BOM',
-        materialName: item.description,
+        materialName,
         quantity: qty,
         uom: row.uom.trim(),
-        notes: item.notes ?? undefined,
+        notes,
       });
     }
 

@@ -1,0 +1,62 @@
+{
+  "page": {
+    "title": "Material catalogue",
+    "subtitle": "Browse the catalogue and import materials in bulk.",
+    "importButton": "Import catalogue",
+    "searchLabel": "Search materials",
+    "searchPlaceholder": "Search by name or SKU",
+    "loading": "Loading materials…",
+    "error": "Could not load the catalogue. Please try again.",
+    "empty": "Your catalogue is empty. Import a spreadsheet to get started.",
+    "noResults": "No materials match your search.",
+    "columns": {
+      "name": "Name",
+      "sku": "SKU",
+      "brand": "Brand",
+      "category": "Category",
+      "uom": "UoM"
+    }
+  },
+  "import": {
+    "title": "Import catalogue",
+    "dropHint": "Choose an Excel (.xlsx), PDF, or image (PNG, JPG, WEBP) file. CSV is not supported yet.",
+    "fileLabel": "Catalogue file",
+    "uploading": "Uploading…",
+    "processing": "Extracting catalogue items…",
+    "empty": "No items were extracted from this file.",
+    "failed": "Extraction failed. {{message}}",
+    "success": "Imported {{total}} materials — {{created}} new, {{updated}} updated, {{categories}} categories created.",
+    "actions": {
+      "cancel": "Cancel",
+      "import": "Import {{count}} materials",
+      "import_one": "Import {{count}} material",
+      "importing": "Importing…",
+      "tryAnotherFile": "Try another file"
+    },
+    "errors": {
+      "unsupportedType": "Unsupported file type. Use .xlsx, .pdf, .png, .jpg, .jpeg, or .webp.",
+      "tooLarge": "File is too large. Max 30MB for spreadsheets, 10MB for PDFs and images.",
+      "uploadFailed": "Could not start the import. Please try again.",
+      "importFailed": "Could not import the catalogue. Please try again."
+    }
+  },
+  "review": {
+    "tableTitle": "Extracted catalogue items",
+    "searchLabel": "Search extracted items",
+    "searchPlaceholder": "Filter by name or SKU",
+    "itemCount": "{{count}} items",
+    "itemCount_one": "{{count}} item",
+    "noMatches": "No items match your search.",
+    "columns": {
+      "name": "Name",
+      "sku": "SKU",
+      "brand": "Brand",
+      "uom": "UoM",
+      "upc": "UPC",
+      "mainCategory": "Category"
+    },
+    "actions": {
+      "removeRow": "Remove row"
+    }
+  }
+}

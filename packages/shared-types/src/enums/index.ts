@@ -259,6 +259,7 @@ export enum DocExtractionType {
   QUOTE = 'QUOTE',
   INVOICE = 'INVOICE',
   GENERIC = 'GENERIC',
+  CATALOGUE = 'CATALOGUE',
 }
 
 export enum DocExtractionStatus {

@@ -1,4 +1,8 @@
-import { CreateMaterialDto, MaterialListQueryDto } from '@forethread/shared-types';
+import {
+  CatalogueImportRequestDto,
+  CreateMaterialDto,
+  MaterialListQueryDto,
+} from '@forethread/shared-types';
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
@@ -56,5 +60,20 @@ export class MaterialsController {
   @ApiResponse({ status: 409, description: 'Duplicate material name' })
   async createMaterial(@Body() dto: CreateMaterialDto, @CurrentUser() user: AuthenticatedUser) {
     return this.materialsService.createMaterial(dto, user);
+  }
+
+  // ── POST /v1/materials/catalogue-import ───────────────────────────────────────
+
+  @Post('catalogue-import')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('material.import')
+  @ApiOperation({ summary: 'Bulk-import materials from a confirmed catalogue extraction' })
+  @ApiResponse({ status: 200, description: 'Catalogue import summary' })
+  @ApiResponse({ status: 404, description: 'Extraction not found' })
+  async importCatalogue(
+    @Body() dto: CatalogueImportRequestDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.materialsService.importCatalogueFromExtraction(dto.extractionId, user);
   }
 }

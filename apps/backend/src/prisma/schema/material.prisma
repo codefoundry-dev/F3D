@@ -15,17 +15,22 @@ model MaterialCategory {
 }
 
 model Material {
-  id           String         @id @default(uuid())
-  name         String         @db.VarChar(255)
-  categoryId   String         @map("category_id")
-  uom          String         @db.VarChar(50)
-  upc          String?        @db.VarChar(100)
-  manufacturer String?        @db.VarChar(255)
-  description  String?
-  status       MaterialStatus @default(PENDING_APPROVAL)
-  createdById  String         @map("created_by_id")
-  createdAt    DateTime       @default(now()) @map("created_at")
-  updatedAt    DateTime       @updatedAt @map("updated_at")
+  id                     String         @id @default(uuid())
+  name                   String         @db.VarChar(255)
+  categoryId             String         @map("category_id")
+  uom                    String         @db.VarChar(50)
+  upc                    String?        @db.VarChar(100)
+  manufacturer           String?        @db.VarChar(255)
+  description            String?
+  sku                    String?        @unique(map: "idx_material_sku") @db.VarChar(100)
+  brand                  String?        @db.VarChar(255)
+  manufacturerPartNumber String?        @map("manufacturer_part_number") @db.VarChar(255)
+  subCategory            String?        @map("sub_category") @db.VarChar(255)
+  imageUrl               String?        @map("image_url")
+  status                 MaterialStatus @default(PENDING_APPROVAL)
+  createdById            String         @map("created_by_id")
+  createdAt              DateTime       @default(now()) @map("created_at")
+  updatedAt              DateTime       @updatedAt @map("updated_at")
 
   category     MaterialCategory @relation(fields: [categoryId], references: [id])
   createdBy    User             @relation("MaterialCreatedBy", fields: [createdById], references: [id])
@@ -34,7 +39,6 @@ model Material {
   rfqLineItems         RfqLineItem[]
   quoteSubstituteItems QuoteResponseLineItem[] @relation("QuoteSubstituteItem")
 
-  @@unique([name, status], map: "idx_material_name_status")
   @@index([categoryId], map: "idx_materials_category")
   @@index([status], map: "idx_materials_status")
   @@index([name], map: "idx_materials_name")

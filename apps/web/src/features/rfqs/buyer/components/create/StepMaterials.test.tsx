@@ -209,6 +209,45 @@ describe('StepMaterials', () => {
     });
   });
 
+  it('truncates an over-long BOM description to the 255-char name cap and keeps the full text in notes', () => {
+    const longDescription = 'Galvanised steel bracket assembly, '.repeat(15); // > 255 chars
+    const { onAdd } = renderStep({
+      confirmedBoms: [
+        {
+          id: 'bom1',
+          file: { originalName: 'site-a.pdf' },
+          editedResult: {
+            title: 'Site A BOM',
+            projectName: 'Project A',
+            currency: 'USD',
+            notes: null,
+            items: [
+              {
+                description: longDescription,
+                quantity: 4,
+                unit: 'ea',
+                targetPrice: null,
+                notes: null,
+              },
+            ],
+          },
+        } as any,
+      ],
+    });
+
+    fireEvent.click(screen.getByLabelText('From BOM'));
+    fireEvent.change(screen.getByLabelText('Select a confirmed BOM'), { target: { value: 'bom1' } });
+    fireEvent.click(screen.getByTestId('bom-line-0').querySelector('input[type="checkbox"]')!);
+    fireEvent.click(screen.getByTestId('add-bom-line-items'));
+
+    expect(onAdd).toHaveBeenCalledTimes(1);
+    const draft = (onAdd as ReturnType<typeof vi.fn>).mock.calls[0][0] as RfqLineItemDraft;
+    expect(draft.materialName.length).toBeLessThanOrEqual(255);
+    expect(draft.materialName.endsWith('…')).toBe(true);
+    // Full description preserved so the spec is not silently dropped.
+    expect(draft.notes).toBe(longDescription.trim());
+  });
+
   it('renders existing line items (catalogue and BOM) and supports removal', () => {
     const onRemove = vi.fn();
     renderStep({

@@ -44,11 +44,31 @@ export interface MaterialListItemDto {
   status: string;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Catalogue ingest fields (FOR-228). The materials list now also surfaces the
+   * richer catalogue attributes; kept optional so existing consumers that only
+   * read name/code/unitOfMeasure are unaffected.
+   */
+  uom?: string;
+  sku?: string | null;
+  brand?: string | null;
+  manufacturerPartNumber?: string | null;
+  subCategory?: string | null;
+  imageUrl?: string | null;
 }
 
 export interface PaginatedMaterialsResponse {
   items: MaterialListItemDto[];
   meta: PaginationMeta;
+}
+
+/** Summary returned by POST /v1/materials/catalogue-import (FOR-228). */
+export interface CatalogueImportSummary {
+  total: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  categoriesCreated: number;
 }
 
 // ── Endpoint functions ───────────────────────────────────────────────────────
@@ -92,6 +112,23 @@ export async function createMaterial(
   const { data } = await getApiClient().post<{ data: MaterialListItemDto }>(
     MATERIALS_PATHS.ROOT,
     input,
+    config,
+  );
+  return data.data;
+}
+
+/**
+ * Bulk-imports the materials from a confirmed CATALOGUE extraction (FOR-228).
+ * The backend reads the extraction's edited result and upserts the catalogue
+ * (SKU-keyed), returning a summary of what changed.
+ */
+export async function importCatalogue(
+  extractionId: string,
+  config?: AxiosRequestConfig,
+): Promise<CatalogueImportSummary> {
+  const { data } = await getApiClient().post<{ data: CatalogueImportSummary }>(
+    MATERIALS_PATHS.CATALOGUE_IMPORT,
+    { extractionId },
     config,
   );
   return data.data;

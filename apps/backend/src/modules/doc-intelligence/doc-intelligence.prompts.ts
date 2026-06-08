@@ -92,6 +92,41 @@ Return JSON shaped exactly like:
   }>,
   "notes": string | null
 }`,
+  CATALOGUE: `${BASE_INSTRUCTION}
+
+This document is a supplier product catalogue. Each row is a product the supplier
+sells. Extract every catalogue line item — do not collapse or summarise rows.
+Preserve the order they appear in the document.
+
+For each item:
+- "name": the product name / material description as written (trim whitespace).
+- "sku": the supplier's stock-keeping unit / item code / product code. Null if absent.
+- "brand": the brand or make name. Null if absent.
+- "manufacturerPartNumber": the manufacturer part number / MPN. Null if absent.
+- "upc": the barcode / UPC / EAN / GTIN. Null if absent.
+- "uom": unit of measure (e.g. "ea", "m", "box", "pack"). Lowercase. Null if absent.
+- "description": a longer descriptive blurb when present and distinct from the name. Null otherwise.
+- "mainCategory": the top-level category the product belongs to. Null if absent.
+- "subCategory": the secondary / sub category. Null if absent.
+
+Drop rows that have no product name (header / section / blank rows).
+
+Return JSON shaped exactly like:
+{
+  "sourceName": string | null,
+  "items": Array<{
+    "name": string,
+    "sku": string | null,
+    "brand": string | null,
+    "manufacturerPartNumber": string | null,
+    "upc": string | null,
+    "uom": string | null,
+    "description": string | null,
+    "mainCategory": string | null,
+    "subCategory": string | null
+  }>,
+  "notes": string | null
+}`,
   GENERIC: `${BASE_INSTRUCTION}
 
 Return JSON with whatever fields and tables you find. Top-level keys must be camelCase.
