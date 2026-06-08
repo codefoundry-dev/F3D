@@ -8,12 +8,7 @@ import {
   queryKeys,
   updateDocExtraction,
 } from '@forethread/api-client';
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type UseQueryResult,
-} from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 
 const TERMINAL_STATUSES: ReadonlySet<DocExtractionResponse['status']> = new Set([
   'COMPLETED',
@@ -23,17 +18,24 @@ const TERMINAL_STATUSES: ReadonlySet<DocExtractionResponse['status']> = new Set(
 
 const POLL_INTERVAL_MS = 1500;
 
+// While the job is PENDING/PROCESSING the poll responses are tiny (no result
+// yet). But the poll that catches the COMPLETED transition returns the full
+// editedResult, which for a catalogue spreadsheet is a multi-MB payload (a real
+// Rexel export is ~62k rows). On a small backend that single response can take
+// well past the api-client's default 30s timeout to serialise + transfer, which
+// aborts the poll (XHR "canceled") and leaves the modal stuck. Give the poll
+// generous headroom so the completing fetch lands instead of being canceled.
+const RESULT_FETCH_TIMEOUT_MS = 120_000;
+
 /**
  * Subscribe to a single extraction job. While the job is PENDING or PROCESSING
  * the query polls every {@link POLL_INTERVAL_MS}ms; once it reaches a terminal
  * state (COMPLETED / CONFIRMED / FAILED) polling stops.
  */
-export function useDocExtractionQuery(
-  id: string | null,
-): UseQueryResult<DocExtractionResponse> {
+export function useDocExtractionQuery(id: string | null): UseQueryResult<DocExtractionResponse> {
   return useQuery<DocExtractionResponse>({
     queryKey: queryKeys.docExtractions.detail(id ?? ''),
-    queryFn: () => getDocExtraction(id as string),
+    queryFn: () => getDocExtraction(id as string, { timeout: RESULT_FETCH_TIMEOUT_MS }),
     enabled: Boolean(id),
     refetchInterval: (query) => {
       const data = query.state.data;

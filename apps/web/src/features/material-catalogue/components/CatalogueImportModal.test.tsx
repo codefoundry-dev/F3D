@@ -125,9 +125,19 @@ describe('CatalogueImportModal', () => {
     await screen.findByTestId('catalogue-review-table');
     expect(screen.getByText('Hammer')).toBeInTheDocument();
 
+    // The poll fetches with a long timeout so the completing poll — which
+    // returns the full multi-MB catalogue result — isn't canceled at the
+    // api-client's default 30s timeout.
+    expect(mockedGet).toHaveBeenCalledWith('job-1', expect.objectContaining({ timeout: 120000 }));
+
     fireEvent.click(await screen.findByTestId('catalogue-import-confirm'));
 
-    await waitFor(() => expect(mockedImport).toHaveBeenCalledWith('job-1', expect.objectContaining({ timeout: 300000 })));
+    await waitFor(() =>
+      expect(mockedImport).toHaveBeenCalledWith(
+        'job-1',
+        expect.objectContaining({ timeout: 300000 }),
+      ),
+    );
     await waitFor(() => expect(notificationService.success).toHaveBeenCalledTimes(1));
     // No edits → the server already has the parsed result, so we never PATCH it back.
     expect(mockedUpdate).not.toHaveBeenCalled();
@@ -158,7 +168,12 @@ describe('CatalogueImportModal', () => {
 
     await waitFor(() => expect(mockedUpdate).toHaveBeenCalledTimes(1));
     expect(mockedUpdate.mock.calls[0][0]).toBe('job-1');
-    await waitFor(() => expect(mockedImport).toHaveBeenCalledWith('job-1', expect.objectContaining({ timeout: 300000 })));
+    await waitFor(() =>
+      expect(mockedImport).toHaveBeenCalledWith(
+        'job-1',
+        expect.objectContaining({ timeout: 300000 }),
+      ),
+    );
     await waitFor(() => expect(notificationService.success).toHaveBeenCalledTimes(1));
   });
 
@@ -178,7 +193,12 @@ describe('CatalogueImportModal', () => {
   it('shows a retry action when the extraction fails', async () => {
     mockedCreate.mockResolvedValue(buildJob({ status: 'PROCESSING', editedResult: null }));
     mockedGet.mockResolvedValue(
-      buildJob({ status: 'FAILED', errorCode: 'BAD_FILE', errorMessage: 'corrupt', editedResult: null }),
+      buildJob({
+        status: 'FAILED',
+        errorCode: 'BAD_FILE',
+        errorMessage: 'corrupt',
+        editedResult: null,
+      }),
     );
 
     renderWithClient(<CatalogueImportModal onClose={vi.fn()} />);
