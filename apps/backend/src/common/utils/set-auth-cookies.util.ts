@@ -25,37 +25,56 @@ export function getCookieNames(req: Request): { access: string; refresh: string 
   return { access: JWT_COOKIE_NAMES.ACCESS, refresh: JWT_COOKIE_NAMES.REFRESH };
 }
 
+/**
+ * Shared cookie attributes for both setting and clearing auth cookies.
+ *
+ * These MUST be identical between set and clear: browsers only delete a cookie
+ * when the clearing `Set-Cookie` carries the same path/sameSite/secure/httpOnly
+ * as the cookie that set it. In production the frontend is cross-site from the
+ * API, so cookies are `SameSite=None; Secure` — and a cross-site response is
+ * only allowed to set (or expire) a cookie when it is `SameSite=None; Secure`.
+ * A loosely-specified clear (e.g. just `{ path: '/' }`) defaults to
+ * `SameSite=Lax` and is silently ignored by the browser, leaving the user
+ * logged in after logout.
+ */
+function baseCookieOptions(): CookieOptions {
+  const isProd = process.env['NODE_ENV'] === 'production';
+  return {
+    path: '/',
+    httpOnly: true,
+    sameSite: isProd ? 'none' : 'lax',
+    secure: isProd,
+  };
+}
+
 export function setAuthCookies(
   res: Response,
   accessToken: string,
   refreshToken: string,
   req: Request,
 ): void {
-  const isProd = process.env['NODE_ENV'] === 'production';
   const names = getCookieNames(req);
-
-  const baseCookieOptions: CookieOptions = {
-    path: '/',
-    httpOnly: true,
-    sameSite: isProd ? 'none' : 'lax',
-    secure: isProd,
-  };
+  const base = baseCookieOptions();
 
   // Access token cookie — short-lived (matches JWT expiry)
   res.cookie(names.access, accessToken, {
-    ...baseCookieOptions,
+    ...base,
     maxAge: ACCESS_COOKIE_MAX_AGE,
   });
 
   // Refresh token cookie — long-lived (matches JWT expiry)
   res.cookie(names.refresh, refreshToken, {
-    ...baseCookieOptions,
+    ...base,
     maxAge: REFRESH_COOKIE_MAX_AGE,
   });
 }
 
 export function clearAuthCookies(res: Response, req: Request): void {
   const names = getCookieNames(req);
-  res.clearCookie(names.access, { path: '/' });
-  res.clearCookie(names.refresh, { path: '/' });
+  // Same attributes as setAuthCookies (minus maxAge) so the browser actually
+  // deletes the cookies — especially cross-site in production.
+  const base = baseCookieOptions();
+
+  res.clearCookie(names.access, base);
+  res.clearCookie(names.refresh, base);
 }

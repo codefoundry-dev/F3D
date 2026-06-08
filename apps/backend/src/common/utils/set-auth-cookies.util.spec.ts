@@ -100,8 +100,14 @@ describe('set-auth-cookies.util', () => {
       clearAuthCookies(mockRes as never, mockReq as never);
 
       expect(mockRes.clearCookie).toHaveBeenCalledTimes(2);
-      expect(mockRes.clearCookie).toHaveBeenCalledWith(JWT_COOKIE_NAMES.ACCESS, { path: '/' });
-      expect(mockRes.clearCookie).toHaveBeenCalledWith(JWT_COOKIE_NAMES.REFRESH, { path: '/' });
+      expect(mockRes.clearCookie).toHaveBeenCalledWith(
+        JWT_COOKIE_NAMES.ACCESS,
+        expect.objectContaining({ path: '/', httpOnly: true }),
+      );
+      expect(mockRes.clearCookie).toHaveBeenCalledWith(
+        JWT_COOKIE_NAMES.REFRESH,
+        expect.objectContaining({ path: '/', httpOnly: true }),
+      );
     });
 
     it('clears app-scoped cookies when X-App-Id header is present', () => {
@@ -109,10 +115,32 @@ describe('set-auth-cookies.util', () => {
 
       clearAuthCookies(mockRes as never, mockReq as never);
 
-      expect(mockRes.clearCookie).toHaveBeenCalledWith('jwt_procurement-officer', { path: '/' });
-      expect(mockRes.clearCookie).toHaveBeenCalledWith('jwt_refresh_procurement-officer', {
-        path: '/',
-      });
+      expect(mockRes.clearCookie).toHaveBeenCalledWith(
+        'jwt_procurement-officer',
+        expect.objectContaining({ path: '/' }),
+      );
+      expect(mockRes.clearCookie).toHaveBeenCalledWith(
+        'jwt_refresh_procurement-officer',
+        expect.objectContaining({ path: '/' }),
+      );
+    });
+
+    it('clears cookies with SameSite=None and Secure in production so cross-site logout works', () => {
+      const origEnv = process.env['NODE_ENV'];
+      process.env['NODE_ENV'] = 'production';
+
+      clearAuthCookies(mockRes as never, mockReq as never);
+
+      expect(mockRes.clearCookie).toHaveBeenCalledWith(
+        JWT_COOKIE_NAMES.ACCESS,
+        expect.objectContaining({ sameSite: 'none', secure: true, path: '/' }),
+      );
+      expect(mockRes.clearCookie).toHaveBeenCalledWith(
+        JWT_COOKIE_NAMES.REFRESH,
+        expect.objectContaining({ sameSite: 'none', secure: true, path: '/' }),
+      );
+
+      process.env['NODE_ENV'] = origEnv;
     });
   });
 });
