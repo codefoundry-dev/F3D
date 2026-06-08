@@ -164,6 +164,7 @@ export const MATERIALS_PATHS = {
   ROOT: '/materials',
   CATEGORIES: '/materials/categories',
   SUGGESTIONS: '/materials/suggestions',
+  CATALOGUE_IMPORT: '/materials/catalogue-import',
 } as const;
 
 // ── Vendors ─────────────────────────────────────────────────────────────────

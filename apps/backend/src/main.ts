@@ -3,6 +3,7 @@ import { setDefaultResultOrder } from 'node:dns';
 import { ClassSerializerInterceptor, Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
@@ -18,7 +19,7 @@ setDefaultResultOrder(
 );
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
     // Preserve the raw request body so the Resend webhook (FOR-213) can verify
     // the Svix signature against the exact bytes Resend signed.
@@ -30,6 +31,16 @@ async function bootstrap(): Promise<void> {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 3000);
   const nodeEnv = configService.get<string>('NODE_ENV', 'development');
+
+  // ── Request body size ───────────────────────────────────────────────────────
+  // The default body-parser limit (~100kb) is far too small for catalogue
+  // ingest (FOR-228): confirming/editing a large extraction sends the full
+  // edited result (tens of thousands of rows ≈ 10MB+) as JSON. Raise the JSON
+  // and urlencoded limits while keeping rawBody capture intact for the Resend
+  // webhook. Configurable via MAX_REQUEST_BODY_SIZE.
+  const bodyLimit = configService.get<string>('MAX_REQUEST_BODY_SIZE', '50mb');
+  app.useBodyParser('json', { limit: bodyLimit });
+  app.useBodyParser('urlencoded', { limit: bodyLimit, extended: true });
   const corsOrigins = configService
     .get<string>('CORS_ORIGINS', 'http://localhost:5179')
     .split(',')

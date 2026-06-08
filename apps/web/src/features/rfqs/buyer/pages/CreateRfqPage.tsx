@@ -14,6 +14,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/app/route-config';
 import { useConfirmedBoms } from '@/features/doc-intelligence';
 
+import { deriveBomLineNameAndNotes } from '../components/create/bom-draft';
 import { StepDelivery, type DeliveryStepValues } from '../components/create/StepDelivery';
 import { StepIndicator } from '../components/create/StepIndicator';
 import { StepMaterials, type RfqLineItemDraft } from '../components/create/StepMaterials';
@@ -91,12 +92,13 @@ function buildPayload(
 function bomItemToDraft(item: BomLineItem): RfqLineItemDraft {
   const quantity = typeof item.quantity === 'number' && item.quantity >= 0.01 ? item.quantity : 1;
   const unit = item.unit?.trim() ?? '';
+  const { materialName, notes } = deriveBomLineNameAndNotes(item);
   return {
     source: 'BOM',
-    materialName: item.description,
+    materialName,
     quantity,
     uom: unit.length > 0 ? unit : 'unit',
-    notes: item.notes ?? undefined,
+    notes,
   };
 }
 

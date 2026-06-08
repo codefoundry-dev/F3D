@@ -52,6 +52,16 @@ export class CreateMaterialDto {
   description?: string;
 }
 
+/**
+ * Bulk-import materials from a confirmed CATALOGUE extraction (FOR-228). The
+ * extraction's `editedResult` is parsed as a CatalogueExtractionResult and
+ * upserted into the materials table (SKU-keyed).
+ */
+export class CatalogueImportRequestDto {
+  @IsUUID()
+  extractionId!: string;
+}
+
 // ── Response interfaces ──────────────────────────────────────────────────────
 
 export interface MaterialListItemDto {
@@ -63,6 +73,11 @@ export interface MaterialListItemDto {
   upc: string | null;
   manufacturer: string | null;
   description: string | null;
+  sku: string | null;
+  brand: string | null;
+  manufacturerPartNumber: string | null;
+  subCategory: string | null;
+  imageUrl: string | null;
   status: MaterialStatus;
   createdAt: string;
 }
@@ -70,4 +85,13 @@ export interface MaterialListItemDto {
 export interface MaterialCategoryDto {
   id: string;
   name: string;
+}
+
+/** Summary returned by the catalogue bulk-import endpoint (FOR-228). */
+export interface CatalogueImportSummaryDto {
+  total: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  categoriesCreated: number;
 }

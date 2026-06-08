@@ -1,8 +1,10 @@
+import { AxiosRequestConfig } from 'axios';
+
 import { getApiClient } from '../client';
 
 import { DOC_EXTRACTIONS_PATHS } from './paths';
 
-export type DocExtractionType = 'BOM' | 'QUOTE' | 'INVOICE' | 'GENERIC';
+export type DocExtractionType = 'BOM' | 'QUOTE' | 'INVOICE' | 'GENERIC' | 'CATALOGUE';
 export type DocExtractionStatus =
   | 'PENDING'
   | 'PROCESSING'
@@ -95,10 +97,12 @@ export async function getDocExtraction(id: string): Promise<DocExtractionRespons
 export async function updateDocExtraction(
   id: string,
   editedResult: Record<string, unknown>,
+  config?: AxiosRequestConfig,
 ): Promise<DocExtractionResponse> {
   const { data } = await getApiClient().patch<{ data: DocExtractionResponse }>(
     DOC_EXTRACTIONS_PATHS.byId(id),
     { editedResult },
+    config,
   );
   return data.data;
 }

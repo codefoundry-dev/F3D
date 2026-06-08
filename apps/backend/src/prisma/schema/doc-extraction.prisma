@@ -11,6 +11,7 @@ enum DocExtractionType {
   QUOTE
   INVOICE
   GENERIC
+  CATALOGUE
 }
 
 model DocExtraction {

@@ -67,7 +67,7 @@ describe('PoChangeService', () => {
       vendorId: 'vendor-comp-1',
       poNumber: 'PO-0001',
       company: { users: [{ email: 'admin@contractor.com' }] },
-      vendor: { users: [{ email: 'vendor@vendor.com' }] },
+      vendor: { contactEmail: 'contact@vendor.com', users: [{ email: 'vendor@vendor.com' }] },
     };
 
     const dto = {
@@ -159,6 +159,30 @@ describe('PoChangeService', () => {
 
       expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
         'vendor@vendor.com',
+        'PO-0001',
+        'CA Admin',
+        'http://localhost:5179/purchase-orders/po-1',
+      );
+    });
+
+    it('falls back to the vendor contactEmail when the vendor has no user accounts', async () => {
+      // Vendor quick-added via companies.service.createCompany (US-3.01): only a
+      // contactEmail, no VENDOR users. The change request must still reach them.
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        ...poWithRelations,
+        vendor: { contactEmail: 'quickadd@vendor.com', users: [] },
+      });
+      mockPrisma.poChangeRequest.create.mockResolvedValue({
+        id: 'cr-1',
+        requestedBy: { id: 'ca-1', name: 'CA Admin' },
+      });
+
+      await service.proposeChange('po-1', dto as never, companyAdmin);
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+        'quickadd@vendor.com',
         'PO-0001',
         'CA Admin',
         'http://localhost:5179/purchase-orders/po-1',

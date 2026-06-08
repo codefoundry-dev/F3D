@@ -2300,6 +2300,73 @@ describe('RfqsService', () => {
       );
     });
 
+    it('sends to the vendor contactEmail when the vendor has no user accounts', async () => {
+      mockPrisma.rfq.findUnique
+        .mockResolvedValueOnce({
+          id: 'rfq-1',
+          status: 'DRAFT',
+          companyId: 'comp-1',
+          _count: { lineItems: 2, invitedVendors: 1 },
+        })
+        // generateInvitationTokensAndNotify
+        .mockResolvedValueOnce({
+          rfqNumber: 'RFQ-9',
+          ccEmails: [],
+          documents: [],
+          invitedVendors: [
+            {
+              id: 'iv-1',
+              vendor: { id: 'v-1', contactEmail: 'hello@vendor.com', users: [] },
+            },
+          ],
+        })
+        // getRfq
+        .mockResolvedValueOnce({
+          id: 'rfq-1',
+          rfqNumber: 'RFQ-9',
+          status: 'OPEN',
+          currency: 'AUD',
+          companyId: 'comp-1',
+          projectId: 'proj-1',
+          project: { name: 'Proj' },
+          createdBy: { id: 'po-1', name: 'PO' },
+          approvedBy: null,
+          lineItems: [],
+          quoteResponses: [],
+          invitedVendors: [],
+          documents: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          deadlineStart: null,
+          deadlineEnd: null,
+          deliveryLocationId: null,
+          needByDate: null,
+          holdForRelease: false,
+          earliestDeliveryDate: null,
+          message: null,
+          totalRequestedQty: 0,
+          pickUpLocation: null,
+          pickUpDate: null,
+          approvalStatus: null,
+        });
+      mockPrisma.rfq.update.mockResolvedValue({});
+      mockPrisma.rfqVendor.update.mockResolvedValue({});
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue(null);
+      mockEmailService.sendRfqReceivedEmail.mockResolvedValue(undefined);
+
+      await service.sendRfq('rfq-1', {}, procOfficer);
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      // No user accounts → guest invitation link, delivered to the contact email.
+      expect(mockEmailService.sendRfqReceivedEmail).toHaveBeenCalledWith(
+        'hello@vendor.com',
+        'RFQ-9',
+        'http://localhost:5179/invitation/issued-token-xyz',
+        expect.objectContaining({ cc: [], attachments: [] }),
+      );
+    });
+
     it('sends RFQ by updating status to OPEN', async () => {
       mockPrisma.rfq.findUnique
         .mockResolvedValueOnce({
