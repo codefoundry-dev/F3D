@@ -4,13 +4,14 @@ import { getApiClient } from '../client';
 
 import { DOC_EXTRACTIONS_PATHS } from './paths';
 
+// Catalogue uploads can be large spreadsheets (a real Rexel export is ~30 MB),
+// so the multipart upload routinely needs more than the api-client's default
+// 30s timeout — the request also waits on the server-side S3 upload before it
+// returns. Give it generous headroom.
+const UPLOAD_TIMEOUT_MS = 120_000;
+
 export type DocExtractionType = 'BOM' | 'QUOTE' | 'INVOICE' | 'GENERIC' | 'CATALOGUE';
-export type DocExtractionStatus =
-  | 'PENDING'
-  | 'PROCESSING'
-  | 'COMPLETED'
-  | 'CONFIRMED'
-  | 'FAILED';
+export type DocExtractionStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CONFIRMED' | 'FAILED';
 
 export interface DocExtractionFile {
   id: string;
@@ -72,7 +73,7 @@ export async function createDocExtraction(
   const { data } = await getApiClient().post<{ data: DocExtractionResponse }>(
     DOC_EXTRACTIONS_PATHS.ROOT,
     form,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
+    { headers: { 'Content-Type': 'multipart/form-data' }, timeout: UPLOAD_TIMEOUT_MS },
   );
   return data.data;
 }
@@ -87,9 +88,13 @@ export async function listDocExtractions(
   return data.data;
 }
 
-export async function getDocExtraction(id: string): Promise<DocExtractionResponse> {
+export async function getDocExtraction(
+  id: string,
+  config?: AxiosRequestConfig,
+): Promise<DocExtractionResponse> {
   const { data } = await getApiClient().get<{ data: DocExtractionResponse }>(
     DOC_EXTRACTIONS_PATHS.byId(id),
+    config,
   );
   return data.data;
 }
