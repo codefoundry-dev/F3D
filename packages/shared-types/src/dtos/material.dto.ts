@@ -27,6 +27,14 @@ export class MaterialListQueryDto extends BasePaginationQueryDto {
   @IsString()
   @IsOptional()
   sortBy?: string = 'name';
+
+  // The catalogue reads as an alphabetical reference list, so it defaults to
+  // ascending (A->Z) — overriding BasePaginationQueryDto's `desc` default, which
+  // suits newest-first lists (RFQs/POs) but would sort the catalogue Z->A.
+  @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'asc' })
+  @IsString()
+  @IsOptional()
+  override sortDir?: 'asc' | 'desc' = 'asc';
 }
 
 export class CreateMaterialDto {
