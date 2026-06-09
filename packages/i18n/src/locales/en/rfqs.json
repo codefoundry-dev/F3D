@@ -1,10 +1,11 @@
 {
   "list": {
-    "title": "RFQ Management",
+    "title": "Quotes",
     "subtitle": "View and manage all requests for quotation",
     "searchPlaceholder": "Search by RFQ ID or project name",
     "filters": "Filters",
     "createNew": "Create new",
+    "newQuote": "New Quote",
     "viewDefault": "Default",
     "group": "Group",
     "groupByProject": "Group by Project",
@@ -27,7 +28,7 @@
     "openRfqs": "Open RFQs",
     "awaitingResponses": "Awaiting Responses",
     "noQuotes": "No Quotes",
-    "awardedRfqs": "Awarded RFQs",
+    "awardedRfqs": "Ordered",
     "closedRfqs": "Closed RFQs",
     "incoming": "Incoming",
     "approvedForMe": "Approved for me"
@@ -58,12 +59,12 @@
     "contractorName": "Contractor Name"
   },
   "status": {
-    "DRAFT": "Draft",
-    "OPEN": "Open",
-    "AWAITING_RESPONSE": "Awaiting Response",
+    "DRAFT": "Unreviewed",
+    "OPEN": "Quote Requested",
+    "AWAITING_RESPONSE": "Quote Requested",
     "IN_REVIEW": "In Review",
-    "QUOTED": "Quoted",
-    "AWARDED": "Awarded",
+    "QUOTED": "Quote Received",
+    "AWARDED": "Ordered",
     "CLOSED": "Closed",
     "CANCELLED": "Cancelled",
     "INCOMING": "Incoming",
@@ -175,15 +176,15 @@
     "vendorTotal": "Vendor total",
     "leadTime": "Lead time",
     "paymentTerms": "Payment terms",
-    "award": "Award",
-    "awarded": "Awarded",
-    "awarding": "Awarding…",
-    "awardConfirmTitle": "Award quote to {{vendor}}?",
-    "awardConfirmMessage": "This approves {{vendor}}'s quote and creates a draft purchase order pre-filled from it. You can review and edit the draft before issuing it.",
-    "awardConfirmButton": "Award & create draft PO",
+    "award": "Convert to PO",
+    "awarded": "Converted",
+    "awarding": "Converting…",
+    "awardConfirmTitle": "Convert {{vendor}}'s quote to a purchase order?",
+    "awardConfirmMessage": "This selects {{vendor}} as the winning vendor and creates a draft purchase order pre-filled from their quote. You can review and edit the draft before issuing it.",
+    "awardConfirmButton": "Convert to Purchase Order",
     "awardCancel": "Cancel",
-    "awardSuccess": "Quote awarded — draft PO {{poNumber}} created",
-    "awardError": "Could not award this quote. Please try again."
+    "awardSuccess": "Converted — draft PO {{poNumber}} created",
+    "awardError": "Could not convert this quote. Please try again."
   },
   "auditTab": {
     "title": "Quote audit trail",

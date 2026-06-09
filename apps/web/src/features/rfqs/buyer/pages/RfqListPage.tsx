@@ -52,6 +52,7 @@ import { ROUTES } from '@/app/route-config';
 import { RfqDetailPanel } from '../components/RfqDetailPanel';
 import { ALL_COLUMNS, DEFAULT_VISIBLE, TRUNCATE_COLUMNS, type SortableField } from '../constants';
 import { createRfqTableStore } from '../state/rfq-table.store';
+import { buyerRfqStatusKey } from '../status-label';
 
 const useRfqTableStore = createRfqTableStore(DEFAULT_VISIBLE);
 
@@ -142,7 +143,7 @@ export default function RfqListPage() {
     if (key === 'rfqStatus') {
       return (
         <Badge className={getStatusColor(RFQ_STATUS_COLORS, rfq.status)}>
-          {t(`status.${rfq.status}` as never)}
+          {t(`status.${buyerRfqStatusKey(rfq.status)}` as never)}
         </Badge>
       );
     }
@@ -262,7 +263,7 @@ export default function RfqListPage() {
                 leftIcon={<span className="text-lg leading-none">+</span>}
                 onClick={() => createDD.setIsOpen((p) => !p)}
               >
-                {t('list.createNew')}
+                {t('list.newQuote')}
               </Button>
 
               {createDD.isOpen && (
@@ -457,10 +458,15 @@ export default function RfqListPage() {
                   {groupedItems
                     ? Array.from(groupedItems.entries()).map(([groupKey, groupItems]) => {
                         const isExpanded = expandedGroups.has(groupKey);
+                        const groupLabel =
+                          s.groupBy === 'groupByStatus' && groupKey !== '-'
+                            ? t(`status.${buyerRfqStatusKey(groupKey)}` as never)
+                            : groupKey;
                         return (
                           <GroupSection
                             key={groupKey}
                             groupKey={groupKey}
+                            label={groupLabel}
                             isExpanded={isExpanded}
                             onToggle={toggleGroup}
                             colSpan={visibleCols.length + 1}
@@ -557,12 +563,14 @@ export default function RfqListPage() {
 
 function GroupSection({
   groupKey,
+  label,
   isExpanded,
   onToggle,
   colSpan,
   children,
 }: {
   groupKey: string;
+  label: string;
   isExpanded: boolean;
   onToggle: (key: string) => void;
   colSpan: number;
@@ -579,7 +587,7 @@ function GroupSection({
             <ChevronDownIcon
               className={cn('w-4 h-4 transition-transform', !isExpanded && '-rotate-90')}
             />
-            {groupKey}
+            {label}
           </div>
         </td>
       </tr>

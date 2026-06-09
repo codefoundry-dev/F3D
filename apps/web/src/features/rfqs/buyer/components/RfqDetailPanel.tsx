@@ -11,6 +11,8 @@ import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 
+import { buyerRfqStatusKey } from '../status-label';
+
 import { RfqDetailsTab } from './RfqDetailsTab';
 import { RfqDocumentsTab } from './RfqDocumentsTab';
 import { RfqLineItemsTab } from './RfqLineItemsTab';
@@ -94,7 +96,7 @@ export function RfqDetailPanel({ rfqId, onClose }: RfqDetailPanelProps) {
           <div className="flex items-center gap-4.5 shrink-0">
             <h2 className="flex-1 text-lg font-medium text-foreground">{rfq.projectName}</h2>
             <Badge className={getStatusColor(RFQ_STATUS_COLORS, rfq.status)}>
-              {t(`status.${rfq.status}` as never)}
+              {t(`status.${buyerRfqStatusKey(rfq.status)}` as never)}
             </Badge>
           </div>
 
