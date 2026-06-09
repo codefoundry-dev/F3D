@@ -1,9 +1,28 @@
-import { createRfqLineItemSchema } from '@forethread/shared-types/client';
+import { createRfqLineItemSchema, type BomLineItem } from '@forethread/shared-types/client';
 
-import { deriveBomLineNameAndNotes, RFQ_MATERIAL_NAME_MAX } from './bom-draft';
+import {
+  bomLineToRfqDraftFields,
+  deriveBomLineNameAndNotes,
+  RFQ_MATERIAL_NAME_MAX,
+} from './bom-draft';
 
 function bomLine(description: string, notes: string | null = null) {
   return { description, quantity: null, unit: null, targetPrice: null, notes };
+}
+
+/** A BOM line matched to a catalogue material during review. */
+function matchedBomLine(overrides: Partial<BomLineItem> & { description: string }): BomLineItem {
+  return {
+    quantity: 1,
+    unit: 'ea',
+    targetPrice: null,
+    notes: null,
+    matchedMaterialId: 'mat-1',
+    matchedMaterialName: 'Catalogue Material',
+    matchConfidence: 0.9,
+    matchCandidates: [],
+    ...overrides,
+  };
 }
 
 describe('deriveBomLineNameAndNotes', () => {
@@ -46,6 +65,70 @@ describe('deriveBomLineNameAndNotes', () => {
       materialName,
       quantity: 1,
       uom: 'unit',
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('bomLineToRfqDraftFields', () => {
+  it('keeps an unmatched line as a free-text name with no materialId', () => {
+    expect(bomLineToRfqDraftFields(bomLine('Plywood sheet', 'grade B') as BomLineItem)).toEqual({
+      materialName: 'Plywood sheet',
+      notes: 'grade B',
+    });
+  });
+
+  it('links a matched line to its catalogue material and shows the catalogue name', () => {
+    const fields = bomLineToRfqDraftFields(
+      matchedBomLine({
+        description: 'Cement 25kg',
+        matchedMaterialId: 'mat-cement',
+        matchedMaterialName: 'Cement Bag 50kg',
+      }),
+    );
+    expect(fields.materialId).toBe('mat-cement');
+    expect(fields.materialName).toBe('Cement Bag 50kg');
+    // The BOM text differs from the catalogue name, so it is preserved in notes.
+    expect(fields.notes).toBe('Cement 25kg');
+  });
+
+  it('does not duplicate the description into notes for an exact-name match', () => {
+    expect(
+      bomLineToRfqDraftFields(
+        matchedBomLine({
+          description: 'Steel Rebar 12mm',
+          matchedMaterialId: 'mat-rebar',
+          matchedMaterialName: 'Steel Rebar 12mm',
+        }),
+      ),
+    ).toEqual({ materialId: 'mat-rebar', materialName: 'Steel Rebar 12mm', notes: undefined });
+  });
+
+  it('keeps existing notes alongside a differing description', () => {
+    const fields = bomLineToRfqDraftFields(
+      matchedBomLine({
+        description: 'Cement 25kg sulphate-resistant',
+        notes: 'spec ref X',
+        matchedMaterialName: 'Cement Bag 50kg',
+      }),
+    );
+    expect(fields.notes).toBe('Cement 25kg sulphate-resistant\n\nspec ref X');
+  });
+
+  it('produces a catalogue-linked line that satisfies createRfqLineItemSchema', () => {
+    const fields = bomLineToRfqDraftFields(
+      matchedBomLine({
+        description: 'Cement 25kg',
+        matchedMaterialId: '22222222-2222-4222-8222-222222222222',
+        matchedMaterialName: 'Cement Bag 50kg',
+      }),
+    );
+    const result = createRfqLineItemSchema.safeParse({
+      source: 'BOM',
+      materialId: fields.materialId,
+      quantity: 1,
+      uom: 'bag',
+      notes: fields.notes,
     });
     expect(result.success).toBe(true);
   });

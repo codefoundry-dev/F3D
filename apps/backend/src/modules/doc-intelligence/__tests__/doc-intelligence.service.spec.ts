@@ -502,6 +502,112 @@ describe('DocIntelligenceService', () => {
       expect(confirmCall?.[0].data.confirmedAt).toBeInstanceOf(Date);
     });
 
+    it('drops still-unmatched BOM lines when confirming (the proceed gate)', async () => {
+      const { service, prisma } = makeService();
+      prisma.docExtraction.findUnique.mockResolvedValue({
+        id: 'job-1',
+        type: DocExtractionType.BOM,
+        createdByUserId: 'user-1',
+        companyId: 'company-1',
+        status: DocExtractionStatus.COMPLETED,
+        file: { id: 'file-1' },
+      });
+      prisma.docExtraction.update.mockResolvedValue({
+        id: 'job-1',
+        status: DocExtractionStatus.CONFIRMED,
+        file: { id: 'file-1' },
+      });
+
+      // Final review state: one auto-matched line, one matched by hand, one
+      // the user left unmatched. Only the matched two should be persisted.
+      const line = (id: string | null, confidence: number | null) => ({
+        description: id ?? 'Mystery widget',
+        quantity: 1,
+        unit: 'ea',
+        targetPrice: null,
+        notes: null,
+        matchedMaterialId: id,
+        matchedMaterialName: id ? `Material ${id}` : null,
+        matchConfidence: confidence,
+        matchCandidates: [],
+      });
+      const edited = {
+        title: 'Concrete BOM',
+        projectName: null,
+        currency: 'AUD',
+        notes: null,
+        items: [line('m-rebar', 1), line('m-cement', null), line(null, null)],
+      };
+
+      await service.confirmExtraction('job-1', edited, baseUser);
+
+      const confirmCall = prisma.docExtraction.update.mock.calls.find(
+        (c) => c[0].data.status === DocExtractionStatus.CONFIRMED,
+      );
+      const saved = confirmCall?.[0].data.editedResult as {
+        items: Array<{ matchedMaterialId: string | null }>;
+      };
+      expect(saved.items.map((i) => i.matchedMaterialId)).toEqual(['m-rebar', 'm-cement']);
+    });
+
+    it('prunes unmatched lines from the stored BOM even when the user makes no edits', async () => {
+      const { service, prisma } = makeService();
+      prisma.docExtraction.findUnique.mockResolvedValue({
+        id: 'job-1',
+        type: DocExtractionType.BOM,
+        createdByUserId: 'user-1',
+        companyId: 'company-1',
+        status: DocExtractionStatus.COMPLETED,
+        editedResult: {
+          title: 'BOM',
+          projectName: null,
+          currency: null,
+          notes: null,
+          items: [
+            {
+              description: 'Matched',
+              quantity: 1,
+              unit: 'ea',
+              targetPrice: null,
+              notes: null,
+              matchedMaterialId: 'm-1',
+              matchedMaterialName: 'M1',
+              matchConfidence: 1,
+              matchCandidates: [],
+            },
+            {
+              description: 'Unmatched',
+              quantity: 1,
+              unit: 'ea',
+              targetPrice: null,
+              notes: null,
+              matchedMaterialId: null,
+              matchedMaterialName: null,
+              matchConfidence: null,
+              matchCandidates: [],
+            },
+          ],
+        },
+        file: { id: 'file-1' },
+      });
+      prisma.docExtraction.update.mockResolvedValue({
+        id: 'job-1',
+        status: DocExtractionStatus.CONFIRMED,
+        file: { id: 'file-1' },
+      });
+
+      await service.confirmExtraction('job-1', undefined, baseUser);
+
+      const confirmCall = prisma.docExtraction.update.mock.calls.find(
+        (c) => c[0].data.status === DocExtractionStatus.CONFIRMED,
+      );
+      const data = confirmCall?.[0].data;
+      const saved = data?.editedResult as { items: Array<{ matchedMaterialId: string | null }> };
+      expect(saved.items.map((i) => i.matchedMaterialId)).toEqual(['m-1']);
+      // No manual edit was submitted, so the system drop is not attributed to the user.
+      expect(data?.lastEditedByUserId).toBeUndefined();
+    });
+
     it('refuses to confirm when not in COMPLETED', async () => {
       const { service, prisma } = makeService();
       prisma.docExtraction.findUnique.mockResolvedValue({

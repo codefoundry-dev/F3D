@@ -14,7 +14,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/app/route-config';
 import { useConfirmedBoms } from '@/features/doc-intelligence';
 
-import { deriveBomLineNameAndNotes } from '../components/create/bom-draft';
+import { bomLineToRfqDraftFields } from '../components/create/bom-draft';
 import { SendRfqDialog } from '../components/create/SendRfqDialog';
 import { StepDelivery, type DeliveryStepValues } from '../components/create/StepDelivery';
 import { StepIndicator } from '../components/create/StepIndicator';
@@ -47,27 +47,26 @@ function buildPayload(
   const payload: SaveRfqDraftValues = { projectId };
 
   if (upToStep >= 1 && lineItems.length > 0) {
-    payload.lineItems = lineItems.map((item) =>
-      item.source === 'BOM'
-        ? {
-            source: RfqLineItemSource.BOM,
-            materialName: item.materialName,
-            quantity: item.quantity,
-            uom: item.uom,
-            costCode: item.costCode,
-            notes: item.notes,
-            pickUp: item.pickUp,
-          }
-        : {
-            source: RfqLineItemSource.CATALOG,
-            materialId: item.materialId,
-            quantity: item.quantity,
-            uom: item.uom,
-            costCode: item.costCode,
-            notes: item.notes,
-            pickUp: item.pickUp,
-          },
-    );
+    payload.lineItems = lineItems.map((item) => {
+      const base = {
+        quantity: item.quantity,
+        uom: item.uom,
+        costCode: item.costCode,
+        notes: item.notes,
+        pickUp: item.pickUp,
+      };
+      // A line carries a materialId when it is catalogue-sourced OR a BOM line
+      // that was matched to a catalogue material during review — both persist as
+      // catalogue-linked. Only a still-unmatched BOM line falls back to a name.
+      if (item.materialId) {
+        return {
+          source: item.source === 'BOM' ? RfqLineItemSource.BOM : RfqLineItemSource.CATALOG,
+          materialId: item.materialId,
+          ...base,
+        };
+      }
+      return { source: RfqLineItemSource.BOM, materialName: item.materialName, ...base };
+    });
   }
   if (upToStep >= 2 && vendorIds.length > 0) {
     payload.vendorIds = vendorIds;
@@ -94,13 +93,13 @@ function buildPayload(
 function bomItemToDraft(item: BomLineItem): RfqLineItemDraft {
   const quantity = typeof item.quantity === 'number' && item.quantity >= 0.01 ? item.quantity : 1;
   const unit = item.unit?.trim() ?? '';
-  const { materialName, notes } = deriveBomLineNameAndNotes(item);
+  // A matched line carries its catalogue materialId (catalogue-linked); an
+  // unmatched line keeps its free-text name.
   return {
     source: 'BOM',
-    materialName,
+    ...bomLineToRfqDraftFields(item),
     quantity,
     uom: unit.length > 0 ? unit : 'unit',
-    notes,
   };
 }
 

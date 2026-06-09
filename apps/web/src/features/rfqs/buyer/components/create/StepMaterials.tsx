@@ -16,7 +16,7 @@ import { useMemo, useState } from 'react';
 
 import type { ConfirmedBomSummary } from '@/features/doc-intelligence';
 
-import { deriveBomLineNameAndNotes } from './bom-draft';
+import { bomLineToRfqDraftFields } from './bom-draft';
 
 /** Where a draft line item originated. Local string-union (avoids importing the
  * RfqLineItemSource enum from the shared-types root barrel, which would pull in
@@ -104,8 +104,7 @@ export function StepMaterials({
     () =>
       confirmedBoms.map((bom) => {
         const result = isBomExtractionResult(bom.editedResult) ? bom.editedResult : null;
-        const label =
-          firstNonEmpty(result?.title, result?.projectName, bom.file.filename) ?? 'BOM';
+        const label = firstNonEmpty(result?.title, result?.projectName, bom.file.filename) ?? 'BOM';
         return { value: bom.id, label };
       }),
     [confirmedBoms],
@@ -207,13 +206,13 @@ export function StepMaterials({
         setBomError('Enter a unit of measure for each selected line');
         return;
       }
-      const { materialName, notes } = deriveBomLineNameAndNotes(item);
+      // A matched line carries its catalogue materialId (catalogue-linked);
+      // an unmatched line keeps its free-text name.
       drafts.push({
         source: 'BOM',
-        materialName,
+        ...bomLineToRfqDraftFields(item),
         quantity: qty,
         uom: row.uom.trim(),
-        notes,
       });
     }
 
@@ -313,7 +312,11 @@ export function StepMaterials({
                 />
               </FormField>
               <FormField label="Unit of measure">
-                <Input value={uom} onChange={(e) => setUom(e.target.value)} placeholder="e.g. bag" />
+                <Input
+                  value={uom}
+                  onChange={(e) => setUom(e.target.value)}
+                  placeholder="e.g. bag"
+                />
               </FormField>
             </div>
 

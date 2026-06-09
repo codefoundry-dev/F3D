@@ -312,7 +312,9 @@ describe('CreateRfqPage', () => {
     fireEvent.click(screen.getByTestId('next-step'));
     await waitFor(() =>
       expect(mockUpdateDraft.mutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ dto: expect.objectContaining({ vendorIds: [VENDOR_COMPANY_ID] }) }),
+        expect.objectContaining({
+          dto: expect.objectContaining({ vendorIds: [VENDOR_COMPANY_ID] }),
+        }),
       ),
     );
 
@@ -427,5 +429,68 @@ describe('CreateRfqPage', () => {
     const list = await screen.findByTestId('line-item-list');
     expect(within(list).getByText('Cement')).toBeInTheDocument();
     expect(within(list).getByText('Rebar 12mm')).toBeInTheDocument();
+  });
+
+  it('seeds a matched BOM line as a catalogue-linked RFQ line and sends its materialId', async () => {
+    mockUseLocation.mockReturnValue({ state: { bomExtractionId: 'bom-1' } });
+    mockUseConfirmedBoms.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: 'bom-1',
+            type: 'BOM',
+            status: 'CONFIRMED',
+            file: { filename: 'tower-5-bom.pdf' },
+            editedResult: {
+              title: 'Tower 5 BOM',
+              projectName: null,
+              currency: 'AUD',
+              items: [
+                {
+                  description: 'Cement 25kg',
+                  quantity: 50,
+                  unit: 'bag',
+                  targetPrice: null,
+                  notes: null,
+                  matchedMaterialId: MATERIAL_ID,
+                  matchedMaterialName: 'Cement Bag 50kg',
+                  matchConfidence: 0.9,
+                  matchCandidates: [],
+                },
+              ],
+              notes: null,
+            },
+          },
+        ],
+        meta: {},
+      },
+    });
+
+    render(<CreateRfqPage />);
+
+    // The seeded line shows the catalogue name, not the raw BOM text.
+    selectProject();
+    fireEvent.click(screen.getByTestId('next-step'));
+    const list = await screen.findByTestId('line-item-list');
+    expect(within(list).getByText('Cement Bag 50kg')).toBeInTheDocument();
+
+    // Advance past Materials → the persisted line carries the catalogue materialId
+    // (not a free-text materialName), so it is a catalogue-linked RFQ line.
+    await waitFor(() => expect(mockSaveDraft.mutateAsync).toHaveBeenCalled());
+    fireEvent.click(screen.getByTestId('next-step'));
+    await waitFor(() => expect(mockUpdateDraft.mutateAsync).toHaveBeenCalled());
+
+    const update = mockUpdateDraft.mutateAsync.mock.calls[0][0];
+    expect(update.dto.lineItems).toEqual([
+      {
+        source: 'BOM',
+        materialId: MATERIAL_ID,
+        quantity: 50,
+        uom: 'bag',
+        costCode: undefined,
+        notes: 'Cement 25kg',
+        pickUp: undefined,
+      },
+    ]);
   });
 });

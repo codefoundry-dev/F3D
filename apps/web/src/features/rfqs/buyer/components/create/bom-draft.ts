@@ -39,3 +39,47 @@ export function deriveBomLineNameAndNotes(item: BomLineItem): {
   const notes = existingNotes ? `${description}\n\n${existingNotes}` : description;
   return { materialName, notes };
 }
+
+/** The material-identity + display fields of an RFQ line item derived from a BOM line. */
+export interface BomRfqDraftFields {
+  /** Set only when the BOM line was matched to a catalogue material in review. */
+  materialId?: string;
+  materialName: string;
+  notes: string | undefined;
+}
+
+/**
+ * Resolve the material-identity + display fields for an RFQ line item derived
+ * from a BOM line (FOR-200).
+ *
+ * A line that was matched to a catalogue material during review becomes a
+ * catalogue-linked RFQ line: it carries the matched `materialId` (so the vendor
+ * quotes against the real SKU and the name resolves from the Material relation)
+ * and shows the catalogue name. The BOM's own free-text description is kept in
+ * notes whenever it differs from the catalogue name, so a manually-matched spec
+ * is never silently dropped. An unmatched line falls back to a free-text name
+ * via {@link deriveBomLineNameAndNotes}.
+ */
+export function bomLineToRfqDraftFields(item: BomLineItem): BomRfqDraftFields {
+  const matchedId = item.matchedMaterialId?.trim();
+  if (!matchedId) {
+    return deriveBomLineNameAndNotes(item);
+  }
+
+  const description = item.description.trim();
+  const catalogueName = item.matchedMaterialName?.trim() ?? '';
+  const existingNotes = item.notes?.trim() ?? '';
+  // Redundant when the description already equals the catalogue name (the common
+  // high-confidence case); keep it only when it adds information.
+  const keepDescription =
+    description.length > 0 && description.toLowerCase() !== catalogueName.toLowerCase();
+  const notes = [keepDescription ? description : '', existingNotes]
+    .filter((part) => part.length > 0)
+    .join('\n\n');
+
+  return {
+    materialId: matchedId,
+    materialName: catalogueName.length > 0 ? catalogueName : description || 'Material',
+    notes: notes.length > 0 ? notes : undefined,
+  };
+}
