@@ -1,8 +1,9 @@
-import type { BomExtractionResult } from '@forethread/shared-types';
+import type { BomExtractionResult, BomLineItem } from '@forethread/shared-types';
 
 import { normalizeBomResult } from '../doc-intelligence.bom';
 import {
   annotateBomWithMatches,
+  dropUnmatchedBomLines,
   matchLineToCatalogue,
   tokenize,
   tokenSimilarity,
@@ -156,6 +157,52 @@ describe('annotateBomWithMatches', () => {
   it('returns the BOM unchanged when there are no items', () => {
     const empty: BomExtractionResult = { ...bom, items: [] };
     expect(annotateBomWithMatches(empty, CATALOGUE)).toBe(empty);
+  });
+});
+
+describe('dropUnmatchedBomLines', () => {
+  const matched = (id: string | null): BomLineItem => ({
+    description: id ? `material ${id}` : 'unmatched line',
+    quantity: 1,
+    unit: 'ea',
+    targetPrice: null,
+    notes: null,
+    matchedMaterialId: id,
+    matchedMaterialName: id ? `Material ${id}` : null,
+    matchConfidence: id ? 1 : null,
+    matchCandidates: [],
+  });
+
+  const bom: BomExtractionResult = {
+    title: 'Site BOM',
+    projectName: 'Tower A',
+    currency: 'AUD',
+    notes: null,
+    items: [matched('m-rebar'), matched(null), matched('m-cement')],
+  };
+
+  it('keeps matched lines and drops the ones still unmatched at proceed time', () => {
+    const result = dropUnmatchedBomLines(bom);
+    expect(result.items.map((i) => i.matchedMaterialId)).toEqual(['m-rebar', 'm-cement']);
+  });
+
+  it('treats a never-annotated line (no matchedMaterialId field) as unmatched', () => {
+    const raw: BomExtractionResult = {
+      ...bom,
+      items: [{ description: 'raw line', quantity: 1, unit: 'ea', targetPrice: null, notes: null }],
+    };
+    expect(dropUnmatchedBomLines(raw).items).toEqual([]);
+  });
+
+  it('preserves metadata and does not mutate the input', () => {
+    const result = dropUnmatchedBomLines(bom);
+    expect(result).toMatchObject({ title: 'Site BOM', projectName: 'Tower A', currency: 'AUD' });
+    expect(bom.items).toHaveLength(3);
+  });
+
+  it('returns the BOM unchanged when there are no items', () => {
+    const empty: BomExtractionResult = { ...bom, items: [] };
+    expect(dropUnmatchedBomLines(empty)).toBe(empty);
   });
 });
 

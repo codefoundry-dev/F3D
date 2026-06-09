@@ -3,6 +3,7 @@ import * as path from 'path';
 
 import {
   DocExtractionListQueryDto,
+  EMPTY_BOM_RESULT,
   buildPaginationMeta,
   type BomExtractionResult,
 } from '@forethread/shared-types';
@@ -24,11 +25,8 @@ import { GeminiError, type GeminiMimeType } from '../gemini/gemini.types';
 import { StorageService } from '../storage/storage.service';
 
 import { normalizeBomResult } from './doc-intelligence.bom';
-import {
-  normalizeCatalogueResult,
-  spreadsheetToCatalogue,
-} from './doc-intelligence.catalogue';
-import { annotateBomWithMatches } from './doc-intelligence.match';
+import { normalizeCatalogueResult, spreadsheetToCatalogue } from './doc-intelligence.catalogue';
+import { annotateBomWithMatches, dropUnmatchedBomLines } from './doc-intelligence.match';
 import { buildExtractionPrompt } from './doc-intelligence.prompts';
 import { normalizeQuoteResult } from './doc-intelligence.quote';
 import { spreadsheetToText } from './doc-intelligence.spreadsheet';
@@ -489,20 +487,38 @@ ${sheetText}`;
       throw new BadRequestException(ERR.docExtractions.notReadyForConfirm);
     }
     const now = new Date();
+    const userEdited = editedResult !== undefined;
+
+    // Confirming is the "proceed" gate for a BOM. By now the obvious lines were
+    // auto-matched at extraction and the user has had the review table to match
+    // the rest, so any line STILL unmatched is dropped before the BOM moves into
+    // the RFQ builder. The pruned result is always persisted — even when the user
+    // made no manual edits — so the confirmed BOM never carries unmatched lines.
+    const data: Prisma.DocExtractionUncheckedUpdateInput = {
+      status: DocExtractionStatus.CONFIRMED,
+      confirmedAt: now,
+      confirmedByUserId: user.id,
+    };
+    if (job.type === DocExtractionType.BOM) {
+      const source = (editedResult ??
+        job.editedResult ??
+        EMPTY_BOM_RESULT) as unknown as BomExtractionResult;
+      data.editedResult = dropUnmatchedBomLines(source) as unknown as Prisma.InputJsonValue;
+      // The unmatched-line drop is a system step; attribute a "last edit" to the
+      // user only when they actually submitted changes in the review table.
+      if (userEdited) {
+        data.lastEditedByUserId = user.id;
+        data.lastEditedAt = now;
+      }
+    } else if (editedResult) {
+      data.editedResult = editedResult as Prisma.InputJsonValue;
+      data.lastEditedByUserId = user.id;
+      data.lastEditedAt = now;
+    }
+
     return this.prisma.docExtraction.update({
       where: { id },
-      data: {
-        status: DocExtractionStatus.CONFIRMED,
-        confirmedAt: now,
-        confirmedByUserId: user.id,
-        ...(editedResult
-          ? {
-              editedResult: editedResult as Prisma.InputJsonValue,
-              lastEditedByUserId: user.id,
-              lastEditedAt: now,
-            }
-          : {}),
-      },
+      data,
       include: { file: true },
     });
   }

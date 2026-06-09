@@ -115,6 +115,11 @@ export function matchLineToCatalogue(
  * Annotate every line of an extracted BOM with its catalogue match. Pure: the
  * caller supplies the catalogue (the service reads PUBLIC materials from the
  * DB). Returns a new result; the input is not mutated.
+ *
+ * Every extracted line is preserved here — the obvious ones are auto-matched
+ * and the rest carry `matchCandidates` for the user to resolve in the review
+ * table. Lines that are still unmatched after review are dropped later, at the
+ * confirm/proceed step ({@link dropUnmatchedBomLines}), not at extraction.
  */
 export function annotateBomWithMatches(
   bom: BomExtractionResult,
@@ -127,5 +132,22 @@ export function annotateBomWithMatches(
       ...item,
       ...matchLineToCatalogue(item.description, catalogue),
     })),
+  };
+}
+
+/**
+ * Drop every BOM line that is still unmatched (no `matchedMaterialId`). Applied
+ * when the user proceeds past the review table (confirm): by then the obvious
+ * lines were auto-matched and the user has had the chance to manually match the
+ * rest, so anything left without a catalogue material is discarded before the
+ * BOM moves downstream. Returns a new result; the input is not mutated.
+ */
+export function dropUnmatchedBomLines(bom: BomExtractionResult): BomExtractionResult {
+  if (!Array.isArray(bom.items) || bom.items.length === 0) return bom;
+  return {
+    ...bom,
+    items: bom.items.filter(
+      (item) => item.matchedMaterialId !== null && item.matchedMaterialId !== undefined,
+    ),
   };
 }
