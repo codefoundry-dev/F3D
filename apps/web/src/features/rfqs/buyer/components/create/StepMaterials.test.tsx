@@ -122,9 +122,7 @@ describe('StepMaterials', () => {
     const { onAdd } = renderStep();
     fireEvent.click(screen.getByTestId('add-line-item'));
     // The formError text is rendered as a paragraph (distinct from the dropdown's aria-label).
-    expect(
-      screen.getByText('Select a material', { selector: 'p' }),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Select a material', { selector: 'p' })).toBeInTheDocument();
     expect(onAdd).not.toHaveBeenCalled();
   });
 
@@ -236,7 +234,9 @@ describe('StepMaterials', () => {
     });
 
     fireEvent.click(screen.getByLabelText('From BOM'));
-    fireEvent.change(screen.getByLabelText('Select a confirmed BOM'), { target: { value: 'bom1' } });
+    fireEvent.change(screen.getByLabelText('Select a confirmed BOM'), {
+      target: { value: 'bom1' },
+    });
     fireEvent.click(screen.getByTestId('bom-line-0').querySelector('input[type="checkbox"]')!);
     fireEvent.click(screen.getByTestId('add-bom-line-items'));
 
@@ -246,6 +246,55 @@ describe('StepMaterials', () => {
     expect(draft.materialName.endsWith('…')).toBe(true);
     // Full description preserved so the spec is not silently dropped.
     expect(draft.notes).toBe(longDescription.trim());
+  });
+
+  it('adds a matched BOM line as a catalogue-linked draft (materialId set)', () => {
+    const { onAdd } = renderStep({
+      confirmedBoms: [
+        {
+          id: 'bom1',
+          file: { originalName: 'site-a.pdf' },
+          editedResult: {
+            title: 'Site A BOM',
+            projectName: 'Project A',
+            currency: 'USD',
+            notes: null,
+            items: [
+              {
+                description: 'Cement 25kg',
+                quantity: 50,
+                unit: 'bag',
+                targetPrice: null,
+                notes: null,
+                matchedMaterialId: 'mat-cement',
+                matchedMaterialName: 'Cement Bag 50kg',
+                matchConfidence: 0.9,
+                matchCandidates: [],
+              },
+            ],
+          },
+        } as any,
+      ],
+    });
+
+    fireEvent.click(screen.getByLabelText('From BOM'));
+    fireEvent.change(screen.getByLabelText('Select a confirmed BOM'), {
+      target: { value: 'bom1' },
+    });
+    fireEvent.click(screen.getByTestId('bom-line-0').querySelector('input[type="checkbox"]')!);
+    fireEvent.click(screen.getByTestId('add-bom-line-items'));
+
+    expect(onAdd).toHaveBeenCalledTimes(1);
+    const draft = (onAdd as ReturnType<typeof vi.fn>).mock.calls[0][0] as RfqLineItemDraft;
+    expect(draft).toMatchObject({
+      source: 'BOM',
+      materialId: 'mat-cement',
+      materialName: 'Cement Bag 50kg',
+      quantity: 50,
+      uom: 'bag',
+    });
+    // The original BOM text is kept as notes (differs from the catalogue name).
+    expect(draft.notes).toBe('Cement 25kg');
   });
 
   it('renders existing line items (catalogue and BOM) and supports removal', () => {
