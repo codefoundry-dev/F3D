@@ -152,6 +152,25 @@ describe('DocIntelligenceController', () => {
       expect(mockService.getExtraction).toHaveBeenCalledWith('ext-1', user);
       expect(result.id).toBe('ext-1');
     });
+
+    it('drops the duplicate rawResult for a CATALOGUE job', async () => {
+      // A catalogue result can be tens of MB (62k rows) and is stored in both
+      // rawResult and editedResult. The catalogue UI only reads editedResult, so
+      // the response must never carry the duplicate rawResult — shipping both
+      // doubles the payload and OOMs the backend serialising it.
+      const job = fullJob() as unknown as Record<string, unknown>;
+      mockService.getExtraction.mockResolvedValue({
+        ...job,
+        type: 'CATALOGUE',
+        rawResult: { items: [{ name: 'Hammer' }] },
+        editedResult: { items: [{ name: 'Hammer' }] },
+      } as never);
+
+      const result = await controller.get('ext-1', user);
+
+      expect(result.rawResult).toBeNull();
+      expect(result.editedResult).toEqual({ items: [{ name: 'Hammer' }] });
+    });
   });
 
   describe('update', () => {

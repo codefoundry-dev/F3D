@@ -18,7 +18,14 @@ export function toExtractionResponse(job: ExtractionWithFile): DocExtractionResp
       mimeType: job.file.mimeType,
       size: job.file.size,
     },
-    rawResult: (job.rawResult as Record<string, unknown> | null) ?? null,
+    // A CATALOGUE result can be tens of MB (a real export is ~62k rows). The
+    // catalogue UI only ever reads editedResult, so never ship the (duplicate)
+    // rawResult for catalogue — it doubles the response and OOMs the backend
+    // serialising it. Other types (BOM/QUOTE) keep rawResult unchanged.
+    rawResult:
+      (job.type as DocExtractionType) === DocExtractionType.CATALOGUE
+        ? null
+        : ((job.rawResult as Record<string, unknown> | null) ?? null),
     editedResult: (job.editedResult as Record<string, unknown> | null) ?? null,
     errorCode: job.errorCode,
     errorMessage: job.errorMessage,

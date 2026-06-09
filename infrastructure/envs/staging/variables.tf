@@ -11,9 +11,13 @@ variable "vpc_cidr" {
 }
 
 variable "ec2_instance_type" {
-  description = "EC2 instance type for the staging backend. t4g.micro is enough for low-traffic verification."
+  # Was t4g.micro (1 GB), but that OOMs serialising large catalogue extraction
+  # responses (a real 62k-row Rexel export is ~76 MB of JSON) — the backend dies
+  # with "JavaScript heap out of memory" and Caddy 502s every request. t4g.medium
+  # (4 GB) gives serialisation headroom and is a deeper eu-north-1 capacity pool.
+  description = "EC2 instance type for the staging backend (serves api-main)."
   type        = string
-  default     = "t4g.micro"
+  default     = "t4g.medium"
 }
 
 variable "ec2_root_volume_size_gb" {
