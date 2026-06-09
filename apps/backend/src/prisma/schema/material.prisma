@@ -17,6 +17,15 @@ model MaterialCategory {
 model Material {
   id                     String         @id @default(uuid())
   name                   String         @db.VarChar(255)
+  // Case-insensitive alphabetical sort key. A Postgres STORED generated column
+  // (lower(name)), maintained automatically by the DB — the app never writes it
+  // (it is omitted from every insert/update). Ordering by `name` used the
+  // column's case-sensitive default collation, so a mixed-case bulk-imported
+  // catalogue sorted uppercase-before-lowercase and looked non-alphabetical.
+  // See migration 20260609100000_materials_name_ci_sort. NOTE: hand-written
+  // migration — do not `prisma migrate dev` (it would recreate this as a plain
+  // column). It is optional only so it is never required on create.
+  nameCi                 String?        @map("name_ci")
   categoryId             String         @map("category_id")
   uom                    String         @db.VarChar(50)
   upc                    String?        @db.VarChar(100)
@@ -42,5 +51,6 @@ model Material {
   @@index([categoryId], map: "idx_materials_category")
   @@index([status], map: "idx_materials_status")
   @@index([name], map: "idx_materials_name")
+  @@index([nameCi], map: "idx_materials_name_ci")
   @@map("materials")
 }

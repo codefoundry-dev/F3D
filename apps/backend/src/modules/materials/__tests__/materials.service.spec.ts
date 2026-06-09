@@ -146,21 +146,22 @@ describe('MaterialsService', () => {
       expect(orderBy).toEqual({ createdAt: 'desc' });
     });
 
-    it('defaults sort to name asc', async () => {
+    it('defaults sort to case-insensitive name asc (alphabetical)', async () => {
       await service.listMaterials({ page: 1, take: 25, skip: 0 } as never, superAdmin);
 
+      // nameCi = lower(name): true A->Z regardless of the column's collation.
       const orderBy = mockPrisma.material.findMany.mock.calls[0][0].orderBy;
-      expect(orderBy).toEqual({ name: 'asc' });
+      expect(orderBy).toEqual({ nameCi: 'asc' });
     });
 
-    it('falls back to name sort for unknown sortBy', async () => {
+    it('falls back to case-insensitive name sort for unknown sortBy', async () => {
       await service.listMaterials(
         { page: 1, take: 25, skip: 0, sortBy: 'unknown', sortDir: 'desc' } as never,
         superAdmin,
       );
 
       const orderBy = mockPrisma.material.findMany.mock.calls[0][0].orderBy;
-      expect(orderBy).toEqual({ name: 'desc' });
+      expect(orderBy).toEqual({ nameCi: 'desc' });
     });
   });
 

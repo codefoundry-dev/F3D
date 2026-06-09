@@ -460,7 +460,9 @@ export class MaterialsService {
         return { createdAt: sortDir };
       case 'name':
       default:
-        return { name: sortDir };
+        // Sort by the case-insensitive key (lower(name)) so the catalogue is
+        // true alphabetical A->Z regardless of the column's collation.
+        return { nameCi: sortDir };
     }
   }
 }
