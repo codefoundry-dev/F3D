@@ -1,5 +1,3 @@
-import { randomUUID } from 'crypto';
-
 import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
 
@@ -348,7 +346,7 @@ async function main() {
       invitationTokenExpiresAt: null,
     },
   });
-  console.log(`\u2705 Activated: ${vendorUser.email}`);
+  console.log(`✅ Activated: ${vendorUser.email}`);
 
   // Update vendorUser with contact info
   await prisma.user.update({
@@ -387,13 +385,13 @@ async function main() {
       contractorId: contractorCompany.id,
     },
   });
-  console.log('\u2705 Vendor assignment: VendorCo -> TestCo');
+  console.log('✅ Vendor assignment: VendorCo -> TestCo');
 
   // ════════════════════════════════════════════════════════════════════════
   // Epic 2 — Dashboard seed data
   // ════════════════════════════════════════════════════════════════════════
 
-  console.log('\n\ud83c\udf31 Seeding Epic 2 dashboard data...');
+  console.log('\n🌱 Seeding Epic 2 dashboard data...');
 
   // ── Materials (needed for line items FK) ────────────────────────────────
   const category = await prisma.materialCategory.upsert({
@@ -406,247 +404,28 @@ async function main() {
   const materialUoms = ['tonnes', 'm3'];
   const materials: Array<{ id: string; name: string }> = [];
   for (let m = 0; m < materialNames.length; m++) {
-    const mat = await prisma.material.upsert({
-      where: { name_status: { name: materialNames[m], status: 'PUBLIC' } },
-      update: {},
-      create: {
-        name: materialNames[m],
-        categoryId: category.id,
-        uom: materialUoms[m],
-        description: m === 0 ? 'High-tensile steel reinforcement bars' : 'Ready-mix concrete',
-        status: 'PUBLIC',
-        createdById: companyAdmin.id,
-      },
+    // Material has no (name, status) composite unique key, so guard-then-create
+    // for idempotency instead of upserting on a non-existent unique constraint.
+    const existing = await prisma.material.findFirst({
+      where: { name: materialNames[m], status: 'PUBLIC' },
+      select: { id: true, name: true },
     });
+    const mat =
+      existing ??
+      (await prisma.material.create({
+        data: {
+          name: materialNames[m],
+          categoryId: category.id,
+          uom: materialUoms[m],
+          description: m === 0 ? 'High-tensile steel reinforcement bars' : 'Ready-mix concrete',
+          status: 'PUBLIC',
+          createdById: companyAdmin.id,
+        },
+        select: { id: true, name: true },
+      }));
     materials.push(mat);
   }
-  console.log(`\u2705 Materials: ${materials.length} created`);
-
-  // ── Fetch ProjectLocation IDs for delivery location FK ──────────────────
-  const alphaDeliveryLocation = await prisma.projectLocation.findFirst({
-    where: { projectId: alphaProject.id, type: 'DELIVERY', isDefault: true },
-  });
-  const betaDeliveryLocation = await prisma.projectLocation.findFirst({
-    where: { projectId: betaProject.id, type: 'DELIVERY', isDefault: true },
-  });
-
-  // ── RFQs ───────────────────────────────────────────────────────────────
-  const rfqIds: string[] = [];
-  const rfqStatuses: Array<'DRAFT' | 'OPEN' | 'AWAITING_RESPONSE' | 'AWARDED' | 'CLOSED'> = [
-    'DRAFT',
-    'OPEN',
-    'AWAITING_RESPONSE',
-    'AWARDED',
-    'CLOSED',
-  ];
-
-  for (let i = 0; i < 5; i++) {
-    const projectId = i % 2 === 0 ? alphaProject.id : betaProject.id;
-    const locationId = i % 2 === 0 ? alphaDeliveryLocation?.id : betaDeliveryLocation?.id;
-    const rfqNumber = `RFQ-${String(i + 1).padStart(5, '0')}`;
-    const rfq = await prisma.rfq.upsert({
-      where: { rfqNumber },
-      update: {},
-      create: {
-        rfqNumber,
-        projectId,
-        companyId: contractorCompany.id,
-        status: rfqStatuses[i],
-        deliveryLocationId: locationId ?? null,
-        pickUpLocation: i % 2 === 0 ? 'Warehouse B, 45 Industrial Ave' : null,
-        deadlineStart: new Date('2026-04-01'),
-        deadlineEnd: new Date('2026-04-15'),
-        totalRequestedQty: (i + 1) * 100,
-        approvalStatus: i === 3 ? 'APPROVED' : null,
-        approvedById: i === 3 ? companyAdmin.id : null,
-        createdByUserId: i % 2 === 0 ? procurementOfficer.id : companyAdmin.id,
-      },
-    });
-    rfqIds.push(rfq.id);
-
-    // Invite vendor to each RFQ
-    await prisma.rfqVendor.upsert({
-      where: { rfqId_vendorId: { rfqId: rfq.id, vendorId: vendorCompany.id } },
-      update: {},
-      create: { rfqId: rfq.id, vendorId: vendorCompany.id },
-    });
-
-    // Add 2 line items per RFQ (skip if already exist)
-    const existingItems = await prisma.rfqLineItem.count({ where: { rfqId: rfq.id } });
-    if (existingItems === 0) {
-      for (let j = 0; j < 2; j++) {
-        await prisma.rfqLineItem.create({
-          data: {
-            rfqId: rfq.id,
-            materialId: materials[j].id,
-            quantity: (i + 1) * 50 + j * 25,
-            unit: materialUoms[j],
-            description: j === 0 ? 'High-tensile steel reinforcement bars' : 'Ready-mix concrete',
-          },
-        });
-      }
-    }
-  }
-  console.log(`\u2705 RFQs: ${rfqIds.length} created with line items`);
-
-  // ── Quote Responses ────────────────────────────────────────────────────
-  let quotesCreated = 0;
-  for (let i = 0; i < 3; i++) {
-    const existingQuote = await prisma.quoteResponse.findFirst({
-      where: { rfqId: rfqIds[i + 1], vendorId: vendorCompany.id },
-    });
-    if (existingQuote) {
-      quotesCreated++;
-      continue;
-    }
-    await prisma.quoteResponse.create({
-      data: {
-        rfqId: rfqIds[i + 1], // Link to Open, AwaitingResponse, Awarded RFQs
-        vendorId: vendorCompany.id,
-        totalCost: (i + 1) * 15000.5,
-        discountPercent: i === 2 ? 5.0 : null,
-        discountAmount: i === 2 ? 750.25 : null,
-        itemsCovered: 2,
-        totalItems: 2,
-        status: i === 2 ? 'APPROVED' : 'PENDING',
-        submittedAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000),
-      },
-    });
-  }
-  console.log(`\u2705 Quote Responses: ${quotesCreated} created`);
-
-  // ── Purchase Orders ────────────────────────────────────────────────────
-  const poIds: string[] = [];
-  const poStatuses: Array<
-    'DRAFT' | 'SENT' | 'ACKNOWLEDGED' | 'SCHEDULED_FOR_DELIVERY' | 'DELIVERED'
-  > = ['DRAFT', 'SENT', 'ACKNOWLEDGED', 'SCHEDULED_FOR_DELIVERY', 'DELIVERED'];
-  const poTypes: Array<'STANDARD' | 'BULK' | 'HOLD_FOR_RELEASE'> = [
-    'STANDARD',
-    'STANDARD',
-    'BULK',
-    'HOLD_FOR_RELEASE',
-    'STANDARD',
-  ];
-
-  for (let i = 0; i < 5; i++) {
-    const projectId = i % 2 === 0 ? alphaProject.id : betaProject.id;
-    const locationId = i % 2 === 0 ? alphaDeliveryLocation?.id : betaDeliveryLocation?.id;
-    const poNumber = `PO-${String(i + 1).padStart(5, '0')}`;
-    const po = await prisma.purchaseOrder.upsert({
-      where: { poNumber },
-      update: {},
-      create: {
-        poNumber,
-        projectId,
-        companyId: contractorCompany.id,
-        vendorId: vendorCompany.id,
-        status: poStatuses[i],
-        poType: poTypes[i],
-        approvalStatus: i >= 2 ? 'APPROVED' : 'NOT_REQUIRED',
-        sourceOfCreation: 'MANUAL',
-        revision: i < 3 ? 1 : 2,
-        pickUp: i % 2 === 0,
-        deliveryLocationId: i % 2 !== 0 ? (locationId ?? null) : null,
-        pickUpLocation: i % 2 === 0 ? 'Warehouse B, 45 Industrial Ave' : null,
-        currency: 'AUD',
-        subtotal: (i + 1) * 22000.0,
-        taxAmount: (i + 1) * 3000.0,
-        totalAmount: (i + 1) * 25000.0,
-        lineItemCount: (i + 1) * 2,
-        totalRequestedQty: (i + 1) * 10,
-        deadlineStart: new Date('2026-04-01'),
-        deadlineEnd: new Date('2026-05-15'),
-        approvedById: i >= 2 ? companyAdmin.id : null,
-        createdByUserId: procurementOfficer.id,
-      },
-    });
-    poIds.push(po.id);
-
-    // Add line items per PO (skip if already exist)
-    const existingPoItems = await prisma.poLineItem.count({ where: { purchaseOrderId: po.id } });
-    if (existingPoItems === 0) {
-      const itemCount = (i + 1) * 2;
-      for (let j = 0; j < itemCount; j++) {
-        const matIdx = j % materials.length;
-        const unitPrice = 100.0 + j * 50;
-        const qty = 10 + j * 5;
-        await prisma.poLineItem.create({
-          data: {
-            purchaseOrderId: po.id,
-            lineNumber: j + 1,
-            materialId: materials[matIdx].id,
-            materialCode: `MAT-${String(matIdx + 1).padStart(3, '0')}`,
-            description: materials[matIdx].name,
-            quantityOrdered: qty,
-            quantityDelivered: poStatuses[i] === 'DELIVERED' ? qty : 0,
-            unitOfMeasure: materialUoms[matIdx],
-            unitPrice,
-            lineTotal: unitPrice * qty,
-            costCode: `CC-${String(j + 1).padStart(3, '0')}`,
-            expectedDeliveryDate: new Date('2026-04-15'),
-            deliveryLocationId: locationId ?? null,
-            notes: j === 0 ? 'Urgent delivery required' : null,
-          },
-        });
-      }
-    }
-  }
-  console.log(`\u2705 Purchase Orders: ${poIds.length} created with line items`);
-
-  // ── Bulk Orders ────────────────────────────────────────────────────────
-  const bulkOrderIds: string[] = [];
-
-  for (let i = 0; i < 2; i++) {
-    const projectId = i === 0 ? alphaProject.id : betaProject.id;
-    const existingBO = await prisma.bulkOrder.findFirst({
-      where: {
-        projectId,
-        companyId: contractorCompany.id,
-        vendorId: vendorCompany.id,
-        brands: i === 0 ? 'BlueScope, OneSteel' : 'Boral, Holcim',
-      },
-    });
-    if (existingBO) {
-      bulkOrderIds.push(existingBO.id);
-      continue;
-    }
-    const bo = await prisma.bulkOrder.create({
-      data: {
-        projectId: i === 0 ? alphaProject.id : betaProject.id,
-        companyId: contractorCompany.id,
-        vendorId: vendorCompany.id,
-        rfqId: i === 0 ? rfqIds[3] : null, // Link first to Awarded RFQ
-        status: 'ACTIVE',
-        brands: i === 0 ? 'BlueScope, OneSteel' : 'Boral, Holcim',
-        totalAmount: (i + 1) * 100000.0,
-        endDate: new Date('2026-12-31'),
-        createdByUserId: procurementOfficer.id,
-      },
-    });
-    bulkOrderIds.push(bo.id);
-
-    // Add 3 line items per bulk order
-    for (let j = 0; j < 3; j++) {
-      const qty = (j + 1) * 500;
-      const ordered = Math.floor(qty * 0.3);
-      const pricePerUnit = (j + 1) * 45.5;
-      await prisma.bulkOrderLineItem.create({
-        data: {
-          bulkOrderId: bo.id,
-          itemReference: `BO-${i + 1}-ITEM-${j + 1}`,
-          description: ['Steel Beams HEA200', 'Concrete Blocks 400x200', 'Rebar Mesh SL82'][j],
-          qty,
-          unit: ['tonnes', 'pallets', 'sheets'][j],
-          ordered,
-          qtyRemaining: qty - ordered,
-          deliveriesPercent: Math.round((ordered / qty) * 100 * 100) / 100,
-          pricePerUnit,
-          totalLineInc: qty * pricePerUnit,
-        },
-      });
-    }
-  }
-  console.log(`\u2705 Bulk Orders: ${bulkOrderIds.length} created with line items`);
+  console.log(`✅ Materials: ${materials.length} created`);
 
   // ── Additional Vendor companies (for diverse dashboard data) ────────
   const vendorCompany2 = await prisma.company.upsert({
@@ -805,148 +584,11 @@ async function main() {
 
   console.log('✅ Vendor contact users: 6 created');
 
-  // ── Invite additional vendors to existing RFQs ─────────────────────
-  const additionalVendorInvites: Record<number, string[]> = {
-    0: [vendorCompany2.id],
-    1: [vendorCompany2.id, vendorCompany3.id],
-    2: [vendorCompany3.id, vendorCompany4.id],
-    3: [vendorCompany2.id, vendorCompany3.id, vendorCompany4.id],
-    4: [vendorCompany4.id],
-  };
+  // ════════════════════════════════════════════════════════════════════════
+  // FOR-197 — M:N vendor relationship test data
+  // ════════════════════════════════════════════════════════════════════════
 
-  for (let i = 0; i < rfqIds.length; i++) {
-    const addVendors = additionalVendorInvites[i] ?? [];
-    for (const addVendorId of addVendors) {
-      await prisma.rfqVendor.upsert({
-        where: { rfqId_vendorId: { rfqId: rfqIds[i], vendorId: addVendorId } },
-        update: {},
-        create: { rfqId: rfqIds[i], vendorId: addVendorId },
-      });
-    }
-  }
-  console.log('✅ Additional vendor invitations added to RFQs');
-
-  // ── Invoices (expanded for all dashboard scenarios) ──────────────────
-  const allVendors = [vendorCompany, vendorCompany2, vendorCompany3, vendorCompany4];
-  const invoiceSeedData: Array<{
-    status: 'PENDING' | 'APPROVED' | 'DISPUTED' | 'PAID' | 'REJECTED';
-    amount: number;
-    dueDaysOffset: number;
-    vendorIdx: number;
-    projectIdx: number;
-    poIdx: number | null;
-  }> = [
-    // 5 PENDING invoices (for "Invoices pending approval")
-    { status: 'PENDING', amount: 45200.0, dueDaysOffset: 3, vendorIdx: 0, projectIdx: 0, poIdx: 0 },
-    { status: 'PENDING', amount: 18750.5, dueDaysOffset: 5, vendorIdx: 1, projectIdx: 1, poIdx: 1 },
-    {
-      status: 'PENDING',
-      amount: 92100.0,
-      dueDaysOffset: -2,
-      vendorIdx: 2,
-      projectIdx: 0,
-      poIdx: 2,
-    },
-    {
-      status: 'PENDING',
-      amount: 12350.25,
-      dueDaysOffset: 1,
-      vendorIdx: 3,
-      projectIdx: 1,
-      poIdx: 3,
-    },
-    { status: 'PENDING', amount: 7400.0, dueDaysOffset: 6, vendorIdx: 0, projectIdx: 0, poIdx: 4 },
-    // 5 DISPUTED invoices (for "Disputed Invoices")
-    {
-      status: 'DISPUTED',
-      amount: 33500.0,
-      dueDaysOffset: -5,
-      vendorIdx: 1,
-      projectIdx: 0,
-      poIdx: 0,
-    },
-    {
-      status: 'DISPUTED',
-      amount: 67800.75,
-      dueDaysOffset: -10,
-      vendorIdx: 2,
-      projectIdx: 1,
-      poIdx: 1,
-    },
-    {
-      status: 'DISPUTED',
-      amount: 15200.0,
-      dueDaysOffset: -3,
-      vendorIdx: 0,
-      projectIdx: 0,
-      poIdx: 2,
-    },
-    {
-      status: 'DISPUTED',
-      amount: 41900.5,
-      dueDaysOffset: -7,
-      vendorIdx: 3,
-      projectIdx: 1,
-      poIdx: null,
-    },
-    {
-      status: 'DISPUTED',
-      amount: 28600.0,
-      dueDaysOffset: -1,
-      vendorIdx: 1,
-      projectIdx: 0,
-      poIdx: 3,
-    },
-    // 1 APPROVED, 1 PAID, 1 REJECTED (to cover all statuses)
-    {
-      status: 'APPROVED',
-      amount: 25001.5,
-      dueDaysOffset: -14,
-      vendorIdx: 0,
-      projectIdx: 1,
-      poIdx: 4,
-    },
-    { status: 'PAID', amount: 50003.0, dueDaysOffset: -21, vendorIdx: 2, projectIdx: 0, poIdx: 0 },
-    {
-      status: 'REJECTED',
-      amount: 8750.25,
-      dueDaysOffset: -30,
-      vendorIdx: 3,
-      projectIdx: 1,
-      poIdx: null,
-    },
-  ];
-
-  const projects = [alphaProject, betaProject];
-  const invoiceIds: string[] = [];
-
-  for (let i = 0; i < invoiceSeedData.length; i++) {
-    const inv = invoiceSeedData[i];
-    const id = randomUUID();
-    invoiceIds.push(id);
-    await prisma.invoice.upsert({
-      where: { id },
-      update: {},
-      create: {
-        id,
-        projectId: projects[inv.projectIdx].id,
-        companyId: contractorCompany.id,
-        vendorId: allVendors[inv.vendorIdx].id,
-        relatedPoId: inv.poIdx !== null ? poIds[inv.poIdx] : null,
-        status: inv.status,
-        totalAmount: inv.amount,
-        dueDate: new Date(Date.now() + inv.dueDaysOffset * 24 * 60 * 60 * 1000),
-        createdByUserId: vendorUser.id,
-      },
-    });
-  }
-  console.log(`✅ Invoices: ${invoiceIds.length} created (5 PENDING, 5 DISPUTED, 3 other)`);
-
-  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-  // FOR-197 \u2014 M:N vendor relationship test data
-  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-
-  console.log('\n\ud83c\udf31 Seeding FOR-197 M:N vendor data (Rexel x 2 contractors)...');
+  console.log('\n🌱 Seeding FOR-197 M:N vendor data (Rexel x 2 contractors)...');
 
   const northsideContractor = await prisma.company.upsert({
     where: { abn: 'TEST-CONTRACTOR-002' },
@@ -961,7 +603,7 @@ async function main() {
       specialisations: ['Residential', 'Commercial'],
     },
   });
-  console.log(`\u2705 Contractor company: ${northsideContractor.legalName}`);
+  console.log(`✅ Contractor company: ${northsideContractor.legalName}`);
 
   const northsideAdmin = await prisma.user.upsert({
     where: { email: 'companyadmin@northside.local' },
@@ -1051,7 +693,7 @@ async function main() {
       legalAddress: '100 Voltage Way, Sydney NSW 2000',
     },
   });
-  console.log(`\u2705 Shared vendor: ${rexelVendor.legalName} (single Company row)`);
+  console.log(`✅ Shared vendor: ${rexelVendor.legalName} (single Company row)`);
 
   for (const contractorId of [contractorCompany.id, northsideContractor.id]) {
     await prisma.companyVendorAssignment.upsert({
@@ -1062,7 +704,7 @@ async function main() {
       create: { vendorId: rexelVendor.id, contractorId },
     });
   }
-  console.log('\u2705 Vendor assignments: Rexel -> TestCo + Northside');
+  console.log('✅ Vendor assignments: Rexel -> TestCo + Northside');
 
   await prisma.user.upsert({
     where: { email: 'rep@rexel.local' },
@@ -1079,82 +721,6 @@ async function main() {
     },
   });
 
-  const northsideDeliveryLocation = await prisma.projectLocation.findFirst({
-    where: { projectId: northsideProject.id, type: 'DELIVERY', isDefault: true },
-  });
-
-  const rexelLoopSpecs = [
-    {
-      contractor: contractorCompany,
-      project: alphaProject,
-      deliveryLocation: alphaDeliveryLocation,
-      createdBy: procurementOfficer,
-      rfqNumber: 'RFQ-REXEL-001',
-    },
-    {
-      contractor: northsideContractor,
-      project: northsideProject,
-      deliveryLocation: northsideDeliveryLocation,
-      createdBy: northsideProcurement,
-      rfqNumber: 'RFQ-REXEL-002',
-    },
-  ];
-
-  for (const spec of rexelLoopSpecs) {
-    const rfq = await prisma.rfq.upsert({
-      where: { rfqNumber: spec.rfqNumber },
-      update: {},
-      create: {
-        rfqNumber: spec.rfqNumber,
-        projectId: spec.project.id,
-        companyId: spec.contractor.id,
-        status: 'AWARDED',
-        deliveryLocationId: spec.deliveryLocation?.id ?? null,
-        deadlineStart: new Date('2026-06-01'),
-        deadlineEnd: new Date('2026-06-15'),
-        totalRequestedQty: 250,
-        createdByUserId: spec.createdBy.id,
-      },
-    });
-
-    await prisma.rfqVendor.upsert({
-      where: { rfqId_vendorId: { rfqId: rfq.id, vendorId: rexelVendor.id } },
-      update: {},
-      create: { rfqId: rfq.id, vendorId: rexelVendor.id },
-    });
-
-    const lineCount = await prisma.rfqLineItem.count({ where: { rfqId: rfq.id } });
-    if (lineCount === 0) {
-      await prisma.rfqLineItem.create({
-        data: {
-          rfqId: rfq.id,
-          materialId: materials[0].id,
-          quantity: 250,
-          unit: materialUoms[0],
-          description: 'Electrical rebar bundle',
-        },
-      });
-    }
-
-    const existingQuote = await prisma.quoteResponse.findFirst({
-      where: { rfqId: rfq.id, vendorId: rexelVendor.id },
-    });
-    if (!existingQuote) {
-      await prisma.quoteResponse.create({
-        data: {
-          rfqId: rfq.id,
-          vendorId: rexelVendor.id,
-          totalCost: 32500.0,
-          itemsCovered: 1,
-          totalItems: 1,
-          status: 'APPROVED',
-          submittedAt: new Date(),
-        },
-      });
-    }
-  }
-  console.log('\u2705 RFQ -> quote loop: 2 RFQs (one per contractor) routed through Rexel');
-
   const rexelRows = await prisma.company.count({
     where: { type: 'VENDOR', contactEmail: 'orders@rexel.local' },
   });
@@ -1162,11 +728,11 @@ async function main() {
     where: { vendorId: rexelVendor.id },
   });
   console.log(
-    `\ud83d\udcca M:N invariant - Rexel Company rows: ${rexelRows} (expected 1), assignments: ${rexelAssignments} (expected 2)`,
+    `📊 M:N invariant - Rexel Company rows: ${rexelRows} (expected 1), assignments: ${rexelAssignments} (expected 2)`,
   );
 
-  console.log('\n\ud83c\udf89 Seed complete!');
-  console.log('\n\ud83d\udccb Login credentials:');
+  console.log('\n🎉 Seed complete!');
+  console.log('\n📋 Login credentials:');
   console.log('  Super Admin: superadmin@forethread.local / Dev@123456');
   console.log('  Company Admin: companyadmin@testcontractor.local / Dev@123456');
   console.log('  Procurement Officer: procurement@testcontractor.local / Dev@123456');
@@ -1176,18 +742,12 @@ async function main() {
   console.log('  Foreman: foreman@testcontractor.local / Dev@123456');
   console.log('  Northside Admin: companyadmin@northside.local / Dev@123456');
   console.log('  Northside Procurement: procurement@northside.local / Dev@123456');
-  console.log('\n\ud83d\udccb Test projects:');
-  console.log('  Alpha Construction (Planned) \u2014 2 members');
-  console.log('  Beta Fitout (Ongoing) \u2014 2 members');
+  console.log('\n📋 Test projects:');
+  console.log('  Alpha Construction (Planned) — 2 members');
+  console.log('  Beta Fitout (Ongoing) — 2 members');
   console.log(
     '  Note: FinancialOfficer is NOT assigned to any project (for access control testing)',
   );
-  console.log('\n\ud83d\udccb Epic 2 dashboard data:');
-  console.log('  5 RFQs (Draft, Open, AwaitingResponse, Awarded, Closed)');
-  console.log('  3 Quote Responses from VendorCo');
-  console.log('  5 Purchase Orders (Draft, Sent, Acknowledged, PendingDelivery, Delivered)');
-  console.log('  2 Bulk Orders with 3 line items each');
-  console.log('  5 Invoices (Pending, Approved, Disputed, Paid, Rejected)');
 }
 
 main()
