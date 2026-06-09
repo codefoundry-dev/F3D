@@ -150,6 +150,28 @@
     "PENDING": "Pending",
     "REJECTED": "Rejected"
   },
+  "buyerStatus": {
+    "DRAFT": "Draft",
+    "PENDING_APPROVAL": "Requested",
+    "APPROVED": "Approved",
+    "SENT": "Ordered",
+    "ACKNOWLEDGED": "Confirmed",
+    "ACCEPTED": "Confirmed",
+    "DECLINED": "Declined",
+    "SCHEDULED_FOR_DELIVERY": "Shipped",
+    "CANCELLED": "Cancelled",
+    "CLOSED": "Closed",
+    "PARTIALLY_DELIVERED": "Partially Shipped",
+    "DELIVERED": "Delivered",
+    "LATE_FOR_DELIVERY": "Late for delivery",
+    "CANCELLED_BY_VENDOR": "Cancelled",
+    "INVOICED": "Invoiced",
+    "DISPUTE": "Dispute",
+    "NOT_DELIVERED": "Not delivered",
+    "CHANGE_PENDING": "Change pending",
+    "PENDING": "Pending",
+    "REJECTED": "Rejected"
+  },
   "approvalStatus": {
     "NOT_REQUIRED": "Not required",
     "PENDING": "Pending",

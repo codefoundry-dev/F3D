@@ -66,6 +66,7 @@ import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/app/route-config';
 
 import { PoDetailPanel } from '../components/PoDetailPanel';
+import { buyerPoStatusKey } from '../status-label';
 
 /* ─── Constants ────────────────────────────────────────────────────────────── */
 
@@ -174,7 +175,7 @@ export default function PurchaseOrderListPage() {
     if (key === 'poStatus') {
       return (
         <Badge className={getStatusColor(PO_STATUS_COLORS, po.status)}>
-          {t(`status.${po.status}` as never)}
+          {t(buyerPoStatusKey(po.status) as never)}
         </Badge>
       );
     }
@@ -479,6 +480,7 @@ export default function PurchaseOrderListPage() {
                   setAdvancedFilters={s.setAdvancedFilters}
                   items={rawItems}
                   statusKeys={PO_STATUS_KEYS}
+                  statusLabel={(key) => t(buyerPoStatusKey(key) as never)}
                   typeKeys={PO_TYPE_KEYS}
                 />
               </FilterPanel>
@@ -561,10 +563,15 @@ export default function PurchaseOrderListPage() {
                   {groupedItems
                     ? Array.from(groupedItems.entries()).map(([groupKey, groupItems]) => {
                         const isExpanded = expandedGroups.has(groupKey);
+                        const groupLabel =
+                          s.groupBy === 'groupByStatus' && groupKey !== '-'
+                            ? t(buyerPoStatusKey(groupKey) as never)
+                            : groupKey;
                         return (
                           <GroupSection
                             key={groupKey}
                             groupKey={groupKey}
+                            label={groupLabel}
                             isExpanded={isExpanded}
                             onToggle={toggleGroup}
                             colSpan={visibleCols.length + 1}
@@ -711,12 +718,14 @@ export default function PurchaseOrderListPage() {
 
 function GroupSection({
   groupKey,
+  label,
   isExpanded,
   onToggle,
   colSpan,
   children,
 }: {
   groupKey: string;
+  label: string;
   isExpanded: boolean;
   onToggle: (key: string) => void;
   colSpan: number;
@@ -733,7 +742,7 @@ function GroupSection({
             <ChevronDownIcon
               className={cn('w-4 h-4 transition-transform', !isExpanded && '-rotate-90')}
             />
-            {groupKey}
+            {label}
           </div>
         </td>
       </tr>

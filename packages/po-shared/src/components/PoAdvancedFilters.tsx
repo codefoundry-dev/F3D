@@ -9,6 +9,12 @@ interface PoAdvancedFiltersProps {
   setAdvancedFilters: (filters: Partial<PoAdvancedFiltersType>) => void;
   items: PoListItem[];
   statusKeys: readonly string[];
+  /**
+   * Resolve a PoStatus key to its display label. Defaults to the shared
+   * `status.*` vocabulary (the vendor view); the buyer passes a resolver that
+   * maps to the documented `buyerStatus.*` labels so vendor labels stay put.
+   */
+  statusLabel?: (key: string) => string;
   typeKeys: readonly string[];
 }
 
@@ -25,6 +31,7 @@ export function PoAdvancedFilters({
   setAdvancedFilters,
   items,
   statusKeys,
+  statusLabel,
   typeKeys,
 }: PoAdvancedFiltersProps) {
   const { t } = useTranslation(['purchaseOrders', 'common']);
@@ -39,7 +46,7 @@ export function PoAdvancedFilters({
 
   const statusOptions = statusKeys.map((key) => ({
     value: key,
-    label: t(`status.${key}` as never),
+    label: statusLabel ? statusLabel(key) : t(`status.${key}` as never),
   }));
 
   const typeOptions = typeKeys.map((key) => ({

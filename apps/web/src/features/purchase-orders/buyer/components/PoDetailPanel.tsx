@@ -17,6 +17,8 @@ import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 
+import { buyerPoStatusKey } from '../status-label';
+
 import { PoSendButton } from './PoSendButton';
 
 interface PoDetailPanelProps {
@@ -101,7 +103,7 @@ export function PoDetailPanel({ poId, onClose }: PoDetailPanelProps) {
             <h2 className="flex-1 text-lg font-medium text-foreground">{po.projectName}</h2>
             <PoSendButton po={po} size="sm" />
             <Badge className={getStatusColor(PO_STATUS_COLORS, po.status)}>
-              {t(`status.${po.status}` as never)}
+              {t(buyerPoStatusKey(po.status) as never)}
             </Badge>
           </div>
 
