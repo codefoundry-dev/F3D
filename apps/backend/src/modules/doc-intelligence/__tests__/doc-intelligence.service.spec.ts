@@ -314,6 +314,86 @@ describe('DocIntelligenceService', () => {
       expect(completed?.data.rawResult).toMatchObject({ title: 'Sheet BOM' });
     });
 
+    it('requests deterministic structured output (temperature 0 + responseSchema) for typed jobs', async () => {
+      const { service, prisma, gemini } = makeService();
+      prisma.docExtraction.findUnique.mockResolvedValue({
+        id: 'job-1',
+        type: DocExtractionType.BOM,
+      });
+      gemini.generate.mockResolvedValue({
+        text: '{"title":null,"items":[]}',
+        model: 'gemini-2.5-flash',
+      });
+
+      await service.runExtraction('job-1', Buffer.from('pdf'), 'application/pdf');
+
+      const call = gemini.generate.mock.calls[0][0];
+      expect(call.generationConfig).toMatchObject({
+        temperature: 0,
+        responseMimeType: 'application/json',
+      });
+      // Constrained decoding pins Gemini to the canonical BOM keys.
+      expect(call.generationConfig.responseSchema).toMatchObject({
+        type: 'object',
+        required: ['items'],
+      });
+    });
+
+    it('omits responseSchema for GENERIC jobs (free-form contract)', async () => {
+      const { service, prisma, gemini } = makeService();
+      prisma.docExtraction.findUnique.mockResolvedValue({
+        id: 'job-1',
+        type: DocExtractionType.GENERIC,
+      });
+      gemini.generate.mockResolvedValue({ text: '{}', model: 'gemini-2.5-flash' });
+
+      await service.runExtraction('job-1', Buffer.from('pdf'), 'application/pdf');
+
+      const call = gemini.generate.mock.calls[0][0];
+      expect(call.generationConfig.responseSchema).toBeUndefined();
+      expect(call.generationConfig).toMatchObject({
+        temperature: 0,
+        responseMimeType: 'application/json',
+      });
+    });
+
+    it('normalizes INVOICE extractions into the canonical invoice shape', async () => {
+      const { service, prisma, gemini } = makeService();
+      prisma.docExtraction.findUnique.mockResolvedValue({
+        id: 'job-1',
+        type: DocExtractionType.INVOICE,
+      });
+      gemini.generate.mockResolvedValue({
+        text: JSON.stringify({
+          vendor: 'Acme Supplies',
+          invoiceNo: 'INV-42',
+          currency: 'usd',
+          total: '$1,250.00',
+          items: [
+            { description: 'Cement', qty: '50', uom: 'BAGS', rate: '$12.50', amount: '625.00' },
+            { description: '', rate: null }, // header/blank row → dropped
+          ],
+        }),
+        model: 'gemini-2.5-flash',
+      });
+
+      await service.runExtraction('job-1', Buffer.from('pdf'), 'application/pdf');
+
+      const completed = prisma.docExtraction.update.mock.calls
+        .map((c) => c[0])
+        .find((u) => u.data.status === DocExtractionStatus.COMPLETED);
+      expect(completed?.data.editedResult).toMatchObject({
+        vendorName: 'Acme Supplies',
+        invoiceNumber: 'INV-42',
+        currency: 'USD',
+        totalAmount: 1250,
+        items: [
+          { description: 'Cement', quantity: 50, unit: 'bag', unitPrice: 12.5, lineTotal: 625 },
+        ],
+      });
+      expect((completed?.data.editedResult as { items: unknown[] }).items).toHaveLength(1);
+    });
+
     it('strips markdown code fences before parsing JSON', async () => {
       const { service, prisma, gemini } = makeService();
       prisma.docExtraction.findUnique.mockResolvedValue({

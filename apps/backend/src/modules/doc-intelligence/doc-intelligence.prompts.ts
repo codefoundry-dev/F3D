@@ -72,6 +72,22 @@ Return JSON shaped exactly like:
 }`,
   INVOICE: `${BASE_INSTRUCTION}
 
+This document is a vendor invoice. Extract every billed line item — do not
+collapse rows. Preserve the order they appear.
+
+For each item:
+- "description": full item / material description as written (trim whitespace).
+- "quantity": numeric quantity billed. Null if absent.
+- "unit": unit of measure (e.g. "ea", "m", "m2", "kg", "bag", "pallet"). Lowercase.
+- "unitPrice": price per unit as a plain number. Strip currency symbols and
+  thousand separators. Null if not stated.
+- "lineTotal": extended line total (qty × unit price) as a plain number. Null if absent.
+
+Dates ("issuedDate", "dueDate") should be ISO format (YYYY-MM-DD) when the
+document makes the date unambiguous; otherwise copy the date exactly as written.
+
+Drop rows that have no description AND no unit price (header / subtotal / blank rows).
+
 Return JSON shaped exactly like:
 {
   "vendorName": string | null,

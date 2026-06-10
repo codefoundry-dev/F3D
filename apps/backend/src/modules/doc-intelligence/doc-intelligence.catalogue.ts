@@ -183,12 +183,21 @@ function cellAt(cells: string[], idx: number | undefined): string | null {
 }
 
 /**
+ * How many leading rows to scan for a recognisable header row. Real catalogue
+ * exports often put a title / export-date banner above the headers, so blindly
+ * treating the first non-empty row as headers silently yields zero items.
+ */
+const HEADER_SCAN_LIMIT = 10;
+
+/**
  * Directly parse an `.xlsx` catalogue buffer into a CatalogueExtractionResult —
- * no LLM. Reads the FIRST worksheet, treats row 1 as headers, maps every data
- * row through the synonym table. Rows with no name, or whose status is
- * OBSOLETE/INACTIVE/ARCHIVED, are skipped. Confidence is 1 for every directly
- * parsed row (deterministic). Designed to handle 60k+ rows efficiently — it
- * streams rows and never materialises the sheet as one big string.
+ * no LLM. Reads the FIRST worksheet, finds the header row by scanning the
+ * first {@link HEADER_SCAN_LIMIT} rows for one that resolves a `name` column,
+ * then maps every following row through the synonym table. Rows with no name,
+ * or whose status is OBSOLETE/INACTIVE/ARCHIVED, are skipped. Confidence is 1
+ * for every directly parsed row (deterministic). Designed to handle 60k+ rows
+ * efficiently — it streams rows and never materialises the sheet as one big
+ * string.
  */
 export async function spreadsheetToCatalogue(buffer: Buffer): Promise<CatalogueExtractionResult> {
   // exceljs is CommonJS; require keeps it consistent with the rest of the backend.
@@ -201,14 +210,21 @@ export async function spreadsheetToCatalogue(buffer: Buffer): Promise<CatalogueE
   if (!sheet) return { ...EMPTY_CATALOGUE_RESULT };
 
   let columns: ColumnMap | null = null;
+  let headerSearchExhausted = false;
   const items: CatalogueLineItem[] = [];
 
   sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
     // row.values is 1-based; index 0 is always empty. Slice to a 0-based array.
     const cells = (row.values ?? []).slice(1).map(cellToString);
 
-    if (rowNumber === 1 || columns === null) {
-      columns = buildColumnMap(cells);
+    if (columns === null) {
+      if (headerSearchExhausted) return;
+      const candidate = buildColumnMap(cells);
+      if (candidate.name !== undefined) {
+        columns = candidate;
+      } else if (rowNumber >= HEADER_SCAN_LIMIT) {
+        headerSearchExhausted = true;
+      }
       return;
     }
 
@@ -236,7 +252,12 @@ export async function spreadsheetToCatalogue(buffer: Buffer): Promise<CatalogueE
   return {
     sourceName: emptyToNull(sheet.name),
     items,
-    notes: null,
+    // Surface the previously silent failure mode so the review UI can explain
+    // an empty result instead of showing a blank table.
+    notes:
+      columns === null
+        ? `No header row with a recognisable product name column was found in the first ${HEADER_SCAN_LIMIT} rows.`
+        : null,
   };
 }
 

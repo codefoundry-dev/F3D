@@ -21,6 +21,7 @@ export * from './dtos/doc-extraction.dto';
 export * from './dtos/bom.dto';
 export * from './dtos/quote-extraction.dto';
 export * from './dtos/catalogue-extraction.dto';
+export * from './dtos/invoice-extraction.dto';
 
 // Validation utils
 export * from './validation';

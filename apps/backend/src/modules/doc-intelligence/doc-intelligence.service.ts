@@ -26,9 +26,11 @@ import { StorageService } from '../storage/storage.service';
 
 import { normalizeBomResult } from './doc-intelligence.bom';
 import { normalizeCatalogueResult, spreadsheetToCatalogue } from './doc-intelligence.catalogue';
+import { normalizeInvoiceResult } from './doc-intelligence.invoice';
 import { annotateBomWithMatches, dropUnmatchedBomLines } from './doc-intelligence.match';
 import { buildExtractionPrompt } from './doc-intelligence.prompts';
 import { normalizeQuoteResult } from './doc-intelligence.quote';
+import { buildResponseSchema } from './doc-intelligence.schemas';
 import { spreadsheetToText } from './doc-intelligence.spreadsheet';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -263,15 +265,24 @@ export class DocIntelligenceService {
       }
 
       const prompt = buildExtractionPrompt(job.type, promptHint);
+      // temperature 0 + responseSchema (constrained decoding) make the output
+      // deterministic and guarantee the canonical keys/shape for typed jobs;
+      // GENERIC has no schema and stays on plain JSON mode.
+      const responseSchema = buildResponseSchema(job.type);
+      const generationConfig = {
+        temperature: 0,
+        responseMimeType: 'application/json' as const,
+        ...(responseSchema ? { responseSchema } : {}),
+      };
       const result = SPREADSHEET_MIME_TYPES.has(mimeType)
         ? await this.gemini.generate({
             prompt: await this.buildSpreadsheetPrompt(prompt, fileBuffer),
-            generationConfig: { responseMimeType: 'application/json' },
+            generationConfig,
           })
         : await this.gemini.generate({
             prompt,
             documents: [{ mimeType: mimeType as GeminiMimeType, data: fileBuffer }],
-            generationConfig: { responseMimeType: 'application/json' },
+            generationConfig,
           });
 
       const parsed = this.parseJson(result.text);
@@ -345,6 +356,9 @@ ${sheetText}`;
     }
     if (type === DocExtractionType.CATALOGUE) {
       return normalizeCatalogueResult(parsed) as unknown as Record<string, unknown>;
+    }
+    if (type === DocExtractionType.INVOICE) {
+      return normalizeInvoiceResult(parsed) as unknown as Record<string, unknown>;
     }
     return parsed;
   }
