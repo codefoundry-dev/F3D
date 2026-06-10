@@ -104,14 +104,14 @@
     "approvalThresholdExceeded": "PO total {{amount}} {{currency}} exceeds your approval threshold of {{threshold}} {{currency}}. A higher-tier approver must approve this PO."
   },
   "bulkOrders": {
-    "notFound": "Commitment not found",
-    "lineItemNotFound": "Commitment line item not found",
-    "cannotModifyClosed": "Cannot modify a commitment with status \"{{status}}\"",
+    "notFound": "Bulk Order not found",
+    "lineItemNotFound": "Bulk Order line item not found",
+    "cannotModifyClosed": "Cannot modify a bulk order with status \"{{status}}\"",
     "insufficientQuantity": "Drawdown quantity exceeds remaining quantity",
     "changeRequestNotFound": "Change request not found",
     "changeRequestNotPending": "Change request is not pending",
     "cannotChangeOwnRequest": "Cannot approve or reject your own change request",
-    "alreadyCancelled": "Commitment is already cancelled"
+    "alreadyCancelled": "Bulk order is already cancelled"
   },
   "invoices": {
     "notFound": "Invoice not found",

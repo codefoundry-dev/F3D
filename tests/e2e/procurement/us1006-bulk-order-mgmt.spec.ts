@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { loginAs, navigateInApp, expectTableRows } from '../helpers/procurement-helpers';
 import { COMPANY_ADMIN } from '../fixtures/test-data';
 
-test.describe('US-10.06 - Commitment Management', () => {
+test.describe('US-10.06 - Bulk Order Management', () => {
   test.describe.configure({ mode: 'serial' });
 
   let sharedPage: Page;
@@ -18,11 +18,11 @@ test.describe('US-10.06 - Commitment Management', () => {
     await sharedPage?.close();
   });
 
-  test('AC1: Commitments list page renders with heading', async () => {
+  test('AC1: Bulk orders list page renders with heading', async () => {
     await navigateInApp(sharedPage, '/bulk-orders');
 
-    // The page should render with the "New Commitment" button
-    const createBtn = sharedPage.getByRole('button', { name: 'New Commitment' });
+    // The page should render with the "Create new" button
+    const createBtn = sharedPage.getByRole('button', { name: '+ Create new' });
     await expect(createBtn).toBeVisible({ timeout: 10000 });
 
     // Search input should be present in toolbar
@@ -37,7 +37,7 @@ test.describe('US-10.06 - Commitment Management', () => {
     await sharedPage.waitForTimeout(2000);
 
     const table = sharedPage.locator('table');
-    const emptyState = sharedPage.getByText('No commitments found');
+    const emptyState = sharedPage.getByText('No bulk orders found');
 
     const hasTable = await table.isVisible().catch(() => false);
     const hasEmpty = await emptyState.isVisible().catch(() => false);
@@ -46,7 +46,7 @@ test.describe('US-10.06 - Commitment Management', () => {
 
     if (hasTable) {
       // Verify key column headers
-      await expect(sharedPage.locator('th', { hasText: 'Commitment ID' })).toBeVisible();
+      await expect(sharedPage.locator('th', { hasText: 'Bulk Order ID' })).toBeVisible();
       await expect(sharedPage.locator('th', { hasText: 'Project Name' })).toBeVisible();
       await expect(sharedPage.locator('th', { hasText: 'Vendor name' })).toBeVisible();
       await expect(sharedPage.locator('th', { hasText: 'Status' })).toBeVisible();
@@ -92,7 +92,7 @@ test.describe('US-10.06 - Commitment Management', () => {
       await navigateInApp(sharedPage, '/bulk-orders');
     } else {
       // No data - just verify empty state
-      await expect(sharedPage.getByText('No commitments found')).toBeVisible();
+      await expect(sharedPage.getByText('No bulk orders found')).toBeVisible();
     }
   });
 
@@ -110,7 +110,7 @@ test.describe('US-10.06 - Commitment Management', () => {
       await sharedPage.waitForTimeout(1500);
 
       // Detail page should show Bulk Details section
-      await expect(sharedPage.getByText('Commitment Details')).toBeVisible({ timeout: 10000 });
+      await expect(sharedPage.getByText('Bulk Details')).toBeVisible({ timeout: 10000 });
 
       // Line Items table should be visible
       await expect(sharedPage.getByText('Line Items', { exact: true })).toBeVisible();
@@ -155,15 +155,15 @@ test.describe('US-10.06 - Commitment Management', () => {
       expect(validStatuses.some((s) => badgeText?.includes(s))).toBeTruthy();
     } else {
       // No data - verify empty state instead
-      await expect(sharedPage.getByText('No commitments found')).toBeVisible();
+      await expect(sharedPage.getByText('No bulk orders found')).toBeVisible();
     }
   });
 
-  test('Edge: Empty commitment list shows appropriate message', async () => {
+  test('Edge: Empty bulk order list shows appropriate message', async () => {
     await navigateInApp(sharedPage, '/bulk-orders');
     await sharedPage.waitForTimeout(2000);
 
-    const emptyState = sharedPage.getByText('No commitments found');
+    const emptyState = sharedPage.getByText('No bulk orders found');
     const tableBody = sharedPage.locator('tbody tr');
 
     const hasEmpty = await emptyState.isVisible().catch(() => false);
@@ -178,11 +178,11 @@ test.describe('US-10.06 - Commitment Management', () => {
 
       // But toolbar elements should still be present
       await expect(sharedPage.getByPlaceholder('Search')).toBeVisible();
-      await expect(sharedPage.getByRole('button', { name: 'New Commitment' })).toBeVisible();
+      await expect(sharedPage.getByRole('button', { name: '+ Create new' })).toBeVisible();
     } else {
       // Data exists - pagination should be visible
       expect(rowCount).toBeGreaterThan(0);
-      await expect(sharedPage.getByText(/Showing \d+ to \d+ of \d+ commitments/)).toBeVisible();
+      await expect(sharedPage.getByText(/Showing \d+ to \d+ of \d+ bulk orders/)).toBeVisible();
     }
   });
 });
