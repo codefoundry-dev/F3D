@@ -223,6 +223,8 @@
   "detailFields": {
     "basicInformation": "Basic Information",
     "rfqDetails": "RFQ Details",
+    "rfqStatus": "RFQ status",
+    "contractorCompany": "Contractor Company",
     "rfqId": "RFQ ID",
     "rfqName": "RFQ Name",
     "projectId": "Project ID",

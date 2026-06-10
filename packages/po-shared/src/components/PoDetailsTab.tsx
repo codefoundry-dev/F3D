@@ -1,7 +1,7 @@
 import type { PoDetail } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { DetailField, SectionDivider, SectionTitle, formatDate } from '@forethread/rfq-shared';
-import { Badge } from '@forethread/ui-components';
+import { Badge, getStatusColor, PO_STATUS_COLORS } from '@forethread/ui-components';
 
 import { formatCurrency } from '../utils/format';
 
@@ -27,6 +27,10 @@ export function PoDetailsTab({
       ? `${formatDate(po.deadlineStart)} - ${formatDate(po.deadlineEnd)}`
       : formatDate(po.deadlineStart ?? po.deadlineEnd);
 
+  const needByDisplay = po.plannedDeliveryDate
+    ? formatDate(po.plannedDeliveryDate)
+    : t('common:no');
+
   if (layout === 'page') {
     return (
       <div className="flex flex-col lg:flex-row gap-4 items-start w-full">
@@ -36,35 +40,45 @@ export function PoDetailsTab({
             <SectionTitle>{t('detailFields.basicInformation')}</SectionTitle>
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-2 gap-x-14 gap-y-3">
-                <DetailField label={t('detailFields.poId')} value={po.poNumber} />
-                <DetailField label={t('detailFields.poName')} value={po.documentName ?? '-'} />
-                <DetailField label={t('detailFields.projectId')} value={po.projectId ?? '-'} />
-                <DetailField label={t('detailFields.projectName')} value={po.projectName} />
+                <DetailField label={`${t('detailFields.poId')}:`} value={po.poNumber} />
+                <DetailField
+                  label={`${t('detailFields.poName')}:`}
+                  value={po.documentName ?? '-'}
+                />
+                <DetailField
+                  label={`${t('detailFields.projectId')}:`}
+                  value={po.projectId ?? '-'}
+                />
+                <DetailField label={`${t('detailFields.projectName')}:`} value={po.projectName} />
               </div>
               <DetailField
-                label={t('detailFields.poType')}
+                label={`${t('detailFields.poType')}:`}
                 value={po.poType ? t(`poTypes.${po.poType}` as never) : '-'}
               />
               <div className="grid grid-cols-2 gap-x-14 gap-y-3">
                 <DetailField
-                  label={t('detailFields.pickUp')}
+                  label={`${t('detailFields.pickUp')}:`}
                   value={po.pickUp ? t('common:yes') : t('common:no')}
                 />
                 <DetailField
-                  label={t('detailFields.holdForRelease')}
+                  label={`${t('detailFields.holdForRelease')}:`}
                   value={po.holdForRelease ? t('common:yes') : t('common:no')}
                 />
+                {isVendorView ? (
+                  <DetailField label={`${t('detailFields.needBy')}:`} value={needByDisplay} />
+                ) : (
+                  <DetailField
+                    label={`${t('detailFields.plannedDeliveryDate')}:`}
+                    value={formatDate(po.plannedDeliveryDate)}
+                  />
+                )}
                 <DetailField
-                  label={t('detailFields.plannedDeliveryDate')}
-                  value={formatDate(po.plannedDeliveryDate)}
-                />
-                <DetailField
-                  label={t('detailFields.earliestDelivery')}
+                  label={`${t('detailFields.earliestDelivery')}:`}
                   value={formatDate(po.deadlineStart)}
                 />
               </div>
               <DetailField
-                label={t('detailFields.deliveryLocation')}
+                label={`${t('detailFields.deliveryLocation')}:`}
                 value={po.deliveryLocationName ?? '-'}
               />
               {po.deliveries && po.deliveries.length > 0 && (
@@ -77,17 +91,17 @@ export function PoDetailsTab({
                         className="rounded-lg border border-foreground/10 p-3 grid grid-cols-2 gap-x-8 gap-y-2"
                       >
                         <DetailField
-                          label={t('detailFields.deliveryLocation')}
+                          label={`${t('detailFields.deliveryLocation')}:`}
                           value={d.deliveryLocationName ?? '-'}
                         />
                         <DetailField
-                          label={t('detailFields.plannedDeliveryDate')}
+                          label={`${t('detailFields.plannedDeliveryDate')}:`}
                           value={d.deliveryDate ? formatDate(d.deliveryDate) : '-'}
                         />
                         {d.notes && (
                           <div className="col-span-2">
                             <DetailField
-                              label={t('detailFields.deliveryNotes')}
+                              label={`${t('detailFields.deliveryNotes')}:`}
                               value={d.notes}
                             />
                           </div>
@@ -110,7 +124,7 @@ export function PoDetailsTab({
         {/* Right: Contractor/Vendor + Financial + Metadata */}
         <div className="flex-1 flex flex-col gap-2">
           {/* Vendor / Contractor Details */}
-          {po.vendor && (
+          {(isVendorView ? po.company : po.vendor) && (
             <div className="rounded-[10px] border border-foreground/10 p-4">
               <SectionTitle>
                 {isVendorView
@@ -120,12 +134,16 @@ export function PoDetailsTab({
               <div className="flex flex-col gap-3">
                 <div className="grid grid-cols-2 gap-x-3 gap-y-3">
                   <DetailField
-                    label={isVendorView ? t('detailFields.contractor') : t('detailFields.vendor')}
-                    value={po.vendor.name}
+                    label={
+                      isVendorView
+                        ? `${t('detailFields.contractor')}:`
+                        : `${t('detailFields.vendor')}:`
+                    }
+                    value={isVendorView ? po.company.name : po.vendor.name}
                   />
-                  <DetailField label={t('detailFields.abn')} value={'-'} />
-                  <DetailField label={t('detailFields.contactEmail')} value={'-'} />
-                  <DetailField label={t('detailFields.contactPhone')} value={'-'} />
+                  <DetailField label={`${t('detailFields.abn')}:`} value={'-'} />
+                  <DetailField label={`${t('detailFields.contactEmail')}:`} value={'-'} />
+                  <DetailField label={`${t('detailFields.contactPhone')}:`} value={'-'} />
                 </div>
               </div>
             </div>
@@ -137,24 +155,26 @@ export function PoDetailsTab({
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-2 gap-x-3 gap-y-3">
                 <DetailField
-                  label={t('detailFields.totalAmount')}
+                  label={`${t('detailFields.totalAmount')}:`}
                   value={formatCurrency(po.totalAmount, po.currency)}
                 />
                 {!isVendorView ? (
-                  <DetailField label={t('detailFields.linkedRfqAvgPrice')} value={'-'} />
+                  <DetailField label={`${t('detailFields.linkedRfqAvgPrice')}:`} value={'-'} />
                 ) : (
-                  <DetailField label={t('detailFields.shipmentCost')} value={'-'} />
+                  <DetailField label={`${t('detailFields.shipmentCost')}:`} value={'-'} />
                 )}
                 <DetailField
-                  label={t('detailFields.discount')}
+                  label={`${t('detailFields.discount')}:`}
                   value={formatCurrency(po.discountAmount, po.currency)}
                 />
                 <DetailField
-                  label={t('detailFields.generalSalesTax')}
+                  label={`${t('detailFields.generalSalesTax')}:`}
                   value={formatCurrency(po.taxAmount, po.currency)}
                 />
               </div>
-              {!isVendorView && <DetailField label={t('detailFields.shipmentCost')} value={'-'} />}
+              {!isVendorView && (
+                <DetailField label={`${t('detailFields.shipmentCost')}:`} value={'-'} />
+              )}
             </div>
           </div>
 
@@ -162,12 +182,15 @@ export function PoDetailsTab({
           <div className="rounded-[10px] border border-foreground/10 p-4">
             <SectionTitle>{t('detailFields.metadata')}</SectionTitle>
             <div className="grid grid-cols-2 gap-x-24 gap-y-3">
-              <DetailField label={t('detailFields.createdDate')} value={formatDate(po.createdAt)} />
-              <DetailField label={t('detailFields.createdBy')} value={po.createdBy.name} />
+              <DetailField
+                label={`${t('detailFields.createdDate')}:`}
+                value={formatDate(po.createdAt)}
+              />
+              <DetailField label={`${t('detailFields.createdBy')}:`} value={po.createdBy.name} />
               {!isVendorView && (
                 <>
                   <DetailField
-                    label={t('detailFields.approvalStatus')}
+                    label={`${t('detailFields.approvalStatus')}:`}
                     value={
                       po.approvalStatus ? (
                         <Badge className="bg-muted text-muted-foreground text-xs">
@@ -179,11 +202,11 @@ export function PoDetailsTab({
                     }
                   />
                   <DetailField
-                    label={t('detailFields.approvedBy')}
+                    label={`${t('detailFields.approvedBy')}:`}
                     value={po.approvedBy?.name ?? '-'}
                   />
                   <DetailField
-                    label={t('detailFields.lastModifiedBy')}
+                    label={`${t('detailFields.lastModifiedBy')}:`}
                     value={po.lastModifiedBy?.name ?? '-'}
                   />
                 </>
@@ -195,7 +218,107 @@ export function PoDetailsTab({
     );
   }
 
-  // Panel layout (preview sidebar)
+  // Panel layout — vendor preview (matches the US 3.08 "PO Details" panel design)
+  if (isVendorView) {
+    return (
+      <div className="rounded-[10px] border border-foreground/10 p-3 flex flex-col gap-4 overflow-clip">
+        <div className="flex flex-col gap-2">
+          <SectionTitle>{t('detailFields.basicInformation')}</SectionTitle>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+            <DetailField label={`${t('detailFields.poId')}:`} value={po.poNumber} />
+            <DetailField label={`${t('detailFields.poName')}:`} value={po.documentName ?? '-'} />
+            <DetailField label={`${t('detailFields.projectId')}:`} value={po.projectId ?? '-'} />
+            <DetailField label={`${t('detailFields.projectName')}:`} value={po.projectName} />
+          </div>
+          <DetailField
+            label={`${t('detailFields.poStatus')}:`}
+            value={
+              <Badge className={getStatusColor(PO_STATUS_COLORS, po.status)}>
+                {t([`vendorStatus.${po.status}`, `status.${po.status}`] as never)}
+              </Badge>
+            }
+          />
+          <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+            <DetailField
+              label={`${t('detailFields.poType')}:`}
+              value={po.poType ? t(`poTypes.${po.poType}` as never) : '-'}
+            />
+            <DetailField
+              label={`${t('detailFields.paymentTerms')}:`}
+              value={po.paymentTermsDays != null ? String(po.paymentTermsDays) : '-'}
+            />
+            <DetailField label={`${t('detailFields.needBy')}:`} value={needByDisplay} />
+            <DetailField
+              label={`${t('detailFields.earliestDelivery')}:`}
+              value={formatDate(po.deadlineStart)}
+            />
+            <DetailField
+              label={`${t('detailFields.pickUp')}:`}
+              value={po.pickUp ? t('common:yes') : t('common:no')}
+            />
+            <DetailField
+              label={`${t('detailFields.holdForRelease')}:`}
+              value={po.holdForRelease ? t('common:yes') : t('common:no')}
+            />
+          </div>
+          <DetailField
+            label={`${t('detailFields.deliveryLocation')}:`}
+            value={po.deliveryLocationName ?? '-'}
+          />
+        </div>
+
+        <SectionDivider />
+
+        <div className="flex flex-col gap-2">
+          <SectionTitle>{t('detailFields.contractorDetails')}</SectionTitle>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+            <DetailField label={`${t('detailFields.contractor')}:`} value={po.company.name} />
+            <DetailField label={`${t('detailFields.abn')}:`} value={'-'} />
+            <DetailField label={`${t('detailFields.legalAddress')}:`} value={'-'} />
+            <DetailField label={`${t('detailFields.taxCode')}:`} value={'-'} />
+            <DetailField label={`${t('detailFields.contactEmail')}:`} value={'-'} />
+            <DetailField label={`${t('detailFields.contactPhone')}:`} value={'-'} />
+          </div>
+        </div>
+
+        <SectionDivider />
+
+        <div className="flex flex-col gap-2">
+          <SectionTitle>{t('detailFields.financialSummary')}</SectionTitle>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+            <DetailField
+              label={`${t('detailFields.totalAmount')}:`}
+              value={formatCurrency(po.totalAmount, po.currency)}
+            />
+            <DetailField label={`${t('detailFields.shipmentCost')}:`} value={'-'} />
+            <DetailField
+              label={`${t('detailFields.discount')}:`}
+              value={formatCurrency(po.discountAmount, po.currency)}
+            />
+            <DetailField
+              label={`${t('detailFields.generalSalesTax')}:`}
+              value={formatCurrency(po.taxAmount, po.currency)}
+            />
+          </div>
+        </div>
+
+        <SectionDivider />
+
+        <div className="flex flex-col gap-2">
+          <SectionTitle>{t('detailFields.metadata')}</SectionTitle>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+            <DetailField
+              label={`${t('detailFields.createdDate')}:`}
+              value={formatDate(po.createdAt)}
+            />
+            <DetailField label={`${t('detailFields.createdBy')}:`} value={po.createdBy.name} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Panel layout (buyer preview sidebar)
   return (
     <div className="rounded-[10px] border border-foreground/10 p-3 flex flex-col gap-4 overflow-clip">
       <div className="flex flex-col gap-2">

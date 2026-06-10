@@ -272,7 +272,12 @@ function GuestResponseContent({ rfq, token }: { rfq: GuestRfqDetail; token: stri
               onUpdateItem={form.updateLineItem}
               onToggleExpanded={form.toggleExpanded}
               totals={form.totals}
+              substituteOpenIdx={null}
+              substituteQuery=""
+              onSubstituteQueryChange={() => {}}
               onOpenSubstitute={() => {}}
+              onCloseSubstitute={() => {}}
+              onSelectSubstitute={() => {}}
             />
 
             <AdditionalQuoteDetails

@@ -74,8 +74,7 @@ vi.mock('@/app/route-config', () => ({
 vi.mock('@forethread/ui-components', () => ({
   Badge: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
   cn: (...args: string[]) => args.filter(Boolean).join(' '),
-  getStatusColor: () => 'bg-gray-100',
-  PO_STATUS_COLORS: {},
+  NEUTRAL_STATUS_COLOR: 'bg-gray-100',
   Spinner: () => <div data-testid="spinner" />,
 }));
 
@@ -118,7 +117,8 @@ describe('PoDetailPanel', () => {
 
   it('renders PO details when data loads', () => {
     render(<PoDetailPanel poId="po-1" onClose={onClose} />);
-    expect(screen.getByText('Test Project')).toBeInTheDocument();
+    // The panel title shows the PO number (per the US 3.08 design)
+    expect(screen.getByText('PO-001')).toBeInTheDocument();
     expect(screen.getByTestId('po-details-tab')).toBeInTheDocument();
   });
 

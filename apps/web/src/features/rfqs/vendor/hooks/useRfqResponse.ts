@@ -132,6 +132,56 @@ const INITIAL_BULK_DEFAULTS: BulkDefaults = {
   bulkDeliveryTime: '',
 };
 
+/* ─── Local draft persistence ("Save as draft") ────────────────────────────── */
+
+/** Per-line-item fields persisted in a local draft. */
+type DraftLineItem = Pick<
+  LineItemFormState,
+  | 'included'
+  | 'availQty'
+  | 'unitPrice'
+  | 'discount'
+  | 'discountType'
+  | 'gst'
+  | 'taxIncluded'
+  | 'deliveryDate'
+  | 'notes'
+  | 'backOrderQty'
+  | 'backOrderDeliveryDate'
+  | 'substituteItemId'
+  | 'substituteName'
+>;
+
+interface ResponseDraft {
+  bulkDefaults: BulkDefaults;
+  lineItems: Record<string, DraftLineItem>;
+  validityPeriod: string;
+  additionalNotes: string;
+  savedAt: string;
+}
+
+const draftStorageKey = (rfqId: string) => `rfq-response-draft-${rfqId}`;
+
+function loadDraft(rfqId: string): ResponseDraft | null {
+  try {
+    const raw = localStorage.getItem(draftStorageKey(rfqId));
+    return raw ? (JSON.parse(raw) as ResponseDraft) : null;
+  } catch {
+    return null;
+  }
+}
+
+function applyDraftToLineItems(
+  items: LineItemFormState[],
+  draft: ResponseDraft | null,
+): LineItemFormState[] {
+  if (!draft) return items;
+  return items.map((item) => {
+    const saved = draft.lineItems[item.rfqLineItemId];
+    return saved ? { ...item, ...saved } : item;
+  });
+}
+
 function bulkDefaultsFromQuote(quote: QuoteResponseDetail): BulkDefaults {
   return {
     bulkAvailability: '',
@@ -162,10 +212,15 @@ export function useRfqResponse(rfq: RfqDetail, vendorId: string, options?: UseRf
   const existingQuote = options?.existingQuote ?? null;
   const isEditMode = !!existingQuote;
 
+  // Local draft (only used when creating a fresh response)
+  const [draft] = useState<ResponseDraft | null>(() => (existingQuote ? null : loadDraft(rfq.id)));
+
   const [bulkDefaults, setBulkDefaults] = useState<BulkDefaults>(
-    existingQuote ? bulkDefaultsFromQuote(existingQuote) : INITIAL_BULK_DEFAULTS,
+    existingQuote
+      ? bulkDefaultsFromQuote(existingQuote)
+      : (draft?.bulkDefaults ?? INITIAL_BULK_DEFAULTS),
   );
-  const [bulkExpanded, setBulkExpanded] = useState(!!existingQuote);
+  const [bulkExpanded, setBulkExpanded] = useState(true);
 
   const setBulkField = useCallback((field: keyof BulkDefaults, value: string) => {
     setBulkDefaults((prev) => ({ ...prev, [field]: value }));
@@ -174,14 +229,19 @@ export function useRfqResponse(rfq: RfqDetail, vendorId: string, options?: UseRf
   const [lineItems, setLineItems] = useState<LineItemFormState[]>(() =>
     existingQuote
       ? initLineItemsFromQuote(rfq.lineItems, existingQuote.lineItems)
-      : initLineItems(rfq.lineItems),
+      : applyDraftToLineItems(initLineItems(rfq.lineItems), draft),
   );
 
   useEffect(() => {
     if (!existingQuote) {
-      setLineItems(initLineItems(rfq.lineItems));
+      setLineItems((prev) => {
+        const next = applyDraftToLineItems(initLineItems(rfq.lineItems), draft);
+        // Preserve in-progress edits for items that are still present
+        const prevById = new Map(prev.map((p) => [p.rfqLineItemId, p]));
+        return next.map((item) => prevById.get(item.rfqLineItemId) ?? item);
+      });
     }
-  }, [rfq.lineItems, existingQuote]);
+  }, [rfq.lineItems, existingQuote, draft]);
 
   const toggleInclude = useCallback((index: number) => {
     setLineItems((prev) =>
@@ -248,9 +308,13 @@ export function useRfqResponse(rfq: RfqDetail, vendorId: string, options?: UseRf
   }, [lineItems, bulkDefaults.bulkDiscount, bulkDefaults.bulkTax]);
 
   const [validityPeriod, setValidityPeriod] = useState(
-    existingQuote?.validityPeriod ? existingQuote.validityPeriod.split('T')[0] : '',
+    existingQuote?.validityPeriod
+      ? existingQuote.validityPeriod.split('T')[0]
+      : (draft?.validityPeriod ?? ''),
   );
-  const [additionalNotes, setAdditionalNotes] = useState(existingQuote?.message ?? '');
+  const [additionalNotes, setAdditionalNotes] = useState(
+    existingQuote?.message ?? draft?.additionalNotes ?? '',
+  );
   const [attachmentIds, setAttachmentIds] = useState<string[]>(
     existingQuote?.attachments?.map((a) => a.fileId) ?? [],
   );
@@ -271,7 +335,8 @@ export function useRfqResponse(rfq: RfqDetail, vendorId: string, options?: UseRf
 
   const warehouses: WarehouseLocation[] = vendorProfile?.warehouseLocations ?? [];
 
-  const [showInfo, setShowInfo] = useState(false);
+  // The RFQ info panel is open by default (matches the design's initial state)
+  const [showInfo, setShowInfo] = useState(true);
 
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -365,6 +430,7 @@ export function useRfqResponse(rfq: RfqDetail, vendorId: string, options?: UseRf
   const submitMutation = useMutation({
     mutationFn: (input: SubmitQuoteInput) => submitQuote(rfq.id, input),
     onSuccess: () => {
+      localStorage.removeItem(draftStorageKey(rfq.id));
       setSubmitSuccess(true);
     },
   });
@@ -374,6 +440,7 @@ export function useRfqResponse(rfq: RfqDetail, vendorId: string, options?: UseRf
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       updateQuote(rfq.id, existingQuote!.id, input),
     onSuccess: () => {
+      localStorage.removeItem(draftStorageKey(rfq.id));
       setSubmitSuccess(true);
     },
   });
@@ -390,6 +457,43 @@ export function useRfqResponse(rfq: RfqDetail, vendorId: string, options?: UseRf
     setSubmitSuccess(false);
     activeMutation.mutate(buildSubmitInput());
   }, [buildSubmitInput, activeMutation, validate]);
+
+  /* ─── Save as draft (local persistence) ─── */
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
+
+  const saveDraft = useCallback(() => {
+    const draftItems: Record<string, DraftLineItem> = {};
+    for (const item of lineItems) {
+      draftItems[item.rfqLineItemId] = {
+        included: item.included,
+        availQty: item.availQty,
+        unitPrice: item.unitPrice,
+        discount: item.discount,
+        discountType: item.discountType,
+        gst: item.gst,
+        taxIncluded: item.taxIncluded,
+        deliveryDate: item.deliveryDate,
+        notes: item.notes,
+        backOrderQty: item.backOrderQty,
+        backOrderDeliveryDate: item.backOrderDeliveryDate,
+        substituteItemId: item.substituteItemId,
+        substituteName: item.substituteName,
+      };
+    }
+    const payload: ResponseDraft = {
+      bulkDefaults,
+      lineItems: draftItems,
+      validityPeriod,
+      additionalNotes,
+      savedAt: new Date().toISOString(),
+    };
+    try {
+      localStorage.setItem(draftStorageKey(rfq.id), JSON.stringify(payload));
+      setDraftSavedAt(payload.savedAt);
+    } catch {
+      /* storage full / unavailable — silently ignore */
+    }
+  }, [lineItems, bulkDefaults, validityPeriod, additionalNotes, rfq.id]);
 
   return {
     isEditMode,
@@ -412,6 +516,8 @@ export function useRfqResponse(rfq: RfqDetail, vendorId: string, options?: UseRf
     warehouses,
     warehousesLoading,
     handleSubmit,
+    saveDraft,
+    draftSavedAt,
     isSubmitting: activeMutation.isPending,
     submitError: activeMutation.error ? activeMutation.error.message : null,
     submitSuccess,

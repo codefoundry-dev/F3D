@@ -22,8 +22,7 @@ vi.mock('@forethread/ui-components', () => ({
   Badge: ({ children }: { children: React.ReactNode }) => (
     <span data-testid="badge">{children}</span>
   ),
-  getStatusColor: () => '',
-  VENDOR_RFQ_STATUS_COLORS: {},
+  NEUTRAL_STATUS_COLOR: '',
 }));
 
 vi.mock('@forethread/ui-components/assets/icons/cross.svg?react', () => ({

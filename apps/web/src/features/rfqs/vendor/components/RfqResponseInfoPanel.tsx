@@ -1,7 +1,7 @@
 import type { RfqDetail } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { DetailField, SectionTitle, formatDate, RfqDocumentsTab } from '@forethread/rfq-shared';
-import { Badge, getStatusColor, VENDOR_RFQ_STATUS_COLORS } from '@forethread/ui-components';
+import { Badge, NEUTRAL_STATUS_COLOR } from '@forethread/ui-components';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 
 interface RfqResponseInfoPanelProps {
@@ -20,12 +20,11 @@ export function RfqResponseInfoPanel({ rfq, onClose }: RfqResponseInfoPanelProps
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <SectionTitle>{t('detailFields.rfqDetails')}</SectionTitle>
-            <Badge className={getStatusColor(VENDOR_RFQ_STATUS_COLORS, rfq.status)}>
-              {t(`status.${rfq.status}` as never)}
-            </Badge>
+            <Badge className={NEUTRAL_STATUS_COLOR}>{t(`status.${rfq.status}` as never)}</Badge>
           </div>
           <button
             type="button"
+            aria-label="Close info panel"
             className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
             onClick={onClose}
           >
@@ -35,20 +34,23 @@ export function RfqResponseInfoPanel({ rfq, onClose }: RfqResponseInfoPanelProps
 
         <div className="grid grid-cols-2 gap-x-3 gap-y-3">
           {/* Row 1 */}
-          <DetailField label={t('detailFields.rfqId')} value={rfq.rfqNumber ?? rfq.id} />
+          <DetailField label={`${t('detailFields.rfqId')}:`} value={rfq.rfqNumber ?? rfq.id} />
           <DetailField label="Contractor company:" value={rfq.createdBy.name} />
 
           {/* Row 2: Issue Date (when RFQ was sent to vendors) + Res. Deadline */}
           <DetailField label={t('response.issueDate')} value={formatDate(rfq.createdAt)} />
-          <DetailField label={t('detailFields.resDeadline')} value={deadlineDisplay} />
+          <DetailField label={`${t('detailFields.resDeadline')}:`} value={deadlineDisplay} />
 
           {/* Row 3 */}
-          <DetailField label={t('columns.rfqStatus')} value={t(`status.${rfq.status}` as never)} />
-          <DetailField label={t('detailFields.projectName')} value={rfq.projectName} />
+          <DetailField
+            label={`${t('detailFields.rfqStatus')}:`}
+            value={t(`status.${rfq.status}` as never)}
+          />
+          <DetailField label={`${t('detailFields.projectName')}:`} value={rfq.projectName} />
 
           {/* Row 4 */}
           <DetailField
-            label={t('detailFields.pickUp')}
+            label={`${t('columns.pickUp')}:`}
             value={rfq.pickUp ? t('common:yes') : t('common:no')}
           />
           <DetailField label={t('response.holdForRelease')} value={t('common:no')} />
@@ -56,7 +58,7 @@ export function RfqResponseInfoPanel({ rfq, onClose }: RfqResponseInfoPanelProps
           {/* Delivery location (full width) */}
           <div className="col-span-2">
             <DetailField
-              label={t('detailFields.deliveryLocation')}
+              label={`${t('detailFields.deliveryLocation')}:`}
               value={rfq.deliveryLocation ?? '-'}
             />
           </div>
@@ -73,7 +75,7 @@ export function RfqResponseInfoPanel({ rfq, onClose }: RfqResponseInfoPanelProps
             <DetailField label={t('response.contractorContact')} value={rfq.createdBy.name} />
           </div>
           <div className="col-span-2">
-            <DetailField label={t('detailFields.email')} value="-" />
+            <DetailField label={`${t('detailFields.email')}:`} value="-" />
           </div>
         </div>
       </div>

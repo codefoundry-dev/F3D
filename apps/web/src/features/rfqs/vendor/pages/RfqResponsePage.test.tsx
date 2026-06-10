@@ -252,7 +252,6 @@ describe('RfqResponsePage', () => {
     expect(screen.getByTestId('bulk-defaults')).toBeInTheDocument();
     expect(screen.getByTestId('line-items-table')).toBeInTheDocument();
     expect(screen.getByTestId('additional-details')).toBeInTheDocument();
-    expect(screen.getByTestId('material-search')).toBeInTheDocument();
   });
 
   it('renders submit button', () => {
@@ -311,7 +310,8 @@ describe('RfqResponsePage', () => {
     };
     render(<RfqResponsePage />);
     expect(screen.getByTestId('info-panel')).toBeInTheDocument();
-    expect(screen.getByText('response.hideInfo')).toBeInTheDocument();
+    // The "View info" toggle is hidden while the panel is open (the panel has its own ✕)
+    expect(screen.queryByText('response.viewInfo')).not.toBeInTheDocument();
   });
 
   it('shows validation error when present', () => {

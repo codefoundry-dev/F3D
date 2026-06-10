@@ -55,6 +55,10 @@
     --warning: 34 94% 50%;
     --warning-foreground: 0 0% 100%;
 
+    /* ───── Highlighted table row (substitute material) ───── */
+    /* Yellow #FFF2B5 */
+    --row-highlight: 49 100% 85%;
+
     /* ───── Filter chip (quick-filter active state) ───── */
     /* Gray #6E6E6E */
     --filter-chip: 0 0% 43%;
@@ -95,6 +99,8 @@
     --badge-amber-text: 45 50% 35%;
     --badge-pink: 335 50% 93%;
     --badge-pink-text: 335 50% 35%;
+    --badge-neutral: 0 0% 89%;
+    --badge-neutral-text: 0 0% 15%;
   }
 
   .dark {
@@ -144,6 +150,9 @@
     --warning: 34 94% 64%;
     --warning-foreground: 0 0% 100%;
 
+    /* ───── Highlighted table row (substitute material) ───── */
+    --row-highlight: 49 45% 28%;
+
     /* ───── Filter chip ───── */
     /* Gray-500 #717182 */
     --filter-chip: 240 7% 48%;
@@ -177,6 +186,8 @@
     --badge-amber-text: 45 50% 75%;
     --badge-pink: 335 50% 20%;
     --badge-pink-text: 335 50% 75%;
+    --badge-neutral: 220 8% 26%;
+    --badge-neutral-text: 0 0% 85%;
 
     --sort-icon: 0 0% 80%;
     --table-header: 220 10% 18%;

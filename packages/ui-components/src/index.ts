@@ -15,6 +15,7 @@ export { formatTime, formatDateLabel, groupMessagesByDate } from './utils/messag
 export type { MessageItem } from './utils/messaging';
 export {
   DEFAULT_STATUS_COLOR,
+  NEUTRAL_STATUS_COLOR,
   RFQ_STATUS_COLORS,
   VENDOR_RFQ_STATUS_COLORS,
   PO_STATUS_COLORS,

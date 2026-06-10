@@ -30,7 +30,7 @@ export function PoVendorAcceptFields({
     <>
       <div className="flex flex-col gap-1.5">
         <label className="text-sm font-normal leading-[14px] text-muted-foreground">
-          {t('detailFields.paymentTermsDays')}
+          {t('detailFields.paymentTerms')}:
         </label>
         <Input
           value={paymentTermsDays}

@@ -14,11 +14,10 @@ import {
 } from '@forethread/ui-components';
 import EditInSquareIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
 import EditWithoutLineIcon from '@forethread/ui-components/assets/icons/edit-without-line.svg?react';
-import ArrowRightIcon from '@forethread/ui-components/assets/icons/arrow-right.svg?react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { formatCurrency } from '@forethread/ui-components';
+import { formatCurrency, formatDate } from '@forethread/ui-components';
 
 interface PoLineItemsTabProps {
   poId?: string;
@@ -60,20 +59,23 @@ export function PoLineItemsTab({
     );
   }
 
+  const isPageLayout = layout === 'page';
+  const showActions = isPageLayout && Boolean(poId) && !readOnly;
+  const columnCount = (isPageLayout ? 9 : 6) + (showActions ? 1 : 0);
+
   return (
     <div className="rounded-lg border border-border bg-background">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3">
         <h2 className="text-base font-bold text-foreground">{t('lineItemsTab.title')}</h2>
-        {layout === 'page' && onEditAll && (
+        {isPageLayout && onEditAll && (
           <button
             type="button"
-            className="flex items-center gap-1.5 text-foreground font-medium text-lg hover:opacity-80 transition-opacity"
+            className="flex items-center gap-1.5 text-foreground font-medium text-sm hover:opacity-80 transition-opacity"
             onClick={onEditAll}
           >
-            <EditWithoutLineIcon className="w-6 h-6" />
+            <EditWithoutLineIcon className="w-4 h-4" />
             <span>{t('actions.edit' as never)}</span>
-            <ArrowRightIcon className="w-6 h-6" />
           </button>
         )}
       </div>
@@ -87,12 +89,15 @@ export function PoLineItemsTab({
           <thead>
             <tr className="bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
               <th className={TH}>{t('lineItemsTab.materialName')}</th>
+              {isPageLayout && <th className={TH}>{t('lineItemsTab.materialCode')}</th>}
+              {isPageLayout && <th className={TH}>{t('lineItemsTab.costCode')}</th>}
               <th className={TH}>{t('lineItemsTab.description')}</th>
-              <th className={TH}>{t('lineItemsTab.qtyOrdered')} *</th>
-              <th className={TH}>{t('lineItemsTab.uom')} *</th>
-              <th className={TH}>{t('lineItemsTab.unitPrice')}</th>
+              <th className={TH}>{t('lineItemsTab.qtyOrdered')}</th>
+              <th className={TH}>{t('lineItemsTab.uom')}</th>
+              {isPageLayout && <th className={TH}>{t('lineItemsTab.expDeliveryDate')}</th>}
+              <th className={TH}>{t('lineItemsTab.pricePerUnit')}</th>
               <th className={TH}>{t('lineItemsTab.lineTotal')}</th>
-              {layout === 'page' && poId && !readOnly && (
+              {showActions && (
                 <th className={`${TH_LAST} w-[60px] text-center`}>
                   {t('lineItemsTab.actions', { defaultValue: 'Actions' })}
                 </th>
@@ -108,6 +113,16 @@ export function PoLineItemsTab({
                   <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
                     {item.materialName}
                   </td>
+                  {isPageLayout && (
+                    <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
+                      {item.materialCode ?? '-'}
+                    </td>
+                  )}
+                  {isPageLayout && (
+                    <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
+                      {item.costCode ?? '-'}
+                    </td>
+                  )}
                   <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
                     {item.description ?? '-'}
                   </td>
@@ -117,13 +132,18 @@ export function PoLineItemsTab({
                   <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
                     {item.unitOfMeasure}
                   </td>
+                  {isPageLayout && (
+                    <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
+                      {item.expectedDeliveryDate ? formatDate(item.expectedDeliveryDate) : '-'}
+                    </td>
+                  )}
                   <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
                     {formatCurrency(item.unitPrice)}
                   </td>
                   <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
                     {formatCurrency(item.lineTotal)}
                   </td>
-                  {layout === 'page' && poId && !readOnly && (
+                  {showActions && (
                     <td className={`px-3 py-2.5 ${isLast ? '' : 'border-b'} border-border`}>
                       <div className="flex items-center justify-center">
                         <button
@@ -144,7 +164,7 @@ export function PoLineItemsTab({
           {/* Footer totals */}
           <tfoot>
             <tr className="border-t border-border bg-muted/50">
-              <td colSpan={layout === 'page' && poId && !readOnly ? 7 : 6} className="px-6 py-3">
+              <td colSpan={columnCount} className="px-6 py-3">
                 <div className="flex items-center gap-8 text-sm">
                   <span className="text-muted-foreground">
                     {t('lineItemsTab.totalItems')}:{' '}
