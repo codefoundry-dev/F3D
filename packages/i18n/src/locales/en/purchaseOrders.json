@@ -368,7 +368,7 @@
     "submitPo": "Submit PO",
     "searchMaterials": "Search",
     "selectApprovedQuotes": "Select Approved Quotes",
-    "selectBulkOrders": "Select Bulk Orders",
+    "selectBulkOrders": "Select Commitments",
     "materialName": "Material Name",
     "materialCode": "Material code",
     "costCode": "Cost code",
@@ -376,7 +376,7 @@
     "pricePerUnit": "Price/unit",
     "qtyOrdered": "Qty. Ordered",
     "approvedRfq": "Appr. RFQ",
-    "bulkOrders": "Bulk orders",
+    "bulkOrders": "Commitments",
     "expDeliveryDate": "Exp. delivery date",
     "deliveryLocationCol": "Delivery location",
     "actionsCol": "Actions",
@@ -466,11 +466,11 @@
     "clearFilters": "Clear"
   },
   "bulkOrdersModal": {
-    "title": "Add from Bulk Orders",
-    "subtitle": "Select bulk order items to add to your purchase order",
+    "title": "Add from Commitments",
+    "subtitle": "Select commitment items to add to your purchase order",
     "searchPlaceholder": "Search",
     "loading": "Loading...",
-    "noBulkOrders": "No bulk orders found",
+    "noBulkOrders": "No commitments found",
     "noItems": "No line items found",
     "viewItems": "View items",
     "addItems": "Add items",
@@ -485,17 +485,17 @@
     "clearFilters": "Clear"
   },
   "bulkPriceWarning": {
-    "title": "Price differs from Bulk Agreement",
-    "descriptionLine1": "This item is covered by an active bulk agreement with the selected vendor. The agreed bulk price is",
+    "title": "Price differs from Commitment",
+    "descriptionLine1": "This item is covered by an active commitment with the selected vendor. The agreed commitment price is",
     "descriptionLine2": ", while the price you entered is",
-    "descriptionWarning": "Proceeding with a different price may override the bulk agreement terms, require additional approval, and impact reporting and contract compliance.",
-    "useBulkPrice": "Use Bulk Price",
+    "descriptionWarning": "Proceeding with a different price may override the commitment terms, require additional approval, and impact reporting and contract compliance.",
+    "useBulkPrice": "Use Commitment Price",
     "keepCustomPrice": "Keep Custom Price"
   },
-  "bulkPriceMismatchAlert": "Some line items are covered by active bulk agreements, but their prices differ from the agreed bulk prices.\nReview the highlighted items to ensure pricing and agreement terms are applied correctly.",
+  "bulkPriceMismatchAlert": "Some line items are covered by active commitments, but their prices differ from the agreed commitment prices.\nReview the highlighted items to ensure pricing and agreement terms are applied correctly.",
   "noPoRequired": {
     "title": "No PO Required",
-    "description": "All requested materials are fully covered by existing warehouse stock and bulk orders. Warehouse withdrawal and bulk drawdown requests have been created. You can track them in your dashboard",
+    "description": "All requested materials are fully covered by existing warehouse stock and commitments. Warehouse withdrawal and commitment drawdown requests have been created. You can track them in your dashboard",
     "closePo": "Close PO"
   },
   "selectRfqModal": {
@@ -515,18 +515,18 @@
     "itemsSelected": "item Selected"
   },
   "selectBoModal": {
-    "title": "Add from Bulk Orders",
-    "subtitle": "Choose a bulk order to create a Purchase Order from",
+    "title": "Add from Commitments",
+    "subtitle": "Choose a commitment to create a Purchase Order from",
     "searchPlaceholder": "Search",
-    "noBulkOrders": "No bulk orders found"
+    "noBulkOrders": "No commitments found"
   },
   "coverageModal": {
-    "bulkTitle": "Bulk Order with \"{{material}}\"",
+    "bulkTitle": "Commitment with \"{{material}}\"",
     "rfqTitle": "Approved Quotes for \"{{material}}\"",
     "subtitle": "Select how to cover this line item",
     "searchPlaceholder": "Search",
     "loading": "Loading...",
-    "noOrders": "No bulk orders found",
+    "noOrders": "No commitments found",
     "noQuotes": "No approved quotes found",
     "reviewOrder": "Review order",
     "cover": "Cover",

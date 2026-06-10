@@ -1,18 +1,18 @@
 {
   "list": {
-    "title": "Bulk order",
-    "subtitle": "Track and manage all project Bulk orders",
+    "title": "Commitments",
+    "subtitle": "Track and manage all project commitments",
     "searchPlaceholder": "Search",
-    "createNew": "Create new",
+    "createNew": "New Commitment",
     "allProjects": "All projects",
     "allVendors": "All vendors",
     "allContractors": "All Contractors",
-    "noBulkOrdersFound": "No bulk orders found",
+    "noBulkOrdersFound": "No commitments found",
     "adjustFilters": "Try adjusting your filters or search criteria",
-    "createFirstBulkOrder": "Create your first bulk order to get started",
-    "failedToLoad": "Failed to load bulk orders. Please refresh.",
+    "createFirstBulkOrder": "Create your first commitment to get started",
+    "failedToLoad": "Failed to load commitments. Please refresh.",
     "rowsPerPage": "Rows per page:",
-    "showing": "Showing {{from}} to {{to}} of {{total}} bulk orders",
+    "showing": "Showing {{from}} to {{to}} of {{total}} commitments",
     "allStatuses": "All statuses"
   },
   "filters": {
@@ -24,7 +24,7 @@
     "fullyDrawn": "Fully Drawn"
   },
   "columns": {
-    "bulkOrderId": "Bulk Order ID",
+    "bulkOrderId": "Commitment ID",
     "projectName": "Project Name",
     "projectId": "Project ID",
     "vendorName": "Vendor name",
@@ -59,10 +59,10 @@
     "delete": "Delete"
   },
   "detail": {
-    "backLink": "Bulk order",
+    "backLink": "Commitments",
     "createDrawdown": "Create drawdown",
-    "bulkDetails": "Bulk Details",
-    "bulkId": "BULK ID",
+    "bulkDetails": "Commitment Details",
+    "bulkId": "COMMITMENT ID",
     "status": "Status",
     "rfqReference": "RFQ Reference:",
     "contractorName": "Contractor :",
@@ -89,10 +89,10 @@
     "consumptionPercent": "Consumption"
   },
   "modals": {
-    "createTitle": "Create Bulk Order",
-    "createSubtitle": "Fill in the details to create a new bulk order",
-    "editTitle": "Edit Bulk Order",
-    "editSubtitle": "Modify bulk order details",
+    "createTitle": "New Commitment",
+    "createSubtitle": "Fill in the details to create a new commitment",
+    "editTitle": "Edit Commitment",
+    "editSubtitle": "Modify commitment details",
     "editLineItemTitle": "Edit Line Item",
     "editLineItemSubtitle": "Update line item details",
     "drawdownTitle": "Create Drawdown",
@@ -120,16 +120,16 @@
     "saving": "Saving...",
     "createDrawdown": "Create Drawdown",
     "creatingDrawdown": "Creating...",
-    "createError": "Failed to create bulk order. Please try again.",
+    "createError": "Failed to create commitment. Please try again.",
     "updateError": "Failed to update. Please try again.",
     "drawdownError": "Failed to create drawdown. Please try again.",
-    "createSuccess": "Bulk order created successfully",
+    "createSuccess": "Commitment created successfully",
     "updateSuccess": "Updated successfully",
     "drawdownSuccess": "Drawdown created successfully",
-    "deleteConfirmTitle": "Delete Bulk Order",
-    "deleteConfirmMessage": "Are you sure you want to delete this bulk order? This action cannot be undone.",
-    "deleteSuccess": "Bulk order deleted",
-    "deleteError": "Failed to delete bulk order",
+    "deleteConfirmTitle": "Delete Commitment",
+    "deleteConfirmMessage": "Are you sure you want to delete this commitment? This action cannot be undone.",
+    "deleteSuccess": "Commitment deleted",
+    "deleteError": "Failed to delete commitment",
     "confirmDelete": "Delete",
     "selectProject": "Select a project",
     "selectVendor": "Select a vendor",
@@ -162,7 +162,7 @@
     "awaitingApproval": "Awaiting vendor approval",
     "awaitingContractorApproval": "Awaiting contractor approval",
     "fromRfq": "From {{rfqId}}",
-    "initialAgreement": "Initial bulk agreement",
+    "initialAgreement": "Initial commitment",
     "endDateChange": "Expiration date: {{from}} → {{to}}",
     "priceChange": "{{item}} price: {{from}} → {{to}}",
     "qtyChange": "{{item}} qty: {{from}} → {{to}}",
@@ -179,7 +179,7 @@
     },
     "proposeModal": {
       "title": "Propose Changes",
-      "subtitle": "Propose changes to this bulk agreement",
+      "subtitle": "Propose changes to this commitment",
       "projectName": "Project Name",
       "endDate": "Expiration date",
       "message": "Change reason / note (optional)",
@@ -213,7 +213,7 @@
       "infoAlertContractor": "The current agreement remains active until your proposed changes are approved by the contractor. Both parties will be notified.",
       "projectReassigned": "Project assignment updated",
       "reassignTitle": "Reassign Project",
-      "reassignMessage": "Are you sure you want to reassign this bulk order to \"{{project}}\"? This change is internal and will not notify the vendor.",
+      "reassignMessage": "Are you sure you want to reassign this commitment to \"{{project}}\"? This change is internal and will not notify the vendor.",
       "reassignConfirm": "Reassign"
     },
     "reviewModal": {
@@ -266,10 +266,10 @@
     }
   },
   "cancel": {
-    "title": "Cancel Bulk Order",
-    "confirmMessage": "Are you sure you want to cancel this bulk agreement? No further drawdowns will be allowed.",
-    "confirm": "Cancel Agreement",
-    "success": "Bulk order cancelled",
-    "error": "Failed to cancel bulk order"
+    "title": "Cancel Commitment",
+    "confirmMessage": "Are you sure you want to cancel this commitment? No further drawdowns will be allowed.",
+    "confirm": "Cancel Commitment",
+    "success": "Commitment cancelled",
+    "error": "Failed to cancel commitment"
   }
 }
