@@ -6,6 +6,7 @@ import {
   DashboardItemCard,
   DashboardSectionSkeleton,
   formatCurrency,
+  formatStatus,
 } from '@forethread/ui-components';
 import BriefcaseIcon from '@forethread/ui-components/assets/icons/briefcase.svg?react';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
@@ -108,7 +109,7 @@ function PoCard({ item }: { item: PendingPoItem }) {
       }
       statusBadge={
         <Badge className="bg-[#e4e4e4] text-[#262626] border-0 rounded-full text-xs px-2 py-0.5">
-          {t(`purchaseOrders:buyerStatus.${item.status}` as never)}
+          {formatStatus(item.status)}
         </Badge>
       }
       actions={

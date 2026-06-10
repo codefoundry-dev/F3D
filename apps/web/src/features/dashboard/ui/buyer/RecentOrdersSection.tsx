@@ -60,15 +60,7 @@ export function RecentOrdersSection({ items, isLoading }: RecentOrdersSectionPro
 }
 
 function RecentOrderCard({ item }: { item: RecentOrderItem }) {
-  const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
-
-  // Buyer purchase orders read the documented lifecycle vocabulary; RFQ and bulk
-  // rows keep the generic prettifier (governed by their own tickets).
-  const statusLabel =
-    item.type === 'po'
-      ? t(`purchaseOrders:buyerStatus.${item.status}` as never)
-      : formatStatus(item.status);
 
   function handleViewClick() {
     const routeMap: Record<string, string> = {
@@ -99,7 +91,9 @@ function RecentOrderCard({ item }: { item: RecentOrderItem }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-foreground">{formatOrderId(item)}</span>
-          <Badge className={getStatusColor(ORDER_STATUS_COLORS, item.status)}>{statusLabel}</Badge>
+          <Badge className={getStatusColor(ORDER_STATUS_COLORS, item.status)}>
+            {formatStatus(item.status)}
+          </Badge>
         </div>
         <div className="flex items-center gap-1.5">
           <MessageBadgeIcon hasNotification={item.hasMessages} className="text-muted-foreground" />
