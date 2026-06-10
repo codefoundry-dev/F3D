@@ -8,7 +8,7 @@
     "PROCUREMENT_OFFICER": "Procurement Officer",
     "FINANCIAL_OFFICER": "Financial Officer",
     "WAREHOUSE_OFFICER": "Warehouse Officer",
-    "FOREMAN": "Field User",
+    "FOREMAN": "Foreman",
     "VENDOR": "Vendor"
   },
   "permissionCount": "{{count}} permissions",
