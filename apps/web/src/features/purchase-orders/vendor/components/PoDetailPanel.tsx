@@ -19,6 +19,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 import { useAuthStore } from '@/features/auth/state/auth.store';
+import { usePermissions } from '@/shared/role/usePermissions';
 
 import { PoVendorActions } from './PoVendorActions';
 
@@ -33,6 +34,7 @@ export function PoDetailPanel({ poId, onClose }: PoDetailPanelProps) {
   const { t } = useTranslation('purchaseOrders');
   const navigate = useNavigate();
   const currentUser = useAuthStore((s) => s.currentUser);
+  const { has } = usePermissions();
   const { data: po, isLoading, isError } = usePurchaseOrder(poId);
   const [activeTab, setActiveTab] = useState<PoTab>('details');
 
@@ -173,7 +175,7 @@ export function PoDetailPanel({ poId, onClose }: PoDetailPanelProps) {
                 <PoDocumentsTab
                   poId={po.id}
                   documents={po.documents ?? []}
-                  hideUpload
+                  hideUpload={!has('po.uploadDocument')}
                   relatedDocuments={relatedDocuments}
                 />
               )}
