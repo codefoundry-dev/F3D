@@ -25,6 +25,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 import { useAuthStore } from '@/features/auth/state/auth.store';
+import { usePermissions } from '@/shared/role/usePermissions';
 
 import { PoVendorAcceptFields } from '../components/PoVendorAcceptFields';
 import { PoVendorActions } from '../components/PoVendorActions';
@@ -38,6 +39,7 @@ export default function PurchaseOrderDetailPage() {
   const { data: po, isLoading, isError } = usePurchaseOrder(id ?? '');
   const navigate = useNavigate();
   const currentUser = useAuthStore((s) => s.currentUser);
+  const { has } = usePermissions();
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
 
   useEffect(() => {
@@ -262,7 +264,7 @@ export default function PurchaseOrderDetailPage() {
           <PoDocumentsTab
             poId={po.id}
             documents={po.documents ?? []}
-            hideUpload
+            hideUpload={!has('po.uploadDocument')}
             relatedDocuments={relatedDocuments}
           />
         )}
