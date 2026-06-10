@@ -217,7 +217,7 @@
     "PROCUREMENT_OFFICER": "Procurement Officer",
     "FINANCIAL_OFFICER": "Financial Officer",
     "WAREHOUSE_OFFICER": "Warehouse Officer",
-    "FOREMAN": "Foreman",
+    "FOREMAN": "Field User",
     "VENDOR": "Vendor",
     "SUPER_ADMIN": "Super Admin"
   },
