@@ -104,6 +104,7 @@ export const ERR = {
     onlyClosedCanArchive: errors.rfqs.onlyClosedCanArchive,
     lineItemNotFound: errors.rfqs.lineItemNotFound,
     quoteNotFound: errors.rfqs.quoteNotFound,
+    quoteLineItemNotFound: errors.rfqs.quoteLineItemNotFound,
     invalidQuoteAction: (action: string, status: string) =>
       t(errors.rfqs.invalidQuoteAction, { action, status }),
     projectNotFound: errors.rfqs.projectNotFound,
@@ -116,6 +117,10 @@ export const ERR = {
     cannotSendNotDraft: (status: string) => t(errors.rfqs.cannotSendNotDraft, { status }),
     mustHaveLineItems: errors.rfqs.mustHaveLineItems,
     mustHaveVendors: errors.rfqs.mustHaveVendors,
+    invalidProjectIds: errors.rfqs.invalidProjectIds,
+    lineItemProjectNotInRfq: errors.rfqs.lineItemProjectNotInRfq,
+    coverageOnlyDraft: errors.rfqs.coverageOnlyDraft,
+    coverageExceedsLineQuantity: errors.rfqs.coverageExceedsLineQuantity,
   },
 
   // ── Purchase Orders ──────────────────────────────────────
@@ -180,6 +185,11 @@ export const ERR = {
   materials: {
     notFound: errors.materials.notFound,
     duplicateName: errors.materials.duplicateName,
+  },
+
+  // ── Material lists (US 5.05) ───────────────────────────────
+  materialLists: {
+    notFound: errors.materialLists.notFound,
   },
 
   // ── Vendors ─────────────────────────────────────────────

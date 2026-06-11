@@ -115,6 +115,11 @@ const mockPrisma = {
     findUnique: jest.fn(),
     update: jest.fn(),
   },
+  rfqProject: {
+    findMany: jest.fn().mockResolvedValue([]),
+    deleteMany: jest.fn(),
+    createMany: jest.fn(),
+  },
   file: {
     create: jest.fn(),
     delete: jest.fn(),
@@ -1057,7 +1062,7 @@ describe('RfqsService', () => {
       );
     });
 
-    it('throws BadRequestException when quote is not PENDING', async () => {
+    it('throws BadRequestException when quote was already decided', async () => {
       mockPrisma.quoteResponse.findUnique.mockResolvedValue({
         ...pendingQuote,
         status: QuoteResponseStatus.APPROVED,
@@ -1065,6 +1070,27 @@ describe('RfqsService', () => {
       await expect(service.approveQuote('rfq-1', 'quote-1', companyAdmin)).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    it('approves a received (SUBMITTED) quote — the standard review path (US 5.06)', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({
+        ...pendingQuote,
+        status: QuoteResponseStatus.SUBMITTED,
+      });
+      mockPrisma.quoteResponse.update.mockResolvedValue({
+        id: 'quote-1',
+        status: QuoteResponseStatus.APPROVED,
+        totalCost: 15000,
+        vendor: { legalName: 'VendorCo' },
+      });
+      mockPrisma.rfq.update.mockResolvedValue({});
+      mockPrisma.quoteAudit.create.mockResolvedValue({});
+      mockPrisma.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) =>
+        cb(mockPrisma),
+      );
+
+      const result = await service.approveQuote('rfq-1', 'quote-1', companyAdmin);
+      expect(result.status).toBe(QuoteResponseStatus.APPROVED);
     });
 
     it('approves quote and updates RFQ to AWARDED', async () => {

@@ -25,15 +25,19 @@ const BOM: CreateRfqLineItemDto = {
 };
 
 describe('normalizeRfqLineItem', () => {
-  it('normalizes a catalog line item, mapping uom→unit and notes→description', () => {
+  it('normalizes a catalog line item, mapping uom→unit and notes→notes (US 5.05)', () => {
     expect(normalizeRfqLineItem(CATALOG)).toEqual({
       materialId: '11111111-1111-1111-1111-111111111111',
       materialName: null,
       quantity: 10,
       unit: 'bag',
       costCode: 'CC-100',
-      description: 'handle with care',
+      description: null,
+      notes: 'handle with care',
       pickUp: true,
+      projectId: null,
+      deliveryLocationId: null,
+      expectedDeliveryDate: null,
     });
   });
 
@@ -45,8 +49,24 @@ describe('normalizeRfqLineItem', () => {
       unit: 'ea',
       costCode: null,
       description: null,
+      notes: null,
       pickUp: false,
+      projectId: null,
+      deliveryLocationId: null,
+      expectedDeliveryDate: null,
     });
+  });
+
+  it('carries the per-line project/location/date fields (US 5.05)', () => {
+    const result = normalizeRfqLineItem({
+      ...BOM,
+      projectId: '22222222-2222-2222-2222-222222222222',
+      deliveryLocationId: '33333333-3333-3333-3333-333333333333',
+      expectedDeliveryDate: '2026-07-01T00:00:00.000Z',
+    });
+    expect(result.projectId).toBe('22222222-2222-2222-2222-222222222222');
+    expect(result.deliveryLocationId).toBe('33333333-3333-3333-3333-333333333333');
+    expect(result.expectedDeliveryDate).toEqual(new Date('2026-07-01T00:00:00.000Z'));
   });
 
   it('produces the same shape regardless of source (single normalized schema)', () => {
@@ -71,7 +91,7 @@ describe('normalizeRfqLineItem', () => {
     });
     expect(result.materialName).toBe('Rebar 12mm');
     expect(result.costCode).toBeNull();
-    expect(result.description).toBeNull();
+    expect(result.notes).toBeNull();
   });
 });
 
@@ -90,7 +110,11 @@ describe('isValidRfqLineItemInput', () => {
 
   it('rejects a whitespace-only material name', () => {
     expect(
-      isValidRfqLineItemInput({ materialName: '   ', quantity: 1, uom: 'ea' } as CreateRfqLineItemDto),
+      isValidRfqLineItemInput({
+        materialName: '   ',
+        quantity: 1,
+        uom: 'ea',
+      } as CreateRfqLineItemDto),
     ).toBe(false);
   });
 });

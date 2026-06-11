@@ -5884,8 +5884,14 @@ PO/RFQ fields, implement PO create/update/issue endpoints.
       BulkOrdersModal, coverage modals, BulkPriceWarningModal, attachments, save draft all
       implemented (T770-T807).
       `apps/company-admin-app/src/features/purchase-orders/pages/CreatePurchaseOrderPage.tsx`
-- [ ] T752 [US-5.05] Implement RFQ create frontend page (Figma design available). —
-      `apps/company-admin-app/src/features/rfqs/pages/CreateRfqPage.tsx`
+- [x] T752 [US-5.05] Implement RFQ create frontend page (Figma design available). —
+      `apps/web/src/features/rfqs/buyer/pages/CreateRfqPage.tsx` — DONE (2026-06-11): 4-step wizard
+      (BasicInfo → LineItems+SourcePicker/BOM/material-list modals → Availability/bulk-coverage →
+      ReviewSend) replacing the old 5-step flow; multi-project line items, save-as-draft, RFQ
+      availability check + confirm-coverage backend (`rfq-availability.service.ts`), material-lists
+      read module, schema migrations (us505_material_lists, us505_rfq_multi_project_line_fields).
+      **Tests**: CreateRfqPage.test, wizard-types.test, availability.test + backend
+      rfq-availability.service.spec (all green).
 - [ ] T753 [US-5.06] Implement Review Quotes frontend page (Figma design available, needs T745
       first). — `apps/company-admin-app/src/features/rfqs/pages/ReviewQuotesPage.tsx`
 - [ ] T754 [US-5.12] Implement change request CRUD endpoints. —

@@ -35,6 +35,8 @@ model Project {
 
   // Procurement relations
   rfqs            Rfq[]
+  rfqProjects     RfqProject[]
+  rfqLineItems    RfqLineItem[]   @relation("RfqLineItemProject")
   purchaseOrders  PurchaseOrder[]
   bulkOrders      BulkOrder[]
   invoices        Invoice[]
@@ -61,6 +63,7 @@ model ProjectLocation {
   poLineItems    PoLineItem[]    @relation("PoLineItemDeliveryLocation")
   poDeliveries   PoDelivery[]    @relation("PoDeliveryRowLocation")
   rfqs           Rfq[]           @relation("RfqDeliveryLocation")
+  rfqLineItems   RfqLineItem[]   @relation("RfqLineItemDeliveryLocation")
 
   @@index([projectId], map: "idx_projectlocation_project")
   @@index([projectId, type], map: "idx_projectlocation_project_type")

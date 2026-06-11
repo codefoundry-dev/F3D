@@ -74,6 +74,7 @@
     "onlyClosedCanArchive": "Only closed RFQs can be archived",
     "lineItemNotFound": "Line item not found",
     "quoteNotFound": "Quote not found",
+    "quoteLineItemNotFound": "One or more quote line items were not found on this quote",
     "invalidQuoteAction": "Cannot {{action}} quote with status \"{{status}}\".",
     "projectNotFound": "Project not found",
     "invalidDeliveryLocation": "Delivery location does not belong to the selected project",
@@ -84,7 +85,11 @@
     "cannotEditStatus": "Cannot edit RFQ with status \"{{status}}\". Only DRAFT or OPEN (with no submitted responses) RFQs can be edited.",
     "cannotSendNotDraft": "Cannot send RFQ with status \"{{status}}\". Only DRAFT RFQs can be sent.",
     "mustHaveLineItems": "RFQ must have at least one line item before sending",
-    "mustHaveVendors": "RFQ must have at least one invited vendor before sending"
+    "mustHaveVendors": "RFQ must have at least one invited vendor before sending",
+    "invalidProjectIds": "Some project IDs are invalid or do not belong to your company",
+    "lineItemProjectNotInRfq": "A line item references a project that is not one of the RFQ's projects",
+    "coverageOnlyDraft": "Bulk-order coverage can only be confirmed on a DRAFT RFQ",
+    "coverageExceedsLineQuantity": "Allocated quantity exceeds the RFQ line item's remaining quantity"
   },
   "purchaseOrders": {
     "notFound": "Purchase Order not found",
@@ -135,6 +140,9 @@
   "materials": {
     "notFound": "Material not found",
     "duplicateName": "A material with this name already exists"
+  },
+  "materialLists": {
+    "notFound": "Material list not found"
   },
   "vendors": {
     "alreadyAssigned": "This vendor is already in your vendor list",

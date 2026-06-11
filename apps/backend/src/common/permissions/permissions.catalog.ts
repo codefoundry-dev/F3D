@@ -50,6 +50,10 @@ export const PERMISSIONS = {
   'material.create': 'Create materials',
   'material.import': 'Bulk-import materials from a confirmed catalogue extraction',
 
+  // ── Material lists (US 5.05) ────────────────────────────────────────────
+  'materialList.list': 'List saved material lists',
+  'materialList.read': 'Read a material list with its items',
+
   // ── Bulk orders ─────────────────────────────────────────────────────────
   'bulkOrder.list': 'List bulk orders',
   'bulkOrder.create': 'Create bulk orders',
@@ -102,6 +106,8 @@ export const PERMISSIONS = {
   'rfq.submitQuote': 'Submit a quote response',
   'rfq.updateQuote': 'Update a submitted quote',
   'rfq.readQuoteDetail': 'Read quote response detail',
+  'rfq.checkAvailability': 'Check RFQ line items against active bulk orders (US 5.05)',
+  'rfq.confirmCoverage': 'Confirm bulk-order coverage for a draft RFQ (US 5.05)',
 
   // ── Purchase orders ─────────────────────────────────────────────────────
   'po.list': 'List purchase orders',
@@ -214,6 +220,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.create',
     'material.import',
 
+    'materialList.list',
+    'materialList.read',
+
     'bulkOrder.list',
     'bulkOrder.create',
     'bulkOrder.read',
@@ -257,6 +266,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'rfq.uploadDocument',
     'rfq.deleteDocument',
     'rfq.readQuoteDetail',
+    'rfq.checkAvailability',
+    'rfq.confirmCoverage',
 
     'po.list',
     'po.create',
@@ -325,6 +336,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.create',
     'material.import',
 
+    'materialList.list',
+    'materialList.read',
+
     'bulkOrder.list',
     'bulkOrder.create',
     'bulkOrder.read',
@@ -368,6 +382,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'rfq.uploadDocument',
     'rfq.deleteDocument',
     'rfq.readQuoteDetail',
+    'rfq.checkAvailability',
+    'rfq.confirmCoverage',
 
     'po.list',
     'po.create',
@@ -419,6 +435,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.listCategories',
     'material.suggestions',
 
+    'materialList.list',
+    'materialList.read',
+
     'bulkOrder.list',
     'bulkOrder.read',
     'bulkOrder.listChangeRequests',
@@ -442,6 +461,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.list',
     'material.listCategories',
     'material.suggestions',
+
+    'materialList.list',
+    'materialList.read',
   ],
 
   FOREMAN: [
@@ -450,6 +472,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.list',
     'material.listCategories',
     'material.suggestions',
+
+    'materialList.list',
+    'materialList.read',
 
     'message.createThread',
     'message.listThreads',
@@ -468,6 +493,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.list',
     'material.listCategories',
     'material.suggestions',
+
+    'materialList.list',
+    'materialList.read',
 
     'bulkOrder.list',
     'bulkOrder.read',

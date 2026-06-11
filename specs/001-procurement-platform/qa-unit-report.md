@@ -991,3 +991,21 @@ T923)
 | po-status.service.ts     | Import order (sibling vs parent groups)                 |
 | vendor-invite.service.ts | Non-null assertion → nullish coalescing                 |
 | DatePicker.tsx           | Import order + useEffect dependency (`normalizedValue`) |
+
+---
+
+### US-5.05 — RFQ Creation Wizard (T752) — added 2026-06-11
+
+| Test File                         | Tests | Description                                                | Status |
+| --------------------------------- | ----- | ---------------------------------------------------------- | ------ |
+| CreateRfqPage.test.tsx            | —     | 4-step wizard: steps, validation, draft save, send         | PASS   |
+| wizard-types.test.ts              | —     | Wizard state/line-item derivation helpers                  | PASS   |
+| availability.test.ts              | —     | Bulk-coverage availability step logic                      | PASS   |
+| rfq-availability.service.spec.ts  | 9     | Backend check-availability + confirm-coverage (drawdowns)  | PASS   |
+| rfq-line-item.util.spec.ts        | —     | Per-line project/delivery field mapping (US 5.05)          | PASS   |
+
+Backend suite: 94 suites / 1716 tests green. Web suite: 157 suites / 1578 tests green (full runs
+2026-06-11).
+
+**Lint fixes (pre-commit baseline):** material-lists.service.ts (unnecessary type assertion +
+unused type alias removed), rfq-availability.service.ts (4 non-null assertions → guarded lookups).

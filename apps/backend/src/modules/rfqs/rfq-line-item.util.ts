@@ -15,7 +15,11 @@ export interface NormalizedRfqLineItem {
   unit: string;
   costCode: string | null;
   description: string | null;
+  notes: string | null;
   pickUp: boolean;
+  projectId: string | null;
+  deliveryLocationId: string | null;
+  expectedDeliveryDate: Date | null;
 }
 
 /** Trim a possibly-blank string, collapsing empty/whitespace results to null. */
@@ -36,6 +40,9 @@ export function isValidRfqLineItemInput(li: CreateRfqLineItemDto): boolean {
  * - Catalog lines keep `materialId` and persist no `materialName` — the name is
  *   derived from the Material relation on read, keeping a single source of truth.
  * - BOM lines persist their `materialName` with `materialId = null`.
+ * - Since US 5.05, buyer `notes` persist into the dedicated `notes` column;
+ *   `description` carries the material description (it used to receive `notes`
+ *   before the column existed — existing rows are unchanged).
  */
 export function normalizeRfqLineItem(li: CreateRfqLineItemDto): NormalizedRfqLineItem {
   const materialId = blankToNull(li.materialId);
@@ -47,8 +54,12 @@ export function normalizeRfqLineItem(li: CreateRfqLineItemDto): NormalizedRfqLin
     quantity: li.quantity,
     unit: li.uom,
     costCode: blankToNull(li.costCode),
-    description: blankToNull(li.notes),
+    description: blankToNull(li.description),
+    notes: blankToNull(li.notes),
     pickUp: li.pickUp ?? false,
+    projectId: blankToNull(li.projectId),
+    deliveryLocationId: blankToNull(li.deliveryLocationId),
+    expectedDeliveryDate: li.expectedDeliveryDate ? new Date(li.expectedDeliveryDate) : null,
   };
 }
 
@@ -65,7 +76,5 @@ export function resolveRfqLineItemMaterialName(li: {
 
 /** Collect the catalog material ids referenced by a set of line items. */
 export function catalogMaterialIds(lineItems: CreateRfqLineItemDto[]): string[] {
-  return lineItems
-    .map((li) => li.materialId?.trim())
-    .filter((id): id is string => Boolean(id));
+  return lineItems.map((li) => li.materialId?.trim()).filter((id): id is string => Boolean(id));
 }

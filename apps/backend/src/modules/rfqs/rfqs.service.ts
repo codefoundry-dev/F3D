@@ -55,19 +55,37 @@ import { VENDOR_STATUS_MAP, VENDOR_STATUS_TO_RFQ } from './vendor-status.constan
 
 /** Prisma includes shared by list & detail queries */
 const RFQ_LIST_INCLUDE = {
-  project: { select: { name: true } },
+  project: { select: { id: true, name: true } },
+  deliveryLocation: { select: { id: true, label: true, address: true } },
   createdBy: { select: { id: true, name: true } },
   approvedBy: { select: { id: true, name: true } },
+  invitedVendors: { select: { vendor: { select: { id: true, legalName: true } } } },
   _count: { select: { lineItems: true, quoteResponses: true, invitedVendors: true } },
   quoteResponses: { select: { vendorId: true, status: true }, distinct: ['vendorId' as const] },
 } satisfies Prisma.RfqInclude;
 
 const RFQ_DETAIL_INCLUDE = {
-  project: { select: { name: true } },
+  project: { select: { id: true, name: true } },
+  projects: { include: { project: { select: { id: true, name: true } } } },
+  deliveryLocation: { select: { id: true, label: true, address: true } },
   createdBy: { select: { id: true, name: true } },
   approvedBy: { select: { id: true, name: true } },
-  lineItems: { include: { material: { select: { id: true, name: true, uom: true } } } },
-  quoteResponses: { include: { vendor: { select: { legalName: true } } } },
+  lineItems: {
+    include: {
+      material: { select: { id: true, name: true, uom: true } },
+      project: { select: { id: true, name: true } },
+      deliveryLocation: { select: { id: true, label: true, address: true } },
+    },
+  },
+  quoteResponses: {
+    include: {
+      vendor: { select: { legalName: true } },
+      _count: { select: { attachments: true } },
+      lineItems: {
+        select: { deliveryDate: true, availability: true, notes: true, status: true },
+      },
+    },
+  },
   invitedVendors: {
     include: {
       vendor: {
@@ -158,35 +176,55 @@ export class RfqsService {
     ]);
 
     return {
-      items: items.map((rfq) => ({
-        id: rfq.id,
-        rfqNumber: (rfq as Record<string, unknown>).rfqNumber ?? null,
-        projectName: rfq.project.name,
-        projectId: rfq.projectId,
-        status: isVendor ? this.computeVendorStatus(rfq, user.id) : rfq.status,
-        reqQuantities: rfq.totalRequestedQty,
-        pickUp: !!rfq.pickUpLocation,
-        deliveryLocationId: (rfq as Record<string, unknown>).deliveryLocationId ?? null,
-        pickUpLocation: rfq.pickUpLocation,
-        recVendors: rfq.quoteResponses.length,
-        recQuotes: rfq._count.quoteResponses,
-        invitedVendors: rfq._count.invitedVendors,
-        applVendors: 0,
-        lineItems: rfq._count.lineItems,
-        deadlineRange:
-          rfq.deadlineStart && rfq.deadlineEnd
-            ? `${rfq.deadlineStart.toISOString().split('T')[0]} - ${rfq.deadlineEnd.toISOString().split('T')[0]}`
+      items: items.map((rfq) => {
+        const rfqAny = rfq as Record<string, unknown>;
+        const deliveryLocation = rfqAny.deliveryLocation as {
+          label: string | null;
+          address: string;
+        } | null;
+        const invitedVendors = (rfqAny.invitedVendors ?? []) as {
+          vendor: { id: string; legalName: string };
+        }[];
+        const isPickUp = (rfqAny.isPickUp as boolean | undefined) ?? false;
+
+        return {
+          id: rfq.id,
+          rfqNumber: rfqAny.rfqNumber ?? null,
+          projectName: rfq.project.name,
+          projectId: rfq.projectId,
+          /** Primary project (US 5.05 — RFQs may span several projects). */
+          project: { id: rfq.projectId, name: rfq.project.name },
+          status: isVendor ? this.computeVendorStatus(rfq, user.id) : rfq.status,
+          reqQuantities: rfq.totalRequestedQty,
+          isPickUp,
+          pickUp: isPickUp || !!rfq.pickUpLocation,
+          deliveryLocationId: rfqAny.deliveryLocationId ?? null,
+          deliveryLocation: deliveryLocation
+            ? (deliveryLocation.label ?? deliveryLocation.address)
             : null,
-        applIssues: 0,
-        totalRequestedQty: rfq.totalRequestedQty,
-        arcBlocksDist: null,
-        createdDate: rfq.createdAt.toISOString(),
-        createdBy: rfq.createdBy.name,
-        createdByUserId: rfq.createdByUserId,
-        approvalStatus: rfq.approvalStatus,
-        approvedBy: rfq.approvedBy?.name ?? null,
-        lastModifiedBy: null,
-      })),
+          pickUpLocation: rfq.pickUpLocation,
+          recVendors: rfq.quoteResponses.length,
+          recQuotes: rfq._count.quoteResponses,
+          invitedVendors: rfq._count.invitedVendors,
+          invitedVendorNames: invitedVendors.map((iv) => iv.vendor.legalName),
+          applVendors: 0,
+          lineItems: rfq._count.lineItems,
+          deadlineRange:
+            rfq.deadlineStart && rfq.deadlineEnd
+              ? `${rfq.deadlineStart.toISOString().split('T')[0]} - ${rfq.deadlineEnd.toISOString().split('T')[0]}`
+              : null,
+          deadlineEnd: rfq.deadlineEnd?.toISOString() ?? null,
+          applIssues: 0,
+          totalRequestedQty: rfq.totalRequestedQty,
+          arcBlocksDist: null,
+          createdDate: rfq.createdAt.toISOString(),
+          createdBy: rfq.createdBy.name,
+          createdByUserId: rfq.createdByUserId,
+          approvalStatus: rfq.approvalStatus,
+          approvedBy: rfq.approvedBy?.name ?? null,
+          lastModifiedBy: null,
+        };
+      }),
       meta: buildPaginationMeta(query.page ?? 1, query.take, total),
     };
   }
@@ -202,6 +240,10 @@ export class RfqsService {
           quoteResponses: {
             include: {
               vendor: { select: { legalName: true, users: { select: { id: true } } } },
+              _count: { select: { attachments: true } },
+              lineItems: {
+                select: { deliveryDate: true, availability: true, notes: true, status: true },
+              },
             },
           },
         }
@@ -246,15 +288,35 @@ export class RfqsService {
 
     const rfqAny = rfq as Record<string, unknown>;
 
+    // All projects this RFQ spans (US 5.05), primary first.
+    const rfqProjects = (rfqAny.projects ?? []) as { project: { id: string; name: string } }[];
+    const projects = [
+      { id: rfq.projectId, name: rfq.project.name },
+      ...rfqProjects.map((rp) => rp.project).filter((p) => p.id !== rfq.projectId),
+    ];
+    const rfqDeliveryLocation = rfqAny.deliveryLocation as {
+      label: string | null;
+      address: string;
+    } | null;
+    const isPickUp = (rfqAny.isPickUp as boolean | undefined) ?? false;
+
     return {
       id: rfq.id,
       rfqNumber: rfqAny.rfqNumber ?? null,
+      // Document name (US 5.05); legacy rows fall back to the project name.
+      name: (rfqAny.name as string | null) ?? rfq.project.name,
       projectName: rfq.project.name,
       projectId: rfq.projectId,
+      projects,
+      projectIds: projects.map((p) => p.id),
       status: vendorStatus ?? rfq.status,
-      pickUp: !!rfq.pickUpLocation,
+      isPickUp,
+      pickUp: isPickUp || !!rfq.pickUpLocation,
       pickUpDate: rfq.pickUpDate?.toISOString() ?? null,
       deliveryLocationId: rfqAny.deliveryLocationId ?? null,
+      deliveryLocation: rfqDeliveryLocation
+        ? (rfqDeliveryLocation.label ?? rfqDeliveryLocation.address)
+        : null,
       pickUpLocation: rfq.pickUpLocation,
       currency: rfqAny.currency ?? null,
       needByDate: rfqAny.needByDate ? (rfqAny.needByDate as Date).toISOString() : null,
@@ -269,20 +331,43 @@ export class RfqsService {
       approvalStatus: rfq.approvalStatus,
       approvedBy: rfq.approvedBy ? { id: rfq.approvedBy.id, name: rfq.approvedBy.name } : null,
       createdBy: { id: rfq.createdBy.id, name: rfq.createdBy.name },
-      lineItems: rfq.lineItems.map((li) => ({
-        id: li.id,
-        projectName: rfq.project.name,
-        materialId: li.materialId,
-        materialName: resolveRfqLineItemMaterialName(
-          li as unknown as { material: { name: string } | null; materialName: string | null },
-        ),
-        description: li.description,
-        quantity: li.quantity,
-        unit: li.unit,
-        expectedDeliveryDate: null,
-        deliveryLocationId: rfqAny.deliveryLocationId ?? null,
-        hasNotes: false,
-      })),
+      lineItems: rfq.lineItems.map((li) => {
+        const liAny = li as Record<string, unknown>;
+        const liProject = liAny.project as { id: string; name: string } | null | undefined;
+        const liLocation = liAny.deliveryLocation as {
+          id: string;
+          label: string | null;
+          address: string;
+        } | null;
+        const notes = (liAny.notes as string | null | undefined) ?? null;
+        return {
+          id: li.id,
+          // Line-level project; falls back to the RFQ's primary project (US 5.05).
+          projectId: (liAny.projectId as string | null | undefined) ?? null,
+          projectName: liProject?.name ?? rfq.project.name,
+          materialId: li.materialId,
+          materialName: resolveRfqLineItemMaterialName(
+            li as unknown as { material: { name: string } | null; materialName: string | null },
+          ),
+          description: li.description,
+          notes,
+          hasNotes: Boolean(notes),
+          quantity: li.quantity,
+          unit: li.unit,
+          expectedDeliveryDate: liAny.expectedDeliveryDate
+            ? (liAny.expectedDeliveryDate as Date).toISOString()
+            : null,
+          deliveryLocationId:
+            (liAny.deliveryLocationId as string | null | undefined) ??
+            rfqAny.deliveryLocationId ??
+            null,
+          deliveryLocation: liLocation
+            ? (liLocation.label ?? liLocation.address)
+            : rfqDeliveryLocation
+              ? (rfqDeliveryLocation.label ?? rfqDeliveryLocation.address)
+              : null,
+        };
+      }),
       vendors:
         (
           rfq as unknown as {
@@ -325,18 +410,43 @@ export class RfqsService {
             })),
           };
         }) ?? [],
-      quoteResponses: rfq.quoteResponses.map((qr) => ({
-        id: qr.id,
-        vendorId: qr.vendorId,
-        vendorName: qr.vendor.legalName,
-        totalCost: Number(qr.totalCost),
-        discountPercent: qr.discountPercent ? Number(qr.discountPercent) : null,
-        discountAmount: qr.discountAmount ? Number(qr.discountAmount) : null,
-        itemsCovered: qr.itemsCovered,
-        totalItems: qr.totalItems,
-        status: qr.status,
-        submittedAt: qr.submittedAt?.toISOString() ?? null,
-      })),
+      quoteResponses: rfq.quoteResponses.map((qr) => {
+        const qrAny = qr as unknown as {
+          _count?: { attachments: number };
+          lineItems?: {
+            deliveryDate: Date | null;
+            availability: string;
+            notes: string | null;
+            status: string;
+          }[];
+          bulkDeliveryTime?: Date | null;
+        };
+        // Committed delivery window across the lines the vendor actually quoted
+        // (US 5.06 list cards show "Earliest Delivery: <min> - <max>").
+        const deliveryTimes = (qrAny.lineItems ?? [])
+          .filter((li) => li.availability !== 'NO_QUOTE' && li.deliveryDate)
+          .map((li) => (li.deliveryDate as Date).getTime());
+        const bulkTime = qrAny.bulkDeliveryTime ? qrAny.bulkDeliveryTime.getTime() : null;
+        const allTimes = bulkTime !== null ? [bulkTime] : deliveryTimes;
+        return {
+          id: qr.id,
+          vendorId: qr.vendorId,
+          vendorName: qr.vendor.legalName,
+          totalCost: Number(qr.totalCost),
+          discountPercent: qr.discountPercent ? Number(qr.discountPercent) : null,
+          discountAmount: qr.discountAmount ? Number(qr.discountAmount) : null,
+          itemsCovered: qr.itemsCovered,
+          totalItems: qr.totalItems,
+          status: qr.status,
+          submittedAt: qr.submittedAt?.toISOString() ?? null,
+          earliestDeliveryDate:
+            allTimes.length > 0 ? new Date(Math.min(...allTimes)).toISOString() : null,
+          latestDeliveryDate:
+            allTimes.length > 0 ? new Date(Math.max(...allTimes)).toISOString() : null,
+          attachmentCount: qrAny._count?.attachments ?? 0,
+          hasNotes: (qrAny.lineItems ?? []).some((li) => !!li.notes) || !!qr.message,
+        };
+      }),
       documents: rfq.documents.map((doc) => ({
         id: doc.id,
         name: doc.file.filename,
@@ -358,13 +468,19 @@ export class RfqsService {
   async copyRfq(id: string, user: AuthenticatedUser) {
     const source = await this.prisma.rfq.findUnique({
       where: { id },
-      include: { lineItems: true },
+      include: { lineItems: true, projects: true },
     });
 
     if (!source) throw new NotFoundException(ERR.rfqs.notFound);
     this.assertCompanyAccess(user, source.companyId);
 
     const sourceAny = source as Record<string, unknown>;
+    const sourceProjects = (sourceAny.projects ?? []) as { projectId: string }[];
+    // Primary first, then any additional projects the source spanned.
+    const projectIds = this.resolveProjectIds(source.projectId, [
+      source.projectId,
+      ...sourceProjects.map((p) => p.projectId),
+    ]);
     const rfqNumber = await nextSequentialNumber(this.prisma, 'rfq', 'RFQ', source.companyId);
     const copy = await this.prisma.rfq.create({
       data: {
@@ -374,6 +490,7 @@ export class RfqsService {
         createdByUserId: user.id,
         status: RfqStatus.DRAFT,
         deliveryLocationId: sourceAny.deliveryLocationId as string | undefined,
+        isPickUp: (sourceAny.isPickUp as boolean) ?? false,
         pickUpLocation: source.pickUpLocation,
         pickUpDate: source.pickUpDate,
         currency: sourceAny.currency as string | undefined,
@@ -384,6 +501,9 @@ export class RfqsService {
         deadlineStart: source.deadlineStart,
         deadlineEnd: source.deadlineEnd,
         totalRequestedQty: source.totalRequestedQty,
+        projects: {
+          create: projectIds.map((projectId) => ({ projectId })),
+        },
         lineItems: {
           create: source.lineItems.map((li) => ({
             materialId: (li as Record<string, unknown>).materialId as string | null,
@@ -391,8 +511,13 @@ export class RfqsService {
             quantity: li.quantity,
             unit: li.unit,
             description: li.description,
+            notes: (li as Record<string, unknown>).notes as string | null,
             costCode: (li as Record<string, unknown>).costCode as string | undefined,
             pickUp: (li as Record<string, unknown>).pickUp as boolean | undefined,
+            projectId: (li as Record<string, unknown>).projectId as string | null,
+            deliveryLocationId: (li as Record<string, unknown>).deliveryLocationId as string | null,
+            expectedDeliveryDate: (li as Record<string, unknown>)
+              .expectedDeliveryDate as Date | null,
           })),
         },
       } as never,
@@ -448,24 +573,33 @@ export class RfqsService {
   // ── Create RFQ ────────────────────────────────────────────────────────────
 
   async createRfq(dto: CreateRfqDto, user: AuthenticatedUser) {
-    // Validate project exists and belongs to user's company
+    // The full ordered project set (US 5.05): first entry is the primary project.
+    const projectIds = this.resolveProjectIds(dto.projectId, dto.projectIds);
+    const primaryProjectId = projectIds[0];
+
+    // Validate the primary project exists and belongs to user's company
     const project = await this.prisma.project.findUnique({
-      where: { id: dto.projectId },
+      where: { id: primaryProjectId },
       select: { id: true, companyId: true },
     });
     if (!project) throw new NotFoundException(ERR.rfqs.projectNotFound);
     this.assertCompanyAccess(user, project.companyId);
 
-    // Validate deliveryLocationId belongs to the project
+    // Validate the secondary projects belong to the same company
+    await this.assertProjectsInCompany(projectIds.slice(1), project.companyId);
+
+    // Validate deliveryLocationId belongs to one of the RFQ's projects
     const location = await this.prisma.projectLocation.findUnique({
       where: { id: dto.deliveryLocationId },
     });
-    if (location?.projectId !== dto.projectId) {
+    if (!location || !projectIds.includes(location.projectId)) {
       throw new BadRequestException(ERR.rfqs.invalidDeliveryLocation);
     }
 
     // Validate line items (catalog or BOM source) and their catalog material ids
     await this.assertLineItemsValid(dto.lineItems);
+    this.assertLineItemProjectsInRfq(dto.lineItems, projectIds);
+    await this.assertLineItemLocationsInRfq(dto.lineItems, projectIds);
 
     // Validate all vendorIds exist, are vendor-type companies, and are assigned to this contractor.
     // Why: enforces the M:N relationship — a contractor can only invite vendors on their list,
@@ -484,8 +618,9 @@ export class RfqsService {
       const created = await tx.rfq.create({
         data: {
           rfqNumber,
+          name: dto.name ?? null,
           companyId: user.companyId ?? '',
-          projectId: dto.projectId,
+          projectId: primaryProjectId,
           createdByUserId: user.id,
           status: RfqStatus.DRAFT,
           currency: dto.currency ?? 'AUD',
@@ -495,11 +630,17 @@ export class RfqsService {
           earliestDeliveryDate: dto.earliestDeliveryDate
             ? new Date(dto.earliestDeliveryDate)
             : null,
+          isPickUp: dto.isPickUp ?? false,
+          pickUpLocation: dto.pickUpLocation ?? null,
           deadlineEnd: new Date(dto.deadlineEnd),
           message: dto.message,
           totalRequestedQty,
           lineItems: {
             create: dto.lineItems.map((li) => normalizeRfqLineItem(li)),
+          },
+          // The primary project always also appears in rfq_projects.
+          projects: {
+            create: projectIds.map((projectId) => ({ projectId })),
           },
           invitedVendors: {
             create: dto.vendorIds.map((vendorId) => ({ vendorId })),
@@ -533,20 +674,27 @@ export class RfqsService {
    * but missing slices are simply skipped so the form can save after step 1.
    */
   async saveRfqDraft(dto: SaveRfqDraftDto, user: AuthenticatedUser) {
-    // Validate project exists and belongs to user's company
+    // The full ordered project set (US 5.05): first entry is the primary project.
+    const projectIds = this.resolveProjectIds(dto.projectId, dto.projectIds);
+    const primaryProjectId = projectIds[0];
+
+    // Validate the primary project exists and belongs to user's company
     const project = await this.prisma.project.findUnique({
-      where: { id: dto.projectId },
+      where: { id: primaryProjectId },
       select: { id: true, companyId: true },
     });
     if (!project) throw new NotFoundException(ERR.rfqs.projectNotFound);
     this.assertCompanyAccess(user, project.companyId);
 
-    // Validate deliveryLocationId belongs to the project (when provided)
+    // Validate the secondary projects belong to the same company
+    await this.assertProjectsInCompany(projectIds.slice(1), project.companyId);
+
+    // Validate deliveryLocationId belongs to one of the RFQ's projects (when provided)
     if (dto.deliveryLocationId) {
       const location = await this.prisma.projectLocation.findUnique({
         where: { id: dto.deliveryLocationId },
       });
-      if (location?.projectId !== dto.projectId) {
+      if (!location || !projectIds.includes(location.projectId)) {
         throw new BadRequestException(ERR.rfqs.invalidDeliveryLocation);
       }
     }
@@ -554,6 +702,8 @@ export class RfqsService {
     // Validate line items (catalog or BOM source) when provided
     if (dto.lineItems && dto.lineItems.length > 0) {
       await this.assertLineItemsValid(dto.lineItems);
+      this.assertLineItemProjectsInRfq(dto.lineItems, projectIds);
+      await this.assertLineItemLocationsInRfq(dto.lineItems, projectIds);
     }
 
     // Validate vendor assignment scope (when vendors provided)
@@ -573,8 +723,9 @@ export class RfqsService {
       const created = await tx.rfq.create({
         data: {
           rfqNumber,
+          name: dto.name ?? null,
           companyId: user.companyId ?? '',
-          projectId: dto.projectId,
+          projectId: primaryProjectId,
           createdByUserId: user.id,
           status: RfqStatus.DRAFT,
           currency: dto.currency ?? 'AUD',
@@ -584,9 +735,15 @@ export class RfqsService {
           earliestDeliveryDate: dto.earliestDeliveryDate
             ? new Date(dto.earliestDeliveryDate)
             : null,
+          isPickUp: dto.isPickUp ?? false,
+          pickUpLocation: dto.pickUpLocation ?? null,
           deadlineEnd: dto.deadlineEnd ? new Date(dto.deadlineEnd) : null,
           message: dto.message,
           totalRequestedQty,
+          // The primary project always also appears in rfq_projects.
+          projects: {
+            create: projectIds.map((projectId) => ({ projectId })),
+          },
           ...(dto.lineItems && dto.lineItems.length > 0
             ? {
                 lineItems: {
@@ -646,14 +803,39 @@ export class RfqsService {
       throw new BadRequestException(ERR.rfqs.cannotEditStatus(rfq.status));
     }
 
-    const projectId = dto.projectId ?? rfq.projectId;
+    // Effective project set (US 5.05). When projectIds is provided it replaces
+    // the stored set (first entry = primary); otherwise the stored set applies,
+    // headed by the (possibly updated) primary projectId.
+    const replacementProjectIds = dto.projectIds?.length
+      ? this.resolveProjectIds(dto.projectIds[0], dto.projectIds)
+      : null;
+    const primaryProjectId = replacementProjectIds?.[0] ?? dto.projectId ?? rfq.projectId;
 
-    // Validate deliveryLocationId if provided
+    let effectiveProjectIdsCache: string[] | null = replacementProjectIds;
+    const getEffectiveProjectIds = async (): Promise<string[]> => {
+      if (effectiveProjectIdsCache) return effectiveProjectIdsCache;
+      const stored = await this.prisma.rfqProject.findMany({
+        where: { rfqId: id },
+        select: { projectId: true },
+      });
+      effectiveProjectIdsCache = [
+        primaryProjectId,
+        ...stored.map((s) => s.projectId).filter((p) => p !== primaryProjectId),
+      ];
+      return effectiveProjectIdsCache;
+    };
+
+    if (replacementProjectIds) {
+      await this.assertProjectsInCompany(replacementProjectIds, rfq.companyId);
+    }
+
+    // Validate deliveryLocationId if provided — must belong to one of the RFQ's projects
     if (dto.deliveryLocationId) {
       const location = await this.prisma.projectLocation.findUnique({
         where: { id: dto.deliveryLocationId },
       });
-      if (location?.projectId !== projectId) {
+      const projectIds = await getEffectiveProjectIds();
+      if (!location || !projectIds.includes(location.projectId)) {
         throw new BadRequestException(ERR.rfqs.invalidDeliveryLocation);
       }
     }
@@ -661,6 +843,9 @@ export class RfqsService {
     // Validate line items (catalog or BOM source) if provided
     if (dto.lineItems) {
       await this.assertLineItemsValid(dto.lineItems);
+      const projectIds = await getEffectiveProjectIds();
+      this.assertLineItemProjectsInRfq(dto.lineItems, projectIds);
+      await this.assertLineItemLocationsInRfq(dto.lineItems, projectIds);
     }
 
     // Validate vendorIds if provided — same M:N scope check as createRfq.
@@ -681,7 +866,10 @@ export class RfqsService {
 
     // Build update data for Rfq scalar fields
     const rfqUpdateData: Record<string, unknown> = {};
-    if (dto.projectId !== undefined) rfqUpdateData.projectId = dto.projectId;
+    if (dto.name !== undefined) rfqUpdateData.name = dto.name;
+    if (dto.projectId !== undefined || replacementProjectIds) {
+      rfqUpdateData.projectId = primaryProjectId;
+    }
     if (dto.deadlineEnd !== undefined) rfqUpdateData.deadlineEnd = new Date(dto.deadlineEnd);
     if (dto.deliveryLocationId !== undefined)
       rfqUpdateData.deliveryLocationId = dto.deliveryLocationId;
@@ -692,6 +880,8 @@ export class RfqsService {
       rfqUpdateData.earliestDeliveryDate = dto.earliestDeliveryDate
         ? new Date(dto.earliestDeliveryDate)
         : null;
+    if (dto.isPickUp !== undefined) rfqUpdateData.isPickUp = dto.isPickUp;
+    if (dto.pickUpLocation !== undefined) rfqUpdateData.pickUpLocation = dto.pickUpLocation;
     if (dto.currency !== undefined) rfqUpdateData.currency = dto.currency;
     if (dto.message !== undefined) rfqUpdateData.message = dto.message;
 
@@ -702,6 +892,24 @@ export class RfqsService {
     }
 
     const txOps: Prisma.PrismaPromise<unknown>[] = [];
+
+    // Sync rfq_projects (US 5.05): replace the set when projectIds was given;
+    // otherwise just keep the invariant that the primary project is present.
+    if (replacementProjectIds) {
+      txOps.push(this.prisma.rfqProject.deleteMany({ where: { rfqId: id } }));
+      txOps.push(
+        this.prisma.rfqProject.createMany({
+          data: replacementProjectIds.map((projectId) => ({ rfqId: id, projectId })),
+        }),
+      );
+    } else if (dto.projectId !== undefined) {
+      txOps.push(
+        this.prisma.rfqProject.createMany({
+          data: [{ rfqId: id, projectId: dto.projectId }],
+          skipDuplicates: true,
+        }),
+      );
+    }
 
     // Delete + recreate line items if provided
     if (dto.lineItems) {
@@ -1489,6 +1697,72 @@ export class RfqsService {
     }
   }
 
+  // ── Multi-project helpers (US 5.05) ───────────────────────────────────────
+
+  /**
+   * Resolve the ordered, de-duplicated project set for an RFQ. When the
+   * optional `projectIds` array is present its first entry is the primary
+   * project; otherwise the single `projectId` is the whole set.
+   */
+  private resolveProjectIds(projectId: string, projectIds?: string[]): string[] {
+    const ids = projectIds && projectIds.length > 0 ? projectIds : [projectId];
+    return [...new Set(ids)];
+  }
+
+  /** Every id must reference an existing project of `companyId` (400 otherwise). */
+  private async assertProjectsInCompany(projectIds: string[], companyId: string): Promise<void> {
+    if (projectIds.length === 0) return;
+    const unique = [...new Set(projectIds)];
+    const found = await this.prisma.project.findMany({
+      where: { id: { in: unique }, companyId },
+      select: { id: true },
+    });
+    if (found.length !== unique.length) {
+      throw new BadRequestException(ERR.rfqs.invalidProjectIds);
+    }
+  }
+
+  /** A line item's projectId (when set) must be one of the RFQ's projects. */
+  private assertLineItemProjectsInRfq(
+    lineItems: CreateRfqLineItemDto[],
+    rfqProjectIds: string[],
+  ): void {
+    const allowed = new Set(rfqProjectIds);
+    if (lineItems.some((li) => li.projectId && !allowed.has(li.projectId))) {
+      throw new BadRequestException(ERR.rfqs.lineItemProjectNotInRfq);
+    }
+  }
+
+  /**
+   * A line item's deliveryLocationId (when set) must reference a location of
+   * one of the RFQ's projects. Skips the query when no line carries one.
+   */
+  private async assertLineItemLocationsInRfq(
+    lineItems: CreateRfqLineItemDto[],
+    rfqProjectIds: string[],
+  ): Promise<void> {
+    const locationIds = [
+      ...new Set(
+        lineItems
+          .map((li) => li.deliveryLocationId)
+          .filter((id): id is string => Boolean(id?.trim())),
+      ),
+    ];
+    if (locationIds.length === 0) return;
+
+    const locations = await this.prisma.projectLocation.findMany({
+      where: { id: { in: locationIds } },
+      select: { id: true, projectId: true },
+    });
+    const allowed = new Set(rfqProjectIds);
+    const validIds = new Set(
+      locations.filter((loc) => allowed.has(loc.projectId)).map((loc) => loc.id),
+    );
+    if (locationIds.some((id) => !validIds.has(id))) {
+      throw new BadRequestException(ERR.rfqs.invalidDeliveryLocation);
+    }
+  }
+
   private async assertVendorsAssigned(
     vendorIds: string[],
     contractorId: string | null | undefined,
@@ -1511,8 +1785,13 @@ export class RfqsService {
     }
   }
 
+  /**
+   * A quote can be approved/declined while it still awaits a decision — a
+   * received (SUBMITTED) quote or a PENDING placeholder (US 5.06). Quotes that
+   * were already approved or declined cannot transition again from here.
+   */
   private assertQuotePending(status: QuoteResponseStatus, action: string): void {
-    if (status !== QuoteResponseStatus.PENDING) {
+    if (status !== QuoteResponseStatus.PENDING && status !== QuoteResponseStatus.SUBMITTED) {
       throw new BadRequestException(ERR.rfqs.invalidQuoteAction(action, status));
     }
   }

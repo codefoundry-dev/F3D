@@ -37,6 +37,10 @@ enum QuoteAuditAction {
 model Rfq {
   id                   String          @id @default(uuid())
   rfqNumber            String          @unique @map("rfq_number") @db.VarChar(50)
+  /// Buyer-facing document name (US 5.05 "Document name"). Null for legacy
+  /// rows. Stored in the pre-existing `document_name` column (added by
+  /// migration 20260610090000, which predates this model field).
+  name                 String?         @map("document_name") @db.VarChar(255)
   projectId            String          @map("project_id")
   companyId            String          @map("company_id")
   status               RfqStatus       @default(DRAFT)
@@ -45,6 +49,7 @@ model Rfq {
   needByDate           DateTime?       @map("need_by_date")
   holdForRelease       Boolean         @default(false) @map("hold_for_release")
   earliestDeliveryDate DateTime?       @map("earliest_delivery_date")
+  isPickUp             Boolean         @default(false) @map("is_pick_up")
   pickUpDate           DateTime?       @map("pick_up_date")
   pickUpLocation       String?         @map("pick_up_location")
   deadlineStart        DateTime?       @map("deadline_start")
@@ -64,6 +69,7 @@ model Rfq {
   approvedBy       User?            @relation("RfqApprovedBy", fields: [approvedById], references: [id])
   createdBy        User             @relation("RfqCreatedBy", fields: [createdByUserId], references: [id])
   lineItems        RfqLineItem[]
+  projects         RfqProject[]
   invitedVendors   RfqVendor[]
   quoteResponses   QuoteResponse[]
   quoteAudits      QuoteAudit[]
@@ -77,6 +83,22 @@ model Rfq {
   @@index([status], map: "idx_rfqs_status")
   @@index([deliveryLocationId], map: "idx_rfqs_delivery_location")
   @@map("rfqs")
+}
+
+/// M:N link between an RFQ and the projects it sources materials for
+/// (US 5.05 — one RFQ may span several projects). `Rfq.projectId` remains the
+/// primary project for backwards compatibility and always also appears here.
+model RfqProject {
+  id        String @id @default(uuid())
+  rfqId     String @map("rfq_id")
+  projectId String @map("project_id")
+
+  rfq     Rfq     @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@unique([rfqId, projectId], map: "idx_rfq_projects_rfq_project")
+  @@index([projectId], map: "idx_rfq_projects_project")
+  @@map("rfq_projects")
 }
 
 model RfqVendor {
@@ -106,13 +128,26 @@ model RfqLineItem {
   unit         String  @db.VarChar(50)
   costCode     String? @map("cost_code") @db.VarChar(100)
   description  String?
+  // Per-line buyer notes (US 5.05). Historically the create DTO's `notes` was
+  // persisted into `description`; `description` now stays reserved for the
+  // material description while user notes live here.
+  notes        String?
   pickUp       Boolean @default(false) @map("pick_up")
+  // Per-line project/delivery fields (US 5.05 multi-project RFQs). When null
+  // the RFQ-level primary project / delivery location applies.
+  projectId            String?   @map("project_id")
+  deliveryLocationId   String?   @map("delivery_location_id")
+  expectedDeliveryDate DateTime? @map("expected_delivery_date")
 
   rfq                Rfq                     @relation(fields: [rfqId], references: [id], onDelete: Cascade)
   material           Material?               @relation(fields: [materialId], references: [id])
+  project            Project?                @relation("RfqLineItemProject", fields: [projectId], references: [id])
+  deliveryLocation   ProjectLocation?        @relation("RfqLineItemDeliveryLocation", fields: [deliveryLocationId], references: [id])
   quoteResponseItems QuoteResponseLineItem[]
 
   @@index([materialId], map: "idx_rfq_line_items_material")
+  @@index([projectId], map: "idx_rfq_line_items_project")
+  @@index([deliveryLocationId], map: "idx_rfq_line_items_delivery_location")
   @@map("rfq_line_items")
 }
 

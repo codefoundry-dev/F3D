@@ -16,6 +16,7 @@ export * from './dtos/bulk-order.dto';
 export * from './dtos/invoice.dto';
 export * from './dtos/dashboard.dto';
 export * from './dtos/material.dto';
+export * from './dtos/material-list.dto';
 export * from './dtos/vendor.dto';
 export * from './dtos/doc-extraction.dto';
 export * from './dtos/bom.dto';

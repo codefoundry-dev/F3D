@@ -12,6 +12,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -49,6 +50,12 @@ export class CreateRfqLineItemDto {
   @IsOptional()
   costCode?: string;
 
+  @ApiPropertyOptional({ description: 'Material description shown to vendors' })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiPropertyOptional({ description: 'Per-line buyer notes (US 5.05)' })
   @IsString()
   @IsOptional()
   notes?: string;
@@ -56,11 +63,55 @@ export class CreateRfqLineItemDto {
   @IsBoolean()
   @IsOptional()
   pickUp?: boolean;
+
+  @ApiPropertyOptional({
+    description: "Project this line is for — must be one of the RFQ's projects (US 5.05)",
+  })
+  @IsUUID()
+  @IsOptional()
+  projectId?: string;
+
+  @ApiPropertyOptional({ description: 'Per-line delivery location (US 5.05)' })
+  @IsUUID()
+  @IsOptional()
+  deliveryLocationId?: string;
+
+  @ApiPropertyOptional({ description: 'Per-line expected delivery date (ISO 8601, US 5.05)' })
+  @IsDateString()
+  @IsOptional()
+  expectedDeliveryDate?: string;
 }
 
 export class CreateRfqDto {
   @IsUUID()
   projectId!: string;
+
+  @ApiPropertyOptional({ description: 'Buyer-facing document name (US 5.05 "Document name")' })
+  @IsString()
+  @MaxLength(255)
+  @IsOptional()
+  name?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'All projects this RFQ spans (US 5.05). First entry is the primary project; when omitted, projectId is the only project.',
+  })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @ArrayMinSize(1)
+  @IsOptional()
+  projectIds?: string[];
+
+  @ApiPropertyOptional({ description: 'Materials are picked up rather than delivered (US 5.05)' })
+  @IsBoolean()
+  @IsOptional()
+  isPickUp?: boolean;
+
+  @ApiPropertyOptional({ description: 'Pick-up location (free text)' })
+  @IsString()
+  @IsOptional()
+  pickUpLocation?: string;
 
   @IsDateString()
   deadlineEnd!: string;
@@ -109,6 +160,32 @@ export class UpdateRfqDto {
   @IsUUID()
   @IsOptional()
   projectId?: string;
+
+  @ApiPropertyOptional({ description: 'Buyer-facing document name (US 5.05 "Document name")' })
+  @IsString()
+  @MaxLength(255)
+  @IsOptional()
+  name?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Replace the full project set (US 5.05). First entry becomes the primary project.',
+  })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @ArrayMinSize(1)
+  @IsOptional()
+  projectIds?: string[];
+
+  @ApiPropertyOptional({ description: 'Materials are picked up rather than delivered (US 5.05)' })
+  @IsBoolean()
+  @IsOptional()
+  isPickUp?: boolean;
+
+  @ApiPropertyOptional({ description: 'Pick-up location (free text)' })
+  @IsString()
+  @IsOptional()
+  pickUpLocation?: string;
 
   @IsDateString()
   @IsOptional()
@@ -166,6 +243,33 @@ export class UpdateRfqDto {
 export class SaveRfqDraftDto {
   @IsUUID()
   projectId!: string;
+
+  @ApiPropertyOptional({ description: 'Buyer-facing document name (US 5.05 "Document name")' })
+  @IsString()
+  @MaxLength(255)
+  @IsOptional()
+  name?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'All projects this RFQ spans (US 5.05). First entry is the primary project; when omitted, projectId is the only project.',
+  })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @ArrayMinSize(1)
+  @IsOptional()
+  projectIds?: string[];
+
+  @ApiPropertyOptional({ description: 'Materials are picked up rather than delivered (US 5.05)' })
+  @IsBoolean()
+  @IsOptional()
+  isPickUp?: boolean;
+
+  @ApiPropertyOptional({ description: 'Pick-up location (free text)' })
+  @IsString()
+  @IsOptional()
+  pickUpLocation?: string;
 
   @IsDateString()
   @IsOptional()
@@ -485,4 +589,88 @@ export class PaginatedRfqsResponseDto {
   @ValidateNested()
   @Type(() => PaginationMetaDto)
   meta!: PaginationMetaDto;
+}
+
+// ── Availability check / bulk-order coverage (US 5.05) ──────────────────────
+
+/** One prospective RFQ line to check against the company's active bulk orders. */
+export class RfqAvailabilityLineItemDto {
+  @ApiProperty({ description: "Caller-side index used to correlate the response's matches" })
+  @IsInt()
+  @Min(0)
+  index!: number;
+
+  @ApiPropertyOptional({ description: 'Catalog material id — resolved to the material name' })
+  @IsUUID()
+  @IsOptional()
+  materialId?: string;
+
+  @ApiPropertyOptional({ description: 'Free-text material name (used when no materialId)' })
+  @IsString()
+  @IsOptional()
+  materialName?: string;
+
+  @IsNumber()
+  @Min(0.01)
+  quantity!: number;
+
+  @IsString()
+  uom!: string;
+}
+
+export class CheckRfqAvailabilityDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @ArrayMinSize(1)
+  @Type(() => RfqAvailabilityLineItemDto)
+  lineItems!: RfqAvailabilityLineItemDto[];
+}
+
+/** One drawdown allocation covering (part of) a draft RFQ line item from a bulk-order line. */
+export class RfqCoverageAllocationDto {
+  @IsUUID()
+  rfqLineItemId!: string;
+
+  @IsUUID()
+  bulkOrderLineItemId!: string;
+
+  @IsInt()
+  @Min(1)
+  quantity!: number;
+}
+
+export class ConfirmRfqCoverageDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @ArrayMinSize(1)
+  @Type(() => RfqCoverageAllocationDto)
+  allocations!: RfqCoverageAllocationDto[];
+}
+
+// ── Availability check response shapes ───────────────────────────────────────
+
+export interface RfqAvailabilityVendorDto {
+  vendorId: string;
+  vendorName: string;
+}
+
+export interface RfqAvailabilityMatchDto {
+  bulkOrderId: string;
+  bulkOrderNumber: string | null;
+  bulkOrderLineItemId: string;
+  vendorId: string;
+  qtyRemaining: number;
+  /** Bulk order endDate (ISO 8601) — null when open-ended. */
+  expirationDate: string | null;
+  pricePerUnit: number;
+}
+
+export interface RfqAvailabilityItemDto {
+  index: number;
+  matches: RfqAvailabilityMatchDto[];
+}
+
+export interface RfqAvailabilityResponseDto {
+  vendors: RfqAvailabilityVendorDto[];
+  items: RfqAvailabilityItemDto[];
 }

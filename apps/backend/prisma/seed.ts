@@ -427,6 +427,64 @@ async function main() {
   }
   console.log(`✅ Materials: ${materials.length} created`);
 
+  // ── Material lists (US 5.05 — "Create RFQ from material list") ──────────
+  const listMaterialSpecs: Array<{ name: string; uom: string; description: string }> = [
+    { name: 'Paint Primer White 5-Gal', uom: 'gallons', description: 'Interior/exterior latex primer' },
+    { name: 'Exterior Paint Green 1-Gal', uom: 'gallons', description: 'Weather-resistant exterior paint' },
+    { name: 'Copper Wire 12 AWG', uom: 'rolls', description: '100ft stranded copper wire' },
+    { name: 'PVC Pipe Schedule 40', uom: 'units', description: '10ft, 2 inch pressure pipe' },
+    { name: 'Concrete Block 8x8x16', uom: 'blocks', description: 'Standard solid concrete block' },
+  ];
+  const listMaterials: Array<{ id: string; name: string }> = [];
+  for (const spec of listMaterialSpecs) {
+    const existing = await prisma.material.findFirst({
+      where: { name: spec.name, status: 'PUBLIC' },
+      select: { id: true, name: true },
+    });
+    const mat =
+      existing ??
+      (await prisma.material.create({
+        data: {
+          name: spec.name,
+          categoryId: category.id,
+          uom: spec.uom,
+          description: spec.description,
+          status: 'PUBLIC',
+          createdById: companyAdmin.id,
+        },
+        select: { id: true, name: true },
+      }));
+    listMaterials.push(mat);
+  }
+
+  const materialListSpecs: Array<{ name: string; description: string; picks: number[]; qtys: number[] }> = [
+    { name: 'Site fit-out essentials', description: 'Paints and sealants for interior finishing', picks: [0, 1], qtys: [12, 8] },
+    { name: 'Electrical rough-in', description: 'Wiring and conduit for first fix', picks: [2, 3], qtys: [20, 35] },
+    { name: 'Concrete works', description: 'Structural blocks and reinforcement', picks: [4, 0, 2], qtys: [150, 5, 10] },
+  ];
+  for (const listSpec of materialListSpecs) {
+    const existingList = await prisma.materialList.findFirst({
+      where: { name: listSpec.name, companyId: contractorCompany.id },
+      select: { id: true },
+    });
+    if (existingList) continue;
+    await prisma.materialList.create({
+      data: {
+        name: listSpec.name,
+        description: listSpec.description,
+        companyId: contractorCompany.id,
+        createdById: companyAdmin.id,
+        items: {
+          create: listSpec.picks.map((pick, i) => ({
+            materialId: listMaterials[pick].id,
+            quantity: listSpec.qtys[i],
+          })),
+        },
+      },
+    });
+  }
+  console.log(`✅ Material lists: ${materialListSpecs.length} ensured`);
+
   // ── Additional Vendor companies (for diverse dashboard data) ────────
   const vendorCompany2 = await prisma.company.upsert({
     where: { abn: 'TEST-VENDOR-002' },
