@@ -14,7 +14,7 @@ import {
   EMPTY_CATALOGUE_RESULT,
 } from '@forethread/shared-types';
 
-import { canonicalizeUnit } from './doc-intelligence.bom';
+import { canonicalizeUnit, parseNumber } from './doc-intelligence.bom';
 
 // ── exceljs typings (CommonJS module, see doc-intelligence.spreadsheet.ts) ────
 
@@ -83,12 +83,15 @@ function emptyToNull(raw: string): string | null {
 type CatalogueField =
   | 'name'
   | 'sku'
+  | 'materialCode'
   | 'brand'
   | 'manufacturerPartNumber'
   | 'upc'
   | 'uom'
   | 'mainCategory'
   | 'subCategory'
+  | 'countryOfOrigin'
+  | 'pricePerUnit'
   | 'imageUrl'
   | 'status';
 
@@ -97,6 +100,7 @@ const DESCRIPTION_SYNONYMS = ['description', 'long description'];
 
 const SYNONYMS: Record<Exclude<CatalogueField, 'name'>, string[]> = {
   sku: ['sku', 'code', 'item code', 'product code', 'stock code'],
+  materialCode: ['material code', 'materialcode', 'mat code', 'material id', 'material no'],
   brand: ['brandname', 'brand'],
   manufacturerPartNumber: [
     'manufacturer part numbr',
@@ -109,7 +113,9 @@ const SYNONYMS: Record<Exclude<CatalogueField, 'name'>, string[]> = {
   upc: ['upc', 'barcode', 'ean', 'gtin'],
   uom: ['uom', 'unit', 'unit of measure', 'units'],
   mainCategory: ['main category', 'category'],
-  subCategory: ['sub category', 'subcategory', 'sub-category'],
+  subCategory: ['sub category', 'subcategory', 'sub-category', 'material type', 'mat. type'],
+  countryOfOrigin: ['country of origin', 'country', 'origin', 'made in'],
+  pricePerUnit: ['price per unit', 'unit price', 'price', 'list price', 'rrp'],
   imageUrl: ['imageurl', 'image url', 'image', 'image link'],
   status: ['status'],
 };
@@ -120,12 +126,15 @@ interface ColumnMap {
   name: number | undefined;
   description: number | undefined;
   sku: number | undefined;
+  materialCode: number | undefined;
   brand: number | undefined;
   manufacturerPartNumber: number | undefined;
   upc: number | undefined;
   uom: number | undefined;
   mainCategory: number | undefined;
   subCategory: number | undefined;
+  countryOfOrigin: number | undefined;
+  pricePerUnit: number | undefined;
   imageUrl: number | undefined;
   status: number | undefined;
 }
@@ -165,12 +174,15 @@ function buildColumnMap(headerCells: string[]): ColumnMap {
     name,
     description,
     sku: find(SYNONYMS.sku),
+    materialCode: find(SYNONYMS.materialCode),
     brand: find(SYNONYMS.brand),
     manufacturerPartNumber: find(SYNONYMS.manufacturerPartNumber),
     upc: find(SYNONYMS.upc),
     uom: find(SYNONYMS.uom),
     mainCategory: find(SYNONYMS.mainCategory),
     subCategory: find(SYNONYMS.subCategory),
+    countryOfOrigin: find(SYNONYMS.countryOfOrigin),
+    pricePerUnit: find(SYNONYMS.pricePerUnit),
     imageUrl: find(SYNONYMS.imageUrl),
     status: find(SYNONYMS.status),
   };
@@ -237,6 +249,7 @@ export async function spreadsheetToCatalogue(buffer: Buffer): Promise<CatalogueE
     items.push({
       name,
       sku: cellAt(cells, columns.sku),
+      materialCode: cellAt(cells, columns.materialCode),
       brand: cellAt(cells, columns.brand),
       manufacturerPartNumber: cellAt(cells, columns.manufacturerPartNumber),
       upc: cellAt(cells, columns.upc),
@@ -244,6 +257,8 @@ export async function spreadsheetToCatalogue(buffer: Buffer): Promise<CatalogueE
       description: cellAt(cells, columns.description),
       mainCategory: cellAt(cells, columns.mainCategory),
       subCategory: cellAt(cells, columns.subCategory),
+      countryOfOrigin: cellAt(cells, columns.countryOfOrigin),
+      pricePerUnit: parseNumber(cellAt(cells, columns.pricePerUnit)),
       imageUrl: cellAt(cells, columns.imageUrl),
       confidence: 1,
     });
@@ -284,6 +299,7 @@ function normalizeCatalogueItem(raw: unknown): CatalogueLineItem | null {
   return {
     name,
     sku: normalizeString(v.sku ?? v.code ?? v.itemCode ?? v.productCode),
+    materialCode: normalizeString(v.materialCode ?? v.material_code ?? v.matCode),
     brand: normalizeString(v.brand ?? v.brandName),
     manufacturerPartNumber: normalizeString(
       v.manufacturerPartNumber ?? v.mpn ?? v.partNumber ?? v.manufacturerPartNumbr,
@@ -293,6 +309,10 @@ function normalizeCatalogueItem(raw: unknown): CatalogueLineItem | null {
     description: normalizeString(v.description ?? v.longDescription),
     mainCategory: normalizeString(v.mainCategory ?? v.category),
     subCategory: normalizeString(v.subCategory ?? v.subcategory),
+    countryOfOrigin: normalizeString(
+      v.countryOfOrigin ?? v.country ?? v.origin ?? v.country_of_origin,
+    ),
+    pricePerUnit: parseNumber(v.pricePerUnit ?? v.price ?? v.unitPrice ?? v.listPrice),
     imageUrl: normalizeString(v.imageUrl ?? v.image ?? v.imageLink),
     confidence: asNullableNumber(v.confidence),
   };

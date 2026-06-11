@@ -39,6 +39,7 @@ describe('spreadsheetToCatalogue', () => {
     expect(result.items[0]).toEqual({
       name: 'Cable Tie',
       sku: 'CT-100',
+      materialCode: null,
       brand: 'Acme',
       manufacturerPartNumber: 'MPN-1',
       upc: '012345678905',
@@ -46,8 +47,26 @@ describe('spreadsheetToCatalogue', () => {
       description: null,
       mainCategory: 'Electrical',
       subCategory: 'Fixings',
+      countryOfOrigin: null,
+      pricePerUnit: null,
       imageUrl: null,
       confidence: 1,
+    });
+  });
+
+  it('maps material code, country of origin and price columns', async () => {
+    const buffer = await makeXlsx([
+      ['Name', 'Material Code', 'Country of Origin', 'Unit Price'],
+      ['Rebar 12mm', 'MAT-9', 'Australia', '$12.50'],
+    ]);
+
+    const result = await spreadsheetToCatalogue(buffer);
+
+    expect(result.items[0]).toMatchObject({
+      name: 'Rebar 12mm',
+      materialCode: 'MAT-9',
+      countryOfOrigin: 'Australia',
+      pricePerUnit: 12.5,
     });
   });
 
@@ -173,6 +192,7 @@ describe('normalizeCatalogueResult', () => {
     expect(result.items[0]).toEqual({
       name: 'Switch 1G',
       sku: 'SW-1',
+      materialCode: null,
       brand: 'Acme',
       manufacturerPartNumber: 'MPN-9',
       upc: '111',
@@ -180,6 +200,8 @@ describe('normalizeCatalogueResult', () => {
       description: 'A long blurb',
       mainCategory: 'Electrical',
       subCategory: 'Switches',
+      countryOfOrigin: null,
+      pricePerUnit: null,
       imageUrl: null,
       confidence: 0.9,
     });

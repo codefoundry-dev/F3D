@@ -27,7 +27,11 @@ import { StorageService } from '../storage/storage.service';
 import { normalizeBomResult } from './doc-intelligence.bom';
 import { normalizeCatalogueResult, spreadsheetToCatalogue } from './doc-intelligence.catalogue';
 import { normalizeInvoiceResult } from './doc-intelligence.invoice';
-import { annotateBomWithMatches, dropUnmatchedBomLines } from './doc-intelligence.match';
+import {
+  annotateBomWithMatches,
+  dropUnmatchedBomLines,
+  type CatalogueMaterial,
+} from './doc-intelligence.match';
 import { buildExtractionPrompt } from './doc-intelligence.prompts';
 import { normalizeQuoteResult } from './doc-intelligence.quote';
 import { buildResponseSchema } from './doc-intelligence.schemas';
@@ -378,11 +382,28 @@ ${sheetText}`;
 
       const materials = await this.prisma.material.findMany({
         where: { status: MaterialStatus.PUBLIC },
-        select: { id: true, name: true },
+        select: {
+          id: true,
+          name: true,
+          uom: true,
+          subCategory: true,
+          description: true,
+          category: { select: { name: true } },
+        },
       });
       if (materials.length === 0) return normalized;
 
-      return annotateBomWithMatches(bom, materials) as unknown as Record<string, unknown>;
+      // Carry the catalogue attributes the review row + match-picker render onto
+      // each candidate (category name flattened from the relation).
+      const catalogue: CatalogueMaterial[] = materials.map((m) => ({
+        id: m.id,
+        name: m.name,
+        uom: m.uom,
+        subCategory: m.subCategory,
+        description: m.description,
+        category: m.category?.name,
+      }));
+      return annotateBomWithMatches(bom, catalogue) as unknown as Record<string, unknown>;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'unknown error';
       this.logger.warn(`BOM catalogue matching skipped: ${message}`);

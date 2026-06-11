@@ -14,6 +14,8 @@
 export interface CatalogueLineItem {
   name: string;
   sku: string | null;
+  /** Supplier's internal material code — distinct from sku / mpn / upc (US 4.01). */
+  materialCode: string | null;
   brand: string | null;
   manufacturerPartNumber: string | null;
   upc: string | null;
@@ -21,6 +23,10 @@ export interface CatalogueLineItem {
   description: string | null;
   mainCategory: string | null;
   subCategory: string | null;
+  /** Country of manufacture / origin, when the catalogue states it. */
+  countryOfOrigin: string | null;
+  /** List / unit price as a plain number, when the catalogue carries pricing. */
+  pricePerUnit: number | null;
   imageUrl: string | null;
   /**
    * 0–1 extraction confidence. Direct Excel parsing is deterministic (1); the

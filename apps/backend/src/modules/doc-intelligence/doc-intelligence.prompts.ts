@@ -76,12 +76,21 @@ This document is a vendor invoice. Extract every billed line item — do not
 collapse rows. Preserve the order they appear.
 
 For each item:
+- "lineId": the invoice's own line number / line item ID, exactly as printed. Null if absent.
 - "description": full item / material description as written (trim whitespace).
 - "quantity": numeric quantity billed. Null if absent.
 - "unit": unit of measure (e.g. "ea", "m", "m2", "kg", "bag", "pallet"). Lowercase.
 - "unitPrice": price per unit as a plain number. Strip currency symbols and
   thousand separators. Null if not stated.
 - "lineTotal": extended line total (qty × unit price) as a plain number. Null if absent.
+
+Document-level fields:
+- "poReferences": every purchase-order number the invoice references, as an array of
+  strings (one invoice may bill against several POs). Empty array if none are cited.
+- "paymentTerms": payment terms exactly as written, e.g. "Net 30", "15-30". Null if absent.
+- "taxLabel": the tax label / description as written, e.g. "GST 10%", "VAT 20%". Null if absent.
+- "taxRate": the tax rate as a plain percentage number (e.g. 10 for "GST 10%"). Null if absent.
+- "taxAmount": the absolute tax amount as a plain number. Null if absent.
 
 Dates ("issuedDate", "dueDate") should be ISO format (YYYY-MM-DD) when the
 document makes the date unambiguous; otherwise copy the date exactly as written.
@@ -92,14 +101,18 @@ Return JSON shaped exactly like:
 {
   "vendorName": string | null,
   "invoiceNumber": string | null,
-  "poReference": string | null,
+  "poReferences": string[],
   "issuedDate": string | null,
   "dueDate": string | null,
+  "paymentTerms": string | null,
   "currency": string | null,
   "subTotal": number | null,
+  "taxLabel": string | null,
+  "taxRate": number | null,
   "taxAmount": number | null,
   "totalAmount": number | null,
   "items": Array<{
+    "lineId": string | null,
     "description": string,
     "quantity": number | null,
     "unit": string | null,
@@ -117,13 +130,17 @@ Preserve the order they appear in the document.
 For each item:
 - "name": the product name / material description as written (trim whitespace).
 - "sku": the supplier's stock-keeping unit / item code / product code. Null if absent.
+- "materialCode": the supplier's internal material code, when distinct from the SKU. Null if absent.
 - "brand": the brand or make name. Null if absent.
 - "manufacturerPartNumber": the manufacturer part number / MPN. Null if absent.
 - "upc": the barcode / UPC / EAN / GTIN. Null if absent.
 - "uom": unit of measure (e.g. "ea", "m", "box", "pack"). Lowercase. Null if absent.
 - "description": a longer descriptive blurb when present and distinct from the name. Null otherwise.
 - "mainCategory": the top-level category the product belongs to. Null if absent.
-- "subCategory": the secondary / sub category. Null if absent.
+- "subCategory": the secondary / sub category (a.k.a. material type). Null if absent.
+- "countryOfOrigin": the country of manufacture / origin. Null if absent.
+- "pricePerUnit": the list / unit price as a plain number. Strip currency symbols and
+  thousand separators. Null if absent.
 
 Drop rows that have no product name (header / section / blank rows).
 
@@ -133,13 +150,16 @@ Return JSON shaped exactly like:
   "items": Array<{
     "name": string,
     "sku": string | null,
+    "materialCode": string | null,
     "brand": string | null,
     "manufacturerPartNumber": string | null,
     "upc": string | null,
     "uom": string | null,
     "description": string | null,
     "mainCategory": string | null,
-    "subCategory": string | null
+    "subCategory": string | null,
+    "countryOfOrigin": string | null,
+    "pricePerUnit": number | null
   }>,
   "notes": string | null
 }`,

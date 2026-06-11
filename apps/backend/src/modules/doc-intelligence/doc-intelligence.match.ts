@@ -26,6 +26,15 @@ import {
 export interface CatalogueMaterial {
   id: string;
   name: string;
+  /**
+   * Optional catalogue attributes. When supplied (the service reads them from
+   * the Material row), they ride along onto each {@link BomCatalogueCandidate}
+   * so the review row + match-picker can render them without a second fetch.
+   */
+  uom?: string | null;
+  category?: string | null;
+  subCategory?: string | null;
+  description?: string | null;
 }
 
 /** Matching fields the scorer contributes to a {@link BomLineItem}. */
@@ -83,11 +92,20 @@ export function matchLineToCatalogue(
   if (!description || description.trim().length === 0) return { ...UNMATCHED };
 
   const candidates: BomCatalogueCandidate[] = catalogue
-    .map((material) => ({
-      materialId: material.id,
-      name: material.name,
-      confidence: round2(tokenSimilarity(description, material.name)),
-    }))
+    .map((material) => {
+      const candidate: BomCatalogueCandidate = {
+        materialId: material.id,
+        name: material.name,
+        confidence: round2(tokenSimilarity(description, material.name)),
+      };
+      // Carry the catalogue attributes the review row + match-picker render,
+      // but only when the caller supplied them (unit fixtures pass {id, name}).
+      if (material.uom !== undefined) candidate.uom = material.uom;
+      if (material.category !== undefined) candidate.category = material.category;
+      if (material.subCategory !== undefined) candidate.subCategory = material.subCategory;
+      if (material.description !== undefined) candidate.description = material.description;
+      return candidate;
+    })
     .filter((candidate) => candidate.confidence >= BOM_MATCH_CANDIDATE_FLOOR)
     // Best first; break ties by name so output is deterministic.
     .sort((a, b) => b.confidence - a.confidence || a.name.localeCompare(b.name))

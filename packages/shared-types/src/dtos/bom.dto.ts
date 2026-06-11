@@ -7,6 +7,17 @@ export interface BomCatalogueCandidate {
   materialId: string;
   name: string;
   confidence: number;
+  /**
+   * Catalogue attributes of the candidate material, attached by the matcher so
+   * the review row (Category / Material type) and the match-picker popup
+   * (name / UoM / description / category) render without a second lookup.
+   * Optional: present when the matcher was given a catalogue carrying these
+   * fields, omitted in lightweight/unit contexts.
+   */
+  uom?: string | null;
+  category?: string | null;
+  subCategory?: string | null;
+  description?: string | null;
 }
 
 /**

@@ -16,8 +16,10 @@ describe('normalizeInvoiceResult', () => {
       poReference: 'PO-7',
       issuedDate: '2026-05-01',
       dueDate: '2026-05-31',
+      paymentTerms: ' Net 30 ',
       currency: 'usd',
       subTotal: '1,000.00',
+      taxLabel: 'GST 10%',
       taxAmount: '$250',
       totalAmount: '1,250.00',
       items: [],
@@ -27,11 +29,14 @@ describe('normalizeInvoiceResult', () => {
     expect(result).toMatchObject({
       vendorName: 'Acme Supplies',
       invoiceNumber: 'INV-42',
-      poReference: 'PO-7',
+      poReferences: ['PO-7'],
       issuedDate: '2026-05-01',
       dueDate: '2026-05-31',
+      paymentTerms: 'Net 30',
       currency: 'USD',
       subTotal: 1000,
+      taxLabel: 'GST 10%',
+      taxRate: 10,
       taxAmount: 250,
       totalAmount: 1250,
       notes: 'net 30',
@@ -53,14 +58,21 @@ describe('normalizeInvoiceResult', () => {
 
     expect(result.vendorName).toBe('Acme');
     expect(result.invoiceNumber).toBe('INV-1');
-    expect(result.poReference).toBe('PO-9');
+    expect(result.poReferences).toEqual(['PO-9']);
     expect(result.issuedDate).toBe('2026-04-01');
     expect(result.dueDate).toBe('2026-04-30');
     expect(result.subTotal).toBe(100);
     expect(result.taxAmount).toBe(25);
     expect(result.totalAmount).toBe(125);
     expect(result.items).toEqual([
-      { description: 'Cement', quantity: 2, unit: 'bag', unitPrice: 50, lineTotal: 100 },
+      {
+        lineId: null,
+        description: 'Cement',
+        quantity: 2,
+        unit: 'bag',
+        unitPrice: 50,
+        lineTotal: 100,
+      },
     ]);
   });
 
@@ -85,7 +97,25 @@ describe('normalizeInvoiceResult', () => {
     });
 
     expect(result.items).toEqual([
-      { description: '', quantity: 1, unit: null, unitPrice: 12.5, lineTotal: null },
+      { lineId: null, description: '', quantity: 1, unit: null, unitPrice: 12.5, lineTotal: null },
     ]);
+  });
+
+  it('collects multiple PO references and captures the line id', () => {
+    const result = normalizeInvoiceResult({
+      poReferences: ['PO-1', ' PO-2 ', '', null],
+      paymentTerms: 'Net 14',
+      items: [{ lineId: 'L-1', description: 'Beam', unitPrice: 10 }],
+    });
+
+    expect(result.poReferences).toEqual(['PO-1', 'PO-2']);
+    expect(result.paymentTerms).toBe('Net 14');
+    expect(result.items[0].lineId).toBe('L-1');
+  });
+
+  it('derives taxRate from a "GST 10%" label when no explicit rate is given', () => {
+    const result = normalizeInvoiceResult({ taxLabel: 'GST 10%', items: [] });
+    expect(result.taxLabel).toBe('GST 10%');
+    expect(result.taxRate).toBe(10);
   });
 });

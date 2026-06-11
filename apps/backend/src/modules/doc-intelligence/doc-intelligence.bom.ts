@@ -133,11 +133,16 @@ function normalizeCandidates(raw: unknown): BomCatalogueCandidate[] | undefined 
       if (!entry || typeof entry !== 'object') return null;
       const c = entry as Record<string, unknown>;
       if (typeof c.materialId !== 'string' || typeof c.name !== 'string') return null;
-      return {
+      const candidate: BomCatalogueCandidate = {
         materialId: c.materialId,
         name: c.name,
         confidence: asNullableNumber(c.confidence) ?? 0,
       };
+      if ('uom' in c) candidate.uom = asNullableString(c.uom);
+      if ('category' in c) candidate.category = asNullableString(c.category);
+      if ('subCategory' in c) candidate.subCategory = asNullableString(c.subCategory);
+      if ('description' in c) candidate.description = asNullableString(c.description);
+      return candidate;
     })
     .filter((c): c is BomCatalogueCandidate => c !== null);
   return candidates;
