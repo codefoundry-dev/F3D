@@ -38,6 +38,7 @@ model Project {
   purchaseOrders  PurchaseOrder[]
   bulkOrders      BulkOrder[]
   invoices        Invoice[]
+  boms            Bom[]
 
   @@unique([companyId, name], map: "idx_projects_company_name")
   @@index([companyId], map: "idx_projects_company")

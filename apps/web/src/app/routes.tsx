@@ -26,6 +26,7 @@ const ProjectListPage = lazy(() => import('@/features/projects/pages/ProjectList
 const CreateProjectPage = lazy(() => import('@/features/projects/pages/CreateProjectPage'));
 const ProjectDetailPage = lazy(() => import('@/features/projects/pages/ProjectDetailPage'));
 const EditProjectPage = lazy(() => import('@/features/projects/pages/EditProjectPage'));
+const CreateBomPage = lazy(() => import('@/features/boms/pages/CreateBomPage'));
 const RfqListRoleSwitch = lazy(() => import('@/features/rfqs/RfqListRoleSwitch'));
 const RfqDetailRoleSwitch = lazy(() => import('@/features/rfqs/RfqDetailRoleSwitch'));
 const MaterialDetailRoleSwitch = lazy(() => import('@/features/rfqs/MaterialDetailRoleSwitch'));
@@ -286,6 +287,7 @@ export const routes: RouteObject[] = [
                   { path: ROUTES.projectsNew, element: withSuspense(<CreateProjectPage />) },
                   { path: ROUTES.projectDetail, element: withSuspense(<ProjectDetailPage />) },
                   { path: ROUTES.projectEdit, element: withSuspense(<EditProjectPage />) },
+                  { path: ROUTES.projectBomCreate, element: withSuspense(<CreateBomPage />) },
                 ],
               },
 

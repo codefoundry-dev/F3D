@@ -19,6 +19,7 @@ import { useParams, useSearchParams, Link } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 import { useAuthStore } from '@/features/auth/state/auth.store';
+import { BomTab } from '@/features/boms';
 
 import {
   useProject,
@@ -145,9 +146,7 @@ export default function ProjectDetailPage() {
         />
       )}
 
-      {activeTab === 'bom' && (
-        <div className="text-center py-12 text-muted-foreground">{t('detail.bomPlaceholder')}</div>
-      )}
+      {activeTab === 'bom' && <BomTab projectId={id ?? ''} />}
 
       {activeTab === 'procurement' && (
         <div className="text-center py-12 text-muted-foreground">

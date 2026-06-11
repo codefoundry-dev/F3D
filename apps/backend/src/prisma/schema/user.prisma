@@ -63,6 +63,7 @@ model User {
   createdDrawdowns     Drawdown[]        @relation("DrawdownCreatedBy")
   createdInvoices      Invoice[]         @relation("InvoiceCreatedBy")
   createdMaterials     Material[]        @relation("MaterialCreatedBy")
+  createdBoms          Bom[]             @relation("BomCreatedBy")
   tableViews           UserTableView[]
 
   // Messaging relations

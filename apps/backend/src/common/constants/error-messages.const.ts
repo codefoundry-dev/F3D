@@ -226,6 +226,11 @@ export const ERR = {
   },
 
   // ── Document extractions ─────────────────────────────────
+  // ── Bills of materials (US 5.01) ─────────────────────────
+  boms: {
+    notFound: errors.boms.notFound,
+  },
+
   docExtractions: {
     notFound: errors.docExtractions.notFound,
     notReadyForEdit: errors.docExtractions.notReadyForEdit,

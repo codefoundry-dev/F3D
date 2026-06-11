@@ -19,6 +19,7 @@ export * from './dtos/material.dto';
 export * from './dtos/vendor.dto';
 export * from './dtos/doc-extraction.dto';
 export * from './dtos/bom.dto';
+export * from './dtos/project-bom.dto';
 export * from './dtos/quote-extraction.dto';
 export * from './dtos/catalogue-extraction.dto';
 

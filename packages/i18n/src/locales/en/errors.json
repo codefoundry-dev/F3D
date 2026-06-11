@@ -169,6 +169,9 @@
     "thresholdRequiresGrant": "Cannot set a threshold for \"{{key}}\" — the permission must also be granted",
     "invalidThreshold": "Threshold for \"{{key}}\" must be a non-negative number or null"
   },
+  "boms": {
+    "notFound": "BOM not found"
+  },
   "docExtractions": {
     "notFound": "Extraction job not found",
     "notReadyForEdit": "Extraction job is not in a state that can be edited",

@@ -137,6 +137,10 @@ export const PERMISSIONS = {
   'docExtraction.confirm': 'Confirm an extracted document result',
   'docExtraction.delete': 'Delete a document extraction job',
 
+  // ── Bill of materials (US 5.01) ──────────────────────────────────────────
+  'bom.create': 'Create a project BOM from a reviewed extraction',
+  'bom.read': 'Read project BOMs',
+
   // ── Users ───────────────────────────────────────────────────────────────
   'user.list': 'List users',
   'user.create': 'Create and invite users',
@@ -290,6 +294,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'docExtraction.update',
     'docExtraction.confirm',
     'docExtraction.delete',
+
+    'bom.create',
+    'bom.read',
   ],
 
   PROCUREMENT_OFFICER: [
@@ -388,6 +395,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'docExtraction.update',
     'docExtraction.confirm',
     'docExtraction.delete',
+
+    'bom.create',
+    'bom.read',
   ],
 
   FINANCIAL_OFFICER: [

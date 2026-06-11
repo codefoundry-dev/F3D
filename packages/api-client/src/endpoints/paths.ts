@@ -74,6 +74,12 @@ export const PROJECTS_PATHS = {
   member: (id: string, userId: string) => `/projects/${id}/members/${userId}`,
 } as const;
 
+// ── BOMs (US 5.01) ──────────────────────────────────────────────────────────
+export const BOMS_PATHS = {
+  ROOT: '/boms',
+  byId: (id: string) => `/boms/${id}`,
+} as const;
+
 // ── RFQs ─────────────────────────────────────────────────────────────────────
 export const RFQS_PATHS = {
   ROOT: '/rfqs',

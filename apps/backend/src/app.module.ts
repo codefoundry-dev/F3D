@@ -16,6 +16,7 @@ import { AccessTokenGuard } from './modules/access-tokens/access-token.guard';
 import { AccessTokensModule } from './modules/access-tokens/access-tokens.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { BomsModule } from './modules/boms/boms.module';
 import { BulkOrdersModule } from './modules/bulk-orders/bulk-orders.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
@@ -88,6 +89,7 @@ import { PrismaModule } from './prisma/prisma.module';
     GeminiModule,
     DocIntelligenceModule,
     ProjectsModule,
+    BomsModule,
     RfqsModule,
     PurchaseOrdersModule,
     RolesModule,

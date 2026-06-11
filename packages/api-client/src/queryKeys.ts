@@ -76,4 +76,9 @@ export const queryKeys = {
       [...queryKeys.docExtractions.all(), 'list', params] as const,
     detail: (id: string) => [...queryKeys.docExtractions.all(), id] as const,
   },
+  boms: {
+    all: () => ['boms'] as const,
+    byProject: (projectId: string) => [...queryKeys.boms.all(), 'project', projectId] as const,
+    detail: (id: string) => [...queryKeys.boms.all(), id] as const,
+  },
 } as const;
