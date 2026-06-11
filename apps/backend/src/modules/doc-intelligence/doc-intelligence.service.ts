@@ -26,9 +26,15 @@ import { StorageService } from '../storage/storage.service';
 
 import { normalizeBomResult } from './doc-intelligence.bom';
 import { normalizeCatalogueResult, spreadsheetToCatalogue } from './doc-intelligence.catalogue';
-import { annotateBomWithMatches, dropUnmatchedBomLines } from './doc-intelligence.match';
+import { normalizeInvoiceResult } from './doc-intelligence.invoice';
+import {
+  annotateBomWithMatches,
+  dropUnmatchedBomLines,
+  type CatalogueMaterial,
+} from './doc-intelligence.match';
 import { buildExtractionPrompt } from './doc-intelligence.prompts';
 import { normalizeQuoteResult } from './doc-intelligence.quote';
+import { buildResponseSchema } from './doc-intelligence.schemas';
 import { spreadsheetToText } from './doc-intelligence.spreadsheet';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -274,6 +280,15 @@ export class DocIntelligenceService {
       }
 
       const prompt = buildExtractionPrompt(job.type, promptHint);
+      // temperature 0 + responseSchema (constrained decoding) make the output
+      // deterministic and guarantee the canonical keys/shape for typed jobs;
+      // GENERIC has no schema and stays on plain JSON mode.
+      const responseSchema = buildResponseSchema(job.type);
+      const generationConfig = {
+        temperature: 0,
+        responseMimeType: 'application/json' as const,
+        ...(responseSchema ? { responseSchema } : {}),
+      };
       const inlinePrompt = SPREADSHEET_MIME_TYPES.has(mimeType)
         ? await this.buildSpreadsheetPrompt(prompt, fileBuffer)
         : CSV_MIME_TYPES.has(mimeType)
@@ -282,12 +297,12 @@ export class DocIntelligenceService {
       const result = inlinePrompt
         ? await this.gemini.generate({
             prompt: inlinePrompt,
-            generationConfig: { responseMimeType: 'application/json' },
+            generationConfig,
           })
         : await this.gemini.generate({
             prompt,
             documents: [{ mimeType: mimeType as GeminiMimeType, data: fileBuffer }],
-            generationConfig: { responseMimeType: 'application/json' },
+            generationConfig,
           });
 
       const parsed = this.parseJson(result.text);
@@ -371,6 +386,9 @@ ${fileBuffer.toString('utf-8')}`;
     if (type === DocExtractionType.CATALOGUE) {
       return normalizeCatalogueResult(parsed) as unknown as Record<string, unknown>;
     }
+    if (type === DocExtractionType.INVOICE) {
+      return normalizeInvoiceResult(parsed) as unknown as Record<string, unknown>;
+    }
     return parsed;
   }
 
@@ -389,11 +407,28 @@ ${fileBuffer.toString('utf-8')}`;
 
       const materials = await this.prisma.material.findMany({
         where: { status: MaterialStatus.PUBLIC },
-        select: { id: true, name: true },
+        select: {
+          id: true,
+          name: true,
+          uom: true,
+          subCategory: true,
+          description: true,
+          category: { select: { name: true } },
+        },
       });
       if (materials.length === 0) return normalized;
 
-      return annotateBomWithMatches(bom, materials) as unknown as Record<string, unknown>;
+      // Carry the catalogue attributes the review row + match-picker render onto
+      // each candidate (category name flattened from the relation).
+      const catalogue: CatalogueMaterial[] = materials.map((m) => ({
+        id: m.id,
+        name: m.name,
+        uom: m.uom,
+        subCategory: m.subCategory,
+        description: m.description,
+        category: m.category?.name,
+      }));
+      return annotateBomWithMatches(bom, catalogue) as unknown as Record<string, unknown>;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'unknown error';
       this.logger.warn(`BOM catalogue matching skipped: ${message}`);

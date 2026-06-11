@@ -14,7 +14,7 @@ import {
   EMPTY_CATALOGUE_RESULT,
 } from '@forethread/shared-types';
 
-import { canonicalizeUnit } from './doc-intelligence.bom';
+import { canonicalizeUnit, parseNumber } from './doc-intelligence.bom';
 
 // ── exceljs typings (CommonJS module, see doc-intelligence.spreadsheet.ts) ────
 
@@ -83,12 +83,15 @@ function emptyToNull(raw: string): string | null {
 type CatalogueField =
   | 'name'
   | 'sku'
+  | 'materialCode'
   | 'brand'
   | 'manufacturerPartNumber'
   | 'upc'
   | 'uom'
   | 'mainCategory'
   | 'subCategory'
+  | 'countryOfOrigin'
+  | 'pricePerUnit'
   | 'imageUrl'
   | 'status';
 
@@ -97,6 +100,7 @@ const DESCRIPTION_SYNONYMS = ['description', 'long description'];
 
 const SYNONYMS: Record<Exclude<CatalogueField, 'name'>, string[]> = {
   sku: ['sku', 'code', 'item code', 'product code', 'stock code'],
+  materialCode: ['material code', 'materialcode', 'mat code', 'material id', 'material no'],
   brand: ['brandname', 'brand'],
   manufacturerPartNumber: [
     'manufacturer part numbr',
@@ -109,7 +113,9 @@ const SYNONYMS: Record<Exclude<CatalogueField, 'name'>, string[]> = {
   upc: ['upc', 'barcode', 'ean', 'gtin'],
   uom: ['uom', 'unit', 'unit of measure', 'units'],
   mainCategory: ['main category', 'category'],
-  subCategory: ['sub category', 'subcategory', 'sub-category'],
+  subCategory: ['sub category', 'subcategory', 'sub-category', 'material type', 'mat. type'],
+  countryOfOrigin: ['country of origin', 'country', 'origin', 'made in'],
+  pricePerUnit: ['price per unit', 'unit price', 'price', 'list price', 'rrp'],
   imageUrl: ['imageurl', 'image url', 'image', 'image link'],
   status: ['status'],
 };
@@ -120,12 +126,15 @@ interface ColumnMap {
   name: number | undefined;
   description: number | undefined;
   sku: number | undefined;
+  materialCode: number | undefined;
   brand: number | undefined;
   manufacturerPartNumber: number | undefined;
   upc: number | undefined;
   uom: number | undefined;
   mainCategory: number | undefined;
   subCategory: number | undefined;
+  countryOfOrigin: number | undefined;
+  pricePerUnit: number | undefined;
   imageUrl: number | undefined;
   status: number | undefined;
 }
@@ -165,12 +174,15 @@ function buildColumnMap(headerCells: string[]): ColumnMap {
     name,
     description,
     sku: find(SYNONYMS.sku),
+    materialCode: find(SYNONYMS.materialCode),
     brand: find(SYNONYMS.brand),
     manufacturerPartNumber: find(SYNONYMS.manufacturerPartNumber),
     upc: find(SYNONYMS.upc),
     uom: find(SYNONYMS.uom),
     mainCategory: find(SYNONYMS.mainCategory),
     subCategory: find(SYNONYMS.subCategory),
+    countryOfOrigin: find(SYNONYMS.countryOfOrigin),
+    pricePerUnit: find(SYNONYMS.pricePerUnit),
     imageUrl: find(SYNONYMS.imageUrl),
     status: find(SYNONYMS.status),
   };
@@ -183,12 +195,21 @@ function cellAt(cells: string[], idx: number | undefined): string | null {
 }
 
 /**
+ * How many leading rows to scan for a recognisable header row. Real catalogue
+ * exports often put a title / export-date banner above the headers, so blindly
+ * treating the first non-empty row as headers silently yields zero items.
+ */
+const HEADER_SCAN_LIMIT = 10;
+
+/**
  * Directly parse an `.xlsx` catalogue buffer into a CatalogueExtractionResult —
- * no LLM. Reads the FIRST worksheet, treats row 1 as headers, maps every data
- * row through the synonym table. Rows with no name, or whose status is
- * OBSOLETE/INACTIVE/ARCHIVED, are skipped. Confidence is 1 for every directly
- * parsed row (deterministic). Designed to handle 60k+ rows efficiently — it
- * streams rows and never materialises the sheet as one big string.
+ * no LLM. Reads the FIRST worksheet, finds the header row by scanning the
+ * first {@link HEADER_SCAN_LIMIT} rows for one that resolves a `name` column,
+ * then maps every following row through the synonym table. Rows with no name,
+ * or whose status is OBSOLETE/INACTIVE/ARCHIVED, are skipped. Confidence is 1
+ * for every directly parsed row (deterministic). Designed to handle 60k+ rows
+ * efficiently — it streams rows and never materialises the sheet as one big
+ * string.
  */
 export async function spreadsheetToCatalogue(buffer: Buffer): Promise<CatalogueExtractionResult> {
   // exceljs is CommonJS; require keeps it consistent with the rest of the backend.
@@ -201,14 +222,21 @@ export async function spreadsheetToCatalogue(buffer: Buffer): Promise<CatalogueE
   if (!sheet) return { ...EMPTY_CATALOGUE_RESULT };
 
   let columns: ColumnMap | null = null;
+  let headerSearchExhausted = false;
   const items: CatalogueLineItem[] = [];
 
   sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
     // row.values is 1-based; index 0 is always empty. Slice to a 0-based array.
     const cells = (row.values ?? []).slice(1).map(cellToString);
 
-    if (rowNumber === 1 || columns === null) {
-      columns = buildColumnMap(cells);
+    if (columns === null) {
+      if (headerSearchExhausted) return;
+      const candidate = buildColumnMap(cells);
+      if (candidate.name !== undefined) {
+        columns = candidate;
+      } else if (rowNumber >= HEADER_SCAN_LIMIT) {
+        headerSearchExhausted = true;
+      }
       return;
     }
 
@@ -221,6 +249,7 @@ export async function spreadsheetToCatalogue(buffer: Buffer): Promise<CatalogueE
     items.push({
       name,
       sku: cellAt(cells, columns.sku),
+      materialCode: cellAt(cells, columns.materialCode),
       brand: cellAt(cells, columns.brand),
       manufacturerPartNumber: cellAt(cells, columns.manufacturerPartNumber),
       upc: cellAt(cells, columns.upc),
@@ -228,6 +257,8 @@ export async function spreadsheetToCatalogue(buffer: Buffer): Promise<CatalogueE
       description: cellAt(cells, columns.description),
       mainCategory: cellAt(cells, columns.mainCategory),
       subCategory: cellAt(cells, columns.subCategory),
+      countryOfOrigin: cellAt(cells, columns.countryOfOrigin),
+      pricePerUnit: parseNumber(cellAt(cells, columns.pricePerUnit)),
       imageUrl: cellAt(cells, columns.imageUrl),
       confidence: 1,
     });
@@ -236,7 +267,12 @@ export async function spreadsheetToCatalogue(buffer: Buffer): Promise<CatalogueE
   return {
     sourceName: emptyToNull(sheet.name),
     items,
-    notes: null,
+    // Surface the previously silent failure mode so the review UI can explain
+    // an empty result instead of showing a blank table.
+    notes:
+      columns === null
+        ? `No header row with a recognisable product name column was found in the first ${HEADER_SCAN_LIMIT} rows.`
+        : null,
   };
 }
 
@@ -263,6 +299,7 @@ function normalizeCatalogueItem(raw: unknown): CatalogueLineItem | null {
   return {
     name,
     sku: normalizeString(v.sku ?? v.code ?? v.itemCode ?? v.productCode),
+    materialCode: normalizeString(v.materialCode ?? v.material_code ?? v.matCode),
     brand: normalizeString(v.brand ?? v.brandName),
     manufacturerPartNumber: normalizeString(
       v.manufacturerPartNumber ?? v.mpn ?? v.partNumber ?? v.manufacturerPartNumbr,
@@ -272,6 +309,10 @@ function normalizeCatalogueItem(raw: unknown): CatalogueLineItem | null {
     description: normalizeString(v.description ?? v.longDescription),
     mainCategory: normalizeString(v.mainCategory ?? v.category),
     subCategory: normalizeString(v.subCategory ?? v.subcategory),
+    countryOfOrigin: normalizeString(
+      v.countryOfOrigin ?? v.country ?? v.origin ?? v.country_of_origin,
+    ),
+    pricePerUnit: parseNumber(v.pricePerUnit ?? v.price ?? v.unitPrice ?? v.listPrice),
     imageUrl: normalizeString(v.imageUrl ?? v.image ?? v.imageLink),
     confidence: asNullableNumber(v.confidence),
   };
