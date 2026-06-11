@@ -99,13 +99,16 @@ describe('EmailService', () => {
   let service: EmailService;
   let configService: jest.Mocked<ConfigService>;
   let resendService: { isConfigured: jest.Mock; send: jest.Mock };
-  let emailLogService: { recordOutbound: jest.Mock };
+  let emailLogService: { recordOutbound: jest.Mock; recordFailed: jest.Mock };
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockSendMail.mockResolvedValue({ messageId: 'test-id' });
 
-    emailLogService = { recordOutbound: jest.fn().mockResolvedValue({ id: 'log-id' }) };
+    emailLogService = {
+      recordOutbound: jest.fn().mockResolvedValue({ id: 'log-id' }),
+      recordFailed: jest.fn().mockResolvedValue({ id: 'log-failed-id' }),
+    };
 
     configService = {
       get: jest.fn((key: string, defaultValue?: unknown) => {
@@ -126,10 +129,10 @@ describe('EmailService', () => {
     };
 
     service = new EmailService(
-        configService,
-        resendService as unknown as ResendService,
-        emailLogService as unknown as EmailLogService,
-      );
+      configService,
+      resendService as unknown as ResendService,
+      emailLogService as unknown as EmailLogService,
+    );
     service.onModuleInit();
   });
 
@@ -642,6 +645,80 @@ describe('EmailService', () => {
       await expect(
         service.sendInvitationEmail('user@test.com', 'https://activate.test', 'John'),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('failed-send logging (FOR-213)', () => {
+    it('records a FAILED row with the reason when Resend errors on a tracked email', async () => {
+      resendService.isConfigured.mockReturnValue(true);
+      resendService.send.mockResolvedValue({
+        status: 'error',
+        code: 'RATE_LIMITED',
+        message: 'Too many requests',
+      });
+
+      await service.sendRfqReceivedEmail('vendor@test.com', 'RFQ-001', 'https://reply.test', {
+        log: { companyId: 'comp-1', rfqId: 'rfq-1', sentByUserId: 'po-1' },
+      });
+
+      expect(emailLogService.recordFailed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          companyId: 'comp-1',
+          rfqId: 'rfq-1',
+          toEmail: 'vendor@test.com',
+          provider: 'RESEND',
+          reason: expect.stringContaining('RATE_LIMITED'),
+        }),
+      );
+      expect(emailLogService.recordOutbound).not.toHaveBeenCalled();
+    });
+
+    it('does not log anything when an untracked email (no log context) fails on Resend', async () => {
+      resendService.isConfigured.mockReturnValue(true);
+      resendService.send.mockResolvedValue({
+        status: 'error',
+        code: 'RATE_LIMITED',
+        message: 'Too many requests',
+      });
+
+      await service.sendInvitationEmail('user@test.com', 'https://activate.test', 'John');
+
+      expect(emailLogService.recordFailed).not.toHaveBeenCalled();
+      expect(emailLogService.recordOutbound).not.toHaveBeenCalled();
+    });
+
+    it('records a FAILED row when the SMTP transport throws on a tracked email', async () => {
+      resendService.isConfigured.mockReturnValue(false);
+      mockSendMail.mockRejectedValue(new Error('SMTP down'));
+
+      await expect(
+        service.sendRfqReceivedEmail('vendor@test.com', 'RFQ-001', 'https://reply.test', {
+          log: { companyId: 'comp-1', rfqId: 'rfq-1' },
+        }),
+      ).resolves.toBeUndefined();
+
+      expect(emailLogService.recordFailed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'SMTP',
+          toEmail: 'vendor@test.com',
+          reason: 'SMTP down',
+        }),
+      );
+      expect(emailLogService.recordOutbound).not.toHaveBeenCalled();
+    });
+
+    it('still records SENT (not FAILED) when a tracked email succeeds via Resend', async () => {
+      resendService.isConfigured.mockReturnValue(true);
+      resendService.send.mockResolvedValue({ status: 'queued', id: 'resend-ok' });
+
+      await service.sendRfqReceivedEmail('vendor@test.com', 'RFQ-001', 'https://reply.test', {
+        log: { companyId: 'comp-1', rfqId: 'rfq-1' },
+      });
+
+      expect(emailLogService.recordOutbound).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: 'RESEND', providerMessageId: 'resend-ok' }),
+      );
+      expect(emailLogService.recordFailed).not.toHaveBeenCalled();
     });
   });
 });

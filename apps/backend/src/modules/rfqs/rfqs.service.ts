@@ -1512,6 +1512,9 @@ export class RfqsService {
           },
         },
         invitedVendors: {
+          // Deterministic order so the send (and resulting email log) follows the
+          // order vendors were invited, rather than arbitrary DB row order.
+          orderBy: { invitedAt: 'asc' },
           select: {
             id: true,
             vendor: {
