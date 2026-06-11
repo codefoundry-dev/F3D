@@ -20,6 +20,7 @@ import {
 import type { ColumnDef } from '@forethread/po-shared';
 import {
   Badge,
+  Button,
   cn,
   CreateViewModal,
   DotActionsMenu,
@@ -27,9 +28,8 @@ import {
   FilterChip,
   MessageBadgeIcon,
   FilterPanel,
-  getStatusColor,
   GroupByButton,
-  PO_STATUS_COLORS,
+  NEUTRAL_STATUS_COLOR,
   SortIcon,
   Spinner,
   TableManagementModal,
@@ -59,7 +59,18 @@ import { PoDetailPanel } from '../components/PoDetailPanel';
 type SortableField = keyof PoListItem;
 
 const ALL_COLUMNS = VENDOR_COLUMNS;
-const DEFAULT_VISIBLE = ALL_COLUMNS.map((c) => c.key);
+/** Default visible columns per the Figma design (US 3.08 PO Management) */
+const DEFAULT_VISIBLE = [
+  'poNumber',
+  'projectName',
+  'projectId',
+  'contractorName',
+  'poStatus',
+  'revision',
+  'poType',
+  'pickUp',
+  'deliveryLocationId',
+];
 
 /* ─── Store ────────────────────────────────────────────────────────────────── */
 
@@ -154,16 +165,16 @@ export default function PurchaseOrderListPage() {
   const renderCellValue = (po: PoListItem, field: SortableField, key: string) => {
     if (key === 'poStatus') {
       return (
-        <Badge className={getStatusColor(PO_STATUS_COLORS, po.status)}>
-          {t(`status.${po.status}` as never)}
+        <Badge className={NEUTRAL_STATUS_COLOR}>
+          {t([`vendorStatus.${po.status}`, `status.${po.status}`] as never)}
         </Badge>
       );
     }
     if (key === 'revision') {
-      return (
-        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">
-          {po.revision !== null && po.revision !== undefined ? 'Active' : '-'}
-        </Badge>
+      return po.revision !== null && po.revision !== undefined ? (
+        <Badge className="bg-muted text-foreground">Active</Badge>
+      ) : (
+        '-'
       );
     }
     if (key === 'pickUp') return po.pickUp ? t('common:yes') : t('common:no');
@@ -295,7 +306,17 @@ export default function PurchaseOrderListPage() {
       <div className="flex flex-col rounded-lg border border-border bg-background pb-4">
         {/* ═══ Toolbar Row 1 ═══ */}
         <div className="px-4 sm:px-8 pt-4">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            {/* Left – Create new (vendors cannot create POs) */}
+            <Button
+              variant="primary"
+              size="lg"
+              leftIcon={<span className="text-lg leading-none">+</span>}
+              disabled
+            >
+              {t('list.createNew')}
+            </Button>
+
             <div className="flex items-center gap-3">
               <ViewSelectorDropdown
                 activeView={activeView}

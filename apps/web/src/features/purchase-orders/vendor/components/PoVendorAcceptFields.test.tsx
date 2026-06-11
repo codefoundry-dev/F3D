@@ -82,7 +82,7 @@ describe('PoVendorAcceptFields', () => {
         warehouseLocations={warehouses}
       />,
     );
-    expect(screen.getByText('detailFields.paymentTermsDays')).toBeInTheDocument();
+    expect(screen.getByText('detailFields.paymentTerms:')).toBeInTheDocument();
     expect(screen.getByText('detailFields.warehouseLocation')).toBeInTheDocument();
   });
 

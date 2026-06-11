@@ -211,9 +211,7 @@ describe('QuoteResponseService', () => {
       bulkDiscount: null,
       bulkTax: null,
       bulkShipment: null,
-      lineItems: [
-        { rfqLineItemId: 'li-1', unitPrice: 100, quotedQuantity: 10, lineTotal: 1000 },
-      ],
+      lineItems: [{ rfqLineItemId: 'li-1', unitPrice: 100, quotedQuantity: 10, lineTotal: 1000 }],
       rfq: {
         ...baseRfq,
       },
@@ -494,7 +492,9 @@ describe('QuoteResponseService', () => {
             create: jest
               .fn()
               .mockImplementation(
-                (args: { data: { lineItems: { createMany: { data: Array<{ lineTotal: number }> } } } }) => {
+                (args: {
+                  data: { lineItems: { createMany: { data: Array<{ lineTotal: number }> } } };
+                }) => {
                   const submittedItem = args.data.lineItems.createMany.data[0];
                   // 10 * 100 = 1000, 10% discount => 900
                   expect(submittedItem.lineTotal).toBe(900);
@@ -533,7 +533,9 @@ describe('QuoteResponseService', () => {
             create: jest
               .fn()
               .mockImplementation(
-                (args: { data: { lineItems: { createMany: { data: Array<{ lineTotal: number }> } } } }) => {
+                (args: {
+                  data: { lineItems: { createMany: { data: Array<{ lineTotal: number }> } } };
+                }) => {
                   const submittedItem = args.data.lineItems.createMany.data[0];
                   // 10 * 100 = 1000, minus 150 => 850
                   expect(submittedItem.lineTotal).toBe(850);
@@ -572,7 +574,9 @@ describe('QuoteResponseService', () => {
             create: jest
               .fn()
               .mockImplementation(
-                (args: { data: { lineItems: { createMany: { data: Array<{ lineTotal: number }> } } } }) => {
+                (args: {
+                  data: { lineItems: { createMany: { data: Array<{ lineTotal: number }> } } };
+                }) => {
                   const submittedItem = args.data.lineItems.createMany.data[0];
                   // 10 * 100 = 1000, unknown type => no discount applied
                   expect(submittedItem.lineTotal).toBe(1000);
@@ -1126,19 +1130,21 @@ describe('QuoteResponseService', () => {
       mockAuditService.log.mockResolvedValue(undefined);
 
       const auditCreate = jest.fn().mockResolvedValue({});
-      const create = jest.fn().mockImplementation(
-        (args: { data: { attachments?: { create: Array<{ fileId: string }> } } }) => {
-          // The attachmentIds from the dto are attached on create (line coverage).
-          expect(args.data.attachments?.create).toEqual([{ fileId: 'file-1' }]);
-          return {
-            id: 'quote-1',
-            rfqId: 'rfq-1',
-            vendorId: 'vendor-co-1',
-            lineItems: [],
-            vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
-          };
-        },
-      );
+      const create = jest
+        .fn()
+        .mockImplementation(
+          (args: { data: { attachments?: { create: Array<{ fileId: string }> } } }) => {
+            // The attachmentIds from the dto are attached on create (line coverage).
+            expect(args.data.attachments?.create).toEqual([{ fileId: 'file-1' }]);
+            return {
+              id: 'quote-1',
+              rfqId: 'rfq-1',
+              vendorId: 'vendor-co-1',
+              lineItems: [],
+              vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
+            };
+          },
+        );
       mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
         return fn({
           quoteResponse: { create },
@@ -1300,7 +1306,19 @@ describe('QuoteResponseService', () => {
       id: 'rfq-1',
       companyId: 'contractor-co-1',
       currency: 'AUD',
-      lineItems: [{ id: 'li-1', materialName: 'Cement', quantity: 10, unit: 'bags' }],
+      projectId: 'p-1',
+      project: { name: 'Primary Project' },
+      lineItems: [
+        {
+          id: 'li-1',
+          materialName: 'Cement',
+          material: null,
+          quantity: 10,
+          unit: 'bags',
+          projectId: null,
+          project: null,
+        },
+      ],
     };
 
     const quoteRows = [
@@ -1311,14 +1329,27 @@ describe('QuoteResponseService', () => {
         submittedAt: new Date('2026-06-01T00:00:00Z'),
         paymentTerms: 'Net 30',
         bulkDeliveryTime: null,
+        totalCost: { toString: () => '137.5' },
+        discountPercent: { toString: () => '8' },
+        discountAmount: null,
+        bulkShipment: { toString: () => '850' },
         vendor: { legalName: 'VendorCo' },
+        _count: { attachments: 2 },
         lineItems: [
           {
+            id: 'ql-1',
             rfqLineItemId: 'li-1',
             unitPrice: { toString: () => '12.5' },
             quotedQuantity: 10,
             availability: 'AVAILABLE',
             deliveryDate: new Date('2026-07-01T00:00:00Z'),
+            discount: { toString: () => '5' },
+            discountType: 'PERCENT',
+            lineTotal: { toString: () => '137.5' },
+            status: 'PENDING',
+            notes: 'note from vendor',
+            substituteItemId: null,
+            substituteItem: null,
           },
         ],
       },
@@ -1337,14 +1368,29 @@ describe('QuoteResponseService', () => {
         vendorName: 'VendorCo',
         paymentTerms: 'Net 30',
         total: 125,
+        totalWithTaxes: 137.5,
+        discountPercent: 8,
+        shipmentAndHandling: 850,
+        attachmentCount: 2,
+        hasNotes: true,
         itemsCovered: 1,
         totalItems: 1,
       });
-      expect(result.rows[0].cells[0]).toMatchObject({ extendedCost: 125, isLowest: true });
-      // Only SUBMITTED/APPROVED quotes feed the comparison.
+      expect(result.rows[0]).toMatchObject({ projectId: 'p-1', projectName: 'Primary Project' });
+      expect(result.rows[0].cells[0]).toMatchObject({
+        extendedCost: 125,
+        lineTotal: 137.5,
+        discount: 5,
+        discountType: 'PERCENT',
+        status: 'PENDING',
+        quoteLineItemId: 'ql-1',
+        isLowest: true,
+      });
+      // SUBMITTED/APPROVED/DECLINED quotes feed the comparison (declined stay
+      // visible in their own filter section — US 5.06).
       expect(mockPrisma.quoteResponse.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { rfqId: 'rfq-1', status: { in: ['SUBMITTED', 'APPROVED'] } },
+          where: { rfqId: 'rfq-1', status: { in: ['SUBMITTED', 'APPROVED', 'DECLINED'] } },
         }),
       );
     });
@@ -1371,6 +1417,120 @@ describe('QuoteResponseService', () => {
       await expect(service.getQuoteComparison('rfq-1', vendorUser)).rejects.toThrow(
         ForbiddenException,
       );
+    });
+  });
+
+  // ── updateQuoteLineItemStatuses (US 5.19) ─────────────────────────────────────
+
+  describe('updateQuoteLineItemStatuses', () => {
+    const reviewQuote = {
+      id: 'quote-1',
+      rfqId: 'rfq-1',
+      vendorId: 'vendor-co-1',
+      source: 'FORM',
+      rfq: { companyId: 'contractor-co-1' },
+      lineItems: [{ id: 'ql-1' }, { id: 'ql-2' }],
+    };
+
+    function txForStatusUpdate() {
+      const tx = {
+        quoteResponseLineItem: {
+          updateMany: jest.fn().mockResolvedValue({ count: 2 }),
+          findMany: jest.fn().mockResolvedValue([
+            { id: 'ql-1', status: 'APPROVED' },
+            { id: 'ql-2', status: 'APPROVED' },
+          ]),
+        },
+        quoteAudit: { create: jest.fn().mockResolvedValue({}) },
+      };
+      mockPrisma.$transaction.mockImplementation((fn: (t: typeof tx) => unknown) => fn(tx));
+      return tx;
+    }
+
+    it('updates the requested lines and records a quote audit entry', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue(reviewQuote);
+      const tx = txForStatusUpdate();
+
+      const result = await service.updateQuoteLineItemStatuses(
+        'rfq-1',
+        'quote-1',
+        { lineItemIds: ['ql-1', 'ql-2'], status: 'APPROVED' as never },
+        contractorUser,
+      );
+
+      expect(tx.quoteResponseLineItem.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['ql-1', 'ql-2'] }, quoteResponseId: 'quote-1' },
+        data: { status: 'APPROVED' },
+      });
+      expect(tx.quoteAudit.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          quoteResponseId: 'quote-1',
+          rfqId: 'rfq-1',
+          action: 'UPDATED',
+          performedById: contractorUser.id,
+          changes: { lineItemStatus: { ids: ['ql-1', 'ql-2'], status: 'APPROVED' } },
+        }),
+      });
+      expect(result.updated).toBe(2);
+      expect(result.lineItems).toEqual([
+        { id: 'ql-1', status: 'APPROVED' },
+        { id: 'ql-2', status: 'APPROVED' },
+      ]);
+    });
+
+    it('throws NotFoundException when the quote belongs to another RFQ', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({ ...reviewQuote, rfqId: 'rfq-9' });
+
+      await expect(
+        service.updateQuoteLineItemStatuses(
+          'rfq-1',
+          'quote-1',
+          { lineItemIds: ['ql-1'], status: 'APPROVED' as never },
+          contractorUser,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFoundException when a line id is not on the quote', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue(reviewQuote);
+
+      await expect(
+        service.updateQuoteLineItemStatuses(
+          'rfq-1',
+          'quote-1',
+          { lineItemIds: ['ql-1', 'ql-404'], status: 'DECLINED' as never },
+          contractorUser,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('denies a vendor — line review is contractor-only', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue(reviewQuote);
+
+      await expect(
+        service.updateQuoteLineItemStatuses(
+          'rfq-1',
+          'quote-1',
+          { lineItemIds: ['ql-1'], status: 'PENDING' as never },
+          vendorUser,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('denies an unrelated contractor company', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({
+        ...reviewQuote,
+        rfq: { companyId: 'other-co' },
+      });
+
+      await expect(
+        service.updateQuoteLineItemStatuses(
+          'rfq-1',
+          'quote-1',
+          { lineItemIds: ['ql-1'], status: 'APPROVED' as never },
+          contractorUser,
+        ),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

@@ -12,7 +12,7 @@ export const PO_CA_QUICK_FILTERS = [
   'recentlyUpdated',
 ] as const;
 
-/** Quick filter keys for Vendor */
+/** Quick filter keys for Vendor (matches the US 3.08 PO Management design) */
 export const VENDOR_QUICK_FILTERS = [
   'allOpen',
   'pendingIntApproval',
@@ -24,7 +24,6 @@ export const VENDOR_QUICK_FILTERS = [
   'openRevision',
   'withUnreadMessages',
   'recentlyUpdated',
-  'splitedPos',
 ] as const;
 
 /** Group options for Procurement Officer & Company Admin */

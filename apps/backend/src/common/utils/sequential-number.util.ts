@@ -8,8 +8,8 @@ import type { PrismaClient } from '@prisma/client';
  */
 export async function nextSequentialNumber(
   prisma: PrismaClient,
-  table: 'rfq' | 'purchaseOrder' | 'bulkOrder',
-  prefix: 'RFQ' | 'PO' | 'BULK',
+  table: 'rfq' | 'purchaseOrder' | 'bulkOrder' | 'bom',
+  prefix: 'RFQ' | 'PO' | 'BULK' | 'BOM',
   companyId: string,
 ): Promise<string> {
   const count = await (prisma[table] as { count: (args: unknown) => Promise<number> }).count({

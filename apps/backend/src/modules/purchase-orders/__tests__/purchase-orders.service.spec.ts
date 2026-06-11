@@ -1262,6 +1262,62 @@ describe('PurchaseOrdersService', () => {
       );
       expect(result.id).toBe('po-new');
     });
+
+    it('replaces line items and deliveries while clearing both deadlines', async () => {
+      mockPrisma.purchaseOrder.findUnique
+        .mockResolvedValueOnce({
+          id: 'po-1',
+          status: 'DRAFT',
+          companyId: 'comp-1',
+          projectId: 'proj-1',
+        })
+        .mockResolvedValueOnce(fullPoDetail);
+      mockPrisma.projectLocation.findMany.mockResolvedValue([{ id: 'loc-1' }]);
+      mockPrisma.$transaction.mockResolvedValue([{}, {}, {}]);
+
+      const dto = {
+        lineItems: [
+          {
+            materialId: 'mat-1',
+            description: 'Steel',
+            quantityOrdered: 5,
+            unitOfMeasure: 'pcs',
+            unitPrice: 10,
+          },
+        ],
+        deliveries: [{ deliveryLocationId: 'loc-1', deliveryDate: '2026-05-01' }],
+        deadlineStart: null,
+        deadlineEnd: null,
+      };
+
+      const result = await service.updatePurchaseOrder('po-1', dto as never, companyAdmin);
+      expect(result.id).toBe('po-new');
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+    });
+
+    it('replaces deliveries and clears deadlines without line items', async () => {
+      mockPrisma.purchaseOrder.findUnique
+        .mockResolvedValueOnce({
+          id: 'po-1',
+          status: 'DRAFT',
+          companyId: 'comp-1',
+          projectId: 'proj-1',
+        })
+        .mockResolvedValueOnce(fullPoDetail);
+      mockPrisma.projectLocation.findMany.mockResolvedValue([{ id: 'loc-1' }]);
+      mockPrisma.$transaction.mockResolvedValue([{}, {}]);
+
+      const dto = {
+        vendorId: 'v-2',
+        deliveries: [{ deliveryLocationId: 'loc-1', deliveryDate: '2026-05-01' }],
+        deadlineStart: null,
+        deadlineEnd: null,
+      };
+
+      const result = await service.updatePurchaseOrder('po-1', dto as never, companyAdmin);
+      expect(result.id).toBe('po-new');
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+    });
   });
 
   describe('createPurchaseOrder – holdForRelease', () => {

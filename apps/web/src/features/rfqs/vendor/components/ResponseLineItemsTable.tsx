@@ -1,3 +1,4 @@
+import type { MaterialListItemDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
   Checkbox,
@@ -9,20 +10,26 @@ import {
   StepperInput,
   ToggleSwitch,
 } from '@forethread/ui-components';
+import CircleReloadIcon from '@forethread/ui-components/assets/icons/circle-reload.svg?react';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
 import EditInSquareIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
 import HalfClockIcon from '@forethread/ui-components/assets/icons/half-clock.svg?react';
-import RombIcon from '@forethread/ui-components/assets/icons/romb.svg?react';
+import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
+import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
 import { Link } from 'react-router-dom';
 
 import type { LineItemFormState, QuoteTotals } from '../hooks/useRfqResponse';
 
 import { LineItemExpandedRow } from './LineItemExpandedRow';
+import { MaterialSearchPopup } from './MaterialSearchPopup';
 
 const NAKED_INPUT_CLASS = '!bg-transparent !rounded-none !border-0 !shadow-none';
 
 const TH_CLASS =
   'py-2.5 px-3 text-xs font-bold whitespace-nowrap tracking-wide border-r border-border';
+
+/** Yellow highlight for rows with a substitute material (design #FFF2B5) */
+const SUBSTITUTE_ROW_BG = 'bg-[hsl(var(--row-highlight))]';
 
 interface ResponseLineItemsTableProps {
   lineItems: LineItemFormState[];
@@ -30,7 +37,13 @@ interface ResponseLineItemsTableProps {
   onUpdateItem: (index: number, field: keyof LineItemFormState, value: unknown) => void;
   onToggleExpanded: (index: number, section: 'notes' | 'backorder') => void;
   totals: QuoteTotals;
+  /** Index of the row whose substitute search is open (null = closed) */
+  substituteOpenIdx: number | null;
+  substituteQuery: string;
+  onSubstituteQueryChange: (value: string) => void;
   onOpenSubstitute: (index: number) => void;
+  onCloseSubstitute: () => void;
+  onSelectSubstitute: (material: MaterialListItemDto) => void;
 }
 
 export function ResponseLineItemsTable({
@@ -39,7 +52,12 @@ export function ResponseLineItemsTable({
   onUpdateItem,
   onToggleExpanded,
   totals,
+  substituteOpenIdx,
+  substituteQuery,
+  onSubstituteQueryChange,
   onOpenSubstitute,
+  onCloseSubstitute,
+  onSelectSubstitute,
 }: ResponseLineItemsTableProps) {
   const { t } = useTranslation('rfqs');
 
@@ -87,7 +105,12 @@ export function ResponseLineItemsTable({
                   onToggleInclude={onToggleInclude}
                   onUpdateItem={onUpdateItem}
                   onToggleExpanded={onToggleExpanded}
+                  isSubstituteOpen={substituteOpenIdx === idx}
+                  substituteQuery={substituteQuery}
+                  onSubstituteQueryChange={onSubstituteQueryChange}
                   onOpenSubstitute={onOpenSubstitute}
+                  onCloseSubstitute={onCloseSubstitute}
+                  onSelectSubstitute={onSelectSubstitute}
                 />
               );
             })}
@@ -159,7 +182,12 @@ function LineItemRow({
   onToggleInclude,
   onUpdateItem,
   onToggleExpanded,
+  isSubstituteOpen,
+  substituteQuery,
+  onSubstituteQueryChange,
   onOpenSubstitute,
+  onCloseSubstitute,
+  onSelectSubstitute,
 }: {
   item: LineItemFormState;
   index: number;
@@ -168,11 +196,18 @@ function LineItemRow({
   onToggleInclude: (i: number) => void;
   onUpdateItem: (i: number, field: keyof LineItemFormState, value: unknown) => void;
   onToggleExpanded: (i: number, section: 'notes' | 'backorder') => void;
+  isSubstituteOpen: boolean;
+  substituteQuery: string;
+  onSubstituteQueryChange: (value: string) => void;
   onOpenSubstitute: (i: number) => void;
+  onCloseSubstitute: () => void;
+  onSelectSubstitute: (material: MaterialListItemDto) => void;
 }) {
   const { t } = useTranslation('rfqs');
 
-  const rowBg = item.substituteItemId ? 'bg-warning/20' : '';
+  const highlighted = Boolean(item.substituteItemId) || isSubstituteOpen;
+  const rowBg = highlighted ? SUBSTITUTE_ROW_BG : '';
+  const excluded = !item.included;
   const hasNotes = Boolean(item.notes);
   const hasBackOrder =
     Boolean(item.backOrderQty && parseFloat(item.backOrderQty) > 0) ||
@@ -181,24 +216,56 @@ function LineItemRow({
 
   return (
     <>
-      <tr className={cn(rowBg)}>
+      <tr className={cn(rowBg, excluded && 'text-muted-foreground')}>
         {/* Include toggle */}
         <td className={TD_CLASS}>
           <ToggleSwitch checked={item.included} onChange={() => onToggleInclude(index)} />
         </td>
 
-        {/* Material Name */}
+        {/* Material Name (or inline substitute search) */}
         <td className={cn(TD_CLASS, 'overflow-clip')}>
-          {item.materialId ? (
-            <Link
-              to={`/materials/${item.substituteItemId ?? item.materialId}`}
-              className="text-foreground text-sm hover:underline whitespace-nowrap"
-            >
-              {item.substituteName ?? item.materialName}
-            </Link>
+          {isSubstituteOpen ? (
+            <Input
+              ref={(el) => {
+                if (el && document.activeElement !== el) el.focus();
+              }}
+              value={substituteQuery}
+              onChange={(e) => onSubstituteQueryChange(e.target.value)}
+              placeholder={t('response.searchMaterials')}
+              leftIcon={<SearchIcon className="w-4 h-4 text-muted-foreground" />}
+              className="h-8 w-full text-sm !bg-card"
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') onCloseSubstitute();
+              }}
+            />
           ) : (
-            <span className="text-foreground text-sm whitespace-nowrap">
-              {item.substituteName ?? item.materialName}
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+              {hasSubstitute && (
+                <CircleReloadIcon
+                  className="w-4 h-4 shrink-0 text-foreground"
+                  aria-label={t('response.substituteItem')}
+                />
+              )}
+              {item.materialId ? (
+                <Link
+                  to={`/materials/${item.substituteItemId ?? item.materialId}`}
+                  className={cn(
+                    'text-sm hover:underline whitespace-nowrap',
+                    excluded ? 'text-muted-foreground' : 'text-foreground',
+                  )}
+                >
+                  {item.substituteName ?? item.materialName}
+                </Link>
+              ) : (
+                <span
+                  className={cn(
+                    'text-sm whitespace-nowrap',
+                    excluded ? 'text-muted-foreground' : 'text-foreground',
+                  )}
+                >
+                  {item.substituteName ?? item.materialName}
+                </span>
+              )}
             </span>
           )}
         </td>
@@ -244,7 +311,7 @@ function LineItemRow({
               <button
                 type="button"
                 disabled={!item.included}
-                className="text-sm text-foreground cursor-pointer disabled:cursor-not-allowed"
+                className="text-sm text-foreground cursor-pointer disabled:cursor-not-allowed disabled:text-muted-foreground"
                 onClick={() =>
                   onUpdateItem(
                     index,
@@ -270,7 +337,13 @@ function LineItemRow({
               if (v === '' || parseFloat(v) <= 100) onUpdateItem(index, 'gst', v);
             }}
             onKeyDown={onDecimalOnly}
-            rightIcon={<span className="text-sm text-foreground">%</span>}
+            rightIcon={
+              <span
+                className={cn('text-sm', excluded ? 'text-muted-foreground' : 'text-foreground')}
+              >
+                %
+              </span>
+            }
             className={cn('h-8 w-full text-sm', NAKED_INPUT_CLASS)}
             disabled={!item.included}
           />
@@ -296,7 +369,7 @@ function LineItemRow({
           />
         </td>
 
-        {/* Line Total */}
+        {/* Line Total — empty until quoted; "No quote" only for excluded rows */}
         <td className={cn(TD_CLASS, 'overflow-clip')}>
           <span
             className={cn(
@@ -304,11 +377,11 @@ function LineItemRow({
               hasQuote ? 'text-foreground' : 'text-muted-foreground',
             )}
           >
-            {hasQuote ? `${formatCurrency(lineTotal)}` : t('response.noQuote')}
+            {hasQuote ? `${formatCurrency(lineTotal)}` : excluded ? t('response.noQuote') : ''}
           </span>
         </td>
 
-        {/* Actions */}
+        {/* Actions — back-order & substitute are only available for quoted items */}
         <td className={TD_CLASS}>
           <div className="flex items-center justify-end gap-3">
             {item.expandedSection === 'notes' ? (
@@ -323,26 +396,45 @@ function LineItemRow({
                 onClick={() => onToggleExpanded(index, 'notes')}
               />
             )}
-            {item.expandedSection === 'backorder' ? (
-              <MessageBadgeIcon
-                icon={<CrossInCircleIcon className="w-4 h-4 block text-foreground" />}
-                onClick={() => onToggleExpanded(index, 'backorder')}
-              />
-            ) : (
-              <MessageBadgeIcon
-                hasNotification={hasBackOrder}
-                icon={<HalfClockIcon className="w-4 h-4 block text-foreground" />}
-                onClick={() => onToggleExpanded(index, 'backorder')}
-              />
+            {!excluded && (
+              <>
+                {item.expandedSection === 'backorder' ? (
+                  <MessageBadgeIcon
+                    icon={<CrossInCircleIcon className="w-4 h-4 block text-foreground" />}
+                    onClick={() => onToggleExpanded(index, 'backorder')}
+                  />
+                ) : (
+                  <MessageBadgeIcon
+                    hasNotification={hasBackOrder}
+                    icon={<HalfClockIcon className="w-4 h-4 block text-foreground" />}
+                    onClick={() => onToggleExpanded(index, 'backorder')}
+                  />
+                )}
+                <MessageBadgeIcon
+                  hasNotification={hasSubstitute}
+                  icon={<PackageIcon className="w-4 h-4 block text-foreground" />}
+                  onClick={() => (isSubstituteOpen ? onCloseSubstitute() : onOpenSubstitute(index))}
+                />
+              </>
             )}
-            <MessageBadgeIcon
-              hasNotification={hasSubstitute}
-              icon={<RombIcon className="w-4 h-4 block text-foreground" />}
-              onClick={() => onOpenSubstitute(index)}
-            />
           </div>
         </td>
       </tr>
+
+      {/* Inline substitute search results, anchored right below this row */}
+      {isSubstituteOpen && (
+        <tr>
+          <td colSpan={12} className="p-0 border-0 relative">
+            <MaterialSearchPopup
+              open
+              searchQuery={substituteQuery}
+              onClose={onCloseSubstitute}
+              onSelect={onSelectSubstitute}
+              positionClassName="absolute left-[64px] top-0 z-50"
+            />
+          </td>
+        </tr>
+      )}
 
       {/* Expanded row for notes / back-order */}
       {item.expandedSection && (

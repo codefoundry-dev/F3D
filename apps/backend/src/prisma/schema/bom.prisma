@@ -1,0 +1,56 @@
+enum BomStatus {
+  ACTIVE
+  SUPERSEDED
+}
+
+/// Project Bill of Materials (US 5.01). Created from a reviewed BOM doc
+/// extraction; the newest BOM for a project is ACTIVE and any previous ones
+/// become SUPERSEDED ("Historical BOM versions" in the project BOM tab).
+model Bom {
+  id              String    @id @default(uuid())
+  bomNumber       String    @map("bom_number") @db.VarChar(50)
+  companyId       String    @map("company_id")
+  projectId       String    @map("project_id")
+  status          BomStatus @default(ACTIVE)
+  // Source doc-intelligence job (upload + AI extraction) this BOM was reviewed
+  // from. Plain scalar (no relation) to keep boms decoupled from
+  // doc-intelligence, mirroring DocExtraction.rfqId.
+  extractionId    String?   @map("extraction_id")
+  createdByUserId String    @map("created_by_user_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  company   Company   @relation("BomCompany", fields: [companyId], references: [id])
+  project   Project   @relation(fields: [projectId], references: [id])
+  createdBy User      @relation("BomCreatedBy", fields: [createdByUserId], references: [id])
+  items     BomItem[]
+
+  @@unique([companyId, bomNumber], map: "idx_boms_company_number")
+  @@index([projectId, status], map: "idx_boms_project_status")
+  @@index([companyId], map: "idx_boms_company")
+  @@map("boms")
+}
+
+model BomItem {
+  id                String   @id @default(uuid())
+  bomId             String   @map("bom_id")
+  materialName      String   @map("material_name") @db.VarChar(500)
+  // Original line description as it appeared in the uploaded document.
+  description       String?
+  uom               String?  @db.VarChar(50)
+  quantity          Decimal? @db.Decimal(18, 4)
+  category          String?  @db.VarChar(255)
+  materialType      String?  @map("material_type") @db.VarChar(255)
+  matchedMaterialId String   @map("matched_material_id")
+  // Similarity score (0–1) of the auto-match; null when the user picked the
+  // match manually (the human is the authority).
+  matchConfidence   Float?   @map("match_confidence")
+  sortOrder         Int      @default(0) @map("sort_order")
+
+  bom             Bom      @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  matchedMaterial Material @relation("BomItemMatchedMaterial", fields: [matchedMaterialId], references: [id])
+
+  @@index([bomId], map: "idx_bom_items_bom")
+  @@index([matchedMaterialId], map: "idx_bom_items_material")
+  @@map("bom_items")
+}

@@ -50,6 +50,7 @@ export const ROUTES = {
   projectsNew: '/projects/new',
   projectDetail: '/projects/:id',
   projectEdit: '/projects/:id/edit',
+  projectBomCreate: '/projects/:id/bom/new',
 
   // ── Invoices ───────────────────────────────────────────────────────
   invoices: '/invoices',

@@ -1,5 +1,9 @@
 export const DEFAULT_STATUS_COLOR = 'bg-muted text-muted-foreground';
 
+/** Neutral gray chip used for statuses on vendor-facing screens (design #E4E4E4 / #262626) */
+export const NEUTRAL_STATUS_COLOR =
+  'bg-[hsl(var(--badge-neutral))] text-[hsl(var(--badge-neutral-text))]';
+
 export const RFQ_STATUS_COLORS: Record<string, string> = {
   DRAFT: 'bg-muted text-muted-foreground',
   OPEN: 'bg-[hsl(var(--badge-blue))] text-[hsl(var(--badge-blue-text))]',

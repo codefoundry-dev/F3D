@@ -59,6 +59,12 @@ vi.mock('@/features/auth/state/auth.store', () => ({
     selector({ currentUser: { role: 'COMPANY_ADMIN', companyId: 'c1' } }),
 }));
 
+// BomTab has its own data dependencies (boms query, router navigation); the
+// page test only cares that the tab mounts it.
+vi.mock('@/features/boms', () => ({
+  BomTab: ({ projectId }: any) => <div data-testid="bom-tab">{projectId}</div>,
+}));
+
 vi.mock('../services/projects.service', () => ({
   useProject: mockUseProject,
   useAddProjectMembers: mockUseAddProjectMembers,
@@ -292,11 +298,12 @@ describe('ProjectDetailPage', () => {
     expect(screen.getByText('detail.addMembers')).toBeInTheDocument();
   });
 
-  it('renders bom tab placeholder when tab param is bom', () => {
+  it('renders the BOM tab when tab param is bom', () => {
     mockTabParam.value = 'bom';
     mockUseProject.mockReturnValue({ data: mockProject, isLoading: false, isError: false });
     render(<ProjectDetailPage />);
-    expect(screen.getByText('detail.bomPlaceholder')).toBeInTheDocument();
+    expect(screen.getByTestId('bom-tab')).toBeInTheDocument();
+    expect(screen.getByTestId('bom-tab')).toHaveTextContent('proj-1');
   });
 
   it('renders procurement tab placeholder when tab param is procurement', () => {

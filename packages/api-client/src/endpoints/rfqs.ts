@@ -137,6 +137,12 @@ export interface RfqDetail {
     totalItems: number;
     status: string;
     submittedAt: string | null;
+    /** Committed delivery window across the vendor's quoted lines (US 5.06). */
+    earliestDeliveryDate?: string | null;
+    latestDeliveryDate?: string | null;
+    attachmentCount?: number;
+    /** True when the vendor left a note on the quote or any of its lines. */
+    hasNotes?: boolean;
   }>;
   documents: RfqDocument[];
   createdAt: string;
@@ -290,6 +296,88 @@ export async function sendRfq(
 
 export async function deleteRfq(id: string, config?: AxiosRequestConfig): Promise<void> {
   await getApiClient().delete(RFQS_PATHS.byId(id), config);
+}
+
+// ── Availability check / bulk-order coverage (US 5.05) ─────────────────────
+
+export interface RfqAvailabilityVendor {
+  vendorId: string;
+  vendorName: string;
+}
+
+export interface RfqAvailabilityMatch {
+  bulkOrderId: string;
+  bulkOrderNumber: string | null;
+  bulkOrderLineItemId: string;
+  vendorId: string;
+  qtyRemaining: number;
+  /** Bulk order endDate (ISO 8601) — null when open-ended. */
+  expirationDate: string | null;
+  pricePerUnit: number;
+}
+
+export interface RfqAvailabilityItem {
+  index: number;
+  matches: RfqAvailabilityMatch[];
+}
+
+export interface RfqAvailabilityResult {
+  vendors: RfqAvailabilityVendor[];
+  items: RfqAvailabilityItem[];
+}
+
+export interface CheckRfqAvailabilityPayload {
+  lineItems: Array<{
+    index: number;
+    materialId?: string;
+    materialName?: string;
+    quantity: number;
+    uom: string;
+  }>;
+}
+
+export interface ConfirmRfqCoveragePayload {
+  allocations: Array<{
+    rfqLineItemId: string;
+    bulkOrderLineItemId: string;
+    quantity: number;
+  }>;
+}
+
+export interface ConfirmRfqCoverageResult {
+  rfq: RfqDetail;
+  drawdownsCreated: number;
+  remainingLineItems: number;
+}
+
+/** Check prospective line items against the company's active bulk orders. */
+export async function checkRfqAvailability(
+  payload: CheckRfqAvailabilityPayload,
+  config?: AxiosRequestConfig,
+): Promise<RfqAvailabilityResult> {
+  const { data } = await getApiClient().post<{ data: RfqAvailabilityResult }>(
+    RFQS_PATHS.CHECK_AVAILABILITY,
+    payload,
+    config,
+  );
+  return data.data;
+}
+
+/**
+ * Confirm bulk-order coverage on a DRAFT RFQ: creates drawdowns, decrements the
+ * bulk lines and removes/reduces the covered RFQ line items.
+ */
+export async function confirmRfqCoverage(
+  id: string,
+  payload: ConfirmRfqCoveragePayload,
+  config?: AxiosRequestConfig,
+): Promise<ConfirmRfqCoverageResult> {
+  const { data } = await getApiClient().post<{ data: ConfirmRfqCoverageResult }>(
+    RFQS_PATHS.confirmCoverage(id),
+    payload,
+    config,
+  );
+  return data.data;
 }
 
 // ── Bulk Suggestions ────────────────────────────────────────────────────────
@@ -473,6 +561,7 @@ export interface QuoteResponseDetail {
   id: string;
   rfqId: string;
   vendorId: string;
+  vendor?: { id: string; legalName: string };
   totalCost: number;
   discountPercent: number | null;
   discountAmount: number | null;
@@ -499,6 +588,16 @@ export interface QuoteResponseLineItem {
   availability: string;
   deliveryDate: string;
   substituteItemId: string | null;
+  /** Substitute material suggested by the vendor (suggestion-replace, US 5.06). */
+  substituteItem?: { id: string; name: string; uom: string | null } | null;
+  /** The RFQ line this quote line answers — carries the requested material/qty. */
+  rfqLineItem?: {
+    id: string;
+    materialName: string | null;
+    quantity: number;
+    unit: string;
+    material?: { id: string; name: string; uom: string | null } | null;
+  };
   discount: number | null;
   discountType: 'PERCENT' | 'AMOUNT' | null;
   tax: number | null;
@@ -508,6 +607,25 @@ export interface QuoteResponseLineItem {
   notes: string | null;
   lineTotal: number;
   status: string;
+}
+
+/** Per-line review status set by the buyer while reviewing quotes (US 5.19). */
+export type QuoteLineItemReviewStatus = 'PENDING' | 'APPROVED' | 'DECLINED';
+
+/**
+ * Approve / decline / restore individual lines of a vendor quote (US 5.19).
+ * `PENDING` restores a previously approved/declined line.
+ */
+export async function updateQuoteLineItemStatuses(
+  rfqId: string,
+  quoteId: string,
+  lineItemIds: string[],
+  status: QuoteLineItemReviewStatus,
+): Promise<{ updated: number; lineItems: { id: string; status: string }[] }> {
+  const { data } = await getApiClient().patch<{
+    data: { updated: number; lineItems: { id: string; status: string }[] };
+  }>(RFQS_PATHS.quoteLineItemStatus(rfqId, quoteId), { lineItemIds, status });
+  return data.data;
 }
 
 export async function submitQuote(
@@ -578,6 +696,16 @@ export interface QuoteComparisonVendor {
   leadTimeDate: string | null;
   /** Sum of extended costs across the lines this vendor quoted. */
   total: number;
+  /** Vendor-submitted quote total (taxes, shipment and discounts applied). */
+  totalWithTaxes: number;
+  /** Overall quote discount, as submitted by the vendor. */
+  discountPercent: number | null;
+  discountAmount: number | null;
+  /** Shipment & handling charge for the whole quote. */
+  shipmentAndHandling: number | null;
+  attachmentCount: number;
+  /** True when the vendor left a note on the quote or any of its lines. */
+  hasNotes: boolean;
   itemsCovered: number;
   totalItems: number;
 }
@@ -586,14 +714,28 @@ export interface QuoteComparisonVendor {
 export interface QuoteComparisonCell {
   vendorId: string;
   quoteResponseId: string;
+  /** Quote line id — target for per-line approve/decline/restore (US 5.19). */
+  quoteLineItemId: string | null;
   unitPrice: number | null;
   quotedQuantity: number | null;
   /** qty × unit; null when the vendor did not quote this line. */
   extendedCost: number | null;
+  /** Vendor-computed line total with tax; null when the vendor did not quote this line. */
+  lineTotal: number | null;
+  /** Per-line discount as submitted (interpreted via discountType). */
+  discount: number | null;
+  discountType: string | null;
   availability: string | null;
   deliveryDate: string | null;
+  /** Per-line review status: PENDING | APPROVED | DECLINED. */
+  status: string | null;
+  /** Vendor note on the line (drives the note indicator). */
+  notes: string | null;
+  /** Set when the vendor quoted a substitute material for this line. */
+  substituteItemId: string | null;
+  substituteItemName: string | null;
   hasQuote: boolean;
-  /** True when this cell holds the lowest extended cost in its row. */
+  /** True when this cell holds the lowest line total in its row. */
   isLowest: boolean;
 }
 
@@ -603,6 +745,8 @@ export interface QuoteComparisonRow {
   materialName: string | null;
   quantity: number;
   unit: string;
+  projectId: string;
+  projectName: string;
   cells: QuoteComparisonCell[];
   lowestVendorId: string | null;
 }

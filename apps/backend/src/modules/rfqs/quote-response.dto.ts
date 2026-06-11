@@ -1,4 +1,4 @@
-import { DiscountType, QuoteSource } from '@prisma/client';
+import { DiscountType, QuoteLineItemStatus, QuoteSource } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsArray,
@@ -121,3 +121,16 @@ export class SubmitQuoteDto {
 }
 
 export class UpdateQuoteDto extends SubmitQuoteDto {}
+
+/**
+ * Buyer's per-line review of a received quote (US 5.19): approve, decline or
+ * restore (back to PENDING) one or more quote lines in a single call.
+ */
+export class UpdateQuoteLineItemStatusDto {
+  @IsArray()
+  @IsUUID('4', { each: true })
+  lineItemIds!: string[];
+
+  @IsEnum(QuoteLineItemStatus)
+  status!: QuoteLineItemStatus;
+}

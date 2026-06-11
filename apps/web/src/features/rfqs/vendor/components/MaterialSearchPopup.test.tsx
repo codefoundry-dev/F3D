@@ -31,6 +31,7 @@ vi.mock('@forethread/api-client', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
   Badge: ({ children }: { children: React.ReactNode }) => (
     <span data-testid="badge">{children}</span>
   ),

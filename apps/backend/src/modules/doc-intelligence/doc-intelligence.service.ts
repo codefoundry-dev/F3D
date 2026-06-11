@@ -57,10 +57,25 @@ const SPREADSHEET_MIME_TYPES: ReadonlySet<string> = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]);
 
+// A CSV is already plain text, so its contents are folded into the prompt
+// verbatim (US 5.01 — BOM uploads accept CSV).
+const CSV_MIME_TYPES: ReadonlySet<string> = new Set(['text/csv']);
+
 const ACCEPTED_MIME_TYPES: ReadonlySet<string> = new Set([
   ...GEMINI_NATIVE_MIME_TYPES,
   ...SPREADSHEET_MIME_TYPES,
+  ...CSV_MIME_TYPES,
 ]);
+
+/**
+ * Browsers (notably on Windows) report `.csv` files as
+ * `application/vnd.ms-excel` or `text/plain`, so the declared mimetype alone
+ * would reject them. Key CSVs off the filename extension instead.
+ */
+function effectiveMimeType(file: Express.Multer.File): string {
+  if (/\.csv$/iu.test(file.originalname ?? '')) return 'text/csv';
+  return file.mimetype;
+}
 
 export interface CreateExtractionInput {
   type: DocExtractionType;
@@ -94,13 +109,14 @@ export class DocIntelligenceService {
     user: AuthenticatedUser,
   ): Promise<ExtractionWithFile> {
     if (!input.file) throw new BadRequestException(ERR.storage.noFileProvided);
-    if (!ACCEPTED_MIME_TYPES.has(input.file.mimetype)) {
+    const mimeType = effectiveMimeType(input.file);
+    if (!ACCEPTED_MIME_TYPES.has(mimeType)) {
       throw new BadRequestException(ERR.storage.fileTypeNotAllowed);
     }
 
     // A catalogue spreadsheet is parsed directly (no Gemini), so it gets a
     // higher size cap and does NOT require Gemini to be configured.
-    const directParse = this.isDirectCatalogueParse(input.type, input.file.mimetype);
+    const directParse = this.isDirectCatalogueParse(input.type, mimeType);
     const sizeLimit = directParse ? CATALOGUE_MAX_FILE_SIZE : MAX_FILE_SIZE;
     if (input.file.size > sizeLimit) {
       throw new BadRequestException(ERR.storage.fileTooLarge(directParse ? '30MB' : '10MB'));
@@ -119,7 +135,7 @@ export class DocIntelligenceService {
         bucket: uploaded.bucket,
         key: uploaded.key,
         filename: input.file.originalname,
-        mimeType: input.file.mimetype,
+        mimeType,
         size: input.file.size,
         uploadedById: user.id,
       },
@@ -137,12 +153,7 @@ export class DocIntelligenceService {
     });
 
     // Fire-and-forget the actual extraction.
-    void this.runExtraction(
-      extraction.id,
-      input.file.buffer,
-      input.file.mimetype,
-      input.promptHint,
-    );
+    void this.runExtraction(extraction.id, input.file.buffer, mimeType, input.promptHint);
 
     return extraction;
   }
@@ -278,9 +289,14 @@ export class DocIntelligenceService {
         responseMimeType: 'application/json' as const,
         ...(responseSchema ? { responseSchema } : {}),
       };
-      const result = SPREADSHEET_MIME_TYPES.has(mimeType)
+      const inlinePrompt = SPREADSHEET_MIME_TYPES.has(mimeType)
+        ? await this.buildSpreadsheetPrompt(prompt, fileBuffer)
+        : CSV_MIME_TYPES.has(mimeType)
+          ? this.buildCsvPrompt(prompt, fileBuffer)
+          : null;
+      const result = inlinePrompt
         ? await this.gemini.generate({
-            prompt: await this.buildSpreadsheetPrompt(prompt, fileBuffer),
+            prompt: inlinePrompt,
             generationConfig,
           })
         : await this.gemini.generate({
@@ -337,6 +353,15 @@ export class DocIntelligenceService {
 The document is a spreadsheet, provided below as tab-separated values. Each "# Sheet:" line starts a new worksheet. Treat the rows below as the attached document.
 
 ${sheetText}`;
+  }
+
+  /** A CSV is already text — fold it into the prompt verbatim. */
+  private buildCsvPrompt(basePrompt: string, fileBuffer: Buffer): string {
+    return `${basePrompt}
+
+The document is a CSV file, provided below verbatim. Treat the rows below as the attached document.
+
+${fileBuffer.toString('utf-8')}`;
   }
 
   /**

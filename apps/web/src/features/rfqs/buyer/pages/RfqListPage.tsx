@@ -49,6 +49,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 
+import { ConvertSourceModal } from '../components/create/source-modals';
 import { RfqDetailPanel } from '../components/RfqDetailPanel';
 import { ALL_COLUMNS, DEFAULT_VISIBLE, TRUNCATE_COLUMNS, type SortableField } from '../constants';
 import { createRfqTableStore } from '../state/rfq-table.store';
@@ -71,6 +72,8 @@ export default function RfqListPage() {
   const tableRef = useRef<HTMLTableElement>(null);
 
   const [previewY, setPreviewY] = useState(0);
+  /** "Create new → Converting a project BOM / From material list" modal. */
+  const [convertKind, setConvertKind] = useState<'BOM' | 'MATERIAL_LIST' | null>(null);
 
   const createDD = useDropdown();
   const viewDD = useDropdown();
@@ -282,8 +285,9 @@ export default function RfqListPage() {
                     className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-[18px] leading-6 font-medium font-[Inter] hover:bg-muted transition-colors w-full text-left"
                     onClick={() => {
                       createDD.setIsOpen(false);
-                      navigate(ROUTES.rfqFromBom);
+                      setConvertKind('BOM');
                     }}
+                    data-testid="create-from-bom"
                   >
                     Converting a project BOM
                   </button>
@@ -292,7 +296,9 @@ export default function RfqListPage() {
                     className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-[18px] leading-6 font-medium font-[Inter] hover:bg-muted transition-colors w-full text-left"
                     onClick={() => {
                       createDD.setIsOpen(false);
+                      setConvertKind('MATERIAL_LIST');
                     }}
+                    data-testid="create-from-material-list"
                   >
                     From material list
                   </button>
@@ -550,6 +556,17 @@ export default function RfqListPage() {
         <div className="absolute right-8 z-30" style={{ top: previewY }}>
           <RfqDetailPanel rfqId={s.previewRfqId} onClose={s.closePreview} />
         </div>
+      )}
+
+      {convertKind && (
+        <ConvertSourceModal
+          kind={convertKind}
+          onClose={() => setConvertKind(null)}
+          onContinue={(seed) => {
+            setConvertKind(null);
+            navigate(ROUTES.rfqNew, { state: { seed } });
+          }}
+        />
       )}
     </div>
   );

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UserRole } from '@prisma/client';
 
 import { QuoteResponseService } from '../quote-response.service';
+import { RfqAvailabilityService } from '../rfq-availability.service';
 import { RfqExportService } from '../rfq-export.service';
 import { RfqsController } from '../rfqs.controller';
 import { RfqsService } from '../rfqs.service';
@@ -25,6 +26,11 @@ const mockRfqsService = {
 
 const mockRfqExportService = {
   exportRfqs: jest.fn(),
+};
+
+const mockRfqAvailabilityService = {
+  checkAvailability: jest.fn(),
+  confirmCoverage: jest.fn(),
 };
 
 const mockQuoteResponseService = {
@@ -56,6 +62,7 @@ describe('RfqsController', () => {
         { provide: RfqsService, useValue: mockRfqsService },
         { provide: RfqExportService, useValue: mockRfqExportService },
         { provide: QuoteResponseService, useValue: mockQuoteResponseService },
+        { provide: RfqAvailabilityService, useValue: mockRfqAvailabilityService },
       ],
     }).compile();
 

@@ -10,7 +10,7 @@ import {
   PoActionLogTab,
 } from '@forethread/po-shared';
 import type { PoTab, RelatedDocument } from '@forethread/po-shared';
-import { Badge, cn, getStatusColor, PO_STATUS_COLORS, Spinner } from '@forethread/ui-components';
+import { Badge, cn, NEUTRAL_STATUS_COLOR, Spinner } from '@forethread/ui-components';
 import ArrowLineRightIcon from '@forethread/ui-components/assets/icons/arrow-line-right.svg?react';
 import ArrowsOutSimpleIcon from '@forethread/ui-components/assets/icons/arrows-out-simple.svg?react';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
@@ -146,9 +146,9 @@ export function PoDetailPanel({ poId, onClose }: PoDetailPanelProps) {
         <>
           {/* Title row */}
           <div className="flex items-center gap-4.5 shrink-0">
-            <h2 className="flex-1 text-lg font-medium text-foreground">{po.projectName}</h2>
-            <Badge className={getStatusColor(PO_STATUS_COLORS, po.status)}>
-              {t(`status.${po.status}` as never)}
+            <h2 className="flex-1 text-lg font-medium text-foreground">{po.poNumber}</h2>
+            <Badge className={NEUTRAL_STATUS_COLOR}>
+              {t([`vendorStatus.${po.status}`, `status.${po.status}`] as never)}
             </Badge>
           </div>
 
@@ -167,7 +167,7 @@ export function PoDetailPanel({ poId, onClose }: PoDetailPanelProps) {
             </div>
 
             <div className="flex-1 min-h-0 overflow-y-auto mt-2">
-              {activeTab === 'details' && <PoDetailsTab po={po} layout="panel" />}
+              {activeTab === 'details' && <PoDetailsTab po={po} layout="panel" isVendorView />}
               {activeTab === 'lineItems' && (
                 <PoLineItemsTab lineItems={po.lineItems ?? []} layout="panel" />
               )}

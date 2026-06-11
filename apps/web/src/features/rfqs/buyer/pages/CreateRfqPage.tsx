@@ -1,13 +1,20 @@
-import type { BomLineItem, SaveRfqDraftValues } from '@forethread/shared-types/client';
 import {
-  isBomExtractionResult,
-  RfqLineItemSource,
-  rfqStepProjectSchema,
-  rfqStepMaterialsSchema,
-  rfqStepVendorsSchema,
-  rfqStepDeliverySchema,
-} from '@forethread/shared-types/client';
-import { Alert, Button } from '@forethread/ui-components';
+  checkRfqAvailability,
+  confirmRfqCoverage,
+  deleteRfq,
+  getProject,
+  uploadRfqDocument,
+  type RfqAvailabilityResult,
+  type RfqDetail,
+} from '@forethread/api-client';
+import { useTranslation } from '@forethread/i18n';
+import { Stepper } from '@forethread/po-shared';
+import { isBomExtractionResult, type SaveRfqDraftValues } from '@forethread/shared-types/client';
+import { Button, StatusErrorModal, StatusSuccessModal } from '@forethread/ui-components';
+import ArrowRightIcon from '@forethread/ui-components/assets/icons/arrow-right.svg?react';
+import BackArrowIcon from '@forethread/ui-components/assets/icons/back-arrow.svg?react';
+import NewUserIcon from '@forethread/ui-components/assets/icons/new-user.svg?react';
+import { useQueries } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -15,391 +22,662 @@ import { ROUTES } from '@/app/route-config';
 import { useConfirmedBoms } from '@/features/doc-intelligence';
 
 import { bomLineToRfqDraftFields } from '../components/create/bom-draft';
-import { SendRfqDialog } from '../components/create/SendRfqDialog';
-import { StepDelivery, type DeliveryStepValues } from '../components/create/StepDelivery';
-import { StepIndicator } from '../components/create/StepIndicator';
-import { StepMaterials, type RfqLineItemDraft } from '../components/create/StepMaterials';
-import { StepProject } from '../components/create/StepProject';
-import { StepReview } from '../components/create/StepReview';
-import { StepVendors } from '../components/create/StepVendors';
+import { EditMaterialModal } from '../components/create/EditMaterialModal';
+import { SelectVendorsCard } from '../components/create/SelectVendorsCard';
+import { AddFromBomModal, AddFromMaterialListModal } from '../components/create/source-modals';
+import { StepAvailability, remainingQty, type AllocationMap } from '../components/create/StepAvailability';
+import { StepBasicInfo, type DeliveryLocationOption } from '../components/create/StepBasicInfo';
+import { StepLineItems } from '../components/create/StepLineItems';
+import { StepReviewSend, type PendingAttachment } from '../components/create/StepReviewSend';
 import {
-  useSaveRfqDraft,
-  useUpdateRfq,
-  useSendRfq,
-  useRfqProjects,
-  useProjectDeliveryLocations,
-  useRfqMaterials,
+  EMPTY_BASIC_INFO,
+  nextLineKey,
+  validateBasicInfo,
+  validateLineItems,
+  type WizardBasicInfo,
+  type WizardFieldErrors,
+  type WizardLineItem,
+  type WizardSeed,
+} from '../components/create/wizard-types';
+import {
   useAssignedVendors,
+  useRfqMaterials,
+  useRfqProjects,
+  useSaveRfqDraft,
+  useSendRfq,
+  useUpdateRfq,
 } from '../services/rfqs.service';
 
-const STEPS = ['Project', 'Materials', 'Vendors', 'Delivery & specs', 'Review'];
+type WizardPhase = 'steps' | 'noRfqRequired';
 
-type FieldErrors = Record<string, string>;
+const STEP_COUNT = 4;
 
-/** Build the SaveRfqDraft / UpdateRfq payload from the slices completed so far. */
+/** YYYY-MM-DD (DatePicker) → ISO datetime (the zod schemas use `.datetime()`). */
+function toIsoDate(date: string | undefined): string | undefined {
+  if (!date) return undefined;
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date}T00:00:00.000Z` : date;
+}
+
+/** Build the SaveRfqDraft / UpdateRfq payload from the wizard state. */
 function buildPayload(
-  projectId: string,
-  lineItems: RfqLineItemDraft[],
+  basicInfo: WizardBasicInfo,
+  items: WizardLineItem[],
   vendorIds: string[],
-  delivery: DeliveryStepValues,
-  upToStep: number,
+  message: string,
 ): SaveRfqDraftValues {
-  const payload: SaveRfqDraftValues = { projectId };
+  const payload: SaveRfqDraftValues = {
+    projectId: basicInfo.projectIds[0],
+    projectIds: basicInfo.projectIds,
+    name: basicInfo.documentName || undefined,
+    isPickUp: basicInfo.isPickUp || undefined,
+    pickUpLocation: basicInfo.isPickUp ? basicInfo.pickUpLocation || undefined : undefined,
+    holdForRelease: basicInfo.holdForRelease || undefined,
+  } as SaveRfqDraftValues;
 
-  if (upToStep >= 1 && lineItems.length > 0) {
-    payload.lineItems = lineItems.map((item) => {
+  if (basicInfo.responseDeadline) payload.deadlineEnd = toIsoDate(basicInfo.responseDeadline);
+  if (!basicInfo.isPickUp && basicInfo.deliveryLocationIds[0]) {
+    payload.deliveryLocationId = basicInfo.deliveryLocationIds[0];
+  }
+  if (basicInfo.needByDate) payload.needByDate = toIsoDate(basicInfo.needByDate);
+  if (basicInfo.holdForRelease && basicInfo.earliestDeliveryDate) {
+    payload.earliestDeliveryDate = toIsoDate(basicInfo.earliestDeliveryDate);
+  }
+  if (message.trim()) payload.message = message.trim();
+  if (vendorIds.length > 0) payload.vendorIds = vendorIds;
+
+  if (items.length > 0) {
+    payload.lineItems = items.map((item) => {
       const base = {
         quantity: item.quantity,
         uom: item.uom,
-        costCode: item.costCode,
         notes: item.notes,
-        pickUp: item.pickUp,
+        projectId: item.projectId,
+        deliveryLocationId: item.deliveryLocationId,
+        expectedDeliveryDate: toIsoDate(item.expectedDeliveryDate),
+        description: item.description,
       };
-      // A line carries a materialId when it is catalogue-sourced OR a BOM line
-      // that was matched to a catalogue material during review — both persist as
-      // catalogue-linked. Only a still-unmatched BOM line falls back to a name.
       if (item.materialId) {
         return {
-          source: item.source === 'BOM' ? RfqLineItemSource.BOM : RfqLineItemSource.CATALOG,
+          source: item.source === 'BOM' ? 'BOM' : 'CATALOG',
           materialId: item.materialId,
           ...base,
         };
       }
-      return { source: RfqLineItemSource.BOM, materialName: item.materialName, ...base };
-    });
-  }
-  if (upToStep >= 2 && vendorIds.length > 0) {
-    payload.vendorIds = vendorIds;
-  }
-  if (upToStep >= 3) {
-    if (delivery.deadlineEnd) payload.deadlineEnd = delivery.deadlineEnd;
-    if (delivery.deliveryLocationId) payload.deliveryLocationId = delivery.deliveryLocationId;
-    if (delivery.needByDate) payload.needByDate = delivery.needByDate;
-    if (delivery.holdForRelease) payload.holdForRelease = delivery.holdForRelease;
-    if (delivery.earliestDeliveryDate) payload.earliestDeliveryDate = delivery.earliestDeliveryDate;
-    if (delivery.currency) payload.currency = delivery.currency;
-    if (delivery.message) payload.message = delivery.message;
+      return { source: 'BOM', materialName: item.materialName, ...base };
+    }) as SaveRfqDraftValues['lineItems'];
   }
 
   return payload;
 }
 
-/**
- * Map a parsed BOM line into an RFQ line-item draft. The extraction can leave
- * quantity/unit null, so fall back to schema-valid defaults (quantity ≥ 0.01,
- * a non-empty UoM) — seeded lines then never block the Materials step, and the
- * contractor can adjust or remove them before sending.
- */
-function bomItemToDraft(item: BomLineItem): RfqLineItemDraft {
-  const quantity = typeof item.quantity === 'number' && item.quantity >= 0.01 ? item.quantity : 1;
-  const unit = item.unit?.trim() ?? '';
-  // A matched line carries its catalogue materialId (catalogue-linked); an
-  // unmatched line keeps its free-text name.
-  return {
-    source: 'BOM',
-    ...bomLineToRfqDraftFields(item),
-    quantity,
-    uom: unit.length > 0 ? unit : 'unit',
-  };
+/** Map server line-item ids back onto local rows (persisted in array order). */
+function withServerIds(items: WizardLineItem[], detail: RfqDetail): WizardLineItem[] {
+  const serverItems = detail.lineItems ?? [];
+  if (serverItems.length !== items.length) return items;
+  return items.map((item, index) => ({ ...item, serverId: serverItems[index]?.id ?? item.serverId }));
 }
 
+/**
+ * Create New RFQ wizard (Figma US 5.05 — node 2974:38530): four steps
+ * (Basic Information + vendors → Add Line Items → Check Availability →
+ * Review & Send) with save-as-you-go drafts, bulk-order coverage and the
+ * No-RFQ-Required terminal state.
+ */
 export default function CreateRfqPage() {
+  const { t } = useTranslation('rfqs');
   const navigate = useNavigate();
   const location = useLocation();
-  const seededFromBomRef = useRef(false);
+  const seededRef = useRef(false);
 
+  const seed = (location.state as { seed?: WizardSeed } | null)?.seed;
+
+  const [phase, setPhase] = useState<WizardPhase>('steps');
   const [step, setStep] = useState(0);
-  const [furthestReached, setFurthestReached] = useState(0);
-  const [errors, setErrors] = useState<FieldErrors>({});
+  const [errors, setErrors] = useState<WizardFieldErrors>({});
   const [draftId, setDraftId] = useState<string | null>(null);
-  const [showSendDialog, setShowSendDialog] = useState(false);
 
-  // ── Form slices ───────────────────────────────────────────────────────────
-  const [projectId, setProjectId] = useState('');
-  const [lineItems, setLineItems] = useState<RfqLineItemDraft[]>([]);
+  const [basicInfo, setBasicInfo] = useState<WizardBasicInfo>(EMPTY_BASIC_INFO);
   const [vendorIds, setVendorIds] = useState<string[]>([]);
+  const [items, setItems] = useState<WizardLineItem[]>([]);
+  const [message, setMessage] = useState('');
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+
   const [materialSearch, setMaterialSearch] = useState('');
-  const [delivery, setDelivery] = useState<DeliveryStepValues>({
-    deadlineEnd: '',
-    deliveryLocationId: '',
-  });
+  const [showAddFromBom, setShowAddFromBom] = useState(false);
+  const [showAddFromMaterialList, setShowAddFromMaterialList] = useState(false);
+  const [editingItem, setEditingItem] = useState<WizardLineItem | null>(null);
+
+  const [availability, setAvailability] = useState<RfqAvailabilityResult | undefined>(undefined);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [allocations, setAllocations] = useState<AllocationMap>(new Map());
+
+  const [submitState, setSubmitState] = useState<'idle' | 'submitting' | 'success' | 'error'>(
+    'idle',
+  );
+  const [submitError, setSubmitError] = useState<string>('');
 
   // ── Data sources ──────────────────────────────────────────────────────────
   const { data: projects = [], isLoading: projectsLoading } = useRfqProjects();
+  const { data: vendors = [], isLoading: vendorsLoading } = useAssignedVendors();
   const { data: materials = [] } = useRfqMaterials(
     materialSearch ? { search: materialSearch } : undefined,
   );
-  const { data: vendors = [], isLoading: vendorsLoading } = useAssignedVendors();
-  const { data: locations = [], isLoading: locationsLoading } =
-    useProjectDeliveryLocations(projectId);
-  const { data: confirmedBomsPage } = useConfirmedBoms();
-  const confirmedBoms = confirmedBomsPage?.items ?? [];
 
-  // When the contractor arrives from "Convert a project BOM" (BomConversionPage),
-  // seed the Materials step from that confirmed BOM's parsed line items — runs
-  // once, as soon as the target extraction is available (FOR-200).
-  const bomExtractionId = (location.state as { bomExtractionId?: string } | null)?.bomExtractionId;
+  const selectedProjects = useMemo(
+    () => basicInfo.projectIds.map((id) => projects.find((p) => p.id === id)).filter(Boolean) as typeof projects,
+    [basicInfo.projectIds, projects],
+  );
+
+  // Delivery locations across every selected project (step-1 multi-select and
+  // per-row dropdowns).
+  const locationQueries = useQueries({
+    queries: basicInfo.projectIds.map((projectId) => ({
+      queryKey: ['projects', projectId, 'detail'],
+      queryFn: () => getProject(projectId),
+      staleTime: 60_000,
+    })),
+  });
+  const locationOptions = useMemo<DeliveryLocationOption[]>(() => {
+    const options: DeliveryLocationOption[] = [];
+    for (const query of locationQueries) {
+      const project = query.data;
+      if (!project) continue;
+      for (const projectLocation of project.locations) {
+        if (projectLocation.type !== 'DELIVERY') continue;
+        options.push({
+          id: projectLocation.id,
+          label: projectLocation.label ?? projectLocation.address,
+          projectId: project.id,
+        });
+      }
+    }
+    return options;
+  }, [locationQueries]);
+
+  // Drop selected locations that no longer belong to a selected project.
   useEffect(() => {
-    if (seededFromBomRef.current || !bomExtractionId) return;
+    if (locationOptions.length === 0) return;
+    const valid = new Set(locationOptions.map((option) => option.id));
+    setBasicInfo((prev) => {
+      const kept = prev.deliveryLocationIds.filter((id) => valid.has(id));
+      return kept.length === prev.deliveryLocationIds.length
+        ? prev
+        : { ...prev, deliveryLocationIds: kept };
+    });
+  }, [locationOptions]);
+
+  // ── Legacy seeding: "Convert a project BOM" upload flow (FOR-200) hands
+  // over a confirmed doc-intelligence extraction id via router state. ───────
+  const bomExtractionId = (location.state as { bomExtractionId?: string } | null)
+    ?.bomExtractionId;
+  const { data: confirmedBomsPage } = useConfirmedBoms();
+  useEffect(() => {
+    if (seededRef.current || !bomExtractionId) return;
     const bom = confirmedBomsPage?.items.find((item) => item.id === bomExtractionId);
     if (!bom || !isBomExtractionResult(bom.editedResult)) return;
     const drafts = bom.editedResult.items
-      .map(bomItemToDraft)
+      .map((item) => {
+        const fields = bomLineToRfqDraftFields(item);
+        const unit = item.unit?.trim();
+        return {
+          key: nextLineKey(),
+          source: 'BOM' as const,
+          materialId: fields.materialId,
+          materialName: fields.materialName,
+          notes: fields.notes,
+          quantity:
+            typeof item.quantity === 'number' && item.quantity >= 0.01 ? item.quantity : 1,
+          uom: unit && unit.length > 0 ? unit : 'unit',
+        };
+      })
       .filter((draft) => draft.materialName.trim().length > 0);
     if (drafts.length === 0) return;
-    seededFromBomRef.current = true;
-    setLineItems(drafts);
+    seededRef.current = true;
+    setItems(drafts);
   }, [bomExtractionId, confirmedBomsPage]);
 
-  // ── Mutations (save-as-you-go) ─────────────────────────────────────────────
+  // ── Seeding (Converting BOM / Create from material list) ─────────────────
+  useEffect(() => {
+    if (seededRef.current || !seed) return;
+    seededRef.current = true;
+    setItems(
+      seed.items.map((item) => ({
+        key: nextLineKey(),
+        source: item.source,
+        materialId: item.materialId,
+        materialName: item.materialName,
+        description: item.description,
+        quantity: item.quantity,
+        uom: item.uom,
+        projectId: item.projectId,
+      })),
+    );
+    if (seed.projectIds && seed.projectIds.length > 0) {
+      setBasicInfo((prev) => ({ ...prev, projectIds: seed.projectIds as string[] }));
+    }
+  }, [seed]);
+
+  const projectLocked = Boolean(seed?.source === 'BOM' && seed.projectIds?.length);
+
+  // ── Mutations ─────────────────────────────────────────────────────────────
   const saveDraft = useSaveRfqDraft();
   const updateDraft = useUpdateRfq();
   const sendRfq = useSendRfq();
   const isSaving = saveDraft.isPending || updateDraft.isPending;
-  const isSaveError = saveDraft.isError || updateDraft.isError;
 
-  const selectedProjectName = useMemo(
-    () => projects.find((p) => p.id === projectId)?.name ?? '',
-    [projects, projectId],
-  );
-
-  /** Validate the slice owned by `targetStep`. Returns true when valid. */
-  const validateStep = (targetStep: number): boolean => {
-    let result;
-    switch (targetStep) {
-      case 0:
-        result = rfqStepProjectSchema.safeParse({ projectId });
-        break;
-      case 1:
-        result = rfqStepMaterialsSchema.safeParse({ lineItems });
-        break;
-      case 2:
-        result = rfqStepVendorsSchema.safeParse({ vendorIds });
-        break;
-      case 3:
-        result = rfqStepDeliverySchema.safeParse(delivery);
-        break;
-      default:
-        return true;
-    }
-    if (result.success) {
-      setErrors({});
-      return true;
-    }
-    const fieldErrors: FieldErrors = {};
-    for (const issue of result.error.issues) {
-      const key = issue.path[0]?.toString() ?? 'form';
-      if (!fieldErrors[key]) fieldErrors[key] = issue.message;
-    }
-    setErrors(fieldErrors);
-    return false;
-  };
-
-  /**
-   * Persist completed slices up to (and including) `completedStep`, returning
-   * the draft's id. Returning it (rather than relying on the async `draftId`
-   * state) lets callers act on the id in the same tick — needed so "Send" can
-   * immediately POST /rfqs/:id/send after the final save.
-   */
-  const persist = async (completedStep: number): Promise<string> => {
-    const payload = buildPayload(projectId, lineItems, vendorIds, delivery, completedStep);
+  const persist = async (): Promise<RfqDetail> => {
+    const payload = buildPayload(basicInfo, items, vendorIds, message);
     if (draftId) {
       const { projectId: _omit, ...patch } = payload;
       void _omit;
-      await updateDraft.mutateAsync({ id: draftId, dto: patch });
-      return draftId;
+      const updated = await updateDraft.mutateAsync({ id: draftId, dto: patch });
+      return updated;
     }
     const created = await saveDraft.mutateAsync(payload);
     setDraftId(created.id);
-    return created.id;
+    return created;
   };
 
-  const handleNext = async () => {
-    if (!validateStep(step)) return;
+  // ── Step navigation ───────────────────────────────────────────────────────
+  const stepLabels = [
+    t('create.steps.basicInfo'),
+    t('create.steps.lineItems'),
+    t('create.steps.availability'),
+    t('create.steps.review'),
+  ];
+
+  const validateCurrentStep = (): boolean => {
+    let stepErrors: WizardFieldErrors = {};
+    if (step === 0) stepErrors = validateBasicInfo(basicInfo, vendorIds);
+    if (step === 1) stepErrors = validateLineItems(items);
+    setErrors(stepErrors);
+    return Object.keys(stepErrors).length === 0;
+  };
+
+  const goToStep = (target: number) => {
+    setErrors({});
+    setStep(target);
+    window.scrollTo({ top: 0 });
+  };
+
+  const handleContinue = async () => {
+    if (!validateCurrentStep()) return;
+
     try {
-      await persist(step);
+      if (step === 0) {
+        await persist();
+        goToStep(1);
+        return;
+      }
+
+      if (step === 1) {
+        // Persisting gives the rows their server ids, which step 3's
+        // confirm-coverage allocations reference.
+        const detail = await persist();
+        const synced = withServerIds(items, detail);
+        setItems(synced);
+        setAvailabilityLoading(true);
+        goToStep(2);
+        try {
+          const result = await checkRfqAvailability({
+            lineItems: synced.map((item, index) => ({
+              index,
+              materialId: item.materialId,
+              materialName: item.materialName,
+              quantity: item.quantity,
+              uom: item.uom,
+            })),
+          });
+          setAvailability(result);
+          setAllocations(new Map());
+        } finally {
+          setAvailabilityLoading(false);
+        }
+        return;
+      }
+
+      if (step === 2) {
+        const flat = [...allocations.values()].flatMap((byVendor) => [...byVendor.values()]);
+        if (flat.length > 0 && draftId) {
+          const serverIdOf = new Map(items.map((item) => [item.key, item.serverId]));
+          const result = await confirmRfqCoverage(draftId, {
+            allocations: flat
+              .filter((allocation) => serverIdOf.get(allocation.lineKey))
+              .map((allocation) => ({
+                rfqLineItemId: serverIdOf.get(allocation.lineKey) as string,
+                bulkOrderLineItemId: allocation.bulkOrderLineItemId,
+                quantity: allocation.quantity,
+              })),
+          });
+
+          // Apply coverage locally: drop fully covered rows, reduce partials.
+          const nextItems = items
+            .map((item) => {
+              const remaining = remainingQty(item, allocations);
+              return { ...item, quantity: remaining };
+            })
+            .filter((item) => item.quantity > 0);
+
+          if (result.remainingLineItems === 0 || nextItems.length === 0) {
+            // Everything is covered by bulk orders — no RFQ needed. Discard the
+            // empty draft (drawdowns have already been created server-side).
+            await deleteRfq(draftId).catch(() => undefined);
+            setPhase('noRfqRequired');
+            return;
+          }
+          setItems(nextItems);
+          setAllocations(new Map());
+        }
+        goToStep(3);
+        return;
+      }
     } catch {
-      return; // mutation error surfaces via isSaveError
+      // Mutation errors surface via the saving alert below.
     }
-    const next = Math.min(step + 1, STEPS.length - 1);
-    setStep(next);
-    setFurthestReached((prev) => Math.max(prev, next));
   };
 
   const handleBack = () => {
     setErrors({});
-    setStep((prev) => Math.max(prev - 1, 0));
-  };
-
-  const handleStepClick = (target: number) => {
-    if (target <= furthestReached) {
-      setErrors({});
-      setStep(target);
-    }
+    if (step > 0) setStep(step - 1);
   };
 
   const handleSaveAsDraft = async () => {
     try {
-      const id = await persist(3);
-      navigate(ROUTES.rfqDetail.replace(':id', id));
+      const detail = await persist();
+      navigate(ROUTES.rfqDetail.replace(':id', detail.id));
     } catch {
-      // error surfaces via isSaveError
+      // surfaced by isSaveError
     }
   };
 
-  /**
-   * Persist the final slice, then send the RFQ to its vendors. Saving first
-   * guarantees the server has the latest line items / vendors / delivery before
-   * the send-time precondition checks run. On success the RFQ is OPEN, so we
-   * land the user on its detail page.
-   */
-  const handleConfirmSend = async (cc: string[]) => {
+  const handleSubmit = async () => {
+    setSubmitState('submitting');
     try {
-      const id = await persist(3);
-      const sent = await sendRfq.mutateAsync({ id, cc });
-      setShowSendDialog(false);
-      navigate(ROUTES.rfqDetail.replace(':id', sent.id));
-    } catch {
-      // error surfaces inside the dialog via sendRfq.isError
+      const detail = await persist();
+      for (const attachment of attachments) {
+        await uploadRfqDocument(detail.id, attachment.file);
+      }
+      await sendRfq.mutateAsync({ id: detail.id });
+      setSubmitState('success');
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error ? error.message : t('create.submit.genericError'),
+      );
+      setSubmitState('error');
     }
   };
 
-  const isReviewStep = step === STEPS.length - 1;
+  const addSeedItems = (seedItems: WizardSeed['items']) => {
+    setItems((prev) => [
+      ...prev,
+      ...seedItems.map((item) => ({
+        key: nextLineKey(),
+        source: item.source,
+        materialId: item.materialId,
+        materialName: item.materialName,
+        description: item.description,
+        quantity: item.quantity,
+        uom: item.uom,
+        projectId: item.projectId ?? basicInfo.projectIds[0],
+      })),
+    ]);
+    // Adding a BOM from another project extends the project selection so the
+    // new rows have a visible group.
+    setBasicInfo((prev) => {
+      const missing = seedItems
+        .map((item) => item.projectId)
+        .filter((projectId): projectId is string => Boolean(projectId) && !prev.projectIds.includes(projectId as string));
+      if (missing.length === 0) return prev;
+      return { ...prev, projectIds: [...prev.projectIds, ...new Set(missing)] };
+    });
+  };
+
+  const isSaveError = saveDraft.isError || updateDraft.isError;
+
+  // ── Terminal "No RFQ Required" state ──────────────────────────────────────
+  if (phase === 'noRfqRequired') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center">
+        <div className="w-12 h-12 rounded-[12px] bg-muted flex items-center justify-center mb-6">
+          <NewUserIcon className="w-6 h-6 text-foreground" />
+        </div>
+        <h1 className="text-3xl font-semibold text-foreground">
+          {t('create.noRfqRequired.title')}
+        </h1>
+        <p className="text-base text-muted-foreground mt-4 max-w-3xl">
+          {t('create.noRfqRequired.description')}
+        </p>
+        <div className="flex flex-col gap-2 w-full max-w-xl mt-8">
+          <Button className="w-full h-12" onClick={() => navigate(ROUTES.purchaseOrders)} data-testid="no-rfq-create-po">
+            {t('create.noRfqRequired.createPo')}
+          </Button>
+          <Button variant="outline" className="w-full h-12" onClick={() => navigate(ROUTES.rfqs)}>
+            {t('create.noRfqRequired.mainPage')}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const stepHeading = [
+    { title: t('create.headings.step1Title'), subtitle: t('create.headings.step1Subtitle') },
+    { title: t('create.headings.step2Title'), subtitle: t('create.headings.step2Subtitle') },
+    { title: t('create.headings.step3Title'), subtitle: t('create.headings.step3Subtitle') },
+    { title: t('create.headings.step4Title'), subtitle: t('create.headings.step4Subtitle') },
+  ][step];
+
+  const continueLabel =
+    step === 1 && items.length > 0
+      ? t('create.footer.checkAvailability')
+      : t('create.footer.continue');
 
   return (
-    <div className="p-8 max-w-3xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Create RFQ</h1>
-      </div>
-
-      <div className="mb-8">
-        <StepIndicator
-          steps={STEPS}
-          current={step}
-          furthestReached={furthestReached}
-          onStepClick={handleStepClick}
-        />
-      </div>
-
-      <div className="space-y-6">
-        {step === 0 && (
-          <StepProject
-            projects={projects}
-            value={projectId}
-            onChange={(id) => {
-              setProjectId(id);
-              setDelivery((prev) => ({ ...prev, deliveryLocationId: '' }));
-            }}
-            error={errors.projectId}
-            isLoading={projectsLoading}
-          />
-        )}
-
-        {step === 1 && (
-          <StepMaterials
-            materials={materials}
-            search={materialSearch}
-            onSearchChange={setMaterialSearch}
-            lineItems={lineItems}
-            onAdd={(item) => setLineItems((prev) => [...prev, item])}
-            onRemove={(index) => setLineItems((prev) => prev.filter((_, i) => i !== index))}
-            confirmedBoms={confirmedBoms}
-            error={errors.lineItems}
-          />
-        )}
-
-        {step === 2 && (
-          <StepVendors
-            vendors={vendors}
-            selectedIds={vendorIds}
-            isLoading={vendorsLoading}
-            onToggle={(id, checked) =>
-              setVendorIds((prev) =>
-                checked ? [...prev, id] : prev.filter((vendorId) => vendorId !== id),
-              )
-            }
-            error={errors.vendorIds}
-          />
-        )}
-
-        {step === 3 && (
-          <StepDelivery
-            locations={locations}
-            locationsLoading={locationsLoading}
-            values={delivery}
-            onChange={(patch) => setDelivery((prev) => ({ ...prev, ...patch }))}
-            errors={{
-              deadlineEnd: errors.deadlineEnd,
-              deliveryLocationId: errors.deliveryLocationId,
-              earliestDeliveryDate: errors.earliestDeliveryDate,
-            }}
-          />
-        )}
-
-        {isReviewStep && (
-          <StepReview
-            projectName={selectedProjectName}
-            lineItems={lineItems}
-            vendors={vendors}
-            selectedVendorIds={vendorIds}
-            delivery={delivery}
-            locations={locations}
-          />
-        )}
-
-        {isSaveError && (
-          <Alert variant="destructive">
-            Something went wrong saving your draft. Please try again.
-          </Alert>
-        )}
-
-        <div className="flex items-center gap-3">
-          {step > 0 && (
-            <Button type="button" variant="outline" onClick={handleBack} disabled={isSaving}>
-              Back
-            </Button>
-          )}
-
-          {isReviewStep ? (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void handleSaveAsDraft()}
-                isLoading={isSaving}
-                data-testid="save-as-draft"
-              >
-                Save as draft
-              </Button>
-              <Button
-                type="button"
-                onClick={() => setShowSendDialog(true)}
-                disabled={isSaving || sendRfq.isPending}
-                data-testid="send-to-vendors"
-              >
-                Send to vendors
-              </Button>
-            </>
-          ) : (
-            <Button
-              type="button"
-              onClick={() => void handleNext()}
-              isLoading={isSaving}
-              data-testid="next-step"
-            >
-              Next
-            </Button>
-          )}
+    <div className="p-4 sm:px-10 flex flex-col flex-1 min-h-full bg-secondary">
+      {/* Page heading */}
+      <div className="flex items-center gap-3 pb-4">
+        <button
+          type="button"
+          onClick={() => navigate(ROUTES.rfqs)}
+          className="p-1.5 rounded-lg text-foreground hover:bg-accent transition-colors"
+          aria-label={t('create.backToList')}
+        >
+          <BackArrowIcon className="w-5 h-5" />
+        </button>
+        <div>
+          <h1 className="text-xl font-bold text-foreground leading-6">{t('create.title')}</h1>
+          <p className="text-[13px] text-muted-foreground">{t('create.subtitle')}</p>
         </div>
       </div>
 
-      {showSendDialog && (
-        <SendRfqDialog
-          vendorCount={vendorIds.length}
-          isSending={sendRfq.isPending}
-          isError={sendRfq.isError}
-          onCancel={() => setShowSendDialog(false)}
-          onSend={(cc) => void handleConfirmSend(cc)}
+      <Stepper step={step + 1} labels={stepLabels} />
+
+      <div className="flex flex-col flex-1 pt-6 max-w-[1336px] w-full mx-auto">
+        <div className="mb-5">
+          <h2 className="text-2xl font-semibold text-foreground">
+            {t('create.stepOf', { current: step + 1, total: STEP_COUNT })}
+            {stepHeading.title}
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">{stepHeading.subtitle}</p>
+        </div>
+
+        <div className="space-y-6 flex-1">
+          {step === 0 && (
+            <>
+              <StepBasicInfo
+                values={basicInfo}
+                onChange={(patch) => setBasicInfo((prev) => ({ ...prev, ...patch }))}
+                projects={projects}
+                locationOptions={locationOptions}
+                errors={errors}
+                projectLocked={projectLocked}
+              />
+              <SelectVendorsCard
+                vendors={vendors}
+                selectedIds={vendorIds}
+                isLoading={vendorsLoading || projectsLoading}
+                onToggle={(vendorId, selected) =>
+                  setVendorIds((prev) =>
+                    selected ? [...prev, vendorId] : prev.filter((id) => id !== vendorId),
+                  )
+                }
+                onSelectAll={(ids) => setVendorIds((prev) => [...new Set([...prev, ...ids])])}
+                onRemoveAll={() => setVendorIds([])}
+                error={errors.vendorIds ? t('create.vendors.selectAtLeastOne') : undefined}
+              />
+            </>
+          )}
+
+          {step === 1 && (
+            <StepLineItems
+              items={items}
+              onItemsChange={setItems}
+              projects={selectedProjects}
+              locationOptions={locationOptions}
+              materials={materials}
+              search={materialSearch}
+              onSearchChange={setMaterialSearch}
+              onOpenAddFromBom={() => setShowAddFromBom(true)}
+              onOpenAddFromMaterialList={() => setShowAddFromMaterialList(true)}
+              error={errors.lineItems ? t(`create.errors.${errors.lineItems}` as never) : undefined}
+            />
+          )}
+
+          {step === 2 && (
+            <StepAvailability
+              items={items}
+              availability={availability}
+              isLoading={availabilityLoading}
+              allocations={allocations}
+              onAllocationsChange={setAllocations}
+            />
+          )}
+
+          {step === 3 && (
+            <StepReviewSend
+              basicInfo={basicInfo}
+              items={items}
+              projects={projects}
+              locationOptions={locationOptions}
+              vendors={vendors}
+              selectedVendorIds={vendorIds}
+              attachments={attachments}
+              onAttachmentsChange={setAttachments}
+              message={message}
+              onMessageChange={setMessage}
+              onEditStep={goToStep}
+              onEditItem={setEditingItem}
+              onRemoveItem={(key) => setItems((prev) => prev.filter((item) => item.key !== key))}
+              onRemoveVendor={(vendorId) =>
+                setVendorIds((prev) => prev.filter((id) => id !== vendorId))
+              }
+            />
+          )}
+
+          {isSaveError && (
+            <p className="text-sm text-destructive">{t('create.errors.saveFailed')}</p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-3 py-6">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onClick={() => void handleSaveAsDraft()}
+            isLoading={isSaving}
+            data-testid="save-as-draft"
+          >
+            {t('create.footer.saveAsDraft')}
+          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={handleBack}
+              disabled={step === 0 || isSaving}
+              leftIcon={<BackArrowIcon className="w-4 h-4" />}
+              data-testid="wizard-back"
+            >
+              {t('create.footer.back')}
+            </Button>
+            {step === 3 ? (
+              <Button
+                type="button"
+                size="lg"
+                onClick={() => void handleSubmit()}
+                isLoading={submitState === 'submitting'}
+                data-testid="submit-rfq"
+              >
+                {t('create.footer.submitRfq')}
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="lg"
+                onClick={() => void handleContinue()}
+                isLoading={isSaving || availabilityLoading}
+                rightIcon={<ArrowRightIcon className="w-4 h-4" />}
+                data-testid="wizard-continue"
+              >
+                {continueLabel}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Modals ── */}
+      {showAddFromBom && (
+        <AddFromBomModal
+          projectIds={basicInfo.projectIds}
+          projects={projects}
+          onAdd={addSeedItems}
+          onClose={() => setShowAddFromBom(false)}
+        />
+      )}
+
+      {showAddFromMaterialList && (
+        <AddFromMaterialListModal
+          onAdd={addSeedItems}
+          onClose={() => setShowAddFromMaterialList(false)}
+        />
+      )}
+
+      {editingItem && (
+        <EditMaterialModal
+          item={editingItem}
+          locationOptions={locationOptions}
+          onConfirm={(patch) =>
+            setItems((prev) =>
+              prev.map((item) => (item.key === editingItem.key ? { ...item, ...patch } : item)),
+            )
+          }
+          onClose={() => setEditingItem(null)}
+        />
+      )}
+
+      {submitState === 'success' && (
+        <StatusSuccessModal
+          onClose={() => navigate(ROUTES.rfqs)}
+          title={t('create.submit.successTitle')}
+          description={t('create.submit.successDescription')}
+          buttonLabel={t('create.submit.backToRfqs')}
+          redirectLabel={(seconds) => t('create.submit.redirecting', { seconds })}
+          countdownSeconds={3}
+        />
+      )}
+
+      {submitState === 'error' && (
+        <StatusErrorModal
+          onClose={() => setSubmitState('idle')}
+          title={t('create.submit.errorTitle', { error: submitError })}
+          description=""
+          primaryButtonLabel={t('create.submit.tryAgain')}
+          onPrimaryClick={() => void handleSubmit()}
+          secondaryButtonLabel={t('create.submit.dismiss')}
+          onSecondaryClick={() => setSubmitState('idle')}
         />
       )}
     </div>

@@ -236,6 +236,16 @@ export enum MaterialStatus {
 }
 
 /**
+ * Lifecycle of a project Bill of Materials (US 5.01). The newest BOM for a
+ * project is ACTIVE; creating a new one supersedes it ("Historical BOM
+ * versions" in the project BOM tab).
+ */
+export enum BomStatus {
+  ACTIVE = 'ACTIVE',
+  SUPERSEDED = 'SUPERSEDED',
+}
+
+/**
  * Where an RFQ line item originated (FOR-204). CATALOG items reference an
  * approved Material; BOM items come from a parsed bill of materials and carry a
  * free-text material name with no catalog material (yet).

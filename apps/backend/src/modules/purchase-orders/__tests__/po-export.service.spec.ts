@@ -570,5 +570,100 @@ describe('PoExportService', () => {
         expect.objectContaining({ filenamePrefix: 'po-PO-2026-0042' }),
       );
     });
+
+    // Exercises the fallback/empty branches of buildPoPdfOptions: missing
+    // currency/vendor/company/poType/terms, no planned-delivery hint, and
+    // line-item/delivery rows whose every optional field is null.
+    it('renders blank-safe defaults when all optional PO fields are empty', () => {
+      const emptyPo = {
+        poNumber: 'PO-EMPTY',
+        projectName: 'Bare Project',
+        status: 'DRAFT',
+        poType: null,
+        revision: null,
+        currency: null,
+        totalAmount: null,
+        paymentTermsDays: null,
+        deliveryLocationName: null,
+        plannedDeliveryDate: null,
+        deliveryNotes: null,
+        message: null,
+        deliveryResponsibleName: null,
+        deliveryResponsibleEmail: null,
+        vendor: null,
+        company: null,
+        approvedBy: null,
+        createdBy: null,
+        lineItems: [
+          {
+            materialName: null,
+            description: null,
+            quantityOrdered: 0,
+            unitOfMeasure: '',
+            unitPrice: null,
+            lineTotal: null,
+          },
+        ],
+        deliveries: [
+          { sequence: null, deliveryLocationName: null, deliveryDate: null, notes: null },
+        ],
+        createdAt: '2026-06-01T00:00:00.000Z',
+      };
+
+      const options = service.buildPoPdfOptions(emptyPo as never);
+
+      // currency falls back to AUD; money(null) → "$0.00 AUD"
+      expect(options.totalRow).toEqual({ label: 'Total Amount', value: '$0.00 AUD' });
+      // vendor/company/type fall back to em-dash / STANDARD
+      expect(options.infoRight?.lines).toEqual(['—']);
+      expect(options.infoLeft?.lines).toEqual(
+        expect.arrayContaining(['Type: Standard', 'Buyer: —']),
+      );
+      // no payment terms / deliver-to → those vendor lines are omitted
+      expect(options.infoRight?.lines).toHaveLength(1);
+      // empty line item → blank Item, money(null) totals
+      expect(options.rows[0]).toEqual({
+        Item: '',
+        Qty: '0',
+        Unit: '',
+        'Unit Price': '$0.00 AUD',
+        Total: '$0.00 AUD',
+      });
+      // delivery row with null fields → sequence index, em-dashes, blank notes
+      const section = options.sections?.find((s) => s.label === 'Delivery Schedule');
+      expect(section?.emptyText).toBe('No delivery schedule specified.');
+      expect(section?.rows[0]).toEqual({ '#': '1', Location: '—', Date: '—', Notes: '' });
+      // terms with every optional empty → all blank lines
+      expect(options.terms?.lines).toEqual(['', '', '', '']);
+      // no approver/creator → buyer signature name is undefined
+      expect(options.signatures?.[0]).toEqual({ label: 'Authorised by (Buyer)', name: undefined });
+    });
+
+    // Covers the nullish-collection fallbacks (lineItems/deliveries undefined) and
+    // a delivery contact that has a name but no email.
+    it('handles missing line-item/delivery arrays and a contact without an email', () => {
+      const noCollectionsPo = {
+        poNumber: 'PO-NOCOLL',
+        projectName: 'Sparse',
+        status: 'DRAFT',
+        currency: 'AUD',
+        totalAmount: 0,
+        deliveryResponsibleName: 'Jordan Contact',
+        deliveryResponsibleEmail: null,
+        lineItems: undefined,
+        deliveries: undefined,
+        createdAt: '2026-06-01T00:00:00.000Z',
+      };
+
+      const options = service.buildPoPdfOptions(noCollectionsPo as never);
+
+      expect(options.rows).toEqual([]);
+      const section = options.sections?.find((s) => s.label === 'Delivery Schedule');
+      expect(section?.rows).toEqual([]);
+      // contact name present, email absent → no parenthesised email suffix
+      expect(options.terms?.lines).toEqual(
+        expect.arrayContaining(['Delivery contact: Jordan Contact']),
+      );
+    });
   });
 });

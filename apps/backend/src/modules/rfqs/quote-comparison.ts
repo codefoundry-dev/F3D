@@ -1,14 +1,16 @@
 import { QuoteLineItemAvailability } from '@prisma/client';
 
 /**
- * FOR-208 — Quote comparison aggregation.
+ * FOR-208 / US 5.06 — Quote comparison aggregation.
  *
  * Pure, side-effect-free transforms that turn the RFQ + its received quotes into
  * the side-by-side comparison grid surfaced on the RFQ detail view: rows are RFQ
- * line items, columns are vendors, each cell carries the vendor's unit price and
- * extended cost (qty × unit) for that line, the lowest extended cost per row is
- * flagged, and each vendor gets a column total. Kept free of Prisma/Nest so the
- * aggregation + highlight logic can be unit-tested in isolation.
+ * line items, columns are vendors, each cell carries the vendor's unit price,
+ * line total (with tax), discount, delivery date, per-line review status and
+ * substitute info, the lowest line total per row is flagged, and each vendor
+ * gets a footer total (with taxes, shipment & handling and overall discount).
+ * Kept free of Prisma/Nest so the aggregation + highlight logic can be
+ * unit-tested in isolation.
  */
 
 /** A vendor cell is excluded from totals / lowest-price comparison when it carries no real quote. */
@@ -21,14 +23,25 @@ export interface ComparisonRfqLineItemInput {
   materialName: string | null;
   quantity: number;
   unit: string;
+  /** Line-level project (US 5.05 multi-project RFQs); null falls back to the RFQ's primary project. */
+  projectId: string | null;
+  projectName: string | null;
 }
 
 export interface ComparisonQuoteLineItemInput {
+  id: string;
   rfqLineItemId: string;
   unitPrice: number;
   quotedQuantity: number;
   availability: QuoteLineItemAvailability;
   deliveryDate: Date | string | null;
+  discount: number | null;
+  discountType: string | null;
+  lineTotal: number;
+  status: string;
+  notes: string | null;
+  substituteItemId: string | null;
+  substituteItemName: string | null;
 }
 
 export interface ComparisonQuoteInput {
@@ -39,12 +52,19 @@ export interface ComparisonQuoteInput {
   submittedAt: Date | string | null;
   paymentTerms: string | null;
   bulkDeliveryTime: Date | string | null;
+  totalCost: number;
+  discountPercent: number | null;
+  discountAmount: number | null;
+  bulkShipment: number | null;
+  attachmentCount: number;
   lineItems: ComparisonQuoteLineItemInput[];
 }
 
 export interface ComparisonRfqInput {
   id: string;
   currency: string;
+  projectId: string;
+  projectName: string;
   lineItems: ComparisonRfqLineItemInput[];
 }
 
@@ -61,6 +81,16 @@ export interface QuoteComparisonVendor {
   leadTimeDate: string | null;
   /** Sum of extended costs across all lines the vendor actually quoted. */
   total: number;
+  /** Vendor-submitted quote total (taxes, shipment and discounts applied). */
+  totalWithTaxes: number;
+  /** Overall quote discount, as submitted by the vendor. */
+  discountPercent: number | null;
+  discountAmount: number | null;
+  /** Shipment & handling charge for the whole quote. */
+  shipmentAndHandling: number | null;
+  attachmentCount: number;
+  /** True when the vendor left a note on the quote or any of its lines. */
+  hasNotes: boolean;
   itemsCovered: number;
   totalItems: number;
 }
@@ -68,14 +98,28 @@ export interface QuoteComparisonVendor {
 export interface QuoteComparisonCell {
   vendorId: string;
   quoteResponseId: string;
+  /** Quote line id — target for per-line approve/decline/restore (US 5.19). */
+  quoteLineItemId: string | null;
   unitPrice: number | null;
   quotedQuantity: number | null;
   /** qty × unit — null when the vendor did not quote this line. */
   extendedCost: number | null;
+  /** Vendor-computed line total with tax — null when the vendor did not quote this line. */
+  lineTotal: number | null;
+  /** Per-line discount as submitted (interpreted via discountType). */
+  discount: number | null;
+  discountType: string | null;
   availability: string | null;
   deliveryDate: string | null;
+  /** Per-line review status: PENDING | APPROVED | DECLINED. */
+  status: string | null;
+  /** Vendor note on the line (drives the note indicator). */
+  notes: string | null;
+  /** Set when the vendor quoted a substitute material for this line. */
+  substituteItemId: string | null;
+  substituteItemName: string | null;
   hasQuote: boolean;
-  /** True when this cell holds the lowest extended cost in its row. */
+  /** True when this cell holds the lowest line total in its row. */
   isLowest: boolean;
 }
 
@@ -84,8 +128,10 @@ export interface QuoteComparisonRow {
   materialName: string | null;
   quantity: number;
   unit: string;
+  projectId: string;
+  projectName: string;
   cells: QuoteComparisonCell[];
-  /** Vendor with the lowest extended cost for this line, or null when no one quoted it. */
+  /** Vendor with the lowest line total for this line, or null when no one quoted it. */
   lowestVendorId: string | null;
 }
 
@@ -154,25 +200,34 @@ export function buildQuoteComparison(
       return {
         vendorId: quote.vendorId,
         quoteResponseId: quote.id,
+        quoteLineItemId: line?.id ?? null,
         unitPrice: line !== null && real ? line.unitPrice : null,
         quotedQuantity: line !== null && real ? line.quotedQuantity : null,
         extendedCost,
+        lineTotal: line !== null && real ? line.lineTotal : null,
+        discount: line !== null && real ? line.discount : null,
+        discountType: line !== null && real ? line.discountType : null,
         availability: line !== null ? String(line.availability) : null,
         deliveryDate: line !== null ? toIso(line.deliveryDate) : null,
+        status: line !== null ? line.status : null,
+        notes: line !== null ? line.notes : null,
+        substituteItemId: line !== null ? line.substituteItemId : null,
+        substituteItemName: line !== null ? line.substituteItemName : null,
         hasQuote: real,
         isLowest: false,
       };
     });
 
-    // Flag the lowest extended cost in the row (ties highlight every matching cell).
-    const pricedCosts = cells
-      .map((c) => c.extendedCost)
-      .filter((cost): cost is number => cost !== null);
+    // Flag the lowest line total in the row (ties highlight every matching cell).
+    // Falls back to extended cost when the vendor-computed line total is missing.
+    const priceOf = (c: QuoteComparisonCell) => c.lineTotal ?? c.extendedCost;
+    const pricedCosts = cells.map(priceOf).filter((cost): cost is number => cost !== null);
     let lowestVendorId: string | null = null;
     if (pricedCosts.length > 0) {
       const min = Math.min(...pricedCosts);
       for (const cell of cells) {
-        if (cell.extendedCost !== null && cell.extendedCost === min) {
+        const cost = priceOf(cell);
+        if (cost !== null && cost === min) {
           cell.isLowest = true;
           lowestVendorId ??= cell.vendorId;
         }
@@ -184,6 +239,8 @@ export function buildQuoteComparison(
       materialName: rfqLine.materialName,
       quantity: rfqLine.quantity,
       unit: rfqLine.unit,
+      projectId: rfqLine.projectId ?? rfq.projectId,
+      projectName: rfqLine.projectName ?? rfq.projectName,
       cells,
       lowestVendorId,
     };
@@ -199,6 +256,12 @@ export function buildQuoteComparison(
     paymentTerms: quote.paymentTerms,
     leadTimeDate: vendorLeadTime(quote),
     total: vendorTotals.get(quote.vendorId) ?? 0,
+    totalWithTaxes: quote.totalCost,
+    discountPercent: quote.discountPercent,
+    discountAmount: quote.discountAmount,
+    shipmentAndHandling: quote.bulkShipment,
+    attachmentCount: quote.attachmentCount,
+    hasNotes: quote.lineItems.some((li) => li.notes !== null && li.notes !== ''),
     itemsCovered: vendorCovered.get(quote.vendorId) ?? 0,
     totalItems,
   }));

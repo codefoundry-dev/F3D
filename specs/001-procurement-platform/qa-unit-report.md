@@ -991,3 +991,38 @@ T923)
 | po-status.service.ts     | Import order (sibling vs parent groups)                 |
 | vendor-invite.service.ts | Non-null assertion → nullish coalescing                 |
 | DatePicker.tsx           | Import order + useEffect dependency (`normalizedValue`) |
+
+---
+
+### US-5.05 — RFQ Creation Wizard (T752) — added 2026-06-11
+
+| Test File                         | Tests | Description                                                | Status |
+| --------------------------------- | ----- | ---------------------------------------------------------- | ------ |
+| CreateRfqPage.test.tsx            | —     | 4-step wizard: steps, validation, draft save, send         | PASS   |
+| wizard-types.test.ts              | —     | Wizard state/line-item derivation helpers                  | PASS   |
+| availability.test.ts              | —     | Bulk-coverage availability step logic                      | PASS   |
+| rfq-availability.service.spec.ts  | 9     | Backend check-availability + confirm-coverage (drawdowns)  | PASS   |
+| rfq-line-item.util.spec.ts        | —     | Per-line project/delivery field mapping (US 5.05)          | PASS   |
+
+Backend suite: 94 suites / 1716 tests green. Web suite: 157 suites / 1578 tests green (full runs
+2026-06-11).
+
+**Lint fixes (pre-commit baseline):** material-lists.service.ts (unnecessary type assertion +
+unused type alias removed), rfq-availability.service.ts (4 non-null assertions → guarded lookups).
+
+### US-5.06 / US-5.19 — Review Quotes (T407, T747, T753) — added 2026-06-11
+
+| Test File                            | Tests | Description                                                      | Status |
+| ------------------------------------ | ----- | ---------------------------------------------------------------- | ------ |
+| QuoteComparisonTable.test.tsx        | 11    | Vendor groups, not-quoted, footer totals, line approve, hide     | PASS   |
+|                                      |       | vendor, grouping+subtotals, declined restore/select, approved    |        |
+|                                      |       | order column + Create PO modal, table management, approve prompt |        |
+| QuoteResponseDetailShared.test.tsx   | 6     | Quote lines pricing, suggestion-replace render + approve, totals | PASS   |
+|                                      |       | footer, attachments tab, panel back navigation                   |        |
+| quote-comparison.spec.ts (backend)   | 13    | Extended builder: line totals, projects, statuses, substitutes,  | PASS   |
+|                                      |       | vendor footer fields (rewritten fixtures)                        |        |
+| quote-response.service.spec.ts       | +6    | updateQuoteLineItemStatuses: update+audit, scoping, access       | PASS   |
+| rfqs.service.spec.ts                 | +1    | approveQuote accepts SUBMITTED quotes (US 5.06 review path)      | PASS   |
+
+Visual verification: 17-shot Playwright harness vs Figma 5.06 frames (route-mocked, buyer role) —
+list/table views, declined/approved filters, modals, panel drill-in all match.
