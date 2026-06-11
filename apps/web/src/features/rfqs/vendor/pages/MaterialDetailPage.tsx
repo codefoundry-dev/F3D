@@ -53,7 +53,10 @@ export default function MaterialDetailPage() {
           {data.categoryName && (
             <DetailField label={t('materialDetail.category')} value={data.categoryName} />
           )}
-          <DetailField label={t('materialDetail.uom')} value={data.unitOfMeasure} />
+          <DetailField
+            label={t('materialDetail.uom')}
+            value={data.uom ?? data.unitOfMeasure ?? '—'}
+          />
           {data.status && <DetailField label={t('materialDetail.status')} value={data.status} />}
         </div>
 

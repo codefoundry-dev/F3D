@@ -1,7 +1,14 @@
 export { default as MaterialCataloguePage } from './pages/MaterialCataloguePage';
+export { default as MaterialDetailPage } from './pages/MaterialDetailPage';
 export { CatalogueImportModal } from './components/CatalogueImportModal';
 export type { CatalogueImportModalProps } from './components/CatalogueImportModal';
 export { CatalogueReviewTable } from './components/CatalogueReviewTable';
 export type { CatalogueReviewTableProps } from './components/CatalogueReviewTable';
-export { useMaterials } from './hooks/useMaterials';
+export { MaterialTable } from './components/MaterialTable';
+export { PendingApprovalList } from './components/PendingApprovalList';
+export { ConfirmMaterialModal } from './components/ConfirmMaterialModal';
+export { MaterialStatusBadge } from './components/MaterialStatusBadge';
+export { useMaterials, useMaterialCategories } from './hooks/useMaterials';
+export { useMaterial } from './hooks/useMaterial';
+export { useMaterialMutations } from './hooks/useMaterialMutations';
 export { useCatalogueImport } from './hooks/useCatalogueImport';

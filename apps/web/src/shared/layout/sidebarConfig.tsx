@@ -33,6 +33,10 @@ const ALL_INTERNAL: readonly UserRole[] = [
 
 const BUYER_SIDE: readonly UserRole[] = [UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER];
 
+// Material catalogue is owned by the super-admin (public catalogue + approvals)
+// and also visible to buyer roles (US 4.01).
+const CATALOGUE_VIEWERS: readonly UserRole[] = [UserRole.SUPER_ADMIN, ...BUYER_SIDE];
+
 const RFQ_VIEWERS: readonly UserRole[] = [...BUYER_SIDE, UserRole.VENDOR];
 const PO_VIEWERS = RFQ_VIEWERS;
 const BULK_VIEWERS = RFQ_VIEWERS;
@@ -90,7 +94,7 @@ export function getSidebarItemsForRole(
       icon: <MaterialCatalogueIcon className="w-5 h-5" />,
       label: labels.materialCatalogue,
       href: ROUTES.materialCatalogue,
-      roles: BUYER_SIDE,
+      roles: CATALOGUE_VIEWERS,
     },
     {
       icon: <SettingsIcon className="w-5 h-5" />,

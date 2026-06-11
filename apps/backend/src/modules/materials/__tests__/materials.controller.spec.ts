@@ -5,6 +5,16 @@ const mockService = {
   listCategories: jest.fn(),
   suggestions: jest.fn(),
   createMaterial: jest.fn(),
+  getMaterialById: jest.fn(),
+  updateMaterial: jest.fn(),
+  deleteMaterial: jest.fn(),
+};
+
+const mockStatusService = {
+  approve: jest.fn(),
+  reject: jest.fn(),
+  archive: jest.fn(),
+  restore: jest.fn(),
 };
 
 const user = { id: 'u-1', email: 'u@test.com', role: 'COMPANY_ADMIN', companyId: 'c-1' };
@@ -14,7 +24,7 @@ describe('MaterialsController', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new MaterialsController(mockService as never);
+    controller = new MaterialsController(mockService as never, mockStatusService as never);
   });
 
   it('listMaterials delegates to service', async () => {
@@ -59,5 +69,70 @@ describe('MaterialsController', () => {
     const result = await controller.createMaterial(dto as never, user as never);
     expect(result).toBe(expected);
     expect(mockService.createMaterial).toHaveBeenCalledWith(dto, user);
+  });
+
+  it('getMaterial delegates to service', async () => {
+    const expected = { id: 'm-1' };
+    mockService.getMaterialById.mockResolvedValue(expected);
+
+    const result = await controller.getMaterial('m-1', user as never);
+    expect(result).toBe(expected);
+    expect(mockService.getMaterialById).toHaveBeenCalledWith('m-1', user);
+  });
+
+  it('updateMaterial delegates to service', async () => {
+    const dto = { description: 'Updated' };
+    const expected = { id: 'm-1', description: 'Updated' };
+    mockService.updateMaterial.mockResolvedValue(expected);
+
+    const result = await controller.updateMaterial('m-1', dto as never, user as never);
+    expect(result).toBe(expected);
+    expect(mockService.updateMaterial).toHaveBeenCalledWith('m-1', dto, user);
+  });
+
+  it('deleteMaterial delegates to service', async () => {
+    const expected = { success: true };
+    mockService.deleteMaterial.mockResolvedValue(expected);
+
+    const result = await controller.deleteMaterial('m-1', user as never);
+    expect(result).toBe(expected);
+    expect(mockService.deleteMaterial).toHaveBeenCalledWith('m-1', user);
+  });
+
+  it('approveMaterial delegates to status service', async () => {
+    const expected = { id: 'm-1', status: 'PUBLIC' };
+    mockStatusService.approve.mockResolvedValue(expected);
+
+    const result = await controller.approveMaterial('m-1', user as never);
+    expect(result).toBe(expected);
+    expect(mockStatusService.approve).toHaveBeenCalledWith('m-1', user);
+  });
+
+  it('rejectMaterial delegates to status service with body', async () => {
+    const dto = { reason: 'Bad data' };
+    const expected = { id: 'm-1', status: 'ARCHIVED' };
+    mockStatusService.reject.mockResolvedValue(expected);
+
+    const result = await controller.rejectMaterial('m-1', dto as never, user as never);
+    expect(result).toBe(expected);
+    expect(mockStatusService.reject).toHaveBeenCalledWith('m-1', dto, user);
+  });
+
+  it('archiveMaterial delegates to status service', async () => {
+    const expected = { id: 'm-1', status: 'ARCHIVED' };
+    mockStatusService.archive.mockResolvedValue(expected);
+
+    const result = await controller.archiveMaterial('m-1', user as never);
+    expect(result).toBe(expected);
+    expect(mockStatusService.archive).toHaveBeenCalledWith('m-1', user);
+  });
+
+  it('restoreMaterial delegates to status service', async () => {
+    const expected = { id: 'm-1', status: 'PUBLIC' };
+    mockStatusService.restore.mockResolvedValue(expected);
+
+    const result = await controller.restoreMaterial('m-1', user as never);
+    expect(result).toBe(expected);
+    expect(mockStatusService.restore).toHaveBeenCalledWith('m-1', user);
   });
 });

@@ -185,6 +185,9 @@ export const ERR = {
   materials: {
     notFound: errors.materials.notFound,
     duplicateName: errors.materials.duplicateName,
+    referenced: (count: number) => t(errors.materials.referenced, { count }),
+    invalidStatusTransition: (status: string) =>
+      t(errors.materials.invalidStatusTransition, { status }),
   },
 
   // ── Material lists (US 5.05) ───────────────────────────────

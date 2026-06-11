@@ -62,6 +62,10 @@ export const ROUTES = {
   vendorNew: '/vendors/new',
   vendorDetail: '/vendors/:id',
   materialCatalogue: '/material-catalogue',
+  materialCatalogueNew: '/material-catalogue/new',
+  materialCatalogueUpload: '/material-catalogue/upload',
+  materialCatalogueDetail: '/material-catalogue/:id',
+  materialCatalogueEdit: '/material-catalogue/:id/edit',
   materialDetail: '/materials/:id',
 
   // ── Companies (super-admin) ────────────────────────────────────────

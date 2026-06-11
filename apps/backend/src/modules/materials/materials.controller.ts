@@ -2,20 +2,37 @@ import {
   CatalogueImportRequestDto,
   CreateMaterialDto,
   MaterialListQueryDto,
+  RejectMaterialDto,
+  UpdateMaterialDto,
 } from '@forethread/shared-types';
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/permissions';
 
+import { MaterialStatusService } from './material-status.service';
 import { MaterialsService } from './materials.service';
 
 @ApiTags('Materials')
 @ApiBearerAuth()
 @Controller('materials')
 export class MaterialsController {
-  constructor(private readonly materialsService: MaterialsService) {}
+  constructor(
+    private readonly materialsService: MaterialsService,
+    private readonly materialStatusService: MaterialStatusService,
+  ) {}
 
   // ── GET /v1/materials ───────────────────────────────────────────────────────
 
@@ -31,6 +48,8 @@ export class MaterialsController {
   }
 
   // ── GET /v1/materials/categories ────────────────────────────────────────────
+  // NOTE: static routes MUST stay declared before the `:id` routes below so the
+  // router does not match `/categories`, `/suggestions`, etc. as an `:id`.
 
   @Get('categories')
   @RequirePermissions('material.listCategories')
@@ -75,5 +94,87 @@ export class MaterialsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.materialsService.importCatalogueFromExtraction(dto.extractionId, user);
+  }
+
+  // ── GET /v1/materials/:id ─────────────────────────────────────────────────────
+
+  @Get(':id')
+  @RequirePermissions('material.read')
+  @ApiOperation({ summary: 'Read a single material' })
+  @ApiResponse({ status: 200, description: 'Material detail' })
+  @ApiResponse({ status: 404, description: 'Material not found' })
+  async getMaterial(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.materialsService.getMaterialById(id, user);
+  }
+
+  // ── PATCH /v1/materials/:id ────────────────────────────────────────────────────
+
+  @Patch(':id')
+  @RequirePermissions('material.update')
+  @ApiOperation({ summary: 'Update a material' })
+  @ApiResponse({ status: 200, description: 'Material updated' })
+  @ApiResponse({ status: 404, description: 'Material not found' })
+  @ApiResponse({ status: 409, description: 'Duplicate material name' })
+  async updateMaterial(
+    @Param('id') id: string,
+    @Body() dto: UpdateMaterialDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.materialsService.updateMaterial(id, dto, user);
+  }
+
+  // ── PATCH /v1/materials/:id/approve ────────────────────────────────────────────
+
+  @Patch(':id/approve')
+  @RequirePermissions('material.approve')
+  @ApiOperation({ summary: 'Approve a pending material (→ PUBLIC)' })
+  @ApiResponse({ status: 200, description: 'Material approved' })
+  async approveMaterial(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.materialStatusService.approve(id, user);
+  }
+
+  // ── PATCH /v1/materials/:id/reject ─────────────────────────────────────────────
+
+  @Patch(':id/reject')
+  @RequirePermissions('material.reject')
+  @ApiOperation({ summary: 'Reject a pending material (→ ARCHIVED)' })
+  @ApiResponse({ status: 200, description: 'Material rejected' })
+  async rejectMaterial(
+    @Param('id') id: string,
+    @Body() dto: RejectMaterialDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.materialStatusService.reject(id, dto, user);
+  }
+
+  // ── PATCH /v1/materials/:id/archive ────────────────────────────────────────────
+
+  @Patch(':id/archive')
+  @RequirePermissions('material.archive')
+  @ApiOperation({ summary: 'Archive a published material (→ ARCHIVED)' })
+  @ApiResponse({ status: 200, description: 'Material archived' })
+  async archiveMaterial(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.materialStatusService.archive(id, user);
+  }
+
+  // ── PATCH /v1/materials/:id/restore ────────────────────────────────────────────
+
+  @Patch(':id/restore')
+  @RequirePermissions('material.restore')
+  @ApiOperation({ summary: 'Restore an archived material (→ PUBLIC)' })
+  @ApiResponse({ status: 200, description: 'Material restored' })
+  async restoreMaterial(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.materialStatusService.restore(id, user);
+  }
+
+  // ── DELETE /v1/materials/:id ───────────────────────────────────────────────────
+
+  @Delete(':id')
+  @RequirePermissions('material.delete')
+  @ApiOperation({ summary: 'Delete a material (blocked when referenced)' })
+  @ApiResponse({ status: 200, description: 'Material deleted' })
+  @ApiResponse({ status: 409, description: 'Material is referenced by documents' })
+  async deleteMaterial(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.materialsService.deleteMaterial(id, user);
   }
 }

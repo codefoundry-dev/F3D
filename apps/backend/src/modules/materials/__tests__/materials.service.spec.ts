@@ -7,15 +7,22 @@ const mockPrisma = {
   material: {
     findMany: jest.fn(),
     findFirst: jest.fn(),
+    findUnique: jest.fn(),
     count: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    delete: jest.fn(),
   },
   materialCategory: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
     create: jest.fn(),
   },
+  poLineItem: { count: jest.fn() },
+  rfqLineItem: { count: jest.fn() },
+  quoteResponseLineItem: { count: jest.fn() },
+  bomItem: { count: jest.fn() },
+  materialListItem: { count: jest.fn() },
   docExtraction: {
     findUnique: jest.fn(),
     update: jest.fn(),
@@ -56,6 +63,7 @@ describe('MaterialsService', () => {
 
     it('returns paginated list with mapped items', async () => {
       const now = new Date('2026-03-01T10:00:00Z');
+      const updated = new Date('2026-03-02T10:00:00Z');
       mockPrisma.material.findMany.mockResolvedValue([
         {
           id: 'm-1',
@@ -65,8 +73,18 @@ describe('MaterialsService', () => {
           upc: '1234567890',
           manufacturer: 'SteelCo',
           description: 'A steel rebar',
+          sku: 'SKU-1',
+          brand: 'SteelCo',
+          manufacturerPartNumber: 'MPN-1',
+          subCategory: 'Bars',
+          imageUrl: null,
+          materialType: 'Bar',
+          countryOfOrigin: 'AU',
+          pricePerUnit: { toString: () => '12.5000' },
+          currency: 'AUD',
           status: MaterialStatus.PUBLIC,
           createdAt: now,
+          updatedAt: updated,
         },
       ]);
       mockPrisma.material.count.mockResolvedValue(1);
@@ -86,8 +104,18 @@ describe('MaterialsService', () => {
         upc: '1234567890',
         manufacturer: 'SteelCo',
         description: 'A steel rebar',
+        sku: 'SKU-1',
+        brand: 'SteelCo',
+        manufacturerPartNumber: 'MPN-1',
+        subCategory: 'Bars',
+        imageUrl: null,
+        materialType: 'Bar',
+        countryOfOrigin: 'AU',
+        pricePerUnit: '12.5000',
+        currency: 'AUD',
         status: MaterialStatus.PUBLIC,
         createdAt: now.toISOString(),
+        updatedAt: updated.toISOString(),
       });
       expect(result.meta).toBeDefined();
     });
@@ -237,6 +265,7 @@ describe('MaterialsService', () => {
         description: 'A material',
         status: MaterialStatus.PUBLIC,
         createdAt: now,
+        updatedAt: now,
       });
 
       const result = await service.createMaterial(dto as never, superAdmin);
@@ -260,6 +289,7 @@ describe('MaterialsService', () => {
         description: null,
         status: MaterialStatus.PENDING_APPROVAL,
         createdAt: new Date(),
+        updatedAt: new Date(),
       });
 
       await service.createMaterial(dto as never, companyAdmin);
@@ -299,6 +329,7 @@ describe('MaterialsService', () => {
         description: null,
         status: MaterialStatus.PUBLIC,
         createdAt: new Date(),
+        updatedAt: new Date(),
       });
 
       await service.createMaterial(minDto as never, superAdmin);
@@ -601,6 +632,276 @@ describe('MaterialsService', () => {
 
       expect(summary.total).toBe(1);
       expect(summary.created).toBe(1);
+    });
+  });
+
+  // ── buildListWhere security clamp ──────────────────────────────────────────
+
+  describe('list status visibility (US 4.01 security)', () => {
+    beforeEach(() => {
+      mockPrisma.material.findMany.mockResolvedValue([]);
+      mockPrisma.material.count.mockResolvedValue(0);
+    });
+
+    it('clamps a non-SuperAdmin to PUBLIC even when an explicit status is passed', async () => {
+      await service.listMaterials(
+        { page: 1, take: 25, skip: 0, status: 'ARCHIVED' } as never,
+        companyAdmin,
+      );
+
+      const where = mockPrisma.material.findMany.mock.calls[0][0].where;
+      expect(where.status).toBe(MaterialStatus.PUBLIC);
+    });
+
+    it('honours an explicit status for SuperAdmin', async () => {
+      await service.listMaterials(
+        { page: 1, take: 25, skip: 0, status: 'ARCHIVED' } as never,
+        superAdmin,
+      );
+
+      const where = mockPrisma.material.findMany.mock.calls[0][0].where;
+      expect(where.status).toBe('ARCHIVED');
+    });
+
+    it('applies facet filters (manufacturer/uom/materialType/countryOfOrigin)', async () => {
+      await service.listMaterials(
+        {
+          page: 1,
+          take: 25,
+          skip: 0,
+          manufacturer: 'Acme',
+          uom: 'kg',
+          materialType: 'Steel',
+          countryOfOrigin: 'AU',
+        } as never,
+        superAdmin,
+      );
+
+      const where = mockPrisma.material.findMany.mock.calls[0][0].where;
+      expect(where.manufacturer).toEqual({ contains: 'Acme', mode: 'insensitive' });
+      expect(where.uom).toBe('kg');
+      expect(where.materialType).toBe('Steel');
+      expect(where.countryOfOrigin).toBe('AU');
+    });
+  });
+
+  // ── getMaterialById ────────────────────────────────────────────────────────
+
+  describe('getMaterialById', () => {
+    const publicMaterial = {
+      id: 'm-1',
+      name: 'Steel Rebar',
+      category: { id: 'cat-1', name: 'Steel' },
+      createdBy: { id: 'u-1', name: 'Jane Admin' },
+      uom: 'kg',
+      upc: null,
+      manufacturer: null,
+      description: null,
+      sku: null,
+      brand: null,
+      manufacturerPartNumber: null,
+      subCategory: null,
+      imageUrl: null,
+      materialType: null,
+      itemType: null,
+      countryOfOrigin: null,
+      manufacturerSeriesModel: null,
+      gradeClass: null,
+      standardNorm: null,
+      colourFinish: null,
+      size: null,
+      pricePerUnit: { toString: () => '12.5000' },
+      currency: 'AUD',
+      dimensions: null,
+      properties: null,
+      status: MaterialStatus.PUBLIC,
+      createdAt: new Date('2026-03-01T10:00:00Z'),
+      updatedAt: new Date('2026-03-02T10:00:00Z'),
+    };
+
+    it('returns the detail shape for a public material', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue(publicMaterial);
+
+      const result = await service.getMaterialById('m-1', companyAdmin);
+
+      expect(result.id).toBe('m-1');
+      expect(result.categoryName).toBe('Steel');
+      expect(result.pricePerUnit).toBe('12.5000');
+      expect(result.createdBy).toEqual({ id: 'u-1', name: 'Jane Admin' });
+    });
+
+    it('throws NotFound when the material does not exist', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue(null);
+      await expect(service.getMaterialById('missing', superAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws NotFound (not leak) for a non-public material requested by a non-SuperAdmin', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({
+        ...publicMaterial,
+        status: MaterialStatus.PENDING_APPROVAL,
+      });
+      await expect(service.getMaterialById('m-1', companyAdmin)).rejects.toThrow(NotFoundException);
+    });
+
+    it('allows a SuperAdmin to read a non-public material', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({
+        ...publicMaterial,
+        status: MaterialStatus.PENDING_APPROVAL,
+      });
+      const result = await service.getMaterialById('m-1', superAdmin);
+      expect(result.status).toBe(MaterialStatus.PENDING_APPROVAL);
+    });
+  });
+
+  // ── updateMaterial ─────────────────────────────────────────────────────────
+
+  describe('updateMaterial', () => {
+    const loaded = {
+      id: 'm-1',
+      name: 'Steel Rebar',
+      category: { id: 'cat-1', name: 'Steel' },
+      createdBy: { id: 'u-1', name: 'Jane Admin' },
+      uom: 'kg',
+      upc: null,
+      manufacturer: null,
+      description: null,
+      sku: null,
+      brand: null,
+      manufacturerPartNumber: null,
+      subCategory: null,
+      imageUrl: null,
+      materialType: null,
+      itemType: null,
+      countryOfOrigin: null,
+      manufacturerSeriesModel: null,
+      gradeClass: null,
+      standardNorm: null,
+      colourFinish: null,
+      size: null,
+      pricePerUnit: null,
+      currency: 'AUD',
+      dimensions: null,
+      properties: null,
+      status: MaterialStatus.PUBLIC,
+      createdAt: new Date('2026-03-01T10:00:00Z'),
+      updatedAt: new Date('2026-03-02T10:00:00Z'),
+    };
+
+    it('throws Forbidden for a non-SuperAdmin (Phase 1 is SuperAdmin-only)', async () => {
+      await expect(
+        service.updateMaterial('m-1', { description: 'x' }, companyAdmin),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.material.update).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFound when the material does not exist', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateMaterial('missing', { description: 'x' }, superAdmin),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('applies only the supplied fields and returns the detail shape', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({ ...loaded });
+      mockPrisma.material.update.mockResolvedValue({
+        ...loaded,
+        description: 'Updated',
+        materialType: 'Bar',
+      });
+
+      const result = await service.updateMaterial(
+        'm-1',
+        { description: 'Updated', materialType: 'Bar' },
+        superAdmin,
+      );
+
+      const data = mockPrisma.material.update.mock.calls[0][0].data;
+      expect(data).toEqual({ description: 'Updated', materialType: 'Bar' });
+      expect(data.name).toBeUndefined();
+      expect(result.description).toBe('Updated');
+      expect(result.materialType).toBe('Bar');
+    });
+
+    it('connects a new category when categoryId is provided and valid', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({ ...loaded });
+      mockPrisma.materialCategory.findUnique.mockResolvedValue({ id: 'cat-2', name: 'Timber' });
+      mockPrisma.material.update.mockResolvedValue({
+        ...loaded,
+        category: { id: 'cat-2', name: 'Timber' },
+      });
+
+      await service.updateMaterial('m-1', { categoryId: 'cat-2' }, superAdmin);
+
+      const data = mockPrisma.material.update.mock.calls[0][0].data;
+      expect(data.category).toEqual({ connect: { id: 'cat-2' } });
+    });
+
+    it('throws NotFound when the new category does not exist', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({ ...loaded });
+      mockPrisma.materialCategory.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateMaterial('m-1', { categoryId: 'cat-missing' }, superAdmin),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws Conflict on a case-insensitive duplicate rename (excluding self)', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({ ...loaded });
+      mockPrisma.material.findFirst.mockResolvedValue({ id: 'other' });
+      await expect(
+        service.updateMaterial('m-1', { name: 'STEEL REBAR 2' }, superAdmin),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('does not re-check duplicates when the name is unchanged (case-insensitive)', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({ ...loaded });
+      mockPrisma.material.update.mockResolvedValue({ ...loaded });
+      await service.updateMaterial('m-1', { name: 'steel rebar' }, superAdmin);
+      expect(mockPrisma.material.findFirst).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── deleteMaterial ─────────────────────────────────────────────────────────
+
+  describe('deleteMaterial', () => {
+    const noReferences = () => {
+      mockPrisma.poLineItem.count.mockResolvedValue(0);
+      mockPrisma.rfqLineItem.count.mockResolvedValue(0);
+      mockPrisma.quoteResponseLineItem.count.mockResolvedValue(0);
+      mockPrisma.bomItem.count.mockResolvedValue(0);
+      mockPrisma.materialListItem.count.mockResolvedValue(0);
+    };
+
+    it('throws Forbidden for a non-SuperAdmin', async () => {
+      await expect(service.deleteMaterial('m-1', companyAdmin)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws NotFound when the material does not exist', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue(null);
+      await expect(service.deleteMaterial('missing', superAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws Conflict when the material is referenced by any document', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({ id: 'm-1' });
+      noReferences();
+      mockPrisma.rfqLineItem.count.mockResolvedValue(2);
+
+      await expect(service.deleteMaterial('m-1', superAdmin)).rejects.toThrow(ConflictException);
+      expect(mockPrisma.material.delete).not.toHaveBeenCalled();
+    });
+
+    it('deletes when the material has no references', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({ id: 'm-1' });
+      noReferences();
+      mockPrisma.material.delete.mockResolvedValue({});
+
+      const result = await service.deleteMaterial('m-1', superAdmin);
+
+      expect(mockPrisma.material.delete).toHaveBeenCalledWith({ where: { id: 'm-1' } });
+      expect(result).toEqual({ success: true });
     });
   });
 });

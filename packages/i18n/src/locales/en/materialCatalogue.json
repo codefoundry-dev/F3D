@@ -1,10 +1,10 @@
 {
   "page": {
-    "title": "Material catalogue",
-    "subtitle": "Browse the catalogue and import materials in bulk.",
+    "title": "Material Catalogue",
+    "subtitle": "Manage materials, categories, and pricing",
     "importButton": "Import catalogue",
     "searchLabel": "Search materials",
-    "searchPlaceholder": "Search by name or SKU",
+    "searchPlaceholder": "Search",
     "loading": "Loading materials…",
     "error": "Could not load the catalogue. Please try again.",
     "empty": "Your catalogue is empty. Import a spreadsheet to get started.",
@@ -15,6 +15,147 @@
       "brand": "Brand",
       "category": "Category",
       "uom": "UoM"
+    }
+  },
+  "tabs": {
+    "public": "Public Materials",
+    "pending": "Pending Approval",
+    "archived": "Archived"
+  },
+  "actions": {
+    "createNew": "Create new",
+    "upload": "Upload",
+    "view": "View material",
+    "edit": "Edit material",
+    "archive": "Archive",
+    "restore": "Restore",
+    "delete": "Delete"
+  },
+  "filters": {
+    "allCategories": "All Categories",
+    "manufacturer": "Manufacturer",
+    "uom": "UoM",
+    "materialType": "Material type",
+    "countryOfOrigin": "Country of origin"
+  },
+  "status": {
+    "public": "Public",
+    "pending": "Pending",
+    "archived": "Archived"
+  },
+  "table": {
+    "loading": "Loading materials…",
+    "error": "Could not load the catalogue. Please try again.",
+    "empty": "No materials yet.",
+    "noResults": "No materials match your search.",
+    "sortBy": "Sort by {{column}}",
+    "columns": {
+      "material": "Material",
+      "category": "Category",
+      "materialType": "Material type",
+      "status": "Status",
+      "manufacturer": "Manufacturer",
+      "uom": "UOM",
+      "upc": "UPC",
+      "lastPrice": "Last Price",
+      "updated": "Updated",
+      "actions": "Actions"
+    }
+  },
+  "pending": {
+    "loading": "Loading pending materials…",
+    "error": "Could not load pending materials. Please try again.",
+    "empty": "No materials are waiting for approval.",
+    "newBadge": "New",
+    "publish": "Publish",
+    "reject": "Reject",
+    "meta": {
+      "category": "Category",
+      "materialType": "Material type",
+      "manufacturer": "Manufacturer",
+      "uom": "UOM",
+      "upc": "UPC",
+      "suggested": "Suggested",
+      "dateTime": "Time & date"
+    }
+  },
+  "pagination": {
+    "rowsPerPage": "Rows per page:",
+    "showing": "Showing {{from}} to {{to}} of {{total}} materials",
+    "back": "Back",
+    "next": "Next"
+  },
+  "confirm": {
+    "cancel": "Cancel",
+    "archive": {
+      "title": "Archive Material",
+      "body": "Are you sure you want to archive this material? It will be removed from active use but can be restored later if needed.",
+      "confirm": "Archive material"
+    },
+    "delete": {
+      "title": "Delete Material",
+      "body": "Are you sure you want to permanently delete this material? This action cannot be undone.",
+      "confirm": "Delete material"
+    },
+    "restore": {
+      "title": "Restore Material",
+      "body": "Are you sure you want to restore this material? It will be returned to active use in the catalogue.",
+      "confirm": "Restore material"
+    }
+  },
+  "toasts": {
+    "approved": "Material published.",
+    "approveFailed": "Could not publish the material.",
+    "rejected": "Material rejected.",
+    "rejectFailed": "Could not reject the material.",
+    "archived": "Material archived.",
+    "archiveFailed": "Could not archive the material.",
+    "restored": "Material restored.",
+    "restoreFailed": "Could not restore the material.",
+    "deleted": "Material deleted.",
+    "deleteFailed": "Could not delete the material."
+  },
+  "detail": {
+    "loading": "Loading material…",
+    "notFound": "This material could not be found.",
+    "back": "Back to catalogue",
+    "edit": "Edit",
+    "coreIdentification": "Core identification",
+    "additionalProperties": "Additional Properties",
+    "imagePlaceholder": "Image Placeholder",
+    "dimensions": "Dimensions",
+    "packaging": "Packaging & handling",
+    "specificData": "Specific data",
+    "fields": {
+      "internalId": "Internal ID",
+      "materialCode": "Material code",
+      "materialName": "Material Name",
+      "status": "Status",
+      "categories": "Categories",
+      "materialType": "Material type",
+      "unitOfMeasure": "Unit of Measure",
+      "itemType": "Item type",
+      "countryOfOrigin": "Country of origin",
+      "manufacturer": "Manufacturer / Brand",
+      "mpn": "Manufacturer Part Number (MPN)",
+      "seriesModel": "Manufacturer series / model",
+      "upc": "UPC",
+      "sku": "SKU",
+      "gradeClass": "Grade / class",
+      "colourFinish": "Colour / finish",
+      "size": "Size",
+      "pricePerUnit": "Price per Unit",
+      "lastModified": "Last modified",
+      "description": "Description",
+      "length": "Length",
+      "width": "Width",
+      "height": "Height",
+      "diameter": "Diameter",
+      "thickness": "Thickness",
+      "weightPerUnit": "Weight per unit",
+      "unitsPerPackage": "Units per package",
+      "packagingUnit": "Packaging unit",
+      "weightPerPackage": "Weight per package"
     }
   },
   "import": {

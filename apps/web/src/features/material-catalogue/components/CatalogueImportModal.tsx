@@ -109,8 +109,7 @@ export function CatalogueImportModal({ onClose, onImported }: CatalogueImportMod
   );
 
   const isUploading = create.isPending;
-  const isPolling =
-    !!job && (job.status === 'PENDING' || job.status === 'PROCESSING');
+  const isPolling = !!job && (job.status === 'PENDING' || job.status === 'PROCESSING');
   const isCompleted = job?.status === 'COMPLETED';
   const isFailed = job?.status === 'FAILED';
   const itemCount = draft?.items.length ?? 0;
