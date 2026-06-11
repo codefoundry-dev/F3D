@@ -23,6 +23,21 @@ export interface RecordOutboundInput extends EmailLogContext {
   providerMessageId?: string | null;
 }
 
+/**
+ * Payload for recording a send that the provider rejected (FOR-213). A failed
+ * send produces no provider message id and never receives delivery webhooks, so
+ * we persist a terminal FAILED row up front — otherwise a dropped email simply
+ * never appears on the log and looks like it was "never sent".
+ */
+export interface RecordFailedInput extends EmailLogContext {
+  template: string;
+  toEmail: string;
+  subject: string;
+  provider: 'RESEND' | 'SMTP';
+  /** Human-readable failure reason (provider code + message), surfaced on the tab. */
+  reason?: string | null;
+}
+
 /** A delivery event parsed from a Resend webhook, ready to be recorded (FOR-213). */
 export interface RecordEventInput {
   /** Resend message id (`data.email_id`) used to locate the outbound message. */

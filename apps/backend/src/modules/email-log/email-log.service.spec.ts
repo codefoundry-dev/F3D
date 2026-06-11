@@ -93,6 +93,51 @@ describe('EmailLogService', () => {
     });
   });
 
+  describe('recordFailed', () => {
+    it('creates a FAILED message carrying the reason and linkage, with no provider id', async () => {
+      prisma.emailMessage.create.mockResolvedValue({ id: 'em-failed' });
+
+      await service.recordFailed({
+        companyId: 'company-1',
+        rfqId: 'rfq-1',
+        template: 'rfq-received',
+        toEmail: 'vendor@acme.local',
+        subject: 'RFQ ABC',
+        provider: 'RESEND',
+        reason: 'RATE_LIMITED: Too many requests',
+        sentByUserId: 'user-1',
+      });
+
+      const arg = prisma.emailMessage.create.mock.calls[0][0] as DataArg;
+      expect(arg.data.status).toBe(EmailDeliveryStatus.FAILED);
+      expect(arg.data.bounceReason).toBe('RATE_LIMITED: Too many requests');
+      expect(arg.data.providerMessageId).toBeNull();
+      expect(arg.data.rfqId).toBe('rfq-1');
+      expect(arg.data.purchaseOrderId).toBeNull();
+      // A failed send never handed off, so there is no sentAt timestamp.
+      expect(arg.data.sentAt).toBeUndefined();
+    });
+
+    it('defaults an omitted reason to null', async () => {
+      prisma.emailMessage.create.mockResolvedValue({ id: 'em-failed-2' });
+
+      await service.recordFailed({
+        companyId: 'company-1',
+        purchaseOrderId: 'po-1',
+        template: 'po-issued',
+        toEmail: 'vendor@acme.local',
+        subject: 'PO-0001',
+        provider: 'SMTP',
+      });
+
+      const arg = prisma.emailMessage.create.mock.calls[0][0] as DataArg;
+      expect(arg.data.status).toBe(EmailDeliveryStatus.FAILED);
+      expect(arg.data.bounceReason).toBeNull();
+      expect(arg.data.purchaseOrderId).toBe('po-1');
+      expect(arg.data.rfqId).toBeNull();
+    });
+  });
+
   describe('recordEvent', () => {
     it('ignores events for an unknown message', async () => {
       tx.emailMessage.findUnique.mockResolvedValue(null);

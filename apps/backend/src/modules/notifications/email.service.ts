@@ -143,23 +143,46 @@ export class EmailService implements OnModuleInit {
         ...(message.attachments ? { attachments: message.attachments } : {}),
       });
       if (result.status === 'error') {
-        this.logger.warn(`Resend send failed [${result.code}]: ${result.message}`);
+        // The send is gone (retries already exhausted in ResendService). Log it
+        // loudly and persist a FAILED row so the dropped email is visible on the
+        // RFQ/PO log instead of silently missing (FOR-213).
+        const reason = `${result.code}: ${result.message}`;
+        this.logger.error(
+          `Resend send to ${message.to} failed: ${reason}${this.logSuffix(message)}`,
+        );
+        await this.recordFailure(message, 'RESEND', reason);
         return;
       }
       await this.recordOutbound(message, 'RESEND', result.id);
       return;
     }
 
-    await this.transporter.sendMail({
-      from: this.from,
-      to: message.to,
-      ...(hasCc ? { cc: message.cc } : {}),
-      subject: message.subject,
-      ...(message.html ? { html: message.html } : {}),
-      ...(message.text ? { text: message.text } : {}),
-      ...(message.attachments ? { attachments: message.attachments } : {}),
-    });
+    try {
+      await this.transporter.sendMail({
+        from: this.from,
+        to: message.to,
+        ...(hasCc ? { cc: message.cc } : {}),
+        subject: message.subject,
+        ...(message.html ? { html: message.html } : {}),
+        ...(message.text ? { text: message.text } : {}),
+        ...(message.attachments ? { attachments: message.attachments } : {}),
+      });
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      this.logger.error(`SMTP send to ${message.to} failed: ${reason}${this.logSuffix(message)}`);
+      await this.recordFailure(message, 'SMTP', reason);
+      return;
+    }
     await this.recordOutbound(message, 'SMTP', null);
+  }
+
+  /** RFQ/PO linkage suffix for failure logs, so a dropped send is traceable. */
+  private logSuffix(message: EmailMessage): string {
+    if (!message.log) return '';
+    const parts: string[] = [];
+    if (message.log.rfqId) parts.push(`rfqId=${message.log.rfqId}`);
+    if (message.log.purchaseOrderId) parts.push(`poId=${message.log.purchaseOrderId}`);
+    return parts.length > 0 ? ` (${parts.join(', ')})` : '';
   }
 
   /**
@@ -187,6 +210,36 @@ export class EmailService implements OnModuleInit {
     } catch (err) {
       this.logger.debug(
         `Failed to record outbound email log: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  /**
+   * Persist a terminal FAILED row for a send the transport rejected (FOR-213) so
+   * the dropped email shows on the RFQ/PO log with its reason, rather than just
+   * being absent. Only logged when the caller supplied linkage context, and
+   * best-effort: a logging failure must never surface over the (failed) send.
+   */
+  private async recordFailure(
+    message: EmailMessage,
+    provider: 'RESEND' | 'SMTP',
+    reason: string,
+  ): Promise<void> {
+    if (!message.log || !message.template) {
+      return;
+    }
+    try {
+      await this.emailLog.recordFailed({
+        ...message.log,
+        template: message.template,
+        toEmail: message.to,
+        subject: message.subject,
+        provider,
+        reason,
+      });
+    } catch (err) {
+      this.logger.debug(
+        `Failed to record failed email log: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }

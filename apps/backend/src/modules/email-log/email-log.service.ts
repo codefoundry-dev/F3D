@@ -16,7 +16,7 @@ import {
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 
-import { RecordEventInput, RecordOutboundInput } from './email-log.types';
+import { RecordEventInput, RecordFailedInput, RecordOutboundInput } from './email-log.types';
 
 /**
  * Significance ranking of delivery statuses (FOR-213). A status only advances when
@@ -79,6 +79,36 @@ export class EmailLogService {
         // still shows a sensible state.
         status: PrismaEmailDeliveryStatus.SENT,
         sentAt: new Date(),
+        lastEventAt: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Record a send the provider rejected (e.g. a Resend rate-limit that survived
+   * retries) as a terminal FAILED row (FOR-213). Without this a dropped send
+   * leaves no trace on the RFQ/PO log and is indistinguishable from one that was
+   * never attempted. The failure reason rides in `bounceReason` — the same field
+   * the log tab already renders for non-delivery — so it surfaces with no UI or
+   * schema change. Best-effort, like {@link recordOutbound}: the caller swallows
+   * rejections so logging never breaks the (already failed) send.
+   */
+  async recordFailed(input: RecordFailedInput): Promise<EmailMessage> {
+    return this.prisma.emailMessage.create({
+      data: {
+        companyId: input.companyId,
+        rfqId: input.rfqId ?? null,
+        purchaseOrderId: input.purchaseOrderId ?? null,
+        template: input.template,
+        toEmail: input.toEmail,
+        subject: input.subject,
+        provider: input.provider,
+        providerMessageId: null,
+        sentByUserId: input.sentByUserId ?? null,
+        status: PrismaEmailDeliveryStatus.FAILED,
+        bounceReason: input.reason ?? null,
+        // No successful hand-off, so there is no sentAt; lastEventAt marks when
+        // we gave up so the row sorts sensibly alongside the successful sends.
         lastEventAt: new Date(),
       },
     });
@@ -233,11 +263,13 @@ export class EmailLogService {
       bounceReason: message.bounceReason,
       lastEventAt: message.lastEventAt?.toISOString() ?? null,
       createdAt: message.createdAt.toISOString(),
-      events: message.events.map((e): EmailEventResponse => ({
-        id: e.id,
-        type: EmailEventType[e.type],
-        occurredAt: e.occurredAt.toISOString(),
-      })),
+      events: message.events.map(
+        (e): EmailEventResponse => ({
+          id: e.id,
+          type: EmailEventType[e.type],
+          occurredAt: e.occurredAt.toISOString(),
+        }),
+      ),
     };
   }
 }

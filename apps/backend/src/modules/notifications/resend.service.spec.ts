@@ -17,6 +17,9 @@ const buildConfig = (overrides: Record<string, unknown> = {}): jest.Mocked<Confi
       const config: Record<string, unknown> = {
         RESEND_API_KEY: 're_test_key',
         RESEND_FROM: 'sender@forethread.test',
+        // Zero backoff by default so retry loops don't add real wall-clock to the
+        // suite; tests that care about retry counts set RESEND_MAX_RETRIES.
+        RESEND_RETRY_BASE_MS: 0,
         ...overrides,
       };
       return key in config ? config[key] : defaultValue;
@@ -280,6 +283,75 @@ describe('ResendService', () => {
       await expect(
         service.send({ to: 'a@b.c', subject: 's', html: '<p>x</p>' }),
       ).resolves.toMatchObject({ status: 'error' });
+    });
+  });
+
+  describe('send — retry/backoff', () => {
+    // Zero base delay keeps the backoff timers instant so these run fast.
+    const retryConfig = (overrides: Record<string, unknown> = {}) =>
+      buildConfig({ RESEND_RETRY_BASE_MS: 0, RESEND_MAX_RETRIES: 3, ...overrides });
+
+    const rateLimited = {
+      data: null,
+      error: { name: 'rate_limit_exceeded', message: 'Too many requests', statusCode: 429 },
+    };
+
+    it('retries a rate-limited send and succeeds on the next attempt', async () => {
+      mockSend
+        .mockResolvedValueOnce(rateLimited)
+        .mockResolvedValueOnce({ data: { id: 'msg_ok' }, error: null });
+      const service = new ResendService(retryConfig());
+
+      const result = await service.send({ to: 'a@b.c', subject: 's', html: '<p>x</p>' });
+
+      expect(result).toEqual({ status: 'queued', id: 'msg_ok' });
+      expect(mockSend).toHaveBeenCalledTimes(2);
+    });
+
+    it('gives up with the failure after exhausting retries on a persistent rate limit', async () => {
+      mockSend.mockResolvedValue(rateLimited);
+      const service = new ResendService(retryConfig());
+
+      const result = await service.send({ to: 'a@b.c', subject: 's', html: '<p>x</p>' });
+
+      expect(result).toMatchObject({ status: 'error', code: 'RATE_LIMITED' });
+      // 1 initial attempt + 3 retries.
+      expect(mockSend).toHaveBeenCalledTimes(4);
+    });
+
+    it('retries a thrown upstream error then succeeds', async () => {
+      mockSend
+        .mockRejectedValueOnce(new Error('network down'))
+        .mockResolvedValueOnce({ data: { id: 'msg_ok2' }, error: null });
+      const service = new ResendService(retryConfig());
+
+      const result = await service.send({ to: 'a@b.c', subject: 's', html: '<p>x</p>' });
+
+      expect(result).toEqual({ status: 'queued', id: 'msg_ok2' });
+      expect(mockSend).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not retry a deterministic client error', async () => {
+      mockSend.mockResolvedValue({
+        data: null,
+        error: { name: 'validation_error', message: 'Subject is required', statusCode: 422 },
+      });
+      const service = new ResendService(retryConfig());
+
+      const result = await service.send({ to: 'a@b.c', subject: 's', html: '<p>x</p>' });
+
+      expect(result).toMatchObject({ status: 'error', code: 'INVALID_REQUEST' });
+      expect(mockSend).toHaveBeenCalledTimes(1);
+    });
+
+    it('honours RESEND_MAX_RETRIES=0 (single attempt, no retry)', async () => {
+      mockSend.mockResolvedValue(rateLimited);
+      const service = new ResendService(retryConfig({ RESEND_MAX_RETRIES: 0 }));
+
+      const result = await service.send({ to: 'a@b.c', subject: 's', html: '<p>x</p>' });
+
+      expect(result).toMatchObject({ status: 'error', code: 'RATE_LIMITED' });
+      expect(mockSend).toHaveBeenCalledTimes(1);
     });
   });
 });
