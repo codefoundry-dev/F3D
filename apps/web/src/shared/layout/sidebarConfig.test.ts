@@ -56,9 +56,11 @@ describe('getSidebarItemsForRole', () => {
     expect(labels).toEqual(['Settings']);
   });
 
-  it('shows only settings to SUPER_ADMIN (admin panel reached separately)', () => {
+  it('shows materials + settings to SUPER_ADMIN (owns the catalogue; admin panel reached separately)', () => {
+    // SUPER_ADMIN owns the public material catalogue + approval queue (US 4.01),
+    // so the Materials item is visible alongside Settings.
     const labels = getSidebarItemsForRole(UserRole.SUPER_ADMIN, '/', LABELS).map((i) => i.label);
-    expect(labels).toEqual(['Settings']);
+    expect(labels).toEqual(['Materials', 'Settings']);
   });
 
   it('marks the RFQs item active when pathname starts with /rfqs', () => {

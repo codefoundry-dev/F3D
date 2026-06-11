@@ -12,17 +12,51 @@ export interface MaterialListQueryParams {
   limit?: number;
   search?: string;
   categoryId?: string;
+  /** 'PUBLIC' | 'PENDING_APPROVAL' | 'ARCHIVED' */
   status?: string;
+  /** Facet filters (US 4.01) — backend matches these on the materials list. */
+  manufacturer?: string;
+  uom?: string;
+  materialType?: string;
+  countryOfOrigin?: string;
+  /** Sortable columns: 'name' | 'createdAt' (defaults to 'name' on the backend). */
   sortBy?: string;
   sortDir?: 'asc' | 'desc';
 }
 
 export interface CreateMaterialInput {
   name: string;
+  /** Required by the API. Optional here only so the legacy `unitOfMeasure` alias
+   *  (used by the BOM "create private material" modal) keeps compiling; the
+   *  catalogue create wizard always supplies it. */
+  uom?: string;
+  /** @deprecated Legacy alias for `uom`; normalized to `uom` before the request. */
+  unitOfMeasure?: string;
+  /** Required by the API. The catalogue create wizard always supplies it. */
+  categoryId?: string;
+  /** @deprecated No backing column on the catalogue model; stripped before send. */
   code?: string;
   description?: string;
-  categoryId?: string;
-  unitOfMeasure: string;
+  // ── Rich Core-identification + Additional-properties fields (US 4.01 P2) ──
+  upc?: string;
+  manufacturer?: string;
+  sku?: string;
+  brand?: string;
+  manufacturerPartNumber?: string;
+  subCategory?: string;
+  imageUrl?: string;
+  materialType?: string;
+  itemType?: string;
+  countryOfOrigin?: string;
+  manufacturerSeriesModel?: string;
+  gradeClass?: string;
+  standardNorm?: string;
+  colourFinish?: string;
+  size?: string;
+  pricePerUnit?: number;
+  currency?: string;
+  dimensions?: MaterialDimensions;
+  properties?: MaterialProperties;
 }
 
 // ── Response interfaces ──────────────────────────────────────────────────────
@@ -36,30 +70,129 @@ export interface MaterialCategoryDto {
 export interface MaterialListItemDto {
   id: string;
   name: string;
-  code: string | null;
-  description: string | null;
   categoryId: string | null;
   categoryName: string | null;
-  unitOfMeasure: string;
   status: string;
   createdAt: string;
   updatedAt: string;
   /**
-   * Catalogue ingest fields (FOR-228). The materials list now also surfaces the
-   * richer catalogue attributes; kept optional so existing consumers that only
-   * read name/code/unitOfMeasure are unaffected.
+   * Legacy aliases kept optional. The materials list endpoint returns `uom`
+   * (not `unitOfMeasure`) and no longer returns `code`; these remain on the type
+   * so older consumers/tests that referenced them keep compiling.
+   */
+  code?: string | null;
+  unitOfMeasure?: string;
+  description?: string | null;
+  /**
+   * Rich catalogue attributes surfaced on the list (FOR-228 / US 4.01). All
+   * optional so existing consumers that only read name/category are unaffected.
    */
   uom?: string;
+  upc?: string | null;
   sku?: string | null;
   brand?: string | null;
+  manufacturer?: string | null;
   manufacturerPartNumber?: string | null;
   subCategory?: string | null;
+  materialType?: string | null;
+  countryOfOrigin?: string | null;
+  /** Decimal serialised as a string, e.g. "12.50"; null when not priced. */
+  pricePerUnit?: string | null;
+  currency?: string;
   imageUrl?: string | null;
 }
 
 export interface PaginatedMaterialsResponse {
   items: MaterialListItemDto[];
   meta: PaginationMeta;
+}
+
+// ── Detail / update shapes (US 4.01) ──────────────────────────────────────────
+
+export interface MaterialDimensionValue {
+  value: number | null;
+  uom: string | null;
+}
+
+export interface MaterialPackaging {
+  packagingUnit?: string | null;
+  unitsPerPackage?: number | null;
+  weightPerPackage?: number | null;
+}
+
+export interface MaterialDimensions {
+  length?: MaterialDimensionValue;
+  width?: MaterialDimensionValue;
+  height?: MaterialDimensionValue;
+  diameter?: MaterialDimensionValue;
+  thickness?: MaterialDimensionValue;
+  volume?: MaterialDimensionValue;
+  weightPerUnit?: MaterialDimensionValue;
+  packaging?: MaterialPackaging;
+}
+
+export type MaterialProperties = Record<string, string | number | null>;
+
+export interface MaterialDetailDto {
+  id: string;
+  name: string;
+  categoryId: string;
+  categoryName: string;
+  uom: string;
+  upc: string | null;
+  manufacturer: string | null;
+  description: string | null;
+  sku: string | null;
+  brand: string | null;
+  manufacturerPartNumber: string | null;
+  subCategory: string | null;
+  imageUrl: string | null;
+  materialType: string | null;
+  itemType: string | null;
+  countryOfOrigin: string | null;
+  manufacturerSeriesModel: string | null;
+  gradeClass: string | null;
+  standardNorm: string | null;
+  colourFinish: string | null;
+  size: string | null;
+  pricePerUnit: string | null;
+  currency: string;
+  dimensions: MaterialDimensions | null;
+  properties: MaterialProperties | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: { id: string; name: string } | null;
+}
+
+export interface UpdateMaterialInput {
+  name?: string;
+  categoryId?: string;
+  uom?: string;
+  upc?: string;
+  manufacturer?: string;
+  description?: string;
+  sku?: string;
+  brand?: string;
+  manufacturerPartNumber?: string;
+  subCategory?: string;
+  imageUrl?: string;
+  materialType?: string;
+  itemType?: string;
+  countryOfOrigin?: string;
+  manufacturerSeriesModel?: string;
+  gradeClass?: string;
+  standardNorm?: string;
+  colourFinish?: string;
+  size?: string;
+  pricePerUnit?: number;
+  currency?: string;
+  dimensions?: MaterialDimensions;
+  properties?: MaterialProperties;
+}
+
+export interface RejectMaterialInput {
+  reason?: string;
 }
 
 /** Summary returned by POST /v1/materials/catalogue-import (FOR-228). */
@@ -108,10 +241,15 @@ export async function getMaterialSuggestions(
 export async function createMaterial(
   input: CreateMaterialInput,
   config?: AxiosRequestConfig,
-): Promise<MaterialListItemDto> {
-  const { data } = await getApiClient().post<{ data: MaterialListItemDto }>(
+): Promise<MaterialDetailDto> {
+  // Normalize the legacy aliases: map `unitOfMeasure` → `uom` and drop the
+  // unbacked `code`, so the request body matches the backend CreateMaterialDto
+  // (which runs under `forbidNonWhitelisted` and would 400 on stray fields).
+  const { unitOfMeasure, code: _code, uom, ...rest } = input;
+  const body = { ...rest, uom: uom ?? unitOfMeasure };
+  const { data } = await getApiClient().post<{ data: MaterialDetailDto }>(
     MATERIALS_PATHS.ROOT,
-    input,
+    body,
     config,
   );
   return data.data;
@@ -129,6 +267,92 @@ export async function importCatalogue(
   const { data } = await getApiClient().post<{ data: CatalogueImportSummary }>(
     MATERIALS_PATHS.CATALOGUE_IMPORT,
     { extractionId },
+    config,
+  );
+  return data.data;
+}
+
+// ── Material detail / lifecycle (US 4.01) ─────────────────────────────────────
+
+export async function getMaterial(
+  id: string,
+  config?: AxiosRequestConfig,
+): Promise<MaterialDetailDto> {
+  const { data } = await getApiClient().get<{ data: MaterialDetailDto }>(
+    MATERIALS_PATHS.byId(id),
+    config,
+  );
+  return data.data;
+}
+
+export async function updateMaterial(
+  id: string,
+  input: UpdateMaterialInput,
+  config?: AxiosRequestConfig,
+): Promise<MaterialDetailDto> {
+  const { data } = await getApiClient().patch<{ data: MaterialDetailDto }>(
+    MATERIALS_PATHS.byId(id),
+    input,
+    config,
+  );
+  return data.data;
+}
+
+export async function approveMaterial(
+  id: string,
+  config?: AxiosRequestConfig,
+): Promise<MaterialDetailDto> {
+  const { data } = await getApiClient().patch<{ data: MaterialDetailDto }>(
+    MATERIALS_PATHS.approve(id),
+    undefined,
+    config,
+  );
+  return data.data;
+}
+
+export async function rejectMaterial(
+  id: string,
+  input?: RejectMaterialInput,
+  config?: AxiosRequestConfig,
+): Promise<MaterialDetailDto> {
+  const { data } = await getApiClient().patch<{ data: MaterialDetailDto }>(
+    MATERIALS_PATHS.reject(id),
+    input ?? {},
+    config,
+  );
+  return data.data;
+}
+
+export async function archiveMaterial(
+  id: string,
+  config?: AxiosRequestConfig,
+): Promise<MaterialDetailDto> {
+  const { data } = await getApiClient().patch<{ data: MaterialDetailDto }>(
+    MATERIALS_PATHS.archive(id),
+    undefined,
+    config,
+  );
+  return data.data;
+}
+
+export async function restoreMaterial(
+  id: string,
+  config?: AxiosRequestConfig,
+): Promise<MaterialDetailDto> {
+  const { data } = await getApiClient().patch<{ data: MaterialDetailDto }>(
+    MATERIALS_PATHS.restore(id),
+    undefined,
+    config,
+  );
+  return data.data;
+}
+
+export async function deleteMaterial(
+  id: string,
+  config?: AxiosRequestConfig,
+): Promise<{ success: true }> {
+  const { data } = await getApiClient().delete<{ data: { success: true } }>(
+    MATERIALS_PATHS.byId(id),
     config,
   );
   return data.data;

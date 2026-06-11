@@ -79,6 +79,18 @@ const VendorProfilePage = lazy(() => import('@/features/vendors/pages/VendorProf
 const MaterialCataloguePage = lazy(
   () => import('@/features/material-catalogue/pages/MaterialCataloguePage'),
 );
+const MaterialDetailPage = lazy(
+  () => import('@/features/material-catalogue/pages/MaterialDetailPage'),
+);
+const CreateMaterialPage = lazy(
+  () => import('@/features/material-catalogue/pages/CreateMaterialPage'),
+);
+const EditMaterialCorePage = lazy(
+  () => import('@/features/material-catalogue/pages/EditMaterialCorePage'),
+);
+const EditMaterialAdditionalPage = lazy(
+  () => import('@/features/material-catalogue/pages/EditMaterialAdditionalPage'),
+);
 const UserListRoleSwitch = lazy(() => import('@/features/users/UserListRoleSwitch'));
 const UserDetailRoleSwitch = lazy(() => import('@/features/users/UserDetailRoleSwitch'));
 const CompanyDetailPage = lazy(() => import('@/features/companies/pages/CompanyDetailPage'));
@@ -99,6 +111,13 @@ const ALL_INTERNAL = [
 ] as const;
 
 const BUYER_SIDE = [UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER] as const;
+// Material catalogue is visible to the buyer roles AND the super-admin (who
+// owns the public catalogue and the approval queue — US 4.01).
+const CATALOGUE_VIEWERS = [
+  UserRole.SUPER_ADMIN,
+  UserRole.COMPANY_ADMIN,
+  UserRole.PROCUREMENT_OFFICER,
+] as const;
 const RFQ_VIEWERS = [
   UserRole.COMPANY_ADMIN,
   UserRole.PROCUREMENT_OFFICER,
@@ -314,19 +333,52 @@ export const routes: RouteObject[] = [
                 ],
               },
 
-              // Vendors / materials
+              // Vendors
               {
                 element: <RoleRoute allow={BUYER_SIDE} />,
                 children: [
                   { path: ROUTES.vendors, element: withSuspense(<VendorListPage />) },
                   { path: ROUTES.vendorNew, element: withSuspense(<CreateVendorPage />) },
                   { path: ROUTES.vendorDetail, element: withSuspense(<VendorProfilePage />) },
+                ],
+              },
+
+              // Material catalogue (US 4.01) — buyer roles + super-admin. Static
+              // sub-paths (new) and the edit sub-paths precede the :id detail
+              // route so they are not swallowed by it; the deeper
+              // /edit/additional is registered before /edit. Upload still
+              // resolves to a placeholder this phase (Phase 3).
+              {
+                element: <RoleRoute allow={CATALOGUE_VIEWERS} />,
+                children: [
                   {
                     path: ROUTES.materialCatalogue,
                     element: withSuspense(<MaterialCataloguePage />),
                   },
+                  {
+                    path: ROUTES.materialCatalogueNew,
+                    element: withSuspense(<CreateMaterialPage />),
+                  },
+                  {
+                    path: ROUTES.materialCatalogueUpload,
+                    element: <ComingSoon page="Upload catalogue" />,
+                  },
+                  {
+                    path: ROUTES.materialCatalogueEditAdditional,
+                    element: withSuspense(<EditMaterialAdditionalPage />),
+                  },
+                  {
+                    path: ROUTES.materialCatalogueEdit,
+                    element: withSuspense(<EditMaterialCorePage />),
+                  },
+                  {
+                    path: ROUTES.materialCatalogueDetail,
+                    element: withSuspense(<MaterialDetailPage />),
+                  },
                 ],
               },
+
+              // Material (RFQ vendor view — unrelated /materials/:id route)
               {
                 element: <RoleRoute allow={[...RFQ_VIEWERS]} />,
                 children: [

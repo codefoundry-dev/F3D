@@ -36,6 +36,21 @@ model Material {
   manufacturerPartNumber String?        @map("manufacturer_part_number") @db.VarChar(255)
   subCategory            String?        @map("sub_category") @db.VarChar(255)
   imageUrl               String?        @map("image_url")
+  // ── Rich catalogue attributes (US 4.01) ──────────────────────────────────
+  materialType             String?  @map("material_type") @db.VarChar(100)
+  itemType                 String?  @map("item_type") @db.VarChar(100)
+  countryOfOrigin          String?  @map("country_of_origin") @db.VarChar(100)
+  manufacturerSeriesModel  String?  @map("manufacturer_series_model") @db.VarChar(255)
+  gradeClass               String?  @map("grade_class") @db.VarChar(100)
+  standardNorm             String?  @map("standard_norm") @db.VarChar(100)
+  colourFinish             String?  @map("colour_finish") @db.VarChar(100)
+  size                     String?  @db.VarChar(100)
+  pricePerUnit             Decimal? @map("price_per_unit") @db.Decimal(18, 4)
+  currency                 String   @default("AUD") @db.VarChar(3)
+  // {length:{value,uom}, width:{...}, ..., packaging:{packagingUnit, unitsPerPackage, weightPerPackage}}
+  dimensions               Json?
+  // Open-ended, category-specific "Specific data".
+  properties               Json?
   status                 MaterialStatus @default(PENDING_APPROVAL)
   createdById            String         @map("created_by_id")
   createdAt              DateTime       @default(now()) @map("created_at")
@@ -54,6 +69,8 @@ model Material {
   @@index([status], map: "idx_materials_status")
   @@index([name], map: "idx_materials_name")
   @@index([nameCi], map: "idx_materials_name_ci")
+  @@index([materialType], map: "idx_materials_material_type")
+  @@index([itemType], map: "idx_materials_item_type")
   @@map("materials")
 }
 

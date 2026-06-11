@@ -49,6 +49,13 @@ export const PERMISSIONS = {
   'material.suggestions': 'Material autocomplete suggestions',
   'material.create': 'Create materials',
   'material.import': 'Bulk-import materials from a confirmed catalogue extraction',
+  'material.read': 'Read a single material',
+  'material.update': 'Update a material',
+  'material.approve': 'Approve a pending material',
+  'material.reject': 'Reject a pending material',
+  'material.archive': 'Archive a published material',
+  'material.restore': 'Restore an archived material',
+  'material.delete': 'Delete a material',
 
   // ── Material lists (US 5.05) ────────────────────────────────────────────
   'materialList.list': 'List saved material lists',
@@ -219,6 +226,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.suggestions',
     'material.create',
     'material.import',
+    'material.read',
+    'material.update',
 
     'materialList.list',
     'materialList.read',
@@ -335,6 +344,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.suggestions',
     'material.create',
     'material.import',
+    'material.read',
+    'material.update',
 
     'materialList.list',
     'materialList.read',
@@ -434,6 +445,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.list',
     'material.listCategories',
     'material.suggestions',
+    'material.read',
 
     'materialList.list',
     'materialList.read',
@@ -461,6 +473,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.list',
     'material.listCategories',
     'material.suggestions',
+    'material.read',
 
     'materialList.list',
     'materialList.read',
@@ -472,6 +485,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.list',
     'material.listCategories',
     'material.suggestions',
+    'material.read',
 
     'materialList.list',
     'materialList.read',
@@ -493,6 +507,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.list',
     'material.listCategories',
     'material.suggestions',
+    'material.read',
 
     'materialList.list',
     'materialList.read',

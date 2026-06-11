@@ -181,6 +181,11 @@ export const MATERIALS_PATHS = {
   CATEGORIES: '/materials/categories',
   SUGGESTIONS: '/materials/suggestions',
   CATALOGUE_IMPORT: '/materials/catalogue-import',
+  byId: (id: string) => `/materials/${id}`,
+  approve: (id: string) => `/materials/${id}/approve`,
+  reject: (id: string) => `/materials/${id}/reject`,
+  archive: (id: string) => `/materials/${id}/archive`,
+  restore: (id: string) => `/materials/${id}/restore`,
 } as const;
 
 // ── Vendors ─────────────────────────────────────────────────────────────────

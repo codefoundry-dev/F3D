@@ -4,8 +4,12 @@ import {
   type CatalogueExtractionResult,
   type CatalogueImportSummaryDto,
   type CatalogueLineItem,
+  type MaterialDetailDto,
+  type MaterialDimensions,
+  type MaterialProperties,
   CreateMaterialDto,
   MaterialListQueryDto,
+  UpdateMaterialDto,
   buildPaginationMeta,
 } from '@forethread/shared-types';
 import {
@@ -14,7 +18,14 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import { DocExtractionStatus, DocExtractionType, MaterialStatus, Prisma, UserRole } from '@prisma/client';
+import {
+  DocExtractionStatus,
+  DocExtractionType,
+  Material,
+  MaterialStatus,
+  Prisma,
+  UserRole,
+} from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -67,8 +78,16 @@ export class MaterialsService {
         manufacturerPartNumber: m.manufacturerPartNumber,
         subCategory: m.subCategory,
         imageUrl: m.imageUrl,
+        materialType: m.materialType,
+        countryOfOrigin: m.countryOfOrigin,
+        pricePerUnit:
+          m.pricePerUnit !== null && m.pricePerUnit !== undefined
+            ? m.pricePerUnit.toString()
+            : null,
+        currency: m.currency,
         status: m.status,
         createdAt: m.createdAt.toISOString(),
+        updatedAt: m.updatedAt.toISOString(),
       })),
       meta: buildPaginationMeta(query.page ?? 1, query.take, total),
     };
@@ -123,40 +142,72 @@ export class MaterialsService {
     const status =
       user.role === UserRole.SUPER_ADMIN ? MaterialStatus.PUBLIC : MaterialStatus.PENDING_APPROVAL;
 
-    // Verify category exists
-    const category = await this.prisma.materialCategory.findUnique({
-      where: { id: dto.categoryId },
-    });
-    if (!category) {
-      throw new NotFoundException('Material category not found');
-    }
+    // Resolve the target category. A supplied id must exist; when omitted (the
+    // BOM "create private material" quick-add has no category field) the row
+    // falls back to the shared "Uncategorised" bucket, mirroring the catalogue
+    // bulk-import.
+    const categoryId = dto.categoryId
+      ? await this.assertCategoryExists(dto.categoryId)
+      : await this.resolveUncategorisedCategoryId();
 
     const material = await this.prisma.material.create({
+      // Persist the full Core-identification + Additional-properties payload from
+      // the "Add new material item" wizard (US 4.01 Phase 2). Optional string
+      // columns collapse to null when omitted; currency keeps its DB default
+      // ("AUD") unless the caller supplies one.
       data: {
         name: dto.name,
-        categoryId: dto.categoryId,
+        categoryId,
         uom: dto.uom,
         upc: dto.upc ?? null,
         manufacturer: dto.manufacturer ?? null,
         description: dto.description ?? null,
+        sku: dto.sku ?? null,
+        brand: dto.brand ?? null,
+        manufacturerPartNumber: dto.manufacturerPartNumber ?? null,
+        subCategory: dto.subCategory ?? null,
+        imageUrl: dto.imageUrl ?? null,
+        materialType: dto.materialType ?? null,
+        itemType: dto.itemType ?? null,
+        countryOfOrigin: dto.countryOfOrigin ?? null,
+        manufacturerSeriesModel: dto.manufacturerSeriesModel ?? null,
+        gradeClass: dto.gradeClass ?? null,
+        standardNorm: dto.standardNorm ?? null,
+        colourFinish: dto.colourFinish ?? null,
+        size: dto.size ?? null,
+        pricePerUnit: dto.pricePerUnit ?? null,
+        ...(dto.currency ? { currency: dto.currency } : {}),
+        ...(dto.dimensions ? { dimensions: dto.dimensions as Prisma.InputJsonValue } : {}),
+        ...(dto.properties ? { properties: dto.properties as Prisma.InputJsonValue } : {}),
         status,
         createdById: user.id,
       },
-      include: { category: { select: { id: true, name: true } } },
+      include: {
+        category: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
+      },
     });
 
-    return {
-      id: material.id,
-      name: material.name,
-      categoryId: material.category.id,
-      categoryName: material.category.name,
-      uom: material.uom,
-      upc: material.upc,
-      manufacturer: material.manufacturer,
-      description: material.description,
-      status: material.status,
-      createdAt: material.createdAt.toISOString(),
-    };
+    return this.toDetail(material);
+  }
+
+  /** Assert a supplied category id exists, returning it; 404 otherwise. */
+  private async assertCategoryExists(id: string): Promise<string> {
+    const category = await this.prisma.materialCategory.findUnique({ where: { id } });
+    if (!category) {
+      throw new NotFoundException('Material category not found');
+    }
+    return id;
+  }
+
+  /** Find-or-create the shared "Uncategorised" category and return its id. */
+  private async resolveUncategorisedCategoryId(): Promise<string> {
+    const existing = await this.prisma.materialCategory.findUnique({
+      where: { name: UNCATEGORISED },
+    });
+    if (existing) return existing.id;
+    const created = await this.prisma.materialCategory.create({ data: { name: UNCATEGORISED } });
+    return created.id;
   }
 
   // ── Catalogue bulk import (FOR-228) ───────────────────────────────────────────
@@ -273,9 +324,7 @@ export class MaterialsService {
    * Upsert every distinct main-category plus the Uncategorised fallback. Returns
    * a lowercased-name → id map and the count of newly-created categories.
    */
-  private async upsertCatalogueCategories(
-    items: CatalogueLineItem[],
-  ): Promise<{
+  private async upsertCatalogueCategories(items: CatalogueLineItem[]): Promise<{
     categoryMap: Map<string, string>;
     uncategorisedId: string;
     categoriesCreated: number;
@@ -433,10 +482,15 @@ export class MaterialsService {
   ): Prisma.MaterialWhereInput {
     const where: Prisma.MaterialWhereInput = {};
 
-    // Default status filter: non-SuperAdmin users only see PUBLIC materials
-    if (query.status) {
-      where.status = query.status as MaterialStatus;
-    } else if (user.role !== UserRole.SUPER_ADMIN) {
+    // Status visibility. Non-SuperAdmin users are ALWAYS clamped to PUBLIC — an
+    // explicit `status` query (e.g. PENDING_APPROVAL/ARCHIVED) must not let them
+    // see unpublished catalogue rows. Only SuperAdmin may request a specific
+    // non-public status.
+    if (user.role === UserRole.SUPER_ADMIN) {
+      if (query.status) {
+        where.status = query.status as MaterialStatus;
+      }
+    } else {
       where.status = MaterialStatus.PUBLIC;
     }
 
@@ -448,7 +502,228 @@ export class MaterialsService {
       where.name = { contains: query.search, mode: 'insensitive' };
     }
 
+    // ── Facet filters (US 4.01) ─────────────────────────────────────────────
+    if (query.manufacturer) {
+      where.manufacturer = { contains: query.manufacturer, mode: 'insensitive' };
+    }
+
+    if (query.uom) {
+      where.uom = query.uom;
+    }
+
+    if (query.materialType) {
+      where.materialType = query.materialType;
+    }
+
+    if (query.countryOfOrigin) {
+      where.countryOfOrigin = query.countryOfOrigin;
+    }
+
     return where;
+  }
+
+  // ── Detail mapper ─────────────────────────────────────────────────────────
+
+  /** Shape a loaded Material (with category + createdBy) into the detail DTO. */
+  private toDetail(
+    m: Material & {
+      category: { id: string; name: string };
+      createdBy: { id: string; name: string } | null;
+    },
+  ): MaterialDetailDto {
+    return {
+      id: m.id,
+      name: m.name,
+      categoryId: m.category.id,
+      categoryName: m.category.name,
+      uom: m.uom,
+      upc: m.upc,
+      manufacturer: m.manufacturer,
+      description: m.description,
+      sku: m.sku,
+      brand: m.brand,
+      manufacturerPartNumber: m.manufacturerPartNumber,
+      subCategory: m.subCategory,
+      imageUrl: m.imageUrl,
+      materialType: m.materialType,
+      itemType: m.itemType,
+      countryOfOrigin: m.countryOfOrigin,
+      manufacturerSeriesModel: m.manufacturerSeriesModel,
+      gradeClass: m.gradeClass,
+      standardNorm: m.standardNorm,
+      colourFinish: m.colourFinish,
+      size: m.size,
+      pricePerUnit:
+        m.pricePerUnit !== null && m.pricePerUnit !== undefined ? m.pricePerUnit.toString() : null,
+      currency: m.currency,
+      dimensions: (m.dimensions as MaterialDimensions | null) ?? null,
+      properties: (m.properties as MaterialProperties | null) ?? null,
+      // Prisma's MaterialStatus union ↔ shared-types' MaterialStatus enum share
+      // identical string values but are nominally distinct TS types.
+      status: m.status as MaterialDetailDto['status'],
+      createdAt: m.createdAt.toISOString(),
+      updatedAt: m.updatedAt.toISOString(),
+      createdBy: m.createdBy ? { id: m.createdBy.id, name: m.createdBy.name } : null,
+    };
+  }
+
+  // ── Get Material by id ──────────────────────────────────────────────────────
+
+  async getMaterialById(id: string, user: AuthenticatedUser): Promise<MaterialDetailDto> {
+    const material = await this.prisma.material.findUnique({
+      where: { id },
+      include: {
+        category: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!material) {
+      throw new NotFoundException(ERR.materials.notFound);
+    }
+
+    // Don't leak unpublished catalogue rows to non-SuperAdmins — 404, not 403.
+    if (material.status !== MaterialStatus.PUBLIC && user.role !== UserRole.SUPER_ADMIN) {
+      throw new NotFoundException(ERR.materials.notFound);
+    }
+
+    return this.toDetail(material);
+  }
+
+  // ── Update Material ─────────────────────────────────────────────────────────
+
+  async updateMaterial(
+    id: string,
+    dto: UpdateMaterialDto,
+    user: AuthenticatedUser,
+  ): Promise<MaterialDetailDto> {
+    // Phase 1: only SuperAdmin may directly edit a material. The CA/PO
+    // change-request branch (which routes edits to PENDING_APPROVAL review)
+    // arrives in Phase 3.
+    if (user.role !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
+
+    const existing = await this.prisma.material.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(ERR.materials.notFound);
+    }
+
+    // Validate the target category up front when a re-category is requested.
+    if (dto.categoryId !== undefined) {
+      const category = await this.prisma.materialCategory.findUnique({
+        where: { id: dto.categoryId },
+      });
+      if (!category) {
+        throw new NotFoundException('Material category not found');
+      }
+    }
+
+    // Re-check the case-insensitive name uniqueness (excluding self) on rename.
+    if (dto.name !== undefined && dto.name.toLowerCase() !== existing.name.toLowerCase()) {
+      const duplicate = await this.prisma.material.findFirst({
+        where: { name: { equals: dto.name, mode: 'insensitive' }, id: { not: id } },
+        select: { id: true },
+      });
+      if (duplicate) {
+        throw new ConflictException(ERR.materials.duplicateName);
+      }
+    }
+
+    // Apply only the fields that were actually supplied — never overwrite a
+    // column with `undefined`.
+    const data: Prisma.MaterialUpdateInput = {};
+    const assign = <K extends keyof UpdateMaterialDto>(
+      key: K,
+      target: keyof Prisma.MaterialUpdateInput,
+    ) => {
+      if (dto[key] !== undefined) {
+        (data as Record<string, unknown>)[target as string] = dto[key];
+      }
+    };
+
+    if (dto.categoryId !== undefined) {
+      data.category = { connect: { id: dto.categoryId } };
+    }
+    assign('name', 'name');
+    assign('uom', 'uom');
+    assign('upc', 'upc');
+    assign('manufacturer', 'manufacturer');
+    assign('description', 'description');
+    assign('sku', 'sku');
+    assign('brand', 'brand');
+    assign('manufacturerPartNumber', 'manufacturerPartNumber');
+    assign('subCategory', 'subCategory');
+    assign('imageUrl', 'imageUrl');
+    assign('materialType', 'materialType');
+    assign('itemType', 'itemType');
+    assign('countryOfOrigin', 'countryOfOrigin');
+    assign('manufacturerSeriesModel', 'manufacturerSeriesModel');
+    assign('gradeClass', 'gradeClass');
+    assign('standardNorm', 'standardNorm');
+    assign('colourFinish', 'colourFinish');
+    assign('size', 'size');
+    assign('currency', 'currency');
+    if (dto.pricePerUnit !== undefined) {
+      data.pricePerUnit = dto.pricePerUnit;
+    }
+    if (dto.dimensions !== undefined) {
+      data.dimensions = dto.dimensions as Prisma.InputJsonValue;
+    }
+    if (dto.properties !== undefined) {
+      data.properties = dto.properties as Prisma.InputJsonValue;
+    }
+
+    const updated = await this.prisma.material.update({
+      where: { id },
+      data,
+      include: {
+        category: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
+      },
+    });
+
+    return this.toDetail(updated);
+  }
+
+  // ── Delete Material ─────────────────────────────────────────────────────────
+
+  async deleteMaterial(id: string, user: AuthenticatedUser): Promise<{ success: true }> {
+    // SuperAdmin-only. The controller's `material.delete` permission already
+    // gates this; the service stays defensive in case it is called elsewhere.
+    if (user.role !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
+
+    const existing = await this.prisma.material.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!existing) {
+      throw new NotFoundException(ERR.materials.notFound);
+    }
+
+    // A material referenced by any procurement document cannot be hard-deleted —
+    // it must be archived instead so historical documents keep their link.
+    const [poLineItems, rfqLineItems, quoteResponseLineItems, bomItems, materialListItems] =
+      await Promise.all([
+        this.prisma.poLineItem.count({ where: { materialId: id } }),
+        this.prisma.rfqLineItem.count({ where: { materialId: id } }),
+        this.prisma.quoteResponseLineItem.count({ where: { substituteItemId: id } }),
+        this.prisma.bomItem.count({ where: { matchedMaterialId: id } }),
+        this.prisma.materialListItem.count({ where: { materialId: id } }),
+      ]);
+
+    const references =
+      poLineItems + rfqLineItems + quoteResponseLineItems + bomItems + materialListItems;
+
+    if (references > 0) {
+      throw new ConflictException(ERR.materials.referenced(references));
+    }
+
+    await this.prisma.material.delete({ where: { id } });
+
+    return { success: true };
   }
 
   private buildOrderBy(

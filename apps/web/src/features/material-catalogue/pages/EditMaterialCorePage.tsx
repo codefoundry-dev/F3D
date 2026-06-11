@@ -1,0 +1,124 @@
+import { useTranslation } from '@forethread/i18n';
+import { materialFormSchema, type MaterialFormValues } from '@forethread/shared-types/client';
+import { Button, buttonVariants } from '@forethread/ui-components';
+import BackArrowIcon from '@forethread/ui-components/assets/icons/back-arrow.svg?react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useEffect } from 'react';
+import { FormProvider, useForm } from 'react-hook-form';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+
+import { ROUTES } from '@/app/route-config';
+
+import { CoreIdentificationFields } from '../components/form/CoreIdentificationFields';
+import { useMaterial } from '../hooks/useMaterial';
+import { useUpdateMaterial } from '../hooks/useMaterialFormMutations';
+import { useMaterialCategories } from '../hooks/useMaterials';
+import { detailToForm, emptyMaterialForm, formToUpdateCore } from '../lib/materialForm';
+
+export default function EditMaterialCorePage() {
+  const { t } = useTranslation(['materialCatalogue']);
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { data: categories = [] } = useMaterialCategories();
+  const { data: material, isLoading, isError } = useMaterial(id);
+  const updateMutation = useUpdateMaterial({
+    successMessageKey: 'editCore.toastSuccess',
+    errorMessageKey: 'editCore.toastError',
+  });
+
+  const methods = useForm<MaterialFormValues>({
+    resolver: zodResolver(materialFormSchema),
+    defaultValues: emptyMaterialForm,
+    mode: 'onBlur',
+  });
+
+  const { reset } = methods;
+  useEffect(() => {
+    if (material) reset(detailToForm(material));
+  }, [material, reset]);
+
+  const detailPath = id
+    ? ROUTES.materialCatalogueDetail.replace(':id', id)
+    : ROUTES.materialCatalogue;
+
+  const onSubmit = (values: MaterialFormValues) => {
+    if (!id) return;
+    updateMutation.mutate(
+      { id, input: formToUpdateCore(values) },
+      { onSuccess: () => navigate(detailPath) },
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-8">
+        <p role="status" className="text-muted-foreground">
+          {t('editCore.loading')}
+        </p>
+      </div>
+    );
+  }
+
+  if (isError || !material) {
+    return (
+      <div className="p-8 space-y-4">
+        <button
+          type="button"
+          onClick={() => navigate(ROUTES.materialCatalogue)}
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <BackArrowIcon className="w-4 h-4" />
+          {t('editCore.back')}
+        </button>
+        <p role="alert" className="text-destructive">
+          {t('editCore.notFound')}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-8" data-testid="edit-material-core-page">
+      <div className="flex items-start gap-3">
+        <button
+          type="button"
+          onClick={() => navigate(detailPath)}
+          className="mt-1 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent"
+          aria-label={t('editCore.back')}
+          data-testid="edit-material-core-back"
+        >
+          <BackArrowIcon className="w-4 h-4" />
+        </button>
+        <h1 className="text-2xl font-semibold text-foreground">{t('editCore.title')}</h1>
+      </div>
+
+      <FormProvider {...methods}>
+        <form
+          onSubmit={(e) => void methods.handleSubmit(onSubmit)(e)}
+          className="mt-6 space-y-6"
+          noValidate
+        >
+          <CoreIdentificationFields categories={categories} />
+
+          <div className="flex items-center justify-between pt-2">
+            <Link
+              to={detailPath}
+              className={buttonVariants({ variant: 'outline', size: 'lg' })}
+              data-testid="edit-material-core-cancel"
+            >
+              {t('form.cancel')}
+            </Link>
+            <Button
+              type="submit"
+              size="lg"
+              isLoading={updateMutation.isPending}
+              data-testid="edit-material-core-submit"
+            >
+              {updateMutation.isPending ? t('editCore.submitting') : t('editCore.submit')}
+            </Button>
+          </div>
+        </form>
+      </FormProvider>
+    </div>
+  );
+}

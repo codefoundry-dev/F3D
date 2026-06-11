@@ -53,17 +53,13 @@ export function CatalogueReviewTable({ value, readOnly, onChange }: CatalogueRev
     if (!needle) return withIndex;
     return withIndex.filter(
       ({ item }) =>
-        item.name.toLowerCase().includes(needle) ||
-        (item.sku ?? '').toLowerCase().includes(needle),
+        item.name.toLowerCase().includes(needle) || (item.sku ?? '').toLowerCase().includes(needle),
     );
   }, [items, debouncedSearch]);
 
   const total = filtered.length;
   const start = (page - 1) * PAGE_SIZE;
-  const pageRows = useMemo(
-    () => filtered.slice(start, start + PAGE_SIZE),
-    [filtered, start],
-  );
+  const pageRows = useMemo(() => filtered.slice(start, start + PAGE_SIZE), [filtered, start]);
 
   const onItemChange = useCallback(
     (index: number, patch: Partial<CatalogueLineItem>) => {

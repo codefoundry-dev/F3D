@@ -1,8 +1,4 @@
-import {
-  type CatalogueImportSummary,
-  importCatalogue,
-  queryKeys,
-} from '@forethread/api-client';
+import { type CatalogueImportSummary, importCatalogue, queryKeys } from '@forethread/api-client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 /**
