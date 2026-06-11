@@ -82,6 +82,15 @@ const MaterialCataloguePage = lazy(
 const MaterialDetailPage = lazy(
   () => import('@/features/material-catalogue/pages/MaterialDetailPage'),
 );
+const CreateMaterialPage = lazy(
+  () => import('@/features/material-catalogue/pages/CreateMaterialPage'),
+);
+const EditMaterialCorePage = lazy(
+  () => import('@/features/material-catalogue/pages/EditMaterialCorePage'),
+);
+const EditMaterialAdditionalPage = lazy(
+  () => import('@/features/material-catalogue/pages/EditMaterialAdditionalPage'),
+);
 const UserListRoleSwitch = lazy(() => import('@/features/users/UserListRoleSwitch'));
 const UserDetailRoleSwitch = lazy(() => import('@/features/users/UserDetailRoleSwitch'));
 const CompanyDetailPage = lazy(() => import('@/features/companies/pages/CompanyDetailPage'));
@@ -335,9 +344,10 @@ export const routes: RouteObject[] = [
               },
 
               // Material catalogue (US 4.01) — buyer roles + super-admin. Static
-              // sub-paths (new / upload) precede the :id detail route so they
-              // are not swallowed by it. New/edit/upload resolve to a temporary
-              // placeholder this phase (the wizards land in Phases 2/3).
+              // sub-paths (new) and the edit sub-paths precede the :id detail
+              // route so they are not swallowed by it; the deeper
+              // /edit/additional is registered before /edit. Upload still
+              // resolves to a placeholder this phase (Phase 3).
               {
                 element: <RoleRoute allow={CATALOGUE_VIEWERS} />,
                 children: [
@@ -347,15 +357,19 @@ export const routes: RouteObject[] = [
                   },
                   {
                     path: ROUTES.materialCatalogueNew,
-                    element: <ComingSoon page="Create material" />,
+                    element: withSuspense(<CreateMaterialPage />),
                   },
                   {
                     path: ROUTES.materialCatalogueUpload,
                     element: <ComingSoon page="Upload catalogue" />,
                   },
                   {
+                    path: ROUTES.materialCatalogueEditAdditional,
+                    element: withSuspense(<EditMaterialAdditionalPage />),
+                  },
+                  {
                     path: ROUTES.materialCatalogueEdit,
-                    element: <ComingSoon page="Edit material" />,
+                    element: withSuspense(<EditMaterialCorePage />),
                   },
                   {
                     path: ROUTES.materialCatalogueDetail,

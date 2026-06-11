@@ -1,5 +1,8 @@
 export { default as MaterialCataloguePage } from './pages/MaterialCataloguePage';
 export { default as MaterialDetailPage } from './pages/MaterialDetailPage';
+export { default as CreateMaterialPage } from './pages/CreateMaterialPage';
+export { default as EditMaterialCorePage } from './pages/EditMaterialCorePage';
+export { default as EditMaterialAdditionalPage } from './pages/EditMaterialAdditionalPage';
 export { CatalogueImportModal } from './components/CatalogueImportModal';
 export type { CatalogueImportModalProps } from './components/CatalogueImportModal';
 export { CatalogueReviewTable } from './components/CatalogueReviewTable';
@@ -11,4 +14,5 @@ export { MaterialStatusBadge } from './components/MaterialStatusBadge';
 export { useMaterials, useMaterialCategories } from './hooks/useMaterials';
 export { useMaterial } from './hooks/useMaterial';
 export { useMaterialMutations } from './hooks/useMaterialMutations';
+export { useCreateMaterial, useUpdateMaterial } from './hooks/useMaterialFormMutations';
 export { useCatalogueImport } from './hooks/useCatalogueImport';

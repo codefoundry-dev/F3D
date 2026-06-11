@@ -66,6 +66,7 @@ export const ROUTES = {
   materialCatalogueUpload: '/material-catalogue/upload',
   materialCatalogueDetail: '/material-catalogue/:id',
   materialCatalogueEdit: '/material-catalogue/:id/edit',
+  materialCatalogueEditAdditional: '/material-catalogue/:id/edit/additional',
   materialDetail: '/materials/:id',
 
   // ── Companies (super-admin) ────────────────────────────────────────

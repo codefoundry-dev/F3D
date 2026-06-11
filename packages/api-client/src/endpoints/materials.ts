@@ -26,10 +26,37 @@ export interface MaterialListQueryParams {
 
 export interface CreateMaterialInput {
   name: string;
+  /** Required by the API. Optional here only so the legacy `unitOfMeasure` alias
+   *  (used by the BOM "create private material" modal) keeps compiling; the
+   *  catalogue create wizard always supplies it. */
+  uom?: string;
+  /** @deprecated Legacy alias for `uom`; normalized to `uom` before the request. */
+  unitOfMeasure?: string;
+  /** Required by the API. The catalogue create wizard always supplies it. */
+  categoryId?: string;
+  /** @deprecated No backing column on the catalogue model; stripped before send. */
   code?: string;
   description?: string;
-  categoryId?: string;
-  unitOfMeasure: string;
+  // ── Rich Core-identification + Additional-properties fields (US 4.01 P2) ──
+  upc?: string;
+  manufacturer?: string;
+  sku?: string;
+  brand?: string;
+  manufacturerPartNumber?: string;
+  subCategory?: string;
+  imageUrl?: string;
+  materialType?: string;
+  itemType?: string;
+  countryOfOrigin?: string;
+  manufacturerSeriesModel?: string;
+  gradeClass?: string;
+  standardNorm?: string;
+  colourFinish?: string;
+  size?: string;
+  pricePerUnit?: number;
+  currency?: string;
+  dimensions?: MaterialDimensions;
+  properties?: MaterialProperties;
 }
 
 // ── Response interfaces ──────────────────────────────────────────────────────
@@ -214,10 +241,15 @@ export async function getMaterialSuggestions(
 export async function createMaterial(
   input: CreateMaterialInput,
   config?: AxiosRequestConfig,
-): Promise<MaterialListItemDto> {
-  const { data } = await getApiClient().post<{ data: MaterialListItemDto }>(
+): Promise<MaterialDetailDto> {
+  // Normalize the legacy aliases: map `unitOfMeasure` → `uom` and drop the
+  // unbacked `code`, so the request body matches the backend CreateMaterialDto
+  // (which runs under `forbidNonWhitelisted` and would 400 on stray fields).
+  const { unitOfMeasure, code: _code, uom, ...rest } = input;
+  const body = { ...rest, uom: uom ?? unitOfMeasure };
+  const { data } = await getApiClient().post<{ data: MaterialDetailDto }>(
     MATERIALS_PATHS.ROOT,
-    input,
+    body,
     config,
   );
   return data.data;

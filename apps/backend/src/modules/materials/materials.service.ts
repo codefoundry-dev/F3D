@@ -151,6 +151,10 @@ export class MaterialsService {
     }
 
     const material = await this.prisma.material.create({
+      // Persist the full Core-identification + Additional-properties payload from
+      // the "Add new material item" wizard (US 4.01 Phase 2). Optional string
+      // columns collapse to null when omitted; currency keeps its DB default
+      // ("AUD") unless the caller supplies one.
       data: {
         name: dto.name,
         categoryId: dto.categoryId,
@@ -158,32 +162,33 @@ export class MaterialsService {
         upc: dto.upc ?? null,
         manufacturer: dto.manufacturer ?? null,
         description: dto.description ?? null,
+        sku: dto.sku ?? null,
+        brand: dto.brand ?? null,
+        manufacturerPartNumber: dto.manufacturerPartNumber ?? null,
+        subCategory: dto.subCategory ?? null,
+        imageUrl: dto.imageUrl ?? null,
+        materialType: dto.materialType ?? null,
+        itemType: dto.itemType ?? null,
+        countryOfOrigin: dto.countryOfOrigin ?? null,
+        manufacturerSeriesModel: dto.manufacturerSeriesModel ?? null,
+        gradeClass: dto.gradeClass ?? null,
+        standardNorm: dto.standardNorm ?? null,
+        colourFinish: dto.colourFinish ?? null,
+        size: dto.size ?? null,
+        pricePerUnit: dto.pricePerUnit ?? null,
+        ...(dto.currency ? { currency: dto.currency } : {}),
+        ...(dto.dimensions ? { dimensions: dto.dimensions as Prisma.InputJsonValue } : {}),
+        ...(dto.properties ? { properties: dto.properties as Prisma.InputJsonValue } : {}),
         status,
         createdById: user.id,
       },
-      include: { category: { select: { id: true, name: true } } },
+      include: {
+        category: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
+      },
     });
 
-    return {
-      id: material.id,
-      name: material.name,
-      categoryId: material.category.id,
-      categoryName: material.category.name,
-      uom: material.uom,
-      upc: material.upc,
-      manufacturer: material.manufacturer,
-      description: material.description,
-      materialType: material.materialType,
-      countryOfOrigin: material.countryOfOrigin,
-      pricePerUnit:
-        material.pricePerUnit !== null && material.pricePerUnit !== undefined
-          ? material.pricePerUnit.toString()
-          : null,
-      currency: material.currency,
-      status: material.status,
-      createdAt: material.createdAt.toISOString(),
-      updatedAt: material.updatedAt.toISOString(),
-    };
+    return this.toDetail(material);
   }
 
   // ── Catalogue bulk import (FOR-228) ───────────────────────────────────────────

@@ -81,16 +81,17 @@ export default function MaterialDetailPage() {
 
   const material: MaterialDetailDto = data;
   const internalId = material.sku ?? material.id;
-  const editPath = ROUTES.materialCatalogueEdit.replace(':id', material.id);
+  const editCorePath = ROUTES.materialCatalogueEdit.replace(':id', material.id);
+  const editAdditionalPath = ROUTES.materialCatalogueEditAdditional.replace(':id', material.id);
   const canEdit = has('material.update');
 
-  const EditButton = () =>
+  const EditButton = ({ to }: { to: string }) =>
     canEdit ? (
       <Button
         variant="ghost"
         size="sm"
         leftIcon={<EditIcon className="w-4 h-4" />}
-        onClick={() => navigate(editPath)}
+        onClick={() => navigate(to)}
         data-testid="material-detail-edit"
       >
         {t('detail.edit')}
@@ -127,7 +128,7 @@ export default function MaterialDetailPage() {
           <h2 className="text-base font-semibold text-foreground">
             {t('detail.coreIdentification')}
           </h2>
-          <EditButton />
+          <EditButton to={editCorePath} />
         </div>
 
         <div className="mt-5 flex flex-col gap-6 lg:flex-row">
@@ -197,7 +198,7 @@ export default function MaterialDetailPage() {
           <h2 className="text-base font-semibold text-foreground">
             {t('detail.additionalProperties')}
           </h2>
-          <EditButton />
+          <EditButton to={editAdditionalPath} />
         </div>
 
         <div className="space-y-4">

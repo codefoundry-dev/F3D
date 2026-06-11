@@ -115,6 +115,94 @@ export class CreateMaterialDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  // ── Rich catalogue attributes (US 4.01 Phase 2) ──────────────────────────
+  // Mirrors UpdateMaterialDto so the "Add new material item" wizard can submit
+  // the full Core-identification + Additional-properties payload in one create.
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  sku?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  brand?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  manufacturerPartNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  subCategory?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  imageUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  materialType?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  itemType?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  countryOfOrigin?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  manufacturerSeriesModel?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  gradeClass?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  standardNorm?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  colourFinish?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  size?: string;
+
+  @ApiPropertyOptional({ description: 'Price per unit (numeric or numeric string)' })
+  @IsNumber()
+  @IsOptional()
+  pricePerUnit?: number;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  currency?: string;
+
+  @ApiPropertyOptional({ type: Object, description: 'Structured physical dimensions' })
+  @IsObject()
+  @IsOptional()
+  dimensions?: MaterialDimensions;
+
+  @ApiPropertyOptional({ type: Object, description: 'Open-ended category-specific data' })
+  @IsObject()
+  @IsOptional()
+  properties?: MaterialProperties;
 }
 
 /**

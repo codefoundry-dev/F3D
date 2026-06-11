@@ -339,6 +339,79 @@ describe('MaterialsService', () => {
       expect(createData.manufacturer).toBeNull();
       expect(createData.description).toBeNull();
     });
+
+    it('persists the full rich Core + Additional payload and returns the detail shape', async () => {
+      const richDto = {
+        name: 'Colorbond Roofing Sheet 0.42mm',
+        categoryId: 'cat-1',
+        uom: 'sheet',
+        materialType: 'Roofing',
+        itemType: 'Sheet',
+        countryOfOrigin: 'Australia',
+        manufacturerSeriesModel: 'CEM-001',
+        gradeClass: 'C24',
+        standardNorm: 'EN',
+        colourFinish: 'Surfmist',
+        size: '123x456x123',
+        pricePerUnit: 42.5,
+        currency: 'AUD',
+        sku: 'ROOF-007',
+        dimensions: { length: { value: 100, uom: 'mm' }, packaging: { unitsPerPackage: 10 } },
+        properties: { compressiveStrength: '12345678', density: '1234' },
+      };
+      const now = new Date('2026-03-02T10:00:00Z');
+      mockPrisma.material.findFirst.mockResolvedValue(null);
+      mockPrisma.materialCategory.findUnique.mockResolvedValue({ id: 'cat-1' });
+      mockPrisma.material.create.mockResolvedValue({
+        id: 'm-rich',
+        name: richDto.name,
+        category: { id: 'cat-1', name: 'Roofing' },
+        createdBy: { id: 'sa-1', name: 'Super Admin' },
+        uom: 'sheet',
+        upc: null,
+        manufacturer: null,
+        description: null,
+        sku: 'ROOF-007',
+        brand: null,
+        manufacturerPartNumber: null,
+        subCategory: null,
+        imageUrl: null,
+        materialType: 'Roofing',
+        itemType: 'Sheet',
+        countryOfOrigin: 'Australia',
+        manufacturerSeriesModel: 'CEM-001',
+        gradeClass: 'C24',
+        standardNorm: 'EN',
+        colourFinish: 'Surfmist',
+        size: '123x456x123',
+        pricePerUnit: { toString: () => '42.5' },
+        currency: 'AUD',
+        dimensions: richDto.dimensions,
+        properties: richDto.properties,
+        status: MaterialStatus.PUBLIC,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const result = await service.createMaterial(richDto as never, superAdmin);
+
+      const createData = mockPrisma.material.create.mock.calls[0][0].data;
+      expect(createData.materialType).toBe('Roofing');
+      expect(createData.itemType).toBe('Sheet');
+      expect(createData.countryOfOrigin).toBe('Australia');
+      expect(createData.gradeClass).toBe('C24');
+      expect(createData.pricePerUnit).toBe(42.5);
+      expect(createData.currency).toBe('AUD');
+      expect(createData.dimensions).toEqual(richDto.dimensions);
+      expect(createData.properties).toEqual(richDto.properties);
+
+      // Returned in the full detail shape (createdBy, dimensions, properties).
+      expect(result.materialType).toBe('Roofing');
+      expect(result.pricePerUnit).toBe('42.5');
+      expect(result.dimensions).toEqual(richDto.dimensions);
+      expect(result.properties).toEqual(richDto.properties);
+      expect(result.createdBy).toEqual({ id: 'sa-1', name: 'Super Admin' });
+    });
   });
 
   // ── importCatalogueFromExtraction ─────────────────────────────────────────
