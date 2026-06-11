@@ -142,13 +142,13 @@ export class MaterialsService {
     const status =
       user.role === UserRole.SUPER_ADMIN ? MaterialStatus.PUBLIC : MaterialStatus.PENDING_APPROVAL;
 
-    // Verify category exists
-    const category = await this.prisma.materialCategory.findUnique({
-      where: { id: dto.categoryId },
-    });
-    if (!category) {
-      throw new NotFoundException('Material category not found');
-    }
+    // Resolve the target category. A supplied id must exist; when omitted (the
+    // BOM "create private material" quick-add has no category field) the row
+    // falls back to the shared "Uncategorised" bucket, mirroring the catalogue
+    // bulk-import.
+    const categoryId = dto.categoryId
+      ? await this.assertCategoryExists(dto.categoryId)
+      : await this.resolveUncategorisedCategoryId();
 
     const material = await this.prisma.material.create({
       // Persist the full Core-identification + Additional-properties payload from
@@ -157,7 +157,7 @@ export class MaterialsService {
       // ("AUD") unless the caller supplies one.
       data: {
         name: dto.name,
-        categoryId: dto.categoryId,
+        categoryId,
         uom: dto.uom,
         upc: dto.upc ?? null,
         manufacturer: dto.manufacturer ?? null,
@@ -189,6 +189,25 @@ export class MaterialsService {
     });
 
     return this.toDetail(material);
+  }
+
+  /** Assert a supplied category id exists, returning it; 404 otherwise. */
+  private async assertCategoryExists(id: string): Promise<string> {
+    const category = await this.prisma.materialCategory.findUnique({ where: { id } });
+    if (!category) {
+      throw new NotFoundException('Material category not found');
+    }
+    return id;
+  }
+
+  /** Find-or-create the shared "Uncategorised" category and return its id. */
+  private async resolveUncategorisedCategoryId(): Promise<string> {
+    const existing = await this.prisma.materialCategory.findUnique({
+      where: { name: UNCATEGORISED },
+    });
+    if (existing) return existing.id;
+    const created = await this.prisma.materialCategory.create({ data: { name: UNCATEGORISED } });
+    return created.id;
   }
 
   // ── Catalogue bulk import (FOR-228) ───────────────────────────────────────────

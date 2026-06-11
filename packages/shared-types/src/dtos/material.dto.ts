@@ -98,8 +98,13 @@ export class CreateMaterialDto {
   @IsString()
   name!: string;
 
+  // Optional: the catalogue create wizard always supplies it, but the BOM
+  // "create private material" quick-add has no category field — those rows fall
+  // back to the shared "Uncategorised" bucket server-side.
+  @ApiPropertyOptional()
   @IsUUID()
-  categoryId!: string;
+  @IsOptional()
+  categoryId?: string;
 
   @IsString()
   uom!: string;

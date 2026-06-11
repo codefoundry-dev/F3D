@@ -412,6 +412,69 @@ describe('MaterialsService', () => {
       expect(result.properties).toEqual(richDto.properties);
       expect(result.createdBy).toEqual({ id: 'sa-1', name: 'Super Admin' });
     });
+
+    it('falls back to a find-or-created "Uncategorised" category when categoryId is omitted', async () => {
+      // The BOM "create private material" quick-add submits no categoryId.
+      const noCatDto = { name: 'Private Mat', uom: 'kg' };
+      mockPrisma.material.findFirst.mockResolvedValue(null);
+      // "Uncategorised" does not exist yet → it is created.
+      mockPrisma.materialCategory.findUnique.mockResolvedValue(null);
+      mockPrisma.materialCategory.create.mockResolvedValue({
+        id: 'uncat-1',
+        name: 'Uncategorised',
+      });
+      const now = new Date('2026-03-03T10:00:00Z');
+      mockPrisma.material.create.mockResolvedValue({
+        id: 'm-priv',
+        name: 'Private Mat',
+        category: { id: 'uncat-1', name: 'Uncategorised' },
+        createdBy: null,
+        uom: 'kg',
+        currency: 'AUD',
+        status: MaterialStatus.PENDING_APPROVAL,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const result = await service.createMaterial(noCatDto as never, companyAdmin);
+
+      expect(mockPrisma.materialCategory.findUnique).toHaveBeenCalledWith({
+        where: { name: 'Uncategorised' },
+      });
+      expect(mockPrisma.materialCategory.create).toHaveBeenCalledWith({
+        data: { name: 'Uncategorised' },
+      });
+      const createData = mockPrisma.material.create.mock.calls[0][0].data;
+      expect(createData.categoryId).toBe('uncat-1');
+      expect(result.categoryId).toBe('uncat-1');
+      expect(result.status).toBe(MaterialStatus.PENDING_APPROVAL);
+    });
+
+    it('reuses an existing "Uncategorised" category without creating a duplicate', async () => {
+      const noCatDto = { name: 'Another Private Mat', uom: 'ea' };
+      mockPrisma.material.findFirst.mockResolvedValue(null);
+      mockPrisma.materialCategory.findUnique.mockResolvedValue({
+        id: 'uncat-existing',
+        name: 'Uncategorised',
+      });
+      const now = new Date('2026-03-03T11:00:00Z');
+      mockPrisma.material.create.mockResolvedValue({
+        id: 'm-priv-2',
+        name: 'Another Private Mat',
+        category: { id: 'uncat-existing', name: 'Uncategorised' },
+        createdBy: null,
+        uom: 'ea',
+        currency: 'AUD',
+        status: MaterialStatus.PENDING_APPROVAL,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const result = await service.createMaterial(noCatDto as never, companyAdmin);
+
+      expect(mockPrisma.materialCategory.create).not.toHaveBeenCalled();
+      expect(result.categoryId).toBe('uncat-existing');
+    });
   });
 
   // ── importCatalogueFromExtraction ─────────────────────────────────────────
