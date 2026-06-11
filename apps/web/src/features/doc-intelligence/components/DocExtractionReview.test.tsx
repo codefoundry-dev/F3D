@@ -95,20 +95,20 @@ describe('DocExtractionReview — generic JSON editor', () => {
     renderWithClient(<DocExtractionReview extractionId="job-1" />);
 
     const editor = await screen.findByTestId<HTMLTextAreaElement>('extraction-editor');
-    expect(editor.value).toContain('"title": "Doc"');
+    // The editor is seeded from job.editedResult in an effect after the textarea
+    // first mounts (empty), so wait for the value rather than reading it eagerly.
+    await waitFor(() => expect(editor.value).toContain('"title": "Doc"'));
     expect(screen.getByTestId('extraction-status').textContent).toMatch(/Ready/i);
   });
 
   it('allows the user to edit, save, and persists via updateDocExtraction', async () => {
     mockedGetDocExtraction.mockResolvedValue(buildJob());
-    mockedUpdateDocExtraction.mockResolvedValue(
-      buildJob({ editedResult: { title: 'Edited' } }),
-    );
+    mockedUpdateDocExtraction.mockResolvedValue(buildJob({ editedResult: { title: 'Edited' } }));
 
     renderWithClient(<DocExtractionReview extractionId="job-1" />);
 
     fireEvent.click(await screen.findByRole('button', { name: /edit/i }));
-    const editor = (await screen.findByTestId('extraction-editor'));
+    const editor = await screen.findByTestId('extraction-editor');
     fireEvent.change(editor, {
       target: { value: JSON.stringify({ title: 'Edited' }, null, 2) },
     });
@@ -129,9 +129,7 @@ describe('DocExtractionReview — generic JSON editor', () => {
     fireEvent.change(editor, { target: { value: '{ not valid json' } });
 
     await waitFor(() =>
-      expect(screen.getByRole('alert').textContent?.toLowerCase()).toMatch(
-        /(token|json|expected)/,
-      ),
+      expect(screen.getByRole('alert').textContent?.toLowerCase()).toMatch(/(token|json|expected)/),
     );
     expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
   });
