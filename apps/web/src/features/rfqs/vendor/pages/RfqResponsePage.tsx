@@ -28,7 +28,6 @@ import { useAuthStore } from '@/features/auth/state/auth.store';
 import { AdditionalQuoteDetails } from '../components/AdditionalQuoteDetails';
 import { AddWarehouseModal } from '../components/AddWarehouseModal';
 import { BulkLevelDefaults } from '../components/BulkLevelDefaults';
-import { MaterialSearchPopup } from '../components/MaterialSearchPopup';
 import { ResponseLineItemsTable } from '../components/ResponseLineItemsTable';
 import { RfqResponseInfoPanel } from '../components/RfqResponseInfoPanel';
 import { useCanRespond } from '../hooks/useCanRespond';
@@ -120,8 +119,9 @@ function RfqResponseForm({
   const { attachments, uploadError, isUploading, handleFileUpload, removeAttachment } =
     useFileUpload(initialAttachments);
 
-  // Material search state
+  // Material search state (inline substitute search in the line items table)
   const [substituteOpenIdx, setSubstituteOpenIdx] = useState<number | null>(null);
+  const [substituteQuery, setSubstituteQuery] = useState('');
 
   // Warehouse modal state
   const [showWarehouseModal, setShowWarehouseModal] = useState(false);
@@ -160,9 +160,33 @@ function RfqResponseForm({
       form.updateLineItem(substituteOpenIdx, 'substituteItemId', material.id);
       form.updateLineItem(substituteOpenIdx, 'substituteName', material.name);
       setSubstituteOpenIdx(null);
+      setSubstituteQuery('');
     },
     [substituteOpenIdx, form],
   );
+
+  const handleOpenSubstitute = useCallback((idx: number) => {
+    setSubstituteOpenIdx(idx);
+    setSubstituteQuery('');
+  }, []);
+
+  const handleCloseSubstitute = useCallback(() => {
+    setSubstituteOpenIdx(null);
+    setSubstituteQuery('');
+  }, []);
+
+  // Transient "draft saved" confirmation
+  const [showDraftSaved, setShowDraftSaved] = useState(false);
+  const handleSaveDraft = useCallback(() => {
+    form.saveDraft();
+    setShowDraftSaved(true);
+  }, [form]);
+
+  useEffect(() => {
+    if (!showDraftSaved) return;
+    const timer = setTimeout(() => setShowDraftSaved(false), 3000);
+    return () => clearTimeout(timer);
+  }, [showDraftSaved]);
 
   // Deadline calculation
   const deadlineDate = rfq.deadlineEnd ? new Date(rfq.deadlineEnd) : null;
@@ -186,18 +210,25 @@ function RfqResponseForm({
               : t('response.deadlineBanner', { date: deadlineDisplay, daysLeft })}
           </Alert>
 
-          {/* View info toggle */}
-          <Button
-            variant="outline"
-            size="md"
-            className="h-[42px]"
-            onClick={() => form.setShowInfo(!form.showInfo)}
-          >
-            {form.showInfo ? t('response.hideInfo') : t('response.viewInfo')}
-          </Button>
+          {/* View info toggle — shown only while the panel is closed (the panel has its own ✕) */}
+          {!form.showInfo && (
+            <Button
+              variant="outline"
+              size="md"
+              className="h-[42px]"
+              onClick={() => form.setShowInfo(true)}
+            >
+              {t('response.viewInfo')}
+            </Button>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
+          {showDraftSaved && (
+            <span className="text-sm text-success whitespace-nowrap">
+              {t('response.draftSaved')}
+            </span>
+          )}
           <Button
             variant="primary"
             size="md"
@@ -210,6 +241,17 @@ function RfqResponseForm({
               ? t(form.isEditMode ? 'response.updating' : 'response.submitting')
               : t(form.isEditMode ? 'response.update' : 'response.submit')}
           </Button>
+          {!form.isEditMode && (
+            <Button
+              variant="outline"
+              size="md"
+              className="h-[42px]"
+              onClick={handleSaveDraft}
+              disabled={form.isSubmitting}
+            >
+              {t('response.saveAsDraft')}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -243,26 +285,20 @@ function RfqResponseForm({
               onAddWarehouse={() => setShowWarehouseModal(true)}
             />
 
-            {/* Line items table */}
-            <div className="relative">
-              <ResponseLineItemsTable
-                lineItems={form.lineItems}
-                onToggleInclude={form.toggleInclude}
-                onUpdateItem={form.updateLineItem}
-                onToggleExpanded={form.toggleExpanded}
-                totals={form.totals}
-                onOpenSubstitute={(idx) =>
-                  setSubstituteOpenIdx(substituteOpenIdx === idx ? null : idx)
-                }
-              />
-
-              {/* Material search popup */}
-              <MaterialSearchPopup
-                open={substituteOpenIdx !== null}
-                onClose={() => setSubstituteOpenIdx(null)}
-                onSelect={handleSelectSubstitute}
-              />
-            </div>
+            {/* Line items table (with inline substitute search) */}
+            <ResponseLineItemsTable
+              lineItems={form.lineItems}
+              onToggleInclude={form.toggleInclude}
+              onUpdateItem={form.updateLineItem}
+              onToggleExpanded={form.toggleExpanded}
+              totals={form.totals}
+              substituteOpenIdx={substituteOpenIdx}
+              substituteQuery={substituteQuery}
+              onSubstituteQueryChange={setSubstituteQuery}
+              onOpenSubstitute={handleOpenSubstitute}
+              onCloseSubstitute={handleCloseSubstitute}
+              onSelectSubstitute={handleSelectSubstitute}
+            />
 
             {/* Additional details */}
             <AdditionalQuoteDetails
@@ -342,6 +378,15 @@ function RfqResponseForm({
             setShowErrorModal(false);
             navigate(ROUTES.rfqDetail.replace(':id', rfq.id));
           }}
+          secondaryButtonLabel={form.isEditMode ? undefined : t('response.saveAsDraft')}
+          onSecondaryClick={
+            form.isEditMode
+              ? undefined
+              : () => {
+                  handleSaveDraft();
+                  setShowErrorModal(false);
+                }
+          }
         />
       )}
 

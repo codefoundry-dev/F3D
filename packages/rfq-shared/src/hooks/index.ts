@@ -5,6 +5,9 @@ export {
   useRfqQuoteComparison,
   useRfqEmailLog,
   useAwardQuote,
+  useQuoteDetail,
+  useUpdateQuoteLineItemStatuses,
+  useCreateDraftPoFromQuote,
 } from './useRfqs';
 export { useDropdown } from './useDropdown';
 export { useRfqSort } from './useRfqSort';

@@ -17,8 +17,8 @@ import {
 import type { PoTab, RelatedDocument } from '@forethread/po-shared';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { Button, Spinner } from '@forethread/ui-components';
+import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
-import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -219,7 +219,7 @@ export default function PurchaseOrderDetailPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  rightIcon={<EditIcon className="w-4 h-4" />}
+                  rightIcon={<ChevronDownIcon className="w-4 h-4" />}
                   onClick={() =>
                     navigate(`${ROUTES.purchaseOrderChangeRequest.replace(':id', po.id)}`)
                   }

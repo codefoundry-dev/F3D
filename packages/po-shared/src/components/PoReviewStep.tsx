@@ -116,7 +116,11 @@ export function PoReviewStep({
           </div>
           <div>
             <span className="text-muted-foreground">{t('create.pickUpTimeExpectation')}</span>
-            <p className="font-medium">-</p>
+            <p className="font-medium">
+              {data.pickUpTimeExpectation
+                ? t(`create.pickUpTimeOptions.${data.pickUpTimeExpectation}`)
+                : '-'}
+            </p>
           </div>
           <div>
             <span className="text-muted-foreground">{t('create.earliestDeliveryDate')}:</span>

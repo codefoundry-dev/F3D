@@ -56,11 +56,11 @@ export default function QuoteResponseDetailPage() {
   return (
     <SharedQuoteResponseDetailPage
       rfqId={rfqId ?? ''}
-      quoteResponse={quoteResponse}
+      quoteId={quoteResponse.id}
+      vendorName={quoteResponse.vendorName}
+      status={quoteResponse.status}
       initialTab={initialTab}
       onTabChange={handleTabChange}
-      lineItems={rfq.lineItems}
-      documents={rfq.documents}
     />
   );
 }

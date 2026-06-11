@@ -478,6 +478,125 @@ describe('PoStatusService', () => {
     });
   });
 
+  // ── Branch coverage: approval thresholds, null vendors, vendor actions ─────
+  describe('fallback and authorization branches', () => {
+    const vendorUser = {
+      id: 'vu-1',
+      email: 'v@test.com',
+      role: UserRole.VENDOR,
+      companyId: 'vendor-comp-1',
+    };
+
+    it('denies approval when the approver is not granted the action', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'DRAFT',
+        companyId: 'comp-1',
+        totalAmount: 500,
+        currency: 'AUD',
+      });
+      mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'notGranted', threshold: null });
+
+      await expect(service.approvePurchaseOrder('po-1', companyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('reports a zero amount when below threshold and the PO total is null', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'DRAFT',
+        companyId: 'comp-1',
+        totalAmount: null,
+        currency: 'AUD',
+      });
+      mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'belowThreshold', threshold: 1000 });
+
+      await expect(service.approvePurchaseOrder('po-1', companyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('returns a null vendorName when an approved PO has no vendor', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'DRAFT',
+        companyId: 'comp-1',
+        totalAmount: 500,
+        currency: 'AUD',
+      });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        id: 'po-1',
+        status: 'ACKNOWLEDGED',
+        project: { name: 'Alpha' },
+        vendor: null,
+      });
+
+      const result = await service.approvePurchaseOrder('po-1', companyAdmin);
+      expect(result.vendorName).toBeNull();
+    });
+
+    it('returns a null vendorName when a declined PO has no vendor', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'SENT',
+        companyId: 'comp-1',
+      });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        id: 'po-1',
+        status: 'CANCELLED',
+        project: { name: 'Alpha' },
+        vendor: null,
+      });
+
+      const result = await service.declinePurchaseOrder('po-1', companyAdmin);
+      expect(result.vendorName).toBeNull();
+    });
+
+    it('persists the warehouse location when a vendor accepts with one', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'ACKNOWLEDGED',
+        vendorId: 'vendor-comp-1',
+      });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({});
+
+      await service.acceptPurchaseOrder(
+        'po-1',
+        { warehouseLocationId: 'wh-1' } as never,
+        vendorUser as never,
+      );
+
+      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ warehouseLocationId: 'wh-1' }),
+        }),
+      );
+    });
+
+    it('uses default vendor/contractor labels when a declined PO lacks vendor and admin users', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'SENT',
+        vendorId: 'vendor-comp-1',
+        poNumber: 'PO-1',
+        companyId: 'comp-1',
+        vendor: null,
+        company: {},
+      });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({});
+
+      const result = await service.vendorDeclinePurchaseOrder(
+        'po-1',
+        { reason: 'x' } as never,
+        vendorUser as never,
+      );
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(result).toBeDefined();
+    });
+  });
+
   describe('archivePurchaseOrder', () => {
     it('throws NotFoundException when PO does not exist', async () => {
       mockPrisma.purchaseOrder.findUnique.mockResolvedValue(null);

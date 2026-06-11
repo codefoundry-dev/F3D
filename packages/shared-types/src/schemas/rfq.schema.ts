@@ -41,8 +41,13 @@ export const createRfqLineItemSchema = z
     quantity: z.number().min(0.01),
     uom: z.string().min(1),
     costCode: z.string().optional(),
+    description: z.string().optional(),
     notes: z.string().optional(),
     pickUp: z.boolean().optional(),
+    // Per-line project/delivery fields (US 5.05 multi-project RFQs)
+    projectId: z.string().uuid().optional(),
+    deliveryLocationId: z.string().uuid().optional(),
+    expectedDeliveryDate: z.string().datetime().optional(),
   })
   .refine((li) => Boolean(li.materialId) || Boolean(li.materialName), {
     message: 'A line item needs a catalog material or a material name',
@@ -51,6 +56,12 @@ export const createRfqLineItemSchema = z
 
 export const createRfqSchema = z.object({
   projectId: z.string().uuid(),
+  /** Buyer-facing document name (US 5.05 "Document name"). */
+  name: z.string().max(255).optional(),
+  /** All projects the RFQ spans (US 5.05); first entry = primary project. */
+  projectIds: z.array(z.string().uuid()).min(1).optional(),
+  isPickUp: z.boolean().optional(),
+  pickUpLocation: z.string().optional(),
   deadlineEnd: z.string().datetime(),
   deliveryLocationId: z.string().uuid(),
   needByDate: z.string().datetime().optional(),
@@ -74,6 +85,12 @@ export type UpdateRfqValues = z.infer<typeof updateRfqSchema>;
 // partial draft can be persisted between steps.
 export const saveRfqDraftSchema = z.object({
   projectId: z.string().uuid(),
+  /** Buyer-facing document name (US 5.05 "Document name"). */
+  name: z.string().max(255).optional(),
+  /** All projects the RFQ spans (US 5.05); first entry = primary project. */
+  projectIds: z.array(z.string().uuid()).min(1).optional(),
+  isPickUp: z.boolean().optional(),
+  pickUpLocation: z.string().optional(),
   deadlineEnd: z.string().datetime().optional(),
   deliveryLocationId: z.string().uuid().optional(),
   needByDate: z.string().datetime().optional(),

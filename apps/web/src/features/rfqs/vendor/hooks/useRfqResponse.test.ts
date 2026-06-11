@@ -147,11 +147,11 @@ describe('useRfqResponse', () => {
     expect(result.current.lineItems[1].description).toBe('Special grade');
   });
 
-  it('initializes bulk defaults as empty', () => {
+  it('initializes bulk defaults as empty and expanded', () => {
     const { result } = renderHook(() => useRfqResponse(rfqEmpty, 'vendor-1'));
     expect(result.current.bulkDefaults.bulkAvailability).toBe('');
     expect(result.current.bulkDefaults.bulkDiscount).toBe('');
-    expect(result.current.bulkExpanded).toBe(false);
+    expect(result.current.bulkExpanded).toBe(true);
   });
 
   it('sets bulk field', () => {
@@ -296,13 +296,13 @@ describe('useRfqResponse', () => {
     expect(result.current.attachmentIds).toEqual(['att-2']);
   });
 
-  it('manages showInfo state', () => {
+  it('manages showInfo state (open by default)', () => {
     const { result } = renderHook(() => useRfqResponse(rfqEmpty, 'vendor-1'));
-    expect(result.current.showInfo).toBe(false);
-    act(() => {
-      result.current.setShowInfo(true);
-    });
     expect(result.current.showInfo).toBe(true);
+    act(() => {
+      result.current.setShowInfo(false);
+    });
+    expect(result.current.showInfo).toBe(false);
   });
 
   it('returns empty warehouses when vendor profile not loaded', () => {

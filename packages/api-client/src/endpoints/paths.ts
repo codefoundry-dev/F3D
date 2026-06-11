@@ -74,6 +74,18 @@ export const PROJECTS_PATHS = {
   member: (id: string, userId: string) => `/projects/${id}/members/${userId}`,
 } as const;
 
+// ── BOMs (US 5.01) ──────────────────────────────────────────────────────────
+export const BOMS_PATHS = {
+  ROOT: '/boms',
+  byId: (id: string) => `/boms/${id}`,
+} as const;
+
+// ── Material Lists ───────────────────────────────────────────────────────────
+export const MATERIAL_LISTS_PATHS = {
+  ROOT: '/material-lists',
+  byId: (id: string) => `/material-lists/${id}`,
+} as const;
+
 // ── RFQs ─────────────────────────────────────────────────────────────────────
 export const RFQS_PATHS = {
   ROOT: '/rfqs',
@@ -86,6 +98,8 @@ export const RFQS_PATHS = {
   quote: (rfqId: string, quoteId: string) => `/rfqs/${rfqId}/quotes/${quoteId}`,
   quoteAudit: (rfqId: string) => `/rfqs/${rfqId}/quote-audit`,
   quoteComparison: (rfqId: string) => `/rfqs/${rfqId}/quote-comparison`,
+  quoteLineItemStatus: (rfqId: string, quoteId: string) =>
+    `/rfqs/${rfqId}/quotes/${quoteId}/line-items/status`,
   approveQuote: (rfqId: string, quoteId: string) => `/rfqs/${rfqId}/quotes/${quoteId}/approve`,
   awardQuote: (rfqId: string, quoteId: string) => `/rfqs/${rfqId}/quotes/${quoteId}/award`,
   declineQuote: (rfqId: string, quoteId: string) => `/rfqs/${rfqId}/quotes/${quoteId}/decline`,
@@ -93,6 +107,8 @@ export const RFQS_PATHS = {
   send: (id: string) => `/rfqs/${id}/send`,
   checkBulk: (id: string) => `/rfqs/${id}/check-bulk`,
   confirmBulk: (id: string) => `/rfqs/${id}/confirm-bulk-suggestions`,
+  CHECK_AVAILABILITY: '/rfqs/check-availability',
+  confirmCoverage: (id: string) => `/rfqs/${id}/confirm-coverage`,
   documents: (rfqId: string) => `/rfqs/${rfqId}/documents`,
   document: (rfqId: string, docId: string) => `/rfqs/${rfqId}/documents/${docId}`,
   guestRfq: (token: string) => `/rfqs/invitation/${token}`,

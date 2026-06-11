@@ -16,6 +16,7 @@ import { AccessTokenGuard } from './modules/access-tokens/access-token.guard';
 import { AccessTokensModule } from './modules/access-tokens/access-tokens.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { BomsModule } from './modules/boms/boms.module';
 import { BulkOrdersModule } from './modules/bulk-orders/bulk-orders.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
@@ -25,6 +26,7 @@ import { GeminiModule } from './modules/gemini/gemini.module';
 import { GoogleModule } from './modules/google/google.module';
 import { HealthModule } from './modules/health/health.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
+import { MaterialListsModule } from './modules/material-lists/material-lists.module';
 import { MaterialsModule } from './modules/materials/materials.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -88,12 +90,14 @@ import { PrismaModule } from './prisma/prisma.module';
     GeminiModule,
     DocIntelligenceModule,
     ProjectsModule,
+    BomsModule,
     RfqsModule,
     PurchaseOrdersModule,
     RolesModule,
     BulkOrdersModule,
     InvoicesModule,
     MaterialsModule,
+    MaterialListsModule,
     DashboardModule,
     StorageModule,
     VendorsModule,

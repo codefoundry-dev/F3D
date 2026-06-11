@@ -4180,9 +4180,13 @@ cover remaining US-5 stories.
 - [ ] T406 [US-5.05] Extend RFQ service with full CRUD: `createRfq()`, `updateRfq()`, `submitRfq()`,
       `addItemsToRfq()` (US-5.14), `editRfq()` (US-5.18) —
       `apps/backend/src/modules/rfqs/rfqs.service.ts`
-- [ ] T407 [US-5.06] Add quote review endpoints: `GET /v1/rfqs/:id/quotes/compare`,
+- [x] T407 [US-5.06] Add quote review endpoints: `GET /v1/rfqs/:id/quotes/compare`,
       `POST /v1/rfqs/:id/quotes/:quoteId/award`, `POST /v1/rfqs/:id/line-items/:itemId/approve`
-      (US-5.19) — `apps/backend/src/modules/rfqs/rfqs.controller.ts`
+      (US-5.19) — `apps/backend/src/modules/rfqs/rfqs.controller.ts` — DONE (2026-06-11):
+      quote-comparison GET (FOR-208) extended with line totals/discounts/statuses/notes/substitutes,
+      per-row projects and vendor footer totals; award existed (FOR-209); line review shipped as
+      bulk `PATCH /v1/rfqs/:rfqId/quotes/:quoteId/line-items/status` (approve/decline/restore,
+      audit-logged). `approveQuote`/`declineQuote` now accept SUBMITTED quotes.
 - [x] T408 [US-5.07] Extend PO service with full CRUD: `createPo()`, `updatePo()`, `sendPo()` —
       `apps/backend/src/modules/purchase-orders/purchase-orders.service.ts` — DONE (T725-T728):
       createPurchaseOrder, updatePurchaseOrder, issuePurchaseOrder implemented
@@ -5866,8 +5870,12 @@ PO/RFQ fields, implement PO create/update/issue endpoints.
 - [x] T746 [US-3.06] Extend `QuoteResponse` model: add message, shipmentPrice, taxesIncluded,
       validityPeriod, warehouseLocation. Add QuoteLineItem[] relation. —
       `apps/backend/src/prisma/schema/rfq.prisma` (already implemented via T336/T345)
-- [ ] T747 [US-5.19] Add quote line-level approval tracking: approvalStatus enum, approvedQuantity
-      per vendor per RFQ line item. — `apps/backend/src/prisma/schema/rfq.prisma`
+- [x] T747 [US-5.19] Add quote line-level approval tracking: approvalStatus enum, approvedQuantity
+      per vendor per RFQ line item. — `apps/backend/src/prisma/schema/rfq.prisma` — DONE
+      (2026-06-11): tracked via the existing `QuoteLineItemStatus` enum
+      (PENDING/APPROVED/DECLINED) on `QuoteResponseLineItem` + the new line-items/status endpoint;
+      order quantities stay client-side until PO/bulk-order draft creation (no approvedQuantity
+      column needed).
 - [ ] T748 [US-5.12] Add `status` enum (Pending/Approved/Rejected) + `message` field to
       PoChangeRequest model. — `apps/backend/src/prisma/schema/purchase-order.prisma`
 - [x] T749 [US-5.18] Add `pickUp Boolean @default(false)` to PoLineItem (preserve RFQ→PO pick-up
@@ -5884,10 +5892,23 @@ PO/RFQ fields, implement PO create/update/issue endpoints.
       BulkOrdersModal, coverage modals, BulkPriceWarningModal, attachments, save draft all
       implemented (T770-T807).
       `apps/company-admin-app/src/features/purchase-orders/pages/CreatePurchaseOrderPage.tsx`
-- [ ] T752 [US-5.05] Implement RFQ create frontend page (Figma design available). —
-      `apps/company-admin-app/src/features/rfqs/pages/CreateRfqPage.tsx`
-- [ ] T753 [US-5.06] Implement Review Quotes frontend page (Figma design available, needs T745
-      first). — `apps/company-admin-app/src/features/rfqs/pages/ReviewQuotesPage.tsx`
+- [x] T752 [US-5.05] Implement RFQ create frontend page (Figma design available). —
+      `apps/web/src/features/rfqs/buyer/pages/CreateRfqPage.tsx` — DONE (2026-06-11): 4-step wizard
+      (BasicInfo → LineItems+SourcePicker/BOM/material-list modals → Availability/bulk-coverage →
+      ReviewSend) replacing the old 5-step flow; multi-project line items, save-as-draft, RFQ
+      availability check + confirm-coverage backend (`rfq-availability.service.ts`), material-lists
+      read module, schema migrations (us505_material_lists, us505_rfq_multi_project_line_fields).
+      **Tests**: CreateRfqPage.test, wizard-types.test, availability.test + backend
+      rfq-availability.service.spec (all green).
+- [x] T753 [US-5.06] Implement Review Quotes frontend page (Figma design available, needs T745
+      first). — DONE (2026-06-11): implemented as the RFQ detail Responses tab (list + table views)
+      rather than a separate page, per Figma 5.06. List view: labelled cards, delivery ranges, note
+      indicators, sorting. Table view: `QuoteComparisonTable` (rfq-shared) with per-vendor column
+      groups, best-price/substitute highlights, vendor hide, group-by-project subtotals, table
+      management modal, line approve/decline/restore, Declined restore flows, Approved order-qty +
+      Create PO/Create Bulk with start-order modals (US-5.19). Quote drill-in
+      (`QuoteResponseDetailPage`) reworked with real quote lines, suggestion-replace and totals
+      footer; embedded in the RFQ side panel. Old `RfqQuoteComparisonTab` removed.
 - [ ] T754 [US-5.12] Implement change request CRUD endpoints. —
       `apps/backend/src/modules/purchase-orders/`
 - [x] T755 [US-5.07] Implement POST /v1/purchase-orders/:id/confirm (vendor endpoint). —

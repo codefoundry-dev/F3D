@@ -47,10 +47,45 @@ model Material {
   poLineItems          PoLineItem[]
   rfqLineItems         RfqLineItem[]
   quoteSubstituteItems QuoteResponseLineItem[] @relation("QuoteSubstituteItem")
+  bomItems             BomItem[]               @relation("BomItemMatchedMaterial")
+  materialListItems    MaterialListItem[]
 
   @@index([categoryId], map: "idx_materials_category")
   @@index([status], map: "idx_materials_status")
   @@index([name], map: "idx_materials_name")
   @@index([nameCi], map: "idx_materials_name_ci")
   @@map("materials")
+}
+
+/// A reusable, company-scoped collection of catalogue materials (US 5.05).
+/// Buyers pick a saved list during RFQ creation to pre-fill line items.
+model MaterialList {
+  id          String   @id @default(uuid())
+  name        String   @db.VarChar(255)
+  description String?
+  companyId   String   @map("company_id")
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company   Company            @relation("MaterialListCompany", fields: [companyId], references: [id])
+  createdBy User               @relation("MaterialListCreatedBy", fields: [createdById], references: [id])
+  items     MaterialListItem[]
+
+  @@index([companyId], map: "idx_material_lists_company")
+  @@map("material_lists")
+}
+
+model MaterialListItem {
+  id         String   @id @default(uuid())
+  listId     String   @map("list_id")
+  materialId String   @map("material_id")
+  quantity   Int      @default(1)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  list     MaterialList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  material Material     @relation(fields: [materialId], references: [id])
+
+  @@unique([listId, materialId], map: "idx_material_list_items_list_material")
+  @@map("material_list_items")
 }

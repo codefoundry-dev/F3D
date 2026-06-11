@@ -108,12 +108,22 @@ vi.mock('@forethread/ui-components/assets/icons/edit-in-square.svg?react', () =>
 vi.mock('@forethread/ui-components/assets/icons/half-clock.svg?react', () => ({
   default: () => <span />,
 }));
-vi.mock('@forethread/ui-components/assets/icons/romb.svg?react', () => ({
+vi.mock('@forethread/ui-components/assets/icons/circle-reload.svg?react', () => ({
+  default: () => <span />,
+}));
+vi.mock('@forethread/ui-components/assets/icons/package.svg?react', () => ({
+  default: () => <span />,
+}));
+vi.mock('@forethread/ui-components/assets/icons/search.svg?react', () => ({
   default: () => <span />,
 }));
 
 vi.mock('./LineItemExpandedRow', () => ({
   LineItemExpandedRow: () => <div data-testid="expanded-row" />,
+}));
+
+vi.mock('./MaterialSearchPopup', () => ({
+  MaterialSearchPopup: () => <div data-testid="material-search-popup" />,
 }));
 
 import type { LineItemFormState, QuoteTotals } from '../hooks/useRfqResponse';
@@ -169,6 +179,9 @@ describe('ResponseLineItemsTable', () => {
   const onUpdateItem = vi.fn();
   const onToggleExpanded = vi.fn();
   const onOpenSubstitute = vi.fn();
+  const onSubstituteQueryChange = vi.fn();
+  const onCloseSubstitute = vi.fn();
+  const onSelectSubstitute = vi.fn();
 
   const baseProps = {
     lineItems: [makeItem()],
@@ -176,7 +189,12 @@ describe('ResponseLineItemsTable', () => {
     onUpdateItem,
     onToggleExpanded,
     totals: emptyTotals,
+    substituteOpenIdx: null,
+    substituteQuery: '',
+    onSubstituteQueryChange,
     onOpenSubstitute,
+    onCloseSubstitute,
+    onSelectSubstitute,
   };
 
   beforeEach(() => {

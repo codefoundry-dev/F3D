@@ -1,7 +1,7 @@
 import type { MaterialListItemDto } from '@forethread/api-client';
 import { getMaterials, getMaterialCategories } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Badge, CustomDropdown } from '@forethread/ui-components';
+import { Badge, cn, CustomDropdown } from '@forethread/ui-components';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import FilterIcon from '@forethread/ui-components/assets/icons/filter.svg?react';
@@ -12,9 +12,19 @@ interface MaterialSearchPopupProps {
   open: boolean;
   onClose: () => void;
   onSelect: (material: MaterialListItemDto) => void;
+  /** Free-text search typed in the inline substitute field */
+  searchQuery?: string;
+  /** Override for the desktop dropdown position (e.g. to anchor under a table row) */
+  positionClassName?: string;
 }
 
-export function MaterialSearchPopup({ open, onClose, onSelect }: MaterialSearchPopupProps) {
+export function MaterialSearchPopup({
+  open,
+  onClose,
+  onSelect,
+  searchQuery,
+  positionClassName,
+}: MaterialSearchPopupProps) {
   const { t } = useTranslation('rfqs');
   const popupRef = useRef<HTMLDivElement>(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -38,11 +48,13 @@ export function MaterialSearchPopup({ open, onClose, onSelect }: MaterialSearchP
   const categoryOptions = (categories ?? []).map((c) => ({ value: c.id, label: c.name }));
   const activeCategoryLabel = categoryOptions.find((o) => o.value === categoryFilter)?.label;
 
+  const normalizedSearch = searchQuery?.trim();
   const { data } = useQuery({
-    queryKey: ['materials-filter', categoryFilter],
+    queryKey: ['materials-filter', categoryFilter, normalizedSearch ?? ''],
     queryFn: () =>
       getMaterials({
         categoryId: categoryFilter || undefined,
+        search: normalizedSearch === '' ? undefined : normalizedSearch,
         limit: 50,
       }),
     enabled: open,
@@ -203,7 +215,10 @@ export function MaterialSearchPopup({ open, onClose, onSelect }: MaterialSearchP
     return (
       <div
         ref={popupRef}
-        className="absolute left-0 top-full mt-1 w-[897px] max-h-[414px] bg-card border border-border rounded-xl shadow-xl z-50 flex flex-col overflow-hidden"
+        className={cn(
+          positionClassName ?? 'absolute left-0 top-full mt-1 z-50',
+          'w-[897px] max-w-[calc(100vw-160px)] max-h-[414px] bg-card border border-border rounded-xl shadow-xl flex flex-col overflow-hidden',
+        )}
       >
         {panelContent}
       </div>

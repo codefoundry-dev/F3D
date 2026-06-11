@@ -74,6 +74,12 @@ model Company {
   // Document intelligence
   docExtractions        DocExtraction[]   @relation("DocExtractionCompany")
 
+  // Bill of materials (US 5.01)
+  boms                  Bom[]             @relation("BomCompany")
+
+  // Material lists (US 5.05)
+  materialLists         MaterialList[]    @relation("MaterialListCompany")
+
   @@index([type], map: "idx_companies_type")
   @@index([legalName], map: "idx_companies_legal_name")
   @@map("companies")

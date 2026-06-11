@@ -19,7 +19,6 @@ import { RfqDocumentsTab } from '../components/RfqDocumentsTab';
 import { RfqEmailLogTab } from '../components/RfqEmailLogTab';
 import { RfqLineItemsTab } from '../components/RfqLineItemsTab';
 import { RfqQuoteAuditTab } from '../components/RfqQuoteAuditTab';
-import { RfqQuoteComparisonTab } from '../components/RfqQuoteComparisonTab';
 import { useSendRfq } from '../services/rfqs.service';
 
 export default function RfqDetailPage() {
@@ -38,7 +37,6 @@ export default function RfqDetailPage() {
     'details',
     'lineItems',
     'responses',
-    'comparison',
     'documents',
     'emailLog',
     'audit',
@@ -150,7 +148,6 @@ export default function RfqDetailPage() {
             onViewModeChange={setResponsesViewMode}
           />
         )}
-        {activeTab === 'comparison' && <RfqQuoteComparisonTab rfqId={rfq.id} />}
         {activeTab === 'documents' && (
           <RfqDocumentsTab rfqId={rfq.id} documents={rfq.documents ?? []} hideUpload />
         )}

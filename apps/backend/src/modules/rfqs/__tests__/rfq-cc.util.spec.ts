@@ -16,15 +16,14 @@ describe('normalizeCcEmails', () => {
   });
 
   it('de-duplicates case-insensitively, preserving first-seen order', () => {
-    expect(
-      normalizeCcEmails(['b@acme.com', 'a@acme.com', 'B@ACME.COM', '  a@acme.com ']),
-    ).toEqual(['b@acme.com', 'a@acme.com']);
+    expect(normalizeCcEmails(['b@acme.com', 'a@acme.com', 'B@ACME.COM', '  a@acme.com '])).toEqual([
+      'b@acme.com',
+      'a@acme.com',
+    ]);
   });
 
   it('drops blanks and entries without an @', () => {
-    expect(normalizeCcEmails(['', '   ', 'not-an-email', 'ok@acme.com'])).toEqual([
-      'ok@acme.com',
-    ]);
+    expect(normalizeCcEmails(['', '   ', 'not-an-email', 'ok@acme.com'])).toEqual(['ok@acme.com']);
   });
 
   it('ignores non-string entries defensively', () => {

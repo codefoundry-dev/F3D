@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import CrossIcon from '../assets/icons/cross.svg?react';
 import DeleteIcon from '../assets/icons/delete.svg?react';
@@ -82,6 +82,14 @@ export interface MaterialSearchPanelProps {
   colourLabel?: string;
   /** Compact mode for inline table cells — no border/bg on input */
   compact?: boolean;
+  /**
+   * Single-pick mode: the whole result row becomes a button that fires with
+   * the clicked material (no + / qty / "Add to list" controls). Used by the
+   * BOM review match cell where picking one material resolves the line.
+   */
+  onPickItem?: (item: MaterialItem) => void;
+  /** Optional footer rendered at the bottom of the results panel (e.g. a "Create private material item" button). */
+  footerAction?: ReactNode;
 }
 
 const EMPTY_FILTERS: MaterialFilters = {
@@ -129,6 +137,8 @@ export function MaterialSearchPanel({
   countryLabel = 'Country of origin',
   colourLabel = 'Colour',
   compact = false,
+  onPickItem,
+  footerAction,
 }: MaterialSearchPanelProps) {
   const [showFilters, setShowFilters] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -253,14 +263,8 @@ export function MaterialSearchPanel({
                 {results.map((item) => {
                   const isSelected = selectedIds.has(item.id);
                   const selectedItem = selected.find((s) => s.id === item.id);
-                  return (
-                    <div
-                      key={item.id}
-                      className={cn(
-                        'flex items-center gap-3 px-4 py-3 border-b border-border last:border-b-0',
-                        isSelected && 'bg-muted/50',
-                      )}
-                    >
+                  const rowContent = (
+                    <>
                       {/* Material icon */}
                       <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
                         {item.imageUrl ? (
@@ -275,7 +279,7 @@ export function MaterialSearchPanel({
                       </div>
 
                       {/* Material info */}
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 text-left">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-foreground truncate">
                             {item.name}
@@ -292,6 +296,32 @@ export function MaterialSearchPanel({
                           {item.description && <span>{item.description}</span>}
                         </div>
                       </div>
+                    </>
+                  );
+
+                  // Single-pick mode: the whole row is the action.
+                  if (onPickItem) {
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => onPickItem(item)}
+                        className="w-full flex items-center gap-3 px-4 py-3 border-b border-border last:border-b-0 hover:bg-muted/50 transition-colors"
+                      >
+                        {rowContent}
+                      </button>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={cn(
+                        'flex items-center gap-3 px-4 py-3 border-b border-border last:border-b-0',
+                        isSelected && 'bg-muted/50',
+                      )}
+                    >
+                      {rowContent}
 
                       {/* Action: add or qty + remove */}
                       {isSelected ? (
@@ -328,12 +358,17 @@ export function MaterialSearchPanel({
               </div>
 
               {/* Add to list button */}
-              {selected.length > 0 && (
+              {!onPickItem && selected.length > 0 && (
                 <div className="flex justify-end px-4 py-3 border-t border-border shrink-0">
                   <Button variant="primary" size="md" onClick={onAddToList}>
                     {addToListLabel}
                   </Button>
                 </div>
+              )}
+
+              {/* Custom footer (e.g. "Create private material item") */}
+              {footerAction && (
+                <div className="px-2 py-2 border-t border-border shrink-0">{footerAction}</div>
               )}
             </>
           ) : (

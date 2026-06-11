@@ -3,17 +3,57 @@ import { QuoteLineItemAvailability } from '@prisma/client';
 import {
   buildQuoteComparison,
   type ComparisonQuoteInput,
+  type ComparisonQuoteLineItemInput,
   type ComparisonRfqInput,
 } from '../quote-comparison';
 
 const rfq: ComparisonRfqInput = {
   id: 'rfq-1',
   currency: 'AUD',
+  projectId: 'p-1',
+  projectName: 'Primary Project',
   lineItems: [
-    { id: 'li-1', materialName: 'Cement', quantity: 10, unit: 'bags' },
-    { id: 'li-2', materialName: 'Steel', quantity: 5, unit: 'tons' },
+    {
+      id: 'li-1',
+      materialName: 'Cement',
+      quantity: 10,
+      unit: 'bags',
+      projectId: null,
+      projectName: null,
+    },
+    {
+      id: 'li-2',
+      materialName: 'Steel',
+      quantity: 5,
+      unit: 'tons',
+      projectId: 'p-2',
+      projectName: 'Second Project',
+    },
   ],
 };
+
+let lineSeq = 0;
+
+function line(
+  overrides: Partial<ComparisonQuoteLineItemInput> & { rfqLineItemId: string },
+): ComparisonQuoteLineItemInput {
+  lineSeq += 1;
+  return {
+    id: `ql-${lineSeq}`,
+    unitPrice: 0,
+    quotedQuantity: 0,
+    availability: QuoteLineItemAvailability.AVAILABLE,
+    deliveryDate: null,
+    discount: null,
+    discountType: null,
+    lineTotal: 0,
+    status: 'PENDING',
+    notes: null,
+    substituteItemId: null,
+    substituteItemName: null,
+    ...overrides,
+  };
+}
 
 function quote(overrides: Partial<ComparisonQuoteInput> = {}): ComparisonQuoteInput {
   return {
@@ -24,6 +64,11 @@ function quote(overrides: Partial<ComparisonQuoteInput> = {}): ComparisonQuoteIn
     submittedAt: new Date('2026-06-01T00:00:00Z'),
     paymentTerms: 'Net 30',
     bulkDeliveryTime: null,
+    totalCost: 0,
+    discountPercent: null,
+    discountAmount: null,
+    bulkShipment: null,
+    attachmentCount: 0,
     lineItems: [],
     ...overrides,
   };
@@ -44,17 +89,25 @@ describe('buildQuoteComparison', () => {
     expect(result.rows[0].cells.map((c) => c.vendorId)).toEqual(['v-1', 'v-2']);
   });
 
+  it('falls back to the RFQ primary project for rows without a line-level project', () => {
+    const result = buildQuoteComparison(rfq, []);
+    expect(result.rows[0].projectId).toBe('p-1');
+    expect(result.rows[0].projectName).toBe('Primary Project');
+    expect(result.rows[1].projectId).toBe('p-2');
+    expect(result.rows[1].projectName).toBe('Second Project');
+  });
+
   it('computes extended cost as quantity × unit price', () => {
     const result = buildQuoteComparison(rfq, [
       quote({
         lineItems: [
-          {
+          line({
             rfqLineItemId: 'li-1',
             unitPrice: 12.5,
             quotedQuantity: 10,
-            availability: QuoteLineItemAvailability.AVAILABLE,
             deliveryDate: new Date('2026-07-01T00:00:00Z'),
-          },
+            lineTotal: 137.5,
+          }),
         ],
       }),
     ]);
@@ -63,35 +116,24 @@ describe('buildQuoteComparison', () => {
     expect(cell.unitPrice).toBe(12.5);
     expect(cell.quotedQuantity).toBe(10);
     expect(cell.extendedCost).toBe(125);
+    expect(cell.lineTotal).toBe(137.5);
     expect(cell.hasQuote).toBe(true);
   });
 
-  it('flags the lowest extended cost per row and sets lowestVendorId', () => {
+  it('flags the lowest line total per row and sets lowestVendorId', () => {
     const result = buildQuoteComparison(rfq, [
       quote({
         id: 'q-1',
         vendorId: 'v-1',
         lineItems: [
-          {
-            rfqLineItemId: 'li-1',
-            unitPrice: 20,
-            quotedQuantity: 10, // 200
-            availability: QuoteLineItemAvailability.AVAILABLE,
-            deliveryDate: null,
-          },
+          line({ rfqLineItemId: 'li-1', unitPrice: 20, quotedQuantity: 10, lineTotal: 200 }),
         ],
       }),
       quote({
         id: 'q-2',
         vendorId: 'v-2',
         lineItems: [
-          {
-            rfqLineItemId: 'li-1',
-            unitPrice: 15,
-            quotedQuantity: 10, // 150 — cheapest
-            availability: QuoteLineItemAvailability.AVAILABLE,
-            deliveryDate: null,
-          },
+          line({ rfqLineItemId: 'li-1', unitPrice: 15, quotedQuantity: 10, lineTotal: 150 }),
         ],
       }),
     ]);
@@ -108,26 +150,14 @@ describe('buildQuoteComparison', () => {
         id: 'q-1',
         vendorId: 'v-1',
         lineItems: [
-          {
-            rfqLineItemId: 'li-1',
-            unitPrice: 10,
-            quotedQuantity: 10,
-            availability: QuoteLineItemAvailability.AVAILABLE,
-            deliveryDate: null,
-          },
+          line({ rfqLineItemId: 'li-1', unitPrice: 10, quotedQuantity: 10, lineTotal: 100 }),
         ],
       }),
       quote({
         id: 'q-2',
         vendorId: 'v-2',
         lineItems: [
-          {
-            rfqLineItemId: 'li-1',
-            unitPrice: 10,
-            quotedQuantity: 10,
-            availability: QuoteLineItemAvailability.AVAILABLE,
-            deliveryDate: null,
-          },
+          line({ rfqLineItemId: 'li-1', unitPrice: 10, quotedQuantity: 10, lineTotal: 100 }),
         ],
       }),
     ];
@@ -144,20 +174,13 @@ describe('buildQuoteComparison', () => {
         id: 'q-1',
         vendorId: 'v-1',
         lineItems: [
-          {
+          line({
             rfqLineItemId: 'li-1',
             unitPrice: 0,
             quotedQuantity: 10,
             availability: QuoteLineItemAvailability.NO_QUOTE,
-            deliveryDate: null,
-          },
-          {
-            rfqLineItemId: 'li-2',
-            unitPrice: 30,
-            quotedQuantity: 5, // 150
-            availability: QuoteLineItemAvailability.AVAILABLE,
-            deliveryDate: null,
-          },
+          }),
+          line({ rfqLineItemId: 'li-2', unitPrice: 30, quotedQuantity: 5, lineTotal: 150 }),
         ],
       }),
     ]);
@@ -165,6 +188,7 @@ describe('buildQuoteComparison', () => {
     const li1Cell = result.rows[0].cells[0];
     expect(li1Cell.hasQuote).toBe(false);
     expect(li1Cell.extendedCost).toBeNull();
+    expect(li1Cell.lineTotal).toBeNull();
     expect(li1Cell.isLowest).toBe(false);
     expect(result.rows[0].lowestVendorId).toBeNull();
 
@@ -178,13 +202,7 @@ describe('buildQuoteComparison', () => {
     const result = buildQuoteComparison(rfq, [
       quote({
         lineItems: [
-          {
-            rfqLineItemId: 'li-1',
-            unitPrice: 10,
-            quotedQuantity: 10,
-            availability: QuoteLineItemAvailability.AVAILABLE,
-            deliveryDate: null,
-          },
+          line({ rfqLineItemId: 'li-1', unitPrice: 10, quotedQuantity: 10, lineTotal: 100 }),
         ],
       }),
     ]);
@@ -194,26 +212,16 @@ describe('buildQuoteComparison', () => {
     expect(li2Cell.hasQuote).toBe(false);
     expect(li2Cell.extendedCost).toBeNull();
     expect(li2Cell.unitPrice).toBeNull();
+    expect(li2Cell.quoteLineItemId).toBeNull();
+    expect(li2Cell.status).toBeNull();
   });
 
   it('sums vendor totals across all quoted rows', () => {
     const result = buildQuoteComparison(rfq, [
       quote({
         lineItems: [
-          {
-            rfqLineItemId: 'li-1',
-            unitPrice: 10,
-            quotedQuantity: 10, // 100
-            availability: QuoteLineItemAvailability.AVAILABLE,
-            deliveryDate: null,
-          },
-          {
-            rfqLineItemId: 'li-2',
-            unitPrice: 40,
-            quotedQuantity: 5, // 200
-            availability: QuoteLineItemAvailability.AVAILABLE,
-            deliveryDate: null,
-          },
+          line({ rfqLineItemId: 'li-1', unitPrice: 10, quotedQuantity: 10, lineTotal: 100 }),
+          line({ rfqLineItemId: 'li-2', unitPrice: 40, quotedQuantity: 5, lineTotal: 200 }),
         ],
       }),
     ]);
@@ -227,20 +235,18 @@ describe('buildQuoteComparison', () => {
       quote({
         bulkDeliveryTime: null,
         lineItems: [
-          {
+          line({
             rfqLineItemId: 'li-1',
             unitPrice: 10,
             quotedQuantity: 10,
-            availability: QuoteLineItemAvailability.AVAILABLE,
             deliveryDate: new Date('2026-07-01T00:00:00Z'),
-          },
-          {
+          }),
+          line({
             rfqLineItemId: 'li-2',
             unitPrice: 10,
             quotedQuantity: 5,
-            availability: QuoteLineItemAvailability.AVAILABLE,
             deliveryDate: new Date('2026-09-15T00:00:00Z'),
-          },
+          }),
         ],
       }),
     ]);
@@ -253,13 +259,12 @@ describe('buildQuoteComparison', () => {
       quote({
         bulkDeliveryTime: new Date('2026-08-01T00:00:00Z'),
         lineItems: [
-          {
+          line({
             rfqLineItemId: 'li-1',
             unitPrice: 10,
             quotedQuantity: 10,
-            availability: QuoteLineItemAvailability.AVAILABLE,
             deliveryDate: new Date('2026-12-01T00:00:00Z'),
-          },
+          }),
         ],
       }),
     ]);
@@ -274,6 +279,53 @@ describe('buildQuoteComparison', () => {
 
     expect(result.vendors[0].paymentTerms).toBe('Net 45');
     expect(result.vendors[0].submittedAt).toBe('2026-06-02T08:00:00.000Z');
+  });
+
+  it('carries the vendor footer fields (total with taxes, discount, shipment, attachments)', () => {
+    const result = buildQuoteComparison(rfq, [
+      quote({
+        totalCost: 57585,
+        discountPercent: 8,
+        discountAmount: 10000,
+        bulkShipment: 850,
+        attachmentCount: 2,
+      }),
+    ]);
+
+    const vendor = result.vendors[0];
+    expect(vendor.totalWithTaxes).toBe(57585);
+    expect(vendor.discountPercent).toBe(8);
+    expect(vendor.discountAmount).toBe(10000);
+    expect(vendor.shipmentAndHandling).toBe(850);
+    expect(vendor.attachmentCount).toBe(2);
+  });
+
+  it('exposes per-line review status, notes and substitute info on cells', () => {
+    const result = buildQuoteComparison(rfq, [
+      quote({
+        lineItems: [
+          line({
+            id: 'ql-status',
+            rfqLineItemId: 'li-1',
+            unitPrice: 10,
+            quotedQuantity: 10,
+            lineTotal: 100,
+            status: 'DECLINED',
+            notes: 'Cheaper alternative attached',
+            substituteItemId: 'mat-9',
+            substituteItemName: 'Oak Planks (1" thick)',
+          }),
+        ],
+      }),
+    ]);
+
+    const cell = result.rows[0].cells[0];
+    expect(cell.quoteLineItemId).toBe('ql-status');
+    expect(cell.status).toBe('DECLINED');
+    expect(cell.notes).toBe('Cheaper alternative attached');
+    expect(cell.substituteItemId).toBe('mat-9');
+    expect(cell.substituteItemName).toBe('Oak Planks (1" thick)');
+    expect(result.vendors[0].hasNotes).toBe(true);
   });
 
   it('handles an RFQ with no received quotes', () => {
