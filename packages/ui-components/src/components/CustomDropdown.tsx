@@ -70,10 +70,16 @@ export function CustomDropdown({
     const rect = containerRef.current.getBoundingClientRect();
     const spaceBelow = window.innerHeight - rect.bottom;
     const openUp = spaceBelow < 250;
+    // Width: at least as wide as the trigger, but allowed to grow to its content
+    // so long options (e.g. multi-word categories in a narrow table cell) show on
+    // one line instead of wrapping. Clamp to the viewport so it never spills off
+    // the right edge.
     setPortalStyle({
       position: 'fixed',
       left: rect.left,
-      width: rect.width,
+      width: 'max-content',
+      minWidth: rect.width,
+      maxWidth: Math.max(rect.width, window.innerWidth - rect.left - 8),
       ...(openUp ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
     });
   }, [isOpen]);
