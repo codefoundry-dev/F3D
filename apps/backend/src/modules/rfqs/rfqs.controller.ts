@@ -1,4 +1,6 @@
 import {
+  CheckRfqAvailabilityDto,
+  ConfirmRfqCoverageDto,
   CreateRfqDto,
   RfqListQueryDto,
   SaveRfqDraftDto,
@@ -28,8 +30,9 @@ import { Public } from '../../common/decorators/public.decorator';
 import { RequirePermissions } from '../../common/permissions';
 import { toExtractionResponse } from '../doc-intelligence/doc-intelligence.mapper';
 
-import { SubmitQuoteDto, UpdateQuoteDto } from './quote-response.dto';
+import { SubmitQuoteDto, UpdateQuoteDto, UpdateQuoteLineItemStatusDto } from './quote-response.dto';
 import { QuoteResponseService } from './quote-response.service';
+import { RfqAvailabilityService } from './rfq-availability.service';
 import { RfqExportService } from './rfq-export.service';
 import type { UpdateLineItemDto } from './rfqs.service';
 import { RfqsService } from './rfqs.service';
@@ -42,6 +45,7 @@ export class RfqsController {
     private readonly rfqsService: RfqsService,
     private readonly rfqExportService: RfqExportService,
     private readonly quoteResponseService: QuoteResponseService,
+    private readonly rfqAvailabilityService: RfqAvailabilityService,
   ) {}
 
   // ── GET /v1/rfqs ───────────────────────────────────────────────────────────
@@ -79,6 +83,44 @@ export class RfqsController {
   @ApiResponse({ status: 404, description: 'Project or related resource not found' })
   async saveRfqDraft(@Body() dto: SaveRfqDraftDto, @CurrentUser() user: AuthenticatedUser) {
     return this.rfqsService.saveRfqDraft(dto, user);
+  }
+
+  // ── POST /v1/rfqs/check-availability ─────────────────────────────────────
+  // NOTE: Static segment — declared before any :id routes for clarity.
+
+  @Post('check-availability')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('rfq.checkAvailability')
+  @ApiOperation({
+    summary: 'Check prospective RFQ line items against active bulk orders (US 5.05)',
+  })
+  @ApiResponse({ status: 200, description: 'Per-line bulk-order matches and the vendors involved' })
+  async checkAvailability(
+    @Body() dto: CheckRfqAvailabilityDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.rfqAvailabilityService.checkAvailability(dto, user);
+  }
+
+  // ── POST /v1/rfqs/:id/confirm-coverage ───────────────────────────────────
+
+  @Post(':id/confirm-coverage')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('rfq.confirmCoverage')
+  @ApiOperation({
+    summary:
+      'Draw down bulk orders to cover draft-RFQ line items, shrinking or removing them (US 5.05)',
+  })
+  @ApiResponse({ status: 200, description: 'Updated RFQ detail plus drawdown summary' })
+  @ApiResponse({ status: 400, description: 'RFQ not DRAFT or allocation exceeds line quantity' })
+  @ApiResponse({ status: 404, description: 'RFQ, line item, or bulk-order line not found' })
+  @ApiResponse({ status: 409, description: 'Insufficient remaining quantity on a bulk-order line' })
+  async confirmCoverage(
+    @Param('id') id: string,
+    @Body() dto: ConfirmRfqCoverageDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.rfqAvailabilityService.confirmCoverage(id, dto, user);
   }
 
   // ── GET /v1/rfqs/export/:format ────────────────────────────────────────
@@ -352,6 +394,25 @@ export class RfqsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.quoteResponseService.getQuoteDetail(rfqId, quoteId, user);
+  }
+
+  // ── PATCH /v1/rfqs/:rfqId/quotes/:quoteId/line-items/status ─────────────
+
+  @Patch(':rfqId/quotes/:quoteId/line-items/status')
+  @RequirePermissions('rfq.approveQuote')
+  @ApiOperation({
+    summary: 'Approve / decline / restore individual lines of a quote (US 5.19)',
+  })
+  @ApiResponse({ status: 200, description: 'Line statuses updated' })
+  @ApiResponse({ status: 403, description: 'Access denied (contractor-only)' })
+  @ApiResponse({ status: 404, description: 'Quote or line item not found' })
+  async updateQuoteLineItemStatuses(
+    @Param('rfqId') rfqId: string,
+    @Param('quoteId') quoteId: string,
+    @Body() dto: UpdateQuoteLineItemStatusDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.quoteResponseService.updateQuoteLineItemStatuses(rfqId, quoteId, dto, user);
   }
 
   // ── GET /v1/rfqs/:rfqId/quote-audit ──────────────────────────────────────

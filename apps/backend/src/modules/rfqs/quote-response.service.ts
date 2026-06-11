@@ -27,7 +27,11 @@ import { DocIntelligenceService } from '../doc-intelligence/doc-intelligence.ser
 import { StorageService } from '../storage/storage.service';
 
 import { buildQuoteComparison } from './quote-comparison';
-import type { SubmitQuoteDto, UpdateQuoteDto } from './quote-response.dto';
+import type {
+  SubmitQuoteDto,
+  UpdateQuoteDto,
+  UpdateQuoteLineItemStatusDto,
+} from './quote-response.dto';
 
 /** Statuses that block vendor quote submission / update */
 const CLOSED_STATUSES: RfqStatus[] = [RfqStatus.CLOSED, RfqStatus.CANCELLED];
@@ -174,7 +178,13 @@ export class QuoteResponseService {
     after: ReturnType<QuoteResponseService['buildQuoteSnapshot']>,
   ) {
     const fields: Record<string, { from: unknown; to: unknown }> = {};
-    const scalarKeys = ['totalCost', 'itemsCovered', 'bulkDiscount', 'bulkTax', 'bulkShipment'] as const;
+    const scalarKeys = [
+      'totalCost',
+      'itemsCovered',
+      'bulkDiscount',
+      'bulkTax',
+      'bulkShipment',
+    ] as const;
     for (const key of scalarKeys) {
       if (before[key] !== after[key]) fields[key] = { from: before[key], to: after[key] };
     }
@@ -518,10 +528,15 @@ export class QuoteResponseService {
 
   // ── Quote Comparison (FOR-208) ───────────────────────────────────────────────
 
-  /** Quote statuses that count as "received" for the contractor's comparison view. */
+  /**
+   * Quote statuses that count as "received" for the contractor's comparison view.
+   * Declined quotes stay visible — the review-quotes table keeps them in their
+   * own filter section so the buyer can restore them (US 5.06).
+   */
   private static readonly COMPARISON_STATUSES: QuoteResponseStatus[] = [
     QuoteResponseStatus.SUBMITTED,
     QuoteResponseStatus.APPROVED,
+    QuoteResponseStatus.DECLINED,
   ];
 
   /**
@@ -537,8 +552,18 @@ export class QuoteResponseService {
         id: true,
         companyId: true,
         currency: true,
+        projectId: true,
+        project: { select: { name: true } },
         lineItems: {
-          select: { id: true, materialName: true, quantity: true, unit: true },
+          select: {
+            id: true,
+            materialName: true,
+            material: { select: { name: true } },
+            quantity: true,
+            unit: true,
+            projectId: true,
+            project: { select: { name: true } },
+          },
         },
       },
     });
@@ -561,21 +586,47 @@ export class QuoteResponseService {
         submittedAt: true,
         paymentTerms: true,
         bulkDeliveryTime: true,
+        totalCost: true,
+        discountPercent: true,
+        discountAmount: true,
+        bulkShipment: true,
         vendor: { select: { legalName: true } },
+        _count: { select: { attachments: true } },
         lineItems: {
           select: {
+            id: true,
             rfqLineItemId: true,
             unitPrice: true,
             quotedQuantity: true,
             availability: true,
             deliveryDate: true,
+            discount: true,
+            discountType: true,
+            lineTotal: true,
+            status: true,
+            notes: true,
+            substituteItemId: true,
+            substituteItem: { select: { name: true } },
           },
         },
       },
     });
 
     return buildQuoteComparison(
-      { id: rfq.id, currency: rfq.currency, lineItems: rfq.lineItems },
+      {
+        id: rfq.id,
+        currency: rfq.currency,
+        projectId: rfq.projectId,
+        projectName: rfq.project.name,
+        lineItems: rfq.lineItems.map((li) => ({
+          id: li.id,
+          materialName: li.materialName ?? li.material?.name ?? null,
+          quantity: li.quantity,
+          unit: li.unit,
+          projectId: li.projectId,
+          projectName: li.project?.name ?? null,
+        })),
+      },
       quotes.map((q) => ({
         id: q.id,
         vendorId: q.vendorId,
@@ -584,15 +635,97 @@ export class QuoteResponseService {
         submittedAt: q.submittedAt,
         paymentTerms: q.paymentTerms,
         bulkDeliveryTime: q.bulkDeliveryTime,
+        totalCost: Number(q.totalCost),
+        discountPercent: q.discountPercent !== null ? Number(q.discountPercent) : null,
+        discountAmount: q.discountAmount !== null ? Number(q.discountAmount) : null,
+        bulkShipment: q.bulkShipment !== null ? Number(q.bulkShipment) : null,
+        attachmentCount: q._count.attachments,
         lineItems: q.lineItems.map((li) => ({
+          id: li.id,
           rfqLineItemId: li.rfqLineItemId,
           unitPrice: Number(li.unitPrice),
           quotedQuantity: li.quotedQuantity,
           availability: li.availability,
           deliveryDate: li.deliveryDate,
+          discount: li.discount !== null ? Number(li.discount) : null,
+          discountType: li.discountType,
+          lineTotal: Number(li.lineTotal),
+          status: li.status,
+          notes: li.notes,
+          substituteItemId: li.substituteItemId,
+          substituteItemName: li.substituteItem?.name ?? null,
         })),
       })),
     );
+  }
+
+  // ── Per-line review status (US 5.19 — approve line items) ───────────────────
+
+  /**
+   * Set the review status of one or more lines on a vendor quote
+   * (approve / decline / restore-to-pending). Contractor-only: this is the
+   * buyer's line-level review of a received quote, recorded on the quote audit
+   * trail as an UPDATED entry carrying the affected line ids.
+   */
+  async updateQuoteLineItemStatuses(
+    rfqId: string,
+    quoteId: string,
+    dto: UpdateQuoteLineItemStatusDto,
+    user: AuthenticatedUser,
+  ) {
+    const quote = await this.prisma.quoteResponse.findUnique({
+      where: { id: quoteId },
+      select: {
+        id: true,
+        rfqId: true,
+        vendorId: true,
+        source: true,
+        rfq: { select: { companyId: true } },
+        lineItems: { select: { id: true } },
+      },
+    });
+    if (quote?.rfqId !== rfqId) {
+      throw new NotFoundException(ERR.rfqs.quoteNotFound);
+    }
+
+    const isContractor =
+      (user.role === UserRole.COMPANY_ADMIN || user.role === UserRole.PROCUREMENT_OFFICER) &&
+      quote.rfq.companyId === user.companyId;
+    if (!isContractor) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
+
+    const known = new Set(quote.lineItems.map((li) => li.id));
+    const unknown = dto.lineItemIds.filter((id) => !known.has(id));
+    if (unknown.length > 0) {
+      throw new NotFoundException(ERR.rfqs.quoteLineItemNotFound);
+    }
+
+    const lineItems = await this.prisma.$transaction(async (tx) => {
+      await tx.quoteResponseLineItem.updateMany({
+        where: { id: { in: dto.lineItemIds }, quoteResponseId: quoteId },
+        data: { status: dto.status },
+      });
+
+      await tx.quoteAudit.create({
+        data: {
+          quoteResponseId: quoteId,
+          rfqId,
+          vendorId: quote.vendorId,
+          action: QuoteAuditAction.UPDATED,
+          source: quote.source,
+          performedById: user.id,
+          changes: { lineItemStatus: { ids: dto.lineItemIds, status: dto.status } },
+        },
+      });
+
+      return tx.quoteResponseLineItem.findMany({
+        where: { id: { in: dto.lineItemIds } },
+        select: { id: true, status: true },
+      });
+    });
+
+    return { updated: lineItems.length, lineItems };
   }
 
   // ── Guest (invitation link) access ──────────────────────────────────────────
