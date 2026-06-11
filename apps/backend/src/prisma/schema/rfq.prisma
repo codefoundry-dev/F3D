@@ -38,8 +38,8 @@ model Rfq {
   id                   String          @id @default(uuid())
   rfqNumber            String          @unique @map("rfq_number") @db.VarChar(50)
   /// Buyer-facing document name (US 5.05 "Document name"). Null for legacy
-  /// rows. Stored in the pre-existing `document_name` column (added by
-  /// migration 20260610090000, which predates this model field).
+  /// rows. Stored in the `document_name` column, added by migration
+  /// 20260611140000_add_rfq_document_name.
   name                 String?         @map("document_name") @db.VarChar(255)
   projectId            String          @map("project_id")
   companyId            String          @map("company_id")
