@@ -428,4 +428,125 @@ describe('PoChangeService', () => {
       expect(result).toEqual({ rejected: true });
     });
   });
+
+  // ── Branch coverage: fallback / guard paths ────────────────────────────────
+  describe('fallback and guard branches', () => {
+    const poWithRelations = {
+      id: 'po-1',
+      status: 'SENT',
+      companyId: 'comp-1',
+      vendorId: 'vendor-comp-1',
+      poNumber: 'PO-0001',
+      company: { users: [{ email: 'admin@contractor.com' }] },
+      vendor: { contactEmail: 'contact@vendor.com', users: [{ email: 'vendor@vendor.com' }] },
+    };
+    const dto = { changeType: 'COMMERCIAL', changedFields: { paymentTermsDays: 60 } };
+
+    it('sends no email and labels an unnamed requester when the contractor has no users', async () => {
+      // Vendor proposes but the contractor company has no user accounts → empty
+      // recipient list; the created request has no requestedBy → "A user" label.
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ ...poWithRelations, company: {} });
+      mockPrisma.poChangeRequest.create.mockResolvedValue({ id: 'cr-1', requestedBy: null });
+
+      const result = await service.proposeChange('po-1', dto as never, vendorUser);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(result.id).toBe('cr-1');
+      expect(mockEmailService.sendChangeRequestProposedEmail).not.toHaveBeenCalled();
+    });
+
+    it('uses only the vendor contactEmail when the vendor object has no users array', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        ...poWithRelations,
+        vendor: { contactEmail: 'only@vendor.com' },
+      });
+      mockPrisma.poChangeRequest.create.mockResolvedValue({
+        id: 'cr-1',
+        requestedBy: { id: 'ca-1', name: 'CA Admin' },
+      });
+
+      await service.proposeChange('po-1', dto as never, companyAdmin);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+        'only@vendor.com',
+        'PO-0001',
+        'CA Admin',
+        expect.any(String),
+      );
+    });
+
+    it('approves a change request whose status field is absent (defaults to PENDING)', async () => {
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue({
+        id: 'cr-1',
+        requestedById: 'v-u-1',
+      });
+      mockPrisma.poChangeRequest.update.mockResolvedValue({});
+
+      const result = await service.approveChange('po-1', 'cr-1', companyAdmin);
+      expect(result).toEqual({ approved: true });
+    });
+
+    it('rejects a change request whose status field is absent (defaults to PENDING)', async () => {
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue({
+        id: 'cr-1',
+        requestedById: 'v-u-1',
+      });
+      mockPrisma.poChangeRequest.update.mockResolvedValue({});
+
+      const result = await service.rejectChange('po-1', 'cr-1', { reason: 'x' }, companyAdmin);
+      expect(result).toEqual({ rejected: true });
+    });
+
+    it('skips the requester notification when the PO lookup returns null', async () => {
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue({
+        id: 'cr-1',
+        requestedById: 'v-u-1',
+        status: 'PENDING',
+      });
+      mockPrisma.poChangeRequest.update.mockResolvedValue({});
+      mockPrisma.user.findUnique.mockResolvedValue({ email: 'v@test.com', role: UserRole.VENDOR });
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(null);
+
+      await service.approveChange('po-1', 'cr-1', companyAdmin);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendChangeRequestApprovedEmail).not.toHaveBeenCalled();
+    });
+
+    it('allows SUPER_ADMIN to list change requests without a company check', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        companyId: 'comp-1',
+        vendorId: 'vendor-comp-1',
+      });
+      mockPrisma.poChangeRequest.findMany.mockResolvedValue([]);
+      const superAdmin = {
+        id: 's-1',
+        email: 's@test.com',
+        role: UserRole.SUPER_ADMIN,
+        companyId: 'unrelated',
+      };
+
+      await expect(service.listChangeRequests('po-1', superAdmin as never)).resolves.toEqual([]);
+    });
+
+    it('denies a contractor from a different company', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        companyId: 'comp-1',
+        vendorId: 'vendor-comp-1',
+      });
+      const otherAdmin = {
+        id: 'ca-2',
+        email: 'x@test.com',
+        role: UserRole.COMPANY_ADMIN,
+        companyId: 'different-comp',
+      };
+
+      await expect(service.listChangeRequests('po-1', otherAdmin as never)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+  });
 });
