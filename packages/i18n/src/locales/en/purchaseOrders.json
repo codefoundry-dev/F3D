@@ -351,6 +351,14 @@
     "expectedDeliveryDate": "Expected Delivery Date",
     "pickUpOrder": "This is a pick-up order",
     "pickUpOrderHint": "Materials will be collected from vendor, not delivered",
+    "pickUpLocationField": "Pick-up location",
+    "pickUpTimeExpectationLabel": "Pick-up Time Expectation",
+    "pickUpTimeExpectationPlaceholder": "Select time expectation",
+    "pickUpTimeOptions": {
+      "ASAP": "ASAP",
+      "TOMORROW": "Tomorrow",
+      "CUSTOM_DATE": "Custom date"
+    },
     "holdForRelease": "Hold for release",
     "saveDraft": "Save as draft",
     "back": "Back",
@@ -399,7 +407,7 @@
     "shipmentHandling": "Shipment & Handling",
     "total": "Total:",
     "successTitle": "Your PO Has Been Successfully Created",
-    "successMessage": "Your request for quotation has been sent to all selected vendors. You will be notified once responses are received. You can track the status and manage all vendor replies in the RFQ section.",
+    "successMessage": "Your purchase order has been created successfully. You can review its details and track its status from the Purchase Orders section.",
     "backToPOs": "Back to POs",
     "redirecting": "Redirecting to POs page in {{seconds}} seconds...",
     "errorTitle": "Failed to create PO",

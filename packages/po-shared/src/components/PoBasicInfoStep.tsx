@@ -1,4 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
+import { PickUpTimeExpectation } from '@forethread/shared-types/client';
 import {
   Input,
   FormField,
@@ -13,6 +14,7 @@ import {
   type UseFormRegister,
   type UseFieldArrayReturn,
   Controller,
+  useWatch,
 } from 'react-hook-form';
 
 import { PoDeliveriesSection } from './PoDeliveriesSection';
@@ -51,6 +53,14 @@ export function PoBasicInfoStep({
 
   // Only lock a field if it's in lockedFields AND has a non-empty value
   const isLocked = (field: string, value: unknown) => !!lockedFields?.has(field) && !!value;
+
+  // US 5.15 — pick-up orders relabel the delivery fields and reveal a time-expectation control
+  const isPickUp = useWatch({ control, name: 'pickUp' }) ?? false;
+  const pickUpTimeOptions = [
+    { value: PickUpTimeExpectation.ASAP, label: t('create.pickUpTimeOptions.ASAP') },
+    { value: PickUpTimeExpectation.TOMORROW, label: t('create.pickUpTimeOptions.TOMORROW') },
+    { value: PickUpTimeExpectation.CUSTOM_DATE, label: t('create.pickUpTimeOptions.CUSTOM_DATE') },
+  ];
 
   return (
     <section>
@@ -146,7 +156,7 @@ export function PoBasicInfoStep({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 lg:gap-x-[104px] gap-y-6">
             <div>
               <FormField
-                label={t('create.deliveryLocation')}
+                label={isPickUp ? t('create.pickUpLocationField') : t('create.deliveryLocation')}
                 required
                 error={errors.deliveryLocationId?.message}
               >
@@ -169,7 +179,7 @@ export function PoBasicInfoStep({
 
             <div>
               <FormField
-                label={t('create.expectedDeliveryDate')}
+                label={isPickUp ? t('create.expectedPickUpDate') : t('create.expectedDeliveryDate')}
                 required
                 error={errors.plannedDeliveryDate?.message}
               >
@@ -204,6 +214,26 @@ export function PoBasicInfoStep({
                 <span className="text-xs text-muted-foreground">{t('create.pickUpOrderHint')}</span>
               </div>
             </div>
+
+            {/* US 5.15 — pick-up time expectation, revealed for pick-up orders */}
+            {isPickUp && (
+              <div className="md:w-1/2 md:pr-[52px]">
+                <FormField label={t('create.pickUpTimeExpectationLabel')} optional>
+                  <Controller
+                    name="pickUpTimeExpectation"
+                    control={control}
+                    render={({ field }) => (
+                      <CustomDropdown
+                        options={pickUpTimeOptions}
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                        placeholder={t('create.pickUpTimeExpectationPlaceholder')}
+                      />
+                    )}
+                  />
+                </FormField>
+              </div>
+            )}
 
             <div className="flex items-center gap-3">
               <Controller

@@ -1,3 +1,4 @@
+import { PickUpTimeExpectation } from '@forethread/shared-types/client';
 import { z } from 'zod';
 
 // ── PO creation mode types ───────────────────────────────────────────────────
@@ -56,6 +57,8 @@ export const formSchema = z.object({
   deliveryLocationId: z.string().min(1, 'Required'),
   plannedDeliveryDate: z.string().min(1, 'Required'),
   pickUp: z.boolean().optional(),
+  // US 5.15 — captured only when pickUp is enabled (collected from vendor, not delivered)
+  pickUpTimeExpectation: z.nativeEnum(PickUpTimeExpectation).optional(),
   holdForRelease: z.boolean().optional(),
   // Step 2 — preprocess to strip empty trailing rows before validation
   lineItems: z.preprocess(
@@ -119,9 +122,7 @@ export const EMPTY_DELIVERY_ROW = {
  * so it can be unit-tested independently of the form.
  */
 export function mapDeliveriesToPayload(
-  rows:
-    | { deliveryLocationId?: string; deliveryDate?: string; notes?: string }[]
-    | undefined,
+  rows: { deliveryLocationId?: string; deliveryDate?: string; notes?: string }[] | undefined,
 ): { deliveryLocationId?: string; deliveryDate?: string; notes?: string }[] | undefined {
   if (!rows) return undefined;
   const mapped = rows
