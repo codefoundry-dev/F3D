@@ -4,15 +4,22 @@ import {
   type CatalogueExtractionResult,
   type CatalogueImportSummaryDto,
   type CatalogueLineItem,
+  type DetectMaterialDuplicatesResponseDto,
+  type DuplicateMatchField,
+  type MaterialChangeRequestDto,
   type MaterialDetailDto,
   type MaterialDimensions,
+  type MaterialFieldChange,
   type MaterialProperties,
   CreateMaterialDto,
+  DetectMaterialDuplicatesDto,
   MaterialListQueryDto,
+  ResolveMaterialChangeDto,
   UpdateMaterialDto,
   buildPaginationMeta,
 } from '@forethread/shared-types';
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   ConflictException,
@@ -22,6 +29,7 @@ import {
   DocExtractionStatus,
   DocExtractionType,
   Material,
+  MaterialChangeRequestStatus,
   MaterialStatus,
   Prisma,
   UserRole,
@@ -35,6 +43,15 @@ import { canonicalizeUnit } from '../doc-intelligence/doc-intelligence.bom';
 const UNCATEGORISED = 'Uncategorised';
 const IMPORT_BATCH_SIZE = 1000;
 
+/** A change request loaded with its material + requester/resolver names. */
+type ChangeRequestWithRelations = Prisma.MaterialChangeRequestGetPayload<{
+  include: {
+    material: { select: { id: true; name: true } };
+    requestedBy: { select: { id: true; name: true } };
+    resolvedBy: { select: { id: true; name: true } };
+  };
+}>;
+
 /** Trim a nullable string, collapsing empty results to null. */
 function nullableTrim(raw: string | null | undefined): string | null {
   if (raw === null || raw === undefined) return null;
@@ -45,6 +62,29 @@ function nullableTrim(raw: string | null | undefined): string | null {
 @Injectable()
 export class MaterialsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** String/number columns diffable 1:1 from UpdateMaterialDto (US 4.01 Phase 3). */
+  private static readonly EDITABLE_SCALAR_FIELDS: (keyof UpdateMaterialDto)[] = [
+    'name',
+    'uom',
+    'upc',
+    'manufacturer',
+    'description',
+    'sku',
+    'brand',
+    'manufacturerPartNumber',
+    'subCategory',
+    'imageUrl',
+    'materialType',
+    'itemType',
+    'countryOfOrigin',
+    'manufacturerSeriesModel',
+    'gradeClass',
+    'standardNorm',
+    'colourFinish',
+    'size',
+    'currency',
+  ];
 
   // ── List Materials ──────────────────────────────────────────────────────────
 
@@ -597,19 +637,55 @@ export class MaterialsService {
     dto: UpdateMaterialDto,
     user: AuthenticatedUser,
   ): Promise<MaterialDetailDto> {
-    // Phase 1: only SuperAdmin may directly edit a material. The CA/PO
-    // change-request branch (which routes edits to PENDING_APPROVAL review)
-    // arrives in Phase 3.
-    if (user.role !== UserRole.SUPER_ADMIN) {
-      throw new ForbiddenException(ERR.general.accessDenied);
-    }
-
     const existing = await this.prisma.material.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException(ERR.materials.notFound);
     }
 
-    // Validate the target category up front when a re-category is requested.
+    // Don't leak unpublished catalogue rows to non-SuperAdmins — 404, not 403.
+    // (Non-SuperAdmins can only ever reach a PUBLIC material via the catalogue.)
+    if (existing.status !== MaterialStatus.PUBLIC && user.role !== UserRole.SUPER_ADMIN) {
+      throw new NotFoundException(ERR.materials.notFound);
+    }
+
+    // SuperAdmin edits apply directly to the live material (Phase 1 behaviour).
+    if (user.role === UserRole.SUPER_ADMIN) {
+      return this.applyMaterialUpdate(id, dto, existing);
+    }
+
+    // Phase 3: a Company-Admin / Procurement-Officer edit is captured as a
+    // PENDING change request — the live material is left untouched until the
+    // catalogue Super-Admin approves it. Validate up front so the editor gets
+    // immediate feedback rather than a deferred approval-time error.
+    await this.validateMaterialEdit(existing, dto, id);
+
+    const changedFields = this.computeChangedFields(existing, dto);
+    if (Object.keys(changedFields).length === 0) {
+      // No effective change — nothing to review, return the material as-is.
+      return this.getMaterialById(id, user);
+    }
+
+    await this.prisma.materialChangeRequest.create({
+      data: {
+        materialId: id,
+        changedFields: changedFields as Prisma.InputJsonValue,
+        requestedById: user.id,
+      },
+    });
+
+    return this.getMaterialById(id, user);
+  }
+
+  /**
+   * Validate a proposed edit (target category exists, case-insensitive name
+   * uniqueness excluding self). Shared by the direct-apply and change-request
+   * paths; re-run at approval time since catalogue state may have drifted.
+   */
+  private async validateMaterialEdit(
+    existing: Pick<Material, 'name'>,
+    dto: UpdateMaterialDto,
+    id: string,
+  ): Promise<void> {
     if (dto.categoryId !== undefined) {
       const category = await this.prisma.materialCategory.findUnique({
         where: { id: dto.categoryId },
@@ -619,7 +695,6 @@ export class MaterialsService {
       }
     }
 
-    // Re-check the case-insensitive name uniqueness (excluding self) on rename.
     if (dto.name !== undefined && dto.name.toLowerCase() !== existing.name.toLowerCase()) {
       const duplicate = await this.prisma.material.findFirst({
         where: { name: { equals: dto.name, mode: 'insensitive' }, id: { not: id } },
@@ -629,6 +704,19 @@ export class MaterialsService {
         throw new ConflictException(ERR.materials.duplicateName);
       }
     }
+  }
+
+  /** Apply a supplied-fields-only update to the live material and return detail. */
+  private async applyMaterialUpdate(
+    id: string,
+    dto: UpdateMaterialDto,
+    existing?: Material,
+  ): Promise<MaterialDetailDto> {
+    const current = existing ?? (await this.prisma.material.findUnique({ where: { id } }));
+    if (!current) {
+      throw new NotFoundException(ERR.materials.notFound);
+    }
+    await this.validateMaterialEdit(current, dto, id);
 
     // Apply only the fields that were actually supplied — never overwrite a
     // column with `undefined`.
@@ -686,6 +774,51 @@ export class MaterialsService {
     return this.toDetail(updated);
   }
 
+  /**
+   * Compute the supplied-vs-current before/after diff for a proposed edit. Only
+   * fields that actually change are included. Stored raw on the change request
+   * (categoryId keeps its id, dimensions/properties keep their JSON) so approval
+   * can re-apply faithfully; the list endpoint resolves display values.
+   */
+  private computeChangedFields(
+    existing: Material,
+    dto: UpdateMaterialDto,
+  ): Record<string, { from: unknown; to: unknown }> {
+    const changed: Record<string, { from: unknown; to: unknown }> = {};
+
+    for (const key of MaterialsService.EDITABLE_SCALAR_FIELDS) {
+      if (dto[key] === undefined) continue;
+      const from = (existing as unknown as Record<string, unknown>)[key] ?? null;
+      const to = dto[key] ?? null;
+      if ((from ?? '') !== (to ?? '')) changed[key] = { from, to };
+    }
+
+    if (dto.pricePerUnit !== undefined) {
+      const from = existing.pricePerUnit !== null ? Number(existing.pricePerUnit) : null;
+      const to = dto.pricePerUnit ?? null;
+      if (from !== to) changed.pricePerUnit = { from, to };
+    }
+
+    if (dto.categoryId !== undefined && dto.categoryId !== existing.categoryId) {
+      changed.categoryId = { from: existing.categoryId, to: dto.categoryId };
+    }
+
+    if (
+      dto.dimensions !== undefined &&
+      JSON.stringify(existing.dimensions ?? null) !== JSON.stringify(dto.dimensions ?? null)
+    ) {
+      changed.dimensions = { from: existing.dimensions ?? null, to: dto.dimensions };
+    }
+    if (
+      dto.properties !== undefined &&
+      JSON.stringify(existing.properties ?? null) !== JSON.stringify(dto.properties ?? null)
+    ) {
+      changed.properties = { from: existing.properties ?? null, to: dto.properties };
+    }
+
+    return changed;
+  }
+
   // ── Delete Material ─────────────────────────────────────────────────────────
 
   async deleteMaterial(id: string, user: AuthenticatedUser): Promise<{ success: true }> {
@@ -724,6 +857,272 @@ export class MaterialsService {
     await this.prisma.material.delete({ where: { id } });
 
     return { success: true };
+  }
+
+  // ── Duplicate detection (US 4.01 Phase 3) ─────────────────────────────────────
+
+  /**
+   * Check candidate rows (upload/import wizard) against the PUBLIC catalogue.
+   * A candidate collides when its name (case-insensitive, via the `nameCi`
+   * generated column), SKU, or UPC matches an existing material. Results keep
+   * the submitted index so the wizard can highlight the right rows.
+   */
+  async detectDuplicates(
+    dto: DetectMaterialDuplicatesDto,
+  ): Promise<DetectMaterialDuplicatesResponseDto> {
+    const candidates = dto.candidates ?? [];
+    if (candidates.length === 0) return { results: [] };
+
+    const lowerNames = new Set<string>();
+    const skus = new Set<string>();
+    const upcs = new Set<string>();
+    for (const c of candidates) {
+      const n = c.name?.trim().toLowerCase();
+      if (n) lowerNames.add(n);
+      const s = c.sku?.trim();
+      if (s) skus.add(s);
+      const u = c.upc?.trim();
+      if (u) upcs.add(u);
+    }
+
+    const or: Prisma.MaterialWhereInput[] = [];
+    if (lowerNames.size) or.push({ nameCi: { in: [...lowerNames] } });
+    if (skus.size) or.push({ sku: { in: [...skus] } });
+    if (upcs.size) or.push({ upc: { in: [...upcs] } });
+    if (or.length === 0) return { results: [] };
+
+    const existing = await this.prisma.material.findMany({
+      where: { status: MaterialStatus.PUBLIC, OR: or },
+      select: { id: true, name: true, nameCi: true, sku: true, upc: true, status: true },
+    });
+
+    type ExistingMatch = (typeof existing)[number];
+    const byName = new Map<string, ExistingMatch[]>();
+    const bySku = new Map<string, ExistingMatch>();
+    const byUpc = new Map<string, ExistingMatch>();
+    for (const m of existing) {
+      const nk = m.nameCi ?? m.name.toLowerCase();
+      const arr = byName.get(nk) ?? [];
+      arr.push(m);
+      byName.set(nk, arr);
+      if (m.sku) bySku.set(m.sku, m);
+      if (m.upc) byUpc.set(m.upc, m);
+    }
+
+    const results = candidates.flatMap((c, index) => {
+      const matchMap = new Map<
+        string,
+        { material: ExistingMatch; fields: Set<DuplicateMatchField> }
+      >();
+      const add = (m: ExistingMatch, field: DuplicateMatchField) => {
+        const entry = matchMap.get(m.id) ?? { material: m, fields: new Set<DuplicateMatchField>() };
+        entry.fields.add(field);
+        matchMap.set(m.id, entry);
+      };
+
+      const n = c.name?.trim().toLowerCase();
+      if (n) for (const m of byName.get(n) ?? []) add(m, 'name');
+      const s = c.sku?.trim();
+      const skuMatch = s ? bySku.get(s) : undefined;
+      if (skuMatch) add(skuMatch, 'sku');
+      const u = c.upc?.trim();
+      const upcMatch = u ? byUpc.get(u) : undefined;
+      if (upcMatch) add(upcMatch, 'upc');
+
+      if (matchMap.size === 0) return [];
+      return [
+        {
+          index,
+          matches: [...matchMap.values()].map(({ material, fields }) => ({
+            id: material.id,
+            name: material.name,
+            code: this.displayCode(material),
+            status: material.status as MaterialDetailDto['status'],
+            matchedOn: [...fields],
+          })),
+        },
+      ];
+    });
+
+    return { results };
+  }
+
+  /** Human-facing material code: the SKU when present, else a short derived id. */
+  private displayCode(m: { sku: string | null; id: string }): string {
+    const sku = m.sku?.trim();
+    if (sku) return sku;
+    return `MAT-${m.id.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+  }
+
+  // ── Material change requests (US 4.01 Phase 3) ────────────────────────────────
+
+  /** List change requests (newest first), optionally filtered by status. */
+  async listChangeRequests(
+    status?: MaterialChangeRequestStatus,
+  ): Promise<MaterialChangeRequestDto[]> {
+    const crs = await this.prisma.materialChangeRequest.findMany({
+      where: status ? { status } : {},
+      orderBy: { createdAt: 'desc' },
+      include: {
+        material: { select: { id: true, name: true } },
+        requestedBy: { select: { id: true, name: true } },
+        resolvedBy: { select: { id: true, name: true } },
+      },
+    });
+
+    // Resolve category names referenced by any categoryId diff in one query.
+    const catIds = new Set<string>();
+    for (const cr of crs) {
+      const raw = cr.changedFields as Record<string, { from: unknown; to: unknown }> | null;
+      const cat = raw?.categoryId;
+      if (cat) {
+        if (typeof cat.from === 'string') catIds.add(cat.from);
+        if (typeof cat.to === 'string') catIds.add(cat.to);
+      }
+    }
+    const catName = await this.loadCategoryNames(catIds);
+    return crs.map((cr) => this.serializeChangeRequest(cr, catName));
+  }
+
+  /** Approve a pending change request — applies the diff to the live material. */
+  async approveChangeRequest(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<MaterialChangeRequestDto> {
+    const cr = await this.prisma.materialChangeRequest.findUnique({ where: { id } });
+    if (!cr) throw new NotFoundException(ERR.materials.changeRequestNotFound);
+    if (cr.status !== MaterialChangeRequestStatus.PENDING) {
+      throw new BadRequestException(ERR.materials.changeRequestNotPending);
+    }
+
+    // Re-build an UpdateMaterialDto from the stored `to` values and apply it.
+    // applyMaterialUpdate re-validates (category exists, name still unique), so a
+    // request that has gone stale surfaces a clear error instead of corrupting data.
+    const raw = (cr.changedFields ?? {}) as Record<string, { from: unknown; to: unknown }>;
+    const applyDto = Object.fromEntries(
+      Object.entries(raw).map(([key, val]) => [key, val.to]),
+    ) as UpdateMaterialDto;
+    await this.applyMaterialUpdate(cr.materialId, applyDto);
+
+    const updated = await this.prisma.materialChangeRequest.update({
+      where: { id },
+      data: {
+        status: MaterialChangeRequestStatus.APPROVED,
+        resolvedById: user.id,
+        resolvedAt: new Date(),
+      },
+      include: {
+        material: { select: { id: true, name: true } },
+        requestedBy: { select: { id: true, name: true } },
+        resolvedBy: { select: { id: true, name: true } },
+      },
+    });
+    return this.toChangeRequestDto(updated);
+  }
+
+  /** Reject a pending change request — discards it; the material is untouched. */
+  async rejectChangeRequest(
+    id: string,
+    dto: ResolveMaterialChangeDto | undefined,
+    user: AuthenticatedUser,
+  ): Promise<MaterialChangeRequestDto> {
+    const cr = await this.prisma.materialChangeRequest.findUnique({ where: { id } });
+    if (!cr) throw new NotFoundException(ERR.materials.changeRequestNotFound);
+    if (cr.status !== MaterialChangeRequestStatus.PENDING) {
+      throw new BadRequestException(ERR.materials.changeRequestNotPending);
+    }
+
+    const updated = await this.prisma.materialChangeRequest.update({
+      where: { id },
+      data: {
+        status: MaterialChangeRequestStatus.REJECTED,
+        reason: dto?.reason ?? null,
+        resolvedById: user.id,
+        resolvedAt: new Date(),
+      },
+      include: {
+        material: { select: { id: true, name: true } },
+        requestedBy: { select: { id: true, name: true } },
+        resolvedBy: { select: { id: true, name: true } },
+      },
+    });
+    return this.toChangeRequestDto(updated);
+  }
+
+  /** Map of category id → name for the supplied ids (empty set → empty map). */
+  private async loadCategoryNames(ids: Set<string>): Promise<Map<string, string>> {
+    if (ids.size === 0) return new Map();
+    const cats = await this.prisma.materialCategory.findMany({
+      where: { id: { in: [...ids] } },
+      select: { id: true, name: true },
+    });
+    return new Map(cats.map((c) => [c.id, c.name]));
+  }
+
+  /** Serialize a single change request, resolving its own category names. */
+  private async toChangeRequestDto(
+    cr: ChangeRequestWithRelations,
+  ): Promise<MaterialChangeRequestDto> {
+    const raw = cr.changedFields as Record<string, { from: unknown; to: unknown }> | null;
+    const catIds = new Set<string>();
+    const cat = raw?.categoryId;
+    if (cat) {
+      if (typeof cat.from === 'string') catIds.add(cat.from);
+      if (typeof cat.to === 'string') catIds.add(cat.to);
+    }
+    const catName = await this.loadCategoryNames(catIds);
+    return this.serializeChangeRequest(cr, catName);
+  }
+
+  /**
+   * Shape a loaded change request into the response DTO. The raw stored diff is
+   * translated to display values: categoryId → category name, structured
+   * JSON fields → a terse marker (the full before/after isn't rendered on the
+   * edit-diff card), scalars pass through.
+   */
+  private serializeChangeRequest(
+    cr: ChangeRequestWithRelations,
+    catName: Map<string, string>,
+  ): MaterialChangeRequestDto {
+    const raw = (cr.changedFields ?? {}) as Record<string, { from: unknown; to: unknown }>;
+    const changes: Record<string, MaterialFieldChange> = {};
+    for (const [key, val] of Object.entries(raw)) {
+      if (key === 'categoryId') {
+        changes.category = {
+          from: typeof val.from === 'string' ? (catName.get(val.from) ?? val.from) : null,
+          to: typeof val.to === 'string' ? (catName.get(val.to) ?? val.to) : null,
+        };
+      } else if (key === 'dimensions' || key === 'properties') {
+        changes[key] = {
+          from: val.from === null || val.from === undefined ? null : 'Provided',
+          to: val.to === null || val.to === undefined ? null : 'Updated',
+        };
+      } else {
+        changes[key] = { from: this.scalarOrNull(val.from), to: this.scalarOrNull(val.to) };
+      }
+    }
+
+    return {
+      id: cr.id,
+      materialId: cr.material.id,
+      materialName: cr.material.name,
+      status: cr.status as MaterialChangeRequestDto['status'],
+      changes,
+      reason: cr.reason ?? null,
+      requestedBy: cr.requestedBy ? { id: cr.requestedBy.id, name: cr.requestedBy.name } : null,
+      resolvedBy: cr.resolvedBy ? { id: cr.resolvedBy.id, name: cr.resolvedBy.name } : null,
+      resolvedAt: cr.resolvedAt ? cr.resolvedAt.toISOString() : null,
+      createdAt: cr.createdAt.toISOString(),
+    };
+  }
+
+  /** Coerce a stored diff value to the DTO's scalar union. */
+  private scalarOrNull(v: unknown): string | number | null {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'number' || typeof v === 'string') return v;
+    if (typeof v === 'boolean') return String(v);
+    // Unexpected non-scalar — serialize defensively rather than "[object Object]".
+    return JSON.stringify(v);
   }
 
   private buildOrderBy(

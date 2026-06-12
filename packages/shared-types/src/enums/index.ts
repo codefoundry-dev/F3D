@@ -236,6 +236,19 @@ export enum MaterialStatus {
 }
 
 /**
+ * Lifecycle of a proposed edit to a PUBLIC catalogue material (US 4.01 Phase 3).
+ * A Company-Admin / Procurement-Officer edit does not touch the live material —
+ * it is captured as a PENDING change request the catalogue Super-Admin then
+ * approves (applied to the material) or rejects (discarded). Mirrors
+ * BulkOrderChangeRequestStatus / PoChangeRequestStatus.
+ */
+export enum MaterialChangeRequestStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+}
+
+/**
  * Lifecycle of a project Bill of Materials (US 5.01). The newest BOM for a
  * project is ACTIVE; creating a new one supersedes it ("Historical BOM
  * versions" in the project BOM tab).

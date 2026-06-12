@@ -16,6 +16,11 @@ import {
 } from '../components/ConfirmMaterialModal';
 import { MaterialTable, type MaterialSortKey } from '../components/MaterialTable';
 import { PendingApprovalList } from '../components/PendingApprovalList';
+import { PendingChangeRequestCard } from '../components/PendingChangeRequestCard';
+import {
+  useMaterialChangeRequestMutations,
+  useMaterialChangeRequests,
+} from '../hooks/useMaterialChangeRequests';
 import { useMaterialMutations } from '../hooks/useMaterialMutations';
 import { useMaterialCategories, useMaterials } from '../hooks/useMaterials';
 
@@ -78,6 +83,12 @@ export default function MaterialCataloguePage() {
 
   const { data: categories } = useMaterialCategories();
   const mutations = useMaterialMutations();
+
+  // Edit-diff change requests (US 4.01 Phase 3). Only fetched for reviewers who
+  // can list them, so non-Super-Admins never fire the request.
+  const canListChangeRequests = has('material.listChangeRequests');
+  const changeRequestsQuery = useMaterialChangeRequests(canListChangeRequests);
+  const changeRequestMutations = useMaterialChangeRequestMutations();
 
   const baseParams = useMemo(
     () => ({
@@ -214,17 +225,76 @@ export default function MaterialCataloguePage() {
       </div>
 
       {activeTab === 'pending' ? (
-        <PendingApprovalList
-          items={pendingQuery.data?.items ?? []}
-          isLoading={pendingQuery.isLoading}
-          isError={pendingQuery.isError}
-          permissions={{ canApprove: has('material.approve'), canReject: has('material.reject') }}
-          approvingId={mutations.approve.isPending ? mutations.approve.variables : undefined}
-          rejectingId={mutations.reject.isPending ? mutations.reject.variables?.id : undefined}
-          onView={(id) => navigate(buildDetailPath(id))}
-          onApprove={(id) => mutations.approve.mutate(id)}
-          onReject={(id) => mutations.reject.mutate({ id })}
-        />
+        <div className="space-y-8" data-testid="pending-tab">
+          {/* New material submissions (Phase 1/2). */}
+          <section className="space-y-3" aria-label={t('pending.sections.newSubmissions')}>
+            <h2 className="text-sm font-semibold text-foreground">
+              {t('pending.sections.newSubmissions')}
+            </h2>
+            <PendingApprovalList
+              items={pendingQuery.data?.items ?? []}
+              isLoading={pendingQuery.isLoading}
+              isError={pendingQuery.isError}
+              permissions={{
+                canApprove: has('material.approve'),
+                canReject: has('material.reject'),
+              }}
+              approvingId={mutations.approve.isPending ? mutations.approve.variables : undefined}
+              rejectingId={mutations.reject.isPending ? mutations.reject.variables?.id : undefined}
+              onView={(id) => navigate(buildDetailPath(id))}
+              onApprove={(id) => mutations.approve.mutate(id)}
+              onReject={(id) => mutations.reject.mutate({ id })}
+            />
+          </section>
+
+          {/* Edit requests against PUBLIC materials (Phase 3). */}
+          {canListChangeRequests && (
+            <section className="space-y-3" aria-label={t('pending.sections.editRequests')}>
+              <h2 className="text-sm font-semibold text-foreground">
+                {t('pending.sections.editRequests')}
+              </h2>
+              {changeRequestsQuery.isLoading ? (
+                <div className="py-8 text-center text-muted-foreground" role="status">
+                  {t('pending.changeRequest.loading')}
+                </div>
+              ) : changeRequestsQuery.isError ? (
+                <div className="py-8 text-center text-destructive" role="alert">
+                  {t('pending.changeRequest.error')}
+                </div>
+              ) : (changeRequestsQuery.data?.length ?? 0) === 0 ? (
+                <div
+                  className="py-8 text-center text-muted-foreground"
+                  data-testid="change-requests-empty"
+                >
+                  {t('pending.changeRequest.empty')}
+                </div>
+              ) : (
+                <div className="space-y-4" data-testid="change-requests-list">
+                  {changeRequestsQuery.data?.map((request) => (
+                    <PendingChangeRequestCard
+                      key={request.id}
+                      request={request}
+                      permissions={{
+                        canApprove: has('material.approveChange'),
+                        canReject: has('material.rejectChange'),
+                      }}
+                      isApproving={
+                        changeRequestMutations.approve.isPending &&
+                        changeRequestMutations.approve.variables === request.id
+                      }
+                      isRejecting={
+                        changeRequestMutations.reject.isPending &&
+                        changeRequestMutations.reject.variables?.id === request.id
+                      }
+                      onApprove={(id) => changeRequestMutations.approve.mutate(id)}
+                      onReject={(id) => changeRequestMutations.reject.mutate({ id })}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+        </div>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-3">

@@ -204,6 +204,56 @@ export interface CatalogueImportSummary {
   categoriesCreated: number;
 }
 
+// ── Duplicate detection (US 4.01 Phase 3) ─────────────────────────────────────
+
+export interface DuplicateCandidateInput {
+  name: string;
+  sku?: string | null;
+  upc?: string | null;
+}
+
+export type DuplicateMatchField = 'name' | 'sku' | 'upc';
+
+export interface MaterialDuplicateMatch {
+  id: string;
+  name: string;
+  /** Human-facing code shown in the wizard (SKU when present, else a short id). */
+  code: string;
+  status: string;
+  matchedOn: DuplicateMatchField[];
+}
+
+/** Matches for a single candidate row, keyed back to its submitted index. */
+export interface MaterialDuplicateResult {
+  index: number;
+  matches: MaterialDuplicateMatch[];
+}
+
+export interface DetectMaterialDuplicatesResponse {
+  results: MaterialDuplicateResult[];
+}
+
+// ── Material change requests (US 4.01 Phase 3) ────────────────────────────────
+
+export interface MaterialFieldChange {
+  from: string | number | null;
+  to: string | number | null;
+}
+
+/** A proposed edit to a PUBLIC material awaiting Super-Admin review. */
+export interface MaterialChangeRequestDto {
+  id: string;
+  materialId: string;
+  materialName: string;
+  status: string;
+  changes: Record<string, MaterialFieldChange>;
+  reason: string | null;
+  requestedBy: { id: string; name: string } | null;
+  resolvedBy: { id: string; name: string } | null;
+  resolvedAt: string | null;
+  createdAt: string;
+}
+
 // ── Endpoint functions ───────────────────────────────────────────────────────
 
 export async function getMaterials(
@@ -353,6 +403,63 @@ export async function deleteMaterial(
 ): Promise<{ success: true }> {
   const { data } = await getApiClient().delete<{ data: { success: true } }>(
     MATERIALS_PATHS.byId(id),
+    config,
+  );
+  return data.data;
+}
+
+// ── Duplicate detection + change requests (US 4.01 Phase 3) ───────────────────
+
+/**
+ * Check a batch of candidate rows (upload/import wizard) against the existing
+ * catalogue, returning the colliding materials per candidate index.
+ */
+export async function detectMaterialDuplicates(
+  candidates: DuplicateCandidateInput[],
+  config?: AxiosRequestConfig,
+): Promise<DetectMaterialDuplicatesResponse> {
+  const { data } = await getApiClient().post<{ data: DetectMaterialDuplicatesResponse }>(
+    MATERIALS_PATHS.DETECT_DUPLICATES,
+    { candidates },
+    config,
+  );
+  return data.data;
+}
+
+/** List pending material change requests (Super-Admin Pending tab edit-diff cards). */
+export async function getMaterialChangeRequests(
+  params?: { status?: string },
+  config?: AxiosRequestConfig,
+): Promise<MaterialChangeRequestDto[]> {
+  const { data } = await getApiClient().get<{ data: MaterialChangeRequestDto[] }>(
+    MATERIALS_PATHS.CHANGE_REQUESTS,
+    { params, ...config },
+  );
+  return data.data;
+}
+
+/** Approve a pending change request — applies the diff to the live material. */
+export async function approveMaterialChangeRequest(
+  id: string,
+  config?: AxiosRequestConfig,
+): Promise<MaterialChangeRequestDto> {
+  const { data } = await getApiClient().patch<{ data: MaterialChangeRequestDto }>(
+    MATERIALS_PATHS.changeRequestApprove(id),
+    undefined,
+    config,
+  );
+  return data.data;
+}
+
+/** Reject a pending change request — discards it (material stays untouched). */
+export async function rejectMaterialChangeRequest(
+  id: string,
+  input?: { reason?: string },
+  config?: AxiosRequestConfig,
+): Promise<MaterialChangeRequestDto> {
+  const { data } = await getApiClient().patch<{ data: MaterialChangeRequestDto }>(
+    MATERIALS_PATHS.changeRequestReject(id),
+    input ?? {},
     config,
   );
   return data.data;

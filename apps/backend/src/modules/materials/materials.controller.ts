@@ -1,8 +1,10 @@
 import {
   CatalogueImportRequestDto,
   CreateMaterialDto,
+  DetectMaterialDuplicatesDto,
   MaterialListQueryDto,
   RejectMaterialDto,
+  ResolveMaterialChangeDto,
   UpdateMaterialDto,
 } from '@forethread/shared-types';
 import {
@@ -18,6 +20,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { MaterialChangeRequestStatus } from '@prisma/client';
 
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/permissions';
@@ -94,6 +97,60 @@ export class MaterialsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.materialsService.importCatalogueFromExtraction(dto.extractionId, user);
+  }
+
+  // ── POST /v1/materials/detect-duplicates ──────────────────────────────────────
+
+  @Post('detect-duplicates')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('material.detectDuplicates')
+  @ApiOperation({ summary: 'Check candidate rows against the catalogue for duplicates' })
+  @ApiResponse({ status: 200, description: 'Per-candidate duplicate matches' })
+  async detectDuplicates(@Body() dto: DetectMaterialDuplicatesDto) {
+    return this.materialsService.detectDuplicates(dto);
+  }
+
+  // ── GET /v1/materials/change-requests ─────────────────────────────────────────
+  // NOTE: declared before `:id` so the literal `change-requests` is not matched
+  // as an `:id`.
+
+  @Get('change-requests')
+  @RequirePermissions('material.listChangeRequests')
+  @ApiOperation({ summary: 'List material change requests awaiting review' })
+  @ApiResponse({ status: 200, description: 'List of change requests' })
+  async listChangeRequests(@Query('status') status?: string) {
+    return this.materialsService.listChangeRequests(
+      status as MaterialChangeRequestStatus | undefined,
+    );
+  }
+
+  // ── PATCH /v1/materials/change-requests/:changeId/approve ──────────────────────
+
+  @Patch('change-requests/:changeId/approve')
+  @RequirePermissions('material.approveChange')
+  @ApiOperation({ summary: 'Approve a change request (applies the diff to the material)' })
+  @ApiResponse({ status: 200, description: 'Change request approved' })
+  @ApiResponse({ status: 404, description: 'Change request not found' })
+  async approveChangeRequest(
+    @Param('changeId') changeId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.materialsService.approveChangeRequest(changeId, user);
+  }
+
+  // ── PATCH /v1/materials/change-requests/:changeId/reject ───────────────────────
+
+  @Patch('change-requests/:changeId/reject')
+  @RequirePermissions('material.rejectChange')
+  @ApiOperation({ summary: 'Reject a change request (discards it)' })
+  @ApiResponse({ status: 200, description: 'Change request rejected' })
+  @ApiResponse({ status: 404, description: 'Change request not found' })
+  async rejectChangeRequest(
+    @Param('changeId') changeId: string,
+    @Body() dto: ResolveMaterialChangeDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.materialsService.rejectChangeRequest(changeId, dto, user);
   }
 
   // ── GET /v1/materials/:id ─────────────────────────────────────────────────────

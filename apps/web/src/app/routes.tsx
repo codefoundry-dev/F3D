@@ -91,6 +91,9 @@ const EditMaterialCorePage = lazy(
 const EditMaterialAdditionalPage = lazy(
   () => import('@/features/material-catalogue/pages/EditMaterialAdditionalPage'),
 );
+const UploadMaterialFilePage = lazy(
+  () => import('@/features/material-catalogue/pages/UploadMaterialFilePage'),
+);
 const UserListRoleSwitch = lazy(() => import('@/features/users/UserListRoleSwitch'));
 const UserDetailRoleSwitch = lazy(() => import('@/features/users/UserDetailRoleSwitch'));
 const CompanyDetailPage = lazy(() => import('@/features/companies/pages/CompanyDetailPage'));
@@ -344,10 +347,9 @@ export const routes: RouteObject[] = [
               },
 
               // Material catalogue (US 4.01) — buyer roles + super-admin. Static
-              // sub-paths (new) and the edit sub-paths precede the :id detail
-              // route so they are not swallowed by it; the deeper
-              // /edit/additional is registered before /edit. Upload still
-              // resolves to a placeholder this phase (Phase 3).
+              // sub-paths (new, upload) and the edit sub-paths precede the :id
+              // detail route so they are not swallowed by it; the deeper
+              // /edit/additional is registered before /edit.
               {
                 element: <RoleRoute allow={CATALOGUE_VIEWERS} />,
                 children: [
@@ -361,7 +363,7 @@ export const routes: RouteObject[] = [
                   },
                   {
                     path: ROUTES.materialCatalogueUpload,
-                    element: <ComingSoon page="Upload catalogue" />,
+                    element: withSuspense(<UploadMaterialFilePage />),
                   },
                   {
                     path: ROUTES.materialCatalogueEditAdditional,

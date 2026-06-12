@@ -77,6 +77,26 @@
       "upc": "UPC",
       "suggested": "Suggested",
       "dateTime": "Time & date"
+    },
+    "sections": {
+      "newSubmissions": "New submissions",
+      "editRequests": "Edit requests"
+    },
+    "changeRequest": {
+      "editBadge": "Edit",
+      "loading": "Loading edit requests…",
+      "error": "Could not load edit requests. Please try again.",
+      "empty": "No edit requests are waiting for approval.",
+      "requestedBy": "Requested by {{name}}",
+      "reason": "Reason",
+      "field": "Field",
+      "before": "Current",
+      "after": "Proposed",
+      "approve": "Approve",
+      "reject": "Reject",
+      "approving": "Approving…",
+      "rejecting": "Rejecting…",
+      "empty_value": "—"
     }
   },
   "pagination": {
@@ -113,7 +133,11 @@
     "restored": "Material restored.",
     "restoreFailed": "Could not restore the material.",
     "deleted": "Material deleted.",
-    "deleteFailed": "Could not delete the material."
+    "deleteFailed": "Could not delete the material.",
+    "changeApproved": "Edit request approved.",
+    "changeApproveFailed": "Could not approve the edit request.",
+    "changeRejected": "Edit request rejected.",
+    "changeRejectFailed": "Could not reject the edit request."
   },
   "detail": {
     "loading": "Loading material…",
@@ -310,6 +334,83 @@
     },
     "actions": {
       "removeRow": "Remove row"
+    }
+  },
+  "upload": {
+    "title": "Upload material file",
+    "back": "Back",
+    "stepper": {
+      "upload": "Upload File",
+      "map": "Map Columns",
+      "review": "Review & Add"
+    },
+    "cancel": "Cancel",
+    "step1": {
+      "heading": "Step 1 of 3: Upload your material file",
+      "cardTitle": "Upload File",
+      "dropTitle": "Drag and drop a file here, or click to browse",
+      "dropFormats": "Supported formats: XLSX, PDF, or image (PNG, JPG, WEBP)",
+      "selectedFile": "Selected file: {{name}}",
+      "requiredColumnsTitle": "Required columns:",
+      "requiredColumns": {
+        "name": "Material name",
+        "category": "Category",
+        "materialType": "Material type",
+        "uom": "Unit of measure",
+        "manufacturer": "Manufacturer",
+        "countryOfOrigin": "Country of origin",
+        "description": "Description"
+      },
+      "autoMapNote": "The system will attempt to auto-map columns and flag unrecognised values for your review before importing.",
+      "proceed": "Proceed file",
+      "uploading": "Uploading…",
+      "processing": "Extracting material file…"
+    },
+    "step2": {
+      "heading": "Step 2 of 3: Map and validate columns",
+      "duplicateBanner": "Duplicate materials detected. Some entries match existing records, please review before continuing.",
+      "emptyRows": "No rows to review. Go back and upload a different file.",
+      "columns": {
+        "name": "Material name",
+        "uom": "UoM",
+        "category": "Category",
+        "materialType": "Material type",
+        "manufacturer": "Manufacturer",
+        "upc": "UPC",
+        "description": "Description",
+        "actions": "Actions"
+      },
+      "actions": {
+        "duplicate": "Duplicate row",
+        "delete": "Delete row"
+      },
+      "continue": "Continue"
+    },
+    "step3": {
+      "heading": "Step 3 of 3: Review data and import materials",
+      "duplicateBanner": "Some materials already exist in the system. The entered data matches an existing record, indicating a possible duplicate.",
+      "meta": {
+        "uom": "UOM",
+        "category": "Category",
+        "materialType": "Material type",
+        "manufacturer": "Manufacturer",
+        "upc": "UPC"
+      },
+      "view": "View",
+      "edit": "Edit",
+      "done": "Done",
+      "duplicateStrip": "Possible duplicate detected — {{code}} \"{{name}}\" already exists in the public catalogue.",
+      "viewMatch": "View ({{code}})",
+      "add": "Add materials",
+      "adding": "Adding materials…"
+    },
+    "errors": {
+      "unsupportedType": "Unsupported file type. Use .xlsx, .pdf, .png, .jpg, .jpeg, or .webp.",
+      "tooLarge": "File is too large. Max 30MB for spreadsheets, 10MB for PDFs and images.",
+      "uploadFailed": "Could not start the upload. Please try again.",
+      "extractionFailed": "Extraction failed. {{message}}",
+      "empty": "No items were extracted from this file.",
+      "importFailed": "Could not import the materials. Please try again."
     }
   }
 }
