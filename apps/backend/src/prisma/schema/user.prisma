@@ -63,6 +63,8 @@ model User {
   createdDrawdowns     Drawdown[]        @relation("DrawdownCreatedBy")
   createdInvoices      Invoice[]         @relation("InvoiceCreatedBy")
   createdMaterials     Material[]        @relation("MaterialCreatedBy")
+  materialChangeRequests  MaterialChangeRequest[] @relation("MaterialChangeRequestedBy")
+  materialChangeApprovals MaterialChangeRequest[] @relation("MaterialChangeResolvedBy")
   createdBoms          Bom[]             @relation("BomCreatedBy")
   createdMaterialLists MaterialList[]    @relation("MaterialListCreatedBy")
   tableViews           UserTableView[]

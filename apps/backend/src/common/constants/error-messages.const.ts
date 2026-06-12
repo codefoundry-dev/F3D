@@ -188,6 +188,8 @@ export const ERR = {
     referenced: (count: number) => t(errors.materials.referenced, { count }),
     invalidStatusTransition: (status: string) =>
       t(errors.materials.invalidStatusTransition, { status }),
+    changeRequestNotFound: errors.materials.changeRequestNotFound,
+    changeRequestNotPending: errors.materials.changeRequestNotPending,
   },
 
   // ── Material lists (US 5.05) ───────────────────────────────

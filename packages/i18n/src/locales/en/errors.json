@@ -141,7 +141,9 @@
     "notFound": "Material not found",
     "duplicateName": "A material with this name already exists",
     "referenced": "Material is referenced by {{count}} document(s); archive it instead.",
-    "invalidStatusTransition": "Cannot perform this action while the material is {{status}}"
+    "invalidStatusTransition": "Cannot perform this action while the material is {{status}}",
+    "changeRequestNotFound": "Change request not found",
+    "changeRequestNotPending": "This change request has already been resolved"
   },
   "materialLists": {
     "notFound": "Material list not found"

@@ -8,6 +8,10 @@ const mockService = {
   getMaterialById: jest.fn(),
   updateMaterial: jest.fn(),
   deleteMaterial: jest.fn(),
+  detectDuplicates: jest.fn(),
+  listChangeRequests: jest.fn(),
+  approveChangeRequest: jest.fn(),
+  rejectChangeRequest: jest.fn(),
 };
 
 const mockStatusService = {
@@ -134,5 +138,45 @@ describe('MaterialsController', () => {
     const result = await controller.restoreMaterial('m-1', user as never);
     expect(result).toBe(expected);
     expect(mockStatusService.restore).toHaveBeenCalledWith('m-1', user);
+  });
+
+  // ── Phase 3 endpoints ───────────────────────────────────────────────────
+
+  it('detectDuplicates delegates to service', async () => {
+    const dto = { candidates: [{ name: 'Cement' }] };
+    const expected = { results: [] };
+    mockService.detectDuplicates.mockResolvedValue(expected);
+
+    const result = await controller.detectDuplicates(dto as never);
+    expect(result).toBe(expected);
+    expect(mockService.detectDuplicates).toHaveBeenCalledWith(dto);
+  });
+
+  it('listChangeRequests passes the status filter through', async () => {
+    const expected = [{ id: 'cr-1' }];
+    mockService.listChangeRequests.mockResolvedValue(expected);
+
+    const result = await controller.listChangeRequests('PENDING');
+    expect(result).toBe(expected);
+    expect(mockService.listChangeRequests).toHaveBeenCalledWith('PENDING');
+  });
+
+  it('approveChangeRequest delegates to service', async () => {
+    const expected = { id: 'cr-1', status: 'APPROVED' };
+    mockService.approveChangeRequest.mockResolvedValue(expected);
+
+    const result = await controller.approveChangeRequest('cr-1', user as never);
+    expect(result).toBe(expected);
+    expect(mockService.approveChangeRequest).toHaveBeenCalledWith('cr-1', user);
+  });
+
+  it('rejectChangeRequest delegates to service with body', async () => {
+    const dto = { reason: 'Inaccurate' };
+    const expected = { id: 'cr-1', status: 'REJECTED' };
+    mockService.rejectChangeRequest.mockResolvedValue(expected);
+
+    const result = await controller.rejectChangeRequest('cr-1', dto as never, user as never);
+    expect(result).toBe(expected);
+    expect(mockService.rejectChangeRequest).toHaveBeenCalledWith('cr-1', dto, user);
   });
 });

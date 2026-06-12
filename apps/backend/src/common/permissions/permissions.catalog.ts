@@ -56,6 +56,10 @@ export const PERMISSIONS = {
   'material.archive': 'Archive a published material',
   'material.restore': 'Restore an archived material',
   'material.delete': 'Delete a material',
+  'material.detectDuplicates': 'Check candidate rows against the catalogue for duplicates',
+  'material.listChangeRequests': 'List material change requests awaiting review',
+  'material.approveChange': 'Approve a material change request',
+  'material.rejectChange': 'Reject a material change request',
 
   // ── Material lists (US 5.05) ────────────────────────────────────────────
   'materialList.list': 'List saved material lists',
@@ -226,6 +230,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.suggestions',
     'material.create',
     'material.import',
+    'material.detectDuplicates',
     'material.read',
     'material.update',
 
@@ -344,6 +349,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.suggestions',
     'material.create',
     'material.import',
+    'material.detectDuplicates',
     'material.read',
     'material.update',
 

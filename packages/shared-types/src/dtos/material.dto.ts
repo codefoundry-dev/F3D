@@ -1,7 +1,17 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNumber, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsEnum,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+  ValidateNested,
+} from 'class-validator';
 
-import { MaterialStatus } from '../enums';
+import { MaterialChangeRequestStatus, MaterialStatus } from '../enums';
 
 import { BasePaginationQueryDto } from './pagination.dto';
 
@@ -349,6 +359,50 @@ export class CatalogueImportRequestDto {
   extractionId!: string;
 }
 
+// ── Duplicate detection (US 4.01 Phase 3) ─────────────────────────────────────
+
+/**
+ * One candidate row to check against the existing catalogue. Only the natural
+ * identity fields are needed — name (always), plus the SKU / UPC codes when the
+ * upload carries them.
+ */
+export class DuplicateCandidateDto {
+  @IsString()
+  name!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  sku?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  upc?: string | null;
+}
+
+/**
+ * Bulk duplicate check for the upload/import wizard. The candidates keep their
+ * submitted order so the response can refer back to each by index.
+ */
+export class DetectMaterialDuplicatesDto {
+  @ApiProperty({ type: [DuplicateCandidateDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DuplicateCandidateDto)
+  candidates!: DuplicateCandidateDto[];
+}
+
+// ── Material change requests (US 4.01 Phase 3) ────────────────────────────────
+
+/** Resolve (reject) a pending material change request with an optional reason. */
+export class ResolveMaterialChangeDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
 // ── Response interfaces ──────────────────────────────────────────────────────
 
 export interface MaterialListItemDto {
@@ -422,4 +476,55 @@ export interface CatalogueImportSummaryDto {
   updated: number;
   skipped: number;
   categoriesCreated: number;
+}
+
+// ── Duplicate detection responses (US 4.01 Phase 3) ───────────────────────────
+
+/** Which identity field(s) a candidate matched on. */
+export type DuplicateMatchField = 'name' | 'sku' | 'upc';
+
+/** An existing catalogue material that a candidate row collides with. */
+export interface MaterialDuplicateMatchDto {
+  id: string;
+  name: string;
+  /** Human-facing code shown in the wizard (SKU when present, else a short id). */
+  code: string;
+  status: MaterialStatus;
+  matchedOn: DuplicateMatchField[];
+}
+
+/** Matches for a single candidate row, keyed back to its submitted index. */
+export interface MaterialDuplicateResultDto {
+  index: number;
+  matches: MaterialDuplicateMatchDto[];
+}
+
+export interface DetectMaterialDuplicatesResponseDto {
+  results: MaterialDuplicateResultDto[];
+}
+
+// ── Material change-request responses (US 4.01 Phase 3) ───────────────────────
+
+/** A single field's before/after in a proposed material edit. */
+export interface MaterialFieldChange {
+  from: string | number | null;
+  to: string | number | null;
+}
+
+/**
+ * A proposed edit to a PUBLIC catalogue material awaiting Super-Admin review.
+ * `changes` is the per-field before/after diff the Pending tab renders as an
+ * edit-diff card.
+ */
+export interface MaterialChangeRequestDto {
+  id: string;
+  materialId: string;
+  materialName: string;
+  status: MaterialChangeRequestStatus;
+  changes: Record<string, MaterialFieldChange>;
+  reason: string | null;
+  requestedBy: { id: string; name: string } | null;
+  resolvedBy: { id: string; name: string } | null;
+  resolvedAt: string | null;
+  createdAt: string;
 }
