@@ -1044,6 +1044,92 @@ describe('MaterialsService', () => {
       await service.updateMaterial('m-1', { name: 'steel rebar' }, superAdmin);
       expect(mockPrisma.material.findFirst).not.toHaveBeenCalled();
     });
+
+    it('applies pricePerUnit, dimensions and properties on a SuperAdmin update', async () => {
+      const dims = { length: { value: 100, uom: 'mm' } };
+      const props = { density: '1234' };
+      mockPrisma.material.findUnique.mockResolvedValue({ ...loaded });
+      mockPrisma.material.update.mockResolvedValue({
+        ...loaded,
+        pricePerUnit: { toString: () => '42.5' },
+        dimensions: dims,
+        properties: props,
+      });
+
+      const result = await service.updateMaterial(
+        'm-1',
+        { pricePerUnit: 42.5, dimensions: dims, properties: props },
+        superAdmin,
+      );
+
+      const data = mockPrisma.material.update.mock.calls[0][0].data;
+      expect(data.pricePerUnit).toBe(42.5);
+      expect(data.dimensions).toEqual(dims);
+      expect(data.properties).toEqual(props);
+      expect(result.pricePerUnit).toBe('42.5');
+      expect(result.dimensions).toEqual(dims);
+      expect(result.properties).toEqual(props);
+    });
+
+    it('captures pricePerUnit, dimensions and properties diffs in a non-SuperAdmin change request', async () => {
+      const dims = { length: { value: 100, uom: 'mm' } };
+      const props = { density: '1234' };
+      mockPrisma.material.findUnique.mockResolvedValue({
+        ...loaded,
+        pricePerUnit: 12.5,
+        dimensions: null,
+        properties: null,
+      });
+      mockPrisma.materialChangeRequest.create.mockResolvedValue({ id: 'cr-2' });
+
+      await service.updateMaterial(
+        'm-1',
+        { pricePerUnit: 42.5, dimensions: dims, properties: props },
+        companyAdmin,
+      );
+
+      expect(mockPrisma.material.update).not.toHaveBeenCalled();
+      const data = mockPrisma.materialChangeRequest.create.mock.calls[0][0].data;
+      expect(data.changedFields).toEqual({
+        pricePerUnit: { from: 12.5, to: 42.5 },
+        dimensions: { from: null, to: dims },
+        properties: { from: null, to: props },
+      });
+    });
+
+    it('captures a categoryId change in a non-SuperAdmin change request', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({ ...loaded, categoryId: 'cat-1' });
+      mockPrisma.materialCategory.findUnique.mockResolvedValue({ id: 'cat-2', name: 'Timber' });
+      mockPrisma.materialChangeRequest.create.mockResolvedValue({ id: 'cr-3' });
+
+      await service.updateMaterial('m-1', { categoryId: 'cat-2' }, companyAdmin);
+
+      const data = mockPrisma.materialChangeRequest.create.mock.calls[0][0].data;
+      expect(data.changedFields).toEqual({ categoryId: { from: 'cat-1', to: 'cat-2' } });
+    });
+
+    it('diffs a first-time price against a null current and ignores unchanged JSON fields', async () => {
+      const dims = { length: { value: 100, uom: 'mm' } };
+      const props = { density: '1234' };
+      // pricePerUnit is null on the current row (first-time price), while the
+      // supplied dimensions/properties are identical to the current values — a
+      // no-op that must not appear in the diff.
+      mockPrisma.material.findUnique.mockResolvedValue({
+        ...loaded,
+        dimensions: dims,
+        properties: props,
+      });
+      mockPrisma.materialChangeRequest.create.mockResolvedValue({ id: 'cr-4' });
+
+      await service.updateMaterial(
+        'm-1',
+        { pricePerUnit: 42.5, dimensions: dims, properties: props },
+        companyAdmin,
+      );
+
+      const data = mockPrisma.materialChangeRequest.create.mock.calls[0][0].data;
+      expect(data.changedFields).toEqual({ pricePerUnit: { from: null, to: 42.5 } });
+    });
   });
 
   // ── deleteMaterial ─────────────────────────────────────────────────────────
@@ -1188,6 +1274,33 @@ describe('MaterialsService', () => {
       expect(res[0].changes.dimensions).toEqual({ from: null, to: 'Updated' });
       expect(res[0].requestedBy).toEqual({ id: 'ca-1', name: 'Cara Admin' });
     });
+
+    it('coerces boolean and non-scalar diff values defensively', async () => {
+      mockPrisma.materialChangeRequest.findMany.mockResolvedValue([
+        {
+          id: 'cr-9',
+          status: 'PENDING',
+          reason: null,
+          resolvedAt: null,
+          createdAt: new Date('2026-06-12T10:00:00Z'),
+          changedFields: {
+            manufacturer: { from: true, to: false },
+            sku: { from: { nested: 1 }, to: [1, 2] },
+          },
+          material: { id: 'm-1', name: 'Steel Rebar' },
+          requestedBy: null,
+          resolvedBy: null,
+        },
+      ]);
+
+      const res = await service.listChangeRequests('PENDING' as never);
+
+      // Booleans coerce to their string form; non-scalars serialize as JSON
+      // rather than leaking "[object Object]".
+      expect(res[0].changes.manufacturer).toEqual({ from: 'true', to: 'false' });
+      expect(res[0].changes.sku).toEqual({ from: '{"nested":1}', to: '[1,2]' });
+      expect(res[0].requestedBy).toBeNull();
+    });
   });
 
   describe('approveChangeRequest', () => {
@@ -1249,6 +1362,22 @@ describe('MaterialsService', () => {
       );
     });
 
+    it('throws NotFound when the underlying material was deleted before approval', async () => {
+      mockPrisma.materialChangeRequest.findUnique.mockResolvedValue({
+        id: 'cr-1',
+        materialId: 'm-gone',
+        status: 'PENDING',
+        changedFields: { description: { from: 'old', to: 'new' } },
+      });
+      // applyMaterialUpdate re-loads the material with no `existing` hint → null.
+      mockPrisma.material.findUnique.mockResolvedValue(null);
+
+      await expect(service.approveChangeRequest('cr-1', superAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockPrisma.materialChangeRequest.update).not.toHaveBeenCalled();
+    });
+
     it('throws BadRequest when the change request is already resolved', async () => {
       mockPrisma.materialChangeRequest.findUnique.mockResolvedValue({
         id: 'cr-1',
@@ -1304,6 +1433,33 @@ describe('MaterialsService', () => {
       await expect(service.rejectChangeRequest('cr-1', {}, superAdmin)).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    it('resolves categoryId diffs to category names when serializing the resolved request', async () => {
+      mockPrisma.materialChangeRequest.findUnique.mockResolvedValue({
+        id: 'cr-1',
+        status: 'PENDING',
+        changedFields: { categoryId: { from: 'cat-1', to: 'cat-2' } },
+      });
+      mockPrisma.materialChangeRequest.update.mockResolvedValue({
+        id: 'cr-1',
+        status: 'REJECTED',
+        reason: null,
+        resolvedAt: new Date('2026-06-12T12:00:00Z'),
+        createdAt: new Date('2026-06-12T10:00:00Z'),
+        changedFields: { categoryId: { from: 'cat-1', to: 'cat-2' } },
+        material: { id: 'm-1', name: 'Steel Rebar' },
+        requestedBy: { id: 'ca-1', name: 'Cara Admin' },
+        resolvedBy: { id: 'sa-1', name: 'Super Admin' },
+      });
+      mockPrisma.materialCategory.findMany.mockResolvedValue([
+        { id: 'cat-1', name: 'Steel' },
+        { id: 'cat-2', name: 'Timber' },
+      ]);
+
+      const res = await service.rejectChangeRequest('cr-1', {}, superAdmin);
+
+      expect(res.changes.category).toEqual({ from: 'Steel', to: 'Timber' });
     });
   });
 });
