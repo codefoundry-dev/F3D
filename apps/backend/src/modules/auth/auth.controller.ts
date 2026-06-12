@@ -43,6 +43,12 @@ export class VerifyOtpDto {
   otp!: string;
 }
 
+export class ResendOtpDto {
+  @IsString()
+  @IsNotEmpty()
+  userId!: string;
+}
+
 export class ForgotPasswordDto {
   @IsEmail()
   email!: string;
@@ -101,6 +107,18 @@ export class AuthController {
     const tokens = await this.authService.verifyOtp(dto.userId, dto.otp);
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken, req as never);
     return { success: true };
+  }
+
+  @Public()
+  @Post('resend-otp')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @ApiOperation({ summary: 'Re-send the login OTP for an in-progress login' })
+  @ApiResponse({ status: 200, description: 'A new OTP was sent to the email' })
+  @ApiResponse({ status: 401, description: 'Unknown or inactive account' })
+  async resendOtp(@Body() dto: ResendOtpDto) {
+    const result = await this.authService.resendOtp(dto.userId);
+    return { userId: result.userId, otpExpiresAt: result.otpExpiresAt };
   }
 
   @Public()

@@ -93,10 +93,13 @@ model User {
 }
 
 model EmailVerification {
-  id        String   @id @default(uuid())
-  userId    String   @unique @map("user_id")
-  otpHash   String   @map("otp_hash") @db.VarChar(255)
-  expiresAt DateTime @map("expires_at")
+  id     String @id @default(uuid())
+  userId String @unique @map("user_id")
+  // The most-recent OTPs for this user, each `{ hash, expiresAt }` (newest first,
+  // capped in OtpService). Holding several at once means an earlier — still
+  // unexpired — code keeps working after the user re-requests one (e.g. slow
+  // email delivery), instead of being rejected as "invalid".
+  codes     Json     @default("[]")
   attempts  Int      @default(0)
   createdAt DateTime @default(now()) @map("created_at")
 

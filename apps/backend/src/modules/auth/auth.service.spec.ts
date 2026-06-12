@@ -165,6 +165,40 @@ describe('AuthService', () => {
     });
   });
 
+  describe('resendOtp', () => {
+    it('issues and emails a new OTP for an active user without needing the password', async () => {
+      prisma.user.findUnique.mockResolvedValue(activeUser);
+      const expiresAt = new Date('2026-03-05T12:25:00Z');
+      otpService.generateAndStore.mockResolvedValue({ otp: '654321', expiresAt });
+
+      const result = await service.resendOtp('user-1');
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { id: 'user-1' } });
+      expect(mockedArgon2.verify).not.toHaveBeenCalled();
+      expect(otpService.generateAndStore).toHaveBeenCalledWith('user-1');
+      expect(emailService.sendOtpEmail).toHaveBeenCalledWith(
+        'user@example.com',
+        '654321',
+        expiresAt,
+      );
+      expect(result).toEqual({ otpExpiresAt: expiresAt, userId: 'user-1' });
+    });
+
+    it('throws UnauthorizedException for an unknown userId', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.resendOtp('missing')).rejects.toThrow(UnauthorizedException);
+      expect(otpService.generateAndStore).not.toHaveBeenCalled();
+    });
+
+    it('throws UnauthorizedException for an inactive user', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...activeUser, status: UserStatus.INACTIVE });
+
+      await expect(service.resendOtp('user-1')).rejects.toThrow(UnauthorizedException);
+      expect(otpService.generateAndStore).not.toHaveBeenCalled();
+    });
+  });
+
   describe('verifyOtp', () => {
     it('should return token pair on valid OTP', async () => {
       otpService.verifyOtp.mockResolvedValue(true);

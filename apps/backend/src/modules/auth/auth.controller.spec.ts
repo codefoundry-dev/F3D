@@ -4,6 +4,7 @@ import {
   AuthController,
   LoginDto,
   VerifyOtpDto,
+  ResendOtpDto,
   ForgotPasswordDto,
   ResetPasswordDto,
   ActivateAccountDto,
@@ -32,6 +33,7 @@ describe('AuthController', () => {
     authService = {
       login: jest.fn(),
       verifyOtp: jest.fn(),
+      resendOtp: jest.fn(),
       refresh: jest.fn(),
       logout: jest.fn(),
       forgotPassword: jest.fn(),
@@ -86,6 +88,26 @@ describe('AuthController', () => {
       await expect(controller.verifyOtp(dto, mockRequest(), res)).rejects.toThrow(
         'Invalid OTP code',
       );
+    });
+  });
+
+  describe('resendOtp', () => {
+    it('should call authService.resendOtp and return userId + otpExpiresAt', async () => {
+      const dto: ResendOtpDto = { userId: 'user-1' };
+      const expiresAt = new Date('2026-03-05T12:25:00Z');
+      authService.resendOtp.mockResolvedValue({ userId: 'user-1', otpExpiresAt: expiresAt });
+
+      const result = await controller.resendOtp(dto);
+
+      expect(authService.resendOtp).toHaveBeenCalledWith('user-1');
+      expect(result).toEqual({ userId: 'user-1', otpExpiresAt: expiresAt });
+    });
+
+    it('should propagate errors from authService.resendOtp', async () => {
+      const dto: ResendOtpDto = { userId: 'missing' };
+      authService.resendOtp.mockRejectedValue(new Error('Invalid email or password'));
+
+      await expect(controller.resendOtp(dto)).rejects.toThrow('Invalid email or password');
     });
   });
 
