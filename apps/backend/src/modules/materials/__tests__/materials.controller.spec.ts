@@ -12,6 +12,8 @@ const mockService = {
   listChangeRequests: jest.fn(),
   approveChangeRequest: jest.fn(),
   rejectChangeRequest: jest.fn(),
+  addFavourite: jest.fn(),
+  removeFavourite: jest.fn(),
 };
 
 const mockStatusService = {
@@ -49,20 +51,20 @@ describe('MaterialsController', () => {
     expect(result).toBe(expected);
   });
 
-  it('suggestions delegates to service with search param', async () => {
+  it('suggestions delegates to service with search param and the current user', async () => {
     const expected = [{ id: 'm-1', name: 'Bolt' }];
     mockService.suggestions.mockResolvedValue(expected);
 
-    const result = await controller.suggestions('bolt');
+    const result = await controller.suggestions('bolt', user as never);
     expect(result).toBe(expected);
-    expect(mockService.suggestions).toHaveBeenCalledWith('bolt');
+    expect(mockService.suggestions).toHaveBeenCalledWith('bolt', user);
   });
 
   it('suggestions passes empty string when search is undefined', async () => {
     mockService.suggestions.mockResolvedValue([]);
 
-    await controller.suggestions(undefined as never);
-    expect(mockService.suggestions).toHaveBeenCalledWith('');
+    await controller.suggestions(undefined as never, user as never);
+    expect(mockService.suggestions).toHaveBeenCalledWith('', user);
   });
 
   it('createMaterial delegates to service', async () => {
@@ -142,14 +144,32 @@ describe('MaterialsController', () => {
 
   // ── Phase 3 endpoints ───────────────────────────────────────────────────
 
-  it('detectDuplicates delegates to service', async () => {
+  it('detectDuplicates delegates to service with the current user', async () => {
     const dto = { candidates: [{ name: 'Cement' }] };
     const expected = { results: [] };
     mockService.detectDuplicates.mockResolvedValue(expected);
 
-    const result = await controller.detectDuplicates(dto as never);
+    const result = await controller.detectDuplicates(dto as never, user as never);
     expect(result).toBe(expected);
-    expect(mockService.detectDuplicates).toHaveBeenCalledWith(dto);
+    expect(mockService.detectDuplicates).toHaveBeenCalledWith(dto, user);
+  });
+
+  it('addFavourite delegates to service', async () => {
+    const expected = { success: true };
+    mockService.addFavourite.mockResolvedValue(expected);
+
+    const result = await controller.addFavourite('m-1', user as never);
+    expect(result).toBe(expected);
+    expect(mockService.addFavourite).toHaveBeenCalledWith('m-1', user);
+  });
+
+  it('removeFavourite delegates to service', async () => {
+    const expected = { success: true };
+    mockService.removeFavourite.mockResolvedValue(expected);
+
+    const result = await controller.removeFavourite('m-1', user as never);
+    expect(result).toBe(expected);
+    expect(mockService.removeFavourite).toHaveBeenCalledWith('m-1', user);
   });
 
   it('listChangeRequests passes the status filter through', async () => {

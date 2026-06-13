@@ -3,13 +3,15 @@ import { materialFormSchema, type MaterialFormValues } from '@forethread/shared-
 import { Button, buttonVariants } from '@forethread/ui-components';
 import BackArrowIcon from '@forethread/ui-components/assets/icons/back-arrow.svg?react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { usePermissions } from '@/shared/role';
 
 import { AdditionalPropertiesFields } from '../components/form/AdditionalPropertiesFields';
+import { MaterialCatalogueSuccessModal } from '../components/MaterialCatalogueSuccessModal';
 import { useMaterial } from '../hooks/useMaterial';
 import { useUpdateMaterial } from '../hooks/useMaterialFormMutations';
 import { detailToForm, emptyMaterialForm, formToUpdateAdditional } from '../lib/materialForm';
@@ -18,7 +20,9 @@ export default function EditMaterialAdditionalPage() {
   const { t } = useTranslation(['materialCatalogue']);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { has } = usePermissions();
   const { data: material, isLoading, isError } = useMaterial(id);
+  const [showChangeSubmitted, setShowChangeSubmitted] = useState(false);
   const updateMutation = useUpdateMaterial({
     successMessageKey: 'editAdditional.toastSuccess',
     errorMessageKey: 'editAdditional.toastError',
@@ -39,11 +43,20 @@ export default function EditMaterialAdditionalPage() {
     ? ROUTES.materialCatalogueDetail.replace(':id', id)
     : ROUTES.materialCatalogue;
 
+  // A CA / PO editing a PUBLIC material creates a change request (not a direct
+  // edit), so we show the "Changes submitted for review" modal + redirect.
+  const isChangeRequest = !has('material.approve') && material?.status === 'PUBLIC';
+
   const onSubmit = (values: MaterialFormValues) => {
     if (!id) return;
     updateMutation.mutate(
       { id, input: formToUpdateAdditional(values) },
-      { onSuccess: () => navigate(detailPath) },
+      {
+        onSuccess: () => {
+          if (isChangeRequest) setShowChangeSubmitted(true);
+          else navigate(detailPath);
+        },
+      },
     );
   };
 
@@ -119,6 +132,13 @@ export default function EditMaterialAdditionalPage() {
           </div>
         </form>
       </FormProvider>
+
+      {showChangeSubmitted && (
+        <MaterialCatalogueSuccessModal
+          variant="changeSubmitted"
+          onClose={() => navigate(ROUTES.materialCatalogue)}
+        />
+      )}
     </div>
   );
 }

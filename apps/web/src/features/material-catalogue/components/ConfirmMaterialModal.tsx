@@ -8,6 +8,10 @@ export interface ConfirmMaterialModalProps {
   isLoading?: boolean;
   onConfirm: () => void;
   onClose: () => void;
+  /** Optional copy overrides so the same modal can confirm e.g. deleting a list. */
+  title?: string;
+  body?: string;
+  confirmLabel?: string;
 }
 
 function FolderIcon() {
@@ -73,6 +77,9 @@ export function ConfirmMaterialModal({
   isLoading,
   onConfirm,
   onClose,
+  title,
+  body,
+  confirmLabel,
 }: ConfirmMaterialModalProps) {
   const { t } = useTranslation(['materialCatalogue']);
 
@@ -107,8 +114,8 @@ export function ConfirmMaterialModal({
         data-testid="confirm-material-modal"
       >
         <IconBadge icon={config.icon} />
-        <h2 className="mt-4 text-xl font-semibold text-foreground">{config.title}</h2>
-        <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{config.body}</p>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">{title ?? config.title}</h2>
+        <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{body ?? config.body}</p>
 
         <div className="mt-6 w-full flex flex-col items-center gap-2">
           <Button
@@ -118,7 +125,7 @@ export function ConfirmMaterialModal({
             onClick={onConfirm}
             data-testid="confirm-material-action"
           >
-            {config.confirm}
+            {confirmLabel ?? config.confirm}
           </Button>
           <Button
             variant="ghost"

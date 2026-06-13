@@ -16,6 +16,16 @@ vi.mock('@forethread/api-client', async (importOriginal) => {
   };
 });
 
+const permissionSet = { current: new Set<string>() };
+vi.mock('@/shared/role', () => ({
+  usePermissions: () => ({
+    permissions: permissionSet.current,
+    has: (k: string) => permissionSet.current.has(k),
+    hasAll: (keys: string[]) => keys.every((k) => permissionSet.current.has(k)),
+    hasAny: (keys: string[]) => keys.some((k) => permissionSet.current.has(k)),
+  }),
+}));
+
 const mockedGet = apiClient.getMaterial as unknown as ReturnType<typeof vi.fn>;
 const mockedUpdate = apiClient.updateMaterial as unknown as ReturnType<typeof vi.fn>;
 const mockedCategories = apiClient.getMaterialCategories as unknown as ReturnType<typeof vi.fn>;
@@ -71,6 +81,7 @@ function renderPage() {
             element={<EditMaterialAdditionalPage />}
           />
           <Route path="/material-catalogue/:id" element={<div data-testid="detail-page" />} />
+          <Route path="/material-catalogue" element={<div data-testid="catalogue-page" />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -80,6 +91,8 @@ function renderPage() {
 describe('EditMaterialAdditionalPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: an approver (SA) — a direct edit that navigates to the detail page.
+    permissionSet.current = new Set(['material.approve']);
     mockedCategories.mockResolvedValue([]);
   });
 
@@ -124,5 +137,18 @@ describe('EditMaterialAdditionalPage', () => {
     expect(input.categoryId).toBeUndefined();
 
     await screen.findByTestId('detail-page');
+  });
+
+  it('shows the "Changes submitted for review" modal when a contributor edits a PUBLIC material', async () => {
+    permissionSet.current = new Set(['material.update']);
+    mockedGet.mockResolvedValue(material({ status: 'PUBLIC' }));
+    mockedUpdate.mockResolvedValue(material({ status: 'PUBLIC' }));
+    renderPage();
+
+    await waitFor(() => expect(screen.getByTestId('material-form-dim-length')).toHaveValue('1200'));
+    fireEvent.click(screen.getByTestId('edit-material-additional-submit'));
+
+    expect(await screen.findByTestId('catalogue-success-changeSubmitted')).toBeInTheDocument();
+    expect(screen.queryByTestId('detail-page')).not.toBeInTheDocument();
   });
 });

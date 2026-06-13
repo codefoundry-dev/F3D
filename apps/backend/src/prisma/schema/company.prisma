@@ -80,6 +80,9 @@ model Company {
   // Material lists (US 5.05)
   materialLists         MaterialList[]    @relation("MaterialListCompany")
 
+  // Company-private catalogue materials (US 4.02)
+  materials             Material[]        @relation("MaterialCompany")
+
   @@index([type], map: "idx_companies_type")
   @@index([legalName], map: "idx_companies_legal_name")
   @@map("companies")

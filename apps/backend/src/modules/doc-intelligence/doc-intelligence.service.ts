@@ -312,7 +312,7 @@ export class DocIntelligenceService {
       // CATALOGUE (PDF/image) is normalized but NOT catalogue-matched.
       const editedResult =
         job.type === DocExtractionType.BOM
-          ? await this.matchBomToCatalogue(normalized)
+          ? await this.matchBomToCatalogue(normalized, job.companyId)
           : normalized;
 
       await this.prisma.docExtraction.update({
@@ -394,19 +394,28 @@ ${fileBuffer.toString('utf-8')}`;
 
   /**
    * Annotate a normalized BOM with catalogue matches + confidence scores
-   * against the PUBLIC material catalogue. Best-effort: any failure (DB hiccup,
-   * empty catalogue) leaves the BOM unmatched rather than failing the whole
-   * extraction — the user can still match lines manually in the review table.
+   * against the PUBLIC material catalogue PLUS the extraction's own company's
+   * private rows (US 4.02), so a company's contributed materials are matchable
+   * in its BOMs. Best-effort: any failure (DB hiccup, empty catalogue) leaves
+   * the BOM unmatched rather than failing the whole extraction — the user can
+   * still match lines manually in the review table.
    */
   private async matchBomToCatalogue(
     normalized: Record<string, unknown>,
+    companyId: string | null,
   ): Promise<Record<string, unknown>> {
     try {
       const bom = normalized as unknown as BomExtractionResult;
       if (!Array.isArray(bom.items) || bom.items.length === 0) return normalized;
 
       const materials = await this.prisma.material.findMany({
-        where: { status: MaterialStatus.PUBLIC },
+        where: {
+          OR: [
+            { status: MaterialStatus.PUBLIC },
+            // '__none__' is an unmatchable sentinel for a company-less extraction.
+            { companyId: companyId ?? '__none__' },
+          ],
+        },
         select: {
           id: true,
           name: true,

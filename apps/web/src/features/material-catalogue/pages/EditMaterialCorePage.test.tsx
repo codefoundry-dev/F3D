@@ -16,6 +16,16 @@ vi.mock('@forethread/api-client', async (importOriginal) => {
   };
 });
 
+const permissionSet = { current: new Set<string>() };
+vi.mock('@/shared/role', () => ({
+  usePermissions: () => ({
+    permissions: permissionSet.current,
+    has: (k: string) => permissionSet.current.has(k),
+    hasAll: (keys: string[]) => keys.every((k) => permissionSet.current.has(k)),
+    hasAny: (keys: string[]) => keys.some((k) => permissionSet.current.has(k)),
+  }),
+}));
+
 const mockedGet = apiClient.getMaterial as unknown as ReturnType<typeof vi.fn>;
 const mockedUpdate = apiClient.updateMaterial as unknown as ReturnType<typeof vi.fn>;
 const mockedCategories = apiClient.getMaterialCategories as unknown as ReturnType<typeof vi.fn>;
@@ -67,6 +77,7 @@ function renderPage() {
         <Routes>
           <Route path="/material-catalogue/:id/edit" element={<EditMaterialCorePage />} />
           <Route path="/material-catalogue/:id" element={<div data-testid="detail-page" />} />
+          <Route path="/material-catalogue" element={<div data-testid="catalogue-page" />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -76,6 +87,8 @@ function renderPage() {
 describe('EditMaterialCorePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: an approver (SA) — a direct edit that navigates to the detail page.
+    permissionSet.current = new Set(['material.approve']);
     mockedCategories.mockResolvedValue(CATEGORIES);
   });
 
@@ -115,6 +128,42 @@ describe('EditMaterialCorePage', () => {
     expect(input.properties).toBeUndefined();
 
     await screen.findByTestId('detail-page');
+  });
+
+  it('shows the "Changes submitted for review" modal when a contributor edits a PUBLIC material', async () => {
+    // CA / PO: no approve permission, material is PUBLIC → change request created.
+    permissionSet.current = new Set(['material.update']);
+    mockedGet.mockResolvedValue(material({ status: 'PUBLIC' }));
+    mockedUpdate.mockResolvedValue(material({ status: 'PUBLIC' }));
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('material-form-name')).toHaveValue('Colorbond Roofing Sheet'),
+    );
+    fireEvent.change(screen.getByTestId('material-form-name'), {
+      target: { value: 'Renamed Sheet' },
+    });
+    fireEvent.click(screen.getByTestId('edit-material-core-submit'));
+
+    expect(await screen.findByTestId('catalogue-success-changeSubmitted')).toBeInTheDocument();
+    expect(screen.getByText('Changes submitted for review')).toBeInTheDocument();
+    // The detail page is NOT shown; the modal owns the redirect.
+    expect(screen.queryByTestId('detail-page')).not.toBeInTheDocument();
+  });
+
+  it('navigates straight to detail (no modal) when a contributor edits their own private material', async () => {
+    permissionSet.current = new Set(['material.update']);
+    mockedGet.mockResolvedValue(material({ status: 'PRIVATE' }));
+    mockedUpdate.mockResolvedValue(material({ status: 'PRIVATE' }));
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('material-form-name')).toHaveValue('Colorbond Roofing Sheet'),
+    );
+    fireEvent.click(screen.getByTestId('edit-material-core-submit'));
+
+    await screen.findByTestId('detail-page');
+    expect(screen.queryByTestId('catalogue-success-changeSubmitted')).not.toBeInTheDocument();
   });
 
   it('renders a not-found state on error', async () => {

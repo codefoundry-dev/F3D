@@ -91,6 +91,9 @@ const EditMaterialCorePage = lazy(
 const EditMaterialAdditionalPage = lazy(
   () => import('@/features/material-catalogue/pages/EditMaterialAdditionalPage'),
 );
+const MaterialListDetailPage = lazy(
+  () => import('@/features/material-catalogue/pages/MaterialListDetailPage'),
+);
 const UploadMaterialFilePage = lazy(
   () => import('@/features/material-catalogue/pages/UploadMaterialFilePage'),
 );
@@ -364,6 +367,12 @@ export const routes: RouteObject[] = [
                   {
                     path: ROUTES.materialCatalogueUpload,
                     element: withSuspense(<UploadMaterialFilePage />),
+                  },
+                  {
+                    // Literal "lists/:id" precedes the "/:id" detail route so it
+                    // is not swallowed by it (US 4.03).
+                    path: ROUTES.materialCatalogueListDetail,
+                    element: withSuspense(<MaterialListDetailPage />),
                   },
                   {
                     path: ROUTES.materialCatalogueEditAdditional,

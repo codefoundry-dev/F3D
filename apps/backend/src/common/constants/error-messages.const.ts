@@ -195,6 +195,7 @@ export const ERR = {
   // ── Material lists (US 5.05) ───────────────────────────────
   materialLists: {
     notFound: errors.materialLists.notFound,
+    invalidMaterialIds: errors.materialLists.invalidMaterialIds,
   },
 
   // ── Vendors ─────────────────────────────────────────────

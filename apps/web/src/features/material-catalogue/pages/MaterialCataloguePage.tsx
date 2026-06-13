@@ -1,4 +1,4 @@
-import { type MaterialListItemDto } from '@forethread/api-client';
+import { type MaterialListItemDto, type MaterialListSummaryDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { Button, Input, Select, TablePagination, useDebounce } from '@forethread/ui-components';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
@@ -10,10 +10,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ROUTES } from '@/app/route-config';
 import { usePermissions } from '@/shared/role';
 
+import { AddToMaterialListModal } from '../components/AddToMaterialListModal';
 import {
   ConfirmMaterialModal,
   type ConfirmMaterialAction,
 } from '../components/ConfirmMaterialModal';
+import { CreateEditMaterialListModal } from '../components/CreateEditMaterialListModal';
+import { MaterialListsPanel } from '../components/MaterialListsPanel';
 import { MaterialTable, type MaterialSortKey } from '../components/MaterialTable';
 import { PendingApprovalList } from '../components/PendingApprovalList';
 import { PendingChangeRequestCard } from '../components/PendingChangeRequestCard';
@@ -21,16 +24,13 @@ import {
   useMaterialChangeRequestMutations,
   useMaterialChangeRequests,
 } from '../hooks/useMaterialChangeRequests';
+import { useMaterialFavouriteMutations } from '../hooks/useMaterialFavouriteMutations';
+import { useMaterialLists, useMaterialListMutations } from '../hooks/useMaterialLists';
 import { useMaterialMutations } from '../hooks/useMaterialMutations';
 import { useMaterialCategories, useMaterials } from '../hooks/useMaterials';
 
-type Tab = 'public' | 'pending' | 'archived';
-
-const STATUS_BY_TAB: Record<Tab, string> = {
-  public: 'PUBLIC',
-  pending: 'PENDING_APPROVAL',
-  archived: 'ARCHIVED',
-};
+// SA manages the public catalogue lifecycle; CA / PO contribute + curate lists.
+type Tab = 'public' | 'pending' | 'archived' | 'favorites' | 'materialList';
 
 const DEFAULT_PAGE_SIZE = 25;
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
@@ -47,16 +47,21 @@ export default function MaterialCataloguePage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const canApprove = has('material.approve');
+  // SA (approver) sees the lifecycle-management tabs; CA / PO see the
+  // contributor view (favourites + material lists). US 4.03 surface is gated on
+  // NOT being an approver so the Super-Admin catalogue stays exactly as-is.
   const showApprovalTabs = canApprove;
+  const showContributorTabs = !canApprove;
+
+  // Valid tab keys for the current role — drives both the tab bar and ?tab=
+  // resolution so an out-of-role tab param falls back to 'public'.
+  const validTabKeys: Tab[] = showApprovalTabs
+    ? ['public', 'pending', 'archived']
+    : ['public', 'favorites', 'materialList'];
 
   // ── Active tab (?tab=) ──────────────────────────────────────────────
-  const tabParam = (searchParams.get('tab') as Tab | null) ?? 'public';
-  const activeTab: Tab =
-    tabParam === 'pending' || tabParam === 'archived'
-      ? showApprovalTabs
-        ? tabParam
-        : 'public'
-      : 'public';
+  const tabParam = searchParams.get('tab') as Tab | null;
+  const activeTab: Tab = tabParam && validTabKeys.includes(tabParam) ? tabParam : 'public';
 
   const setActiveTab = (tab: Tab) => {
     const next = new URLSearchParams(searchParams);
@@ -79,10 +84,31 @@ export default function MaterialCataloguePage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [confirm, setConfirm] = useState<PendingConfirm | null>(null);
 
+  // Material-list tab (US 4.03) — its own search + modal state.
+  const [listSearch, setListSearch] = useState('');
+  const [addToListMaterial, setAddToListMaterial] = useState<MaterialListItemDto | null>(null);
+  const [createListOpen, setCreateListOpen] = useState(false);
+  const [editList, setEditList] = useState<MaterialListSummaryDto | null>(null);
+  const [deleteList, setDeleteList] = useState<MaterialListSummaryDto | null>(null);
+
   const debouncedSearch = useDebounce(search, 400);
+  const debouncedListSearch = useDebounce(listSearch, 400);
 
   const { data: categories } = useMaterialCategories();
   const mutations = useMaterialMutations();
+
+  // Favourites (US 4.03) — optimistic star toggle for CA / PO.
+  const canFavourite = has('material.favourite');
+  const favouriteMutations = useMaterialFavouriteMutations();
+
+  // Material lists (US 4.03) — only fetched on the contributor "Material list"
+  // tab, gated on the list permission so SA never fires the request.
+  const canListLists = has('materialList.list');
+  const listsQuery = useMaterialLists(
+    { search: debouncedListSearch.trim() || undefined },
+    { enabled: showContributorTabs && canListLists && activeTab === 'materialList' },
+  );
+  const listMutations = useMaterialListMutations();
 
   // Edit-diff change requests (US 4.01 Phase 3). Only fetched for reviewers who
   // can list them, so non-Super-Admins never fire the request.
@@ -117,11 +143,15 @@ export default function MaterialCataloguePage() {
     ],
   );
 
-  // Table tabs (public / archived) use the filtered params; the pending tab has
-  // its own minimal query so it stays a simple "new submissions" feed.
+  // The table-driven tabs (public / archived / favorites) share the filtered
+  // params. Public + Favorite both list PUBLIC materials; Favorite additionally
+  // restricts to the user's favourites. Archived lists archived materials. The
+  // pending tab has its own minimal query so it stays a "new submissions" feed.
+  const tableStatus = activeTab === 'archived' ? 'ARCHIVED' : 'PUBLIC';
   const tableQuery = useMaterials({
     ...baseParams,
-    status: STATUS_BY_TAB[activeTab === 'pending' ? 'public' : activeTab],
+    status: tableStatus,
+    favourite: activeTab === 'favorites' ? true : undefined,
   });
 
   const pendingQuery = useMaterials({
@@ -165,7 +195,13 @@ export default function MaterialCataloguePage() {
       ? ([
           { key: 'pending', label: t('tabs.pending') },
           { key: 'archived', label: t('tabs.archived') },
-        ] as const)
+        ] as { key: Tab; label: string }[])
+      : []),
+    ...(showContributorTabs
+      ? ([
+          { key: 'favorites', label: t('tabs.favorites') },
+          { key: 'materialList', label: t('tabs.materialList') },
+        ] as { key: Tab; label: string }[])
       : []),
   ];
 
@@ -224,7 +260,24 @@ export default function MaterialCataloguePage() {
         </div>
       </div>
 
-      {activeTab === 'pending' ? (
+      {activeTab === 'materialList' ? (
+        <MaterialListsPanel
+          lists={listsQuery.data ?? []}
+          isLoading={listsQuery.isLoading}
+          isError={listsQuery.isError}
+          search={listSearch}
+          permissions={{
+            canCreate: has('materialList.create'),
+            canEdit: has('materialList.update'),
+            canDelete: has('materialList.delete'),
+          }}
+          onSearchChange={setListSearch}
+          onCreate={() => setCreateListOpen(true)}
+          onView={(list) => navigate(buildListDetailPath(list.id))}
+          onEdit={(list) => setEditList(list)}
+          onDelete={(list) => setDeleteList(list)}
+        />
+      ) : activeTab === 'pending' ? (
         <div className="space-y-8" data-testid="pending-tab">
           {/* New material submissions (Phase 1/2). */}
           <section className="space-y-3" aria-label={t('pending.sections.newSubmissions')}>
@@ -367,6 +420,7 @@ export default function MaterialCataloguePage() {
             isLoading={tableQuery.isLoading}
             isError={tableQuery.isError}
             searchActive={searchActive}
+            emptyText={activeTab === 'favorites' ? t('favourites.empty') : undefined}
             permissions={{
               canEdit: has('material.update'),
               canArchive: has('material.archive'),
@@ -381,6 +435,16 @@ export default function MaterialCataloguePage() {
             onArchive={(m) => openConfirm('archive', m)}
             onRestore={(m) => openConfirm('restore', m)}
             onDelete={(m) => openConfirm('delete', m)}
+            onToggleFavourite={
+              showContributorTabs && canFavourite
+                ? (m) => favouriteMutations.toggle(m.id, Boolean(m.isFavourite))
+                : undefined
+            }
+            onAddToList={
+              showContributorTabs && has('materialList.manageItems')
+                ? (m) => setAddToListMaterial(m)
+                : undefined
+            }
           />
 
           <TablePagination
@@ -411,6 +475,55 @@ export default function MaterialCataloguePage() {
           onClose={() => setConfirm(null)}
         />
       )}
+
+      {/* US 4.03 — add a material to one of the user's lists (from a row kebab). */}
+      {addToListMaterial && (
+        <AddToMaterialListModal
+          material={{ id: addToListMaterial.id, name: addToListMaterial.name }}
+          onClose={() => setAddToListMaterial(null)}
+        />
+      )}
+
+      {/* US 4.03 — create a new material list. */}
+      {createListOpen && (
+        <CreateEditMaterialListModal
+          isSubmitting={listMutations.create.isPending}
+          onClose={() => setCreateListOpen(false)}
+          onSubmit={(values) =>
+            listMutations.create.mutate(values, { onSuccess: () => setCreateListOpen(false) })
+          }
+        />
+      )}
+
+      {/* US 4.03 — edit an existing material list. */}
+      {editList && (
+        <CreateEditMaterialListModal
+          list={editList}
+          isSubmitting={listMutations.update.isPending}
+          onClose={() => setEditList(null)}
+          onSubmit={(values) =>
+            listMutations.update.mutate(
+              { id: editList.id, input: values },
+              { onSuccess: () => setEditList(null) },
+            )
+          }
+        />
+      )}
+
+      {/* US 4.03 — confirm deleting a material list. */}
+      {deleteList && (
+        <ConfirmMaterialModal
+          action="delete"
+          title={t('materialLists.deleteConfirm.title')}
+          body={t('materialLists.deleteConfirm.body')}
+          confirmLabel={t('materialLists.deleteConfirm.confirm')}
+          isLoading={listMutations.remove.isPending}
+          onConfirm={() =>
+            listMutations.remove.mutate(deleteList.id, { onSettled: () => setDeleteList(null) })
+          }
+          onClose={() => setDeleteList(null)}
+        />
+      )}
     </div>
   );
 }
@@ -421,6 +534,10 @@ function buildDetailPath(id: string): string {
 
 function buildEditPath(id: string): string {
   return ROUTES.materialCatalogueEdit.replace(':id', id);
+}
+
+function buildListDetailPath(id: string): string {
+  return ROUTES.materialCatalogueListDetail.replace(':id', id);
 }
 
 interface FilterSelectProps {

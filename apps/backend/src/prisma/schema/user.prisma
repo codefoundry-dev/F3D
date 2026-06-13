@@ -65,6 +65,7 @@ model User {
   createdMaterials     Material[]        @relation("MaterialCreatedBy")
   materialChangeRequests  MaterialChangeRequest[] @relation("MaterialChangeRequestedBy")
   materialChangeApprovals MaterialChangeRequest[] @relation("MaterialChangeResolvedBy")
+  materialFavourites      MaterialFavourite[]     @relation("MaterialFavouriteUser")
   createdBoms          Bom[]             @relation("BomCreatedBy")
   createdMaterialLists MaterialList[]    @relation("MaterialListCreatedBy")
   tableViews           UserTableView[]

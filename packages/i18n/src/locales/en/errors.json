@@ -146,7 +146,8 @@
     "changeRequestNotPending": "This change request has already been resolved"
   },
   "materialLists": {
-    "notFound": "Material list not found"
+    "notFound": "Material list not found",
+    "invalidMaterialIds": "Some material IDs are invalid or not accessible"
   },
   "vendors": {
     "alreadyAssigned": "This vendor is already in your vendor list",

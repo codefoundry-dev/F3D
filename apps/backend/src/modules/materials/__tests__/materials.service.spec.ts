@@ -38,6 +38,12 @@ const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
   },
+  materialFavourite: {
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    upsert: jest.fn(),
+    deleteMany: jest.fn(),
+  },
   $transaction: jest.fn(),
   $queryRaw: jest.fn(),
 };
@@ -62,6 +68,10 @@ describe('MaterialsService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     service = new MaterialsService(mockPrisma as never);
+    // Default: no favourites — list/detail mappers resolve isFavourite = false
+    // unless a test overrides these.
+    mockPrisma.materialFavourite.findMany.mockResolvedValue([]);
+    mockPrisma.materialFavourite.findUnique.mockResolvedValue(null);
   });
 
   // ── listMaterials ──────────────────────────────────────────────────────
@@ -94,11 +104,14 @@ describe('MaterialsService', () => {
           pricePerUnit: { toString: () => '12.5000' },
           currency: 'AUD',
           status: MaterialStatus.PUBLIC,
+          companyId: null,
           createdAt: now,
           updatedAt: updated,
         },
       ]);
       mockPrisma.material.count.mockResolvedValue(1);
+      // m-1 is favourited by the caller.
+      mockPrisma.materialFavourite.findMany.mockResolvedValue([{ materialId: 'm-1' }]);
 
       const result = await service.listMaterials(
         { page: 1, take: 25, skip: 0 } as never,
@@ -125,10 +138,49 @@ describe('MaterialsService', () => {
         pricePerUnit: '12.5000',
         currency: 'AUD',
         status: MaterialStatus.PUBLIC,
+        companyId: null,
+        isFavourite: true,
         createdAt: now.toISOString(),
         updatedAt: updated.toISOString(),
       });
       expect(result.meta).toBeDefined();
+    });
+
+    it('maps companyId and a false isFavourite when the material is not favourited', async () => {
+      const now = new Date('2026-03-01T10:00:00Z');
+      mockPrisma.material.findMany.mockResolvedValue([
+        {
+          id: 'm-2',
+          name: 'Private Cable',
+          category: { id: 'cat-1', name: 'Electrical' },
+          uom: 'm',
+          upc: null,
+          manufacturer: null,
+          description: null,
+          sku: null,
+          brand: null,
+          manufacturerPartNumber: null,
+          subCategory: null,
+          imageUrl: null,
+          materialType: null,
+          countryOfOrigin: null,
+          pricePerUnit: null,
+          currency: 'AUD',
+          status: MaterialStatus.PENDING_APPROVAL,
+          companyId: 'comp-1',
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]);
+      mockPrisma.material.count.mockResolvedValue(1);
+
+      const result = await service.listMaterials(
+        { page: 1, take: 25, skip: 0 } as never,
+        companyAdmin,
+      );
+
+      expect(result.items[0].companyId).toBe('comp-1');
+      expect(result.items[0].isFavourite).toBe(false);
     });
 
     it('filters by status when provided', async () => {
@@ -141,11 +193,17 @@ describe('MaterialsService', () => {
       expect(where.status).toBe('PENDING_APPROVAL');
     });
 
-    it('defaults to PUBLIC status for non-SuperAdmin', async () => {
+    it('builds the visibility envelope (public OR own company) for a non-SuperAdmin', async () => {
       await service.listMaterials({ page: 1, take: 25, skip: 0 } as never, companyAdmin);
 
       const where = mockPrisma.material.findMany.mock.calls[0][0].where;
-      expect(where.status).toBe(MaterialStatus.PUBLIC);
+      // Non-SA sees PUBLIC rows plus their own company's rows; no top-level status.
+      expect(where.status).toBeUndefined();
+      expect(where.AND).toEqual([
+        {
+          OR: [{ status: MaterialStatus.PUBLIC }, { companyId: companyAdmin.companyId }],
+        },
+      ]);
     });
 
     it('does not default status filter for SuperAdmin', async () => {
@@ -229,13 +287,13 @@ describe('MaterialsService', () => {
         { id: 'm-1', name: 'Bolt', category: { name: 'Fasteners' }, uom: 'pcs' },
       ]);
 
-      const result = await service.suggestions('bolt');
+      const result = await service.suggestions('bolt', companyAdmin);
       expect(result).toEqual([{ id: 'm-1', name: 'Bolt', categoryName: 'Fasteners', uom: 'pcs' }]);
     });
 
     it('applies search filter for non-empty string', async () => {
       mockPrisma.material.findMany.mockResolvedValue([]);
-      await service.suggestions('test');
+      await service.suggestions('test', companyAdmin);
 
       const where = mockPrisma.material.findMany.mock.calls[0][0].where;
       expect(where.name).toEqual({ contains: 'test', mode: 'insensitive' });
@@ -243,10 +301,21 @@ describe('MaterialsService', () => {
 
     it('does not apply name filter for empty search', async () => {
       mockPrisma.material.findMany.mockResolvedValue([]);
-      await service.suggestions('');
+      await service.suggestions('', companyAdmin);
 
       const where = mockPrisma.material.findMany.mock.calls[0][0].where;
       expect(where.name).toBeUndefined();
+    });
+
+    it('broadens the where to public OR the user company-private rows (US 4.02)', async () => {
+      mockPrisma.material.findMany.mockResolvedValue([]);
+      await service.suggestions('cable', companyAdmin);
+
+      const where = mockPrisma.material.findMany.mock.calls[0][0].where;
+      expect(where.OR).toEqual([
+        { status: MaterialStatus.PUBLIC },
+        { companyId: companyAdmin.companyId },
+      ]);
     });
   });
 
@@ -285,6 +354,8 @@ describe('MaterialsService', () => {
 
       const createData = mockPrisma.material.create.mock.calls[0][0].data;
       expect(createData.status).toBe(MaterialStatus.PUBLIC);
+      // A SuperAdmin create is a PUBLIC, shared catalogue row (no owning company).
+      expect(createData.companyId).toBeNull();
     });
 
     it('creates material with PENDING_APPROVAL status for non-SuperAdmin', async () => {
@@ -307,6 +378,8 @@ describe('MaterialsService', () => {
 
       const createData = mockPrisma.material.create.mock.calls[0][0].data;
       expect(createData.status).toBe(MaterialStatus.PENDING_APPROVAL);
+      // A non-SuperAdmin create is a company-private row scoped to their company.
+      expect(createData.companyId).toBe(companyAdmin.companyId);
     });
 
     it('throws ConflictException for duplicate name', async () => {
@@ -790,14 +863,41 @@ describe('MaterialsService', () => {
       mockPrisma.material.count.mockResolvedValue(0);
     });
 
-    it('clamps a non-SuperAdmin to PUBLIC even when an explicit status is passed', async () => {
+    it('AND-s an explicit status inside the visibility envelope for a non-SuperAdmin', async () => {
       await service.listMaterials(
         { page: 1, take: 25, skip: 0, status: 'ARCHIVED' } as never,
         companyAdmin,
       );
 
       const where = mockPrisma.material.findMany.mock.calls[0][0].where;
-      expect(where.status).toBe(MaterialStatus.PUBLIC);
+      // The explicit status is AND-ed inside the envelope: an ARCHIVED tab shows
+      // only the company's own archived rows (public rows are always PUBLIC), so
+      // it never leaks another company's or an unpublished public row.
+      expect(where.status).toBeUndefined();
+      expect(where.AND).toEqual([
+        { OR: [{ status: MaterialStatus.PUBLIC }, { companyId: companyAdmin.companyId }] },
+        { status: 'ARCHIVED' },
+      ]);
+    });
+
+    it('filters to the user favourites when favourite=true', async () => {
+      await service.listMaterials(
+        { page: 1, take: 25, skip: 0, favourite: true } as never,
+        companyAdmin,
+      );
+
+      const where = mockPrisma.material.findMany.mock.calls[0][0].where;
+      expect(where.favourites).toEqual({ some: { userId: companyAdmin.id } });
+    });
+
+    it('does not add a favourites filter when favourite is absent/false', async () => {
+      await service.listMaterials(
+        { page: 1, take: 25, skip: 0, favourite: false } as never,
+        companyAdmin,
+      );
+
+      const where = mockPrisma.material.findMany.mock.calls[0][0].where;
+      expect(where.favourites).toBeUndefined();
     });
 
     it('honours an explicit status for SuperAdmin', async () => {
@@ -862,6 +962,7 @@ describe('MaterialsService', () => {
       dimensions: null,
       properties: null,
       status: MaterialStatus.PUBLIC,
+      companyId: null,
       createdAt: new Date('2026-03-01T10:00:00Z'),
       updatedAt: new Date('2026-03-02T10:00:00Z'),
     };
@@ -875,6 +976,41 @@ describe('MaterialsService', () => {
       expect(result.categoryName).toBe('Steel');
       expect(result.pricePerUnit).toBe('12.5000');
       expect(result.createdBy).toEqual({ id: 'u-1', name: 'Jane Admin' });
+      expect(result.companyId).toBeNull();
+      expect(result.isFavourite).toBe(false);
+    });
+
+    it('reports isFavourite=true when the user has favourited the material', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue(publicMaterial);
+      mockPrisma.materialFavourite.findUnique.mockResolvedValue({ id: 'fav-1' });
+
+      const result = await service.getMaterialById('m-1', companyAdmin);
+      expect(result.isFavourite).toBe(true);
+      expect(mockPrisma.materialFavourite.findUnique).toHaveBeenCalledWith({
+        where: { userId_materialId: { userId: companyAdmin.id, materialId: 'm-1' } },
+        select: { id: true },
+      });
+    });
+
+    it('lets a company see its own non-public private material (US 4.02)', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({
+        ...publicMaterial,
+        status: MaterialStatus.PENDING_APPROVAL,
+        companyId: companyAdmin.companyId,
+      });
+
+      const result = await service.getMaterialById('m-1', companyAdmin);
+      expect(result.status).toBe(MaterialStatus.PENDING_APPROVAL);
+      expect(result.companyId).toBe(companyAdmin.companyId);
+    });
+
+    it('404s a non-public private material owned by another company', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({
+        ...publicMaterial,
+        status: MaterialStatus.PENDING_APPROVAL,
+        companyId: 'other-co',
+      });
+      await expect(service.getMaterialById('m-1', companyAdmin)).rejects.toThrow(NotFoundException);
     });
 
     it('throws NotFound when the material does not exist', async () => {
@@ -932,6 +1068,7 @@ describe('MaterialsService', () => {
       dimensions: null,
       properties: null,
       status: MaterialStatus.PUBLIC,
+      companyId: null,
       createdAt: new Date('2026-03-01T10:00:00Z'),
       updatedAt: new Date('2026-03-02T10:00:00Z'),
     };
@@ -960,15 +1097,38 @@ describe('MaterialsService', () => {
       expect(mockPrisma.materialChangeRequest.create).not.toHaveBeenCalled();
     });
 
-    it('404s (no leak) when a non-SuperAdmin edits a non-public material', async () => {
+    it('applies a non-SuperAdmin edit DIRECTLY to its own company private draft (US 4.02)', async () => {
+      // The company's own non-public row is theirs to edit — no approval queue.
       mockPrisma.material.findUnique.mockResolvedValue({
         ...loaded,
         status: MaterialStatus.PENDING_APPROVAL,
+        companyId: companyAdmin.companyId,
+      });
+      mockPrisma.material.update.mockResolvedValue({
+        ...loaded,
+        status: MaterialStatus.PENDING_APPROVAL,
+        companyId: companyAdmin.companyId,
+        description: 'Updated',
+      });
+
+      const result = await service.updateMaterial('m-1', { description: 'Updated' }, companyAdmin);
+
+      expect(mockPrisma.material.update).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.materialChangeRequest.create).not.toHaveBeenCalled();
+      expect(result.description).toBe('Updated');
+    });
+
+    it('404s (no leak) when a non-SuperAdmin edits another company private material', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({
+        ...loaded,
+        status: MaterialStatus.PENDING_APPROVAL,
+        companyId: 'other-co',
       });
       await expect(
         service.updateMaterial('m-1', { description: 'x' }, companyAdmin),
       ).rejects.toThrow(NotFoundException);
       expect(mockPrisma.materialChangeRequest.create).not.toHaveBeenCalled();
+      expect(mockPrisma.material.update).not.toHaveBeenCalled();
     });
 
     it('validates the target category up front on a non-SuperAdmin edit', async () => {
@@ -1179,17 +1339,35 @@ describe('MaterialsService', () => {
 
   describe('detectDuplicates', () => {
     it('returns empty results for no candidates', async () => {
-      const res = await service.detectDuplicates({ candidates: [] } as never);
+      const res = await service.detectDuplicates({ candidates: [] } as never, companyAdmin);
       expect(res).toEqual({ results: [] });
       expect(mockPrisma.material.findMany).not.toHaveBeenCalled();
     });
 
     it('returns empty results when no candidate carries any identity field', async () => {
-      const res = await service.detectDuplicates({
-        candidates: [{ name: '   ' }],
-      } as never);
+      const res = await service.detectDuplicates(
+        {
+          candidates: [{ name: '   ' }],
+        } as never,
+        companyAdmin,
+      );
       expect(res).toEqual({ results: [] });
       expect(mockPrisma.material.findMany).not.toHaveBeenCalled();
+    });
+
+    it('scopes the catalogue query to public OR the user company-private rows (US 4.02)', async () => {
+      mockPrisma.material.findMany.mockResolvedValue([]);
+      await service.detectDuplicates(
+        { candidates: [{ name: 'Cable', sku: 'SK-1', upc: '111' }] } as never,
+        companyAdmin,
+      );
+
+      const where = mockPrisma.material.findMany.mock.calls[0][0].where;
+      // The name/sku/upc OR is AND-ed with the visibility envelope.
+      expect(where.AND).toHaveLength(2);
+      expect(where.AND[1]).toEqual({
+        OR: [{ status: MaterialStatus.PUBLIC }, { companyId: companyAdmin.companyId }],
+      });
     });
 
     it('matches on case-insensitive name (via nameCi), sku and upc, keyed by index', async () => {
@@ -1212,13 +1390,16 @@ describe('MaterialsService', () => {
         },
       ]);
 
-      const res = await service.detectDuplicates({
-        candidates: [
-          { name: 'PORTLAND CEMENT', sku: 'CEM-001', upc: null }, // matches mat-1 by name+sku
-          { name: 'Brand New Item', sku: null, upc: '999' }, // matches mat-2 by upc
-          { name: 'Totally Unique', sku: 'ZZZ', upc: null }, // no match
-        ],
-      } as never);
+      const res = await service.detectDuplicates(
+        {
+          candidates: [
+            { name: 'PORTLAND CEMENT', sku: 'CEM-001', upc: null }, // matches mat-1 by name+sku
+            { name: 'Brand New Item', sku: null, upc: '999' }, // matches mat-2 by upc
+            { name: 'Totally Unique', sku: 'ZZZ', upc: null }, // no match
+          ],
+        } as never,
+        companyAdmin,
+      );
 
       // Only the colliding candidates appear, in original-index order.
       expect(res.results).toHaveLength(2);
@@ -1460,6 +1641,77 @@ describe('MaterialsService', () => {
       const res = await service.rejectChangeRequest('cr-1', {}, superAdmin);
 
       expect(res.changes.category).toEqual({ from: 'Steel', to: 'Timber' });
+    });
+  });
+
+  // ── favourites (US 4.03) ─────────────────────────────────────────────────────
+
+  describe('addFavourite', () => {
+    it('upserts a favourite for a visible (public) material — idempotent', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({
+        id: 'm-1',
+        status: MaterialStatus.PUBLIC,
+        companyId: null,
+      });
+      mockPrisma.materialFavourite.upsert.mockResolvedValue({ id: 'fav-1' });
+
+      const res = await service.addFavourite('m-1', companyAdmin);
+
+      expect(res).toEqual({ success: true });
+      expect(mockPrisma.materialFavourite.upsert).toHaveBeenCalledWith({
+        where: { userId_materialId: { userId: companyAdmin.id, materialId: 'm-1' } },
+        create: { userId: companyAdmin.id, materialId: 'm-1' },
+        update: {},
+      });
+    });
+
+    it('lets a company favourite its own private material', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({
+        id: 'm-1',
+        status: MaterialStatus.PENDING_APPROVAL,
+        companyId: companyAdmin.companyId,
+      });
+      mockPrisma.materialFavourite.upsert.mockResolvedValue({ id: 'fav-2' });
+
+      await expect(service.addFavourite('m-1', companyAdmin)).resolves.toEqual({ success: true });
+    });
+
+    it('404s when the material does not exist', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue(null);
+      await expect(service.addFavourite('missing', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockPrisma.materialFavourite.upsert).not.toHaveBeenCalled();
+    });
+
+    it('404s (no leak) when favouriting another company private material', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({
+        id: 'm-1',
+        status: MaterialStatus.PENDING_APPROVAL,
+        companyId: 'other-co',
+      });
+      await expect(service.addFavourite('m-1', companyAdmin)).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.materialFavourite.upsert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('removeFavourite', () => {
+    it('deletes the favourite (no-op safe via deleteMany)', async () => {
+      mockPrisma.materialFavourite.deleteMany.mockResolvedValue({ count: 1 });
+
+      const res = await service.removeFavourite('m-1', companyAdmin);
+
+      expect(res).toEqual({ success: true });
+      expect(mockPrisma.materialFavourite.deleteMany).toHaveBeenCalledWith({
+        where: { userId: companyAdmin.id, materialId: 'm-1' },
+      });
+    });
+
+    it('succeeds even when nothing was favourited', async () => {
+      mockPrisma.materialFavourite.deleteMany.mockResolvedValue({ count: 0 });
+      await expect(service.removeFavourite('m-1', companyAdmin)).resolves.toEqual({
+        success: true,
+      });
     });
   });
 });

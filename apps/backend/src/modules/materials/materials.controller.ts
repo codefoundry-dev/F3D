@@ -17,6 +17,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
@@ -68,8 +69,8 @@ export class MaterialsController {
   @RequirePermissions('material.suggestions')
   @ApiOperation({ summary: 'Quick search for materials (autocomplete)' })
   @ApiResponse({ status: 200, description: 'List of matching materials (max 10)' })
-  async suggestions(@Query('search') search: string) {
-    return this.materialsService.suggestions(search ?? '');
+  async suggestions(@Query('search') search: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.materialsService.suggestions(search ?? '', user);
   }
 
   // ── POST /v1/materials ──────────────────────────────────────────────────────
@@ -106,8 +107,11 @@ export class MaterialsController {
   @RequirePermissions('material.detectDuplicates')
   @ApiOperation({ summary: 'Check candidate rows against the catalogue for duplicates' })
   @ApiResponse({ status: 200, description: 'Per-candidate duplicate matches' })
-  async detectDuplicates(@Body() dto: DetectMaterialDuplicatesDto) {
-    return this.materialsService.detectDuplicates(dto);
+  async detectDuplicates(
+    @Body() dto: DetectMaterialDuplicatesDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.materialsService.detectDuplicates(dto, user);
   }
 
   // ── GET /v1/materials/change-requests ─────────────────────────────────────────
@@ -233,5 +237,26 @@ export class MaterialsController {
   @ApiResponse({ status: 409, description: 'Material is referenced by documents' })
   async deleteMaterial(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.materialsService.deleteMaterial(id, user);
+  }
+
+  // ── PUT /v1/materials/:id/favourite ────────────────────────────────────────────
+
+  @Put(':id/favourite')
+  @RequirePermissions('material.favourite')
+  @ApiOperation({ summary: 'Add a material to the current user favourites (idempotent)' })
+  @ApiResponse({ status: 200, description: 'Material favourited' })
+  @ApiResponse({ status: 404, description: 'Material not found' })
+  async addFavourite(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.materialsService.addFavourite(id, user);
+  }
+
+  // ── DELETE /v1/materials/:id/favourite ─────────────────────────────────────────
+
+  @Delete(':id/favourite')
+  @RequirePermissions('material.favourite')
+  @ApiOperation({ summary: 'Remove a material from the current user favourites (no-op safe)' })
+  @ApiResponse({ status: 200, description: 'Material unfavourited' })
+  async removeFavourite(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.materialsService.removeFavourite(id, user);
   }
 }
