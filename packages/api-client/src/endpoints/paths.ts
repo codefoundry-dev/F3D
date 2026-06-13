@@ -85,6 +85,8 @@ export const BOMS_PATHS = {
 export const MATERIAL_LISTS_PATHS = {
   ROOT: '/material-lists',
   byId: (id: string) => `/material-lists/${id}`,
+  items: (id: string) => `/material-lists/${id}/items`,
+  item: (id: string, itemId: string) => `/material-lists/${id}/items/${itemId}`,
 } as const;
 
 // ── RFQs ─────────────────────────────────────────────────────────────────────
@@ -191,6 +193,7 @@ export const MATERIALS_PATHS = {
   reject: (id: string) => `/materials/${id}/reject`,
   archive: (id: string) => `/materials/${id}/archive`,
   restore: (id: string) => `/materials/${id}/restore`,
+  favourite: (id: string) => `/materials/${id}/favourite`,
 } as const;
 
 // ── Vendors ─────────────────────────────────────────────────────────────────

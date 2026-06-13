@@ -9,10 +9,12 @@ import { FormProvider, useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { usePermissions } from '@/shared/role';
 
 import { AdditionalPropertiesFields } from '../components/form/AdditionalPropertiesFields';
 import { CoreIdentificationFields } from '../components/form/CoreIdentificationFields';
 import { MaterialReviewSummary } from '../components/form/MaterialReviewSummary';
+import { MaterialCatalogueSuccessModal } from '../components/MaterialCatalogueSuccessModal';
 import { useCreateMaterial } from '../hooks/useMaterialFormMutations';
 import { useMaterialCategories } from '../hooks/useMaterials';
 import { emptyMaterialForm, formToCreateInput } from '../lib/materialForm';
@@ -23,10 +25,15 @@ const STEP1_FIELDS = ['name', 'categoryId', 'uom', 'countryOfOrigin'] as const;
 export default function CreateMaterialPage() {
   const { t } = useTranslation(['materialCatalogue']);
   const navigate = useNavigate();
+  const { has } = usePermissions();
   const { data: categories = [] } = useMaterialCategories();
   const createMutation = useCreateMaterial();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  // CA / PO (non-approvers) contribute to the PRIVATE catalogue: show the
+  // "submitted for approval" success modal then redirect to the catalogue.
+  const isContributor = !has('material.approve');
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const methods = useForm<MaterialFormValues>({
     resolver: zodResolver(materialFormSchema),
@@ -55,7 +62,13 @@ export default function CreateMaterialPage() {
   const handleCreate = (values: MaterialFormValues) => {
     createMutation.mutate(formToCreateInput(values), {
       onSuccess: (material) => {
-        navigate(ROUTES.materialCatalogueDetail.replace(':id', material.id));
+        if (isContributor) {
+          // Stay on the page behind the success modal; it redirects to the
+          // catalogue after the countdown (US 4.02).
+          setShowSuccess(true);
+        } else {
+          navigate(ROUTES.materialCatalogueDetail.replace(':id', material.id));
+        }
       },
     });
   };
@@ -152,6 +165,13 @@ export default function CreateMaterialPage() {
           </div>
         </form>
       </FormProvider>
+
+      {showSuccess && (
+        <MaterialCatalogueSuccessModal
+          variant="contribute"
+          onClose={() => navigate(ROUTES.materialCatalogue)}
+        />
+      )}
     </div>
   );
 }

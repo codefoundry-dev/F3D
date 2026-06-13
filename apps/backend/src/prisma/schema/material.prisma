@@ -58,12 +58,18 @@ model Material {
   // Open-ended, category-specific "Specific data".
   properties               Json?
   status                 MaterialStatus @default(PENDING_APPROVAL)
+  // Owning company for a company-private material (US 4.02). NULL ⇒ a PUBLIC,
+  // shared catalogue row (Super-Admin or approved). A non-null company_id scopes
+  // visibility to that company until the row is approved (promoted to PUBLIC,
+  // company_id → NULL). Existing rows default to NULL (public), no backfill.
+  companyId              String?        @map("company_id")
   createdById            String         @map("created_by_id")
   createdAt              DateTime       @default(now()) @map("created_at")
   updatedAt              DateTime       @updatedAt @map("updated_at")
 
   category     MaterialCategory @relation(fields: [categoryId], references: [id])
   createdBy    User             @relation("MaterialCreatedBy", fields: [createdById], references: [id])
+  company      Company?         @relation("MaterialCompany", fields: [companyId], references: [id])
 
   poLineItems          PoLineItem[]
   rfqLineItems         RfqLineItem[]
@@ -71,6 +77,7 @@ model Material {
   bomItems             BomItem[]               @relation("BomItemMatchedMaterial")
   materialListItems    MaterialListItem[]
   changeRequests       MaterialChangeRequest[]
+  favourites           MaterialFavourite[]
 
   @@index([categoryId], map: "idx_materials_category")
   @@index([status], map: "idx_materials_status")
@@ -78,6 +85,7 @@ model Material {
   @@index([nameCi], map: "idx_materials_name_ci")
   @@index([materialType], map: "idx_materials_material_type")
   @@index([itemType], map: "idx_materials_item_type")
+  @@index([companyId], map: "idx_materials_company")
   @@map("materials")
 }
 
@@ -138,4 +146,21 @@ model MaterialListItem {
 
   @@unique([listId, materialId], map: "idx_material_list_items_list_material")
   @@map("material_list_items")
+}
+
+/// A per-user "saved" / favourite flag on a catalogue material (US 4.03). The
+/// composite (user_id, material_id) unique makes favouriting idempotent — adding
+/// an existing favourite is a no-op upsert; removing one is a no-op delete.
+model MaterialFavourite {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  materialId String   @map("material_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user     User     @relation("MaterialFavouriteUser", fields: [userId], references: [id], onDelete: Cascade)
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, materialId], map: "idx_material_favourites_user_material")
+  @@index([materialId], map: "idx_material_favourites_material")
+  @@map("material_favourites")
 }

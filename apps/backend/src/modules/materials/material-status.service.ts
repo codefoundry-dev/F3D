@@ -1,6 +1,6 @@
 import { type MaterialDetailDto, RejectMaterialDto } from '@forethread/shared-types';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { MaterialStatus } from '@prisma/client';
+import { MaterialStatus, Prisma } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -28,7 +28,13 @@ export class MaterialStatusService {
   // ── Approve (PENDING_APPROVAL → PUBLIC) ──────────────────────────────────
 
   async approve(id: string, user: AuthenticatedUser): Promise<MaterialDetailDto> {
-    await this.transition(id, MaterialStatus.PENDING_APPROVAL, MaterialStatus.PUBLIC);
+    // Approving promotes a row into the shared catalogue: it becomes PUBLIC and
+    // sheds its owning company (company_id → null), so a previously company-
+    // private contribution (US 4.02) is now visible to everyone. `disconnect`
+    // clears the optional company relation (FK → null).
+    await this.transition(id, MaterialStatus.PENDING_APPROVAL, MaterialStatus.PUBLIC, {
+      company: { disconnect: true },
+    });
     return this.materialsService.getMaterialById(id, user);
   }
 
@@ -52,17 +58,49 @@ export class MaterialStatusService {
     return this.materialsService.getMaterialById(id, user);
   }
 
-  // ── Restore (ARCHIVED → PUBLIC) ──────────────────────────────────────────
+  // ── Restore (ARCHIVED → PUBLIC or PENDING_APPROVAL) ───────────────────────
 
   async restore(id: string, user: AuthenticatedUser): Promise<MaterialDetailDto> {
-    await this.transition(id, MaterialStatus.ARCHIVED, MaterialStatus.PUBLIC);
+    // An archived row's destination depends on its ownership (US 4.02): a
+    // company-private row (company_id set) restores back to PENDING_APPROVAL —
+    // it still needs catalogue approval to go public — while a public row
+    // (company_id null) restores straight to PUBLIC.
+    const material = await this.prisma.material.findUnique({
+      where: { id },
+      select: { id: true, status: true, companyId: true },
+    });
+
+    if (!material) {
+      throw new NotFoundException(ERR.materials.notFound);
+    }
+
+    if (material.status !== MaterialStatus.ARCHIVED) {
+      throw new BadRequestException(ERR.materials.invalidStatusTransition(material.status));
+    }
+
+    const to =
+      material.companyId !== null ? MaterialStatus.PENDING_APPROVAL : MaterialStatus.PUBLIC;
+
+    await this.prisma.material.update({
+      where: { id },
+      data: { status: to },
+    });
+
     return this.materialsService.getMaterialById(id, user);
   }
 
   // ── Shared transition guard ──────────────────────────────────────────────
 
-  /** Load the material, assert it is in `from`, then move it to `to`. */
-  private async transition(id: string, from: MaterialStatus, to: MaterialStatus): Promise<void> {
+  /**
+   * Load the material, assert it is in `from`, then move it to `to`. `extraData`
+   * is merged into the update (e.g. clearing company_id on approval).
+   */
+  private async transition(
+    id: string,
+    from: MaterialStatus,
+    to: MaterialStatus,
+    extraData: Prisma.MaterialUpdateInput = {},
+  ): Promise<void> {
     const material = await this.prisma.material.findUnique({
       where: { id },
       select: { id: true, status: true },
@@ -78,7 +116,7 @@ export class MaterialStatusService {
 
     await this.prisma.material.update({
       where: { id },
-      data: { status: to },
+      data: { status: to, ...extraData },
     });
   }
 }

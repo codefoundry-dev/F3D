@@ -60,10 +60,15 @@ export const PERMISSIONS = {
   'material.listChangeRequests': 'List material change requests awaiting review',
   'material.approveChange': 'Approve a material change request',
   'material.rejectChange': 'Reject a material change request',
+  'material.favourite': 'Add or remove a material from the current user favourites',
 
-  // ── Material lists (US 5.05) ────────────────────────────────────────────
+  // ── Material lists (US 5.05 + 4.03) ─────────────────────────────────────
   'materialList.list': 'List saved material lists',
   'materialList.read': 'Read a material list with its items',
+  'materialList.create': 'Create a material list',
+  'materialList.update': 'Update a material list',
+  'materialList.delete': 'Delete a material list',
+  'materialList.manageItems': 'Add or remove items on a material list',
 
   // ── Bulk orders ─────────────────────────────────────────────────────────
   'bulkOrder.list': 'List bulk orders',
@@ -233,9 +238,14 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.detectDuplicates',
     'material.read',
     'material.update',
+    'material.favourite',
 
     'materialList.list',
     'materialList.read',
+    'materialList.create',
+    'materialList.update',
+    'materialList.delete',
+    'materialList.manageItems',
 
     'bulkOrder.list',
     'bulkOrder.create',
@@ -352,9 +362,14 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.detectDuplicates',
     'material.read',
     'material.update',
+    'material.favourite',
 
     'materialList.list',
     'materialList.read',
+    'materialList.create',
+    'materialList.update',
+    'materialList.delete',
+    'materialList.manageItems',
 
     'bulkOrder.list',
     'bulkOrder.create',

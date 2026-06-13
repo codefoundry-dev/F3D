@@ -22,6 +22,14 @@ export interface MaterialListMaterialDto {
   uom: string;
   manufacturer: string | null;
   description: string | null;
+  // Catalogue columns surfaced for the US 4.03 single-list table.
+  status: 'PUBLIC' | 'PENDING_APPROVAL' | 'ARCHIVED';
+  materialType: string | null;
+  upc: string | null;
+  pricePerUnit: string | null;
+  currency: string;
+  imageUrl: string | null;
+  updatedAt: string;
   category: { id: string; name: string };
 }
 
@@ -44,6 +52,18 @@ export interface MaterialListsParams {
   search?: string;
 }
 
+// ── Request interfaces (US 4.03) ──────────────────────────────────────────────
+
+export interface CreateMaterialListInput {
+  name: string;
+  description?: string;
+}
+
+export interface UpdateMaterialListInput {
+  name?: string;
+  description?: string;
+}
+
 // ── Endpoint functions ───────────────────────────────────────────────────────
 
 export async function getMaterialLists(
@@ -63,6 +83,72 @@ export async function getMaterialList(
 ): Promise<MaterialListDetailDto> {
   const { data } = await getApiClient().get<{ data: MaterialListDetailDto }>(
     MATERIAL_LISTS_PATHS.byId(id),
+    config,
+  );
+  return data.data;
+}
+
+/** Create a material list (US 4.03). */
+export async function createMaterialList(
+  input: CreateMaterialListInput,
+  config?: AxiosRequestConfig,
+): Promise<MaterialListSummaryDto> {
+  const { data } = await getApiClient().post<{ data: MaterialListSummaryDto }>(
+    MATERIAL_LISTS_PATHS.ROOT,
+    input,
+    config,
+  );
+  return data.data;
+}
+
+/** Update a material list's name / description (US 4.03). */
+export async function updateMaterialList(
+  id: string,
+  input: UpdateMaterialListInput,
+  config?: AxiosRequestConfig,
+): Promise<MaterialListSummaryDto> {
+  const { data } = await getApiClient().patch<{ data: MaterialListSummaryDto }>(
+    MATERIAL_LISTS_PATHS.byId(id),
+    input,
+    config,
+  );
+  return data.data;
+}
+
+/** Delete a material list (US 4.03). */
+export async function deleteMaterialList(
+  id: string,
+  config?: AxiosRequestConfig,
+): Promise<{ success: true }> {
+  const { data } = await getApiClient().delete<{ data: { success: true } }>(
+    MATERIAL_LISTS_PATHS.byId(id),
+    config,
+  );
+  return data.data;
+}
+
+/** Add catalogue materials to a list; returns the updated list detail (US 4.03). */
+export async function addMaterialListItems(
+  id: string,
+  materialIds: string[],
+  config?: AxiosRequestConfig,
+): Promise<MaterialListDetailDto> {
+  const { data } = await getApiClient().post<{ data: MaterialListDetailDto }>(
+    MATERIAL_LISTS_PATHS.items(id),
+    { materialIds },
+    config,
+  );
+  return data.data;
+}
+
+/** Remove an item from a list; returns the updated list detail (US 4.03). */
+export async function removeMaterialListItem(
+  id: string,
+  itemId: string,
+  config?: AxiosRequestConfig,
+): Promise<MaterialListDetailDto> {
+  const { data } = await getApiClient().delete<{ data: MaterialListDetailDto }>(
+    MATERIAL_LISTS_PATHS.item(id, itemId),
     config,
   );
   return data.data;

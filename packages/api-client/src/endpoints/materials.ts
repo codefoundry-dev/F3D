@@ -22,6 +22,8 @@ export interface MaterialListQueryParams {
   /** Sortable columns: 'name' | 'createdAt' (defaults to 'name' on the backend). */
   sortBy?: string;
   sortDir?: 'asc' | 'desc';
+  /** When true, restricts the list to the current user's favourited materials (US 4.03). */
+  favourite?: boolean;
 }
 
 export interface CreateMaterialInput {
@@ -100,6 +102,13 @@ export interface MaterialListItemDto {
   pricePerUnit?: string | null;
   currency?: string;
   imageUrl?: string | null;
+  /**
+   * Owning company of a private material; null for the global PUBLIC catalogue
+   * (US 4.03). Lets the UI distinguish a company's own contributions.
+   */
+  companyId?: string | null;
+  /** Whether the current user has favourited this material (US 4.03). */
+  isFavourite?: boolean;
 }
 
 export interface PaginatedMaterialsResponse {
@@ -163,6 +172,13 @@ export interface MaterialDetailDto {
   createdAt: string;
   updatedAt: string;
   createdBy: { id: string; name: string } | null;
+  /**
+   * Owning company of a private material; null for the global PUBLIC catalogue
+   * (US 4.03).
+   */
+  companyId?: string | null;
+  /** Whether the current user has favourited this material (US 4.03). */
+  isFavourite?: boolean;
 }
 
 export interface UpdateMaterialInput {
@@ -460,6 +476,33 @@ export async function rejectMaterialChangeRequest(
   const { data } = await getApiClient().patch<{ data: MaterialChangeRequestDto }>(
     MATERIALS_PATHS.changeRequestReject(id),
     input ?? {},
+    config,
+  );
+  return data.data;
+}
+
+// ── Favourites (US 4.03) ──────────────────────────────────────────────────────
+
+/** Add a material to the current user's favourites (PUT — idempotent). */
+export async function favouriteMaterial(
+  id: string,
+  config?: AxiosRequestConfig,
+): Promise<{ success: true }> {
+  const { data } = await getApiClient().put<{ data: { success: true } }>(
+    MATERIALS_PATHS.favourite(id),
+    undefined,
+    config,
+  );
+  return data.data;
+}
+
+/** Remove a material from the current user's favourites (DELETE — no-op safe). */
+export async function unfavouriteMaterial(
+  id: string,
+  config?: AxiosRequestConfig,
+): Promise<{ success: true }> {
+  const { data } = await getApiClient().delete<{ data: { success: true } }>(
+    MATERIALS_PATHS.favourite(id),
     config,
   );
   return data.data;

@@ -1,7 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsEnum,
   IsNumber,
   IsObject,
@@ -89,6 +90,17 @@ export class MaterialListQueryDto extends BasePaginationQueryDto {
   @IsString()
   @IsOptional()
   countryOfOrigin?: string;
+
+  // ── Favourites filter (US 4.03) ──────────────────────────────────────────
+  // When true, restrict the list to the current user's favourited materials.
+  // Arrives as the query string "true"/"false"; coerce explicitly so that any
+  // value other than the literal "true" (or a real boolean true) reads as false
+  // (plain Boolean("false") would be truthy).
+  @ApiPropertyOptional({ description: "Only the current user's favourites" })
+  @Transform(({ value }: { value: unknown }) => value === true || value === 'true')
+  @IsBoolean()
+  @IsOptional()
+  favourite?: boolean;
 
   @ApiPropertyOptional({ enum: ['name', 'createdAt'] })
   @IsString()
@@ -424,6 +436,10 @@ export interface MaterialListItemDto {
   pricePerUnit: string | number | null;
   currency: string;
   status: MaterialStatus;
+  // Owning company for a company-private material (US 4.02); null ⇒ public/shared.
+  companyId: string | null;
+  // Whether the current user has favourited this material (US 4.03).
+  isFavourite: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -456,6 +472,10 @@ export interface MaterialDetailDto {
   dimensions: MaterialDimensions | null;
   properties: MaterialProperties | null;
   status: MaterialStatus;
+  // Owning company for a company-private material (US 4.02); null ⇒ public/shared.
+  companyId: string | null;
+  // Whether the current user has favourited this material (US 4.03).
+  isFavourite: boolean;
   createdAt: string;
   updatedAt: string;
   createdBy: {

@@ -64,6 +64,7 @@ export const ROUTES = {
   materialCatalogue: '/material-catalogue',
   materialCatalogueNew: '/material-catalogue/new',
   materialCatalogueUpload: '/material-catalogue/upload',
+  materialCatalogueListDetail: '/material-catalogue/lists/:id',
   materialCatalogueDetail: '/material-catalogue/:id',
   materialCatalogueEdit: '/material-catalogue/:id/edit',
   materialCatalogueEditAdditional: '/material-catalogue/:id/edit/additional',

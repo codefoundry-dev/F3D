@@ -15,6 +15,16 @@ vi.mock('@forethread/api-client', async (importOriginal) => {
   };
 });
 
+const permissionSet = { current: new Set<string>() };
+vi.mock('@/shared/role', () => ({
+  usePermissions: () => ({
+    permissions: permissionSet.current,
+    has: (k: string) => permissionSet.current.has(k),
+    hasAll: (keys: string[]) => keys.every((k) => permissionSet.current.has(k)),
+    hasAny: (keys: string[]) => keys.some((k) => permissionSet.current.has(k)),
+  }),
+}));
+
 const mockedCreate = apiClient.createMaterial as unknown as ReturnType<typeof vi.fn>;
 const mockedCategories = apiClient.getMaterialCategories as unknown as ReturnType<typeof vi.fn>;
 
@@ -60,6 +70,8 @@ async function fillStep1() {
 describe('CreateMaterialPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: an approver (SA) — create navigates straight to the detail page.
+    permissionSet.current = new Set(['material.approve']);
     mockedCategories.mockResolvedValue(CATEGORIES);
   });
 
@@ -122,6 +134,27 @@ describe('CreateMaterialPage', () => {
 
     // Navigates to the new material's detail page on success.
     await screen.findByTestId('detail-page');
+  });
+
+  it('shows the "added to private catalogue" success modal for a contributor (CA / PO)', async () => {
+    permissionSet.current = new Set(['material.create']);
+    mockedCreate.mockResolvedValue({ id: 'mat-99' } as apiClient.MaterialDetailDto);
+    renderPage();
+    await screen.findByRole('heading', { name: 'Core Identification' });
+
+    await fillStep1();
+    fireEvent.click(screen.getByTestId('create-material-continue'));
+    await screen.findByText('Dimensions');
+    fireEvent.click(screen.getByTestId('create-material-continue'));
+
+    await screen.findByTestId('material-review-core');
+    fireEvent.click(screen.getByTestId('create-material-submit'));
+
+    await waitFor(() => expect(mockedCreate).toHaveBeenCalledTimes(1));
+    expect(await screen.findByTestId('catalogue-success-contribute')).toBeInTheDocument();
+    expect(screen.getByText('Material added to private catalogue')).toBeInTheDocument();
+    // The detail page is NOT shown; the modal owns the redirect to the catalogue.
+    expect(screen.queryByTestId('detail-page')).not.toBeInTheDocument();
   });
 
   it('lets the review "Edit" link jump back to step 1', async () => {

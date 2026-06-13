@@ -1,6 +1,7 @@
 import { type MaterialListItemDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { Badge, DotActionsMenu, type DotAction } from '@forethread/ui-components';
+import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import SortAscIcon from '@forethread/ui-components/assets/icons/sort-asc.svg?react';
@@ -28,6 +29,8 @@ export interface MaterialTableProps {
   isLoading: boolean;
   isError: boolean;
   searchActive: boolean;
+  /** Overrides the default "no materials yet" empty-state copy (e.g. favourites). */
+  emptyText?: string;
   permissions: MaterialTablePermissions;
   sortBy?: string;
   sortDir?: SortDir;
@@ -38,9 +41,37 @@ export interface MaterialTableProps {
   onArchive: (material: MaterialListItemDto) => void;
   onRestore: (material: MaterialListItemDto) => void;
   onDelete: (material: MaterialListItemDto) => void;
+  /**
+   * When supplied, a leading star column is rendered (CA / PO favourites view,
+   * US 4.03). Toggles the material's favourite state.
+   */
+  onToggleFavourite?: (material: MaterialListItemDto) => void;
+  /** When supplied, the row kebab gains an "Add to material list" action (US 4.03). */
+  onAddToList?: (material: MaterialListItemDto) => void;
+  /**
+   * When supplied, a remove (X) action is rendered in the row (material-list
+   * detail variant, US 4.03). Receives the material so the caller can map it
+   * back to its list-item id.
+   */
+  onRemoveFromList?: (material: MaterialListItemDto) => void;
 }
 
-const COLUMN_COUNT = 10;
+/** A filled (favourited) or outline (not) star, used by the favourites column. */
+function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="w-4 h-4"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 2.5l2.9 5.88 6.5.95-4.7 4.58 1.11 6.47L12 17.84 6.19 20.9l1.1-6.47-4.69-4.58 6.5-.95L12 2.5z" />
+    </svg>
+  );
+}
 
 function ImageThumb({ url, alt }: { url?: string | null; alt: string }) {
   if (url) {
@@ -78,6 +109,7 @@ export function MaterialTable({
   isLoading,
   isError,
   searchActive,
+  emptyText,
   permissions,
   sortBy,
   sortDir,
@@ -87,8 +119,15 @@ export function MaterialTable({
   onArchive,
   onRestore,
   onDelete,
+  onToggleFavourite,
+  onAddToList,
+  onRemoveFromList,
 }: MaterialTableProps) {
   const { t } = useTranslation(['materialCatalogue']);
+
+  const showStarColumn = Boolean(onToggleFavourite);
+  // Base columns = 10; +1 when the leading favourites star column is shown.
+  const columnCount = 10 + (showStarColumn ? 1 : 0);
 
   function SortHeader({
     label,
@@ -127,6 +166,13 @@ export function MaterialTable({
 
   function rowActions(material: MaterialListItemDto): DotAction[] {
     const actions: DotAction[] = [];
+    if (onAddToList) {
+      actions.push({
+        key: 'add-to-list',
+        label: t('addToList.menuLabel'),
+        onClick: () => onAddToList(material),
+      });
+    }
     if (tab === 'public' && permissions.canArchive) {
       actions.push({
         key: 'archive',
@@ -156,6 +202,11 @@ export function MaterialTable({
       <table className="w-full text-sm" data-testid="material-table">
         <thead className="bg-muted/40 text-xs text-muted-foreground border-b border-border">
           <tr>
+            {showStarColumn && (
+              <th className="w-10 px-3 py-3">
+                <span className="sr-only">{t('favourites.add')}</span>
+              </th>
+            )}
             <SortHeader label={t('table.columns.material')} sortKey="name" />
             <SortHeader label={t('table.columns.category')} />
             <SortHeader label={t('table.columns.materialType')} />
@@ -171,20 +222,20 @@ export function MaterialTable({
         <tbody>
           {isLoading ? (
             <tr>
-              <td colSpan={COLUMN_COUNT} className="px-3 py-8 text-center text-muted-foreground">
+              <td colSpan={columnCount} className="px-3 py-8 text-center text-muted-foreground">
                 <span role="status">{t('table.loading')}</span>
               </td>
             </tr>
           ) : isError ? (
             <tr>
-              <td colSpan={COLUMN_COUNT} className="px-3 py-8 text-center text-destructive">
+              <td colSpan={columnCount} className="px-3 py-8 text-center text-destructive">
                 <span role="alert">{t('table.error')}</span>
               </td>
             </tr>
           ) : items.length === 0 ? (
             <tr>
-              <td colSpan={COLUMN_COUNT} className="px-3 py-8 text-center text-muted-foreground">
-                {searchActive ? t('table.noResults') : t('table.empty')}
+              <td colSpan={columnCount} className="px-3 py-8 text-center text-muted-foreground">
+                {searchActive ? t('table.noResults') : (emptyText ?? t('table.empty'))}
               </td>
             </tr>
           ) : (
@@ -196,6 +247,27 @@ export function MaterialTable({
                   data-testid={`material-row-${material.id}`}
                   className="border-b border-border last:border-0 hover:bg-muted/30"
                 >
+                  {showStarColumn && (
+                    <td className="px-3 py-3">
+                      <button
+                        type="button"
+                        onClick={() => onToggleFavourite?.(material)}
+                        className={
+                          'p-1 rounded-lg hover:bg-accent transition-colors ' +
+                          (material.isFavourite
+                            ? 'text-foreground'
+                            : 'text-muted-foreground hover:text-foreground')
+                        }
+                        aria-label={
+                          material.isFavourite ? t('favourites.remove') : t('favourites.add')
+                        }
+                        aria-pressed={Boolean(material.isFavourite)}
+                        data-testid={`material-favourite-${material.id}`}
+                      >
+                        <StarIcon filled={Boolean(material.isFavourite)} />
+                      </button>
+                    </td>
+                  )}
                   <td className="px-3 py-3">
                     <div className="flex items-center gap-3 min-w-[180px]">
                       <ImageThumb url={material.imageUrl} alt={material.name} />
@@ -252,8 +324,19 @@ export function MaterialTable({
                           <EditIcon className="w-4 h-4" />
                         </button>
                       )}
+                      {onRemoveFromList && (
+                        <button
+                          type="button"
+                          onClick={() => onRemoveFromList(material)}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-accent"
+                          aria-label={t('listDetail.removeItem')}
+                          data-testid={`material-remove-${material.id}`}
+                        >
+                          <CrossIcon className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       {actions.length > 0 && (
-                        <DotActionsMenu actions={actions} bordered={false} menuClassName="w-40" />
+                        <DotActionsMenu actions={actions} bordered={false} menuClassName="w-48" />
                       )}
                     </div>
                   </td>
