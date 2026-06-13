@@ -52,11 +52,18 @@ export function applyAuthInterceptor(client: AxiosInstance): void {
         return Promise.reject(error);
       }
 
-      // Don't attempt refresh on auth endpoints
-      if (
-        originalRequest.url?.includes('/auth/refresh') ||
-        originalRequest.url?.includes('/auth/logout')
-      ) {
+      const url = originalRequest.url ?? '';
+
+      // Public pre-auth endpoints: a 401 here means bad credentials or a bad/
+      // expired/superseded OTP — NOT an expired session. Never attempt a token
+      // refresh (it would fire a spurious /auth/refresh round-trip on every wrong
+      // password or wrong OTP) and never clear auth.
+      if (url.includes('/auth/login') || url.includes('/auth/verify-otp')) {
+        return Promise.reject(error);
+      }
+
+      // A 401 from refresh/logout means the session is truly gone.
+      if (url.includes('/auth/refresh') || url.includes('/auth/logout')) {
         state.onUnauthorized?.();
         return Promise.reject(error);
       }

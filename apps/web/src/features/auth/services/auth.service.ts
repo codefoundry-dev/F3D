@@ -11,6 +11,7 @@ export const {
   useCheckAuth,
   useLogin,
   useVerifyOtp,
+  useResendOtp,
   useLogout,
   useForgotPassword,
   useResetPassword,

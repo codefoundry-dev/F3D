@@ -1,6 +1,7 @@
 import {
   login,
   verifyOtp,
+  resendOtp,
   logout as apiLogout,
   forgotPassword as apiForgotPassword,
   resetPassword as apiResetPassword,
@@ -10,6 +11,7 @@ import {
   getMe,
   type LoginDto,
   type VerifyOtpDto,
+  type ResendOtpDto,
   type ForgotPasswordDto,
   type ResetPasswordDto,
   type ActivateAccountDto,
@@ -112,6 +114,27 @@ export function createAuthHooks(otpSessionKey: string, useAuthStore: UseAuthStor
     });
   }
 
+  function useResendOtp() {
+    const { t } = useTranslation(['auth']);
+
+    return useMutation({
+      mutationFn: (dto: ResendOtpDto) => resendOtp(dto, { skipErrorHandler: true }),
+      onSuccess: (data) => {
+        // Keep the email from the in-progress session; refresh userId + expiry so
+        // the countdown resets to the newly-issued code.
+        const current = loadOtpSession();
+        if (current) {
+          saveOtpSession({
+            ...current,
+            userId: data.userId,
+            otpExpiresAt: data.otpExpiresAt,
+          });
+        }
+        notificationService.info(t('auth:resendToast'));
+      },
+    });
+  }
+
   function useVerifyOtp() {
     const navigate = useNavigate();
     const setAuth = useAuthStore((s) => s.setAuth);
@@ -194,6 +217,7 @@ export function createAuthHooks(otpSessionKey: string, useAuthStore: UseAuthStor
     useCheckAuth,
     useLogin,
     useVerifyOtp,
+    useResendOtp,
     useLogout,
     useForgotPassword,
     useResetPassword,

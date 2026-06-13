@@ -72,6 +72,28 @@ export class AuthService {
     return { otpExpiresAt: expiresAt, userId: user.id };
   }
 
+  /**
+   * Re-issue an OTP for a login that's already past the password step (step 1.5).
+   * Used by the "Resend code" action — the user only holds a userId at this point,
+   * not their password, so this can't go through `login`. A valid userId is only
+   * obtained after a successful password check, so this adds no enumeration risk.
+   * Earlier still-valid codes are kept (see OtpService), so resending never
+   * invalidates a code already in the user's inbox.
+   */
+  async resendOtp(userId: string): Promise<{ otpExpiresAt: Date; userId: string }> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+
+    if (user?.status !== UserStatus.ACTIVE) {
+      throw new UnauthorizedException(ERR.auth.invalidCredentials);
+    }
+
+    const { otp, expiresAt } = await this.otpService.generateAndStore(user.id);
+
+    await this.emailService.sendOtpEmail(user.email, otp, expiresAt);
+
+    return { otpExpiresAt: expiresAt, userId: user.id };
+  }
+
   async verifyOtp(userId: string, otp: string): Promise<TokenPair> {
     const isValid = await this.otpService.verifyOtp(userId, otp);
 

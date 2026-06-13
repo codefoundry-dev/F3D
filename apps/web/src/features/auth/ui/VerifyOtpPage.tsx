@@ -4,13 +4,14 @@ import { TwoFactorCard } from '@forethread/ui-components';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { useVerifyOtp, loadOtpSession } from '../services/auth.service';
+import { useVerifyOtp, useResendOtp, loadOtpSession } from '../services/auth.service';
 
 export default function VerifyOtpPage() {
   const navigate = useNavigate();
   const { t } = useTranslation(['auth']);
   const session = loadOtpSession();
   const verifyMutation = useVerifyOtp();
+  const resendMutation = useResendOtp();
 
   const [secondsLeft, setSecondsLeft] = useState<number>(0);
 
@@ -33,7 +34,17 @@ export default function VerifyOtpPage() {
 
   if (!session) return null;
 
-  const isLocked = isApiError(verifyMutation.error, HTTP_STATUS.LOCKED);
+  const error = verifyMutation.error;
+  const isLocked = isApiError(error, HTTP_STATUS.LOCKED);
+
+  // Surface the real reason instead of a catch-all "Invalid code":
+  //   401 → wrong digits; 400 → code expired / already used / superseded
+  //   (request a new one); anything else → a transient failure.
+  const errorMessage = isApiError(error, 401)
+    ? t('twoFactorInvalid')
+    : isApiError(error, 400)
+      ? t('twoFactorCodeUnavailable')
+      : t('twoFactorVerifyFailed');
 
   return (
     <TwoFactorCard
@@ -48,14 +59,16 @@ export default function VerifyOtpPage() {
       resendTimerText={(time) => t('resendAvailableIn', { time })}
       resendLabel={t('resendCode')}
       backLabel={t('backToSignIn')}
-      errorMessage={t('twoFactorInvalid')}
+      errorMessage={errorMessage}
       isPending={verifyMutation.isPending}
       isError={verifyMutation.isError && !isLocked}
       secondsLeft={secondsLeft}
       isLocked={isLocked}
       lockedMessage={t('accountLocked')}
       contactSupportLabel={t('contactSupport')}
+      isResending={resendMutation.isPending}
       onVerify={(otp) => verifyMutation.mutate({ userId: session.userId, otp })}
+      onResend={() => resendMutation.mutate({ userId: session.userId })}
       onBackToLogin={() => navigate('/login')}
       onContactSupport={() => window.open('mailto:support@forethread.com')}
     />

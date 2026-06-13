@@ -14,6 +14,10 @@ export interface VerifyOtpDto {
   otp: string;
 }
 
+export interface ResendOtpDto {
+  userId: string;
+}
+
 export interface ForgotPasswordDto {
   email: string;
 }
@@ -61,6 +65,18 @@ export async function verifyOtp(
 ): Promise<VerifyOtpResponse> {
   const { data } = await getApiClient().post<{ data: VerifyOtpResponse }>(
     AUTH_PATHS.VERIFY_OTP,
+    dto,
+    config,
+  );
+  return data.data;
+}
+
+export async function resendOtp(
+  dto: ResendOtpDto,
+  config?: AxiosRequestConfig,
+): Promise<LoginResponse> {
+  const { data } = await getApiClient().post<{ data: LoginResponse }>(
+    AUTH_PATHS.RESEND_OTP,
     dto,
     config,
   );

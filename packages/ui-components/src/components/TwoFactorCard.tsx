@@ -34,6 +34,8 @@ export interface TwoFactorCardProps {
   isLocked?: boolean;
   lockedMessage?: string;
   contactSupportLabel?: string;
+  /** Seconds to wait after arriving / each resend before "Resend" is offered again. */
+  resendCooldownSeconds?: number;
   onVerify: (otp: string) => void;
   onBackToLogin: () => void;
   onResend?: () => void;
@@ -83,6 +85,7 @@ export function TwoFactorCard({
   isLocked,
   lockedMessage,
   contactSupportLabel,
+  resendCooldownSeconds = 30,
   onVerify,
   onBackToLogin,
   onResend,
@@ -93,18 +96,46 @@ export function TwoFactorCard({
 
   const isExpired = secondsLeft === 0 && !isLocked;
 
+  // Resend cooldown (independent of the OTP-expiry countdown): the button is
+  // offered once this hits zero, and restarts on each resend.
+  const [resendCooldown, setResendCooldown] = useState(resendCooldownSeconds);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const id = setInterval(() => setResendCooldown((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(id);
+  }, [resendCooldown]);
+
   useEffect(() => {
     if (!isExpired && !isLocked) {
       inputRefs.current[0]?.focus();
     }
   }, [isExpired, isLocked]);
 
-  const handleSubmit = useCallback(() => {
-    const otp = digits.join('');
-    if (otp.length === OTP_LENGTH) {
-      onVerify(otp);
-    }
-  }, [digits, onVerify]);
+  // Guard against double-submission: paste auto-submits AND the button/Enter
+  // submit, so two verify calls could fire for one code — the second then races
+  // the first and hits "No OTP found". Only allow one submit until it settles.
+  const inFlightRef = useRef(false);
+  useEffect(() => {
+    if (!isPending) inFlightRef.current = false;
+  }, [isPending]);
+
+  const submit = useCallback(
+    (code: string) => {
+      if (code.length !== OTP_LENGTH || isPending || inFlightRef.current) return;
+      inFlightRef.current = true;
+      onVerify(code);
+    },
+    [isPending, onVerify],
+  );
+
+  const handleSubmit = useCallback(() => submit(digits.join('')), [submit, digits]);
+
+  const handleResend = useCallback(() => {
+    if (isResending) return;
+    setResendCooldown(resendCooldownSeconds);
+    onResend?.();
+  }, [isResending, onResend, resendCooldownSeconds]);
 
   const handleChange = useCallback(
     (index: number, value: string) => {
@@ -141,10 +172,10 @@ export function TwoFactorCard({
         const newDigits = pasted.split('');
         setDigits(newDigits);
         inputRefs.current[OTP_LENGTH - 1]?.focus();
-        onVerify(pasted);
+        submit(pasted);
       }
     },
-    [onVerify],
+    [submit],
   );
 
   const isComplete = digits.every((d) => d !== '');
@@ -186,7 +217,7 @@ export function TwoFactorCard({
             </Text>
           </div>
 
-          <Button size="lg" className="w-full" onClick={onResend} isLoading={isResending}>
+          <Button size="lg" className="w-full" onClick={handleResend} isLoading={isResending}>
             {resendLabel}
           </Button>
 
@@ -249,14 +280,26 @@ export function TwoFactorCard({
           className="w-full"
           onClick={handleSubmit}
           isLoading={isPending}
-          disabled={!isComplete}
+          disabled={!isComplete || isPending}
         >
           {verifyLabel}
         </Button>
 
         <div className="text-center">
           <Text variant="body-16" as="p" className="font-[Inter] font-normal leading-[140%]">
-            {didntReceiveText} {resendTimerText(formatTime(secondsLeft))}
+            {didntReceiveText}{' '}
+            {resendCooldown > 0 ? (
+              resendTimerText(formatTime(resendCooldown))
+            ) : (
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={isResending}
+                className="font-medium underline hover:no-underline disabled:opacity-50"
+              >
+                {resendLabel}
+              </button>
+            )}
           </Text>
         </div>
 

@@ -2,6 +2,7 @@
 export const AUTH_PATHS = {
   LOGIN: '/auth/login',
   VERIFY_OTP: '/auth/verify-otp',
+  RESEND_OTP: '/auth/resend-otp',
   REFRESH: '/auth/refresh',
   LOGOUT: '/auth/logout',
   FORGOT_PASSWORD: '/auth/forgot-password',
