@@ -60,7 +60,7 @@ describe('vendors.service', () => {
     act(() => result.current.mutate(dto as never));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(mockApiClient.inviteVendor).toHaveBeenCalledWith(dto);
+    expect(mockApiClient.inviteVendor).toHaveBeenCalledWith(dto, { skipErrorHandler: true });
   });
 
   it('useCreateVendorCompany calls createCompany and invalidates queries on success', async () => {

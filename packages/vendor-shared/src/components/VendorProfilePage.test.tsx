@@ -50,6 +50,24 @@ vi.mock('../services', () => ({
   useDeleteWarehouse: vi.fn(() => ({
     mutateAsync: mockDeleteMutateAsync,
   })),
+  // Hooks consumed by useVendorProfileForm / WarehouseCard. Stubbed so the
+  // component tree renders; the suite only asserts on profile + update.
+  useVendorLogoUrl: vi.fn(() => ({ data: null, isLoading: false })),
+  useUploadVendorLogo: vi.fn(() => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn().mockResolvedValue(undefined),
+    isPending: false,
+  })),
+  useAddWarehouse: vi.fn(() => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn().mockResolvedValue(undefined),
+    isPending: false,
+  })),
+  useUpdateWarehouse: vi.fn(() => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn().mockResolvedValue(undefined),
+    isPending: false,
+  })),
 }));
 
 vi.mock('@forethread/i18n', () => ({
@@ -61,15 +79,82 @@ vi.mock('@forethread/i18n', () => ({
   }),
 }));
 
+// Minimal but behaviour-faithful stubs for the ui-components the profile tree
+// renders (vendor-shared's vitest has no svg plugin, so the real components —
+// which import .svg?react — can't load here).
 vi.mock('@forethread/ui-components', () => ({
   Spinner: () => <div data-testid="spinner" />,
+  notificationService: { success: vi.fn(), error: vi.fn() },
+  AvatarUpload: ({ name }: { name?: string }) => (
+    <div>
+      {String(name ?? '')
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((w) => w[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()}
+    </div>
+  ),
+  Button: ({
+    children,
+    onClick,
+    type,
+    disabled,
+  }: {
+    children?: React.ReactNode;
+    onClick?: () => void;
+    type?: 'button' | 'submit' | 'reset';
+    disabled?: boolean;
+  }) => (
+    <button type={type} onClick={onClick} disabled={disabled}>
+      {children}
+    </button>
+  ),
+  FormField: ({ label, children }: { label?: React.ReactNode; children?: React.ReactNode }) => (
+    <div>
+      {label}
+      {children}
+    </div>
+  ),
+  Input: ({
+    value,
+    onChange,
+    placeholder,
+  }: {
+    value?: string;
+    onChange?: (e: { target: { value: string } }) => void;
+    placeholder?: string;
+  }) => <input value={value ?? ''} onChange={onChange} placeholder={placeholder} />,
+  AddressInput: ({
+    value,
+    onChange,
+    placeholder,
+  }: {
+    value?: string;
+    onChange?: (val: string) => void;
+    placeholder?: string;
+  }) => (
+    <input
+      value={value ?? ''}
+      onChange={(e) => onChange?.(e.target.value)}
+      placeholder={placeholder}
+    />
+  ),
+  CustomDropdown: ({ value, placeholder }: { value?: string; placeholder?: string }) => (
+    <div>{value ?? placeholder}</div>
+  ),
+  onPhoneOnly: () => {},
 }));
 
 const SvgStub = vi.hoisted(() => () => null);
 
 vi.mock('@forethread/ui-components/assets/icons/abn.svg?react', () => ({ default: SvgStub }));
 vi.mock('@forethread/ui-components/assets/icons/delete.svg?react', () => ({ default: SvgStub }));
-vi.mock('@forethread/ui-components/assets/icons/edit.svg?react', () => ({ default: SvgStub }));
+vi.mock('@forethread/ui-components/assets/icons/edit-without-line.svg?react', () => ({
+  default: SvgStub,
+}));
+vi.mock('@forethread/ui-components/assets/icons/plus.svg?react', () => ({ default: SvgStub }));
 vi.mock('@forethread/ui-components/assets/icons/envelope-simple.svg?react', () => ({
   default: SvgStub,
 }));
@@ -134,14 +219,15 @@ describe('VendorProfilePage', () => {
     expect(screen.getByText('https://acme.com')).toBeInTheDocument();
   });
 
-  it('renders representative details', () => {
+  it('renders the representatives section (CRUD deferred — placeholder in view mode)', () => {
     render(<VendorProfilePage vendorId="vendor-1" />);
 
     expect(screen.getByText("Representatives' details")).toBeInTheDocument();
-    expect(screen.getByText('John Doe')).toBeInTheDocument();
-    expect(screen.getByText('john@acme.com')).toBeInTheDocument();
-    expect(screen.getByText('+61 400 111 111')).toBeInTheDocument();
-    expect(screen.getByText('Sales Manager')).toBeInTheDocument();
+    // RepresentativesSection shows a "coming soon" placeholder in view mode
+    // (representatives CRUD backend is not yet available).
+    expect(
+      screen.getByText('Representatives management is not yet available.'),
+    ).toBeInTheDocument();
   });
 
   it('renders warehouse locations', () => {
@@ -197,6 +283,11 @@ describe('VendorProfilePage', () => {
     render(<VendorProfilePage vendorId="vendor-1" />);
 
     fireEvent.click(screen.getByText('Edit Profile'));
+
+    // Submit is gated on the form being dirty — edit a non-asserted field first.
+    fireEvent.change(screen.getByDisplayValue('https://acme.com'), {
+      target: { value: 'https://acme.com/updated' },
+    });
     fireEvent.click(screen.getByText('Submit'));
 
     await waitFor(() => {
