@@ -166,7 +166,8 @@
     "documents": "Documents",
     "emailLog": "Email log",
     "messages": "Messages",
-    "actionLog": "Action log"
+    "actionLog": "Action log",
+    "changeRequest": "Changes request"
   },
   "emailLogTab": {
     "empty": "No emails sent yet",
@@ -302,6 +303,8 @@
     "duplicate": "Duplicate",
     "copy": "Copy PO number",
     "copyPo": "Copy PO",
+    "changePo": "Change PO",
+    "change": "Change",
     "moveToArchive": "Move to archive",
     "downloadPdf": "Download PDF",
     "attachments": "Attachments",
@@ -375,6 +378,7 @@
     "qtyOrdered": "Qty. Ordered",
     "approvedRfq": "Appr. RFQ",
     "bulkOrders": "Bulk orders",
+    "availableQty": "Available qty",
     "expDeliveryDate": "Exp. delivery date",
     "deliveryLocationCol": "Delivery location",
     "actionsCol": "Actions",
@@ -410,6 +414,11 @@
     "successMessage": "Your purchase order has been created successfully. You can review its details and track its status from the Purchase Orders section.",
     "backToPOs": "Back to POs",
     "redirecting": "Redirecting to POs page in {{seconds}} seconds...",
+    "drawdownReductionBanner": "This drawdown will reduce remaining quantities in {{bulkOrderNumber}} accordingly.",
+    "drawdownExceedsRemaining": "Quantity exceeds the available remaining quantity for this bulk order line.",
+    "drawdownSuccessMessage": "Your drawdown purchase order has been created successfully and the bulk order's remaining quantities have been updated.",
+    "backToBulkOrders": "Back to Bulk orders",
+    "redirectingGeneric": "Redirecting to page in {{seconds}} seconds...",
     "errorTitle": "Failed to create PO",
     "errorMessage": "An error occurred. Please try again.",
     "tryAgain": "Try Again",
@@ -554,6 +563,73 @@
     "messagePlaceholder": "Describe the changes you need...",
     "cancel": "Cancel",
     "submit": "Submit Request",
-    "noHistory": "No change requests yet"
+    "noHistory": "No change requests yet",
+    "requestedBy": "Requested by {{name}}",
+    "reason": "Reason: {{reason}}",
+    "resolvedBy": "Resolved by {{name}} on {{date}}"
+  },
+  "change": {
+    "title": "Change Purchase Order",
+    "submitChanges": "Submit PO changes",
+    "step3Title": "Review & Send",
+    "step3Subtitle": "Review all details before submitting.",
+    "noChanges": "No changes to submit yet. Edit the PO fields or line items before submitting.",
+    "submitError": "Failed to submit PO changes. Please try again.",
+    "submitSuccess": "Your change request has been submitted for review.",
+    "suggestedChanges": "Suggested changes:",
+    "lineItemChanges": "Line item changes",
+    "noteLabel": "Note",
+    "noteOptional": "optional",
+    "notePlaceholder": "Add some additional information to vendors..",
+    "edit": "Edit",
+    "fields": {
+      "paymentTermsDays": "Payment Terms",
+      "pickUpLocation": "Pick-up location",
+      "pickUpTimeExpectation": "Pick-up Time Expectation",
+      "pickUpPersonName": "Pick-up person",
+      "pickUpPersonPhone": "Pick-up person phone",
+      "plannedDeliveryDate": "Expected Delivery Date",
+      "deliveryLocationId": "Delivery location",
+      "deliveryNotes": "Delivery notes",
+      "costCode": "Cost code",
+      "message": "PO-level Message",
+      "deliveryResponsibleName": "Delivery responsible",
+      "deliveryResponsibleEmail": "Delivery responsible email"
+    },
+    "lineFields": {
+      "unitPrice": "Unit price",
+      "quantityOrdered": "Qty. Ordered",
+      "costCode": "Cost code",
+      "expectedDeliveryDate": "Delivery date",
+      "description": "Description",
+      "unitOfMeasure": "Unit",
+      "notes": "Notes"
+    },
+    "empty": "-"
+  },
+  "changeRequestTab": {
+    "header": "{{reference}}",
+    "suggestedBy": "Suggested",
+    "by": "{{company}} ({{name}})",
+    "timeAndDate": "Time&date",
+    "applyAll": "Apply all",
+    "reject": "Reject",
+    "rejectTitle": "Reject change request",
+    "rejectDescription": "Optionally provide a reason for rejecting this change request.",
+    "rejectReasonPlaceholder": "Reason for rejecting...",
+    "rejectConfirm": "Reject",
+    "rejectCancel": "Cancel",
+    "applied": "Change request applied",
+    "rejected": "Change request rejected",
+    "applyError": "Failed to apply the change request. Please try again.",
+    "rejectError": "Failed to reject the change request. Please try again.",
+    "noChanges": "This change request contains no field changes."
+  },
+  "actionLogCr": {
+    "suggested": "Suggested",
+    "approvedBy": "Approved by {{name}}",
+    "rejectedBy": "Rejected by {{name}}",
+    "commercial": "Commercial",
+    "internal": "Internal"
   }
 }

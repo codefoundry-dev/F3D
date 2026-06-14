@@ -15,6 +15,8 @@ import {
 } from '@nestjs/common';
 import {
   ApprovalStatus,
+  BulkOrderStatus,
+  PoSourceOfCreation,
   PoStatus as PrismaPoStatus,
   PoType as PrismaPoType,
   Prisma,
@@ -471,30 +473,41 @@ export class PurchaseOrdersService {
       throw new BadRequestException(ERR.purchaseOrders.holdForReleaseRequiresDeadline);
     }
 
-    // Calculate line totals
+    // Drawdown-from-PO (US 5.09): a PO sourced from a bulk order draws each of
+    // its lines down against the bulk order's remaining quantities. Detect the
+    // mode up front so we can force poType=DRAWDOWN and run the create + the
+    // drawdown bookkeeping atomically.
+    const isDrawdown =
+      (dto.sourceOfCreation as string) === PoSourceOfCreation.BULK_DRAWDOWN && !!dto.bulkOrderId;
+
+    // Calculate line totals. `bulkOrderLineItemId` is not a PoLineItem column —
+    // it only drives the drawdown, so keep it alongside the create payload.
     const lineItems = dto.lineItems.map((li: CreatePoLineItemDto, idx: number) => {
       const lineTotal = li.quantityOrdered * li.unitPrice;
       return {
-        lineNumber: idx + 1,
-        materialId: li.materialId ?? null,
-        materialCode: li.materialCode,
-        description: li.description,
-        quantityOrdered: li.quantityOrdered,
-        unitOfMeasure: li.unitOfMeasure,
-        unitPrice: li.unitPrice,
-        lineTotal,
-        costCode: li.costCode,
-        notes: li.notes,
-        expectedDeliveryDate: li.expectedDeliveryDate ? new Date(li.expectedDeliveryDate) : null,
-        deliveryLocationId: li.deliveryLocationId,
-        pickUp: li.pickUp ?? false,
+        bulkOrderLineItemId: li.bulkOrderLineItemId,
+        data: {
+          lineNumber: idx + 1,
+          materialId: li.materialId ?? null,
+          materialCode: li.materialCode,
+          description: li.description,
+          quantityOrdered: li.quantityOrdered,
+          unitOfMeasure: li.unitOfMeasure,
+          unitPrice: li.unitPrice,
+          lineTotal,
+          costCode: li.costCode,
+          notes: li.notes,
+          expectedDeliveryDate: li.expectedDeliveryDate ? new Date(li.expectedDeliveryDate) : null,
+          deliveryLocationId: li.deliveryLocationId,
+          pickUp: li.pickUp ?? false,
+        },
       };
     });
 
     // Build and validate header-level delivery rows (FOR-210)
     const deliveryRows = await this.buildDeliveryRows(dto.deliveries, dto.projectId);
 
-    const subtotal = lineItems.reduce((sum, li) => sum + li.lineTotal, 0);
+    const subtotal = lineItems.reduce((sum, li) => sum + li.data.lineTotal, 0);
     const poNumber = await nextSequentialNumber(
       this.prisma,
       'purchaseOrder',
@@ -502,48 +515,144 @@ export class PurchaseOrdersService {
       user.companyId ?? '',
     );
 
-    const po = await this.prisma.purchaseOrder.create({
-      data: {
-        poNumber,
-        documentName: dto.documentName ?? null,
-        companyId: user.companyId ?? '',
-        projectId: dto.projectId,
-        vendorId: dto.vendorId ?? null,
-        createdByUserId: user.id,
-        status: PrismaPoStatus.DRAFT,
-        poType: (dto.poType as unknown as PrismaPoType) ?? PrismaPoType.STANDARD,
-        sourceOfCreation:
-          dto.sourceOfCreation as unknown as Prisma.PurchaseOrderCreateInput['sourceOfCreation'],
-        priority: dto.priority as unknown as Prisma.PurchaseOrderCreateInput['priority'],
-        currency: dto.currency ?? 'AUD',
-        deliveryLocationId: dto.deliveryLocationId,
-        pickUp: dto.pickUp ?? false,
-        pickUpLocation: dto.pickUpLocation,
-        pickUpTimeExpectation:
-          dto.pickUpTimeExpectation as unknown as Prisma.PurchaseOrderCreateInput['pickUpTimeExpectation'],
-        pickUpPersonName: dto.pickUpPersonName,
-        pickUpPersonPhone: dto.pickUpPersonPhone,
-        holdForRelease: dto.holdForRelease ?? false,
-        deadlineStart: dto.deadlineStart ? new Date(dto.deadlineStart) : null,
-        deadlineEnd: dto.deadlineEnd ? new Date(dto.deadlineEnd) : null,
-        plannedDeliveryDate: dto.plannedDeliveryDate ? new Date(dto.plannedDeliveryDate) : null,
-        deliveryNotes: dto.deliveryNotes,
-        message: dto.message,
-        deliveryResponsibleName: dto.deliveryResponsibleName,
-        deliveryResponsibleEmail: dto.deliveryResponsibleEmail,
-        paymentTermsDays: dto.paymentTermsDays,
-        costCode: dto.costCode,
-        rfqId: dto.rfqId,
-        subtotal,
-        totalAmount: subtotal,
-        lineItemCount: lineItems.length,
-        totalRequestedQty: lineItems.reduce((sum, li) => sum + li.quantityOrdered, 0),
-        lineItems: { create: lineItems },
-        ...(deliveryRows.length > 0 && { deliveries: { create: deliveryRows } }),
-      },
+    const poType: PrismaPoType = isDrawdown
+      ? PrismaPoType.DRAWDOWN
+      : ((dto.poType as unknown as PrismaPoType) ?? PrismaPoType.STANDARD);
+
+    const po = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.purchaseOrder.create({
+        data: {
+          poNumber,
+          documentName: dto.documentName ?? null,
+          companyId: user.companyId ?? '',
+          projectId: dto.projectId,
+          vendorId: dto.vendorId ?? null,
+          createdByUserId: user.id,
+          status: PrismaPoStatus.DRAFT,
+          poType,
+          sourceOfCreation:
+            dto.sourceOfCreation as unknown as Prisma.PurchaseOrderCreateInput['sourceOfCreation'],
+          priority: dto.priority as unknown as Prisma.PurchaseOrderCreateInput['priority'],
+          currency: dto.currency ?? 'AUD',
+          deliveryLocationId: dto.deliveryLocationId,
+          pickUp: dto.pickUp ?? false,
+          pickUpLocation: dto.pickUpLocation,
+          pickUpTimeExpectation:
+            dto.pickUpTimeExpectation as unknown as Prisma.PurchaseOrderCreateInput['pickUpTimeExpectation'],
+          pickUpPersonName: dto.pickUpPersonName,
+          pickUpPersonPhone: dto.pickUpPersonPhone,
+          holdForRelease: dto.holdForRelease ?? false,
+          deadlineStart: dto.deadlineStart ? new Date(dto.deadlineStart) : null,
+          deadlineEnd: dto.deadlineEnd ? new Date(dto.deadlineEnd) : null,
+          plannedDeliveryDate: dto.plannedDeliveryDate ? new Date(dto.plannedDeliveryDate) : null,
+          deliveryNotes: dto.deliveryNotes,
+          message: dto.message,
+          deliveryResponsibleName: dto.deliveryResponsibleName,
+          deliveryResponsibleEmail: dto.deliveryResponsibleEmail,
+          paymentTermsDays: dto.paymentTermsDays,
+          costCode: dto.costCode,
+          rfqId: dto.rfqId,
+          subtotal,
+          totalAmount: subtotal,
+          lineItemCount: lineItems.length,
+          totalRequestedQty: lineItems.reduce((sum, li) => sum + li.data.quantityOrdered, 0),
+          lineItems: { create: lineItems.map((li) => li.data) },
+          ...(deliveryRows.length > 0 && { deliveries: { create: deliveryRows } }),
+        },
+      });
+
+      if (isDrawdown && dto.bulkOrderId) {
+        await this.applyDrawdownsFromPo(tx, dto.bulkOrderId, created.id, lineItems, user.id);
+      }
+
+      return created;
     });
 
     return this.getPurchaseOrder(po.id, user);
+  }
+
+  // ── Drawdown-from-PO bookkeeping (US 5.09) ──────────────────────────────
+
+  /**
+   * For a PO sourced from a bulk order, draw each PO line that references a
+   * bulk-order line down against that line's `qtyRemaining`: validate the
+   * quantity, write a Drawdown row, decrement `qtyRemaining` / increment
+   * `ordered`, and recompute the line utilisation. When every line on the bulk
+   * order reaches zero remaining, the bulk order is marked COMPLETED. Runs
+   * inside the PO-create transaction so the PO and the drawdowns are
+   * all-or-nothing.
+   */
+  private async applyDrawdownsFromPo(
+    tx: Prisma.TransactionClient,
+    bulkOrderId: string,
+    purchaseOrderId: string,
+    lineItems: Array<{ bulkOrderLineItemId?: string; data: { quantityOrdered: number } }>,
+    userId: string,
+  ): Promise<void> {
+    const bulkOrder = await tx.bulkOrder.findUnique({
+      where: { id: bulkOrderId },
+      select: { id: true, bulkOrderNumber: true },
+    });
+    if (!bulkOrder) throw new NotFoundException(ERR.purchaseOrders.bulkOrderNotFound);
+
+    for (const li of lineItems) {
+      if (!li.bulkOrderLineItemId) continue;
+
+      const bulkLine = await tx.bulkOrderLineItem.findFirst({
+        where: { id: li.bulkOrderLineItemId, bulkOrderId },
+      });
+      if (!bulkLine) throw new NotFoundException(ERR.purchaseOrders.bulkOrderLineNotFound);
+
+      const qty = li.data.quantityOrdered;
+      if (qty > bulkLine.qtyRemaining) {
+        throw new BadRequestException(
+          ERR.purchaseOrders.drawdownExceedsRemaining(
+            qty,
+            bulkLine.itemReference || bulkLine.description,
+            bulkLine.qtyRemaining,
+            bulkOrder.bulkOrderNumber ?? bulkOrder.id,
+          ),
+        );
+      }
+
+      await tx.drawdown.create({
+        data: {
+          bulkOrderId,
+          lineItemId: li.bulkOrderLineItemId,
+          purchaseOrderId,
+          quantity: qty,
+          qtyBeforeDrawdown: bulkLine.qtyRemaining,
+          createdByUserId: userId,
+        },
+      });
+
+      const newRemaining = bulkLine.qtyRemaining - qty;
+      const newOrdered = bulkLine.ordered + qty;
+      const deliveriesPercent = bulkLine.qty > 0 ? (newOrdered / bulkLine.qty) * 100 : 0;
+
+      await tx.bulkOrderLineItem.update({
+        where: { id: li.bulkOrderLineItemId },
+        data: {
+          qtyRemaining: newRemaining,
+          ordered: newOrdered,
+          deliveriesPercent: Math.round(deliveriesPercent * 100) / 100,
+        },
+      });
+    }
+
+    // If every line on the bulk order is now fully drawn, complete it.
+    const remainingLines = await tx.bulkOrderLineItem.findMany({
+      where: { bulkOrderId },
+      select: { qtyRemaining: true },
+    });
+    const fullyDrawn =
+      remainingLines.length > 0 && remainingLines.every((l) => l.qtyRemaining === 0);
+    if (fullyDrawn) {
+      await tx.bulkOrder.update({
+        where: { id: bulkOrderId },
+        data: { status: BulkOrderStatus.COMPLETED },
+      });
+    }
   }
 
   // ── Update Purchase Order ──────────────────────────────────────────────
@@ -617,7 +726,9 @@ export class PurchaseOrdersService {
 
       await this.prisma.$transaction([
         this.prisma.poLineItem.deleteMany({ where: { purchaseOrderId: id } }),
-        ...(deliveryRows ? [this.prisma.poDelivery.deleteMany({ where: { purchaseOrderId: id } })] : []),
+        ...(deliveryRows
+          ? [this.prisma.poDelivery.deleteMany({ where: { purchaseOrderId: id } })]
+          : []),
         this.prisma.purchaseOrder.update({
           where: { id },
           data: {

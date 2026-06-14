@@ -22,4 +22,17 @@ describe('ERR', () => {
     const msg = ERR.projects.duplicateLocationName('');
     expect(typeof msg).toBe('string');
   });
+
+  it('interpolates purchaseOrders.drawdownExceedsRemaining with all params', () => {
+    const msg = ERR.purchaseOrders.drawdownExceedsRemaining(8, 'Steel Beam', 5, 'BULK-00001');
+    expect(msg).toContain('8');
+    expect(msg).toContain('Steel Beam');
+    expect(msg).toContain('5');
+    expect(msg).toContain('BULK-00001');
+  });
+
+  it('exposes the static drawdown bulk-order error strings', () => {
+    expect(typeof ERR.purchaseOrders.bulkOrderNotFound).toBe('string');
+    expect(typeof ERR.purchaseOrders.bulkOrderLineNotFound).toBe('string');
+  });
 });

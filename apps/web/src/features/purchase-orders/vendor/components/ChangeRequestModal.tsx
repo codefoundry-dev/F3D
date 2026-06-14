@@ -5,6 +5,7 @@ import {
   type CreatePoChangeRequestInput,
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { PoChangeDiff } from '@forethread/po-shared';
 import {
   Modal,
   ModalIconHeader,
@@ -43,7 +44,7 @@ export function ChangeRequestModal({ poId, onClose }: ChangeRequestModalProps) {
     mutationFn: (input: CreatePoChangeRequestInput) => proposePoChange(poId, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['po-change-requests', poId] });
-      void queryClient.invalidateQueries({ queryKey: ['purchase-order', poId] });
+      void queryClient.invalidateQueries({ queryKey: ['purchase-orders', poId] });
       setMessage('');
       setTab('history');
     },
@@ -160,12 +161,20 @@ export function ChangeRequestModal({ poId, onClose }: ChangeRequestModalProps) {
 }
 
 function ChangeRequestCard({ cr }: { cr: PoChangeRequest }) {
+  const { t } = useTranslation('purchaseOrders');
   const colors = CHANGE_REQUEST_STATUS_COLORS[cr.status] ?? CHANGE_REQUEST_STATUS_COLORS.PENDING;
+
+  const hasChanges =
+    Object.keys(cr.changedFields?.fields ?? {}).length > 0 ||
+    (cr.changedFields?.lineItems ?? []).length > 0;
 
   return (
     <div className="rounded-lg border border-border p-4 flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
+          {cr.reference && (
+            <span className="text-sm font-bold text-foreground">{cr.reference}</span>
+          )}
           <span className={`size-2 rounded-full shrink-0 ${colors.dot}`} />
           <Badge className={`${colors.badge} text-xs`}>{cr.status}</Badge>
         </div>
@@ -175,17 +184,30 @@ function ChangeRequestCard({ cr }: { cr: PoChangeRequest }) {
         </span>
       </div>
 
-      <p className="text-sm text-muted-foreground">Requested by {cr.requestedBy.name}</p>
+      <p className="text-sm text-muted-foreground">
+        {t('changeRequest.requestedBy', { name: cr.requestedByName ?? '-' })}
+      </p>
+
+      {hasChanges && (
+        <div className="mt-1">
+          <PoChangeDiff changedFields={cr.changedFields} lineItemsAsCards />
+        </div>
+      )}
 
       {cr.message && <p className="text-sm text-foreground">{cr.message}</p>}
 
       {cr.status === 'REJECTED' && cr.reason && (
-        <p className="text-sm text-destructive">Reason: {cr.reason}</p>
+        <p className="text-sm text-destructive">
+          {t('changeRequest.reason', { reason: cr.reason })}
+        </p>
       )}
 
-      {cr.resolvedBy && cr.resolvedAt && (
+      {cr.resolvedByName && cr.resolvedAt && (
         <p className="text-xs text-muted-foreground">
-          Resolved by {cr.resolvedBy.name} on {formatDateTime(cr.resolvedAt)}
+          {t('changeRequest.resolvedBy', {
+            name: cr.resolvedByName,
+            date: formatDateTime(cr.resolvedAt),
+          })}
         </p>
       )}
     </div>

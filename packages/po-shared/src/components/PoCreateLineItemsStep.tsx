@@ -43,6 +43,15 @@ interface PoCreateLineItemsStepProps {
   isManualMode?: boolean;
   /** Called when user accepts a vendor suggestion from validation */
   onVendorSuggested?: (vendorId: string) => void;
+  /**
+   * US 5.09 drawdown: when true, the table shows an "Available qty" column
+   * (= bulk-order line qtyRemaining) in place of the "Appr. RFQ"/"Bulk orders"
+   * validation columns, and a banner warns that remaining quantities will be
+   * reduced.
+   */
+  isDrawdownMode?: boolean;
+  /** Human-readable bulk order number for the drawdown banner. */
+  bulkOrderNumber?: string;
 }
 
 export function PoCreateLineItemsStep({
@@ -60,6 +69,8 @@ export function PoCreateLineItemsStep({
   projectId,
   isManualMode,
   onVendorSuggested,
+  isDrawdownMode = false,
+  bulkOrderNumber,
 }: PoCreateLineItemsStepProps) {
   const { t } = useTranslation('purchaseOrders');
   const watchedLineItems = useWatch({ control, name: 'lineItems' });
@@ -132,17 +143,28 @@ export function PoCreateLineItemsStep({
               addToListLabel={t('create.addToList', { defaultValue: 'Add to list' })}
             />
           </div>
-          <Button
-            variant="primary"
-            size="lg"
-            onClick={modals.openApprovedQuotes}
-            disabled={!vendorId}
-          >
-            {t('create.selectApprovedQuotes')}
-          </Button>
-          <Button variant="primary" size="lg" onClick={modals.openBulkOrders} disabled={!vendorId}>
-            {t('create.selectBulkOrders')}
-          </Button>
+          {/* Drawdown rows are pre-loaded from the bulk order; the from-source
+              selectors are hidden in drawdown mode. */}
+          {!isDrawdownMode && (
+            <>
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={modals.openApprovedQuotes}
+                disabled={!vendorId}
+              >
+                {t('create.selectApprovedQuotes')}
+              </Button>
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={modals.openBulkOrders}
+                disabled={!vendorId}
+              >
+                {t('create.selectBulkOrders')}
+              </Button>
+            </>
+          )}
         </div>
 
         {/* Bulk price mismatch alert */}
@@ -162,7 +184,7 @@ export function PoCreateLineItemsStep({
             className="w-full text-sm table-fixed"
             style={{ borderCollapse: 'separate', borderSpacing: 0 }}
           >
-            <LineItemsTableHeader />
+            <LineItemsTableHeader isDrawdownMode={isDrawdownMode} />
             <tbody>
               {(() => {
                 let emptyRendered = false;
@@ -210,6 +232,7 @@ export function PoCreateLineItemsStep({
                       onBulkOrderClick={() => {
                         modals.openBulkCoverage(item?.materialName ?? '');
                       }}
+                      isDrawdownMode={isDrawdownMode}
                     />
                   );
                 });
@@ -230,8 +253,23 @@ export function PoCreateLineItemsStep({
         </div>
       </div>
 
+      {/* Drawdown reduction banner (US 5.09) */}
+      {isDrawdownMode && (
+        <Alert
+          variant="info"
+          icon={<WarningCircleIcon className="w-[18px] h-[18px]" />}
+          className="mt-4"
+        >
+          <p className="text-sm">
+            {t('create.drawdownReductionBanner', {
+              bulkOrderNumber: bulkOrderNumber ?? '',
+            })}
+          </p>
+        </Alert>
+      )}
+
       {/* Approved RFQ alert */}
-      {hasApprovedQuotes && vendorId && (
+      {!isDrawdownMode && hasApprovedQuotes && vendorId && (
         <Alert
           variant="success"
           icon={<WarningCircleIcon className="w-[18px] h-[18px]" />}

@@ -110,7 +110,7 @@ export function BulkOrderTable({
                 </Badge>
               </td>
               <td className="py-3 px-3 text-foreground">{bo.lineItems}</td>
-              <td className="py-3 px-3 text-foreground">{bo.deliveriesPercent}%</td>
+              <td className="py-3 px-3 text-foreground">{bo.consumptionPercent ?? 0}%</td>
               <td className="py-3 px-3 text-foreground">{formatCurrency(bo.totalAmount)}</td>
               <td className="py-3 px-3 text-foreground">{formatDate(bo.validUntil)}</td>
               <td className="py-3 px-3" onClick={(e) => e.stopPropagation()}>

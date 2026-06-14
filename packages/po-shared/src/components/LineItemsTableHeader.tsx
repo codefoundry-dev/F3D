@@ -3,7 +3,15 @@ import { useTranslation } from '@forethread/i18n';
 const TH_CLASS = 'px-3 py-2.5 text-xs font-bold tracking-wide border-b border-r border-border';
 const TH_LAST = 'px-3 py-2.5 text-xs font-bold tracking-wide border-b border-border';
 
-export function LineItemsTableHeader() {
+interface LineItemsTableHeaderProps {
+  /**
+   * US 5.09 drawdown: render an "Available qty" column in place of the
+   * "Appr. RFQ"/"Bulk orders" validation columns.
+   */
+  isDrawdownMode?: boolean;
+}
+
+export function LineItemsTableHeader({ isDrawdownMode = false }: LineItemsTableHeaderProps) {
   const { t } = useTranslation('purchaseOrders');
 
   return (
@@ -27,12 +35,20 @@ export function LineItemsTableHeader() {
         <th className={TH_CLASS} style={{ width: '8%' }}>
           {t('create.qtyOrdered')}
         </th>
-        <th className={TH_CLASS} style={{ width: '8%' }}>
-          {t('create.approvedRfq')}
-        </th>
-        <th className={TH_CLASS} style={{ width: '8%' }}>
-          {t('create.bulkOrders')}
-        </th>
+        {isDrawdownMode ? (
+          <th className={TH_CLASS} style={{ width: '12%' }}>
+            {t('create.availableQty')}
+          </th>
+        ) : (
+          <>
+            <th className={TH_CLASS} style={{ width: '8%' }}>
+              {t('create.approvedRfq')}
+            </th>
+            <th className={TH_CLASS} style={{ width: '8%' }}>
+              {t('create.bulkOrders')}
+            </th>
+          </>
+        )}
         <th className={TH_CLASS} style={{ width: '10%' }}>
           {t('create.expDeliveryDate')}
         </th>

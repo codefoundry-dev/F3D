@@ -1242,6 +1242,90 @@ export class RfqsService {
     };
   }
 
+  // ── Approved RFQ responses for bulk-order creation (US 5.08) ──────────────
+
+  /**
+   * List a project's approved (awarded) RFQ quote responses, each with the
+   * line items the vendor quoted, shaped for the "Create from approved RFQ
+   * response" bulk-order page. A response is "approved" when its status is
+   * APPROVED (set on award/approve). Only the contractor that owns the RFQs
+   * (or a SUPER_ADMIN) can read them. NO_QUOTE lines are dropped — they carry
+   * no price and cannot seed a bulk-order line.
+   */
+  async listApprovedResponses(projectId: string, user: AuthenticatedUser) {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { id: true, companyId: true },
+    });
+    if (!project) throw new NotFoundException(ERR.rfqs.projectNotFound);
+    this.assertCompanyAccess(user, project.companyId);
+
+    const responses = await this.prisma.quoteResponse.findMany({
+      where: {
+        status: QuoteResponseStatus.APPROVED,
+        // The awarded quote may span several projects (US 5.05): include it when
+        // the requested project is the RFQ's primary OR one of its line projects.
+        rfq: {
+          companyId: project.companyId,
+          OR: [
+            { projectId },
+            { projects: { some: { projectId } } },
+            { lineItems: { some: { projectId } } },
+          ],
+        },
+      },
+      orderBy: { submittedAt: 'desc' },
+      include: {
+        vendor: { select: { id: true, legalName: true } },
+        rfq: { select: { id: true, rfqNumber: true } },
+        lineItems: {
+          include: {
+            rfqLineItem: {
+              select: {
+                materialId: true,
+                materialName: true,
+                description: true,
+                unit: true,
+                material: { select: { name: true, uom: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return responses.map((qr) => ({
+      rfqId: qr.rfqId,
+      responseId: qr.id,
+      rfqReference: qr.rfq.rfqNumber ?? qr.rfqId,
+      vendorId: qr.vendorId,
+      vendorName: qr.vendor.legalName,
+      discountPercent: qr.discountPercent ? Number(qr.discountPercent) : null,
+      lineItems: qr.lineItems
+        .filter((li) => li.availability !== QuoteLineItemAvailability.NO_QUOTE)
+        .map((li) => {
+          const unitPrice = Number(li.unitPrice);
+          return {
+            materialId: li.rfqLineItem.materialId,
+            itemReference:
+              li.rfqLineItem.material?.name ??
+              li.rfqLineItem.materialName ??
+              li.rfqLineItem.description ??
+              '',
+            description:
+              li.rfqLineItem.description ??
+              li.rfqLineItem.material?.name ??
+              li.rfqLineItem.materialName ??
+              '',
+            unitPrice,
+            uom: li.rfqLineItem.material?.uom ?? li.rfqLineItem.unit,
+            quantity: li.quotedQuantity,
+            discount: li.discount ? Number(li.discount) : null,
+          };
+        }),
+    }));
+  }
+
   // ── Update Line Item ───────────────────────────────────────────────────────
 
   async updateLineItem(

@@ -95,6 +95,10 @@ vi.mock('@forethread/ui-components/assets/icons/edit-without-line.svg?react', ()
   default: () => <span />,
 }));
 
+vi.mock('@forethread/po-shared', () => ({
+  PoChangeDiff: () => <div data-testid="po-change-diff" />,
+}));
+
 vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
   useMutation: () => ({
@@ -213,11 +217,15 @@ describe('ChangeRequestModal', () => {
       data: [
         {
           id: 'cr-1',
+          reference: 'CR-001',
+          changeType: 'INTERNAL',
+          changedFields: {},
           status: 'PENDING',
           message: 'Please change unit price',
           createdAt: '2026-01-01',
-          requestedBy: { name: 'John Doe' },
-          resolvedBy: null,
+          requestedByName: 'John Doe',
+          requestedByCompanyName: 'Buildco',
+          resolvedByName: null,
           resolvedAt: null,
           reason: null,
         },
@@ -227,7 +235,8 @@ describe('ChangeRequestModal', () => {
     render(<ChangeRequestModal poId="po-1" onClose={onClose} />);
     fireEvent.click(screen.getByText('changeRequest.historyTab'));
     expect(screen.getByText('Please change unit price')).toBeInTheDocument();
-    expect(screen.getByText('Requested by John Doe')).toBeInTheDocument();
+    expect(screen.getByText('CR-001')).toBeInTheDocument();
+    expect(screen.getByText('changeRequest.requestedBy')).toBeInTheDocument();
     expect(screen.getByTestId('badge')).toHaveTextContent('PENDING');
   });
 
@@ -236,12 +245,16 @@ describe('ChangeRequestModal', () => {
       data: [
         {
           id: 'cr-2',
+          reference: 'CR-002',
+          changeType: 'COMMERCIAL',
+          changedFields: { fields: { paymentTermsDays: { from: 30, to: 10 } } },
           status: 'REJECTED',
           message: 'Change delivery date',
           reason: 'Not feasible',
           createdAt: '2026-01-02',
-          requestedBy: { name: 'Jane Smith' },
-          resolvedBy: { name: 'Admin User' },
+          requestedByName: 'Jane Smith',
+          requestedByCompanyName: 'Buildco',
+          resolvedByName: 'Admin User',
           resolvedAt: '2026-01-03',
         },
       ],
@@ -249,8 +262,10 @@ describe('ChangeRequestModal', () => {
     };
     render(<ChangeRequestModal poId="po-1" onClose={onClose} />);
     fireEvent.click(screen.getByText('changeRequest.historyTab'));
-    expect(screen.getByText('Reason: Not feasible')).toBeInTheDocument();
-    expect(screen.getByText(/Resolved by Admin User/)).toBeInTheDocument();
+    // The diff is delegated to PoChangeDiff (mocked); reason + resolver use i18n keys.
+    expect(screen.getByTestId('po-change-diff')).toBeInTheDocument();
+    expect(screen.getByText('changeRequest.reason')).toBeInTheDocument();
+    expect(screen.getByText('changeRequest.resolvedBy')).toBeInTheDocument();
   });
 
   it('shows count badge on history tab when there are change requests', () => {

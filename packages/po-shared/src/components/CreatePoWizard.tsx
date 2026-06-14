@@ -1,16 +1,19 @@
 import type {
   CreatePurchaseOrderInput,
+  CreatePoChangeRequestInput,
+  PoDetail,
   ProjectDetail,
   VendorAssignment,
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { Button, StatusSuccessModal, StatusErrorModal } from '@forethread/ui-components';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
 import { usePoDropdownOptions } from '../hooks/usePoDropdownOptions';
 import { usePoWizardForm } from '../hooks/usePoWizardForm';
 
 import { PoBasicInfoStep } from './PoBasicInfoStep';
+import { PoChangeReviewStep } from './PoChangeReviewStep';
 import { PoCreateLineItemsStep } from './PoCreateLineItemsStep';
 import { PoReviewStep } from './PoReviewStep';
 import { Stepper } from './Stepper';
@@ -33,6 +36,31 @@ export interface CreatePoWizardProps {
   lockedFields?: Set<string>;
   /** Creation mode: manual, from-rfq, or from-bulk-order */
   creationMode?: PoCreationMode;
+  /**
+   * US 5.09 drawdown: the source bulk order id. When set together with
+   * `creationMode='from-bulk-order'`, the wizard runs in drawdown mode — it
+   * forwards `bulkOrderId` + per-line `bulkOrderLineItemId` to the create
+   * payload, shows the "Available qty" column + reduction banner on step 2,
+   * and switches the success modal to "Back to Bulk orders".
+   */
+  bulkOrderId?: string;
+  /** Human-readable bulk order number (e.g. "BULK-2025-011") for drawdown copy. */
+  bulkOrderNumber?: string;
+  /**
+   * FLOW 3 — wizard mode. `'create'` (default) creates a new PO; `'change'`
+   * pre-fills from `existingPo`, locks the document name, and Step 3 becomes the
+   * diff review that submits a PO change request via `onProposeChange`.
+   */
+  mode?: 'create' | 'change';
+  /** FLOW 3 change mode: the PO being changed (source of the diff). */
+  existingPo?: PoDetail;
+  /** FLOW 3 change mode: submit the computed change request. */
+  onProposeChange?: (
+    input: CreatePoChangeRequestInput,
+    callbacks: { onSuccess: () => void; onError: () => void },
+  ) => void;
+  /** FLOW 3 change mode: loading flag for the "Submit PO changes" button. */
+  isSubmittingChange?: boolean;
 }
 
 export function CreatePoWizard({
@@ -47,8 +75,26 @@ export function CreatePoWizard({
   initialValues,
   lockedFields,
   creationMode = 'manual',
+  bulkOrderId,
+  bulkOrderNumber,
+  mode = 'create',
+  existingPo,
+  onProposeChange,
+  isSubmittingChange,
 }: CreatePoWizardProps) {
   const { t } = useTranslation('purchaseOrders');
+
+  const isDrawdown = creationMode === 'from-bulk-order' && Boolean(bulkOrderId);
+  const isChange = mode === 'change';
+
+  // Change mode locks the document name (PO identity is immutable) on top of any
+  // caller-supplied locks.
+  const effectiveLockedFields = useMemo(() => {
+    if (!isChange) return lockedFields;
+    const next = new Set(lockedFields ?? []);
+    next.add('documentName');
+    return next;
+  }, [isChange, lockedFields]);
 
   const {
     step,
@@ -74,13 +120,21 @@ export function CreatePoWizard({
     attachments,
     addAttachments,
     removeAttachment,
+    changedFields,
+    submitChange,
   } = usePoWizardForm({
     onNavigateBack,
     onCreatePo,
     projectDetail,
     noLineItemsMsg: t('create.noLineItems'),
+    drawdownExceedsMsg: t('create.drawdownExceedsRemaining'),
     initialValues,
     creationMode,
+    bulkOrderId,
+    mode,
+    existingPo,
+    onProposeChange,
+    noChangesMsg: t('change.noChanges'),
   });
 
   const {
@@ -132,7 +186,7 @@ export function CreatePoWizard({
             projectOptions={projectOptions}
             locationOptions={locationOptions}
             watchedProjectId={watchedProjectId}
-            lockedFields={lockedFields}
+            lockedFields={effectiveLockedFields}
             deliveryFields={deliveryFields}
             appendDelivery={appendDelivery}
             removeDelivery={removeDelivery}
@@ -155,37 +209,52 @@ export function CreatePoWizard({
             projectId={watchedProjectId}
             isManualMode={creationMode === 'manual'}
             onVendorSuggested={handleVendorSuggested}
+            isDrawdownMode={isDrawdown}
+            bulkOrderNumber={bulkOrderNumber}
           />
         )}
 
-        {step === 3 && (
-          <PoReviewStep
-            watch={watch}
-            projectDetail={projectDetail ?? undefined}
-            vendorsData={vendorsData}
-            locationOptions={locationOptions}
-            subtotal={subtotal}
-            totalItems={totalItems}
-            totalQty={totalQty}
-            register={register}
-            onEditStep={setStep}
-            attachments={attachments}
-            onAddAttachments={addAttachments}
-            onRemoveAttachment={removeAttachment}
-          />
-        )}
+        {step === 3 &&
+          (isChange ? (
+            <PoChangeReviewStep
+              changedFields={changedFields}
+              register={register}
+              locationOptions={locationOptions}
+              onEditStep={setStep}
+            />
+          ) : (
+            <PoReviewStep
+              watch={watch}
+              projectDetail={projectDetail ?? undefined}
+              vendorsData={vendorsData}
+              locationOptions={locationOptions}
+              subtotal={subtotal}
+              totalItems={totalItems}
+              totalQty={totalQty}
+              register={register}
+              onEditStep={setStep}
+              attachments={attachments}
+              onAddAttachments={addAttachments}
+              onRemoveAttachment={removeAttachment}
+            />
+          ))}
 
         {/* Footer */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between mt-8 gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            onClick={handleSaveDraft}
-            isLoading={isCreating}
-          >
-            {t('create.saveDraft')}
-          </Button>
+          {/* Change mode has no draft; keep the row right-aligned with a spacer. */}
+          {isChange ? (
+            <span className="hidden sm:block" />
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={handleSaveDraft}
+              isLoading={isCreating}
+            >
+              {t('create.saveDraft')}
+            </Button>
+          )}
 
           <div className="flex items-center gap-3 sm:gap-4 justify-end">
             <Button
@@ -209,6 +278,16 @@ export function CreatePoWizard({
               >
                 {t('create.continue')}
               </Button>
+            ) : isChange ? (
+              <Button
+                type="button"
+                variant="primary"
+                size="lg"
+                isLoading={isSubmittingChange}
+                onClick={() => submitChange()}
+              >
+                {t('change.submitChanges')}
+              </Button>
             ) : (
               <Button
                 type="button"
@@ -224,31 +303,50 @@ export function CreatePoWizard({
         </div>
       </div>
 
-      {showSuccess && (
+      {showSuccess && isChange && (
+        <StatusSuccessModal
+          onClose={onSuccess}
+          title={t('change.title')}
+          description={t('change.submitSuccess')}
+          buttonLabel={t('create.backToPOs')}
+          redirectLabel={(s) => t('create.redirectingGeneric', { seconds: s })}
+        />
+      )}
+
+      {showSuccess && !isChange && (
         <StatusSuccessModal
           onClose={onSuccess}
           title={t('create.successTitle')}
-          description={t('create.successMessage')}
-          buttonLabel={t('create.backToPOs')}
-          redirectLabel={(s) => t('create.redirecting', { seconds: s })}
+          description={isDrawdown ? t('create.drawdownSuccessMessage') : t('create.successMessage')}
+          buttonLabel={isDrawdown ? t('create.backToBulkOrders') : t('create.backToPOs')}
+          redirectLabel={(s) =>
+            isDrawdown
+              ? t('create.redirectingGeneric', { seconds: s })
+              : t('create.redirecting', { seconds: s })
+          }
         />
       )}
 
       {showError && (
         <StatusErrorModal
           onClose={() => setShowError(false)}
-          title={t('create.errorTitle')}
-          description={t('create.errorMessage')}
+          title={isChange ? t('change.title') : t('create.errorTitle')}
+          description={isChange ? t('change.submitError') : t('create.errorMessage')}
           primaryButtonLabel={t('create.tryAgain')}
           onPrimaryClick={() => {
             setShowError(false);
-            void handleSubmit(onSubmit)();
+            if (isChange) submitChange();
+            else void handleSubmit(onSubmit)();
           }}
-          secondaryButtonLabel={t('create.saveDraft')}
-          onSecondaryClick={() => {
-            setShowError(false);
-            handleSaveDraft();
-          }}
+          secondaryButtonLabel={isChange ? undefined : t('create.saveDraft')}
+          onSecondaryClick={
+            isChange
+              ? undefined
+              : () => {
+                  setShowError(false);
+                  handleSaveDraft();
+                }
+          }
         />
       )}
     </div>

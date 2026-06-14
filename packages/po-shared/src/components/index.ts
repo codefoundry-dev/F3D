@@ -14,6 +14,10 @@ export { PoEmailLogTab } from './PoEmailLogTab';
 export { PoMessagesTab } from './PoMessagesTab';
 export { PoActionLogTab } from './PoActionLogTab';
 export type { PoActionLogEntry } from './PoActionLogTab';
+export { PoChangeDiff } from './PoChangeDiff';
+export type { PoChangeDiffProps } from './PoChangeDiff';
+export { PoChangeReviewStep } from './PoChangeReviewStep';
+export { PoChangeRequestTab, PoChangeRequestTabLoading } from './PoChangeRequestTab';
 export { PoCommsPage } from './PoCommsPage';
 export type { PoCommsTab, PoCommsPageProps } from './PoCommsPage';
 

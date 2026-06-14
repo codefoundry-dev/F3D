@@ -3,12 +3,14 @@ import {
   getPurchaseOrder,
   createPurchaseOrder,
   issuePurchaseOrder,
+  proposePoChange,
   getProjects,
   getProject,
   getCompanyVendors,
   getMe,
   type PoListParams,
   type CreatePurchaseOrderInput,
+  type CreatePoChangeRequestInput,
 } from '@forethread/api-client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -83,6 +85,23 @@ export function useIssuePurchaseOrder() {
     mutationFn: (id: string) => issuePurchaseOrder(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+    },
+  });
+}
+
+/**
+ * FLOW 3 — propose a PO change request from the change wizard. Invalidates the
+ * PO detail + its change-request list so the new pending CR surfaces in the
+ * "Changes request" tab on return.
+ */
+export function useProposePoChange(poId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: CreatePoChangeRequestInput) => proposePoChange(poId, input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['purchase-orders', poId] });
+      void queryClient.invalidateQueries({ queryKey: ['po-change-requests', poId] });
     },
   });
 }

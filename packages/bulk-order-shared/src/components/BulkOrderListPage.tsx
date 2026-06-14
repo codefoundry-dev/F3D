@@ -1,10 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
-import {
-  TablePagination,
-  notificationService,
-  type FilterDropdownOption,
-} from '@forethread/ui-components';
-import { useState } from 'react';
+import { TablePagination, type FilterDropdownOption } from '@forethread/ui-components';
 import { useNavigate } from 'react-router-dom';
 
 import { BULK_ORDER_ROUTES } from '../constants/routes';
@@ -19,7 +14,6 @@ import { useBulkOrderListState } from '../hooks/useBulkOrderListState';
 import { AllChangeHistorySection } from './AllChangeHistorySection';
 import { BulkOrderTable } from './BulkOrderTable';
 import { BulkOrderToolbar } from './BulkOrderToolbar';
-import { CreateBulkOrderModal } from './CreateBulkOrderModal';
 
 export type CounterpartyType = 'vendor' | 'contractor';
 
@@ -54,8 +48,6 @@ export function BulkOrderListPage({
 }: BulkOrderListPageProps) {
   const { t } = useTranslation('bulkOrders');
   const navigate = useNavigate();
-
-  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Fetch filter options automatically if not provided
   const fetchedProjectOptions = useProjectFilterOptions();
@@ -115,7 +107,7 @@ export function BulkOrderListPage({
           counterpartyOptions={counterpartyOptions}
           counterpartyLabel={counterpartyFilterLabel ?? t('list.allVendors')}
           counterpartyPopoverTitle={counterpartyPopoverTitle ?? t('filters.vendorsTitle')}
-          onCreateNew={hideCreate ? undefined : () => setShowCreateModal(true)}
+          onCreateNew={hideCreate ? undefined : () => navigate(BULK_ORDER_ROUTES.bulkOrderNew)}
         />
 
         <div className="px-4 md:px-8">
@@ -155,20 +147,6 @@ export function BulkOrderListPage({
         <div className="mt-6">
           <AllChangeHistorySection bulkOrders={items} isVendorView={isVendorView} />
         </div>
-      )}
-
-      {showCreateModal && (
-        <CreateBulkOrderModal
-          projectOptions={projectOptions}
-          vendorOptions={
-            counterpartyType === 'contractor' ? fetchedContractorOptions : fetchedVendorOptions
-          }
-          onClose={() => setShowCreateModal(false)}
-          onSuccess={(id) => {
-            notificationService.success(t('modals.createSuccess'));
-            navigateToDetail(id);
-          }}
-        />
       )}
     </div>
   );

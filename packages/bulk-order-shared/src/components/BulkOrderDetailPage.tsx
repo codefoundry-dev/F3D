@@ -1,6 +1,7 @@
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { Button, Spinner, Alert, formatDate, notificationService } from '@forethread/ui-components';
+import CalendarIcon from '@forethread/ui-components/assets/icons/date.svg?react';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock-icon.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit-without-line.svg?react';
 import LetterIcon from '@forethread/ui-components/assets/icons/letter.svg?react';
@@ -18,6 +19,14 @@ import { CancelBulkOrderModal } from './CancelBulkOrderModal';
 import { ChangeHistoryTab } from './ChangeHistoryTab';
 import { DetailField } from './DetailField';
 import { DrawdownHistoryTab } from './DrawdownHistoryTab';
+import { InlineExtensionReview } from './InlineExtensionReview';
+import { ProposeExtensionModal } from './ProposeExtensionModal';
+
+/** True when the only thing a change request changes is the bulk order end date (an extension). */
+function isEndDateOnlyChange(changes: Record<string, unknown>): boolean {
+  const lineItems = changes.lineItems as unknown[] | undefined;
+  return !!changes.endDate && (!lineItems || lineItems.length === 0);
+}
 
 export interface BulkOrderDetailPageProps {
   /** Label for the counterparty field, e.g. "Contractor" or "Vendor" */
@@ -60,6 +69,7 @@ export function BulkOrderDetailPage({
   );
 
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showExtensionModal, setShowExtensionModal] = useState(false);
 
   useEffect(() => {
     if (data) setTitle(data.bulkId, t('list.subtitle') as string);
@@ -91,10 +101,21 @@ export function BulkOrderDetailPage({
   const isProposer = !!(pendingCr && currentUserId && pendingCr.requestedBy.id === currentUserId);
   const isActive = data.status === 'ACTIVE' || data.status === 'CHANGE_PENDING';
 
+  // An end-date-only pending change is an extension: the approver (non-proposer,
+  // i.e. the vendor) reviews it inline rather than on a separate page (bo6).
+  const pendingExtension =
+    pendingCr && isEndDateOnlyChange(pendingCr.changes) ? pendingCr : undefined;
+  const showInlineExtensionReview = !!pendingExtension && !isProposer;
+
   return (
     <div className="flex flex-col gap-6 p-4">
-      {/* Pending change alert + action buttons */}
-      {hasPendingChange && (
+      {/* Inline extension review (bo6) — approver reviews an end-date extension */}
+      {showInlineExtensionReview && pendingExtension && (
+        <InlineExtensionReview bulkOrderId={id!} changeRequest={pendingExtension} />
+      )}
+
+      {/* Pending change alert + action buttons (line-item change requests) */}
+      {hasPendingChange && !showInlineExtensionReview && (
         <div className="flex items-center justify-between gap-4">
           <Alert variant="info" icon={<ClockIcon className="w-5 h-5" />} className="flex-1">
             {isProposer
@@ -145,14 +166,24 @@ export function BulkOrderDetailPage({
           </Button>
         )}
         {showChangeActions && isActive && !hasPendingChange && (
-          <Button
-            variant="outline"
-            size="lg"
-            leftIcon={<EditIcon style={{ width: '18.75px', height: '18.75px' }} />}
-            onClick={() => navigate(BULK_ORDER_ROUTES.bulkOrderChange.replace(':id', id!))}
-          >
-            {t('changeRequests.proposeChange')}
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              size="lg"
+              leftIcon={<EditIcon style={{ width: '18.75px', height: '18.75px' }} />}
+              onClick={() => navigate(BULK_ORDER_ROUTES.bulkOrderChange.replace(':id', id!))}
+            >
+              {t('detail.change')}
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              leftIcon={<CalendarIcon className="w-5 h-5" />}
+              onClick={() => setShowExtensionModal(true)}
+            >
+              {t('detail.proposeExtension')}
+            </Button>
+          </>
         )}
       </div>
 
@@ -203,6 +234,14 @@ export function BulkOrderDetailPage({
           bulkOrderId={id!}
           onClose={() => setShowCancelModal(false)}
           onSuccess={() => notificationService.success(t('cancel.success'))}
+        />
+      )}
+      {showExtensionModal && (
+        <ProposeExtensionModal
+          bulkOrderId={id!}
+          bulkNumber={data.bulkId}
+          currentValidUntil={data.endDate}
+          onClose={() => setShowExtensionModal(false)}
         />
       )}
     </div>

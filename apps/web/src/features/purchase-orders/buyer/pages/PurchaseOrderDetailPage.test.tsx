@@ -9,9 +9,12 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 const mockUsePurchaseOrder = vi.hoisted(() => vi.fn());
+const mockUsePoChangeRequests = vi.hoisted(() => vi.fn());
 const mockUseParams = vi.hoisted(() => vi.fn());
 const mockUseSearchParams = vi.hoisted(() => vi.fn());
+const mockNavigate = vi.hoisted(() => vi.fn());
 const mockExportPurchaseOrders = vi.hoisted(() => vi.fn());
+const mockHasPermission = vi.hoisted(() => vi.fn(() => true));
 
 vi.mock('@forethread/i18n', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -20,10 +23,20 @@ vi.mock('@forethread/i18n', () => ({
 vi.mock('react-router-dom', () => ({
   useParams: mockUseParams,
   useSearchParams: mockUseSearchParams,
+  useNavigate: () => mockNavigate,
 }));
 
 vi.mock('@forethread/rfq-shared', () => ({
   usePageTitleStore: () => vi.fn(),
+}));
+
+vi.mock('@/features/auth/state/auth.store', () => ({
+  useAuthStore: (selector: (s: unknown) => unknown) =>
+    selector({ currentUser: { id: 'u-1', name: 'User' } }),
+}));
+
+vi.mock('@/shared/role/usePermissions', () => ({
+  usePermissions: () => ({ has: mockHasPermission }),
 }));
 
 vi.mock('@forethread/api-client', () => ({
@@ -33,6 +46,7 @@ vi.mock('@forethread/api-client', () => ({
 vi.mock('@forethread/po-shared', () => ({
   CreatePoWizard: (_props: any) => <div data-testid="create-po-wizard" />,
   usePurchaseOrder: mockUsePurchaseOrder,
+  usePoChangeRequests: mockUsePoChangeRequests,
   PoDetailTabs: ({
     activeTab,
     onTabChange,
@@ -62,6 +76,10 @@ vi.mock('@forethread/po-shared', () => ({
   PoLineItemsTab: () => <div data-testid="po-line-items-tab" />,
   PoDocumentsTab: () => <div data-testid="po-documents-tab" />,
   PoMessagesTab: () => <div data-testid="po-messages-tab" />,
+  PoEmailLogTab: () => <div data-testid="po-email-log-tab" />,
+  PoActionLogTab: () => <div data-testid="po-action-log-tab" />,
+  PoChangeRequestTab: () => <div data-testid="po-change-request-tab" />,
+  PoChangeRequestTabLoading: () => <div data-testid="po-change-request-tab-loading" />,
 }));
 
 vi.mock('@forethread/ui-components', () => ({
@@ -89,6 +107,10 @@ vi.mock('@forethread/ui-components', () => ({
 
 vi.mock('@forethread/ui-components/assets/icons/download.svg?react', () => ({
   default: (props: Record<string, unknown>) => <svg data-testid="icon-download" {...props} />,
+}));
+
+vi.mock('@forethread/ui-components/assets/icons/edit-without-line.svg?react', () => ({
+  default: (props: Record<string, unknown>) => <svg data-testid="icon-edit" {...props} />,
 }));
 
 vi.mock('../components/PoSendButton', () => ({
@@ -127,6 +149,8 @@ describe('PurchaseOrderDetailPage', () => {
     vi.clearAllMocks();
     mockUseParams.mockReturnValue({ id: 'po-456' });
     mockUseSearchParams.mockReturnValue([new URLSearchParams(), setSearchParams]);
+    mockUsePoChangeRequests.mockReturnValue({ data: [], isLoading: false });
+    mockHasPermission.mockReturnValue(true);
   });
 
   it('renders spinner while loading', () => {

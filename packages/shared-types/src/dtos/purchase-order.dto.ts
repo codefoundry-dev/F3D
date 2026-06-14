@@ -68,6 +68,15 @@ export class CreatePoLineItemDto {
   @IsOptional()
   materialId?: string;
 
+  /**
+   * The bulk-order line this PO line draws from (US 5.09 drawdown-from-PO). Set
+   * only when the parent PO is sourced from a bulk order; the create endpoint
+   * uses it to validate against `qtyRemaining` and write the Drawdown row.
+   */
+  @IsUUID()
+  @IsOptional()
+  bulkOrderLineItemId?: string;
+
   @IsOptional()
   @IsString()
   materialCode?: string;
@@ -133,6 +142,16 @@ export class CreatePurchaseOrderDto {
   @IsOptional()
   @IsUUID()
   vendorId?: string;
+
+  /**
+   * The source bulk order for a drawdown PO (US 5.09). When present together
+   * with `sourceOfCreation === BULK_DRAWDOWN`, the create endpoint draws each
+   * line item with a `bulkOrderLineItemId` down against the bulk order and
+   * forces `poType = DRAWDOWN`.
+   */
+  @IsOptional()
+  @IsUUID()
+  bulkOrderId?: string;
 
   @IsUUID()
   deliveryLocationId!: string;

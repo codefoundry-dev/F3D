@@ -2,6 +2,7 @@ export {
   usePurchaseOrders,
   usePurchaseOrder,
   usePurchaseOrderEmailLog,
+  usePoChangeRequests,
 } from './usePurchaseOrders';
 export { usePoExport } from './usePoExport';
 export { usePoSort } from './usePoSort';
