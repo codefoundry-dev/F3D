@@ -61,6 +61,8 @@
   "detail": {
     "backLink": "Bulk order",
     "createDrawdown": "Create drawdown",
+    "change": "Change",
+    "proposeExtension": "Propose extension",
     "bulkDetails": "Bulk Details",
     "bulkId": "BULK ID",
     "status": "Status",
@@ -134,6 +136,65 @@
     "selectProject": "Select a project",
     "selectVendor": "Select a vendor",
     "selectLineItem": "Select a line item"
+  },
+  "create": {
+    "title": "Create new Bulk",
+    "subtitle": "Text goes here",
+    "bulkDetails": "Bulk details",
+    "projectDetails": "Project details",
+    "projectAssignment": "Project assignment",
+    "approvedRfqResponse": "Select approved RFQ approved response",
+    "expectedEndDate": "Expected end date",
+    "selectPlaceholder": "Select",
+    "datePlaceholder": "mm/dd/yyyy",
+    "autoPopulateInfo": "Bulk order data will be auto-populated from the selected approved RFQ quote.",
+    "columns": {
+      "item": "Item",
+      "description": "Description",
+      "pricePerUnit": "Price/Unit",
+      "uom": "UoM",
+      "quantity": "Quantity",
+      "discount": "Discount",
+      "lineTotalWithTax": "Line Total (with tax)",
+      "actions": "Actions"
+    },
+    "summary": {
+      "shipmentHandling": "Shipment & Handling",
+      "discount": "Discount",
+      "totalWithTaxes": "Total with Taxes"
+    },
+    "cancel": "Cancel",
+    "create": "Create",
+    "creating": "Creating...",
+    "createSuccess": "Bulk order created successfully",
+    "createError": "Failed to create bulk order. Please try again.",
+    "loadingResponses": "Loading approved responses...",
+    "noResponses": "No approved RFQ responses available",
+    "noLineItems": "This approved response has no line items."
+  },
+  "extension": {
+    "title": "Propose extension — {{bulkNumber}}",
+    "warning": "The vendor must approve the proposed extension before it becomes effective. Current valid until: {{validUntil}}",
+    "newEndDate": "New end date",
+    "messageToVendor": "Message to vendor",
+    "optional": "(optional)",
+    "messagePlaceholder": "Reason for extension request...",
+    "sendToVendor": "Send to vendor",
+    "sending": "Sending...",
+    "cancel": "Cancel",
+    "proposeSuccess": "Extension request sent to vendor",
+    "proposeError": "Failed to send extension request. Please try again.",
+    "review": {
+      "banner": "Extension request received. A new extension has been proposed. Please review and approve the updated end date to keep the agreement active.",
+      "newEndDate": "New end date",
+      "note": "Note",
+      "submit": "Submit",
+      "cancel": "Cancel",
+      "approveSuccess": "Extension approved",
+      "rejectSuccess": "Extension request declined",
+      "approveError": "Failed to approve extension",
+      "rejectError": "Failed to decline extension"
+    }
   },
   "pagination": {
     "back": "Back",

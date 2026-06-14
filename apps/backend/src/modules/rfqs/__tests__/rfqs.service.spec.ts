@@ -87,6 +87,7 @@ const mockPrisma = {
   },
   quoteResponse: {
     findUnique: jest.fn(),
+    findMany: jest.fn(),
     update: jest.fn(),
   },
   quoteAudit: {
@@ -1470,6 +1471,138 @@ describe('RfqsService', () => {
 
       expect(result.materialId).toBe('mat-aluminum-1');
       expect(result.quantity).toBe(200);
+    });
+  });
+
+  // ── listApprovedResponses (US 5.08 — bulk-order creation) ─────────────────
+
+  describe('listApprovedResponses', () => {
+    it('throws NotFoundException when the project does not exist', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue(null);
+      await expect(service.listApprovedResponses('proj-x', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws ForbiddenException for a contractor from a different company', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'other-comp' });
+      await expect(service.listApprovedResponses('proj-1', companyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('returns approved responses with quoted line items, dropping NO_QUOTE lines', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockPrisma.quoteResponse.findMany.mockResolvedValue([
+        {
+          id: 'qr-1',
+          rfqId: 'rfq-1',
+          vendorId: 'vendor-co-1',
+          discountPercent: 5,
+          vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
+          rfq: { id: 'rfq-1', rfqNumber: 'RFQ-00001' },
+          lineItems: [
+            {
+              unitPrice: 12.5,
+              quotedQuantity: 8,
+              availability: QuoteLineItemAvailability.AVAILABLE,
+              discount: 1.5,
+              rfqLineItem: {
+                materialId: 'mat-1',
+                materialName: 'Cement',
+                description: 'Bagged cement',
+                unit: 'bags',
+                material: { name: 'Cement 25kg', uom: 'BAG' },
+              },
+            },
+            {
+              unitPrice: 0,
+              quotedQuantity: 0,
+              availability: QuoteLineItemAvailability.NO_QUOTE,
+              discount: null,
+              rfqLineItem: {
+                materialId: 'mat-2',
+                materialName: 'Sand',
+                description: null,
+                unit: 'tonnes',
+                material: null,
+              },
+            },
+          ],
+        },
+      ]);
+
+      const result = await service.listApprovedResponses('proj-1', companyAdmin);
+
+      expect(mockPrisma.quoteResponse.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ status: QuoteResponseStatus.APPROVED }),
+        }),
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual(
+        expect.objectContaining({
+          rfqId: 'rfq-1',
+          responseId: 'qr-1',
+          rfqReference: 'RFQ-00001',
+          vendorId: 'vendor-co-1',
+          vendorName: 'VendorCo',
+          discountPercent: 5,
+        }),
+      );
+      // NO_QUOTE line dropped → only one line item remains
+      expect(result[0].lineItems).toHaveLength(1);
+      expect(result[0].lineItems[0]).toEqual({
+        materialId: 'mat-1',
+        itemReference: 'Cement 25kg',
+        description: 'Bagged cement',
+        unitPrice: 12.5,
+        uom: 'BAG',
+        quantity: 8,
+        discount: 1.5,
+      });
+    });
+
+    it('falls back to the rfqId and line unit when references are missing', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockPrisma.quoteResponse.findMany.mockResolvedValue([
+        {
+          id: 'qr-2',
+          rfqId: 'rfq-2',
+          vendorId: 'vendor-co-2',
+          discountPercent: null,
+          vendor: { id: 'vendor-co-2', legalName: 'OtherVendor' },
+          rfq: { id: 'rfq-2', rfqNumber: null },
+          lineItems: [
+            {
+              unitPrice: 4,
+              quotedQuantity: 2,
+              availability: QuoteLineItemAvailability.AVAILABLE,
+              discount: null,
+              rfqLineItem: {
+                materialId: null,
+                materialName: 'Free text item',
+                description: null,
+                unit: 'EA',
+                material: null,
+              },
+            },
+          ],
+        },
+      ]);
+
+      const result = await service.listApprovedResponses('proj-1', companyAdmin);
+      expect(result[0].rfqReference).toBe('rfq-2');
+      expect(result[0].discountPercent).toBeNull();
+      expect(result[0].lineItems[0]).toEqual({
+        materialId: null,
+        itemReference: 'Free text item',
+        description: 'Free text item',
+        unitPrice: 4,
+        uom: 'EA',
+        quantity: 2,
+        discount: null,
+      });
     });
   });
 

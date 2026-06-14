@@ -12,6 +12,10 @@
     "./services": "./src/services/index.ts",
     "./components": "./src/components/index.ts"
   },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
   "peerDependencies": {
     "react": "^18.0.0",
     "react-router-dom": "^6.0.0",
@@ -25,8 +29,13 @@
   },
   "devDependencies": {
     "@forethread/config": "workspace:*",
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^18.3.5",
+    "jsdom": "^25.0.0",
     "react": "^18.3.1",
-    "typescript": "^5.5.4"
+    "react-dom": "^18.3.1",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.1"
   }
 }

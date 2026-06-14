@@ -51,9 +51,24 @@ const mockPrisma = {
   },
   poLineItem: {
     deleteMany: jest.fn(),
+    findMany: jest.fn(),
+    findFirst: jest.fn(),
+    update: jest.fn(),
   },
   poDelivery: {
     deleteMany: jest.fn(),
+  },
+  bulkOrder: {
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  },
+  bulkOrderLineItem: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    update: jest.fn(),
+  },
+  drawdown: {
+    create: jest.fn(),
   },
   $transaction: jest.fn(),
 };
@@ -64,6 +79,13 @@ describe('PurchaseOrdersService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     service = new PurchaseOrdersService(mockPrisma as never);
+    // createPurchaseOrder now runs its create + drawdown bookkeeping inside a
+    // $transaction callback. Default: invoke the callback with mockPrisma so
+    // `tx.*` resolves to the same mocks. updatePurchaseOrder uses the array
+    // form; tests that need that form override this per-case.
+    mockPrisma.$transaction.mockImplementation((arg: unknown) =>
+      typeof arg === 'function' ? (arg as (tx: typeof mockPrisma) => unknown)(mockPrisma) : arg,
+    );
   });
 
   describe('listPurchaseOrders', () => {
@@ -1074,6 +1096,177 @@ describe('PurchaseOrdersService', () => {
         BadRequestException,
       );
       expect(mockPrisma.purchaseOrder.create).not.toHaveBeenCalled();
+    });
+
+    // ── Drawdown-from-PO (US 5.09) ────────────────────────────────────────
+
+    const drawdownDto = {
+      projectId: 'proj-1',
+      vendorId: 'v-1',
+      deliveryLocationId: 'loc-1',
+      sourceOfCreation: 'BULK_DRAWDOWN',
+      bulkOrderId: 'bo-1',
+      lineItems: [
+        {
+          materialId: 'mat-1',
+          description: 'Steel bars',
+          quantityOrdered: 4,
+          unitOfMeasure: 'pcs',
+          unitPrice: 50,
+          bulkOrderLineItemId: 'bo-li-1',
+        },
+      ],
+    };
+
+    function setupDrawdownHappyPath(remaining = 10, ordered = 0, qty = 10) {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockPrisma.company.findUnique.mockResolvedValue({ id: 'v-1' });
+      mockPrisma.projectLocation.findUnique.mockResolvedValue({ id: 'loc-1', projectId: 'proj-1' });
+      mockPrisma.purchaseOrder.create.mockResolvedValue({ id: 'po-new' });
+      mockPrisma.bulkOrder.findUnique.mockResolvedValue({
+        id: 'bo-1',
+        bulkOrderNumber: 'BULK-00001',
+      });
+      mockPrisma.bulkOrderLineItem.findFirst.mockResolvedValue({
+        id: 'bo-li-1',
+        bulkOrderId: 'bo-1',
+        itemReference: 'STEEL',
+        description: 'Steel bars',
+        qty,
+        ordered,
+        qtyRemaining: remaining,
+      });
+      mockPrisma.drawdown.create.mockResolvedValue({ id: 'dd-1' });
+      mockPrisma.bulkOrderLineItem.update.mockResolvedValue({});
+      mockPrisma.bulkOrder.update.mockResolvedValue({});
+      mockGetPoAfterMutation();
+    }
+
+    it('forces poType=DRAWDOWN and writes a Drawdown decrementing remaining qty', async () => {
+      setupDrawdownHappyPath(10, 2, 12);
+      // After this drawdown 6 remain → bulk order stays ACTIVE
+      mockPrisma.bulkOrderLineItem.findMany.mockResolvedValue([{ qtyRemaining: 6 }]);
+
+      const result = await service.createPurchaseOrder(drawdownDto as never, companyAdmin);
+      expect(result.id).toBe('po-new');
+
+      // poType forced to DRAWDOWN on the create payload
+      const createArg = mockPrisma.purchaseOrder.create.mock.calls[0][0];
+      expect(createArg.data.poType).toBe('DRAWDOWN');
+      // bulkOrderLineItemId is NOT persisted on the PO line
+      expect(createArg.data.lineItems.create[0]).not.toHaveProperty('bulkOrderLineItemId');
+
+      // Drawdown row written with qtyBeforeDrawdown = current remaining
+      expect(mockPrisma.drawdown.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            bulkOrderId: 'bo-1',
+            lineItemId: 'bo-li-1',
+            purchaseOrderId: 'po-new',
+            quantity: 4,
+            qtyBeforeDrawdown: 10,
+            createdByUserId: 'ca-1',
+          }),
+        }),
+      );
+      // Line decremented (10-4=6), ordered incremented (2+4=6), util = 6/12 = 50%
+      expect(mockPrisma.bulkOrderLineItem.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'bo-li-1' },
+          data: expect.objectContaining({ qtyRemaining: 6, ordered: 6, deliveriesPercent: 50 }),
+        }),
+      );
+      // Not fully drawn → bulk order status untouched
+      expect(mockPrisma.bulkOrder.update).not.toHaveBeenCalled();
+    });
+
+    it('marks the bulk order COMPLETED when every line reaches zero remaining', async () => {
+      setupDrawdownHappyPath(4, 0, 4); // drawing 4 of 4 → 0 remaining
+      mockPrisma.bulkOrderLineItem.findMany.mockResolvedValue([{ qtyRemaining: 0 }]);
+
+      await service.createPurchaseOrder(drawdownDto as never, companyAdmin);
+
+      expect(mockPrisma.bulkOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'bo-1' },
+          data: { status: 'COMPLETED' },
+        }),
+      );
+    });
+
+    it('throws 400 when a drawdown line exceeds the remaining quantity', async () => {
+      setupDrawdownHappyPath(2); // only 2 remaining but the DTO draws 4
+      mockPrisma.bulkOrderLineItem.findMany.mockResolvedValue([{ qtyRemaining: 2 }]);
+
+      await expect(service.createPurchaseOrder(drawdownDto as never, companyAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockPrisma.drawdown.create).not.toHaveBeenCalled();
+    });
+
+    it('throws 404 when the source bulk order is missing', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockPrisma.company.findUnique.mockResolvedValue({ id: 'v-1' });
+      mockPrisma.projectLocation.findUnique.mockResolvedValue({ id: 'loc-1', projectId: 'proj-1' });
+      mockPrisma.purchaseOrder.create.mockResolvedValue({ id: 'po-new' });
+      mockPrisma.bulkOrder.findUnique.mockResolvedValue(null);
+
+      await expect(service.createPurchaseOrder(drawdownDto as never, companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws 404 when a referenced bulk-order line does not exist', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockPrisma.company.findUnique.mockResolvedValue({ id: 'v-1' });
+      mockPrisma.projectLocation.findUnique.mockResolvedValue({ id: 'loc-1', projectId: 'proj-1' });
+      mockPrisma.purchaseOrder.create.mockResolvedValue({ id: 'po-new' });
+      mockPrisma.bulkOrder.findUnique.mockResolvedValue({ id: 'bo-1', bulkOrderNumber: null });
+      mockPrisma.bulkOrderLineItem.findFirst.mockResolvedValue(null);
+
+      await expect(service.createPurchaseOrder(drawdownDto as never, companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('skips PO lines without a bulkOrderLineItemId and uses the bulk id when number is null', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockPrisma.company.findUnique.mockResolvedValue({ id: 'v-1' });
+      mockPrisma.projectLocation.findUnique.mockResolvedValue({ id: 'loc-1', projectId: 'proj-1' });
+      mockPrisma.purchaseOrder.create.mockResolvedValue({ id: 'po-new' });
+      // bulkOrderNumber null → error/label path would fall back to id; here the
+      // line has no bulkOrderLineItemId so the drawdown loop skips it entirely.
+      mockPrisma.bulkOrder.findUnique.mockResolvedValue({ id: 'bo-1', bulkOrderNumber: null });
+      mockPrisma.bulkOrderLineItem.findMany.mockResolvedValue([]); // no lines → not completed
+      mockGetPoAfterMutation();
+
+      const dtoNoBulkLine = {
+        ...drawdownDto,
+        lineItems: [{ ...drawdownDto.lineItems[0], bulkOrderLineItemId: undefined }],
+      };
+      await service.createPurchaseOrder(dtoNoBulkLine as never, companyAdmin);
+
+      // poType still DRAWDOWN (sourced from bulk order), but no drawdown rows
+      const createArg = mockPrisma.purchaseOrder.create.mock.calls[0][0];
+      expect(createArg.data.poType).toBe('DRAWDOWN');
+      expect(mockPrisma.drawdown.create).not.toHaveBeenCalled();
+      expect(mockPrisma.bulkOrder.update).not.toHaveBeenCalled();
+    });
+
+    it('does NOT run drawdowns when bulkOrderId is absent even if source is BULK_DRAWDOWN', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockPrisma.company.findUnique.mockResolvedValue({ id: 'v-1' });
+      mockPrisma.projectLocation.findUnique.mockResolvedValue({ id: 'loc-1', projectId: 'proj-1' });
+      mockPrisma.purchaseOrder.create.mockResolvedValue({ id: 'po-new' });
+      mockGetPoAfterMutation();
+
+      const dto = { ...drawdownDto, bulkOrderId: undefined };
+      await service.createPurchaseOrder(dto as never, companyAdmin);
+
+      expect(mockPrisma.drawdown.create).not.toHaveBeenCalled();
+      // poType not forced when there is no source bulk order
+      const createArg = mockPrisma.purchaseOrder.create.mock.calls[0][0];
+      expect(createArg.data.poType).not.toBe('DRAWDOWN');
     });
   });
 

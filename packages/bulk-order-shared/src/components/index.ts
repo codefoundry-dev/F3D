@@ -23,8 +23,14 @@ export type { BulkOrderTab } from './BulkOrderDetailTabs';
 export { DetailField } from './DetailField';
 export type { DetailFieldProps } from './DetailField';
 
-export { CreateBulkOrderModal } from './CreateBulkOrderModal';
-export type { CreateBulkOrderModalProps } from './CreateBulkOrderModal';
+export { CreateBulkOrderPage } from './CreateBulkOrderPage';
+export type { CreateBulkOrderPageProps } from './CreateBulkOrderPage';
+
+export { ProposeExtensionModal } from './ProposeExtensionModal';
+export type { ProposeExtensionModalProps } from './ProposeExtensionModal';
+
+export { InlineExtensionReview } from './InlineExtensionReview';
+export type { InlineExtensionReviewProps } from './InlineExtensionReview';
 
 export { DeleteBulkOrderModal } from './DeleteBulkOrderModal';
 export type { DeleteBulkOrderModalProps } from './DeleteBulkOrderModal';

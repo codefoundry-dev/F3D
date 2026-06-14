@@ -142,6 +142,20 @@ export const ERR = {
     onlyClosedCanArchive: errors.purchaseOrders.onlyClosedCanArchive,
     approvalThresholdExceeded: (amount: string, threshold: string, currency: string) =>
       t(errors.purchaseOrders.approvalThresholdExceeded, { amount, threshold, currency }),
+    bulkOrderNotFound: errors.purchaseOrders.bulkOrderNotFound,
+    bulkOrderLineNotFound: errors.purchaseOrders.bulkOrderLineNotFound,
+    drawdownExceedsRemaining: (
+      requested: number,
+      line: string,
+      remaining: number,
+      bulkOrderNumber: string,
+    ) =>
+      t(errors.purchaseOrders.drawdownExceedsRemaining, {
+        requested,
+        line,
+        remaining,
+        bulkOrderNumber,
+      }),
   },
 
   // ── Bulk Orders ──────────────────────────────────────────

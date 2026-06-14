@@ -11,7 +11,7 @@ export const COLUMNS: Array<{ field: SortableField; key: string }> = [
   { field: 'vendorName', key: 'vendorName' },
   { field: 'status', key: 'status' },
   { field: 'lineItems', key: 'lineItems' },
-  { field: 'deliveriesPercent', key: 'utilizationPercent' },
+  { field: 'consumptionPercent', key: 'utilizationPercent' },
   { field: 'totalAmount', key: 'totalAmount' },
   { field: 'validUntil', key: 'validUntil' },
 ];

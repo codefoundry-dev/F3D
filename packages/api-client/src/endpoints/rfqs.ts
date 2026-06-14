@@ -845,3 +845,42 @@ export async function getGuestQuoteExtraction(id: string): Promise<DocExtraction
   );
   return data.data;
 }
+
+// ── Approved RFQ responses (US 5.08 — bulk-order creation) ──────────────────
+
+/** A line item on an approved RFQ response, shaped for seeding a bulk order. */
+export interface ApprovedResponseLineItem {
+  materialId: string | null;
+  itemReference: string;
+  description: string;
+  unitPrice: number;
+  uom: string;
+  quantity: number;
+  discount: number | null;
+}
+
+/** An awarded RFQ quote response a contractor can convert into a bulk order. */
+export interface ApprovedRfqResponse {
+  rfqId: string;
+  responseId: string;
+  rfqReference: string;
+  vendorId: string;
+  vendorName: string;
+  discountPercent: number | null;
+  lineItems: ApprovedResponseLineItem[];
+}
+
+/**
+ * List a project's approved (awarded) RFQ responses with their quoted line
+ * items, for the "Create from approved RFQ response" bulk-order page (US 5.08).
+ */
+export async function getApprovedRfqResponses(
+  projectId: string,
+  config?: AxiosRequestConfig,
+): Promise<ApprovedRfqResponse[]> {
+  const { data } = await getApiClient().get<{ data: ApprovedRfqResponse[] }>(
+    RFQS_PATHS.APPROVED_RESPONSES,
+    { params: { projectId }, ...config },
+  );
+  return data.data;
+}

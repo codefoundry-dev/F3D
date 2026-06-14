@@ -35,10 +35,12 @@ export const ROUTES = {
   purchaseOrderNew: '/purchase-orders/new',
   purchaseOrderDetail: '/purchase-orders/:id',
   purchaseOrderComms: '/purchase-orders/:id/comms',
+  purchaseOrderChange: '/purchase-orders/:id/change',
   purchaseOrderChangeRequest: '/purchase-orders/:id/change-request',
 
   // ── Bulk orders ────────────────────────────────────────────────────
   bulkOrders: '/bulk-orders',
+  bulkOrderNew: '/bulk-orders/new',
   bulkOrderDetail: '/bulk-orders/:id',
   bulkOrderDrawdown: '/bulk-orders/:id/drawdown',
   bulkOrderEdit: '/bulk-orders/:id/edit',

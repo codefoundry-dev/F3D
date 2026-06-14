@@ -1,5 +1,6 @@
 export const BULK_ORDER_ROUTES = {
   bulkOrders: '/bulk-orders',
+  bulkOrderNew: '/bulk-orders/new',
   bulkOrderDetail: '/bulk-orders/:id',
   bulkOrderDrawdown: '/bulk-orders/:id/drawdown',
   bulkOrderEdit: '/bulk-orders/:id/edit',

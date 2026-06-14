@@ -1,16 +1,21 @@
 import type {
   CreatePurchaseOrderInput,
   CreatePoLineItemInput,
+  CreatePoChangeRequestInput,
+  PoChangedFields,
+  PoDetail,
   ProjectDetail,
 } from '@forethread/api-client';
 import { uploadPoDocument } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { notificationService } from '@forethread/ui-components';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 
 import { PoSourceOfCreation, PoType } from '@forethread/shared-types/client';
+
+import { computePoChangedFields, deriveChangeType, hasAnyChange } from '../utils/change-diff';
 
 import {
   formSchema,
@@ -35,9 +40,33 @@ interface UsePoWizardFormOptions {
   ) => void;
   projectDetail?: ProjectDetail | null;
   noLineItemsMsg: string;
+  /** Drawdown (US 5.09): shown when a line's qty exceeds the bulk order remaining qty. */
+  drawdownExceedsMsg?: string;
   initialValues?: Partial<FormValues>;
   /** Creation mode to set sourceOfCreation on the PO */
   creationMode?: PoCreationMode;
+  /**
+   * US 5.09 drawdown: source bulk order id. When set (drawdown mode), it is
+   * passed through to the create payload as `bulkOrderId` and each line item's
+   * `bulkOrderLineItemId` is forwarded so the backend writes the Drawdown rows
+   * and decrements `qtyRemaining`.
+   */
+  bulkOrderId?: string;
+  /**
+   * FLOW 3 — wizard mode. `'create'` (default) builds + submits a new PO via
+   * `onCreatePo`; `'change'` diffs the edited form against `existingPo` and
+   * submits a PO change request via `onProposeChange`.
+   */
+  mode?: 'create' | 'change';
+  /** FLOW 3 change mode: the PO being changed, used to compute the diff. */
+  existingPo?: PoDetail;
+  /** FLOW 3 change mode: submit the computed change request. */
+  onProposeChange?: (
+    input: CreatePoChangeRequestInput,
+    callbacks: { onSuccess: () => void; onError: () => void },
+  ) => void;
+  /** FLOW 3 change mode: message shown when there is nothing to submit. */
+  noChangesMsg?: string;
 }
 
 export function usePoWizardForm({
@@ -45,8 +74,14 @@ export function usePoWizardForm({
   onCreatePo,
   projectDetail,
   noLineItemsMsg,
+  drawdownExceedsMsg,
   initialValues,
   creationMode = 'manual',
+  bulkOrderId,
+  mode = 'create',
+  existingPo,
+  onProposeChange,
+  noChangesMsg,
 }: UsePoWizardFormOptions) {
   const { t } = useTranslation('purchaseOrders');
   const [step, setStep] = useState(1);
@@ -91,6 +126,17 @@ export function usePoWizardForm({
 
   const watchedLineItems = form.watch('lineItems') ?? [];
 
+  // Drawdown (US 5.09): a line's ordered qty must not exceed the bulk order's
+  // remaining qty for that line. Only enforced in drawdown mode (availableQty set).
+  const drawdownOverLimit =
+    creationMode === 'from-bulk-order' &&
+    watchedLineItems.some(
+      (li) =>
+        li.materialName &&
+        li.availableQty != null &&
+        Number(li.quantityOrdered) > Number(li.availableQty),
+    );
+
   // Validation gate for Continue button
   const canContinue =
     step === 1
@@ -103,7 +149,7 @@ export function usePoWizardForm({
       : step === 2
         ? watchedLineItems.some(
             (li) => li.materialName && li.unitOfMeasure && li.quantityOrdered >= 1,
-          )
+          ) && !drawdownOverLimit
         : true;
 
   // Step navigation
@@ -121,6 +167,17 @@ export function usePoWizardForm({
         notificationService.error(noLineItemsMsg);
         return;
       }
+      // Drawdown (US 5.09): block progression if any line exceeds its bulk-order
+      // remaining qty (mirrors the backend DRAWDOWN_EXCEEDS_REMAINING 400).
+      if (creationMode === 'from-bulk-order') {
+        const exceeds = filledItems.some(
+          (li) => li.availableQty != null && Number(li.quantityOrdered) > Number(li.availableQty),
+        );
+        if (exceeds) {
+          if (drawdownExceedsMsg) notificationService.error(drawdownExceedsMsg);
+          return;
+        }
+      }
       // Validate filled rows manually — avoid form.trigger per-index which conflicts
       // with zod preprocess on the lineItems array
       let allValid = true;
@@ -136,12 +193,16 @@ export function usePoWizardForm({
       }
       if (allValid) setStep(3);
     }
-  }, [step, form, noLineItemsMsg]);
+  }, [step, form, noLineItemsMsg, creationMode, drawdownExceedsMsg]);
 
   const handleBack = useCallback(() => {
     if (step > 1) setStep((s) => s - 1);
     else onNavigateBack();
   }, [step, onNavigateBack]);
+
+  // A drawdown PO is sourced from a bulk order: forces poType DRAWDOWN and
+  // carries the bulk order + per-line references the backend draws down against.
+  const isDrawdown = creationMode === 'from-bulk-order' && Boolean(bulkOrderId);
 
   // Build API payload from form data
   const buildPayload = useCallback(
@@ -160,14 +221,23 @@ export function usePoWizardForm({
             ? new Date(item.expectedDeliveryDate).toISOString()
             : undefined,
           deliveryLocationId: item.deliveryLocationId || undefined,
+          // Drawdown: link this PO line to its bulk-order line so the backend
+          // can decrement qtyRemaining and write the Drawdown row.
+          bulkOrderLineItemId: isDrawdown ? item.bulkOrderLineItemId || undefined : undefined,
         }));
 
       return {
         documentName: data.documentName || undefined,
         projectId: data.projectId,
         vendorId: data.vendorId || undefined,
-        poType: data.holdForRelease ? PoType.HOLD_FOR_RELEASE : PoType.STANDARD,
+        // Drawdown POs are forced to DRAWDOWN; otherwise hold-for-release/standard.
+        poType: isDrawdown
+          ? PoType.DRAWDOWN
+          : data.holdForRelease
+            ? PoType.HOLD_FOR_RELEASE
+            : PoType.STANDARD,
         sourceOfCreation: CREATION_MODE_TO_SOURCE[creationMode],
+        bulkOrderId: isDrawdown ? bulkOrderId : undefined,
         currency: projectDetail?.currency ?? 'AUD',
         pickUp: data.pickUp ?? false,
         pickUpTimeExpectation: data.pickUp ? data.pickUpTimeExpectation : undefined,
@@ -183,7 +253,7 @@ export function usePoWizardForm({
         deliveries: mapDeliveriesToPayload(data.deliveries),
       };
     },
-    [projectDetail],
+    [projectDetail, creationMode, isDrawdown, bulkOrderId],
   );
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -292,6 +362,38 @@ export function usePoWizardForm({
     0,
   );
 
+  // FLOW 3 — live diff of the edited form vs the existing PO. Watching the whole
+  // form keeps the step-3 review (and the submit gate) in sync as fields change.
+  const watchedAll = form.watch();
+  const changedFields: PoChangedFields = useMemo(() => {
+    if (mode !== 'change' || !existingPo) return {};
+    return computePoChangedFields(watchedAll as FormValues, existingPo);
+    // watchedAll is a fresh object each render; depend on it + existingPo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, existingPo, JSON.stringify(watchedAll)]);
+
+  // FLOW 3 — submit the computed change request (Step 3 "Submit PO changes").
+  const submitChange = useCallback(() => {
+    if (!existingPo || !onProposeChange) return;
+    const data = form.getValues();
+    const diff = computePoChangedFields(data, existingPo);
+    if (!hasAnyChange(diff)) {
+      if (noChangesMsg) notificationService.error(noChangesMsg);
+      return;
+    }
+    onProposeChange(
+      {
+        changeType: deriveChangeType(diff),
+        changedFields: diff,
+        message: data.message || undefined,
+      },
+      {
+        onSuccess: () => setShowSuccess(true),
+        onError: () => setShowError(true),
+      },
+    );
+  }, [existingPo, onProposeChange, form, noChangesMsg]);
+
   return {
     step,
     form,
@@ -317,5 +419,8 @@ export function usePoWizardForm({
     attachments,
     addAttachments,
     removeAttachment,
+    // FLOW 3 change mode
+    changedFields,
+    submitChange,
   };
 }

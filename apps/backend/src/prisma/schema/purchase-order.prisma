@@ -215,6 +215,10 @@ enum PoChangeRequestStatus {
 model PoChangeRequest {
   id               String                @id @default(uuid())
   purchaseOrderId  String                @map("purchase_order_id")
+  // Human-facing, sequential-per-PO reference (e.g. "CR-001") shown on the PO
+  // detail "Changes request" tab and the resolved-CR Action-log entries (US PO
+  // Change Request). Backfilled per-PO by creation order in the migration.
+  reference        String?               @db.VarChar(20)
   changeType       PoChangeType          @map("change_type")
   changedFields    Json                  @map("changed_fields")
   message          String?

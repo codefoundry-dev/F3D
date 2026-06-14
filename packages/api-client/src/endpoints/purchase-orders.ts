@@ -26,6 +26,12 @@ export interface PoListParams {
 
 export interface CreatePoLineItemInput {
   materialId?: string;
+  /**
+   * The bulk-order line this PO line draws from (US 5.09 drawdown). Set only
+   * when the parent PO is sourced from a bulk order; the backend validates it
+   * against `qtyRemaining` and writes the Drawdown row on create.
+   */
+  bulkOrderLineItemId?: string;
   materialCode?: string;
   description?: string;
   quantityOrdered: number;
@@ -42,6 +48,12 @@ export interface CreatePurchaseOrderInput {
   documentName?: string;
   projectId: string;
   vendorId?: string;
+  /**
+   * Source bulk order for a drawdown PO (US 5.09). When set together with
+   * `sourceOfCreation: 'BULK_DRAWDOWN'`, each line item's `bulkOrderLineItemId`
+   * is drawn down against the bulk order and `poType` is forced to `DRAWDOWN`.
+   */
+  bulkOrderId?: string;
   poType: string;
   sourceOfCreation?: string;
   currency: string;
@@ -420,22 +432,50 @@ export async function vendorDeclinePurchaseOrder(
 
 // ── PO Change Requests ──────────────────────────────────────────────────────
 
+/** A single old→new diff entry inside a `changedFields` payload. */
+export interface PoChangeFieldDiff {
+  from: unknown;
+  to: unknown;
+}
+
+/** One changed line item card in the diff (heading + per-attribute old→new). */
+export interface PoChangeLineItem {
+  lineItemId: string;
+  name: string;
+  changes: Record<string, PoChangeFieldDiff>;
+}
+
+/**
+ * The agreed cross-package `changedFields` shape (PLAN §B). `fields` are
+ * PO-level attributes (paymentTermsDays, pickUpTimeExpectation, pickUpLocation,
+ * plannedDeliveryDate, deliveryLocationId, deliveryNotes, …); `lineItems` are
+ * per-line attribute diffs (unitPrice, costCode, expectedDeliveryDate, discount,
+ * quantityOrdered, …). Approving applies these to the PO.
+ */
+export interface PoChangedFields {
+  fields?: Record<string, PoChangeFieldDiff>;
+  lineItems?: PoChangeLineItem[];
+}
+
 export interface CreatePoChangeRequestInput {
   changeType: 'COMMERCIAL' | 'INTERNAL';
-  changedFields: Record<string, unknown>;
+  changedFields: PoChangedFields;
   message?: string;
 }
 
 export interface PoChangeRequest {
   id: string;
   purchaseOrderId: string;
+  /** Sequential per-PO human reference, e.g. "CR-001". */
+  reference: string | null;
   changeType: string;
-  changedFields: Record<string, unknown>;
+  changedFields: PoChangedFields;
   message: string | null;
   status: string;
   reason: string | null;
-  requestedBy: { id: string; name: string };
-  resolvedBy: { id: string; name: string } | null;
+  requestedByName: string | null;
+  requestedByCompanyName: string | null;
+  resolvedByName: string | null;
   resolvedAt: string | null;
   createdAt: string;
 }

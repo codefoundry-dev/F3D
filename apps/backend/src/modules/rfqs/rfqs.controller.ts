@@ -102,6 +102,24 @@ export class RfqsController {
     return this.rfqAvailabilityService.checkAvailability(dto, user);
   }
 
+  // ── GET /v1/rfqs/approved-responses ──────────────────────────────────────
+  // NOTE: Static segment — declared before any :id routes so "approved-responses"
+  // is not matched as an :id.
+
+  @Get('approved-responses')
+  @RequirePermissions('rfq.read')
+  @ApiOperation({
+    summary: "List a project's approved (awarded) RFQ responses for bulk-order creation (US 5.08)",
+  })
+  @ApiResponse({ status: 200, description: 'Approved responses with quoted line items' })
+  @ApiResponse({ status: 404, description: 'Project not found' })
+  async listApprovedResponses(
+    @Query('projectId') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.rfqsService.listApprovedResponses(projectId, user);
+  }
+
   // ── POST /v1/rfqs/:id/confirm-coverage ───────────────────────────────────
 
   @Post(':id/confirm-coverage')

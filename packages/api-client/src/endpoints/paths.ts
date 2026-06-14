@@ -111,6 +111,7 @@ export const RFQS_PATHS = {
   checkBulk: (id: string) => `/rfqs/${id}/check-bulk`,
   confirmBulk: (id: string) => `/rfqs/${id}/confirm-bulk-suggestions`,
   CHECK_AVAILABILITY: '/rfqs/check-availability',
+  APPROVED_RESPONSES: '/rfqs/approved-responses',
   confirmCoverage: (id: string) => `/rfqs/${id}/confirm-coverage`,
   documents: (rfqId: string) => `/rfqs/${rfqId}/documents`,
   document: (rfqId: string, docId: string) => `/rfqs/${rfqId}/documents/${docId}`,

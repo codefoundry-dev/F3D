@@ -52,6 +52,9 @@ const CreatePurchaseOrderPage = lazy(
 const ChangeRequestPage = lazy(
   () => import('@/features/purchase-orders/vendor/pages/ChangeRequestPage'),
 );
+const ChangePurchaseOrderPage = lazy(
+  () => import('@/features/purchase-orders/buyer/pages/ChangePurchaseOrderPage'),
+);
 const BulkOrderListRoleSwitch = lazy(
   () => import('@/features/bulk-orders/BulkOrderListRoleSwitch'),
 );
@@ -63,6 +66,9 @@ const BulkOrderChangeRoleSwitch = lazy(
 );
 const BulkOrderReviewChangeRoleSwitch = lazy(
   () => import('@/features/bulk-orders/BulkOrderReviewChangeRoleSwitch'),
+);
+const BulkOrderCreatePage = lazy(
+  () => import('@/features/bulk-orders/buyer/pages/BulkOrderCreatePage'),
 );
 const BulkOrderDrawdownPage = lazy(
   () => import('@/features/bulk-orders/buyer/pages/BulkOrderDrawdownPage'),
@@ -259,6 +265,15 @@ export const routes: RouteObject[] = [
                       },
                     ],
                   },
+                  {
+                    element: <PermissionRoute require={['po.proposeChange']} />,
+                    children: [
+                      {
+                        path: ROUTES.purchaseOrderChange,
+                        element: withSuspense(<ChangePurchaseOrderPage />),
+                      },
+                    ],
+                  },
                 ],
               },
               {
@@ -271,7 +286,24 @@ export const routes: RouteObject[] = [
                 ],
               },
 
-              // Bulk orders
+              // Bulk orders. The static "/bulk-orders/new" create route is
+              // registered before the "/:id" detail route so it is not
+              // swallowed by it (US 5.08), and is gated to buyer roles that
+              // hold bulkOrder.create.
+              {
+                element: <RoleRoute allow={BUYER_SIDE} />,
+                children: [
+                  {
+                    element: <PermissionRoute require={['bulkOrder.create']} />,
+                    children: [
+                      {
+                        path: ROUTES.bulkOrderNew,
+                        element: withSuspense(<BulkOrderCreatePage />),
+                      },
+                    ],
+                  },
+                ],
+              },
               {
                 element: <RoleRoute allow={BULK_ORDER_VIEWERS} />,
                 children: [

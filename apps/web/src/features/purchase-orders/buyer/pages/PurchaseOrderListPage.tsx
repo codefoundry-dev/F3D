@@ -74,6 +74,9 @@ type SortableField = keyof PoListItem;
 const ALL_COLUMNS = PO_CA_COLUMNS;
 const DEFAULT_VISIBLE = ALL_COLUMNS.map((c) => c.key);
 
+/** PO statuses for which the "Change PO" kebab action is offered (FLOW 3). */
+const CHANGEABLE_PO_STATUSES = ['SENT', 'ACKNOWLEDGED', 'ACCEPTED'];
+
 /* ─── Store ────────────────────────────────────────────────────────────────── */
 
 const usePoTableStore = createPoTableStore(DEFAULT_VISIBLE);
@@ -318,6 +321,17 @@ export default function PurchaseOrderListPage() {
                   });
                 },
               },
+              // "Change PO" only when the backend would accept a change proposal
+              // (PO status SENT / ACKNOWLEDGED / ACCEPTED) — SPEC FLOW 3 / pc1.
+              ...(CHANGEABLE_PO_STATUSES.includes(po.status)
+                ? [
+                    {
+                      key: 'changePo',
+                      label: t('actions.changePo'),
+                      onClick: () => navigate(ROUTES.purchaseOrderChange.replace(':id', po.id)),
+                    },
+                  ]
+                : []),
               {
                 key: 'moveToArchive',
                 label: t('actions.moveToArchive'),

@@ -81,9 +81,17 @@ export function PoBasicInfoStep({
                 required
                 error={errors.documentName?.message}
               >
-                <Input
-                  {...register('documentName')}
-                  placeholder={t('create.documentNamePlaceholder')}
+                <Controller
+                  name="documentName"
+                  control={control}
+                  render={({ field }) => (
+                    <Input
+                      {...field}
+                      value={field.value ?? ''}
+                      placeholder={t('create.documentNamePlaceholder')}
+                      disabled={isLocked('documentName', field.value)}
+                    />
+                  )}
                 />
               </FormField>
               <p className="text-xs text-muted-foreground mt-2">{t('create.documentNameHint')}</p>

@@ -1,3 +1,4 @@
+import { useTranslation } from '@forethread/i18n';
 import {
   Input,
   CustomDropdown,
@@ -57,6 +58,12 @@ export interface LineItemRowProps {
   onBulkOrderClick?: (index: number) => void;
   approvedQuotesCount?: number;
   bulkOrdersCount?: number;
+  /**
+   * US 5.09 drawdown: render a read-only "Available qty" cell (= bulk-order line
+   * qtyRemaining) instead of the "Appr. RFQ"/"Bulk orders" cells, and flag the
+   * Qty Ordered input when it exceeds the available quantity.
+   */
+  isDrawdownMode?: boolean;
 }
 
 export function LineItemRow({
@@ -77,10 +84,18 @@ export function LineItemRow({
   onBulkOrderClick,
   approvedQuotesCount = 0,
   bulkOrdersCount = 0,
+  isDrawdownMode = false,
 }: LineItemRowProps) {
+  const { t } = useTranslation('purchaseOrders');
   const rowBorder = isLast && !hasNotes ? '' : 'border-b';
   const cellBorder = `border-r border-border ${rowBorder}`;
   const cell = 'px-1 py-1';
+  // Drawdown over-limit flag: ordered qty exceeds the bulk-order remaining qty.
+  const exceedsAvailable =
+    isDrawdownMode &&
+    isFilled &&
+    item?.availableQty != null &&
+    Number(item?.quantityOrdered) > Number(item?.availableQty);
 
   return (
     <React.Fragment>
@@ -166,50 +181,77 @@ export function LineItemRow({
         </td>
 
         {/* Qty ordered */}
-        <td className={`${cell} ${cellBorder}`}>
+        <td className={`${cell} ${cellBorder} ${exceedsAvailable ? 'bg-destructive/5' : ''}`}>
           <Input
             onKeyDown={onDigitsOnly}
             {...register(`lineItems.${index}.quantityOrdered`, { valueAsNumber: true })}
             className={NAKED_INPUT_CLASS}
             placeholder="0"
+            aria-invalid={exceedsAvailable || undefined}
           />
         </td>
 
-        {/* Appr. RFQ */}
-        <td className={`${cell} ${cellBorder}`}>
-          <div className="flex items-center justify-end gap-1 h-9 pr-1">
-            {isFilled && (
-              <span
-                className={`text-xs ${approvedQuotesCount > 0 ? 'text-[hsl(var(--success))]' : 'text-foreground'}`}
-              >
-                {approvedQuotesCount} quotes
-              </span>
-            )}
-            <button
-              type="button"
-              disabled={!isFilled}
-              onClick={() => onApprRfqClick?.(index)}
-              className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <InfoIcon style={{ width: 13, height: 13 }} />
-            </button>
-          </div>
-        </td>
+        {isDrawdownMode ? (
+          /* Available qty (drawdown) — read-only bulk-order remaining qty */
+          <td className={`${cell} ${cellBorder}`}>
+            <div className="flex flex-col justify-center h-9 px-2">
+              {isFilled && (
+                <>
+                  <span
+                    className={`text-sm ${exceedsAvailable ? 'text-destructive font-medium' : 'text-foreground'}`}
+                  >
+                    {item?.availableQty ?? '-'}
+                  </span>
+                  {exceedsAvailable && (
+                    <span className="text-[10px] leading-tight text-destructive">
+                      {t('create.drawdownExceedsRemaining')}
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+          </td>
+        ) : (
+          <>
+            {/* Appr. RFQ */}
+            <td className={`${cell} ${cellBorder}`}>
+              <div className="flex items-center justify-end gap-1 h-9 pr-1">
+                {isFilled && (
+                  <span
+                    className={`text-xs ${approvedQuotesCount > 0 ? 'text-[hsl(var(--success))]' : 'text-foreground'}`}
+                  >
+                    {approvedQuotesCount} quotes
+                  </span>
+                )}
+                <button
+                  type="button"
+                  disabled={!isFilled}
+                  onClick={() => onApprRfqClick?.(index)}
+                  className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <InfoIcon style={{ width: 13, height: 13 }} />
+                </button>
+              </div>
+            </td>
 
-        {/* Bulk orders */}
-        <td className={`${cell} ${cellBorder}`}>
-          <div className="flex items-center justify-end gap-1 h-9 pr-1">
-            {isFilled && <span className="text-xs text-foreground">{bulkOrdersCount} orders</span>}
-            <button
-              type="button"
-              disabled={!isFilled}
-              onClick={() => onBulkOrderClick?.(index)}
-              className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <InfoIcon style={{ width: 13, height: 13 }} />
-            </button>
-          </div>
-        </td>
+            {/* Bulk orders */}
+            <td className={`${cell} ${cellBorder}`}>
+              <div className="flex items-center justify-end gap-1 h-9 pr-1">
+                {isFilled && (
+                  <span className="text-xs text-foreground">{bulkOrdersCount} orders</span>
+                )}
+                <button
+                  type="button"
+                  disabled={!isFilled}
+                  onClick={() => onBulkOrderClick?.(index)}
+                  className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <InfoIcon style={{ width: 13, height: 13 }} />
+                </button>
+              </div>
+            </td>
+          </>
+        )}
 
         {/* Exp. delivery date — always editable */}
         <td className={`${cell} ${cellBorder}`}>
@@ -270,7 +312,10 @@ export function LineItemRow({
       {/* Additional Notes row */}
       {hasNotes && (
         <tr>
-          <td colSpan={11} className={`px-3 py-3 ${isLast ? '' : 'border-b'} border-border`}>
+          <td
+            colSpan={isDrawdownMode ? 10 : 11}
+            className={`px-3 py-3 ${isLast ? '' : 'border-b'} border-border`}
+          >
             <div className="flex flex-col gap-2">
               <span className="text-sm text-foreground">
                 Additional Notes{' '}

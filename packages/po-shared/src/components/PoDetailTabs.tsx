@@ -1,7 +1,14 @@
 import { useTranslation } from '@forethread/i18n';
 import { cn } from '@forethread/ui-components';
 
-export type PoTab = 'details' | 'lineItems' | 'documents' | 'messages' | 'emailLog' | 'actionLog';
+export type PoTab =
+  | 'details'
+  | 'changeRequest'
+  | 'lineItems'
+  | 'documents'
+  | 'messages'
+  | 'emailLog'
+  | 'actionLog';
 
 interface PoDetailTabsProps {
   activeTab: PoTab;

@@ -1,9 +1,9 @@
-import type { RfqDetail, BulkOrderDetail } from '@forethread/api-client';
+import type { RfqDetail, BulkOrderDetail, PoDetail } from '@forethread/api-client';
 import { describe, it, expect } from 'vitest';
 
 import { EMPTY_LINE_ITEM } from '../schemas/create-po.schema';
 
-import { rfqToFormDefaults, bulkOrderToFormDefaults } from './source-to-form';
+import { rfqToFormDefaults, bulkOrderToFormDefaults, poToFormDefaults } from './source-to-form';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -264,7 +264,33 @@ describe('bulkOrderToFormDefaults', () => {
       unitOfMeasure: 'tons',
       unitPrice: 500,
       quantityOrdered: 100, // qtyRemaining
+      bulkOrderLineItemId: 'li-1',
+      availableQty: 100,
     });
+  });
+
+  it('carries bulkOrderLineItemId + availableQty (= qtyRemaining) on each line', () => {
+    const bo = makeBulkOrder({
+      lineItems: [
+        {
+          lineItemId: 'li-42',
+          itemReference: 'REF-009',
+          description: 'Cement',
+          qty: 80,
+          unit: 'bags',
+          ordered: 30,
+          qtyRemaining: 50,
+          deliveriesPercent: 0,
+          pricePerUnit: 10,
+          totalLineInc: 800,
+        },
+      ],
+    });
+
+    const { defaultValues } = bulkOrderToFormDefaults(bo);
+
+    expect(defaultValues.lineItems![0].bulkOrderLineItemId).toBe('li-42');
+    expect(defaultValues.lineItems![0].availableQty).toBe(50);
   });
 
   it('falls back to qty when qtyRemaining is 0', () => {
@@ -313,9 +339,30 @@ describe('bulkOrderToFormDefaults', () => {
     expect(defaultValues.lineItems![0].materialName).toBe('REF-003');
   });
 
-  it('sets lockedFields to vendorId only', () => {
+  it('sets lockedFields to vendorId only when no ids are supplied', () => {
     const { lockedFields } = bulkOrderToFormDefaults(makeBulkOrder());
 
+    expect(lockedFields).toEqual(new Set(['vendorId']));
+  });
+
+  it('locks projectId and prefills both ids when supplied (drawdown)', () => {
+    const { defaultValues, lockedFields } = bulkOrderToFormDefaults(makeBulkOrder(), {
+      projectId: 'proj-7',
+      vendorId: 'vend-3',
+    });
+
+    expect(defaultValues.projectId).toBe('proj-7');
+    expect(defaultValues.vendorId).toBe('vend-3');
+    expect(lockedFields).toEqual(new Set(['vendorId', 'projectId']));
+  });
+
+  it('does not lock projectId when only vendorId is resolved', () => {
+    const { defaultValues, lockedFields } = bulkOrderToFormDefaults(makeBulkOrder(), {
+      vendorId: 'vend-3',
+    });
+
+    expect(defaultValues.projectId).toBe('');
+    expect(defaultValues.vendorId).toBe('vend-3');
     expect(lockedFields).toEqual(new Set(['vendorId']));
   });
 
@@ -344,5 +391,110 @@ describe('bulkOrderToFormDefaults', () => {
     const { defaultValues } = bulkOrderToFormDefaults(makeBulkOrder());
 
     expect(defaultValues.vendorId).toBe('');
+  });
+});
+
+// ── poToFormDefaults (FLOW 3) ─────────────────────────────────────────────────
+
+function makePoDetail(overrides: Partial<PoDetail> = {}): PoDetail {
+  return {
+    id: 'po-1',
+    poNumber: 'PO-2024-008',
+    documentName: 'PO 008',
+    projectName: 'Proj',
+    projectId: 'proj-1',
+    status: 'SENT',
+    poType: 'STANDARD',
+    approvalStatus: null,
+    sourceOfCreation: 'MANUAL',
+    revision: 0,
+    priority: null,
+    pickUp: false,
+    holdForRelease: false,
+    deliveryLocationId: 'loc-1',
+    deliveryLocationName: 'Site A',
+    pickUpLocation: null,
+    pickUpTimeExpectation: null,
+    pickUpPersonName: null,
+    pickUpPersonPhone: null,
+    currency: 'AUD',
+    subtotal: 300,
+    discountAmount: 0,
+    taxAmount: 0,
+    totalAmount: 300,
+    paymentTermsDays: 30,
+    costCode: null,
+    message: 'hello',
+    deliveryResponsibleName: null,
+    deliveryResponsibleEmail: null,
+    lineItemCount: 1,
+    totalRequestedQty: 10,
+    deadlineStart: null,
+    deadlineEnd: null,
+    plannedDeliveryDate: '2025-01-20T00:00:00.000Z',
+    deliveryNotes: null,
+    issuedAt: null,
+    parentPoId: null,
+    rfqId: null,
+    approvedBy: null,
+    createdBy: { id: 'u-1', name: 'Sarah' },
+    lastModifiedBy: null,
+    vendor: { id: 'v-1', name: 'Acme' },
+    company: { id: 'c-1', name: 'Buildco' },
+    lineItems: [
+      {
+        id: 'li-1',
+        lineNumber: 1,
+        materialId: null,
+        materialName: 'Beam',
+        materialCode: 'B1',
+        description: null,
+        quantityOrdered: 10,
+        quantityDelivered: 0,
+        unitOfMeasure: 'EA',
+        unitPrice: 30,
+        lineTotal: 300,
+        costCode: '111',
+        expectedDeliveryDate: '2025-01-20T00:00:00.000Z',
+        deliveryLocation: null,
+        notes: null,
+        pickUp: false,
+      },
+    ],
+    documents: [],
+    deliveries: [],
+    invoices: [],
+    createdAt: '2024-12-12T12:00:00.000Z',
+    updatedAt: '2024-12-12T12:00:00.000Z',
+    ...overrides,
+  };
+}
+
+describe('poToFormDefaults', () => {
+  it('prefills PO-level fields and trims the planned delivery date to yyyy-MM-dd', () => {
+    const { defaultValues } = poToFormDefaults(makePoDetail());
+    expect(defaultValues.documentName).toBe('PO 008');
+    expect(defaultValues.projectId).toBe('proj-1');
+    expect(defaultValues.vendorId).toBe('v-1');
+    expect(defaultValues.paymentTermsDays).toBe(30);
+    expect(defaultValues.deliveryLocationId).toBe('loc-1');
+    expect(defaultValues.plannedDeliveryDate).toBe('2025-01-20');
+    expect(defaultValues.message).toBe('hello');
+  });
+
+  it('carries each PO line item id as lineItemId and prefills line fields', () => {
+    const { defaultValues } = poToFormDefaults(makePoDetail());
+    expect(defaultValues.lineItems).toHaveLength(1);
+    expect(defaultValues.lineItems![0].lineItemId).toBe('li-1');
+    expect(defaultValues.lineItems![0].materialName).toBe('Beam');
+    expect(defaultValues.lineItems![0].unitPrice).toBe(30);
+    expect(defaultValues.lineItems![0].quantityOrdered).toBe(10);
+    expect(defaultValues.lineItems![0].costCode).toBe('111');
+    expect(defaultValues.lineItems![0].expectedDeliveryDate).toBe('2025-01-20');
+  });
+
+  it('falls back to poNumber when documentName is null', () => {
+    const { defaultValues } = poToFormDefaults(makePoDetail({ documentName: null }));
+    expect(defaultValues.documentName).toBe('PO-2024-008');
   });
 });

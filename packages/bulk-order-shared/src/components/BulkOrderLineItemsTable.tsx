@@ -51,7 +51,7 @@ export function BulkOrderLineItemsTable({
                 <td className="p-3 text-foreground border border-border">{item.qty}</td>
                 <td className="p-3 text-foreground border border-border">{item.qtyRemaining}</td>
                 <td className="p-3 text-foreground border border-border">
-                  {item.deliveriesPercent}%
+                  {item.consumptionPercent ?? 0}%
                 </td>
                 <td className="p-3 text-foreground border border-border">
                   {formatCurrency(item.pricePerUnit)}

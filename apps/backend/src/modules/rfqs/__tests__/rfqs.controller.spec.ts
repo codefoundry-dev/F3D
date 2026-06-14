@@ -16,6 +16,7 @@ const mockRfqsService = {
   approveQuote: jest.fn(),
   awardQuote: jest.fn(),
   declineQuote: jest.fn(),
+  listApprovedResponses: jest.fn(),
   updateLineItem: jest.fn(),
   deleteLineItem: jest.fn(),
   uploadDocument: jest.fn(),
@@ -88,6 +89,17 @@ describe('RfqsController', () => {
 
       const result = await controller.getRfq('rfq-1', mockUser);
       expect(mockRfqsService.getRfq).toHaveBeenCalledWith('rfq-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('listApprovedResponses', () => {
+    it('delegates to service with the projectId query param and user', async () => {
+      const expected = [{ rfqId: 'rfq-1', responseId: 'qr-1', lineItems: [] }];
+      mockRfqsService.listApprovedResponses.mockResolvedValue(expected);
+
+      const result = await controller.listApprovedResponses('proj-1', mockUser);
+      expect(mockRfqsService.listApprovedResponses).toHaveBeenCalledWith('proj-1', mockUser);
       expect(result).toEqual(expected);
     });
   });

@@ -20,6 +20,14 @@ export const lineItemSchema = z.object({
   deliveryLocationId: z.string().optional(),
   description: z.string().optional(),
   notes: z.string().optional(),
+  // US 5.09 drawdown only: the bulk-order line this PO line draws from, and that
+  // line's remaining quantity. Both optional so non-drawdown modes are unaffected.
+  bulkOrderLineItemId: z.string().optional(),
+  availableQty: z.coerce.number().optional(),
+  // FLOW 3 change mode only: the existing PO line item id this row maps to, so
+  // the diff can match edited rows against the original PO line. Optional so the
+  // create/from-rfq/drawdown modes are unaffected.
+  lineItemId: z.string().optional(),
 });
 
 // FOR-210: a single header-level delivery row. Both fields are optional, but a
@@ -108,6 +116,9 @@ export const EMPTY_LINE_ITEM = {
   deliveryLocationId: '',
   description: '',
   notes: '',
+  bulkOrderLineItemId: undefined as string | undefined,
+  availableQty: undefined as number | undefined,
+  lineItemId: undefined as string | undefined,
 };
 
 export const EMPTY_DELIVERY_ROW = {

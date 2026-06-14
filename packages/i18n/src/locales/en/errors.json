@@ -106,7 +106,10 @@
     "cannotAccept": "Cannot accept PO with status \"{{status}}\". Only Acknowledged POs can be accepted by the vendor.",
     "cannotVendorDecline": "Cannot decline PO with status \"{{status}}\". Only Sent or Acknowledged POs can be declined by the vendor.",
     "onlyClosedCanArchive": "Only closed purchase orders can be archived",
-    "approvalThresholdExceeded": "PO total {{amount}} {{currency}} exceeds your approval threshold of {{threshold}} {{currency}}. A higher-tier approver must approve this PO."
+    "approvalThresholdExceeded": "PO total {{amount}} {{currency}} exceeds your approval threshold of {{threshold}} {{currency}}. A higher-tier approver must approve this PO.",
+    "bulkOrderNotFound": "Source bulk order not found",
+    "bulkOrderLineNotFound": "Bulk order line item not found for this drawdown",
+    "drawdownExceedsRemaining": "Drawdown of {{requested}} for \"{{line}}\" exceeds the {{remaining}} remaining on bulk order {{bulkOrderNumber}}"
   },
   "bulkOrders": {
     "notFound": "Bulk Order not found",

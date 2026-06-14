@@ -28,6 +28,10 @@ export {
   PoEmailLogTab,
   PoMessagesTab,
   PoActionLogTab,
+  PoChangeDiff,
+  PoChangeReviewStep,
+  PoChangeRequestTab,
+  PoChangeRequestTabLoading,
   PoCommsPage,
   Stepper,
   PoBasicInfoStep,
@@ -44,6 +48,7 @@ export type {
   PoCommsTab,
   CreatePoWizardProps,
   PoActionLogEntry,
+  PoChangeDiffProps,
   RelatedDocument,
 } from './components';
 
@@ -66,6 +71,7 @@ export {
   usePurchaseOrders,
   usePurchaseOrder,
   usePurchaseOrderEmailLog,
+  usePoChangeRequests,
   usePoExport,
   usePoSort,
   usePoGrouping,
@@ -78,8 +84,17 @@ export {
 // Utils
 export { formatCurrency, formatPrice } from './utils/format';
 export { rfqToFormDefaults, bulkOrderToFormDefaults } from './utils/source-to-form';
+export type { BulkOrderFormSourceIds } from './utils/source-to-form';
+export { poToFormDefaults } from './utils/source-to-form';
 export { filterPoItems } from './utils/filter-pos';
 export { requiresApproval } from './utils/approval';
+export {
+  computePoChangedFields,
+  deriveChangeType,
+  hasAnyChange,
+  PO_CHANGE_FIELDS,
+  PO_LINE_CHANGE_FIELDS,
+} from './utils/change-diff';
 
 // Stores
 export { createPoTableStore, EMPTY_PO_FILTERS } from './stores';
