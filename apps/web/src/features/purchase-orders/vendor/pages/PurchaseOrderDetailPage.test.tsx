@@ -28,6 +28,7 @@ vi.mock('@forethread/i18n', () => ({
 
 vi.mock('@forethread/po-shared', () => ({
   usePurchaseOrder: () => mockPoState.value,
+  usePoActionLog: () => ({ logs: [], isLoading: false }),
   PoDetailTabs: ({
     activeTab,
     rightSlot,

@@ -4,6 +4,7 @@ export {
   usePurchaseOrderEmailLog,
   usePoChangeRequests,
 } from './usePurchaseOrders';
+export { usePoActionLog } from './usePoActionLog';
 export { usePoExport } from './usePoExport';
 export { usePoSort } from './usePoSort';
 export { usePoGrouping } from './usePoGrouping';

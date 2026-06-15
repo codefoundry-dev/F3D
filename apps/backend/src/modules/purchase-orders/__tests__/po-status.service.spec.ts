@@ -34,6 +34,9 @@ const mockPrisma = {
   user: {
     findMany: jest.fn(),
   },
+  auditLog: {
+    findMany: jest.fn(),
+  },
   $transaction: jest.fn(),
 };
 
@@ -1640,6 +1643,92 @@ describe('PoStatusService', () => {
       await new Promise((r) => setTimeout(r, 10));
 
       expect(mockEmailService.sendPoPendingApprovalEmail).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Week-3: PO audit/activity trail ──────────────────────────────────────
+  describe('getAuditTrail', () => {
+    const vendorUser = {
+      id: 'v-u-1',
+      email: 'vendor@test.com',
+      role: UserRole.VENDOR,
+      companyId: 'vendor-comp-1',
+    };
+    const auditPo = { id: 'po-1', companyId: 'comp-1', vendorId: 'vendor-comp-1' };
+
+    it('throws NotFoundException when the PO does not exist', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(null);
+      await expect(service.getAuditTrail('missing', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws ForbiddenException when the user is neither the owner company nor the vendor', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(auditPo);
+      await expect(
+        service.getAuditTrail('po-1', { ...companyAdmin, companyId: 'other-comp' }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('returns entries oldest-first for the owning contractor company', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(auditPo);
+      mockPrisma.auditLog.findMany.mockResolvedValue([
+        {
+          id: 'log-1',
+          action: 'PO_ISSUED',
+          metadata: { from: 'DRAFT', to: 'SENT' },
+          createdAt: new Date('2026-03-01T10:00:00Z'),
+          performedBy: { id: 'ca-1', name: 'CA User', email: 'ca@test.com' },
+        },
+      ]);
+
+      const result = await service.getAuditTrail('po-1', companyAdmin);
+
+      expect(mockPrisma.auditLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { targetType: 'PurchaseOrder', targetId: 'po-1' },
+          orderBy: { createdAt: 'asc' },
+        }),
+      );
+      expect(result).toEqual([
+        {
+          id: 'log-1',
+          action: 'PO_ISSUED',
+          metadata: { from: 'DRAFT', to: 'SENT' },
+          performedBy: { id: 'ca-1', name: 'CA User', email: 'ca@test.com' },
+          createdAt: '2026-03-01T10:00:00.000Z',
+        },
+      ]);
+    });
+
+    it('allows the addressed vendor company and tolerates a missing performer', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(auditPo);
+      mockPrisma.auditLog.findMany.mockResolvedValue([
+        {
+          id: 'log-2',
+          action: 'PO_ACKNOWLEDGED',
+          metadata: null,
+          createdAt: new Date('2026-03-02T10:00:00Z'),
+          performedBy: null,
+        },
+      ]);
+
+      const result = await service.getAuditTrail('po-1', vendorUser);
+
+      expect(result[0].performedBy).toBeNull();
+      expect(result[0].action).toBe('PO_ACKNOWLEDGED');
+    });
+
+    it('allows SUPER_ADMIN to read any PO trail', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        ...auditPo,
+        companyId: 'any-company',
+        vendorId: 'any-vendor',
+      });
+      mockPrisma.auditLog.findMany.mockResolvedValue([]);
+
+      const result = await service.getAuditTrail('po-1', superAdmin);
+      expect(result).toEqual([]);
     });
   });
 });

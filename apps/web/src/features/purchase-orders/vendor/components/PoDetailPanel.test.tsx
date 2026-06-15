@@ -40,6 +40,7 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('@forethread/po-shared', () => ({
   usePurchaseOrder: () => mockPoData.value,
+  usePoActionLog: () => ({ logs: [], isLoading: false }),
   PoDetailTabs: ({
     activeTab,
     onTabChange,

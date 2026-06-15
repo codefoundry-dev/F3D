@@ -2,6 +2,7 @@ import { exportPurchaseOrders } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
   usePurchaseOrder,
+  usePoActionLog,
   PoDetailTabs,
   PoDetailsTab,
   PoLineItemsTab,
@@ -54,29 +55,7 @@ export function PoDetailPanel({ poId, onClose }: PoDetailPanelProps) {
     return docs;
   }, [po]);
 
-  const actionLogs = useMemo(() => {
-    if (!po) return [];
-    const logs = [];
-    if (po.createdAt) {
-      logs.push({
-        id: 'created',
-        action: 'Purchase Order Created',
-        description: `Created by ${po.createdBy.name}`,
-        performedBy: po.createdBy,
-        createdAt: po.createdAt,
-      });
-    }
-    if (po.issuedAt) {
-      logs.push({
-        id: 'issued',
-        action: 'Purchase Order Issued',
-        description: `Issued to ${po.vendor?.name ?? 'vendor'}`,
-        performedBy: po.createdBy,
-        createdAt: po.issuedAt,
-      });
-    }
-    return logs;
-  }, [po]);
+  const { logs: actionLogs, isLoading: isLoadingLog } = usePoActionLog(po?.id ?? poId);
 
   const handleFullscreen = () => {
     onClose();
@@ -188,7 +167,9 @@ export function PoDetailPanel({ poId, onClose }: PoDetailPanelProps) {
                   height="h-[340px]"
                 />
               )}
-              {activeTab === 'actionLog' && <PoActionLogTab logs={actionLogs} />}
+              {activeTab === 'actionLog' && (
+                <PoActionLogTab logs={actionLogs} isLoading={isLoadingLog} />
+              )}
             </div>
           </div>
         </>

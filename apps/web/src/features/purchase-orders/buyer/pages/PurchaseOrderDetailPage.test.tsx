@@ -10,6 +10,7 @@ function wrapper({ children }: { children: ReactNode }) {
 
 const mockUsePurchaseOrder = vi.hoisted(() => vi.fn());
 const mockUsePoChangeRequests = vi.hoisted(() => vi.fn());
+const mockUsePoActionLog = vi.hoisted(() => vi.fn());
 const mockUseParams = vi.hoisted(() => vi.fn());
 const mockUseSearchParams = vi.hoisted(() => vi.fn());
 const mockNavigate = vi.hoisted(() => vi.fn());
@@ -47,6 +48,7 @@ vi.mock('@forethread/po-shared', () => ({
   CreatePoWizard: (_props: any) => <div data-testid="create-po-wizard" />,
   usePurchaseOrder: mockUsePurchaseOrder,
   usePoChangeRequests: mockUsePoChangeRequests,
+  usePoActionLog: mockUsePoActionLog,
   PoDetailTabs: ({
     activeTab,
     onTabChange,
@@ -150,6 +152,7 @@ describe('PurchaseOrderDetailPage', () => {
     mockUseParams.mockReturnValue({ id: 'po-456' });
     mockUseSearchParams.mockReturnValue([new URLSearchParams(), setSearchParams]);
     mockUsePoChangeRequests.mockReturnValue({ data: [], isLoading: false });
+    mockUsePoActionLog.mockReturnValue({ logs: [], isLoading: false });
     mockHasPermission.mockReturnValue(true);
   });
 

@@ -36,6 +36,7 @@ const mockStatusService = {
   vendorDeclinePurchaseOrder: jest.fn(),
   receivePurchaseOrder: jest.fn(),
   listPendingApproval: jest.fn(),
+  getAuditTrail: jest.fn(),
 };
 
 const mockValidationService = {
@@ -239,6 +240,17 @@ describe('PurchaseOrdersController', () => {
 
       const result = await controller.receivePurchaseOrder('po-1', dto as never, mockUser);
       expect(mockStatusService.receivePurchaseOrder).toHaveBeenCalledWith('po-1', dto, mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('getPurchaseOrderAudit', () => {
+    it('delegates to status service', async () => {
+      const expected = [{ id: 'log-1', action: 'PO_ISSUED' }];
+      mockStatusService.getAuditTrail.mockResolvedValue(expected);
+
+      const result = await controller.getPurchaseOrderAudit('po-1', mockUser);
+      expect(mockStatusService.getAuditTrail).toHaveBeenCalledWith('po-1', mockUser);
       expect(result).toEqual(expected);
     });
   });

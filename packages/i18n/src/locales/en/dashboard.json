@@ -56,6 +56,12 @@
     "decline": "Decline",
     "approve": "Approve"
   },
+  "awaitingApproval": {
+    "title": "Awaiting your approval",
+    "empty": "No purchase orders awaiting your approval",
+    "pickUp": "Pick-up",
+    "delivery": "Delivery"
+  },
   "invoicesPendingApproval": {
     "title": "Invoices pending approval",
     "noInvoices": "No invoices pending approval",

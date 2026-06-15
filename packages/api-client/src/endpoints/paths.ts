@@ -126,9 +126,12 @@ export const RFQS_PATHS = {
 // ── Purchase Orders ──────────────────────────────────────────────────────────
 export const PURCHASE_ORDERS_PATHS = {
   ROOT: '/purchase-orders',
+  PENDING_APPROVAL: '/purchase-orders/pending-approval',
   byId: (id: string) => `/purchase-orders/${id}`,
+  audit: (id: string) => `/purchase-orders/${id}/audit`,
   approve: (id: string) => `/purchase-orders/${id}/approve`,
   decline: (id: string) => `/purchase-orders/${id}/decline`,
+  receive: (id: string) => `/purchase-orders/${id}/receive`,
   copy: (id: string) => `/purchase-orders/${id}/copy`,
   archive: (id: string) => `/purchase-orders/${id}/archive`,
   issue: (id: string) => `/purchase-orders/${id}/issue`,

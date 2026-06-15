@@ -648,6 +648,46 @@ export class PoStatusService {
     return { items };
   }
 
+  // ── Audit / activity trail ──────────────────────────────────────────────────
+
+  /**
+   * Chronological audit trail for a single PO (Week-3 activity timeline feed).
+   * Returns every `PurchaseOrder`-targeted audit entry oldest-first, with the
+   * performing user resolved. Access is scoped the same way the lifecycle
+   * mutations are: SUPER_ADMIN sees any PO, the owning contractor company sees
+   * its own, and the addressed vendor company sees POs sent to it.
+   */
+  async getAuditTrail(id: string, user: AuthenticatedUser) {
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id },
+      select: { id: true, companyId: true, vendorId: true },
+    });
+
+    if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
+
+    const hasAccess =
+      user.role === UserRole.SUPER_ADMIN ||
+      user.companyId === po.companyId ||
+      user.companyId === po.vendorId;
+    if (!hasAccess) throw new ForbiddenException(ERR.general.accessDenied);
+
+    const logs = await this.prisma.auditLog.findMany({
+      where: { targetType: 'PurchaseOrder', targetId: id },
+      orderBy: { createdAt: 'asc' },
+      include: { performedBy: { select: { id: true, name: true, email: true } } },
+    });
+
+    return logs.map((log) => ({
+      id: log.id,
+      action: log.action,
+      metadata: log.metadata,
+      performedBy: log.performedBy
+        ? { id: log.performedBy.id, name: log.performedBy.name, email: log.performedBy.email }
+        : null,
+      createdAt: log.createdAt.toISOString(),
+    }));
+  }
+
   // ── Email notification helpers ──────────────────────────────────────────
 
   private async notifyVendorOfPo(
@@ -767,10 +807,7 @@ export class PoStatusService {
 
     const amount = totalAmount === null ? null : new Prisma.Decimal(totalAmount);
     const eligibleRoles = grants
-      .filter(
-        (g) =>
-          g.thresholdAmount === null || amount === null || !amount.greaterThan(g.thresholdAmount),
-      )
+      .filter((g) => g.thresholdAmount === null || !amount?.greaterThan(g.thresholdAmount))
       .map((g) => g.role);
 
     if (eligibleRoles.length === 0) return [];

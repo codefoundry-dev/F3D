@@ -28,8 +28,8 @@ import { CreatePoChangeRequestDto, RejectPoChangeRequestDto } from './po-change.
 import { PoChangeService } from './po-change.service';
 import { PoDocumentService } from './po-document.service';
 import { PoExportService } from './po-export.service';
-import { PoStatusService } from './po-status.service';
 import { DeclinePoDto, ReceivePoDto } from './po-status.dto';
+import { PoStatusService } from './po-status.service';
 import { PoValidationService } from './po-validation.service';
 import { VendorAcceptPoDto, VendorDeclinePoDto } from './po-vendor.dto';
 import { PurchaseOrdersService } from './purchase-orders.service';
@@ -260,6 +260,17 @@ export class PurchaseOrdersController {
   @ApiResponse({ status: 404, description: 'Purchase order not found' })
   async getPurchaseOrder(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.purchaseOrdersService.getPurchaseOrder(id, user);
+  }
+
+  // ── GET /v1/purchase-orders/:id/audit ──────────────────────────────────────
+
+  @Get(':id/audit')
+  @RequirePermissions('po.read')
+  @ApiOperation({ summary: 'Get the audit/activity trail for a purchase order' })
+  @ApiResponse({ status: 200, description: 'Chronological audit entries for the PO' })
+  @ApiResponse({ status: 404, description: 'PO not found' })
+  async getPurchaseOrderAudit(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.poStatusService.getAuditTrail(id, user);
   }
 
   // ── PATCH /v1/purchase-orders/:id/approve ────────────────────────────────
