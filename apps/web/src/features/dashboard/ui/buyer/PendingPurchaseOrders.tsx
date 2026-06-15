@@ -1,4 +1,4 @@
-import { approvePurchaseOrder, declinePurchaseOrder } from '@forethread/api-client';
+import { approvePurchaseOrder } from '@forethread/api-client';
 import type { PendingPoItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
@@ -21,6 +21,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { DeclinePoReasonModal } from '@/features/purchase-orders/buyer/components/DeclinePoReasonModal';
 
 interface PendingPurchaseOrdersProps {
   items: PendingPoItem[];
@@ -86,68 +87,74 @@ function PoCard({ item }: { item: PendingPoItem }) {
     },
   });
 
-  const declineMutation = useMutation({
-    mutationFn: () => declinePurchaseOrder(item.id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['dashboard', 'po-ca'] });
-    },
-  });
+  const [showDeclineModal, setShowDeclineModal] = useState(false);
 
-  const isMutating = approveMutation.isPending || declineMutation.isPending;
+  const isMutating = approveMutation.isPending;
 
   return (
-    <DashboardItemCard
-      name={item.vendorName}
-      onCardClick={() => navigate(ROUTES.purchaseOrderDetail.replace(':id', item.id))}
-      hasChatNotification={item.hasUnreadMessages}
-      hasAttachment={item.hasAttachments ?? false}
-      onMessageClick={() =>
-        navigate(`${ROUTES.purchaseOrderDetail.replace(':id', item.id)}?tab=messages`)
-      }
-      onAttachmentClick={() =>
-        navigate(`${ROUTES.purchaseOrderDetail.replace(':id', item.id)}?tab=documents`)
-      }
-      statusBadge={
-        <Badge className="bg-[#e4e4e4] text-[#262626] border-0 rounded-full text-xs px-2 py-0.5">
-          {formatStatus(item.status)}
-        </Badge>
-      }
-      actions={
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 h-8 px-3 py-2 border border-black rounded-xl text-sm font-medium text-black hover:bg-black/5 transition-colors disabled:opacity-50"
-            disabled={isMutating}
-            onClick={() => declineMutation.mutate()}
-          >
-            <CrossInCircleIcon className="w-[18px] h-[18px]" />
-            {t('purchaseOrders.decline')}
-          </button>
-          <button
-            type="button"
-            className="flex items-center gap-1.5 h-8 px-3 py-2 border border-black rounded-xl text-sm font-medium text-black hover:bg-black/5 transition-colors disabled:opacity-50"
-            disabled={isMutating}
-            onClick={() => approveMutation.mutate()}
-          >
-            <CheckCircleIcon className="w-[18px] h-[18px]" />
-            {t('purchaseOrders.approve')}
-          </button>
-        </div>
-      }
-      fields={[
-        { icon: <FileTextIcon className="w-[18px] h-[18px]" />, value: item.poNumber },
-        { icon: <BriefcaseIcon className="w-[18px] h-[18px]" />, value: item.projectName },
-        { icon: <DateIcon className="w-[18px] h-[18px]" />, value: item.date },
-        {
-          icon: <CoinsIcon className="w-[18px] h-[18px]" />,
-          value: formatCurrency(item.totalCost),
-        },
-        {
-          icon: <PackageIcon className="w-[18px] h-[18px]" />,
-          value: `${item.itemCount} ${item.itemCount === 1 ? 'item' : 'items'}`,
-        },
-        { icon: <LocationIcon className="w-[18px] h-[18px]" />, value: item.deliveryType },
-      ]}
-    />
+    <>
+      <DashboardItemCard
+        name={item.vendorName}
+        onCardClick={() => navigate(ROUTES.purchaseOrderDetail.replace(':id', item.id))}
+        hasChatNotification={item.hasUnreadMessages}
+        hasAttachment={item.hasAttachments ?? false}
+        onMessageClick={() =>
+          navigate(`${ROUTES.purchaseOrderDetail.replace(':id', item.id)}?tab=messages`)
+        }
+        onAttachmentClick={() =>
+          navigate(`${ROUTES.purchaseOrderDetail.replace(':id', item.id)}?tab=documents`)
+        }
+        statusBadge={
+          <Badge className="bg-[#e4e4e4] text-[#262626] border-0 rounded-full text-xs px-2 py-0.5">
+            {formatStatus(item.status)}
+          </Badge>
+        }
+        actions={
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className="flex items-center gap-1.5 h-8 px-3 py-2 border border-black rounded-xl text-sm font-medium text-black hover:bg-black/5 transition-colors disabled:opacity-50"
+              disabled={isMutating}
+              onClick={() => setShowDeclineModal(true)}
+            >
+              <CrossInCircleIcon className="w-[18px] h-[18px]" />
+              {t('purchaseOrders.decline')}
+            </button>
+            <button
+              type="button"
+              className="flex items-center gap-1.5 h-8 px-3 py-2 border border-black rounded-xl text-sm font-medium text-black hover:bg-black/5 transition-colors disabled:opacity-50"
+              disabled={isMutating}
+              onClick={() => approveMutation.mutate()}
+            >
+              <CheckCircleIcon className="w-[18px] h-[18px]" />
+              {t('purchaseOrders.approve')}
+            </button>
+          </div>
+        }
+        fields={[
+          { icon: <FileTextIcon className="w-[18px] h-[18px]" />, value: item.poNumber },
+          { icon: <BriefcaseIcon className="w-[18px] h-[18px]" />, value: item.projectName },
+          { icon: <DateIcon className="w-[18px] h-[18px]" />, value: item.date },
+          {
+            icon: <CoinsIcon className="w-[18px] h-[18px]" />,
+            value: formatCurrency(item.totalCost),
+          },
+          {
+            icon: <PackageIcon className="w-[18px] h-[18px]" />,
+            value: `${item.itemCount} ${item.itemCount === 1 ? 'item' : 'items'}`,
+          },
+          { icon: <LocationIcon className="w-[18px] h-[18px]" />, value: item.deliveryType },
+        ]}
+      />
+      {showDeclineModal && (
+        <DeclinePoReasonModal
+          poId={item.id}
+          onClose={() => setShowDeclineModal(false)}
+          onDeclined={() => {
+            void queryClient.invalidateQueries({ queryKey: ['dashboard', 'po-ca'] });
+          }}
+        />
+      )}
+    </>
   );
 }

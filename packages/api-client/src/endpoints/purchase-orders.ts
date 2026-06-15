@@ -259,8 +259,17 @@ export async function approvePurchaseOrder(id: string, config?: AxiosRequestConf
   await getApiClient().patch(PURCHASE_ORDERS_PATHS.approve(id), undefined, config);
 }
 
-export async function declinePurchaseOrder(id: string, config?: AxiosRequestConfig): Promise<void> {
-  await getApiClient().patch(PURCHASE_ORDERS_PATHS.decline(id), undefined, config);
+/**
+ * Contractor/approver decline of a purchase order. A reason is REQUIRED by the
+ * backend (Week-3 reason capture); it is stored on the PO and recorded in its
+ * audit trail.
+ */
+export async function declinePurchaseOrder(
+  id: string,
+  body: { reason: string },
+  config?: AxiosRequestConfig,
+): Promise<void> {
+  await getApiClient().patch(PURCHASE_ORDERS_PATHS.decline(id), body, config);
 }
 
 export async function copyPurchaseOrder(
