@@ -1,7 +1,14 @@
 import {
   getMaterialRequests,
   getMaterialRequest,
+  getMaterialRequestAuditTrail,
   createMaterialRequest,
+  approveMaterialRequest,
+  declineMaterialRequest,
+  cancelMaterialRequest,
+  convertMaterialRequestToRfq,
+  convertMaterialRequestToPo,
+  getCompanyVendors,
   getProjects,
   getProject,
   getMaterialSuggestions,
@@ -10,6 +17,8 @@ import {
   queryKeys,
   type MrListParams,
   type CreateMaterialRequestInput,
+  type MrConvertToRfqInput,
+  type MrConvertToPoInput,
   type ProjectListParams,
 } from '@forethread/api-client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -34,6 +43,15 @@ export function useMaterialRequest(id: string | undefined) {
   });
 }
 
+/** A Material Request's audit/activity trail (oldest event first). */
+export function useMaterialRequestAudit(id: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.materialRequests.audit(id ?? ''),
+    queryFn: () => getMaterialRequestAuditTrail(id as string),
+    enabled: !!id,
+  });
+}
+
 export function useCreateMaterialRequest() {
   const queryClient = useQueryClient();
 
@@ -43,6 +61,74 @@ export function useCreateMaterialRequest() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.materialRequests.all() });
     },
+  });
+}
+
+// ── Officer review mutations (US 2.08) ───────────────────────────────────────
+//
+// Each mutation invalidates the whole material-requests key space on success so
+// the list, the detail, and the audit trail all refetch the new state.
+
+/** Invalidate every material-request query (list + detail + audit). */
+function useInvalidateMaterialRequests() {
+  const queryClient = useQueryClient();
+  return () => void queryClient.invalidateQueries({ queryKey: queryKeys.materialRequests.all() });
+}
+
+/** Approve a SUBMITTED material request. */
+export function useApproveMaterialRequest() {
+  const invalidate = useInvalidateMaterialRequests();
+  return useMutation({
+    mutationFn: (id: string) => approveMaterialRequest(id),
+    onSuccess: invalidate,
+  });
+}
+
+/** Decline a SUBMITTED material request (reason is required by the backend). */
+export function useDeclineMaterialRequest() {
+  const invalidate = useInvalidateMaterialRequests();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      declineMaterialRequest(id, { reason }),
+    onSuccess: invalidate,
+  });
+}
+
+/** Cancel a material request. */
+export function useCancelMaterialRequest() {
+  const invalidate = useInvalidateMaterialRequests();
+  return useMutation({
+    mutationFn: (id: string) => cancelMaterialRequest(id),
+    onSuccess: invalidate,
+  });
+}
+
+/** Convert an APPROVED material request into a draft RFQ. */
+export function useConvertMaterialRequestToRfq() {
+  const invalidate = useInvalidateMaterialRequests();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input?: MrConvertToRfqInput }) =>
+      convertMaterialRequestToRfq(id, input),
+    onSuccess: invalidate,
+  });
+}
+
+/** Convert an APPROVED material request into a draft purchase order. */
+export function useConvertMaterialRequestToPo() {
+  const invalidate = useInvalidateMaterialRequests();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: MrConvertToPoInput }) =>
+      convertMaterialRequestToPo(id, input),
+    onSuccess: invalidate,
+  });
+}
+
+/** Vendors assigned to a company — feeds the convert-to-PO vendor picker. */
+export function useCompanyVendors(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ['companies', companyId, 'vendors'],
+    queryFn: () => getCompanyVendors(companyId as string),
+    enabled: !!companyId,
   });
 }
 

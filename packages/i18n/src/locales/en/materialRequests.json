@@ -183,5 +183,113 @@
     "CONVERTED": "Converted",
     "DECLINED": "Declined",
     "CANCELLED": "Cancelled"
+  },
+  "officer": {
+    "title": "Material requests",
+    "create": "Create",
+    "export": "Export",
+    "viewDefault": "Default",
+    "search": "Search",
+    "searchPlaceholder": "Search material requests",
+    "group": "Group",
+    "filters": "Filters",
+    "quickFiltersLabel": "Quick Filters:",
+    "loading": "Loading material requests…",
+    "loadFailed": "Failed to load material requests. Please refresh.",
+    "empty": "No material requests found",
+    "emptyHint": "Requests raised by foremen will appear here for review.",
+    "rowsPerPage": "Rows per page",
+    "showing": "Showing {{from}} to {{to}} of {{total}} Material requests",
+    "quickFilters": {
+      "awaitingApproval": "Requests awaiting approval",
+      "urgent": "Urgent requests",
+      "mine": "My requests",
+      "approved": "Approved",
+      "overdue": "Late/overdue",
+      "dueToday": "Due today",
+      "recentlyUpdated": "Recently updated"
+    },
+    "columns": {
+      "mrNumber": "Mat. Req. ID",
+      "project": "Project",
+      "requestedBy": "Requested by",
+      "priority": "Priority",
+      "status": "Status",
+      "neededBy": "Needed by",
+      "items": "Items",
+      "actions": "Actions"
+    },
+    "view": "View",
+    "noDate": "—"
+  },
+  "detail": {
+    "noData": "Material request not found.",
+    "back": "Back to material requests",
+    "requestedBy": "Requested by",
+    "project": "Project",
+    "neededBy": "Needed by",
+    "createdOn": "Created",
+    "deliveryLocation": "Delivery location",
+    "note": "Note",
+    "noNote": "No note provided.",
+    "reviewedBy": "Reviewed by",
+    "reviewedOn": "Reviewed on",
+    "declineReason": "Decline reason",
+    "convertedToRfq": "Converted to RFQ {{number}}",
+    "convertedToPo": "Converted to PO {{number}}",
+    "viewRfq": "View RFQ",
+    "viewPo": "View PO",
+    "lineItems": "Line items",
+    "noLineItems": "This request has no line items.",
+    "activity": "Activity",
+    "noActivity": "No activity recorded yet.",
+    "columns": {
+      "lineId": "Line Item ID",
+      "materialName": "Material name",
+      "description": "Description",
+      "quantity": "Qty ordered",
+      "unit": "UoM",
+      "expectedDelivery": "Exp. delivery date",
+      "deliveryLocation": "Delivery location",
+      "notes": "Notes"
+    },
+    "actions": {
+      "approve": "Approve",
+      "decline": "Decline",
+      "convertToRfq": "Convert to RFQ",
+      "convertToPo": "Convert to PO",
+      "terminalNote": "This request has been {{status}} and can no longer be actioned."
+    }
+  },
+  "declineModal": {
+    "title": "Decline material request",
+    "subtitle": "Provide a reason for declining {{number}}. The requester will see this.",
+    "reasonLabel": "Reason",
+    "reasonPlaceholder": "Explain why this request is being declined…",
+    "cancel": "Cancel",
+    "confirm": "Decline request"
+  },
+  "convertPoModal": {
+    "title": "Convert to purchase order",
+    "subtitle": "Select a vendor to raise a draft purchase order from {{number}}.",
+    "vendorLabel": "Vendor",
+    "vendorPlaceholder": "Select a vendor",
+    "noVendors": "No vendors are assigned to this company yet.",
+    "loadFailed": "Failed to load vendors. Please try again.",
+    "cancel": "Cancel",
+    "confirm": "Create purchase order"
+  },
+  "auditActions": {
+    "created": "Request created",
+    "submitted": "Submitted for approval",
+    "approved": "Approved",
+    "declined": "Declined",
+    "cancelled": "Cancelled",
+    "convertedToRfq": "Converted to RFQ",
+    "convertedToPo": "Converted to purchase order",
+    "converted": "Converted",
+    "performedBy": "By {{name}}",
+    "reasonSuffix": "— {{reason}}",
+    "system": "System"
   }
 }
