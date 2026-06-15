@@ -12,7 +12,7 @@ export const ROLE_HOME_PATH: Record<UserRole, string> = {
   [UserRole.PROCUREMENT_OFFICER]: '/',
   [UserRole.FINANCIAL_OFFICER]: '/invoices',
   [UserRole.WAREHOUSE_OFFICER]: '/',
-  [UserRole.FOREMAN]: '/',
+  [UserRole.FOREMAN]: '/material-requests',
   [UserRole.VENDOR]: '/',
 };
 

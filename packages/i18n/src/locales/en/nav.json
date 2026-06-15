@@ -30,6 +30,8 @@
   "vendorsSubtitle": "Manage your vendor relationships",
   "materialCatalogue": "Material Catalogue",
   "materialCatalogueSubtitle": "Browse and manage materials",
+  "materialRequests": "Material Requests",
+  "materialRequestsSubtitle": "Raise and track material requests for your jobs",
   "companySettings": "Company Settings",
   "companyDetailPage": "Company detail page",
   "companyDetailPageSubtitle": "View and manage company information",

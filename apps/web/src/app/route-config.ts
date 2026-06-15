@@ -38,6 +38,13 @@ export const ROUTES = {
   purchaseOrderChange: '/purchase-orders/:id/change',
   purchaseOrderChangeRequest: '/purchase-orders/:id/change-request',
 
+  // ── Material requests (Foreman mobile flow) ────────────────────────
+  materialRequests: '/material-requests',
+  materialRequestJobs: '/material-requests/jobs',
+  materialRequestJobOverview: '/material-requests/jobs/:projectId',
+  materialRequestNew: '/material-requests/jobs/:projectId/new',
+  materialRequestConfirmation: '/material-requests/confirmation/:id',
+
   // ── Bulk orders ────────────────────────────────────────────────────
   bulkOrders: '/bulk-orders',
   bulkOrderNew: '/bulk-orders/new',

@@ -76,6 +76,15 @@ const BulkOrderDrawdownPage = lazy(
 const BulkOrderEditPage = lazy(
   () => import('@/features/bulk-orders/buyer/pages/BulkOrderEditPage'),
 );
+const MyRequestsPage = lazy(() => import('@/features/material-requests/pages/MyRequestsPage'));
+const JobPickerPage = lazy(() => import('@/features/material-requests/pages/JobPickerPage'));
+const JobOverviewPage = lazy(() => import('@/features/material-requests/pages/JobOverviewPage'));
+const RequestMaterialsPage = lazy(
+  () => import('@/features/material-requests/pages/RequestMaterialsPage'),
+);
+const RequestConfirmationPage = lazy(
+  () => import('@/features/material-requests/pages/RequestConfirmationPage'),
+);
 const InvoiceListRoleSwitch = lazy(() => import('@/features/invoices/InvoiceListRoleSwitch'));
 const InvoiceDetailRoleSwitch = lazy(() => import('@/features/invoices/InvoiceDetailRoleSwitch'));
 const UploadInvoicePage = lazy(() => import('@/features/invoices/buyer/pages/UploadInvoicePage'));
@@ -282,6 +291,43 @@ export const routes: RouteObject[] = [
                   {
                     path: ROUTES.purchaseOrderChangeRequest,
                     element: withSuspense(<ChangeRequestPage />),
+                  },
+                ],
+              },
+
+              // Material requests (Foreman mobile flow). Gated by the real
+              // backend permission keys (materialRequest.list / .create) so any
+              // role that holds them — Foreman, Warehouse, PO, CA — can reach
+              // the flow. Static "/jobs" and "/confirmation/:id" precede the
+              // ":projectId" routes, and "/jobs/:projectId/new" precedes
+              // "/jobs/:projectId" so they are not swallowed.
+              {
+                element: <PermissionRoute require={['materialRequest.list']} />,
+                children: [
+                  {
+                    path: ROUTES.materialRequests,
+                    element: withSuspense(<MyRequestsPage />),
+                  },
+                  {
+                    path: ROUTES.materialRequestConfirmation,
+                    element: withSuspense(<RequestConfirmationPage />),
+                  },
+                ],
+              },
+              {
+                element: <PermissionRoute require={['materialRequest.create']} />,
+                children: [
+                  {
+                    path: ROUTES.materialRequestJobs,
+                    element: withSuspense(<JobPickerPage />),
+                  },
+                  {
+                    path: ROUTES.materialRequestNew,
+                    element: withSuspense(<RequestMaterialsPage />),
+                  },
+                  {
+                    path: ROUTES.materialRequestJobOverview,
+                    element: withSuspense(<JobOverviewPage />),
                   },
                 ],
               },

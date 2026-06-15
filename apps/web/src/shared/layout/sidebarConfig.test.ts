@@ -5,6 +5,7 @@ import { getSidebarItemsForRole } from './sidebarConfig';
 
 const LABELS = {
   projects: 'Projects',
+  materialRequests: 'Material Requests',
   rfqs: 'RFQs',
   purchaseOrders: 'POs',
   bulkOrders: 'Bulk',
@@ -23,6 +24,7 @@ describe('getSidebarItemsForRole', () => {
     const labels = getSidebarItemsForRole(UserRole.COMPANY_ADMIN, '/', LABELS).map((i) => i.label);
     expect(labels).toEqual([
       'Projects',
+      'Material Requests',
       'RFQs',
       'POs',
       'Bulk',
@@ -49,11 +51,13 @@ describe('getSidebarItemsForRole', () => {
     expect(labels).toEqual(['Invoices', 'Settings']);
   });
 
-  it('shows only settings to WAREHOUSE_OFFICER', () => {
+  it('shows material requests + settings to WAREHOUSE_OFFICER', () => {
+    // The Warehouse officer holds materialRequest.list, so the Material Requests
+    // item is visible alongside Settings.
     const labels = getSidebarItemsForRole(UserRole.WAREHOUSE_OFFICER, '/', LABELS).map(
       (i) => i.label,
     );
-    expect(labels).toEqual(['Settings']);
+    expect(labels).toEqual(['Material Requests', 'Settings']);
   });
 
   it('shows materials + settings to SUPER_ADMIN (owns the catalogue; admin panel reached separately)', () => {
