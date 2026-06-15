@@ -4,6 +4,7 @@ import { DocIntelligenceController } from '../doc-intelligence.controller';
 
 const mockService = {
   createExtraction: jest.fn(),
+  listSheets: jest.fn(),
   listExtractions: jest.fn(),
   getExtraction: jest.fn(),
   updateExtraction: jest.fn(),
@@ -96,12 +97,25 @@ describe('DocIntelligenceController', () => {
       const result = await controller.create(file, body, user);
 
       expect(mockService.createExtraction).toHaveBeenCalledWith(
-        { type: 'QUOTE', promptHint: 'vendor quote', file },
+        expect.objectContaining({ type: 'QUOTE', promptHint: 'vendor quote', file }),
         user,
       );
       expect(result.id).toBe('ext-1');
       expect(result.usage).toEqual({ promptTokens: 100, completionTokens: 50 });
       expect(result.completedAt).toBe('2026-06-03T00:00:00.000Z');
+    });
+
+    it('forwards the selected spreadsheet sheets to the service', async () => {
+      mockService.createExtraction.mockResolvedValue(fullJob());
+      const file = { originalname: 'bom.xlsx' } as Express.Multer.File;
+      const body = { type: 'BOM', sheetNames: ['HDPE'] } as never;
+
+      await controller.create(file, body, user);
+
+      expect(mockService.createExtraction).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'BOM', file, sheetNames: ['HDPE'] }),
+        user,
+      );
     });
 
     it('throws BadRequestException when type is missing', async () => {
@@ -125,6 +139,18 @@ describe('DocIntelligenceController', () => {
       expect(result.completedAt).toBeNull();
       expect(result.lastEditedAt).toBeNull();
       expect(result.confirmedAt).toBeNull();
+    });
+  });
+
+  describe('listSheets', () => {
+    it('returns the worksheet names from the service', async () => {
+      mockService.listSheets.mockResolvedValue(['Sheet1', 'HDPE']);
+      const file = { originalname: 'bom.xlsx' } as Express.Multer.File;
+
+      const result = await controller.listSheets(file);
+
+      expect(mockService.listSheets).toHaveBeenCalledWith(file);
+      expect(result).toEqual({ sheets: ['Sheet1', 'HDPE'] });
     });
   });
 

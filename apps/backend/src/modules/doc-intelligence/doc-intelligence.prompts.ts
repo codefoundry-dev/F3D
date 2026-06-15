@@ -9,10 +9,19 @@ const TYPE_PROMPTS: Record<DocExtractionType, string> = {
 
 This document is a construction Bill of Materials (BOM). Each row represents
 a material the contractor needs to source. Extract every line item — do not
-collapse rows. Preserve the order they appear in the document.
+collapse rows, and do NOT merge two rows even when their description text is
+identical (they are usually distinct line items, e.g. the same fitting in a
+different size). Preserve the order they appear in the document.
+
+A workbook may repeat the same materials across several sheets/tabs. Only
+extract from the sheets you are given; never invent rows to reconcile tabs.
 
 For each item:
-- "description": full material description as written (trim whitespace).
+- "description": full material description as written (trim whitespace). If the
+  row carries columns that distinguish otherwise-identical items — size, nominal
+  diameter/DN, spec, grade, class, schedule, rating, or line/drawing number —
+  append them to the description so every line is uniquely identifiable
+  (e.g. "stubs with backing ring drilled to AWWA C207 class D, DN1200, spec P6").
 - "quantity": numeric quantity, parsed from the qty column. Use null if absent.
 - "unit": unit of measure (e.g. "ea", "m", "m2", "kg", "bag", "pallet"). Lowercase.
 - "targetPrice": the contractor's target / estimated unit price as a plain number.

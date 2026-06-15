@@ -26,6 +26,8 @@ export interface MaterialItem {
   id: string;
   name: string;
   category?: string;
+  /** Catalogue sub-category; surfaced as "Material type" by BOM review. */
+  subCategory?: string;
   unit?: string;
   description?: string;
   imageUrl?: string;

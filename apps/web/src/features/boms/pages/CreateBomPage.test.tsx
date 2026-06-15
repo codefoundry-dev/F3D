@@ -2,10 +2,12 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const mockNavigate = vi.hoisted(() => vi.fn());
 const mockCreateExtraction = vi.hoisted(() => vi.fn());
+const mockMutate = vi.hoisted(() => vi.fn());
 const mockDocExtractionQuery = vi.hoisted(() => vi.fn());
 const mockUseProjects = vi.hoisted(() => vi.fn());
 const mockUseCreateBom = vi.hoisted(() => vi.fn());
 const mockConfirmDocExtraction = vi.hoisted(() => vi.fn());
+const mockListSpreadsheetSheets = vi.hoisted(() => vi.fn());
 const mockNotify = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 
 vi.mock('@forethread/i18n', () => ({
@@ -33,6 +35,7 @@ vi.mock('@forethread/shared-types/client', () => ({
 
 vi.mock('@forethread/api-client', () => ({
   confirmDocExtraction: mockConfirmDocExtraction,
+  listSpreadsheetSheets: mockListSpreadsheetSheets,
 }));
 
 vi.mock('@/features/doc-intelligence/hooks/useDocExtraction', () => ({
@@ -72,6 +75,14 @@ vi.mock('@forethread/ui-components', () => ({
   ),
   Modal: (p: any) => <div data-testid="modal">{p.children}</div>,
   RadioButton: (p: any) => <input type="radio" checked={p.checked} onChange={p.onChange} />,
+  Checkbox: (p: any) => (
+    <input
+      type="checkbox"
+      aria-label={p.label}
+      checked={p.checked}
+      onChange={(e) => p.onChange(e.target.checked)}
+    />
+  ),
   Spinner: () => <div data-testid="spinner" />,
   notificationService: mockNotify,
 }));
@@ -86,9 +97,14 @@ describe('CreateBomPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCreateExtraction.mockReturnValue({
-      mutate: (_vars: any, opts: any) => opts.onSuccess({ id: 'ext-1' }),
+      mutate: (vars: any, opts: any) => {
+        mockMutate(vars);
+        opts.onSuccess({ id: 'ext-1' });
+      },
       isPending: false,
     });
+    // Default: single-sheet / non-spreadsheet — no picker.
+    mockListSpreadsheetSheets.mockResolvedValue([]);
     mockDocExtractionQuery.mockReturnValue({ data: undefined });
     mockUseProjects.mockReturnValue(PROJECTS);
     mockUseCreateBom.mockReturnValue({
@@ -181,6 +197,57 @@ describe('CreateBomPage', () => {
     expect(mockNotify.error).toHaveBeenCalledWith('create.uploadError');
   });
 
+  // ── Sheet picker (multi-sheet workbooks) ────────────────────────────────────
+
+  it('does not show a sheet picker for a single-sheet workbook', async () => {
+    mockListSpreadsheetSheets.mockResolvedValue(['OnlySheet']);
+    const { container } = render(<CreateBomPage />);
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['x'], 'bom.xlsx')] } });
+    await waitFor(() => expect(mockListSpreadsheetSheets).toHaveBeenCalled());
+    expect(screen.queryByTestId('bom-sheet-picker')).not.toBeInTheDocument();
+    expect(screen.getByTestId('bom-proceed')).not.toBeDisabled();
+  });
+
+  it('does not inspect sheets for a non-xlsx file', async () => {
+    render(<CreateBomPage />);
+    fireEvent.drop(screen.getByTestId('bom-dropzone'), {
+      dataTransfer: { files: [new File(['x'], 'bom.csv')] },
+    });
+    expect(mockListSpreadsheetSheets).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('bom-sheet-picker')).not.toBeInTheDocument();
+  });
+
+  it('shows a sheet picker for a multi-sheet workbook and extracts only the selected sheets', async () => {
+    mockListSpreadsheetSheets.mockResolvedValue(['Sheet1', 'HDPE']);
+    const { container } = render(<CreateBomPage />);
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['x'], 'bom.xlsx')] } });
+
+    await screen.findByTestId('bom-sheet-picker');
+
+    // Deselect the scratch sheet, keep the real BOM tab.
+    fireEvent.click(screen.getByLabelText('Sheet1'));
+    fireEvent.click(screen.getByTestId('bom-proceed'));
+
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'BOM', sheetNames: ['HDPE'] }),
+    );
+  });
+
+  it('disables proceed when every sheet is deselected', async () => {
+    mockListSpreadsheetSheets.mockResolvedValue(['Sheet1', 'HDPE']);
+    const { container } = render(<CreateBomPage />);
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['x'], 'bom.xlsx')] } });
+
+    await screen.findByTestId('bom-sheet-picker');
+    fireEvent.click(screen.getByLabelText('Sheet1'));
+    fireEvent.click(screen.getByLabelText('HDPE'));
+
+    expect(screen.getByTestId('bom-proceed')).toBeDisabled();
+  });
+
   // ── Failed card ─────────────────────────────────────────────────────────────
 
   it('shows the failed card when the extraction status is FAILED', () => {
@@ -268,6 +335,44 @@ describe('CreateBomPage', () => {
     const continueBtn = screen.getByTestId('bom-continue');
     expect(continueBtn).toBeDisabled();
     expect(continueBtn).toHaveTextContent('create.matchItemsFirst');
+  });
+
+  it('auto-accepts a suggested match so continue is enabled on step 2', () => {
+    mockDocExtractionQuery.mockReturnValue({
+      data: {
+        status: 'COMPLETED',
+        editedResult: {
+          items: [
+            {
+              description: '90 bend',
+              quantity: 10,
+              unit: 'unit',
+              // A below-threshold suggestion (no confirmed match) is accepted by
+              // default, so the row is matched and the wizard can proceed.
+              matchedMaterialId: null,
+              matchedMaterialName: null,
+              matchConfidence: null,
+              matchCandidates: [
+                {
+                  materialId: 'm-bend',
+                  name: '12B Bend 90',
+                  confidence: 0.62,
+                  category: 'Fittings',
+                  subCategory: 'Bends',
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    render(<CreateBomPage />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['x'], 'bom.xlsx')] } });
+    fireEvent.click(screen.getByTestId('bom-proceed'));
+    const continueBtn = screen.getByTestId('bom-continue');
+    expect(continueBtn).not.toBeDisabled();
+    expect(continueBtn).toHaveTextContent('create.continue');
   });
 
   it('advances to step 3 from step 2 when rows are matched', () => {

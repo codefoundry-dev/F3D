@@ -30,6 +30,7 @@ const MATERIAL = {
   description: 'A sturdy beam',
   categoryId: 'cat-1',
   categoryName: 'Structural',
+  subCategory: 'Beams',
   unitOfMeasure: 'EA',
   status: 'ACTIVE',
   imageUrl: 'https://example.com/beam.png',
@@ -54,6 +55,7 @@ describe('useMaterialSearchQuery', () => {
         id: 'm-1',
         name: 'Steel Beam',
         category: 'Structural',
+        subCategory: 'Beams',
         unit: 'EA',
         description: 'A sturdy beam',
         imageUrl: 'https://example.com/beam.png',
@@ -65,7 +67,9 @@ describe('useMaterialSearchQuery', () => {
 
   it('coerces null optional fields to undefined', async () => {
     getMaterialsMock.mockResolvedValue({
-      items: [{ ...MATERIAL, categoryName: null, description: null, imageUrl: null }],
+      items: [
+        { ...MATERIAL, categoryName: null, subCategory: null, description: null, imageUrl: null },
+      ],
       meta: { total: 1 },
     });
 
@@ -77,6 +81,7 @@ describe('useMaterialSearchQuery', () => {
       id: 'm-1',
       name: 'Steel Beam',
       category: undefined,
+      subCategory: undefined,
       unit: 'EA',
       description: undefined,
       imageUrl: undefined,

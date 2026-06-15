@@ -1,6 +1,7 @@
 import { getMaterialCategories } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { NAKED_INPUT_CLASS, UOM_OPTIONS } from '@forethread/po-shared';
+import { BOM_MATCH_CONFIDENCE_THRESHOLD } from '@forethread/shared-types/client';
 import {
   Alert,
   Badge,
@@ -36,8 +37,13 @@ const ROW_TINT = {
 function rowTint(row: BomDraftRow): string {
   if (isRowEmpty(row)) return '';
   if (row.manuallyResolved) return ROW_TINT.blue;
-  if (row.matchedMaterialId) return '';
-  return row.candidates.length > 0 ? ROW_TINT.amber : ROW_TINT.red;
+  if (!row.matchedMaterialId) return row.candidates.length > 0 ? ROW_TINT.amber : ROW_TINT.red;
+  // Auto-accepted low-confidence suggestion: matched so the wizard can proceed,
+  // but kept amber to flag it for review. A high-confidence match gets no tint.
+  if (row.matchConfidence !== null && row.matchConfidence < BOM_MATCH_CONFIDENCE_THRESHOLD) {
+    return ROW_TINT.amber;
+  }
+  return '';
 }
 
 function confidenceBadge(row: BomDraftRow, t: TFn): { label: string; pct: string | null } {
@@ -47,7 +53,7 @@ function confidenceBadge(row: BomDraftRow, t: TFn): { label: string; pct: string
   if (row.matchedMaterialId && score === null) return { label: t('create.manual'), pct: null };
   if (score === null) return { label: t('create.noMatch'), pct: null };
   const pct = `${Math.round(score * 100)}%`;
-  if (score >= 0.85) return { label: t('create.high'), pct };
+  if (score >= BOM_MATCH_CONFIDENCE_THRESHOLD) return { label: t('create.high'), pct };
   if (score >= 0.5) return { label: t('create.medium'), pct };
   return { label: t('create.low'), pct };
 }
@@ -181,7 +187,11 @@ export function BomReviewStep({ rows, onRowsChange }: BomReviewStepProps) {
       // human's call ("Manual").
       matchConfidence: candidate?.confidence ?? null,
       uom: firstNonEmpty(rows[index].uom, material.unit),
-      category: firstNonEmpty(rows[index].category, material.category),
+      // A manual pick is authoritative about the material, so its catalogue
+      // category / type replace any values carried from the prior suggestion;
+      // fall back to the existing value only when the picked material lacks one.
+      category: firstNonEmpty(material.category, rows[index].category),
+      materialType: firstNonEmpty(material.subCategory, rows[index].materialType),
       manuallyResolved: true,
     });
     setOpenMatchRow(null);
@@ -218,14 +228,14 @@ export function BomReviewStep({ rows, onRowsChange }: BomReviewStepProps) {
           <table className="w-full min-w-[1180px] text-sm" data-testid="bom-review-table">
             <thead>
               <tr className="bg-[hsl(var(--table-header))]">
-                <th className={cn(th, 'w-[15%]')}>{t('create.columns.materialName')}</th>
-                <th className={cn(th, 'w-[15%]')}>{t('create.columns.match')}</th>
+                <th className={cn(th, 'w-[22%]')}>{t('create.columns.materialName')}</th>
+                <th className={cn(th, 'w-[13%]')}>{t('create.columns.match')}</th>
                 <th className={cn(th, 'w-[15%]')}>{t('create.columns.description')}</th>
                 <th className={cn(th, 'w-[8%]')}>{t('create.columns.uom')}</th>
                 <th className={cn(th, 'w-[10%]')}>{t('create.columns.quantity')}</th>
-                <th className={cn(th, 'w-[13%]')}>{t('create.columns.category')}</th>
-                <th className={cn(th, 'w-[9%]')}>{t('create.columns.materialType')}</th>
-                <th className={cn(th, 'w-[9%]')}>{t('create.columns.confidence')}</th>
+                <th className={cn(th, 'w-[10%]')}>{t('create.columns.category')}</th>
+                <th className={cn(th, 'w-[8%]')}>{t('create.columns.materialType')}</th>
+                <th className={cn(th, 'w-[8%]')}>{t('create.columns.confidence')}</th>
                 <th className={cn(th, 'w-[6%]')}>{t('create.columns.actions')}</th>
               </tr>
             </thead>
@@ -390,7 +400,13 @@ export function BomReviewStep({ rows, onRowsChange }: BomReviewStepProps) {
               matchedMaterialName: material.name,
               matchConfidence: null,
               uom: firstNonEmpty(rows[createMaterialRow].uom, material.unitOfMeasure),
-              category: firstNonEmpty(rows[createMaterialRow].category, material.categoryName),
+              // The newly created material defines the line, so its category /
+              // type win over any suggestion-derived values on the row.
+              category: firstNonEmpty(material.categoryName, rows[createMaterialRow].category),
+              materialType: firstNonEmpty(
+                material.subCategory,
+                rows[createMaterialRow].materialType,
+              ),
               manuallyResolved: true,
             });
             setCreateMaterialRow(null);
