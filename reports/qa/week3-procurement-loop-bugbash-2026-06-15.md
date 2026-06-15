@@ -53,7 +53,9 @@ so stale specs linger):
    (auto-sends to the vendor). Code-vs-intent contradiction — the test may be asserting the
    _correct_ intent and the auto-send may be the bug. **Recommend the RFQ/PO owner confirm intent**:
    if auto-issue-on-award is intended, update the spec to `SENT`; if not, drop the
-   `issuePurchaseOrder` call so award leaves a draft.
+   `issuePurchaseOrder` call so award leaves a draft. **Update — RESOLVED (`598a712`):** confirmed a
+   bug; removed the auto-send so award now leaves a `DRAFT` the contractor issues manually. The
+   award e2e (asserting `DRAFT`) now passes; backend suite green, coverage 90.23% branch.
 2. **`purchase-orders-threshold.e2e-spec.ts` — `PUT` vs `PATCH` (pre-existing, stale verb).** The
    spec calls `PUT /v1/purchase-orders/:id/approve`; the route is `@Patch(':id/approve')` — and was
    already `PATCH` on `main` (unchanged by Week-3). The mismatched verb fails before the threshold
@@ -76,8 +78,8 @@ so stale specs linger):
 
 ## Recommended follow-ups
 
-- **Confirm award-on-issue intent (finding 1)** with the RFQ/PO owner — this is the only finding
-  that might be a live product bug. Then refresh `rfq-quote-award.e2e-spec.ts` accordingly.
+- ~~**Confirm award-on-issue intent (finding 1)**~~ — DONE: confirmed a bug and fixed in `598a712`
+  (award leaves a reviewable `DRAFT`; no auto-send to the vendor).
 - **Refresh the stale e2e verbs/assertions** (findings 1–2): `purchase-orders-threshold`
   `PUT`→`PATCH`; award `DRAFT`/`SENT`. Consider adding the e2e suite to CI so this debt can't
   accumulate silently.
@@ -93,5 +95,5 @@ so stale specs linger):
 The **Material Request leg + US 2.08 are green and integrated end-to-end** (MR → approve/decline →
 RFQ/PO conversion), validated by 8 new real-DB e2e tests; both regression baselines hold (backend
 2008, web 1964). The 4 PO/RFQ e2e failures are **pre-existing test debt on `main`, not Week-3
-regressions** — none block US 2.08. One of them (finding 1, award auto-issue) should be triaged as a
-possible product bug independent of this work.
+regressions** — none block US 2.08. One of them (finding 1, award auto-issue) was a real product bug
+and has since been **fixed** (`598a712`); the rest remain pre-existing test debt to triage.
