@@ -4,6 +4,27 @@
 
 - [Material catalogue feature (FOR-228)](material-catalogue-feature.md) — catalogue list + import
   flow reusing doc-intelligence upload/poll hooks; api-client MaterialListItemDto drift gotcha.
+- [Bulk Order flow (US 5.08)](bulk-order-flow-us508.md) — Create-page-from-approved-RFQ +
+  propose-extension modal + inline extension review; consumptionPercent column; bulk-order-shared
+  test infra setup (no runner before); approved-RFQ data source = getRfqs(minApprovedQuotes)+getRfq.
+- [Drawdown flow (US 5.09)](drawdown-flow-us509.md) — drawdown PO via SHARED CreatePoWizard
+  (`creationMode='from-bulk-order'` + `bulkOrderId`); getBulkOrder detail has NO projectId/vendorId
+  (resolve by name); Available-qty column + banner + over-limit gate; Flow 3 extends same wizard.
+- [PO Change Request (FLOW 3)](po-change-request-flow-us-flow3.md) — change-mode CreatePoWizard
+  (`mode='change'`+`existingPo`+`onProposeChange`, locks documentName, step3=diff); change-diff util
+  (lineItemId match, allowlist-only, COMMERCIAL/INTERNAL); PoChangeDiff shared renderer;
+  Changes-request tab (pending CR, self-approve guard); Action log sources resolved CRs from
+  listPoChangeRequests (NO PO audit feed); `po.proposeChange` is a real permission.
+- [PO Week-3 Approvals/States/Delivery](po-week3-approvals-states-delivery.md) — REAL audit timeline
+  now exists: usePoActionLog hook + humanizeAuditAction pure mapper (supersedes the "NO PO audit feed"
+  note above for the detail PAGES; List-page PoDetailPanel still placeholder); AwaitingApprovalSection
+  approver inbox (listPendingApproval, has('po.approve'), above grids); ReceiveDeliveryModal
+  (receivePurchaseOrder cumulative lines, RECEIVABLE_STATUSES, has('po.receive')).
+
+## UI Component Gotchas
+
+- [Alert/Badge don't forward props](alert-component-no-prop-spread.md) — ui-components Alert (and
+  likely Badge) drop `data-testid`/extra props; wrap in a div to attach a testid.
 
 ## Project Auth UI Patterns (Confirmed)
 
@@ -73,6 +94,21 @@
   typechecked transitively by the web app's `build` (`tsc --noEmit`) since apps import their
   `./src`.
 - Run a single test file: `pnpm --filter <pkg> exec vitest run <path>`.
+- SCREENSHOT HARNESS (apps/web, no backend): Vite dev + Playwright route-mock `**/v1/**` (mock
+  cookie-auth `GET /v1/users/me` → `{data: USER}` flips `isAuthenticated`; persist auth via
+  initScript `localStorage['forethread-web-auth'] = {state:{currentUser},version:0}`). The wizard's
+  required step-1 Delivery location + Expected Delivery Date are NOT seeded from a source — fill
+  them to advance (DatePicker is a custom sectioned mask, not native `type=date`; open it and click
+  today's day-of-month cell in `[data-datepicker-portal]`). GOTCHA: Git Bash MANGLES
+  `VITE_API_URL=/v1` into `C:/Program Files/Git/v1` (MSYS path conversion) → baseURL wrong →
+  getMe 404 → app bounces to /login. Fix: prefix with `MSYS_NO_PATHCONV=1`. Default baseURL is `/v1`
+  (main.tsx `VITE_API_URL ?? '/v1'`). Pattern lives in `.tmp/figma-flows/shot_drawdown.mjs` +
+  `.tmp/figma-po/shot_po.mjs` + `.tmp/figma-flows/shot_change.mjs`.
+- HARNESS GOTCHA (PO wizard step 2 manual/change mode): `useLineItemValidation` runs in non-drawdown
+  modes and POSTs `/v1/purchase-orders/validate-items`; if your route-mock returns the generic list
+  `{data:{items,meta}}` instead of `{data:{suggestions:[]}}`, the page CRASHES at
+  `suggestions.filter` (undefined). Mock validate-items → `{data:{suggestions:[]}}` BEFORE the
+  generic `/purchase-orders` catch-all.
 - Test conventions: vitest, `globals: true`, hoisted mocks via `vi.hoisted`, mock `@forethread/i18n`
   (t returns key), mock `@forethread/ui-components`, mock `*.svg?react` icons, mock the hook module.
   Lint flags `${unknown}` in template literals — wrap mock interpolations in `String(...)`.
