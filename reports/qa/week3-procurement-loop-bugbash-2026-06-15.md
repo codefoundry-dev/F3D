@@ -60,11 +60,22 @@ so stale specs linger):
    spec calls `PUT /v1/purchase-orders/:id/approve`; the route is `@Patch(':id/approve')` — and was
    already `PATCH` on `main` (unchanged by Week-3). The mismatched verb fails before the threshold
    logic is even exercised. Trivial spec fix (`put` → `patch`), then re-verify the threshold/approve
-   assertions.
+   assertions. **Update — RESOLVED (`6387823`):** fixed the verb; the verb fix then exposed two
+   stale-fixture issues (the spec relied on the seed granting COMPANY_ADMIN `po.approve`, and
+   `findFirst(CONTRACTOR)` could pick a different contractor than the seed CA, tripping the
+   company-scope guard). Both fixed by self-provisioning the CA grant and aligning the fixture to
+   the CA's company. Now 3/3.
 3. **`auth.e2e-spec.ts` — 4 red (pre-existing, not procurement).** The refresh-token-rotation bug
    the spec itself documents
    (`// BUG: refresh token rotation breaks clients … the API does NOT return the new refresh token`).
-   Unrelated to Week-3. Recommend filing/fixing separately.
+   Unrelated to Week-3. **Update — RESOLVED (`11229dc`); NOT a product bug.** Investigation showed
+   the rotation is correct: `authService.refresh` stores a fresh argon2 hash and the jwt-refresh
+   strategy `argon2.verify`s the presented token, so the old token is invalidated and the new one is
+   returned via the `jwt_refresh` cookie. The tests were stale — they asserted body tokens on
+   cookie-based endpoints. Rewrote them to assert the Set-Cookie tokens + a real rotation check (the
+   returned refresh token works for a second refresh). Also corrected a 4th stale test (Invited-user
+   login is now 403 `accountNotActivated`, and the seed activates the vendor it used). Auth e2e now
+   26/26.
 4. **Low-severity robustness:** `MaterialRequestsService.convertToPo` uses `dto.vendorId` directly
    without verifying the vendor is assigned to the contractor — only the DB FK guarantees the
    company exists. The UI constrains the picker to `getCompanyVendors`, so this isn't reachable from
@@ -80,10 +91,9 @@ so stale specs linger):
 
 - ~~**Confirm award-on-issue intent (finding 1)**~~ — DONE: confirmed a bug and fixed in `598a712`
   (award leaves a reviewable `DRAFT`; no auto-send to the vendor).
-- **Refresh the stale e2e verbs/assertions** (findings 1–2): `purchase-orders-threshold`
-  `PUT`→`PATCH`; award `DRAFT`/`SENT`. Consider adding the e2e suite to CI so this debt can't
-  accumulate silently.
-- **Fix the auth refresh-token rotation bug** (finding 3).
+- ~~**Refresh the stale e2e verbs/assertions (findings 2–3)**~~ — DONE: `purchase-orders-threshold`
+  fixed in `6387823`, `auth.e2e` in `11229dc`. **Still worth doing:** add the backend e2e suite to
+  CI so this stale-spec debt can't accumulate silently again.
 - **Browser e2e for the US 2.08 officer flow** (list filter → open → approve/convert → land on the
   new RFQ/PO) against the running stack — not added here because it needs backend :3000 + web
   :5179 + mailhog up; the UI glue is covered by the component unit tests + visual shots, and the
@@ -95,5 +105,8 @@ so stale specs linger):
 The **Material Request leg + US 2.08 are green and integrated end-to-end** (MR → approve/decline →
 RFQ/PO conversion), validated by 8 new real-DB e2e tests; both regression baselines hold (backend
 2008, web 1964). The 4 PO/RFQ e2e failures are **pre-existing test debt on `main`, not Week-3
-regressions** — none block US 2.08. One of them (finding 1, award auto-issue) was a real product bug
-and has since been **fixed** (`598a712`); the rest remain pre-existing test debt to triage.
+regressions** — none block US 2.08. **All have since been resolved:** finding 1 (award auto-issue)
+was a real product bug, fixed in `598a712`; the stale `purchase-orders-threshold` and `auth.e2e`
+specs (findings 2–3, plus a 4th Invited-user login assertion) were corrected in `6387823` /
+`11229dc` (no application bug — the auth "rotation bug" was a misread of the cookie-based response).
+The procurement-loop + auth backend e2e suites are now green.
