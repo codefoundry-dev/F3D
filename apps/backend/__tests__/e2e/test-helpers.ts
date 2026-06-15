@@ -229,7 +229,7 @@ export async function loginUser(email: string, password: string): Promise<AuthTo
   return { accessToken, refreshToken, userId };
 }
 
-function extractCookieValue(cookies: string[], name: string): string | null {
+export function extractCookieValue(cookies: string[], name: string): string | null {
   for (const raw of cookies) {
     const [pair] = raw.split(';');
     const eq = pair.indexOf('=');

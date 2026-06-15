@@ -7,6 +7,7 @@ import {
   getHttpServer,
   MockEmailService,
   authRequest,
+  extractCookieValue,
 } from './test-helpers';
 import type { INestApplication } from '@nestjs/common';
 import type { PrismaService } from '../../src/prisma/prisma.service';
@@ -84,13 +85,31 @@ describe('Auth (e2e)', () => {
       expect(res.body.success).toBe(false);
     });
 
-    it('should return 401 for Invited (non-active) user', async () => {
-      const res = await request(getHttpServer())
-        .post('/v1/auth/login')
-        .send({ email: 'vendor@testvendor.local', password: 'Dev@123456' })
-        .expect(401);
+    it('should return 403 for an Invited (non-activated) user', async () => {
+      // Create a transient INVITED user — seed users can't be relied on here
+      // (vendor@testvendor.local is activated for dashboard testing). Login
+      // rejects an Invited account with 403 (accountNotActivated) at the status
+      // check, before the password check, so no password hash is needed.
+      const invited = await prisma.user.create({
+        data: {
+          email: `invited-${Date.now()}@auth-e2e.local`,
+          name: 'Invited E2E User',
+          role: 'VENDOR',
+          status: 'INVITED',
+        },
+        select: { id: true, email: true },
+      });
 
-      expect(res.body.success).toBe(false);
+      try {
+        const res = await request(getHttpServer())
+          .post('/v1/auth/login')
+          .send({ email: invited.email, password: 'Dev@123456' })
+          .expect(403);
+
+        expect(res.body.success).toBe(false);
+      } finally {
+        await prisma.user.delete({ where: { id: invited.id } }).catch(() => undefined);
+      }
     });
 
     it('should return 400 for invalid email format', async () => {
@@ -130,8 +149,10 @@ describe('Auth (e2e)', () => {
         .expect(200);
 
       expect(res.body.success).toBe(true);
-      expect(res.body.data.accessToken).toBeDefined();
-      expect(res.body.data.refreshToken).toBeDefined();
+      // Tokens are issued as httpOnly cookies; the body carries no tokens.
+      const cookies = (res.headers['set-cookie'] as unknown as string[]) ?? [];
+      expect(extractCookieValue(cookies, 'jwt')).toBeTruthy();
+      expect(extractCookieValue(cookies, 'jwt_refresh')).toBeTruthy();
     });
 
     it('should return 401 for wrong OTP code', async () => {
@@ -219,27 +240,35 @@ describe('Auth (e2e)', () => {
         .send({ refreshToken: tokens.refreshToken })
         .expect(200);
 
-      expect(res.body.data.accessToken).toBeDefined();
+      // A fresh access token is issued as the `jwt` httpOnly cookie.
+      const cookies = (res.headers['set-cookie'] as unknown as string[]) ?? [];
+      expect(extractCookieValue(cookies, 'jwt')).toBeTruthy();
     });
 
-    // BUG: refresh token rotation breaks clients — after first refresh,
-    // the old refresh token is invalidated but the new one is not returned
-    it('BUG: should return new refresh token after rotation (currently only returns accessToken)', async () => {
+    it('rotates the refresh token and returns it so the client can refresh again', async () => {
       const tokens = await loginUser(
         SEED_USERS.companyAdmin.email,
         SEED_USERS.companyAdmin.password,
       );
 
+      // First refresh — the rotated access + refresh tokens come back as cookies.
       const res = await request(getHttpServer())
         .post('/v1/auth/refresh')
         .send({ refreshToken: tokens.refreshToken })
         .expect(200);
 
-      // The API generates and stores a new refresh token but does NOT return it
-      // This is a bug: clients cannot refresh again after the first refresh
-      expect(res.body.data.accessToken).toBeDefined();
-      // This will fail — documenting the bug:
-      // expect(res.body.data.refreshToken).toBeDefined();
+      const cookies = (res.headers['set-cookie'] as unknown as string[]) ?? [];
+      expect(extractCookieValue(cookies, 'jwt')).toBeTruthy();
+      const rotatedRefresh = extractCookieValue(cookies, 'jwt_refresh');
+      expect(rotatedRefresh).toBeTruthy();
+
+      // The returned refresh token is itself usable for a SECOND refresh — i.e.
+      // the rotated refresh token really is handed back to the client (the bug
+      // this test once documented was a misread of the cookie-based response).
+      await request(getHttpServer())
+        .post('/v1/auth/refresh')
+        .send({ refreshToken: rotatedRefresh })
+        .expect(200);
     });
 
     it('should return 401 for invalid refresh token', async () => {
