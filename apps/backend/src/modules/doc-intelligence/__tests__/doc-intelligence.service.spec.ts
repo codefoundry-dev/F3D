@@ -205,7 +205,9 @@ describe('DocIntelligenceService', () => {
         XLSX_MIME,
       );
       expect(result).toMatchObject({ id: 'job-1' });
-    });
+      // Real exceljs parse under heavy ts-jest worker contention can exceed the
+      // 5s default; give it headroom so a slow worker doesn't flake CI.
+    }, 15000);
 
     it('rejects unsupported MIME types', async () => {
       const { service } = makeService();
@@ -229,6 +231,44 @@ describe('DocIntelligenceService', () => {
       await expect(
         service.createExtraction({ type: DocExtractionType.BOM, file: makeFile() }, baseUser),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('listSheets', () => {
+    it('returns the worksheet names for an .xlsx upload', async () => {
+      const { service } = makeService();
+      const file = makeFile({
+        originalname: 'bom.xlsx',
+        mimetype: XLSX_MIME,
+        buffer: await buildBomXlsx(),
+      });
+      await expect(service.listSheets(file)).resolves.toEqual(['BOM']);
+      // Real exceljs parse: allow headroom over the 5s default (see above).
+    }, 15000);
+
+    it('returns an empty array for a non-spreadsheet file (no sheets to pick)', async () => {
+      const { service } = makeService();
+      // The default file is a PDF; CSV/PDF/image uploads have no worksheets.
+      await expect(service.listSheets(makeFile())).resolves.toEqual([]);
+    });
+
+    it('treats a .csv upload as non-spreadsheet and returns no sheets', async () => {
+      const { service } = makeService();
+      const file = makeFile({ originalname: 'bom.csv', mimetype: 'text/csv' });
+      await expect(service.listSheets(file)).resolves.toEqual([]);
+    });
+
+    it('throws BadRequestException when no file is provided', async () => {
+      const { service } = makeService();
+      await expect(service.listSheets(undefined as never)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('throws BadRequestException when the file exceeds 10 MB', async () => {
+      const { service } = makeService();
+      const file = makeFile({ size: 11 * 1024 * 1024 });
+      await expect(service.listSheets(file)).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 
