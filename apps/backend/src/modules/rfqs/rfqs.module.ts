@@ -7,7 +7,6 @@ import { AuditModule } from '../audit/audit.module';
 import { DocIntelligenceModule } from '../doc-intelligence/doc-intelligence.module';
 import { ExportModule } from '../export/export.module';
 import { NotificationsModule } from '../notifications/notifications.module';
-import { PurchaseOrdersModule } from '../purchase-orders/purchase-orders.module';
 import { StorageModule } from '../storage/storage.module';
 
 import { QuoteResponseService } from './quote-response.service';
@@ -24,7 +23,6 @@ import { RfqsService } from './rfqs.service';
     NotificationsModule,
     AccessTokensModule,
     DocIntelligenceModule,
-    PurchaseOrdersModule,
     MulterModule.register({ storage: multer.memoryStorage() }),
   ],
   controllers: [RfqsController],

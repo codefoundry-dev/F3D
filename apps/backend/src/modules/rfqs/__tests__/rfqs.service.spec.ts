@@ -67,10 +67,6 @@ const mockAccessTokens = {
   issueToken: jest.fn(),
 };
 
-const mockPoStatusService = {
-  issuePurchaseOrder: jest.fn(),
-};
-
 const mockConfig = {
   get: jest.fn((_key: string, fallback: string) => fallback),
 };
@@ -156,14 +152,12 @@ describe('RfqsService', () => {
       mockStorageService as never,
       mockEmailService as never,
       mockAccessTokens as never,
-      mockPoStatusService as never,
       mockConfig as never,
     );
     mockAccessTokens.issueToken.mockResolvedValue({
       token: 'issued-token-xyz',
       record: { id: 'tok-1' },
     });
-    mockPoStatusService.issuePurchaseOrder.mockResolvedValue({});
   });
 
   // ── listRfqs ────────────────────────────────────────────────────────────
@@ -1253,25 +1247,14 @@ describe('RfqsService', () => {
       });
     });
 
-    it('auto-sends the created PO so the winning vendor is notified (FRD §1189)', async () => {
+    it('leaves the created PO as a DRAFT for the contractor to review + issue (no auto-send)', async () => {
       mockPrisma.quoteResponse.findUnique.mockResolvedValue(awardableQuote);
       primeAwardTransaction();
 
       await service.awardQuote('rfq-1', 'quote-1', companyAdmin);
 
-      expect(mockPoStatusService.issuePurchaseOrder).toHaveBeenCalledWith('po-1', companyAdmin);
-    });
-
-    it('still resolves the award when auto-send fails, leaving the PO as a draft', async () => {
-      mockPrisma.quoteResponse.findUnique.mockResolvedValue(awardableQuote);
-      primeAwardTransaction();
-      mockPoStatusService.issuePurchaseOrder.mockRejectedValueOnce(new Error('SMTP down'));
-
-      const result = await service.awardQuote('rfq-1', 'quote-1', companyAdmin);
-
-      expect(result).toEqual(
-        expect.objectContaining({ purchaseOrderId: 'po-1', poNumber: 'PO-00001' }),
-      );
+      const poData = mockPrisma.purchaseOrder.create.mock.calls[0][0].data;
+      expect(poData.status).toBe('DRAFT');
     });
 
     it('derives PO line items from the quote, dropping NO_QUOTE lines', async () => {
