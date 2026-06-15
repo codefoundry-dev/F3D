@@ -109,7 +109,9 @@
     "approvalThresholdExceeded": "PO total {{amount}} {{currency}} exceeds your approval threshold of {{threshold}} {{currency}}. A higher-tier approver must approve this PO.",
     "bulkOrderNotFound": "Source bulk order not found",
     "bulkOrderLineNotFound": "Bulk order line item not found for this drawdown",
-    "drawdownExceedsRemaining": "Drawdown of {{requested}} for \"{{line}}\" exceeds the {{remaining}} remaining on bulk order {{bulkOrderNumber}}"
+    "drawdownExceedsRemaining": "Drawdown of {{requested}} for \"{{line}}\" exceeds the {{remaining}} remaining on bulk order {{bulkOrderNumber}}",
+    "lineNotFound": "Line item {{lineItemId}} does not belong to this purchase order",
+    "deliveredExceedsOrdered": "Delivered quantity {{delivered}} exceeds the ordered quantity {{ordered}}"
   },
   "bulkOrders": {
     "notFound": "Bulk Order not found",

@@ -18,10 +18,12 @@ describe('EMAIL_TEMPLATES', () => {
     expect(EMAIL_TEMPLATES.BULK_ORDER_CANCELLED).toBe('bulk-order-cancelled');
     expect(EMAIL_TEMPLATES.QUOTE_UPDATED).toBe('quote-updated');
     expect(EMAIL_TEMPLATES.QUOTE_SUBMITTED).toBe('quote-submitted');
+    expect(EMAIL_TEMPLATES.PO_DECLINED_BY_VENDOR).toBe('po-declined-by-vendor');
+    expect(EMAIL_TEMPLATES.PO_PENDING_APPROVAL).toBe('po-pending-approval');
   });
 
-  it('should have exactly 16 templates', () => {
-    expect(Object.keys(EMAIL_TEMPLATES)).toHaveLength(17);
+  it('should have exactly 18 templates', () => {
+    expect(Object.keys(EMAIL_TEMPLATES)).toHaveLength(18);
   });
 
   it('should have unique values', () => {
@@ -50,6 +52,8 @@ describe('EMAIL_TEMPLATES', () => {
         'BULK_ORDER_CANCELLED',
         'QUOTE_UPDATED',
         'QUOTE_SUBMITTED',
+        'PO_DECLINED_BY_VENDOR',
+        'PO_PENDING_APPROVAL',
       ]),
     );
   });

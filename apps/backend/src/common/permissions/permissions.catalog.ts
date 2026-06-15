@@ -143,6 +143,7 @@ export const PERMISSIONS = {
   'po.read': 'Read a purchase order',
   'po.approve': 'Approve a purchase order',
   'po.decline': 'Decline a purchase order',
+  'po.receive': 'Record a delivery/receipt against a purchase order',
   'po.proposeChange': 'Propose a PO change request',
   'po.listChangeRequests': 'List PO change requests',
   'po.approveChange': 'Approve a PO change request',
@@ -307,6 +308,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'po.read',
     'po.approve',
     'po.decline',
+    'po.receive',
     'po.proposeChange',
     'po.listChangeRequests',
     'po.approveChange',
@@ -431,6 +433,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'po.read',
     'po.approve',
     'po.decline',
+    'po.receive',
     'po.proposeChange',
     'po.listChangeRequests',
     'po.approveChange',
@@ -498,6 +501,10 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
 
     'materialList.list',
     'materialList.read',
+
+    'po.list',
+    'po.read',
+    'po.receive',
   ],
 
   FOREMAN: [

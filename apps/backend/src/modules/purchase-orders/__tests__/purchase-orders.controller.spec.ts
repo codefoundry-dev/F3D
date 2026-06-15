@@ -34,6 +34,8 @@ const mockStatusService = {
   archivePurchaseOrder: jest.fn(),
   acceptPurchaseOrder: jest.fn(),
   vendorDeclinePurchaseOrder: jest.fn(),
+  receivePurchaseOrder: jest.fn(),
+  listPendingApproval: jest.fn(),
 };
 
 const mockValidationService = {
@@ -182,9 +184,10 @@ describe('PurchaseOrdersController', () => {
     it('delegates to status service', async () => {
       const expected = { id: 'po-1', status: 'CANCELLED' };
       mockStatusService.declinePurchaseOrder.mockResolvedValue(expected);
+      const dto = { reason: 'No longer required' };
 
-      const result = await controller.declinePurchaseOrder('po-1', mockUser);
-      expect(mockStatusService.declinePurchaseOrder).toHaveBeenCalledWith('po-1', mockUser);
+      const result = await controller.declinePurchaseOrder('po-1', dto as never, mockUser);
+      expect(mockStatusService.declinePurchaseOrder).toHaveBeenCalledWith('po-1', dto, mockUser);
       expect(result).toEqual(expected);
     });
   });
@@ -213,6 +216,29 @@ describe('PurchaseOrdersController', () => {
         dto,
         mockUser,
       );
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('listPendingApproval', () => {
+    it('delegates to status service', async () => {
+      const expected = { items: [{ id: 'po-1' }] };
+      mockStatusService.listPendingApproval.mockResolvedValue(expected);
+
+      const result = await controller.listPendingApproval(mockUser);
+      expect(mockStatusService.listPendingApproval).toHaveBeenCalledWith(mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('receivePurchaseOrder', () => {
+    it('delegates to status service', async () => {
+      const expected = { id: 'po-1', status: 'PARTIALLY_DELIVERED' };
+      mockStatusService.receivePurchaseOrder.mockResolvedValue(expected);
+      const dto = { lines: [{ lineItemId: 'li-1', quantityDelivered: 5 }] };
+
+      const result = await controller.receivePurchaseOrder('po-1', dto as never, mockUser);
+      expect(mockStatusService.receivePurchaseOrder).toHaveBeenCalledWith('po-1', dto, mockUser);
       expect(result).toEqual(expected);
     });
   });

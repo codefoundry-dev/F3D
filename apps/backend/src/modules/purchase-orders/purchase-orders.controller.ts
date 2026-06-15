@@ -29,6 +29,7 @@ import { PoChangeService } from './po-change.service';
 import { PoDocumentService } from './po-document.service';
 import { PoExportService } from './po-export.service';
 import { PoStatusService } from './po-status.service';
+import { DeclinePoDto, ReceivePoDto } from './po-status.dto';
 import { PoValidationService } from './po-validation.service';
 import { VendorAcceptPoDto, VendorDeclinePoDto } from './po-vendor.dto';
 import { PurchaseOrdersService } from './purchase-orders.service';
@@ -54,6 +55,19 @@ export class PurchaseOrdersController {
   @ApiResponse({ status: 200, description: 'Paginated list of purchase orders' })
   async listPurchaseOrders(@Query() query: PoListQueryDto, @CurrentUser() user: AuthenticatedUser) {
     return this.purchaseOrdersService.listPurchaseOrders(query, user);
+  }
+
+  // ── GET /v1/purchase-orders/pending-approval ───────────────────────────────
+  // Declared before the `:id` route so the literal path is matched first.
+
+  @Get('pending-approval')
+  @RequirePermissions('po.approve')
+  @ApiOperation({
+    summary: 'List POs awaiting approval that the current user is entitled to approve',
+  })
+  @ApiResponse({ status: 200, description: 'Pending-approval purchase orders for the approver' })
+  async listPendingApproval(@CurrentUser() user: AuthenticatedUser) {
+    return this.poStatusService.listPendingApproval(user);
   }
 
   // ── POST /v1/purchase-orders ──────────────────────────────────────────────
@@ -264,12 +278,32 @@ export class PurchaseOrdersController {
 
   @Patch(':id/decline')
   @RequirePermissions('po.decline')
-  @ApiOperation({ summary: 'Decline a purchase order' })
+  @ApiOperation({ summary: 'Decline a purchase order (reason required)' })
   @ApiResponse({ status: 200, description: 'PO declined' })
   @ApiResponse({ status: 400, description: 'PO cannot be declined in its current status' })
   @ApiResponse({ status: 404, description: 'PO not found' })
-  async declinePurchaseOrder(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.poStatusService.declinePurchaseOrder(id, user);
+  async declinePurchaseOrder(
+    @Param('id') id: string,
+    @Body() dto: DeclinePoDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.poStatusService.declinePurchaseOrder(id, dto, user);
+  }
+
+  // ── PATCH /v1/purchase-orders/:id/receive ──────────────────────────────────
+
+  @Patch(':id/receive')
+  @RequirePermissions('po.receive')
+  @ApiOperation({ summary: 'Record a delivery/receipt against a purchase order' })
+  @ApiResponse({ status: 200, description: 'Delivery recorded; PO status advanced' })
+  @ApiResponse({ status: 400, description: 'Invalid line or quantity, or illegal status' })
+  @ApiResponse({ status: 404, description: 'PO not found' })
+  async receivePurchaseOrder(
+    @Param('id') id: string,
+    @Body() dto: ReceivePoDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.poStatusService.receivePurchaseOrder(id, dto, user);
   }
 
   // ── PO Change Request endpoints ────────────────────────────────────────────

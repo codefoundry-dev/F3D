@@ -156,6 +156,9 @@ export const ERR = {
         remaining,
         bulkOrderNumber,
       }),
+    lineNotFound: (lineItemId: string) => t(errors.purchaseOrders.lineNotFound, { lineItemId }),
+    deliveredExceedsOrdered: (delivered: number, ordered: number) =>
+      t(errors.purchaseOrders.deliveredExceedsOrdered, { delivered, ordered }),
   },
 
   // ── Bulk Orders ──────────────────────────────────────────

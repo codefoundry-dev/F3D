@@ -4,24 +4,35 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ApprovalStatus, PoStatus as PrismaPoStatus, UserRole } from '@prisma/client';
+import {
+  AuditAction,
+  ApprovalStatus,
+  PoStatus as PrismaPoStatus,
+  Prisma,
+  UserRole,
+} from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ApprovalAuthorizationService } from '../../common/permissions';
 import { resolveVendorEmailRecipients } from '../../common/utils/vendor-recipients.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../notifications/email.service';
 
 import { PoExportService } from './po-export.service';
+import { assertTransition } from './po-state-machine';
+import { DeclinePoDto, ReceivePoDto } from './po-status.dto';
 import { VendorAcceptPoDto, VendorDeclinePoDto } from './po-vendor.dto';
 import { PurchaseOrdersService } from './purchase-orders.service';
 
 @Injectable()
 export class PoStatusService {
+  private readonly logger = new Logger(PoStatusService.name);
   private readonly webAppUrl: string;
 
   constructor(
@@ -31,9 +42,40 @@ export class PoStatusService {
     private readonly emailService: EmailService,
     private readonly poExportService: PoExportService,
     private readonly approvalAuth: ApprovalAuthorizationService,
+    private readonly auditService: AuditService,
     config: ConfigService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
+  }
+
+  /**
+   * Best-effort audit of a PO status transition. Never throws — a logging
+   * failure must not fail the (already persisted) status change, matching the
+   * fire-and-forget convention used elsewhere (po-change.service.ts).
+   */
+  private async auditTransition(
+    action: AuditAction,
+    poId: string,
+    user: AuthenticatedUser,
+    from: PrismaPoStatus,
+    to: PrismaPoStatus,
+    extra?: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.auditService.log({
+        action,
+        performedById: user.id,
+        targetType: 'PurchaseOrder',
+        targetId: poId,
+        metadata: { from, to, ...(extra ?? {}) },
+      });
+    } catch (err) {
+      this.logger.debug(
+        `Failed to audit PO transition ${from}→${to}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   // ── Issue Purchase Order ───────────────────────────────────────────────
@@ -67,6 +109,7 @@ export class PoStatusService {
 
     if (requiresApproval) {
       // Hold for internal approval — do NOT notify the vendor or set issuedAt.
+      assertTransition(po.status, PrismaPoStatus.PENDING_APPROVAL);
       await this.prisma.purchaseOrder.update({
         where: { id },
         data: {
@@ -76,9 +119,24 @@ export class PoStatusService {
         },
       });
 
+      await this.auditTransition(
+        AuditAction.PO_ISSUED,
+        id,
+        user,
+        po.status,
+        PrismaPoStatus.PENDING_APPROVAL,
+        { requiresApproval: true },
+      );
+
+      // Notify the company users entitled to approve this PO (fire-and-forget).
+      this.notifyApproversOfPendingPo(id, po.companyId, po.totalAmount, po.currency).catch(
+        () => {},
+      );
+
       return this.purchaseOrdersService.getPurchaseOrder(id, user);
     }
 
+    assertTransition(po.status, PrismaPoStatus.SENT);
     const updated = await this.prisma.purchaseOrder.update({
       where: { id },
       data: {
@@ -96,6 +154,8 @@ export class PoStatusService {
         },
       },
     });
+
+    await this.auditTransition(AuditAction.PO_ISSUED, id, user, po.status, PrismaPoStatus.SENT);
 
     // Send email notification to vendor with PDF attachment (fire-and-forget)
     this.notifyVendorOfPo(id, updated.poNumber, updated.vendor, user).catch(() => {});
@@ -122,6 +182,7 @@ export class PoStatusService {
       throw new BadRequestException(ERR.purchaseOrders.cannotConfirm(po.status));
     }
 
+    assertTransition(po.status, PrismaPoStatus.ACKNOWLEDGED);
     await this.prisma.purchaseOrder.update({
       where: { id },
       data: {
@@ -129,6 +190,14 @@ export class PoStatusService {
         lastModifiedById: user.id,
       },
     });
+
+    await this.auditTransition(
+      AuditAction.PO_ACKNOWLEDGED,
+      id,
+      user,
+      po.status,
+      PrismaPoStatus.ACKNOWLEDGED,
+    );
 
     return this.purchaseOrdersService.getPurchaseOrder(id, user);
   }
@@ -185,11 +254,13 @@ export class PoStatusService {
     // goes out to the vendor (→ SENT, issuedAt set, vendor notified). Any other
     // approvable status keeps the legacy → ACKNOWLEDGED behavior.
     const isPendingApprovalSend = po.status === PrismaPoStatus.PENDING_APPROVAL;
+    const nextStatus = isPendingApprovalSend ? PrismaPoStatus.SENT : PrismaPoStatus.ACKNOWLEDGED;
 
+    assertTransition(po.status, nextStatus);
     const updated = await this.prisma.purchaseOrder.update({
       where: { id },
       data: {
-        status: isPendingApprovalSend ? PrismaPoStatus.SENT : PrismaPoStatus.ACKNOWLEDGED,
+        status: nextStatus,
         approvalStatus: ApprovalStatus.APPROVED,
         approvedById: user.id,
         lastModifiedById: user.id,
@@ -207,6 +278,8 @@ export class PoStatusService {
       },
     });
 
+    await this.auditTransition(AuditAction.PO_APPROVED, id, user, po.status, nextStatus);
+
     if (isPendingApprovalSend) {
       // Send email notification to vendor with PDF attachment (fire-and-forget)
       this.notifyVendorOfPo(id, updated.poNumber, updated.vendor, user).catch(() => {});
@@ -222,7 +295,7 @@ export class PoStatusService {
 
   // ── Decline Purchase Order ───────────────────────────────────────────────
 
-  async declinePurchaseOrder(id: string, user: AuthenticatedUser) {
+  async declinePurchaseOrder(id: string, dto: DeclinePoDto, user: AuthenticatedUser) {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id },
       select: { id: true, status: true, companyId: true },
@@ -238,11 +311,13 @@ export class PoStatusService {
       throw new BadRequestException(ERR.purchaseOrders.cannotDecline(po.status));
     }
 
+    assertTransition(po.status, PrismaPoStatus.CANCELLED);
     const updated = await this.prisma.purchaseOrder.update({
       where: { id },
       data: {
         status: PrismaPoStatus.CANCELLED,
         approvalStatus: ApprovalStatus.REJECTED,
+        cancellationReason: dto.reason,
         lastModifiedById: user.id,
       },
       include: {
@@ -250,6 +325,15 @@ export class PoStatusService {
         vendor: { select: { legalName: true } },
       },
     });
+
+    await this.auditTransition(
+      AuditAction.PO_DECLINED,
+      id,
+      user,
+      po.status,
+      PrismaPoStatus.CANCELLED,
+      { reason: dto.reason },
+    );
 
     return {
       id: updated.id,
@@ -282,6 +366,7 @@ export class PoStatusService {
       throw new BadRequestException(ERR.purchaseOrders.cannotAccept(po.status));
     }
 
+    assertTransition(po.status, PrismaPoStatus.ACCEPTED);
     const updateData: Record<string, unknown> = {
       status: PrismaPoStatus.ACCEPTED,
       lastModifiedById: user.id,
@@ -299,6 +384,14 @@ export class PoStatusService {
       where: { id },
       data: updateData,
     });
+
+    await this.auditTransition(
+      AuditAction.PO_ACCEPTED,
+      id,
+      user,
+      po.status,
+      PrismaPoStatus.ACCEPTED,
+    );
 
     return this.purchaseOrdersService.getPurchaseOrder(id, user);
   }
@@ -341,14 +434,29 @@ export class PoStatusService {
       throw new BadRequestException(ERR.purchaseOrders.cannotVendorDecline(po.status));
     }
 
+    assertTransition(po.status, PrismaPoStatus.CANCELLED_BY_VENDOR);
     await this.prisma.purchaseOrder.update({
       where: { id },
       data: {
         status: PrismaPoStatus.CANCELLED_BY_VENDOR,
         lastModifiedById: user.id,
-        ...(dto?.reason && { deliveryNotes: dto.reason }),
+        // cancellationReason is the canonical store; deliveryNotes is kept in
+        // sync for backward-compat with readers that predate the new column.
+        ...(dto?.reason && {
+          cancellationReason: dto.reason,
+          deliveryNotes: dto.reason,
+        }),
       },
     });
+
+    await this.auditTransition(
+      AuditAction.PO_DECLINED_BY_VENDOR,
+      id,
+      user,
+      po.status,
+      PrismaPoStatus.CANCELLED_BY_VENDOR,
+      { reason: dto?.reason ?? null },
+    );
 
     // Notify contractor that vendor declined the PO (fire-and-forget)
     this.notifyContractorOfDecline(
@@ -380,12 +488,164 @@ export class PoStatusService {
       throw new BadRequestException(ERR.purchaseOrders.onlyClosedCanArchive);
     }
 
+    // Archive is a soft-delete, not a lifecycle transition: it intentionally
+    // repurposes CANCELLED as the archived sentinel for a CLOSED PO. CLOSED is a
+    // terminal state in the state machine, so this deliberately does NOT route
+    // through assertTransition; it is gated by the onlyClosedCanArchive check
+    // above instead.
     await this.prisma.purchaseOrder.update({
       where: { id },
       data: { status: PrismaPoStatus.CANCELLED, lastModifiedById: user.id },
     });
 
+    await this.auditTransition(
+      AuditAction.PO_ARCHIVED,
+      id,
+      user,
+      PrismaPoStatus.CLOSED,
+      PrismaPoStatus.CANCELLED,
+    );
+
     return { success: true };
+  }
+
+  // ── Receive / record delivery ──────────────────────────────────────────────
+
+  /**
+   * Record a delivery against a PO (Week-3 delivery leg / inventory hook). Sets
+   * the cumulative delivered quantity per line, then moves the PO to
+   * PARTIALLY_DELIVERED, or DELIVERED when every line is fully delivered, via
+   * the state machine. A no-progress receipt (nothing delivered on any line)
+   * leaves the status untouched.
+   */
+  async receivePurchaseOrder(id: string, dto: ReceivePoDto, user: AuthenticatedUser) {
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        companyId: true,
+        lineItems: { select: { id: true, quantityOrdered: true, quantityDelivered: true } },
+      },
+    });
+
+    if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
+
+    if (user.role !== UserRole.SUPER_ADMIN && user.companyId !== po.companyId) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
+
+    const lineById = new Map(po.lineItems.map((li) => [li.id, li]));
+
+    // Validate every referenced line belongs to this PO and is not over-received
+    // before mutating anything.
+    for (const line of dto.lines) {
+      const existing = lineById.get(line.lineItemId);
+      if (!existing) {
+        throw new BadRequestException(ERR.purchaseOrders.lineNotFound(line.lineItemId));
+      }
+      if (line.quantityDelivered > existing.quantityOrdered) {
+        throw new BadRequestException(
+          ERR.purchaseOrders.deliveredExceedsOrdered(
+            line.quantityDelivered,
+            existing.quantityOrdered,
+          ),
+        );
+      }
+    }
+
+    // Project the post-update delivered quantities to decide the next status.
+    const nextDelivered = new Map(po.lineItems.map((li) => [li.id, li.quantityDelivered]));
+    for (const line of dto.lines) {
+      nextDelivered.set(line.lineItemId, line.quantityDelivered);
+    }
+
+    const allFullyDelivered = po.lineItems.every(
+      (li) => (nextDelivered.get(li.id) ?? 0) >= li.quantityOrdered,
+    );
+    const anyDelivered = po.lineItems.some((li) => (nextDelivered.get(li.id) ?? 0) > 0);
+
+    const nextStatus = allFullyDelivered
+      ? PrismaPoStatus.DELIVERED
+      : anyDelivered
+        ? PrismaPoStatus.PARTIALLY_DELIVERED
+        : po.status;
+
+    // Only assert/transition when the status actually moves — a re-post of the
+    // same partial figures should be idempotent rather than an illegal
+    // PARTIALLY_DELIVERED → PARTIALLY_DELIVERED self-loop rejection.
+    if (nextStatus !== po.status) {
+      assertTransition(po.status, nextStatus);
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const line of dto.lines) {
+        await tx.poLineItem.update({
+          where: { id: line.lineItemId },
+          data: { quantityDelivered: line.quantityDelivered },
+        });
+      }
+      if (nextStatus !== po.status) {
+        await tx.purchaseOrder.update({
+          where: { id },
+          data: { status: nextStatus, lastModifiedById: user.id },
+        });
+      }
+    });
+
+    if (nextStatus !== po.status) {
+      const action =
+        nextStatus === PrismaPoStatus.DELIVERED
+          ? AuditAction.PO_DELIVERED
+          : AuditAction.PO_PARTIALLY_DELIVERED;
+      await this.auditTransition(action, id, user, po.status, nextStatus, {
+        lines: dto.lines.map((l) => ({
+          lineItemId: l.lineItemId,
+          quantityDelivered: l.quantityDelivered,
+        })),
+      });
+    }
+
+    return this.purchaseOrdersService.getPurchaseOrder(id, user);
+  }
+
+  // ── Pending-approval queue ──────────────────────────────────────────────────
+
+  /**
+   * POs in PENDING_APPROVAL within the caller's company that the CURRENT user is
+   * actually entitled to approve (po.approve permission + threshold ≥ the PO
+   * total). Reuses the standard PO list serialization via getPurchaseOrder so
+   * the inbox UI gets the same detail shape it already renders.
+   */
+  async listPendingApproval(user: AuthenticatedUser) {
+    const where: Prisma.PurchaseOrderWhereInput = { status: PrismaPoStatus.PENDING_APPROVAL };
+    // SUPER_ADMIN sees the whole queue; everyone else is scoped to their company.
+    if (user.role !== UserRole.SUPER_ADMIN) {
+      if (!user.companyId) return { items: [] };
+      where.companyId = user.companyId;
+    }
+
+    const pos = await this.prisma.purchaseOrder.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, totalAmount: true },
+    });
+
+    const entitled: Array<{ id: string }> = [];
+    for (const po of pos) {
+      if (user.role === UserRole.SUPER_ADMIN) {
+        entitled.push(po);
+        continue;
+      }
+      const decision = await this.approvalAuth.evaluate(user.role, 'po.approve', po.totalAmount);
+      if (decision.outcome === 'allowed') entitled.push(po);
+    }
+
+    const items = await Promise.all(
+      entitled.map((po) => this.purchaseOrdersService.getPurchaseOrder(po.id, user)),
+    );
+
+    return { items };
   }
 
   // ── Email notification helpers ──────────────────────────────────────────
@@ -457,5 +717,73 @@ export class PoStatusService {
         ),
       ),
     );
+  }
+
+  /**
+   * Email the company users entitled to approve a PO that has been routed to
+   * PENDING_APPROVAL (Week-3 approver notification). "Entitled" = an ACTIVE user
+   * in the PO's company whose role holds `po.approve` with a threshold that
+   * covers the PO total (null threshold = unlimited). Best-effort.
+   */
+  private async notifyApproversOfPendingPo(
+    poId: string,
+    companyId: string,
+    totalAmount: Prisma.Decimal | null,
+    currency: string,
+  ): Promise<void> {
+    const recipients = await this.findApproverEmails(companyId, totalAmount);
+    if (recipients.length === 0) return;
+
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id: poId },
+      select: { poNumber: true },
+    });
+    if (!po) return;
+
+    const amountLabel = `${(totalAmount ?? 0).toString()} ${currency}`;
+    const viewUrl = `${this.webAppUrl}/purchase-orders/${poId}`;
+    const log = { companyId, purchaseOrderId: poId };
+
+    await Promise.all(
+      recipients.map((email) =>
+        this.emailService.sendPoPendingApprovalEmail(email, po.poNumber, amountLabel, viewUrl, log),
+      ),
+    );
+  }
+
+  /**
+   * Resolve the ACTIVE users in `companyId` whose role can approve a PO of
+   * `totalAmount`. A role qualifies when its `po.approve` grant exists and its
+   * threshold is null (unlimited) or ≥ the amount.
+   */
+  private async findApproverEmails(
+    companyId: string,
+    totalAmount: Prisma.Decimal | null,
+  ): Promise<string[]> {
+    const grants = await this.prisma.rolePermission.findMany({
+      where: { permission: { key: 'po.approve' } },
+      select: { role: true, thresholdAmount: true },
+    });
+
+    const amount = totalAmount === null ? null : new Prisma.Decimal(totalAmount);
+    const eligibleRoles = grants
+      .filter(
+        (g) =>
+          g.thresholdAmount === null || amount === null || !amount.greaterThan(g.thresholdAmount),
+      )
+      .map((g) => g.role);
+
+    if (eligibleRoles.length === 0) return [];
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        companyId,
+        status: 'ACTIVE',
+        role: { in: eligibleRoles },
+      },
+      select: { email: true },
+    });
+
+    return [...new Set(users.map((u) => u.email))];
   }
 }

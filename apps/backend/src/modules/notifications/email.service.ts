@@ -394,6 +394,28 @@ export class EmailService implements OnModuleInit {
     }
   }
 
+  async sendPoPendingApprovalEmail(
+    to: string,
+    poNumber: string,
+    amount: string,
+    viewUrl: string,
+    log?: EmailLogContext,
+  ): Promise<void> {
+    const t = this.getTranslations('poPendingApproval', { poNumber, amount });
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        html: this.renderEmail(EMAIL_TEMPLATES.PO_PENDING_APPROVAL, t, { viewUrl }),
+        template: EMAIL_TEMPLATES.PO_PENDING_APPROVAL,
+        ...(log ? { log } : {}),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
   async sendPoDeclinedByVendorEmail(
     to: string,
     poNumber: string,
