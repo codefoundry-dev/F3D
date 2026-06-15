@@ -35,7 +35,7 @@ import {
 import { buildExtractionPrompt } from './doc-intelligence.prompts';
 import { normalizeQuoteResult } from './doc-intelligence.quote';
 import { buildResponseSchema } from './doc-intelligence.schemas';
-import { spreadsheetToText } from './doc-intelligence.spreadsheet';
+import { listSpreadsheetSheets, spreadsheetToText } from './doc-intelligence.spreadsheet';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 // Catalogue spreadsheets are large (a real Rexel export is ~11.7 MB / 62k rows);
@@ -81,6 +81,12 @@ export interface CreateExtractionInput {
   type: DocExtractionType;
   promptHint?: string;
   file: Express.Multer.File;
+  /**
+   * For spreadsheet uploads: the subset of worksheet names to extract. Omit to
+   * extract every sheet. Lets the BOM flow skip duplicate/scratch tabs that
+   * would otherwise double up the extracted line items.
+   */
+  sheetNames?: string[];
 }
 
 export interface ExtractionWithFile extends DocExtraction {
@@ -153,9 +159,34 @@ export class DocIntelligenceService {
     });
 
     // Fire-and-forget the actual extraction.
-    void this.runExtraction(extraction.id, input.file.buffer, mimeType, input.promptHint);
+    void this.runExtraction(
+      extraction.id,
+      input.file.buffer,
+      mimeType,
+      input.promptHint,
+      input.sheetNames,
+    );
 
     return extraction;
+  }
+
+  // ── List spreadsheet sheets (pre-flight, no Gemini) ──────────────────────
+
+  /**
+   * List the worksheet names in an uploaded spreadsheet without persisting it or
+   * calling Gemini. Drives the BOM upload's sheet picker so the user can extract
+   * only the relevant tab(s). Returns an empty array for non-spreadsheet files
+   * (CSV/PDF/image), which have no sheets to choose between.
+   */
+  async listSheets(file: Express.Multer.File): Promise<string[]> {
+    if (!file) throw new BadRequestException(ERR.storage.noFileProvided);
+    // Parse in-memory only — cap at the Gemini file size to bound the work
+    // (a huge catalogue export could OOM the box just being parsed for names).
+    if (file.size > MAX_FILE_SIZE) {
+      throw new BadRequestException(ERR.storage.fileTooLarge('10MB'));
+    }
+    if (!SPREADSHEET_MIME_TYPES.has(effectiveMimeType(file))) return [];
+    return listSpreadsheetSheets(file.buffer);
   }
 
   // ── Guest quote extraction (tokenized vendor portal, FOR-206) ─────────────
@@ -245,6 +276,7 @@ export class DocIntelligenceService {
     fileBuffer: Buffer,
     mimeType: string,
     promptHint?: string,
+    sheetNames?: string[],
   ): Promise<void> {
     const job = await this.prisma.docExtraction.findUnique({ where: { id: extractionId } });
     if (!job) return;
@@ -290,7 +322,7 @@ export class DocIntelligenceService {
         ...(responseSchema ? { responseSchema } : {}),
       };
       const inlinePrompt = SPREADSHEET_MIME_TYPES.has(mimeType)
-        ? await this.buildSpreadsheetPrompt(prompt, fileBuffer)
+        ? await this.buildSpreadsheetPrompt(prompt, fileBuffer, sheetNames)
         : CSV_MIME_TYPES.has(mimeType)
           ? this.buildCsvPrompt(prompt, fileBuffer)
           : null;
@@ -346,8 +378,12 @@ export class DocIntelligenceService {
    * Gemini can't ingest spreadsheets directly, so we serialise the workbook to
    * tab-separated text and fold it into the prompt as the "attached document".
    */
-  private async buildSpreadsheetPrompt(basePrompt: string, fileBuffer: Buffer): Promise<string> {
-    const sheetText = await spreadsheetToText(fileBuffer);
+  private async buildSpreadsheetPrompt(
+    basePrompt: string,
+    fileBuffer: Buffer,
+    sheetNames?: string[],
+  ): Promise<string> {
+    const sheetText = await spreadsheetToText(fileBuffer, sheetNames);
     return `${basePrompt}
 
 The document is a spreadsheet, provided below as tab-separated values. Each "# Sheet:" line starts a new worksheet. Treat the rows below as the attached document.

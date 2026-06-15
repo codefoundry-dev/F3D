@@ -63,19 +63,31 @@ export function isRowEmpty(row: BomDraftRow): boolean {
 }
 
 function rowFromLineItem(item: BomLineItem): BomDraftRow {
+  const candidates = item.matchCandidates ?? [];
+  // Resolve the catalogue material this line is matched to. High-confidence
+  // lines arrive already matched (matchedMaterialId set by the extractor).
+  // Lower-confidence lines arrive as ranked suggestions instead — accept the
+  // top one by default so the user isn't forced to confirm every row to proceed,
+  // but the row stays flagged for review (amber + confidence badge, see
+  // rowTint) so a wrong guess is easy to spot and override. A line with no
+  // candidates at all stays unmatched and must be resolved by hand.
+  const matchedMaterialId = item.matchedMaterialId ?? candidates[0]?.materialId ?? null;
+  const source = matchedMaterialId
+    ? candidates.find((candidate) => candidate.materialId === matchedMaterialId)
+    : undefined;
   return {
     materialName: item.description,
     description: item.description,
     uom: item.unit ?? '',
     quantity: item.quantity !== null && item.quantity !== undefined ? String(item.quantity) : '',
-    // The extractor doesn't classify lines; both fields are user-editable and
-    // get filled from the catalogue material when one is picked.
-    category: '',
-    materialType: '',
-    matchedMaterialId: item.matchedMaterialId ?? null,
-    matchedMaterialName: item.matchedMaterialName ?? null,
-    matchConfidence: item.matchConfidence ?? null,
-    candidates: item.matchCandidates ?? [],
+    // Category / Material type come from the matched (or accepted) catalogue
+    // material; both stay user-editable, blank only with no associated material.
+    category: source?.category ?? '',
+    materialType: source?.subCategory ?? '',
+    matchedMaterialId,
+    matchedMaterialName: item.matchedMaterialName ?? source?.name ?? null,
+    matchConfidence: item.matchConfidence ?? source?.confidence ?? null,
+    candidates,
     manuallyResolved: false,
   };
 }

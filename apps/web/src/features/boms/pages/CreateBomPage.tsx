@@ -1,9 +1,10 @@
-import { confirmDocExtraction } from '@forethread/api-client';
+import { confirmDocExtraction, listSpreadsheetSheets } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { Stepper } from '@forethread/po-shared';
 import { isBomExtractionResult, type BomExtractionResult } from '@forethread/shared-types/client';
 import {
   Button,
+  Checkbox,
   Input,
   Modal,
   RadioButton,
@@ -103,6 +104,11 @@ export default function CreateBomPage() {
   const [step, setStep] = useState<WizardStep>(1);
   const [phase, setPhase] = useState<UploadPhase>('idle');
   const [file, setFile] = useState<File | null>(null);
+  // Worksheet names of the uploaded spreadsheet, and the subset the user wants
+  // extracted. `sheets` is only populated for multi-sheet workbooks; a single
+  // sheet (or a CSV/PDF) needs no picker and extracts everything.
+  const [sheets, setSheets] = useState<string[]>([]);
+  const [selectedSheets, setSelectedSheets] = useState<string[]>([]);
   const [extractionId, setExtractionId] = useState<string | null>(null);
   const [rows, setRows] = useState<BomDraftRow[]>([]);
   const [baseResult, setBaseResult] = useState<BomExtractionResult | null>(null);
@@ -137,10 +143,45 @@ export default function CreateBomPage() {
     }
   }, [phase, extractionStatus, extractionQuery.data]);
 
+  const handleSelectFile = useCallback((target: File) => {
+    setFile(target);
+    setSheets([]);
+    setSelectedSheets([]);
+    // Pre-flight only for spreadsheets; CSV/PDF have no sheets to choose between.
+    if (/\.xlsx$/iu.test(target.name)) {
+      void listSpreadsheetSheets(target)
+        .then((names) => {
+          // Only a multi-sheet workbook needs the picker; default to all selected.
+          if (names.length > 1) {
+            setSheets(names);
+            setSelectedSheets(names);
+          }
+        })
+        .catch(() => undefined); // non-fatal: fall back to extracting every sheet
+    }
+  }, []);
+
+  const clearFile = useCallback(() => {
+    setFile(null);
+    setSheets([]);
+    setSelectedSheets([]);
+  }, []);
+
+  const toggleSheet = (name: string) => {
+    setSelectedSheets((prev) =>
+      prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name],
+    );
+  };
+
   const startExtraction = useCallback(
     (target: File) => {
       createExtraction.mutate(
-        { type: 'BOM', file: target },
+        {
+          type: 'BOM',
+          file: target,
+          // Constrain to the picked sheets only when the user had a choice to make.
+          sheetNames: sheets.length > 1 ? selectedSheets : undefined,
+        },
         {
           onSuccess: (job) => {
             setExtractionId(job.id);
@@ -150,7 +191,7 @@ export default function CreateBomPage() {
         },
       );
     },
-    [createExtraction, t],
+    [createExtraction, t, sheets, selectedSheets],
   );
 
   const handleCreateBom = () => {
@@ -240,7 +281,7 @@ export default function CreateBomPage() {
 
       <div className="bg-card border border-border rounded-lg p-6 space-y-5">
         <h3 className="text-lg font-semibold text-foreground">{t('create.uploadCardTitle')}</h3>
-        <BomDropzone onFile={setFile} t={t} />
+        <BomDropzone onFile={handleSelectFile} t={t} />
       </div>
 
       {file && (
@@ -260,12 +301,38 @@ export default function CreateBomPage() {
             <button
               type="button"
               aria-label="Remove file"
-              onClick={() => setFile(null)}
+              onClick={clearFile}
               className="text-muted-foreground hover:text-destructive"
               data-testid="bom-remove-file"
             >
               <DeleteIcon className="w-5 h-5" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {sheets.length > 1 && (
+        <div
+          className="bg-card border border-border rounded-lg p-5 space-y-3"
+          data-testid="bom-sheet-picker"
+        >
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">
+              {t('create.sheetSelectTitle')}
+            </h3>
+            <p className="text-[13px] text-muted-foreground mt-0.5">
+              {t('create.sheetSelectHint')}
+            </p>
+          </div>
+          <div className="space-y-2.5">
+            {sheets.map((name) => (
+              <Checkbox
+                key={name}
+                checked={selectedSheets.includes(name)}
+                onChange={() => toggleSheet(name)}
+                label={name}
+              />
+            ))}
           </div>
         </div>
       )}
@@ -362,7 +429,7 @@ export default function CreateBomPage() {
           size="lg"
           className="h-12 text-sm"
           rightIcon={<span>&rarr;</span>}
-          disabled={!file}
+          disabled={!file || (sheets.length > 1 && selectedSheets.length === 0)}
           isLoading={createExtraction.isPending}
           onClick={() => file && startExtraction(file)}
           data-testid="bom-proceed"

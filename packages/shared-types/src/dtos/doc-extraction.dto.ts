@@ -1,12 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import {
-  IsEnum,
-  IsObject,
-  IsOptional,
-  IsString,
-  IsUUID,
-} from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsArray, IsEnum, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
 
 import { DocExtractionStatus, DocExtractionType } from '../enums';
 
@@ -30,6 +24,29 @@ export class CreateDocExtractionDto {
   @IsOptional()
   @IsString()
   promptHint?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'For spreadsheet uploads: the worksheet names to extract. Omit to extract every sheet. ' +
+      'Sent as a JSON-encoded string array in the multipart form (e.g. "[\\"HDPE\\"]").',
+    type: [String],
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }): string[] | undefined => {
+    let raw: unknown = value;
+    if (typeof value === 'string') {
+      try {
+        raw = JSON.parse(value);
+      } catch {
+        return undefined;
+      }
+    }
+    if (!Array.isArray(raw)) return undefined;
+    return raw.filter((entry): entry is string => typeof entry === 'string');
+  })
+  @IsArray()
+  @IsString({ each: true })
+  sheetNames?: string[];
 }
 
 export class UpdateDocExtractionDto {

@@ -1,9 +1,11 @@
-import { spreadsheetToText } from '../doc-intelligence.spreadsheet';
+import { listSpreadsheetSheets, spreadsheetToText } from '../doc-intelligence.spreadsheet';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ExcelJS = require('exceljs');
 
-async function toBuffer(workbook: { xlsx: { writeBuffer(): Promise<ArrayBuffer> } }): Promise<Buffer> {
+async function toBuffer(workbook: {
+  xlsx: { writeBuffer(): Promise<ArrayBuffer> };
+}): Promise<Buffer> {
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
@@ -36,6 +38,30 @@ describe('spreadsheetToText', () => {
     expect(text).toContain('c\td');
   });
 
+  it('serialises only the requested sheets when `only` is provided', async () => {
+    const workbook = new ExcelJS.Workbook();
+    workbook.addWorksheet('Sheet1').addRow(['scratch', 'data']);
+    workbook.addWorksheet('HDPE').addRow(['real', 'bom']);
+
+    const text = await spreadsheetToText(await toBuffer(workbook), ['HDPE']);
+
+    expect(text).toContain('# Sheet: HDPE');
+    expect(text).toContain('real\tbom');
+    expect(text).not.toContain('# Sheet: Sheet1');
+    expect(text).not.toContain('scratch\tdata');
+  });
+
+  it('serialises every sheet when `only` is an empty list', async () => {
+    const workbook = new ExcelJS.Workbook();
+    workbook.addWorksheet('First').addRow(['a', 'b']);
+    workbook.addWorksheet('Second').addRow(['c', 'd']);
+
+    const text = await spreadsheetToText(await toBuffer(workbook), []);
+
+    expect(text).toContain('# Sheet: First');
+    expect(text).toContain('# Sheet: Second');
+  });
+
   it('flattens formula results and hyperlinks to plain cell text', async () => {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Mixed');
@@ -56,5 +82,27 @@ describe('spreadsheetToText', () => {
     const text = await spreadsheetToText(await toBuffer(workbook));
 
     expect(text).toBe('');
+  });
+});
+
+describe('listSpreadsheetSheets', () => {
+  it('returns the names of sheets that carry data, in workbook order', async () => {
+    const workbook = new ExcelJS.Workbook();
+    workbook.addWorksheet('Sheet1').addRow(['scratch']);
+    workbook.addWorksheet('HDPE').addRow(['real']);
+
+    const names = await listSpreadsheetSheets(await toBuffer(workbook));
+
+    expect(names).toEqual(['Sheet1', 'HDPE']);
+  });
+
+  it('omits empty sheets so the picker only offers sheets with rows', async () => {
+    const workbook = new ExcelJS.Workbook();
+    workbook.addWorksheet('Empty');
+    workbook.addWorksheet('Data').addRow(['x']);
+
+    const names = await listSpreadsheetSheets(await toBuffer(workbook));
+
+    expect(names).toEqual(['Data']);
   });
 });

@@ -44,7 +44,15 @@ vi.mock('@forethread/ui-components', () => ({
       <button
         type="button"
         data-testid="panel-pick"
-        onClick={() => p.onPickItem({ id: 'm1', name: 'Mat', unit: 'unit' })}
+        onClick={() =>
+          p.onPickItem({
+            id: 'm1',
+            name: 'Mat',
+            unit: 'unit',
+            category: 'Steel',
+            subCategory: 'Reinforcement',
+          })
+        }
       >
         pick
       </button>
@@ -70,7 +78,13 @@ vi.mock('./CreatePrivateMaterialModal', () => ({
         type="button"
         data-testid="modal-create"
         onClick={() =>
-          p.onCreated({ id: 'm2', name: 'Priv', unitOfMeasure: 'unit', categoryName: 'Cat' })
+          p.onCreated({
+            id: 'm2',
+            name: 'Priv',
+            unitOfMeasure: 'unit',
+            categoryName: 'Cat',
+            subCategory: 'PrivSub',
+          })
         }
       >
         create
@@ -255,6 +269,25 @@ describe('BomReviewStep', () => {
     fireEvent.click(screen.getByTestId('panel-pick'));
     // the picked name now shows in the (closed) match cell
     expect(screen.getByTestId('bom-match-cell-0')).toHaveTextContent('Mat');
+    // category + material type are filled from the picked catalogue material
+    const tr = screen.getByTestId('bom-review-row-0');
+    expect(within(tr).getByLabelText<HTMLSelectElement>('—').value).toBe('Steel');
+    expect(within(tr).getByLabelText<HTMLInputElement>('create.columns.materialType').value).toBe(
+      'Reinforcement',
+    );
+  });
+
+  it('overwrites a suggestion-derived category and material type when a different material is picked', () => {
+    // The row arrives pre-filled from an unconfirmed suggestion; an explicit
+    // pick is authoritative and must replace those values.
+    renderHarness([row({ materialName: 'Steel', category: 'OldCat', materialType: 'OldType' })]);
+    fireEvent.click(screen.getByTestId('bom-match-cell-0'));
+    fireEvent.click(screen.getByTestId('panel-pick'));
+    const tr = screen.getByTestId('bom-review-row-0');
+    expect(within(tr).getByLabelText<HTMLSelectElement>('—').value).toBe('Steel');
+    expect(within(tr).getByLabelText<HTMLInputElement>('create.columns.materialType').value).toBe(
+      'Reinforcement',
+    );
   });
 
   it('opens the create-private-material modal from the panel footer and patches the row on create', () => {
@@ -265,6 +298,12 @@ describe('BomReviewStep', () => {
     fireEvent.click(screen.getByTestId('modal-create'));
     expect(screen.queryByTestId('create-private-modal')).not.toBeInTheDocument();
     expect(screen.getByTestId('bom-match-cell-0')).toHaveTextContent('Priv');
+    // material type is filled from the created material's sub-category
+    expect(
+      within(screen.getByTestId('bom-review-row-0')).getByLabelText<HTMLInputElement>(
+        'create.columns.materialType',
+      ).value,
+    ).toBe('PrivSub');
   });
 
   it('closes the create-private-material modal without changes', () => {
@@ -345,6 +384,32 @@ describe('BomReviewStep', () => {
     expect(within(tr).getByText('create.high')).toBeInTheDocument();
     expect(screen.getByTestId('bom-match-cell-0')).toHaveTextContent('Suggested');
     expect(tr.className).toContain('FFE6CA');
+  });
+
+  it('tints an auto-accepted low-confidence match amber (flagged for review)', () => {
+    renderHarness([
+      row({
+        materialName: 'Steel',
+        matchedMaterialId: 'm1',
+        matchedMaterialName: 'Steel Bar',
+        matchConfidence: 0.6,
+      }),
+    ]);
+    expect(screen.getByTestId('bom-review-row-0').className).toContain('FFE6CA');
+  });
+
+  it('does not tint a high-confidence match', () => {
+    renderHarness([
+      row({
+        materialName: 'Steel',
+        matchedMaterialId: 'm1',
+        matchedMaterialName: 'Steel Bar',
+        matchConfidence: 0.9,
+      }),
+    ]);
+    const cls = screen.getByTestId('bom-review-row-0').className;
+    expect(cls).not.toContain('FFE6CA');
+    expect(cls).not.toContain('FFC9CB');
   });
 
   it('tints a manually resolved row blue and renders its badge', () => {

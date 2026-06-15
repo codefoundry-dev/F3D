@@ -25,10 +25,7 @@ interface ExcelRow {
 
 interface ExcelWorksheet {
   name: string;
-  eachRow(
-    opts: { includeEmpty: boolean },
-    cb: (row: ExcelRow) => void,
-  ): void;
+  eachRow(opts: { includeEmpty: boolean }, cb: (row: ExcelRow) => void): void;
 }
 
 interface ExcelWorkbook {
@@ -64,11 +61,12 @@ function cellToString(value: unknown): string {
 }
 
 /**
- * Parse an `.xlsx` buffer and return its contents as tab-separated text, one
- * section per worksheet. Empty rows are skipped. Returns an empty string for a
- * workbook with no rows.
+ * Load an `.xlsx` buffer and return, per worksheet, its name and non-empty rows
+ * serialised to tab-separated lines. Sheets with no rows are omitted entirely.
+ * Shared by {@link spreadsheetToText} and {@link listSpreadsheetSheets} so both
+ * agree on exactly which sheets "count".
  */
-export async function spreadsheetToText(buffer: Buffer): Promise<string> {
+async function readSheets(buffer: Buffer): Promise<Array<{ name: string; lines: string[] }>> {
   // exceljs is a CommonJS module; require keeps it consistent with the rest of
   // the backend (see pdf-export.service.ts) and sidesteps ESM interop issues.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -76,7 +74,7 @@ export async function spreadsheetToText(buffer: Buffer): Promise<string> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
 
-  const sections: string[] = [];
+  const sheets: Array<{ name: string; lines: string[] }> = [];
   workbook.eachSheet((sheet) => {
     const lines: string[] = [];
     sheet.eachRow({ includeEmpty: false }, (row) => {
@@ -85,10 +83,34 @@ export async function spreadsheetToText(buffer: Buffer): Promise<string> {
       const cells = (row.values ?? []).slice(1).map(cellToString);
       lines.push(cells.join('\t'));
     });
-    if (lines.length > 0) {
-      sections.push(`# Sheet: ${sheet.name}\n${lines.join('\n')}`);
-    }
+    if (lines.length > 0) sheets.push({ name: sheet.name, lines });
   });
+  return sheets;
+}
 
+/**
+ * Names of the worksheets that carry data (≥1 non-empty row), in workbook order.
+ * Used as a pre-flight so the BOM upload can let the user pick which sheets to
+ * extract — a workbook often holds the same materials on several tabs (a clean
+ * sheet + a working/scratch sheet), and extracting all of them duplicates lines.
+ */
+export async function listSpreadsheetSheets(buffer: Buffer): Promise<string[]> {
+  return (await readSheets(buffer)).map((sheet) => sheet.name);
+}
+
+/**
+ * Parse an `.xlsx` buffer and return its contents as tab-separated text, one
+ * section per worksheet. Empty rows are skipped. Returns an empty string for a
+ * workbook with no rows.
+ *
+ * When `only` is provided and non-empty, just those worksheets (by name) are
+ * serialised; everything else is skipped. Omit it (or pass an empty list) to
+ * serialise every sheet — the original behaviour.
+ */
+export async function spreadsheetToText(buffer: Buffer, only?: readonly string[]): Promise<string> {
+  const wanted = only && only.length > 0 ? new Set(only) : null;
+  const sections = (await readSheets(buffer))
+    .filter((sheet) => !wanted || wanted.has(sheet.name))
+    .map((sheet) => `# Sheet: ${sheet.name}\n${sheet.lines.join('\n')}`);
   return sections.join('\n\n');
 }

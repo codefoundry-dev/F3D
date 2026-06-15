@@ -48,8 +48,12 @@ export function useDocExtractionQuery(id: string | null): UseQueryResult<DocExtr
 export function useCreateDocExtraction() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { type: DocExtractionType; file: File; promptHint?: string }) =>
-      createDocExtraction(input.type, input.file, input.promptHint),
+    mutationFn: (input: {
+      type: DocExtractionType;
+      file: File;
+      promptHint?: string;
+      sheetNames?: string[];
+    }) => createDocExtraction(input.type, input.file, input.promptHint, input.sheetNames),
     onSuccess: (job) => {
       qc.setQueryData(queryKeys.docExtractions.detail(job.id), job);
       void qc.invalidateQueries({ queryKey: queryKeys.docExtractions.all() });

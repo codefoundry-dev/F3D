@@ -20,13 +20,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import {
-  ApiBearerAuth,
-  ApiConsumes,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/permissions';
@@ -61,10 +55,30 @@ export class DocIntelligenceController {
       throw new BadRequestException('type is required');
     }
     const job = await this.service.createExtraction(
-      { type: body.type, promptHint: body.promptHint, file },
+      { type: body.type, promptHint: body.promptHint, file, sheetNames: body.sheetNames },
       user,
     );
     return toExtractionResponse(job);
+  }
+
+  // ── POST /v1/doc-extractions/spreadsheet-sheets ─────────────────────────
+
+  @Post('spreadsheet-sheets')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file'))
+  @RequirePermissions('docExtraction.create')
+  @ApiOperation({
+    summary: 'List the worksheet names in an uploaded spreadsheet (pre-flight for sheet selection)',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiResponse({
+    status: 200,
+    description: 'Worksheet names (empty array for non-spreadsheet files)',
+  })
+  @ApiResponse({ status: 400, description: 'No file provided or file too large' })
+  async listSheets(@UploadedFile() file: Express.Multer.File) {
+    const sheets = await this.service.listSheets(file);
+    return { sheets };
   }
 
   // ── GET /v1/doc-extractions ─────────────────────────────────────────────
@@ -73,10 +87,7 @@ export class DocIntelligenceController {
   @RequirePermissions('docExtraction.read')
   @ApiOperation({ summary: 'List extraction jobs accessible to the current user' })
   @ApiResponse({ status: 200, description: 'Paginated list of extractions' })
-  async list(
-    @Query() query: DocExtractionListQueryDto,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  async list(@Query() query: DocExtractionListQueryDto, @CurrentUser() user: AuthenticatedUser) {
     const { items, meta } = await this.service.listExtractions(query, user);
     return { items: items.map(toExtractionResponse), meta };
   }

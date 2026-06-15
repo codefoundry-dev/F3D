@@ -64,11 +64,17 @@ export async function createDocExtraction(
   type: DocExtractionType,
   file: File,
   promptHint?: string,
+  sheetNames?: string[],
 ): Promise<DocExtractionResponse> {
   const form = new FormData();
   form.append('file', file);
   form.append('type', type);
   if (promptHint) form.append('promptHint', promptHint);
+  // Spreadsheet sheet selection: sent as a JSON string field so it survives the
+  // multipart boundary as a single value (the backend DTO parses it back).
+  if (sheetNames && sheetNames.length > 0) {
+    form.append('sheetNames', JSON.stringify(sheetNames));
+  }
 
   const { data } = await getApiClient().post<{ data: DocExtractionResponse }>(
     DOC_EXTRACTIONS_PATHS.ROOT,
@@ -76,6 +82,23 @@ export async function createDocExtraction(
     { headers: { 'Content-Type': 'multipart/form-data' }, timeout: UPLOAD_TIMEOUT_MS },
   );
   return data.data;
+}
+
+/**
+ * Pre-flight: list the worksheet names in a spreadsheet before extraction so the
+ * UI can offer a sheet picker. Returns an empty array for non-spreadsheet files
+ * (CSV/PDF), which have no sheets to choose between.
+ */
+export async function listSpreadsheetSheets(file: File): Promise<string[]> {
+  const form = new FormData();
+  form.append('file', file);
+
+  const { data } = await getApiClient().post<{ data: { sheets: string[] } }>(
+    DOC_EXTRACTIONS_PATHS.SPREADSHEET_SHEETS,
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' }, timeout: UPLOAD_TIMEOUT_MS },
+  );
+  return data.data.sheets;
 }
 
 export async function listDocExtractions(

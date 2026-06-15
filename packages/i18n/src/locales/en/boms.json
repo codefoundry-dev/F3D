@@ -50,6 +50,8 @@
     "requiredColumnsTitle": "Required columns:",
     "requiredColumnsList": ["Material name", "Category", "Material type", "Unit of measure", "Quantity", "Description"],
     "requiredColumnsNote": "The system will attempt to auto-map columns and flag unrecognised values for your review before importing.",
+    "sheetSelectTitle": "Select sheets to extract",
+    "sheetSelectHint": "This workbook has multiple sheets. Deselect any that aren’t part of the BOM (e.g. working or scratch tabs) to avoid duplicate line items.",
     "cancel": "Cancel",
     "proceed": "Proceed file",
     "processingTitle": "Processing file…",

@@ -33,6 +33,7 @@ export function useMaterialSearchQuery(search: string): {
     id: material.id,
     name: material.name,
     category: material.categoryName ?? undefined,
+    subCategory: material.subCategory ?? undefined,
     unit: material.unitOfMeasure,
     description: material.description ?? undefined,
     imageUrl: material.imageUrl ?? undefined,
