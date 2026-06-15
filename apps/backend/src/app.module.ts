@@ -27,6 +27,7 @@ import { GoogleModule } from './modules/google/google.module';
 import { HealthModule } from './modules/health/health.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
 import { MaterialListsModule } from './modules/material-lists/material-lists.module';
+import { MaterialRequestsModule } from './modules/material-requests/material-requests.module';
 import { MaterialsModule } from './modules/materials/materials.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -93,6 +94,7 @@ import { PrismaModule } from './prisma/prisma.module';
     BomsModule,
     RfqsModule,
     PurchaseOrdersModule,
+    MaterialRequestsModule,
     RolesModule,
     BulkOrdersModule,
     InvoicesModule,

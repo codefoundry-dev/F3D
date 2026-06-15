@@ -215,6 +215,19 @@ export const ERR = {
     invalidMaterialIds: errors.materialLists.invalidMaterialIds,
   },
 
+  // ── Material requests (Epic 6) ─────────────────────────────
+  materialRequests: {
+    notFound: errors.materialRequests.notFound,
+    projectNotFound: errors.materialRequests.projectNotFound,
+    invalidLineItem: errors.materialRequests.invalidLineItem,
+    invalidMaterialIds: errors.materialRequests.invalidMaterialIds,
+    invalidDeliveryLocation: errors.materialRequests.invalidDeliveryLocation,
+    cannotUpdateNonDraft: errors.materialRequests.cannotUpdateNonDraft,
+    cannotCancel: (status: string) => t(errors.materialRequests.cannotCancel, { status }),
+    cannotConvertNotApproved: errors.materialRequests.cannotConvertNotApproved,
+    vendorRequired: errors.materialRequests.vendorRequired,
+  },
+
   // ── Vendors ─────────────────────────────────────────────
   vendors: {
     alreadyAssigned: errors.vendors.alreadyAssigned,

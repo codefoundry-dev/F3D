@@ -154,6 +154,17 @@
     "notFound": "Material list not found",
     "invalidMaterialIds": "Some material IDs are invalid or not accessible"
   },
+  "materialRequests": {
+    "notFound": "Material request not found",
+    "projectNotFound": "Project not found",
+    "invalidLineItem": "Each line item must have a catalogue material or a material name",
+    "invalidMaterialIds": "Some material IDs are invalid or not accessible",
+    "invalidDeliveryLocation": "Delivery location does not belong to the selected project",
+    "cannotUpdateNonDraft": "Only Draft material requests can be edited",
+    "cannotCancel": "Cannot cancel material request with status \"{{status}}\"",
+    "cannotConvertNotApproved": "Only an approved material request can be converted",
+    "vendorRequired": "A vendor is required to convert a material request into a purchase order"
+  },
   "vendors": {
     "alreadyAssigned": "This vendor is already in your vendor list",
     "companyEmailInUse": "A vendor company with this email already exists on the platform",

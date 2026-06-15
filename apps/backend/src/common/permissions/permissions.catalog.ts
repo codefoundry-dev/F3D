@@ -149,6 +149,17 @@ export const PERMISSIONS = {
   'po.approveChange': 'Approve a PO change request',
   'po.rejectChange': 'Reject a PO change request',
 
+  // ── Material requests (Epic 6) ──────────────────────────────────────────
+  'materialRequest.list': 'List material requests',
+  'materialRequest.create': 'Create a material request',
+  'materialRequest.read': 'Read a material request',
+  'materialRequest.update': 'Update a draft material request',
+  'materialRequest.submit': 'Submit a draft material request for approval',
+  'materialRequest.cancel': 'Cancel a material request',
+  'materialRequest.approve': 'Approve a submitted material request',
+  'materialRequest.decline': 'Decline a submitted material request',
+  'materialRequest.convert': 'Convert an approved material request into an RFQ or PO',
+
   // ── Roles & permissions (admin) ─────────────────────────────────────────
   'role.list': 'List built-in roles and the permissions granted to each',
   'role.update': 'Grant or revoke permissions on a built-in role',
@@ -314,6 +325,16 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'po.approveChange',
     'po.rejectChange',
 
+    'materialRequest.list',
+    'materialRequest.create',
+    'materialRequest.read',
+    'materialRequest.update',
+    'materialRequest.submit',
+    'materialRequest.cancel',
+    'materialRequest.approve',
+    'materialRequest.decline',
+    'materialRequest.convert',
+
     'role.list',
     'role.update',
 
@@ -439,6 +460,16 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'po.approveChange',
     'po.rejectChange',
 
+    'materialRequest.list',
+    'materialRequest.create',
+    'materialRequest.read',
+    'materialRequest.update',
+    'materialRequest.submit',
+    'materialRequest.cancel',
+    'materialRequest.approve',
+    'materialRequest.decline',
+    'materialRequest.convert',
+
     'user.update',
 
     'docExtraction.create',
@@ -483,6 +514,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'po.export',
     'po.listChangeRequests',
 
+    'materialRequest.list',
+    'materialRequest.read',
+
     'docExtraction.create',
     'docExtraction.read',
     'docExtraction.update',
@@ -505,6 +539,13 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'po.list',
     'po.read',
     'po.receive',
+
+    'materialRequest.list',
+    'materialRequest.create',
+    'materialRequest.read',
+    'materialRequest.update',
+    'materialRequest.submit',
+    'materialRequest.cancel',
   ],
 
   FOREMAN: [
@@ -522,6 +563,13 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'message.listThreads',
     'message.read',
     'message.send',
+
+    'materialRequest.list',
+    'materialRequest.create',
+    'materialRequest.read',
+    'materialRequest.update',
+    'materialRequest.submit',
+    'materialRequest.cancel',
   ],
 
   VENDOR: [

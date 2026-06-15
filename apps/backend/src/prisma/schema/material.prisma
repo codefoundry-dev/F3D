@@ -73,6 +73,7 @@ model Material {
 
   poLineItems          PoLineItem[]
   rfqLineItems         RfqLineItem[]
+  materialRequestLineItems MaterialRequestLineItem[]
   quoteSubstituteItems QuoteResponseLineItem[] @relation("QuoteSubstituteItem")
   bomItems             BomItem[]               @relation("BomItemMatchedMaterial")
   materialListItems    MaterialListItem[]

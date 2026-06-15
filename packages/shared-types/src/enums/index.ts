@@ -101,6 +101,12 @@ export enum AuditAction {
   PO_CHANGE_PROPOSED = 'PO_CHANGE_PROPOSED',
   PO_CHANGE_APPROVED = 'PO_CHANGE_APPROVED',
   PO_CHANGE_REJECTED = 'PO_CHANGE_REJECTED',
+  MATERIAL_REQUEST_CREATED = 'MATERIAL_REQUEST_CREATED',
+  MATERIAL_REQUEST_SUBMITTED = 'MATERIAL_REQUEST_SUBMITTED',
+  MATERIAL_REQUEST_APPROVED = 'MATERIAL_REQUEST_APPROVED',
+  MATERIAL_REQUEST_DECLINED = 'MATERIAL_REQUEST_DECLINED',
+  MATERIAL_REQUEST_CANCELLED = 'MATERIAL_REQUEST_CANCELLED',
+  MATERIAL_REQUEST_CONVERTED = 'MATERIAL_REQUEST_CONVERTED',
 }
 
 export enum RfqStatus {
@@ -194,6 +200,30 @@ export enum PoSourceOfCreation {
 export enum PoChangeType {
   COMMERCIAL = 'COMMERCIAL',
   INTERNAL = 'INTERNAL',
+}
+
+/**
+ * Lifecycle of an internal Material Request (Epic 6). An MR is raised against a
+ * project (DRAFT or straight to SUBMITTED), reviewed by a Procurement Officer
+ * (APPROVED / DECLINED), then an APPROVED MR is CONVERTED into a draft RFQ or PO.
+ * DECLINED / CONVERTED / CANCELLED are terminal. Mirrors the RfqStatus /
+ * PoStatus string-enum convention.
+ */
+export enum MaterialRequestStatus {
+  DRAFT = 'DRAFT',
+  SUBMITTED = 'SUBMITTED',
+  APPROVED = 'APPROVED',
+  CONVERTED = 'CONVERTED',
+  DECLINED = 'DECLINED',
+  CANCELLED = 'CANCELLED',
+}
+
+/** Urgency of a Material Request (header-level default and optional per-line). */
+export enum MaterialRequestPriority {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  URGENT = 'URGENT',
 }
 
 export enum BulkOrderStatus {
