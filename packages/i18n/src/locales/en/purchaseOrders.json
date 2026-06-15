@@ -322,7 +322,8 @@
     "approve": "Approve",
     "decline": "Decline",
     "changeRequest": "Change request",
-    "acknowledgeAlert": "This PO requires your acknowledgement and response. Please review and take action."
+    "acknowledgeAlert": "This PO requires your acknowledgement and response. Please review and take action.",
+    "recordDelivery": "Record delivery"
   },
   "pagination": {
     "back": "Back",
@@ -555,6 +556,18 @@
     "cancel": "Cancel",
     "confirm": "Decline PO"
   },
+  "receive": {
+    "title": "Record delivery",
+    "description": "Enter the total quantity received so far for each line. The order is marked delivered once all lines are fully received.",
+    "item": "Item",
+    "ordered": "Ordered",
+    "delivered": "Delivered",
+    "receiving": "Received",
+    "receivedFor": "Received quantity for {{name}}",
+    "validation": "Each quantity must be a whole number between the delivered amount and the ordered amount.",
+    "cancel": "Cancel",
+    "confirm": "Record delivery"
+  },
   "changeRequest": {
     "title": "Change Request",
     "newTab": "New Request",
@@ -631,5 +644,21 @@
     "rejectedBy": "Rejected by {{name}}",
     "commercial": "Commercial",
     "internal": "Internal"
+  },
+  "actionLog": {
+    "issued": "Purchase order issued",
+    "submittedForApproval": "Submitted for approval",
+    "approved": "Purchase order approved",
+    "declined": "Purchase order declined",
+    "cancelled": "Purchase order cancelled",
+    "acknowledged": "Acknowledged by vendor",
+    "accepted": "Accepted by vendor",
+    "declinedByVendor": "Declined by vendor",
+    "scheduled": "Scheduled for delivery",
+    "partiallyDelivered": "Partially delivered",
+    "delivered": "Delivered",
+    "archived": "Archived",
+    "performedBy": "Performed by {{name}}",
+    "system": "System"
   }
 }

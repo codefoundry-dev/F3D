@@ -72,6 +72,7 @@ export {
   usePurchaseOrder,
   usePurchaseOrderEmailLog,
   usePoChangeRequests,
+  usePoActionLog,
   usePoExport,
   usePoSort,
   usePoGrouping,
@@ -95,6 +96,8 @@ export {
   PO_CHANGE_FIELDS,
   PO_LINE_CHANGE_FIELDS,
 } from './utils/change-diff';
+export { humanizeAuditAction } from './utils/po-audit-log';
+export type { TranslateFn } from './utils/po-audit-log';
 
 // Stores
 export { createPoTableStore, EMPTY_PO_FILTERS } from './stores';

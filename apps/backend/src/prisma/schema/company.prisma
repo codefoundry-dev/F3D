@@ -83,6 +83,9 @@ model Company {
   // Company-private catalogue materials (US 4.02)
   materials             Material[]        @relation("MaterialCompany")
 
+  // Material requests (Epic 6)
+  materialRequests      MaterialRequest[] @relation("MaterialRequestCompany")
+
   @@index([type], map: "idx_companies_type")
   @@index([legalName], map: "idx_companies_legal_name")
   @@map("companies")

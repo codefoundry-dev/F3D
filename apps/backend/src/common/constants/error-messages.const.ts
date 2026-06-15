@@ -156,6 +156,9 @@ export const ERR = {
         remaining,
         bulkOrderNumber,
       }),
+    lineNotFound: (lineItemId: string) => t(errors.purchaseOrders.lineNotFound, { lineItemId }),
+    deliveredExceedsOrdered: (delivered: number, ordered: number) =>
+      t(errors.purchaseOrders.deliveredExceedsOrdered, { delivered, ordered }),
   },
 
   // ── Bulk Orders ──────────────────────────────────────────
@@ -210,6 +213,19 @@ export const ERR = {
   materialLists: {
     notFound: errors.materialLists.notFound,
     invalidMaterialIds: errors.materialLists.invalidMaterialIds,
+  },
+
+  // ── Material requests (Epic 6) ─────────────────────────────
+  materialRequests: {
+    notFound: errors.materialRequests.notFound,
+    projectNotFound: errors.materialRequests.projectNotFound,
+    invalidLineItem: errors.materialRequests.invalidLineItem,
+    invalidMaterialIds: errors.materialRequests.invalidMaterialIds,
+    invalidDeliveryLocation: errors.materialRequests.invalidDeliveryLocation,
+    cannotUpdateNonDraft: errors.materialRequests.cannotUpdateNonDraft,
+    cannotCancel: (status: string) => t(errors.materialRequests.cannotCancel, { status }),
+    cannotConvertNotApproved: errors.materialRequests.cannotConvertNotApproved,
+    vendorRequired: errors.materialRequests.vendorRequired,
   },
 
   // ── Vendors ─────────────────────────────────────────────

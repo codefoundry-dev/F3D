@@ -106,6 +106,12 @@ model PurchaseOrder {
   // Message
   message             String?
 
+  // Cancellation / decline reason capture (Week-3). cancellationReason is the
+  // canonical store for both a contractor decline (PATCH …/decline) and a
+  // vendor decline (PATCH …/vendor-decline); the vendor reason was previously
+  // overloaded onto deliveryNotes.
+  cancellationReason  String?           @map("cancellation_reason")
+
   // Counts
   lineItemCount       Int               @default(0) @map("line_item_count")
   totalRequestedQty   Int               @default(0) @map("total_requested_qty")
@@ -139,6 +145,7 @@ model PurchaseOrder {
   drawdowns      Drawdown[]
   invoices       Invoice[]        @relation("InvoiceRelatedPo")
   emailMessages  EmailMessage[]   @relation("PoEmailMessages")
+  sourceMaterialRequests MaterialRequest[] @relation("PoSourceMaterialRequests")
 
   @@index([companyId], map: "idx_pos_company")
   @@index([projectId], map: "idx_pos_project")

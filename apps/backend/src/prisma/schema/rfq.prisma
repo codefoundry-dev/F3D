@@ -77,6 +77,7 @@ model Rfq {
   purchaseOrders   PurchaseOrder[]  @relation("PoSourceRfq")
   documents        RfqDocument[]
   emailMessages    EmailMessage[]   @relation("RfqEmailMessages")
+  sourceMaterialRequests MaterialRequest[] @relation("RfqSourceMaterialRequests")
 
   @@index([companyId], map: "idx_rfqs_company")
   @@index([projectId], map: "idx_rfqs_project")

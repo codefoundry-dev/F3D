@@ -1,0 +1,38 @@
+import { useTranslation } from '@forethread/i18n';
+
+/**
+ * "Step N of 3 / <label>" header plus the progress bar (Figma 2002:176 — the
+ * 6px track is #E5E5E5 with a #171717 fill). Sits directly under the dark
+ * header on every wizard step.
+ */
+export interface StepProgressProps {
+  current: number;
+  total: number;
+  label: string;
+}
+
+export function StepProgress({ current, total, label }: StepProgressProps) {
+  const { t } = useTranslation('materialRequests');
+  const pct = Math.max(0, Math.min(100, Math.round((current / total) * 100)));
+
+  return (
+    <div className="flex flex-col gap-[5px] bg-white px-4 py-4">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-[#525252]">
+          {t('requestMaterials.stepOf', { current, total })}
+        </span>
+        <span className="text-xs text-[#525252]">{label}</span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#E5E5E5]">
+        <div
+          className="h-full rounded-full bg-[#171717] transition-all"
+          style={{ width: `${pct}%` }}
+          role="progressbar"
+          aria-valuenow={current}
+          aria-valuemin={0}
+          aria-valuemax={total}
+        />
+      </div>
+    </div>
+  );
+}

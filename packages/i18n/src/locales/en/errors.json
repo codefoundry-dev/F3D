@@ -109,7 +109,9 @@
     "approvalThresholdExceeded": "PO total {{amount}} {{currency}} exceeds your approval threshold of {{threshold}} {{currency}}. A higher-tier approver must approve this PO.",
     "bulkOrderNotFound": "Source bulk order not found",
     "bulkOrderLineNotFound": "Bulk order line item not found for this drawdown",
-    "drawdownExceedsRemaining": "Drawdown of {{requested}} for \"{{line}}\" exceeds the {{remaining}} remaining on bulk order {{bulkOrderNumber}}"
+    "drawdownExceedsRemaining": "Drawdown of {{requested}} for \"{{line}}\" exceeds the {{remaining}} remaining on bulk order {{bulkOrderNumber}}",
+    "lineNotFound": "Line item {{lineItemId}} does not belong to this purchase order",
+    "deliveredExceedsOrdered": "Delivered quantity {{delivered}} exceeds the ordered quantity {{ordered}}"
   },
   "bulkOrders": {
     "notFound": "Bulk Order not found",
@@ -151,6 +153,17 @@
   "materialLists": {
     "notFound": "Material list not found",
     "invalidMaterialIds": "Some material IDs are invalid or not accessible"
+  },
+  "materialRequests": {
+    "notFound": "Material request not found",
+    "projectNotFound": "Project not found",
+    "invalidLineItem": "Each line item must have a catalogue material or a material name",
+    "invalidMaterialIds": "Some material IDs are invalid or not accessible",
+    "invalidDeliveryLocation": "Delivery location does not belong to the selected project",
+    "cannotUpdateNonDraft": "Only Draft material requests can be edited",
+    "cannotCancel": "Cannot cancel material request with status \"{{status}}\"",
+    "cannotConvertNotApproved": "Only an approved material request can be converted",
+    "vendorRequired": "A vendor is required to convert a material request into a purchase order"
   },
   "vendors": {
     "alreadyAssigned": "This vendor is already in your vendor list",

@@ -7,6 +7,7 @@ import {
 import { useTranslation } from '@forethread/i18n';
 import {
   usePurchaseOrder,
+  usePoActionLog,
   PoDetailTabs,
   PoDetailsTab,
   PoLineItemsTab,
@@ -37,6 +38,7 @@ export default function PurchaseOrderDetailPage() {
   const { t } = useTranslation('purchaseOrders');
   const { id } = useParams<{ id: string }>();
   const { data: po, isLoading, isError } = usePurchaseOrder(id ?? '');
+  const { logs: actionLogs, isLoading: isLoadingLog } = usePoActionLog(po?.id ?? id ?? '');
   const navigate = useNavigate();
   const currentUser = useAuthStore((s) => s.currentUser);
   const { has } = usePermissions();
@@ -112,40 +114,6 @@ export default function PurchaseOrderDetailPage() {
     if (warehouseLocationId) input.warehouseLocationId = warehouseLocationId;
     return Object.keys(input).length > 0 ? input : undefined;
   }, [paymentTermsDays, warehouseLocationId]);
-
-  // Placeholder action log data (will be replaced when API available)
-  const actionLogs = useMemo(() => {
-    if (!po) return [];
-    const logs = [];
-    if (po.createdAt) {
-      logs.push({
-        id: 'created',
-        action: 'Purchase Order Created',
-        description: `Created by ${po.createdBy.name}`,
-        performedBy: po.createdBy,
-        createdAt: po.createdAt,
-      });
-    }
-    if (po.issuedAt) {
-      logs.push({
-        id: 'issued',
-        action: 'Purchase Order Issued',
-        description: `Issued to ${po.vendor?.name ?? 'vendor'}`,
-        performedBy: po.createdBy,
-        createdAt: po.issuedAt,
-      });
-    }
-    if (po.status === 'ACKNOWLEDGED' || po.status === 'ACCEPTED') {
-      logs.push({
-        id: 'acknowledged',
-        action: 'Purchase Order Acknowledged',
-        description: `Acknowledged by vendor`,
-        performedBy: po.vendor ? { id: po.vendor.id, name: po.vendor.name } : po.createdBy,
-        createdAt: po.updatedAt,
-      });
-    }
-    return logs;
-  }, [po]);
 
   // Build related documents from PO references (RFQ, Invoices)
   const relatedDocuments = useMemo((): RelatedDocument[] => {
@@ -276,7 +244,7 @@ export default function PurchaseOrderDetailPage() {
             creatorUserId={po.createdBy.id}
           />
         )}
-        {activeTab === 'actionLog' && <PoActionLogTab logs={actionLogs} />}
+        {activeTab === 'actionLog' && <PoActionLogTab logs={actionLogs} isLoading={isLoadingLog} />}
       </div>
     </div>
   );

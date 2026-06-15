@@ -40,6 +40,14 @@ const CATALOGUE_VIEWERS: readonly UserRole[] = [UserRole.SUPER_ADMIN, ...BUYER_S
 const RFQ_VIEWERS: readonly UserRole[] = [...BUYER_SIDE, UserRole.VENDOR];
 const PO_VIEWERS = RFQ_VIEWERS;
 const BULK_VIEWERS = RFQ_VIEWERS;
+
+// Material requests are raised by the Foreman and also visible to the
+// Warehouse officer + buyer roles that hold materialRequest.list/create.
+const MATERIAL_REQUEST_VIEWERS: readonly UserRole[] = [
+  UserRole.FOREMAN,
+  UserRole.WAREHOUSE_OFFICER,
+  ...BUYER_SIDE,
+];
 const INVOICE_VIEWERS: readonly UserRole[] = [
   ...BUYER_SIDE,
   UserRole.FINANCIAL_OFFICER,
@@ -59,6 +67,12 @@ export function getSidebarItemsForRole(
       label: labels.projects,
       href: ROUTES.projects,
       roles: BUYER_SIDE,
+    },
+    {
+      icon: <RequestIcon className="w-5 h-5" />,
+      label: labels.materialRequests,
+      href: ROUTES.materialRequests,
+      roles: MATERIAL_REQUEST_VIEWERS,
     },
     {
       icon: <RequestIcon className="w-5 h-5" />,

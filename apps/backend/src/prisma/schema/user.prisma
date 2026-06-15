@@ -68,6 +68,8 @@ model User {
   materialFavourites      MaterialFavourite[]     @relation("MaterialFavouriteUser")
   createdBoms          Bom[]             @relation("BomCreatedBy")
   createdMaterialLists MaterialList[]    @relation("MaterialListCreatedBy")
+  requestedMaterialRequests MaterialRequest[] @relation("MaterialRequestRequestedBy")
+  reviewedMaterialRequests  MaterialRequest[] @relation("MaterialRequestReviewedBy")
   tableViews           UserTableView[]
 
   // Messaging relations

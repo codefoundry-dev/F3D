@@ -22,7 +22,7 @@ import { PrismaService } from '../../src/prisma/prisma.service';
  *
  * Strategy: spin up the real Nest app, mint JWTs directly to bypass OTP,
  * seed a Draft PO with totalAmount = $30,000 at the database layer, then
- * exercise the `PUT /v1/purchase-orders/:id/approve` route as two callers
+ * exercise the `PATCH /v1/purchase-orders/:id/approve` route as two callers
  * whose roles carry different thresholds for `po.approve`.
  */
 describe('PO approval threshold enforcement (FOR-196, e2e)', () => {
@@ -39,6 +39,7 @@ describe('PO approval threshold enforcement (FOR-196, e2e)', () => {
   let poToken: string;
   let poApprovePermissionId: string;
   let originalPoThreshold: { hadRow: boolean; threshold: unknown };
+  let originalCaApproveGrant: { hadRow: boolean; threshold: unknown } | undefined;
 
   async function mintToken(user: {
     id: string;
@@ -151,11 +152,23 @@ describe('PO approval threshold enforcement (FOR-196, e2e)', () => {
       role: UserRole.COMPANY_ADMIN,
       companyId: contractorId,
     });
+    // The seed Company Admin already belongs to a contractor. Align the whole
+    // fixture (the test PO + the junior PROCUREMENT_OFFICER) to THAT company so
+    // the senior-approver case isn't rejected by the company-scope guard when the
+    // findFirst() above happens to return a different contractor than the CA's.
+    contractorId = ca.companyId ?? contractorId;
     const po = await ensureUser({
       email: 'threshold-po@testcontractor.local',
       role: UserRole.PROCUREMENT_OFFICER,
       companyId: contractorId,
     });
+    // ensureUser keeps an existing user's company; a stale threshold-po from an
+    // earlier run could sit in a different contractor. Re-home it into the aligned
+    // company so its approvals pass the company-scope guard.
+    if (po.companyId !== contractorId) {
+      await prisma.user.update({ where: { id: po.id }, data: { companyId: contractorId } });
+      po.companyId = contractorId;
+    }
     caUserId = ca.id;
     poUserId = po.id;
     caToken = await mintToken(ca);
@@ -183,6 +196,42 @@ describe('PO approval threshold enforcement (FOR-196, e2e)', () => {
       await prisma.rolePermission.create({
         data: {
           role: UserRole.PROCUREMENT_OFFICER,
+          permissionId: poApprovePermissionId,
+          thresholdAmount: null,
+        },
+      });
+    }
+
+    // Ensure COMPANY_ADMIN holds po.approve with an unlimited (null) threshold so
+    // the "senior approver" case is self-contained — the dev seed does not
+    // reliably materialise every catalog grant (same reason the block above
+    // provisions PROCUREMENT_OFFICER). Snapshot so afterAll can restore it.
+    const caGrant = await prisma.rolePermission.findUnique({
+      where: {
+        role_permissionId: {
+          role: UserRole.COMPANY_ADMIN,
+          permissionId: poApprovePermissionId,
+        },
+      },
+    });
+    if (caGrant) {
+      originalCaApproveGrant = { hadRow: true, threshold: caGrant.thresholdAmount };
+      if (caGrant.thresholdAmount !== null) {
+        await prisma.rolePermission.update({
+          where: {
+            role_permissionId: {
+              role: UserRole.COMPANY_ADMIN,
+              permissionId: poApprovePermissionId,
+            },
+          },
+          data: { thresholdAmount: null },
+        });
+      }
+    } else {
+      originalCaApproveGrant = { hadRow: false, threshold: null };
+      await prisma.rolePermission.create({
+        data: {
+          role: UserRole.COMPANY_ADMIN,
           permissionId: poApprovePermissionId,
           thresholdAmount: null,
         },
@@ -258,13 +307,41 @@ describe('PO approval threshold enforcement (FOR-196, e2e)', () => {
           })
           .catch(() => undefined);
       }
+
+      // Restore COMPANY_ADMIN's po.approve grant to its pre-test state.
+      if (originalCaApproveGrant) {
+        if (originalCaApproveGrant.hadRow) {
+          await prisma.rolePermission.update({
+            where: {
+              role_permissionId: {
+                role: UserRole.COMPANY_ADMIN,
+                permissionId: poApprovePermissionId,
+              },
+            },
+            data: { thresholdAmount: originalCaApproveGrant.threshold as never },
+          });
+        } else {
+          await prisma.rolePermission
+            .delete({
+              where: {
+                role_permissionId: {
+                  role: UserRole.COMPANY_ADMIN,
+                  permissionId: poApprovePermissionId,
+                },
+              },
+            })
+            .catch(() => undefined);
+        }
+      }
     }
 
     await app.close();
   });
 
-  const auth = (token: string) => (method: 'get' | 'put' | 'post', url: string) =>
+  const auth = (token: string) => (method: 'get' | 'put' | 'patch' | 'post', url: string) =>
     request(app.getHttpServer())[method](url).set('Authorization', `Bearer ${token}`);
+
+  // NOTE: the approval route is PATCH /v1/purchase-orders/:id/approve.
 
   it('denies a junior approver whose threshold is below the PO total', async () => {
     // Set junior threshold to $25k via the roles API
@@ -277,7 +354,7 @@ describe('PO approval threshold enforcement (FOR-196, e2e)', () => {
 
     const poId = await createDraftPo(30_000);
 
-    const res = await auth(poToken)('put', `/v1/purchase-orders/${poId}/approve`);
+    const res = await auth(poToken)('patch', `/v1/purchase-orders/${poId}/approve`);
     expect(res.status).toBe(403);
 
     // PO must remain DRAFT (never partially approved)
@@ -292,7 +369,7 @@ describe('PO approval threshold enforcement (FOR-196, e2e)', () => {
   it('lets the same junior approver clear a PO whose total is within the threshold', async () => {
     const poId = await createDraftPo(10_000);
 
-    const res = await auth(poToken)('put', `/v1/purchase-orders/${poId}/approve`);
+    const res = await auth(poToken)('patch', `/v1/purchase-orders/${poId}/approve`);
     expect(res.status).toBe(200);
 
     const after = await prisma.purchaseOrder.findUnique({
@@ -307,7 +384,7 @@ describe('PO approval threshold enforcement (FOR-196, e2e)', () => {
     // COMPANY_ADMIN's po.approve threshold defaults to null = unlimited.
     const poId = await createDraftPo(30_000);
 
-    const res = await auth(caToken)('put', `/v1/purchase-orders/${poId}/approve`);
+    const res = await auth(caToken)('patch', `/v1/purchase-orders/${poId}/approve`);
     expect(res.status).toBe(200);
 
     const after = await prisma.purchaseOrder.findUnique({

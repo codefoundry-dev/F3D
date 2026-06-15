@@ -76,6 +76,20 @@ const BulkOrderDrawdownPage = lazy(
 const BulkOrderEditPage = lazy(
   () => import('@/features/bulk-orders/buyer/pages/BulkOrderEditPage'),
 );
+const MaterialRequestListRoleSwitch = lazy(
+  () => import('@/features/material-requests/MaterialRequestListRoleSwitch'),
+);
+const MaterialRequestDetailPage = lazy(
+  () => import('@/features/material-requests/officer/pages/MaterialRequestDetailPage'),
+);
+const JobPickerPage = lazy(() => import('@/features/material-requests/pages/JobPickerPage'));
+const JobOverviewPage = lazy(() => import('@/features/material-requests/pages/JobOverviewPage'));
+const RequestMaterialsPage = lazy(
+  () => import('@/features/material-requests/pages/RequestMaterialsPage'),
+);
+const RequestConfirmationPage = lazy(
+  () => import('@/features/material-requests/pages/RequestConfirmationPage'),
+);
 const InvoiceListRoleSwitch = lazy(() => import('@/features/invoices/InvoiceListRoleSwitch'));
 const InvoiceDetailRoleSwitch = lazy(() => import('@/features/invoices/InvoiceDetailRoleSwitch'));
 const UploadInvoicePage = lazy(() => import('@/features/invoices/buyer/pages/UploadInvoicePage'));
@@ -282,6 +296,49 @@ export const routes: RouteObject[] = [
                   {
                     path: ROUTES.purchaseOrderChangeRequest,
                     element: withSuspense(<ChangeRequestPage />),
+                  },
+                ],
+              },
+
+              // Material requests. Gated by the real backend permission keys
+              // (materialRequest.list / .create) so any role that holds them —
+              // Foreman, Warehouse, PO, CA, Super-Admin — can reach the flow.
+              // The list URL renders a RoleSwitch: Foreman/Warehouse see the
+              // mobile "raise a request" flow, procurement roles see the US 2.08
+              // officer review dashboard. Static "/jobs" and "/confirmation/:id"
+              // precede the ":projectId" routes, and the ":id" detail route is
+              // placed after the static MR routes so they are not swallowed.
+              {
+                element: <PermissionRoute require={['materialRequest.list']} />,
+                children: [
+                  {
+                    path: ROUTES.materialRequests,
+                    element: withSuspense(<MaterialRequestListRoleSwitch />),
+                  },
+                  {
+                    path: ROUTES.materialRequestConfirmation,
+                    element: withSuspense(<RequestConfirmationPage />),
+                  },
+                  {
+                    path: ROUTES.materialRequestDetail,
+                    element: withSuspense(<MaterialRequestDetailPage />),
+                  },
+                ],
+              },
+              {
+                element: <PermissionRoute require={['materialRequest.create']} />,
+                children: [
+                  {
+                    path: ROUTES.materialRequestJobs,
+                    element: withSuspense(<JobPickerPage />),
+                  },
+                  {
+                    path: ROUTES.materialRequestNew,
+                    element: withSuspense(<RequestMaterialsPage />),
+                  },
+                  {
+                    path: ROUTES.materialRequestJobOverview,
+                    element: withSuspense(<JobOverviewPage />),
                   },
                 ],
               },

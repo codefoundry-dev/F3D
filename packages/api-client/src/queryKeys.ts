@@ -10,6 +10,13 @@ export const queryKeys = {
       [...queryKeys.purchaseOrders.all(), 'list', params] as const,
     detail: (id: string) => [...queryKeys.purchaseOrders.all(), id] as const,
   },
+  materialRequests: {
+    all: () => ['material-requests'] as const,
+    list: (params?: Record<string, unknown>) =>
+      [...queryKeys.materialRequests.all(), 'list', params] as const,
+    detail: (id: string) => [...queryKeys.materialRequests.all(), id] as const,
+    audit: (id: string) => [...queryKeys.materialRequests.all(), id, 'audit'] as const,
+  },
   rfqs: {
     all: () => ['rfqs'] as const,
     list: (params?: Record<string, unknown>) => [...queryKeys.rfqs.all(), 'list', params] as const,

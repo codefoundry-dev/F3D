@@ -16,11 +16,28 @@ const superAdmin = {
   companyId: null,
 };
 
+// Contractor decline now requires a reason DTO (Week-3 reason capture).
+const declineDto = { reason: 'No longer required' };
+
 const mockPrisma = {
   purchaseOrder: {
     findUnique: jest.fn(),
     update: jest.fn(),
+    findMany: jest.fn(),
   },
+  poLineItem: {
+    update: jest.fn(),
+  },
+  rolePermission: {
+    findMany: jest.fn(),
+  },
+  user: {
+    findMany: jest.fn(),
+  },
+  auditLog: {
+    findMany: jest.fn(),
+  },
+  $transaction: jest.fn(),
 };
 
 const fullPoDetail = {
@@ -97,6 +114,7 @@ const mockPurchaseOrdersService = {
 const mockEmailService = {
   sendPoIssuedEmail: jest.fn(),
   sendPoDeclinedByVendorEmail: jest.fn(),
+  sendPoPendingApprovalEmail: jest.fn(),
 };
 
 const mockPoExportService = {
@@ -105,6 +123,10 @@ const mockPoExportService = {
 
 const mockApprovalAuth = {
   evaluate: jest.fn(),
+};
+
+const mockAuditService = {
+  log: jest.fn(),
 };
 
 const mockConfig = {
@@ -122,6 +144,7 @@ describe('PoStatusService', () => {
       mockEmailService as never,
       mockPoExportService as never,
       mockApprovalAuth as never,
+      mockAuditService as never,
       mockConfig as never,
     );
     // Default: getPurchaseOrder returns fullPoDetail-shaped response
@@ -336,9 +359,9 @@ describe('PoStatusService', () => {
   describe('declinePurchaseOrder', () => {
     it('throws NotFoundException when PO does not exist', async () => {
       mockPrisma.purchaseOrder.findUnique.mockResolvedValue(null);
-      await expect(service.declinePurchaseOrder('missing', companyAdmin)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.declinePurchaseOrder('missing', declineDto, companyAdmin),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('throws ForbiddenException when user company does not match PO company', async () => {
@@ -348,7 +371,7 @@ describe('PoStatusService', () => {
         companyId: 'other-company',
       });
 
-      await expect(service.declinePurchaseOrder('po-1', companyAdmin)).rejects.toThrow(
+      await expect(service.declinePurchaseOrder('po-1', declineDto, companyAdmin)).rejects.toThrow(
         ForbiddenException,
       );
     });
@@ -366,7 +389,7 @@ describe('PoStatusService', () => {
         vendor: { legalName: 'VendorCo' },
       });
 
-      const result = await service.declinePurchaseOrder('po-1', superAdmin);
+      const result = await service.declinePurchaseOrder('po-1', declineDto, superAdmin);
       expect(result.status).toBe('CANCELLED');
     });
 
@@ -377,7 +400,7 @@ describe('PoStatusService', () => {
         companyId: 'comp-1',
       });
 
-      await expect(service.declinePurchaseOrder('po-1', companyAdmin)).rejects.toThrow(
+      await expect(service.declinePurchaseOrder('po-1', declineDto, companyAdmin)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -389,7 +412,7 @@ describe('PoStatusService', () => {
         companyId: 'comp-1',
       });
 
-      await expect(service.declinePurchaseOrder('po-1', companyAdmin)).rejects.toThrow(
+      await expect(service.declinePurchaseOrder('po-1', declineDto, companyAdmin)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -407,7 +430,7 @@ describe('PoStatusService', () => {
         vendor: { legalName: 'VendorCo' },
       });
 
-      const result = await service.declinePurchaseOrder('po-1', companyAdmin);
+      const result = await service.declinePurchaseOrder('po-1', declineDto, companyAdmin);
       expect(result.id).toBe('po-1');
       expect(result.status).toBe('CANCELLED');
       expect(result.projectName).toBe('Alpha');
@@ -420,6 +443,7 @@ describe('PoStatusService', () => {
           data: {
             status: 'CANCELLED',
             approvalStatus: 'REJECTED',
+            cancellationReason: 'No longer required',
             lastModifiedById: 'ca-1',
           },
         }),
@@ -439,7 +463,7 @@ describe('PoStatusService', () => {
         vendor: { legalName: 'SupplyCo' },
       });
 
-      const result = await service.declinePurchaseOrder('po-2', companyAdmin);
+      const result = await service.declinePurchaseOrder('po-2', declineDto, companyAdmin);
       expect(result.status).toBe('CANCELLED');
     });
 
@@ -456,7 +480,7 @@ describe('PoStatusService', () => {
         vendor: { legalName: 'BuildCo' },
       });
 
-      const result = await service.declinePurchaseOrder('po-3', companyAdmin);
+      const result = await service.declinePurchaseOrder('po-3', declineDto, companyAdmin);
       expect(result.status).toBe('CANCELLED');
     });
 
@@ -473,7 +497,25 @@ describe('PoStatusService', () => {
         vendor: { legalName: 'MetalCo' },
       });
 
-      const result = await service.declinePurchaseOrder('po-4', companyAdmin);
+      const result = await service.declinePurchaseOrder('po-4', declineDto, companyAdmin);
+      expect(result.status).toBe('CANCELLED');
+    });
+
+    it('still succeeds when audit logging fails', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'SENT',
+        companyId: 'comp-1',
+      });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        id: 'po-1',
+        status: 'CANCELLED',
+        project: { name: 'Alpha' },
+        vendor: { legalName: 'VendorCo' },
+      });
+      mockAuditService.log.mockRejectedValueOnce(new Error('audit down'));
+
+      const result = await service.declinePurchaseOrder('po-1', declineDto, companyAdmin);
       expect(result.status).toBe('CANCELLED');
     });
   });
@@ -549,7 +591,7 @@ describe('PoStatusService', () => {
         vendor: null,
       });
 
-      const result = await service.declinePurchaseOrder('po-1', companyAdmin);
+      const result = await service.declinePurchaseOrder('po-1', declineDto, companyAdmin);
       expect(result.vendorName).toBeNull();
     });
 
@@ -1285,6 +1327,408 @@ describe('PoStatusService', () => {
 
       await new Promise((r) => setTimeout(r, 10));
       expect(mockEmailService.sendPoIssuedEmail).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Week-3: delivery/receipt leg ─────────────────────────────────────────
+  describe('receivePurchaseOrder', () => {
+    const receivePo = {
+      id: 'po-1',
+      status: 'ACCEPTED',
+      companyId: 'comp-1',
+      lineItems: [{ id: 'li-1', quantityOrdered: 10, quantityDelivered: 0 }],
+    };
+
+    beforeEach(() => {
+      // Run the receipt transaction against the same mock client so the
+      // poLineItem / purchaseOrder writes inside it are observable.
+      mockPrisma.$transaction.mockImplementation((cb: (tx: typeof mockPrisma) => unknown) =>
+        cb(mockPrisma),
+      );
+    });
+
+    it('throws NotFoundException when the PO does not exist', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(null);
+      await expect(
+        service.receivePurchaseOrder(
+          'missing',
+          { lines: [{ lineItemId: 'li-1', quantityDelivered: 1 }] },
+          companyAdmin,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException when the user company does not match', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ ...receivePo, companyId: 'other' });
+      await expect(
+        service.receivePurchaseOrder(
+          'po-1',
+          { lines: [{ lineItemId: 'li-1', quantityDelivered: 1 }] },
+          companyAdmin,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws BadRequestException for a line that does not belong to the PO', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(receivePo);
+      await expect(
+        service.receivePurchaseOrder(
+          'po-1',
+          { lines: [{ lineItemId: 'nope', quantityDelivered: 1 }] },
+          companyAdmin,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when delivered exceeds ordered', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(receivePo);
+      await expect(
+        service.receivePurchaseOrder(
+          'po-1',
+          { lines: [{ lineItemId: 'li-1', quantityDelivered: 99 }] },
+          companyAdmin,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('moves the PO to PARTIALLY_DELIVERED on a partial receipt', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(receivePo);
+      mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue({
+        id: 'po-1',
+        status: 'PARTIALLY_DELIVERED',
+      });
+
+      const result = await service.receivePurchaseOrder(
+        'po-1',
+        { lines: [{ lineItemId: 'li-1', quantityDelivered: 5 }] },
+        companyAdmin,
+      );
+
+      expect(result.status).toBe('PARTIALLY_DELIVERED');
+      expect(mockPrisma.poLineItem.update).toHaveBeenCalledWith({
+        where: { id: 'li-1' },
+        data: { quantityDelivered: 5 },
+      });
+      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'PARTIALLY_DELIVERED' }),
+        }),
+      );
+      expect(mockAuditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PO_PARTIALLY_DELIVERED' }),
+      );
+    });
+
+    it('moves the PO to DELIVERED when every line is fully delivered', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(receivePo);
+      mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue({
+        id: 'po-1',
+        status: 'DELIVERED',
+      });
+
+      const result = await service.receivePurchaseOrder(
+        'po-1',
+        { lines: [{ lineItemId: 'li-1', quantityDelivered: 10 }] },
+        companyAdmin,
+      );
+
+      expect(result.status).toBe('DELIVERED');
+      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'DELIVERED' }) }),
+      );
+      expect(mockAuditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PO_DELIVERED' }),
+      );
+    });
+
+    it('is idempotent: re-posting the same partial figures does not re-transition', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        ...receivePo,
+        status: 'PARTIALLY_DELIVERED',
+        lineItems: [{ id: 'li-1', quantityOrdered: 10, quantityDelivered: 5 }],
+      });
+      mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue({
+        id: 'po-1',
+        status: 'PARTIALLY_DELIVERED',
+      });
+
+      await service.receivePurchaseOrder(
+        'po-1',
+        { lines: [{ lineItemId: 'li-1', quantityDelivered: 5 }] },
+        companyAdmin,
+      );
+
+      expect(mockPrisma.poLineItem.update).toHaveBeenCalled();
+      expect(mockPrisma.purchaseOrder.update).not.toHaveBeenCalled();
+      expect(mockAuditService.log).not.toHaveBeenCalled();
+    });
+
+    it('records a zero-quantity receipt without changing status', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(receivePo);
+      mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue({
+        id: 'po-1',
+        status: 'ACCEPTED',
+      });
+
+      await service.receivePurchaseOrder(
+        'po-1',
+        { lines: [{ lineItemId: 'li-1', quantityDelivered: 0 }] },
+        companyAdmin,
+      );
+
+      expect(mockPrisma.purchaseOrder.update).not.toHaveBeenCalled();
+      expect(mockAuditService.log).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Week-3: approver pending-approval queue ──────────────────────────────
+  describe('listPendingApproval', () => {
+    const procurementOfficer = {
+      id: 'po-u-1',
+      email: 'po@test.com',
+      role: UserRole.PROCUREMENT_OFFICER,
+      companyId: 'comp-1',
+    };
+
+    it('returns the full pending queue for SUPER_ADMIN without threshold checks', async () => {
+      mockPrisma.purchaseOrder.findMany.mockResolvedValue([
+        { id: 'po-1', totalAmount: 100 },
+        { id: 'po-2', totalAmount: 999999 },
+      ]);
+      mockPurchaseOrdersService.getPurchaseOrder.mockImplementation((id: string) => ({
+        id,
+        status: 'PENDING_APPROVAL',
+      }));
+
+      const result = await service.listPendingApproval(superAdmin);
+
+      expect(result.items).toHaveLength(2);
+      expect(mockApprovalAuth.evaluate).not.toHaveBeenCalled();
+      expect(mockPrisma.purchaseOrder.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { status: 'PENDING_APPROVAL' } }),
+      );
+    });
+
+    it('returns an empty list for a non-admin without a company', async () => {
+      const result = await service.listPendingApproval({ ...procurementOfficer, companyId: null });
+      expect(result).toEqual({ items: [] });
+      expect(mockPrisma.purchaseOrder.findMany).not.toHaveBeenCalled();
+    });
+
+    it('scopes to the company and filters to POs the approver may approve', async () => {
+      mockPrisma.purchaseOrder.findMany.mockResolvedValue([
+        { id: 'po-small', totalAmount: 5000 },
+        { id: 'po-big', totalAmount: 50000 },
+      ]);
+      mockApprovalAuth.evaluate
+        .mockResolvedValueOnce({ outcome: 'allowed', threshold: null })
+        .mockResolvedValueOnce({ outcome: 'belowThreshold', threshold: 25000 });
+      mockPurchaseOrdersService.getPurchaseOrder.mockImplementation((id: string) => ({
+        id,
+        status: 'PENDING_APPROVAL',
+      }));
+
+      const result = await service.listPendingApproval(procurementOfficer);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].id).toBe('po-small');
+      expect(mockPrisma.purchaseOrder.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { status: 'PENDING_APPROVAL', companyId: 'comp-1' } }),
+      );
+    });
+  });
+
+  // ── Week-3: approver notification on issue → PENDING_APPROVAL ─────────────
+  describe('approver notification (issue → PENDING_APPROVAL)', () => {
+    const procurementOfficer = {
+      id: 'po-u-1',
+      email: 'po@test.com',
+      role: UserRole.PROCUREMENT_OFFICER,
+      companyId: 'comp-1',
+    };
+
+    const heldPo = {
+      id: 'po-big',
+      status: 'DRAFT',
+      companyId: 'comp-1',
+      totalAmount: 30000,
+      currency: 'AUD',
+    };
+
+    beforeEach(() => {
+      // Route the issue to PENDING_APPROVAL so the notification path runs.
+      mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'belowThreshold', threshold: 25000 });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({});
+    });
+
+    it('emails the entitled approvers when a held PO is routed for approval', async () => {
+      mockPrisma.purchaseOrder.findUnique
+        .mockResolvedValueOnce(heldPo)
+        .mockResolvedValueOnce({ poNumber: 'PO-BIG' });
+      mockPrisma.rolePermission.findMany.mockResolvedValue([
+        { role: UserRole.COMPANY_ADMIN, thresholdAmount: null },
+      ]);
+      mockPrisma.user.findMany.mockResolvedValue([{ email: 'approver@test.com' }]);
+      mockEmailService.sendPoPendingApprovalEmail.mockResolvedValue(undefined);
+
+      await service.issuePurchaseOrder('po-big', procurementOfficer);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendPoPendingApprovalEmail).toHaveBeenCalledWith(
+        'approver@test.com',
+        'PO-BIG',
+        '30000 AUD',
+        'http://localhost:5179/purchase-orders/po-big',
+        expect.objectContaining({ companyId: 'comp-1', purchaseOrderId: 'po-big' }),
+      );
+    });
+
+    it('does not email anyone when no role is eligible for the PO total', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValueOnce(heldPo);
+      mockPrisma.rolePermission.findMany.mockResolvedValue([
+        { role: UserRole.COMPANY_ADMIN, thresholdAmount: 1000 },
+      ]);
+
+      await service.issuePurchaseOrder('po-big', procurementOfficer);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
+      expect(mockEmailService.sendPoPendingApprovalEmail).not.toHaveBeenCalled();
+    });
+
+    it('treats a role with an ample threshold as eligible', async () => {
+      mockPrisma.purchaseOrder.findUnique
+        .mockResolvedValueOnce(heldPo)
+        .mockResolvedValueOnce({ poNumber: 'PO-BIG' });
+      mockPrisma.rolePermission.findMany.mockResolvedValue([
+        { role: UserRole.COMPANY_ADMIN, thresholdAmount: 50000 },
+      ]);
+      mockPrisma.user.findMany.mockResolvedValue([{ email: 'approver@test.com' }]);
+
+      await service.issuePurchaseOrder('po-big', procurementOfficer);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendPoPendingApprovalEmail).toHaveBeenCalled();
+    });
+
+    it('treats a null PO total as within every threshold', async () => {
+      mockPrisma.purchaseOrder.findUnique
+        .mockResolvedValueOnce({ ...heldPo, totalAmount: null })
+        .mockResolvedValueOnce({ poNumber: 'PO-NULL' });
+      mockPrisma.rolePermission.findMany.mockResolvedValue([
+        { role: UserRole.COMPANY_ADMIN, thresholdAmount: 1000 },
+      ]);
+      mockPrisma.user.findMany.mockResolvedValue([{ email: 'approver@test.com' }]);
+
+      await service.issuePurchaseOrder('po-big', procurementOfficer);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendPoPendingApprovalEmail).toHaveBeenCalledWith(
+        'approver@test.com',
+        'PO-NULL',
+        '0 AUD',
+        expect.any(String),
+        expect.any(Object),
+      );
+    });
+
+    it('skips the email when the PO row disappears before it is built', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValueOnce(heldPo).mockResolvedValueOnce(null);
+      mockPrisma.rolePermission.findMany.mockResolvedValue([
+        { role: UserRole.COMPANY_ADMIN, thresholdAmount: null },
+      ]);
+      mockPrisma.user.findMany.mockResolvedValue([{ email: 'approver@test.com' }]);
+
+      await service.issuePurchaseOrder('po-big', procurementOfficer);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendPoPendingApprovalEmail).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Week-3: PO audit/activity trail ──────────────────────────────────────
+  describe('getAuditTrail', () => {
+    const vendorUser = {
+      id: 'v-u-1',
+      email: 'vendor@test.com',
+      role: UserRole.VENDOR,
+      companyId: 'vendor-comp-1',
+    };
+    const auditPo = { id: 'po-1', companyId: 'comp-1', vendorId: 'vendor-comp-1' };
+
+    it('throws NotFoundException when the PO does not exist', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(null);
+      await expect(service.getAuditTrail('missing', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws ForbiddenException when the user is neither the owner company nor the vendor', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(auditPo);
+      await expect(
+        service.getAuditTrail('po-1', { ...companyAdmin, companyId: 'other-comp' }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('returns entries oldest-first for the owning contractor company', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(auditPo);
+      mockPrisma.auditLog.findMany.mockResolvedValue([
+        {
+          id: 'log-1',
+          action: 'PO_ISSUED',
+          metadata: { from: 'DRAFT', to: 'SENT' },
+          createdAt: new Date('2026-03-01T10:00:00Z'),
+          performedBy: { id: 'ca-1', name: 'CA User', email: 'ca@test.com' },
+        },
+      ]);
+
+      const result = await service.getAuditTrail('po-1', companyAdmin);
+
+      expect(mockPrisma.auditLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { targetType: 'PurchaseOrder', targetId: 'po-1' },
+          orderBy: { createdAt: 'asc' },
+        }),
+      );
+      expect(result).toEqual([
+        {
+          id: 'log-1',
+          action: 'PO_ISSUED',
+          metadata: { from: 'DRAFT', to: 'SENT' },
+          performedBy: { id: 'ca-1', name: 'CA User', email: 'ca@test.com' },
+          createdAt: '2026-03-01T10:00:00.000Z',
+        },
+      ]);
+    });
+
+    it('allows the addressed vendor company and tolerates a missing performer', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(auditPo);
+      mockPrisma.auditLog.findMany.mockResolvedValue([
+        {
+          id: 'log-2',
+          action: 'PO_ACKNOWLEDGED',
+          metadata: null,
+          createdAt: new Date('2026-03-02T10:00:00Z'),
+          performedBy: null,
+        },
+      ]);
+
+      const result = await service.getAuditTrail('po-1', vendorUser);
+
+      expect(result[0].performedBy).toBeNull();
+      expect(result[0].action).toBe('PO_ACKNOWLEDGED');
+    });
+
+    it('allows SUPER_ADMIN to read any PO trail', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        ...auditPo,
+        companyId: 'any-company',
+        vendorId: 'any-vendor',
+      });
+      mockPrisma.auditLog.findMany.mockResolvedValue([]);
+
+      const result = await service.getAuditTrail('po-1', superAdmin);
+      expect(result).toEqual([]);
     });
   });
 });

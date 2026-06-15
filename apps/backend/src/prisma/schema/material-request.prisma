@@ -1,0 +1,92 @@
+// Material Request (MR) — an internal request to procure materials, upstream of
+// RFQ (Epic 6). A Foreman / Warehouse Officer / Procurement Officer / Company
+// Admin raises an MR against a project; a Procurement Officer reviews it
+// (approve/decline), then an APPROVED MR is converted into a draft RFQ (when
+// vendor quotes are needed) or a draft PO (vendor + price known). Mirrors the
+// Rfq + RfqLineItem shape (rfq.prisma). New file auto-loads via
+// prismaSchemaFolder. See the 20260615150000_material_requests migration for the
+// hand-written DDL (do NOT `prisma migrate dev` — the shell is non-interactive).
+
+enum MaterialRequestStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  CONVERTED
+  DECLINED
+  CANCELLED
+}
+
+enum MaterialRequestPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model MaterialRequest {
+  id                 String                  @id @default(uuid())
+  mrNumber           String                  @unique @map("mr_number") @db.VarChar(50)
+  projectId          String                  @map("project_id")
+  companyId          String                  @map("company_id")
+  status             MaterialRequestStatus   @default(DRAFT)
+  priority           MaterialRequestPriority @default(MEDIUM)
+  // The raiser (Foreman / Warehouse Officer / Procurement Officer / Company Admin).
+  requestedById      String                  @map("requested_by_id")
+  neededByDate       DateTime?               @map("needed_by_date")
+  // Header-level default delivery location (a ProjectLocation). Per-line items
+  // may override it.
+  deliveryLocationId String?                 @map("delivery_location_id")
+  // Optional header instructions / notes.
+  note               String?
+  // Review (set when a Procurement Officer approves or declines).
+  reviewedById       String?                 @map("reviewed_by_id")
+  reviewedAt         DateTime?               @map("reviewed_at")
+  declineReason      String?                 @map("decline_reason")
+  // Conversion targets (set when an APPROVED MR is converted).
+  convertedToRfqId   String?                 @map("converted_to_rfq_id")
+  convertedToPoId    String?                 @map("converted_to_po_id")
+  convertedAt        DateTime?               @map("converted_at")
+  createdAt          DateTime                @default(now()) @map("created_at")
+  updatedAt          DateTime                @updatedAt @map("updated_at")
+
+  project          Project          @relation(fields: [projectId], references: [id])
+  company          Company          @relation("MaterialRequestCompany", fields: [companyId], references: [id])
+  requestedBy      User             @relation("MaterialRequestRequestedBy", fields: [requestedById], references: [id])
+  reviewedBy       User?            @relation("MaterialRequestReviewedBy", fields: [reviewedById], references: [id])
+  deliveryLocation ProjectLocation? @relation("MaterialRequestDeliveryLocation", fields: [deliveryLocationId], references: [id])
+  convertedToRfq   Rfq?             @relation("RfqSourceMaterialRequests", fields: [convertedToRfqId], references: [id])
+  convertedToPo    PurchaseOrder?   @relation("PoSourceMaterialRequests", fields: [convertedToPoId], references: [id])
+  lineItems        MaterialRequestLineItem[]
+
+  @@index([companyId], map: "idx_material_requests_company")
+  @@index([projectId], map: "idx_material_requests_project")
+  @@index([status], map: "idx_material_requests_status")
+  @@index([requestedById], map: "idx_material_requests_requested_by")
+  @@map("material_requests")
+}
+
+model MaterialRequestLineItem {
+  id                   String                   @id @default(uuid())
+  materialRequestId    String                   @map("material_request_id")
+  // Nullable: catalogue items reference a Material, while free-text items carry a
+  // materialName with no catalogue material (mirrors RfqLineItem, FOR-204).
+  materialId           String?                  @map("material_id")
+  materialName         String?                  @map("material_name") @db.VarChar(255)
+  description          String?
+  quantity             Int
+  unit                 String                   @db.VarChar(50)
+  // Optional per-line priority (mobile sets per-line); header priority applies
+  // when null.
+  priority             MaterialRequestPriority?
+  expectedDeliveryDate DateTime?                @map("expected_delivery_date")
+  deliveryLocationId   String?                  @map("delivery_location_id")
+  notes                String?
+
+  materialRequest  MaterialRequest  @relation(fields: [materialRequestId], references: [id], onDelete: Cascade)
+  material         Material?        @relation(fields: [materialId], references: [id])
+  deliveryLocation ProjectLocation? @relation("MaterialRequestLineItemDeliveryLocation", fields: [deliveryLocationId], references: [id])
+
+  @@index([materialRequestId], map: "idx_material_request_line_items_mr")
+  @@index([materialId], map: "idx_material_request_line_items_material")
+  @@map("material_request_line_items")
+}

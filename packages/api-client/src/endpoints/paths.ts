@@ -126,9 +126,12 @@ export const RFQS_PATHS = {
 // ── Purchase Orders ──────────────────────────────────────────────────────────
 export const PURCHASE_ORDERS_PATHS = {
   ROOT: '/purchase-orders',
+  PENDING_APPROVAL: '/purchase-orders/pending-approval',
   byId: (id: string) => `/purchase-orders/${id}`,
+  audit: (id: string) => `/purchase-orders/${id}/audit`,
   approve: (id: string) => `/purchase-orders/${id}/approve`,
   decline: (id: string) => `/purchase-orders/${id}/decline`,
+  receive: (id: string) => `/purchase-orders/${id}/receive`,
   copy: (id: string) => `/purchase-orders/${id}/copy`,
   archive: (id: string) => `/purchase-orders/${id}/archive`,
   issue: (id: string) => `/purchase-orders/${id}/issue`,
@@ -146,6 +149,19 @@ export const PURCHASE_ORDERS_PATHS = {
   rejectChange: (id: string, crId: string) =>
     `/purchase-orders/${id}/change-requests/${crId}/reject`,
   emails: (poId: string) => `/purchase-orders/${poId}/emails`,
+} as const;
+
+// ── Material Requests (Epic 6) ────────────────────────────────────────────────
+export const MATERIAL_REQUESTS_PATHS = {
+  ROOT: '/material-requests',
+  byId: (id: string) => `/material-requests/${id}`,
+  audit: (id: string) => `/material-requests/${id}/audit`,
+  submit: (id: string) => `/material-requests/${id}/submit`,
+  approve: (id: string) => `/material-requests/${id}/approve`,
+  decline: (id: string) => `/material-requests/${id}/decline`,
+  cancel: (id: string) => `/material-requests/${id}/cancel`,
+  convertToRfq: (id: string) => `/material-requests/${id}/convert-to-rfq`,
+  convertToPo: (id: string) => `/material-requests/${id}/convert-to-po`,
 } as const;
 
 // ── Bulk Orders ──────────────────────────────────────────────────────────────

@@ -125,6 +125,13 @@
     "reasonLabel": "Reason:",
     "buttonLabel": "View Order"
   },
+  "poPendingApproval": {
+    "subject": "Forethread — Purchase Order Needs Your Approval ({{poNumber}})",
+    "greeting": "Hi,",
+    "heading": "A purchase order needs your approval.",
+    "body": "Purchase order {{poNumber}} for {{amount}} is awaiting internal approval before it can be sent to the vendor. Please review and approve or decline it.",
+    "buttonLabel": "Review Order"
+  },
   "invitationExpiredNotification": {
     "subject": "Forethread — Invitation Link Expired for {{invitedUserName}}",
     "greeting": "Hi {{name}},",

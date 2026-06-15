@@ -1,4 +1,8 @@
+import { usePermissions } from '@/shared/role/usePermissions';
+
+import { useAwaitingApproval } from '../../hooks/buyer/useAwaitingApproval';
 import { useDashboardData } from '../../hooks/buyer/useDashboardData';
+import { AwaitingApprovalSection } from '../../ui/buyer/AwaitingApprovalSection';
 import { InvoicesPendingApproval } from '../../ui/buyer/InvoicesPendingApproval';
 import { KpiSummaryCards } from '../../ui/buyer/KpiSummaryCards';
 import { PendingPurchaseOrders } from '../../ui/buyer/PendingPurchaseOrders';
@@ -15,11 +19,18 @@ export default function DashboardPage() {
     invoicesPendingApproval,
     isLoading,
   } = useDashboardData();
+  const { has } = usePermissions();
+  const canApprove = has('po.approve');
+  const { items: awaitingApproval, isLoading: isLoadingApproval } = useAwaitingApproval(canApprove);
 
   return (
     <div className="p-4 space-y-4 overflow-auto">
       <KpiSummaryCards data={kpiSummary} isLoading={isLoading} />
       <QuickActions />
+
+      {canApprove && (
+        <AwaitingApprovalSection items={awaitingApproval} isLoading={isLoadingApproval} />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <QuoteResponsesSection items={quoteResponses} isLoading={isLoading} />

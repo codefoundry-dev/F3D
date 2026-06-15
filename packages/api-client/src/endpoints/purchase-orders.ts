@@ -255,12 +255,93 @@ export async function getPurchaseOrderEmailLog(
   return data.data;
 }
 
+/**
+ * One entry in a PO's audit/activity trail (Week-3 timeline). `action` is an
+ * AuditAction enum value (e.g. 'PO_ISSUED', 'PO_DELIVERED') — humanized for
+ * display on the client. `metadata` carries transition context such as
+ * `{ from, to, reason }`.
+ */
+export interface PoAuditEntry {
+  id: string;
+  action: string;
+  metadata: Record<string, unknown> | null;
+  performedBy: { id: string; name: string; email: string } | null;
+  createdAt: string;
+}
+
+/** Fetch a PO's audit/activity trail (oldest event first). Week-3. */
+export async function getPurchaseOrderAuditTrail(
+  poId: string,
+  config?: AxiosRequestConfig,
+): Promise<PoAuditEntry[]> {
+  const { data } = await getApiClient().get<{ data: PoAuditEntry[] }>(
+    PURCHASE_ORDERS_PATHS.audit(poId),
+    config,
+  );
+  return data.data;
+}
+
+export interface PendingApprovalResponse {
+  items: PoDetail[];
+}
+
+/**
+ * POs awaiting approval that the current user is entitled to approve
+ * (po.approve + threshold ≥ PO total). Backs the approver inbox. Week-3.
+ */
+export async function listPendingApproval(
+  config?: AxiosRequestConfig,
+): Promise<PendingApprovalResponse> {
+  const { data } = await getApiClient().get<{ data: PendingApprovalResponse }>(
+    PURCHASE_ORDERS_PATHS.PENDING_APPROVAL,
+    config,
+  );
+  return data.data;
+}
+
 export async function approvePurchaseOrder(id: string, config?: AxiosRequestConfig): Promise<void> {
   await getApiClient().patch(PURCHASE_ORDERS_PATHS.approve(id), undefined, config);
 }
 
-export async function declinePurchaseOrder(id: string, config?: AxiosRequestConfig): Promise<void> {
-  await getApiClient().patch(PURCHASE_ORDERS_PATHS.decline(id), undefined, config);
+/**
+ * Contractor/approver decline of a purchase order. A reason is REQUIRED by the
+ * backend (Week-3 reason capture); it is stored on the PO and recorded in its
+ * audit trail.
+ */
+export async function declinePurchaseOrder(
+  id: string,
+  body: { reason: string },
+  config?: AxiosRequestConfig,
+): Promise<void> {
+  await getApiClient().patch(PURCHASE_ORDERS_PATHS.decline(id), body, config);
+}
+
+/** A single line's cumulative received quantity for a delivery/receipt. */
+export interface PoReceiveLineInput {
+  lineItemId: string;
+  quantityDelivered: number;
+}
+
+export interface PoReceiveInput {
+  lines: PoReceiveLineInput[];
+}
+
+/**
+ * Record a delivery/receipt against a PO (Week-3 delivery leg). Sets the
+ * cumulative delivered quantity per line; the PO advances to
+ * PARTIALLY_DELIVERED or DELIVERED server-side. Returns the refreshed PO.
+ */
+export async function receivePurchaseOrder(
+  id: string,
+  input: PoReceiveInput,
+  config?: AxiosRequestConfig,
+): Promise<PoDetail> {
+  const { data } = await getApiClient().patch<{ data: PoDetail }>(
+    PURCHASE_ORDERS_PATHS.receive(id),
+    input,
+    config,
+  );
+  return data.data;
 }
 
 export async function copyPurchaseOrder(

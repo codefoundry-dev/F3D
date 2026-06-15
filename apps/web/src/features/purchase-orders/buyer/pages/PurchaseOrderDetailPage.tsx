@@ -3,6 +3,7 @@ import { useTranslation } from '@forethread/i18n';
 import {
   usePurchaseOrder,
   usePoChangeRequests,
+  usePoActionLog,
   PoDetailTabs,
   PoDetailsTab,
   PoLineItemsTab,
@@ -18,7 +19,8 @@ import { usePageTitleStore } from '@forethread/rfq-shared';
 import { Button, Spinner } from '@forethread/ui-components';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import EditWithoutLineIcon from '@forethread/ui-components/assets/icons/edit-without-line.svg?react';
-import { useCallback, useEffect, useMemo } from 'react';
+import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -26,10 +28,23 @@ import { useAuthStore } from '@/features/auth/state/auth.store';
 import { usePermissions } from '@/shared/role/usePermissions';
 
 import { PoSendButton } from '../components/PoSendButton';
+import { ReceiveDeliveryModal } from '../components/ReceiveDeliveryModal';
 import { useProjectDetail } from '../services/purchase-orders.service';
 
 /** Statuses for which the backend accepts a change proposal (po-change.service). */
 const CHANGEABLE_STATUSES = ['SENT', 'ACKNOWLEDGED', 'ACCEPTED'];
+
+/**
+ * Statuses that can legally advance to PARTIALLY_DELIVERED / DELIVERED — i.e. a
+ * delivery can be recorded against the PO (Week-3 delivery leg).
+ */
+const RECEIVABLE_STATUSES = [
+  'ACKNOWLEDGED',
+  'ACCEPTED',
+  'SCHEDULED_FOR_DELIVERY',
+  'PARTIALLY_DELIVERED',
+  'LATE_FOR_DELIVERY',
+];
 
 export default function PurchaseOrderDetailPage() {
   const { t } = useTranslation('purchaseOrders');
@@ -37,6 +52,7 @@ export default function PurchaseOrderDetailPage() {
   const navigate = useNavigate();
   const { data: po, isLoading, isError } = usePurchaseOrder(id ?? '');
   const { data: changeRequests, isLoading: isLoadingCrs } = usePoChangeRequests(id ?? '');
+  const { logs: actionLogs, isLoading: isLoadingLog } = usePoActionLog(po?.id ?? id ?? '');
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
   const currentUser = useAuthStore((s) => s.currentUser);
   const { has } = usePermissions();
@@ -79,33 +95,10 @@ export default function PurchaseOrderDetailPage() {
     [setSearchParams],
   );
 
-  // Generic audit timeline (placeholder — no PO-scoped audit feed in api-client).
-  // Resolved change requests are layered in via the `changeRequests` prop.
-  const actionLogs = useMemo(() => {
-    if (!po) return [];
-    const logs = [];
-    if (po.createdAt) {
-      logs.push({
-        id: 'created',
-        action: 'Purchase Order Created',
-        description: `Created by ${po.createdBy.name}`,
-        performedBy: po.createdBy,
-        createdAt: po.createdAt,
-      });
-    }
-    if (po.issuedAt) {
-      logs.push({
-        id: 'issued',
-        action: 'Purchase Order Issued',
-        description: `Issued to ${po.vendor?.name ?? 'vendor'}`,
-        performedBy: po.createdBy,
-        createdAt: po.issuedAt,
-      });
-    }
-    return logs;
-  }, [po]);
-
   const canChange = po ? CHANGEABLE_STATUSES.includes(po.status) && has('po.proposeChange') : false;
+  const canReceive = po ? RECEIVABLE_STATUSES.includes(po.status) && has('po.receive') : false;
+
+  const [showReceiveModal, setShowReceiveModal] = useState(false);
 
   if (isLoading) {
     return (
@@ -154,6 +147,16 @@ export default function PurchaseOrderDetailPage() {
                     {t('actions.change')}
                   </Button>
                 )}
+                {canReceive && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<PackageIcon className="w-4 h-4" />}
+                    onClick={() => setShowReceiveModal(true)}
+                  >
+                    {t('actions.recordDelivery', 'Record delivery')}
+                  </Button>
+                )}
                 <PoSendButton po={po} size="sm" />
               </div>
             ) : undefined
@@ -186,11 +189,16 @@ export default function PurchaseOrderDetailPage() {
         {activeTab === 'actionLog' && (
           <PoActionLogTab
             logs={actionLogs}
+            isLoading={isLoadingLog}
             changeRequests={changeRequests ?? []}
             locationOptions={locationOptions}
           />
         )}
       </div>
+
+      {showReceiveModal && (
+        <ReceiveDeliveryModal po={po} onClose={() => setShowReceiveModal(false)} />
+      )}
     </div>
   );
 }

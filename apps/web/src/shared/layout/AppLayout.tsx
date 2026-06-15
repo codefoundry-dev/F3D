@@ -30,6 +30,7 @@ export function AppLayout() {
 
   const sidebarItems = getSidebarItemsForRole(role, location.pathname, {
     projects: t('nav:projects'),
+    materialRequests: t('nav:materialRequests'),
     rfqs: t('nav:rfqs'),
     purchaseOrders: t('nav:purchaseOrders'),
     bulkOrders: t('nav:bulkOrders'),

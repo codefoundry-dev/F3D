@@ -15,7 +15,6 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
-  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -41,7 +40,6 @@ import { resolveVendorEmailRecipients } from '../../common/utils/vendor-recipien
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { EmailAttachment, EmailService } from '../notifications/email.service';
-import { PoStatusService } from '../purchase-orders/po-status.service';
 import { StorageService } from '../storage/storage.service';
 
 import { normalizeCcEmails } from './rfq-cc.util';
@@ -122,7 +120,6 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 @Injectable()
 export class RfqsService {
-  private readonly logger = new Logger(RfqsService.name);
   private readonly webAppUrl: string;
 
   constructor(
@@ -130,7 +127,6 @@ export class RfqsService {
     private readonly storageService: StorageService,
     private readonly emailService: EmailService,
     private readonly accessTokens: AccessTokensService,
-    private readonly poStatusService: PoStatusService,
     config: ConfigService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
@@ -1180,22 +1176,9 @@ export class RfqsService {
       return { quoteResult, purchaseOrder };
     });
 
-    // Awarding notifies the winning vendor (FRD §1189): issue the freshly-created
-    // PO so it transitions DRAFT → SENT and emails the vendor. This reuses the PO
-    // module's approval gate — if the total is over the awarding user's
-    // `po.approve` threshold the PO routes to PENDING_APPROVAL and the vendor is
-    // notified only once an approver releases it. Best-effort: a failure here
-    // leaves the PO as a DRAFT the user can still send manually, so it must not
-    // fail the award itself.
-    try {
-      await this.poStatusService.issuePurchaseOrder(purchaseOrder.id, user);
-    } catch (err) {
-      this.logger.warn(
-        `Quote ${quoteId} awarded but auto-send of PO ${purchaseOrder.id} failed; ` +
-          `it remains a draft and can be sent manually. ${(err as Error).message}`,
-      );
-    }
-
+    // The PO is intentionally left as a DRAFT: the contractor reviews it and
+    // issues it to the vendor manually from the PO detail page. Awarding a quote
+    // does NOT auto-send the PO to the vendor.
     return {
       id: quoteResult.id,
       vendorName: quoteResult.vendor.legalName,
