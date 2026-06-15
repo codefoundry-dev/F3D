@@ -151,6 +151,19 @@ export const PURCHASE_ORDERS_PATHS = {
   emails: (poId: string) => `/purchase-orders/${poId}/emails`,
 } as const;
 
+// ── Material Requests (Epic 6) ────────────────────────────────────────────────
+export const MATERIAL_REQUESTS_PATHS = {
+  ROOT: '/material-requests',
+  byId: (id: string) => `/material-requests/${id}`,
+  audit: (id: string) => `/material-requests/${id}/audit`,
+  submit: (id: string) => `/material-requests/${id}/submit`,
+  approve: (id: string) => `/material-requests/${id}/approve`,
+  decline: (id: string) => `/material-requests/${id}/decline`,
+  cancel: (id: string) => `/material-requests/${id}/cancel`,
+  convertToRfq: (id: string) => `/material-requests/${id}/convert-to-rfq`,
+  convertToPo: (id: string) => `/material-requests/${id}/convert-to-po`,
+} as const;
+
 // ── Bulk Orders ──────────────────────────────────────────────────────────────
 export const BULK_ORDERS_PATHS = {
   ROOT: '/bulk-orders',
