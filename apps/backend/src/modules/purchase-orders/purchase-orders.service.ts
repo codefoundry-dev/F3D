@@ -460,12 +460,15 @@ export class PurchaseOrdersService {
       if (!vendor) throw new NotFoundException(ERR.purchaseOrders.vendorNotFound);
     }
 
-    // Validate deliveryLocationId belongs to project
-    const location = await this.prisma.projectLocation.findUnique({
-      where: { id: dto.deliveryLocationId },
-    });
-    if (!location || location?.projectId !== dto.projectId) {
-      throw new BadRequestException(ERR.purchaseOrders.invalidDeliveryLocation);
+    // Validate deliveryLocationId belongs to project (when provided — a draft PO
+    // may omit it; the buyer sets the delivery location before the PO is issued).
+    if (dto.deliveryLocationId) {
+      const location = await this.prisma.projectLocation.findUnique({
+        where: { id: dto.deliveryLocationId },
+      });
+      if (!location || location.projectId !== dto.projectId) {
+        throw new BadRequestException(ERR.purchaseOrders.invalidDeliveryLocation);
+      }
     }
 
     // Hold-for-release requires earliest delivery date (FRD US 5.07 AC 5)

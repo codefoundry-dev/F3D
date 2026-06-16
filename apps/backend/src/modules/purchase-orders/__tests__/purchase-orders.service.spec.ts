@@ -1030,6 +1030,25 @@ describe('PurchaseOrdersService', () => {
       expect(result.id).toBe('po-new');
     });
 
+    // A draft created from an approved RFQ quote omits delivery location +
+    // planned date — the buyer fills them in the wizard before issuing. Both
+    // are nullable, so the create must succeed without touching location lookup.
+    it('creates a draft PO without delivery location or planned date', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockPrisma.company.findUnique.mockResolvedValue({ id: 'v-1' });
+      mockPrisma.purchaseOrder.create.mockResolvedValue({ id: 'po-new' });
+      mockGetPoAfterMutation();
+
+      const { deliveryLocationId: _omit, ...draftDto } = baseDto;
+      const result = await service.createPurchaseOrder(draftDto as never, companyAdmin);
+
+      expect(result.id).toBe('po-new');
+      expect(mockPrisma.projectLocation.findUnique).not.toHaveBeenCalled();
+      const createArg = mockPrisma.purchaseOrder.create.mock.calls[0][0];
+      expect(createArg.data.deliveryLocationId).toBeUndefined();
+      expect(createArg.data.plannedDeliveryDate).toBeNull();
+    });
+
     // ── FOR-210: multi-delivery rows ──────────────────────────────────────
 
     it('persists delivery rows with sequence and validated locations', async () => {

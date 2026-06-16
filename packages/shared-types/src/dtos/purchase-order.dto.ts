@@ -153,11 +153,16 @@ export class CreatePurchaseOrderDto {
   @IsUUID()
   bulkOrderId?: string;
 
+  // Optional at create: a draft PO (e.g. created from an approved RFQ quote) is
+  // intentionally incomplete. The buyer sets the delivery location + planned
+  // date in the PO wizard before the PO is issued. Both columns are nullable.
   @IsUUID()
-  deliveryLocationId!: string;
+  @IsOptional()
+  deliveryLocationId?: string;
 
   @IsDateString()
-  plannedDeliveryDate!: string;
+  @IsOptional()
+  plannedDeliveryDate?: string;
 
   @IsEnum(PoType)
   @IsOptional()
