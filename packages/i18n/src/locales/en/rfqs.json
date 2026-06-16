@@ -98,7 +98,10 @@
     "selectVendors": "Select vendors",
     "editVendors": "Edit vendors",
     "response": "Response",
-    "editResponse": "Edit Response"
+    "editResponse": "Edit Response",
+    "createDraftPo": "Create draft PO",
+    "creatingDraftPo": "Creating draft PO…",
+    "draftPoCreated": "Draft PO {{poNumber}} created"
   },
   "manageVendors": {
     "title": "Select vendors",
