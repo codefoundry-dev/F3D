@@ -108,7 +108,9 @@ export function CreateBulkOrderPage({ isVendorView = false }: CreateBulkOrderPag
       {
         onSuccess: (data) => {
           notificationService.success(t('create.createSuccess'));
-          navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', data.bulkId));
+          // Route by the primary key (data.id), not the human-readable bulkId —
+          // the detail endpoint resolves by id, so navigating with bulkId 404s.
+          navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', data.id));
         },
         onError: () => notificationService.error(t('create.createError')),
       },

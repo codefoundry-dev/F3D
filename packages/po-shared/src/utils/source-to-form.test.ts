@@ -40,6 +40,7 @@ function makeRfq(overrides: Partial<RfqDetail> = {}): RfqDetail {
 
 function makeBulkOrder(overrides: Partial<BulkOrderDetail> = {}): BulkOrderDetail {
   return {
+    id: 'bo-1',
     bulkId: 'bo-1',
     rfqReference: null,
     contractorName: 'Contractor A',
