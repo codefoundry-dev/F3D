@@ -466,7 +466,7 @@ export class PurchaseOrdersService {
       const location = await this.prisma.projectLocation.findUnique({
         where: { id: dto.deliveryLocationId },
       });
-      if (!location || location.projectId !== dto.projectId) {
+      if (location?.projectId !== dto.projectId) {
         throw new BadRequestException(ERR.purchaseOrders.invalidDeliveryLocation);
       }
     }
