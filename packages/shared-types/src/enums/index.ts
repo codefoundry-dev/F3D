@@ -226,6 +226,28 @@ export enum MaterialRequestPriority {
   URGENT = 'URGENT',
 }
 
+/**
+ * Direction of a single inventory ledger row (Epic 7). The recorded `quantity`
+ * is always positive; `type` carries whether stock came IN (PO receipt) or went
+ * OUT (MR issue). Mirrors the StockMovement Prisma enum.
+ */
+export enum StockMovementType {
+  IN = 'IN',
+  OUT = 'OUT',
+}
+
+/**
+ * Origin of an inventory movement. PO_RECEIPT is written by the PO delivery
+ * (push-in) hook, MR_ISSUE by the MR-approval (push-out) hook, and ADJUSTMENT is
+ * reserved for manual corrections (not yet exposed). Mirrors the StockMovement
+ * Prisma enum.
+ */
+export enum StockMovementSource {
+  PO_RECEIPT = 'PO_RECEIPT',
+  MR_ISSUE = 'MR_ISSUE',
+  ADJUSTMENT = 'ADJUSTMENT',
+}
+
 export enum BulkOrderStatus {
   ACTIVE = 'ACTIVE',
   EXPIRED = 'EXPIRED',

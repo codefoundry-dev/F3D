@@ -6,6 +6,7 @@ import { AuthenticatedUser } from '../../../common/decorators/current-user.decor
 import { PermissionsService } from '../../../common/permissions';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
+import { InventoryService } from '../../inventory/inventory.service';
 import {
   ConvertToPoDto,
   CreateMaterialRequestDto,
@@ -85,9 +86,14 @@ function makeService() {
   const permissions = {
     roleHasPermission: jest.fn().mockResolvedValue(false),
   } as unknown as PermissionsService & { roleHasPermission: jest.Mock };
+  // Inventory push-out hook: defaults to "nothing in stock" (issued 0). Tests
+  // that exercise auto-issue override issueOut per-call.
+  const inventory = {
+    issueOut: jest.fn().mockResolvedValue({ issued: 0, movement: null }),
+  } as unknown as InventoryService & { issueOut: jest.Mock };
 
-  const service = new MaterialRequestsService(prisma, audit, permissions);
-  return { service, prisma, audit, permissions, tx };
+  const service = new MaterialRequestsService(prisma, audit, permissions, inventory);
+  return { service, prisma, audit, permissions, inventory, tx };
 }
 
 // ── Fixture builders ──────────────────────────────────────────────────────────
@@ -557,21 +563,78 @@ describe('MaterialRequestsService', () => {
   // ── approve ─────────────────────────────────────────────────────────────────
   describe('approve', () => {
     it('moves SUBMITTED → APPROVED, records reviewer, audits', async () => {
-      const { service, prisma, audit } = makeService();
+      const { service, prisma, audit, tx } = makeService();
       prisma.materialRequest.findUnique
         .mockResolvedValueOnce({
           id: 'mr-1',
           status: MaterialRequestStatus.SUBMITTED,
           companyId: 'company-1',
-          requestedById: 'fm-1',
+          deliveryLocationId: null,
+          lineItems: [],
         })
         .mockResolvedValueOnce(makeMr({ status: MaterialRequestStatus.APPROVED }));
       await service.approve('mr-1', officer);
-      const updateArgs = prisma.materialRequest.update.mock.calls[0][0];
+      // The MR update now runs inside the approve $transaction (tx client).
+      const updateArgs = tx.materialRequest.update.mock.calls[0][0];
       expect(updateArgs.data.status).toBe(MaterialRequestStatus.APPROVED);
       expect(updateArgs.data.reviewedById).toBe('po-1');
       expect(updateArgs.data.reviewedAt).toBeInstanceOf(Date);
       expect(audit.log.mock.calls[0][0].action).toBe(AuditAction.MATERIAL_REQUEST_APPROVED);
+      // No catalogue/located lines ⇒ no auto-issue and an empty issued summary.
+      expect(audit.log.mock.calls[0][0].metadata.issued).toEqual([]);
+    });
+
+    it('auto-issues in-stock lines (OUT movement) and records them in the audit summary', async () => {
+      const { service, prisma, inventory, audit } = makeService();
+      prisma.materialRequest.findUnique
+        .mockResolvedValueOnce({
+          id: 'mr-1',
+          status: MaterialRequestStatus.SUBMITTED,
+          companyId: 'company-1',
+          deliveryLocationId: 'loc-hdr',
+          lineItems: [
+            // tracked: material + line location → issued from stock
+            {
+              id: 'li-1',
+              materialId: 'mat-1',
+              quantity: 30,
+              deliveryLocationId: 'loc-1',
+            },
+            // tracked: material + falls back to header location, but no stock
+            { id: 'li-2', materialId: 'mat-2', quantity: 10, deliveryLocationId: null },
+            // untracked: no material → skipped entirely (issueOut not called)
+            { id: 'li-3', materialId: null, quantity: 5, deliveryLocationId: 'loc-1' },
+          ],
+        })
+        .mockResolvedValueOnce(makeMr({ status: MaterialRequestStatus.APPROVED }));
+      inventory.issueOut
+        .mockResolvedValueOnce({ issued: 20, movement: { id: 'mov-1' } }) // li-1 clamped
+        .mockResolvedValueOnce({ issued: 0, movement: null }); // li-2 no stock
+
+      await service.approve('mr-1', officer);
+
+      // Only the two material-bearing lines reached issueOut; the no-material
+      // line was skipped before the call.
+      expect(inventory.issueOut).toHaveBeenCalledTimes(2);
+      expect(inventory.issueOut.mock.calls[0][1]).toMatchObject({
+        companyId: 'company-1',
+        materialId: 'mat-1',
+        locationId: 'loc-1',
+        requestedQuantity: 30,
+        sourceType: 'MATERIAL_REQUEST',
+        sourceId: 'mr-1',
+        sourceLineId: 'li-1',
+        createdById: 'po-1',
+      });
+      // li-2 falls back to the header location.
+      expect(inventory.issueOut.mock.calls[1][1]).toMatchObject({
+        materialId: 'mat-2',
+        locationId: 'loc-hdr',
+      });
+      // Only the line that actually issued (>0) shows in the audit summary.
+      expect(audit.log.mock.calls[0][0].metadata.issued).toEqual([
+        { lineId: 'li-1', materialId: 'mat-1', locationId: 'loc-1', issued: 20 },
+      ]);
     });
 
     it('rejects approving a DRAFT MR', async () => {
@@ -580,9 +643,28 @@ describe('MaterialRequestsService', () => {
         id: 'mr-1',
         status: MaterialRequestStatus.DRAFT,
         companyId: 'company-1',
-        requestedById: 'fm-1',
+        deliveryLocationId: null,
+        lineItems: [],
       });
       await expect(service.approve('mr-1', officer)).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('throws NotFound when the MR is missing', async () => {
+      const { service, prisma } = makeService();
+      prisma.materialRequest.findUnique.mockResolvedValue(null);
+      await expect(service.approve('mr-x', officer)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('throws Forbidden when the MR belongs to another company', async () => {
+      const { service, prisma } = makeService();
+      prisma.materialRequest.findUnique.mockResolvedValue({
+        id: 'mr-1',
+        status: MaterialRequestStatus.SUBMITTED,
+        companyId: 'other-co',
+        deliveryLocationId: null,
+        lineItems: [],
+      });
+      await expect(service.approve('mr-1', officer)).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 

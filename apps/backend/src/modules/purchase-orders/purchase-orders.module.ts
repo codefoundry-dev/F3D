@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { AuditModule } from '../audit/audit.module';
 import { ExportModule } from '../export/export.module';
+import { InventoryModule } from '../inventory/inventory.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { StorageModule } from '../storage/storage.module';
 
@@ -14,7 +15,7 @@ import { PurchaseOrdersController } from './purchase-orders.controller';
 import { PurchaseOrdersService } from './purchase-orders.service';
 
 @Module({
-  imports: [ExportModule, StorageModule, NotificationsModule, AuditModule],
+  imports: [ExportModule, StorageModule, NotificationsModule, AuditModule, InventoryModule],
   controllers: [PurchaseOrdersController],
   providers: [
     PurchaseOrdersService,

@@ -67,6 +67,8 @@ model ProjectLocation {
   rfqLineItems   RfqLineItem[]   @relation("RfqLineItemDeliveryLocation")
   materialRequests         MaterialRequest[]         @relation("MaterialRequestDeliveryLocation")
   materialRequestLineItems MaterialRequestLineItem[] @relation("MaterialRequestLineItemDeliveryLocation")
+  stockBalances            StockBalance[]            @relation("StockBalanceLocation")
+  stockMovements           StockMovement[]           @relation("StockMovementLocation")
 
   @@index([projectId], map: "idx_projectlocation_project")
   @@index([projectId, type], map: "idx_projectlocation_project_type")

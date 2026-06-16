@@ -12,6 +12,7 @@ export * from './dtos/purchase-order.dto';
 export * from './dtos/po-delivery.types';
 export * from './dtos/user-profile.types';
 export * from './dtos/email-log.types';
+export * from './dtos/inventory.types';
 export * from './dtos/bulk-order.dto';
 export * from './dtos/invoice.dto';
 export * from './dtos/dashboard.dto';

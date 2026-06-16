@@ -160,6 +160,10 @@ export const PERMISSIONS = {
   'materialRequest.decline': 'Decline a submitted material request',
   'materialRequest.convert': 'Convert an approved material request into an RFQ or PO',
 
+  // ── Inventory (Epic 7) ───────────────────────────────────────────────────
+  'inventory.viewBalances': 'View on-hand stock balances',
+  'inventory.viewMovements': 'View the inventory movement ledger',
+
   // ── Roles & permissions (admin) ─────────────────────────────────────────
   'role.list': 'List built-in roles and the permissions granted to each',
   'role.update': 'Grant or revoke permissions on a built-in role',
@@ -335,6 +339,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'materialRequest.decline',
     'materialRequest.convert',
 
+    'inventory.viewBalances',
+    'inventory.viewMovements',
+
     'role.list',
     'role.update',
 
@@ -470,6 +477,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'materialRequest.decline',
     'materialRequest.convert',
 
+    'inventory.viewBalances',
+    'inventory.viewMovements',
+
     'user.update',
 
     'docExtraction.create',
@@ -546,6 +556,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'materialRequest.update',
     'materialRequest.submit',
     'materialRequest.cancel',
+
+    'inventory.viewBalances',
+    'inventory.viewMovements',
   ],
 
   FOREMAN: [

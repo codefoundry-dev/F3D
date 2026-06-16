@@ -12,6 +12,7 @@ export * from './dtos/catalogue-extraction.dto';
 export * from './dtos/po-delivery.types';
 export * from './dtos/user-profile.types';
 export * from './dtos/email-log.types';
+export * from './dtos/inventory.types';
 
 // Validation utils
 export * from './validation';

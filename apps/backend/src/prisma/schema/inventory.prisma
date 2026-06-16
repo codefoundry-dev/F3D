@@ -1,0 +1,67 @@
+// Basic inventory movement engine (Epic 7 — Week-3 inventory hook).
+//
+// Two append-only ledger concepts:
+//   • StockBalance  — the current on-hand quantity of a Material at a single
+//     ProjectLocation. Unique on (material_id, location_id): one running balance
+//     per material per location.
+//   • StockMovement — an immutable ledger row recording every IN / OUT against a
+//     balance, with the resulting `balanceAfter`. Movements are written only by
+//     the PO-receipt (push-in) and MR-approval (push-out) hooks, never directly.
+//
+// company_id and created_by_id are scalar FK columns with real constraints added
+// in the migration (no Prisma relation field) to keep the model lean — they are
+// only ever filtered/scoped, never traversed.
+
+enum StockMovementType {
+  IN
+  OUT
+}
+
+enum StockMovementSource {
+  PO_RECEIPT
+  MR_ISSUE
+  ADJUSTMENT
+}
+
+model StockBalance {
+  id         String   @id @default(uuid())
+  companyId  String   @map("company_id") // scalar FK (constraint added in migration; no relation field)
+  materialId String   @map("material_id")
+  locationId String   @map("location_id")
+  onHand     Int      @default(0) @map("on_hand")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  material Material        @relation("StockBalanceMaterial", fields: [materialId], references: [id])
+  location ProjectLocation @relation("StockBalanceLocation", fields: [locationId], references: [id])
+
+  @@unique([materialId, locationId], map: "uq_stock_balances_material_location")
+  @@index([companyId], map: "idx_stock_balances_company")
+  @@index([locationId], map: "idx_stock_balances_location")
+  @@map("stock_balances")
+}
+
+model StockMovement {
+  id           String              @id @default(uuid())
+  companyId    String              @map("company_id") // scalar FK
+  materialId   String              @map("material_id")
+  locationId   String              @map("location_id")
+  type         StockMovementType
+  source       StockMovementSource
+  quantity     Int // always POSITIVE; `type` carries direction
+  balanceAfter Int                 @map("balance_after")
+  sourceType   String?             @map("source_type") @db.VarChar(50) // 'PURCHASE_ORDER' | 'MATERIAL_REQUEST'
+  sourceId     String?             @map("source_id")
+  sourceLineId String?             @map("source_line_id")
+  note         String?
+  createdById  String?             @map("created_by_id") // scalar FK
+  createdAt    DateTime            @default(now()) @map("created_at")
+
+  material Material        @relation("StockMovementMaterial", fields: [materialId], references: [id])
+  location ProjectLocation @relation("StockMovementLocation", fields: [locationId], references: [id])
+
+  @@index([companyId], map: "idx_stock_movements_company")
+  @@index([materialId, locationId], map: "idx_stock_movements_material_location")
+  @@index([sourceType, sourceId], map: "idx_stock_movements_source")
+  @@map("stock_movements")
+}

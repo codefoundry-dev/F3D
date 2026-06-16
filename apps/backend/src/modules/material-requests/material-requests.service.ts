@@ -22,6 +22,7 @@ import { PermissionsService } from '../../common/permissions';
 import { nextSequentialNumber } from '../../common/utils/sequential-number.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { InventoryService } from '../inventory/inventory.service';
 
 import {
   ConvertToPoDto,
@@ -62,6 +63,7 @@ export class MaterialRequestsService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     private readonly permissions: PermissionsService,
+    private readonly inventoryService: InventoryService,
   ) {}
 
   // ── Audit helper ────────────────────────────────────────────────────────────
@@ -287,20 +289,76 @@ export class MaterialRequestsService {
   // ── Approve (SUBMITTED → APPROVED) ────────────────────────────────────────────
 
   async approve(id: string, user: AuthenticatedUser) {
-    const mr = await this.findForTransition(id, user);
-    assertTransitionOrThrow(mr.status, MaterialRequestStatus.APPROVED);
-
-    await this.prisma.materialRequest.update({
+    const mr = await this.prisma.materialRequest.findUnique({
       where: { id },
-      data: {
-        status: MaterialRequestStatus.APPROVED,
-        reviewedById: user.id,
-        reviewedAt: new Date(),
+      select: {
+        id: true,
+        status: true,
+        companyId: true,
+        deliveryLocationId: true,
+        lineItems: {
+          select: { id: true, materialId: true, quantity: true, deliveryLocationId: true },
+        },
       },
     });
+    if (!mr) throw new NotFoundException(ERR.materialRequests.notFound);
+    this.assertCompanyAccess(user, mr.companyId);
+    assertTransitionOrThrow(mr.status, MaterialRequestStatus.APPROVED);
+
+    // Approve the MR and auto-issue any in-stock lines atomically: the status
+    // change and the inventory OUT movements commit together. Each line with a
+    // catalogue material and a resolvable location (line override, else the MR
+    // header) is issued up to its requested quantity, clamped at on-hand by
+    // inventoryService.issueOut. Lines without material / location / stock issue
+    // nothing — that is correct and expected (the demand simply isn't covered
+    // from inventory and flows on to procurement).
+    const issued: Array<{
+      lineId: string;
+      materialId: string;
+      locationId: string;
+      issued: number;
+    }> = [];
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.materialRequest.update({
+        where: { id },
+        data: {
+          status: MaterialRequestStatus.APPROVED,
+          reviewedById: user.id,
+          reviewedAt: new Date(),
+        },
+      });
+
+      for (const line of mr.lineItems) {
+        const locationId = line.deliveryLocationId ?? mr.deliveryLocationId;
+        if (!line.materialId || !locationId) continue;
+
+        const result = await this.inventoryService.issueOut(tx, {
+          companyId: mr.companyId,
+          materialId: line.materialId,
+          locationId,
+          requestedQuantity: line.quantity,
+          sourceType: 'MATERIAL_REQUEST',
+          sourceId: mr.id,
+          sourceLineId: line.id,
+          createdById: user.id,
+        });
+
+        if (result.issued > 0) {
+          issued.push({
+            lineId: line.id,
+            materialId: line.materialId,
+            locationId,
+            issued: result.issued,
+          });
+        }
+      }
+    });
+
     await this.auditMr(AuditAction.MATERIAL_REQUEST_APPROVED, id, user, {
       from: mr.status,
       to: MaterialRequestStatus.APPROVED,
+      issued,
     });
 
     return this.get(id, user);
