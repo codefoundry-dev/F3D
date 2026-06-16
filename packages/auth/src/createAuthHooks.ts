@@ -137,24 +137,37 @@ export function createAuthHooks(otpSessionKey: string, useAuthStore: UseAuthStor
 
   function useVerifyOtp() {
     const navigate = useNavigate();
+    const { t } = useTranslation(['auth']);
     const setAuth = useAuthStore((s) => s.setAuth);
 
     return useMutation({
       mutationFn: (dto: VerifyOtpDto) => verifyOtp(dto, { skipErrorHandler: true }),
       onSuccess: async () => {
-        // Cookies are set automatically by the backend response
-        const user = await getMe({ skipErrorHandler: true });
-        setAuth({
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          companyId: user.companyId,
-          permissions: user.permissions ?? [],
-        });
+        // The OTP was correct and the backend has set the auth cookies. Bootstrapping
+        // the user can still fail (e.g. the session cookie didn't stick) — that's a
+        // session problem, NOT a bad code. Letting a getMe() 401 bubble through the
+        // mutation renders as "Invalid code" on the verify screen (FOR-244) and sends
+        // the user to retry an already-consumed OTP, so handle it distinctly.
+        try {
+          const user = await getMe({ skipErrorHandler: true });
+          setAuth({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            companyId: user.companyId,
+            permissions: user.permissions ?? [],
+          });
 
-        clearOtpSession();
-        navigate('/');
+          clearOtpSession();
+          navigate('/');
+        } catch {
+          // The OTP is single-use and now spent; send the user back to a clean sign-in
+          // with a message that names the real failure instead of blaming the code.
+          clearOtpSession();
+          notificationService.error(t('auth:twoFactorSessionFailed'));
+          navigate('/login');
+        }
       },
     });
   }
