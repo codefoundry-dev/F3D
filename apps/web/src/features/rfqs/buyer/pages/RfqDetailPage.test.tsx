@@ -16,6 +16,11 @@ const mockSendRfq = vi.hoisted(() => ({
   isPending: false,
   isError: false,
 }));
+const mockUpdateRfq = vi.hoisted(() => ({
+  mutateAsync: vi.fn(),
+  isPending: false,
+  isError: false,
+}));
 
 vi.mock('@forethread/i18n', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -23,6 +28,7 @@ vi.mock('@forethread/i18n', () => ({
 
 vi.mock('../services/rfqs.service', () => ({
   useSendRfq: () => mockSendRfq,
+  useUpdateRfq: () => mockUpdateRfq,
 }));
 
 // Lightweight stand-in so the detail-page test doesn't depend on the dialog's
@@ -36,6 +42,23 @@ vi.mock('../components/create/SendRfqDialog', () => ({
         confirm
       </button>
       <button data-testid="dialog-cancel" onClick={onCancel}>
+        cancel
+      </button>
+    </div>
+  ),
+}));
+
+// Lightweight stand-in — the dialog's seeding/save internals are covered by
+// ManageVendorsDialog's own test.
+vi.mock('../components/ManageVendorsDialog', () => ({
+  ManageVendorsDialog: ({ currentVendorIds, isError, onSave, onCancel }: any) => (
+    <div role="dialog" data-testid="vendors-dialog">
+      <span data-testid="vendors-dialog-count">{currentVendorIds.length}</span>
+      {isError && <span data-testid="vendors-dialog-error">error</span>}
+      <button data-testid="vendors-dialog-save" onClick={() => onSave(['company-9'])}>
+        save
+      </button>
+      <button data-testid="vendors-dialog-cancel" onClick={onCancel}>
         cancel
       </button>
     </div>
@@ -192,13 +215,18 @@ describe('RfqDetailPage', () => {
     mockSendRfq.isPending = false;
     mockSendRfq.isError = false;
     mockSendRfq.mutateAsync.mockResolvedValue({ ...MOCK_RFQ, status: 'OPEN' });
+    mockUpdateRfq.isPending = false;
+    mockUpdateRfq.isError = false;
+    mockUpdateRfq.mutateAsync.mockResolvedValue({ ...MOCK_RFQ });
   });
 
   /** A sendable DRAFT RFQ (status DRAFT, with line items + vendors). */
   const DRAFT_RFQ = {
     ...MOCK_RFQ,
     status: 'DRAFT',
-    lineItems: [{ id: 'li-1', materialName: 'Cement', quantity: 5, unit: 'bag', description: null }],
+    lineItems: [
+      { id: 'li-1', materialName: 'Cement', quantity: 5, unit: 'bag', description: null },
+    ],
     vendors: [
       { id: 'rv-1', vendorId: 'company-1', vendorName: 'Acme' },
       { id: 'rv-2', vendorId: 'company-2', vendorName: 'BuildCo' },
@@ -395,5 +423,50 @@ describe('RfqDetailPage', () => {
 
     fireEvent.click(screen.getByTestId('send-to-vendors'));
     expect(screen.getByTestId('send-dialog-error')).toBeInTheDocument();
+  });
+
+  // ── Select vendors (DRAFT only) ───────────────────────────────────────────
+
+  it('shows the Select vendors button for a DRAFT RFQ with no vendors', () => {
+    mockUseRfq.mockReturnValue({
+      data: { ...DRAFT_RFQ, vendors: [] },
+      isLoading: false,
+      isError: false,
+    });
+    render(<RfqDetailPage />, { wrapper });
+    expect(screen.getByTestId('select-vendors')).toHaveTextContent('actions.selectVendors');
+  });
+
+  it('labels the button Edit vendors once the draft has vendors', () => {
+    mockUseRfq.mockReturnValue({ data: DRAFT_RFQ, isLoading: false, isError: false });
+    render(<RfqDetailPage />, { wrapper });
+    expect(screen.getByTestId('select-vendors')).toHaveTextContent('actions.editVendors');
+  });
+
+  it('hides the Select vendors button when the RFQ is not a draft', () => {
+    mockUseRfq.mockReturnValue({
+      data: { ...DRAFT_RFQ, status: 'OPEN' },
+      isLoading: false,
+      isError: false,
+    });
+    render(<RfqDetailPage />, { wrapper });
+    expect(screen.queryByTestId('select-vendors')).not.toBeInTheDocument();
+  });
+
+  it('opens the vendors dialog seeded with current vendors and saves vendorIds', async () => {
+    mockUseRfq.mockReturnValue({ data: DRAFT_RFQ, isLoading: false, isError: false });
+    render(<RfqDetailPage />, { wrapper });
+
+    fireEvent.click(screen.getByTestId('select-vendors'));
+    expect(screen.getByTestId('vendors-dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('vendors-dialog-count')).toHaveTextContent('2');
+
+    fireEvent.click(screen.getByTestId('vendors-dialog-save'));
+    await waitFor(() =>
+      expect(mockUpdateRfq.mutateAsync).toHaveBeenCalledWith({
+        id: 'RFQ-2024-008',
+        dto: { vendorIds: ['company-9'] },
+      }),
+    );
   });
 });
