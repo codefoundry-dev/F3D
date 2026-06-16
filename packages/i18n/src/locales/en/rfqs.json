@@ -95,8 +95,17 @@
     "fullscreen": "Fullscreen",
     "exportAs": "Export as",
     "sendToVendors": "Send to vendors",
+    "selectVendors": "Select vendors",
+    "editVendors": "Edit vendors",
     "response": "Response",
     "editResponse": "Edit Response"
+  },
+  "manageVendors": {
+    "title": "Select vendors",
+    "subtitle": "Choose which vendors should receive this RFQ for quotes. They'll be emailed a secure link when you send it.",
+    "save": "Save vendors",
+    "cancel": "Cancel",
+    "error": "We couldn’t update the vendors. Please try again."
   },
   "pagination": {
     "back": "Back",

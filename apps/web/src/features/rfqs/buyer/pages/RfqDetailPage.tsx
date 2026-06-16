@@ -14,12 +14,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 
 import { SendRfqDialog } from '../components/create/SendRfqDialog';
+import { ManageVendorsDialog } from '../components/ManageVendorsDialog';
 import { RfqDetailsTab } from '../components/RfqDetailsTab';
 import { RfqDocumentsTab } from '../components/RfqDocumentsTab';
 import { RfqEmailLogTab } from '../components/RfqEmailLogTab';
 import { RfqLineItemsTab } from '../components/RfqLineItemsTab';
 import { RfqQuoteAuditTab } from '../components/RfqQuoteAuditTab';
-import { useSendRfq } from '../services/rfqs.service';
+import { useSendRfq, useUpdateRfq } from '../services/rfqs.service';
 
 export default function RfqDetailPage() {
   const { t } = useTranslation('rfqs');
@@ -51,7 +52,9 @@ export default function RfqDetailPage() {
 
   const [responsesViewMode, setResponsesViewMode] = useState<'list' | 'table'>('list');
   const [showSendDialog, setShowSendDialog] = useState(false);
+  const [showVendorsDialog, setShowVendorsDialog] = useState(false);
   const sendRfq = useSendRfq();
+  const updateRfq = useUpdateRfq();
 
   // Close the dialog when the mutation succeeds; the RFQ cache update flips the
   // status to OPEN, which re-renders the page without the Send button.
@@ -66,6 +69,21 @@ export default function RfqDetailPage() {
       }
     },
     [rfq, sendRfq],
+  );
+
+  // Persist the chosen vendors onto the draft RFQ. `useUpdateRfq` invalidates
+  // the RFQ cache, so `rfq.vendors` repopulates and the Send button enables.
+  const handleSaveVendors = useCallback(
+    async (vendorIds: string[]) => {
+      if (!rfq) return;
+      try {
+        await updateRfq.mutateAsync({ id: rfq.id, dto: { vendorIds } });
+        setShowVendorsDialog(false);
+      } catch {
+        // error surfaces inside the dialog via updateRfq.isError
+      }
+    },
+    [rfq, updateRfq],
   );
 
   if (isLoading) {
@@ -92,6 +110,20 @@ export default function RfqDetailPage() {
           rightSlot={
             activeTab === 'details' ? (
               <div className="flex items-center gap-2">
+                {/* DRAFT RFQs (including those converted from a Material Request)
+                    start with no vendors — let the user pick them before sending. */}
+                {rfq.status === 'DRAFT' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowVendorsDialog(true)}
+                    data-testid="select-vendors"
+                  >
+                    {(rfq.vendors?.length ?? 0) === 0
+                      ? t('actions.selectVendors')
+                      : t('actions.editVendors')}
+                  </Button>
+                )}
                 {/* Only DRAFT RFQs can be sent; once OPEN the button disappears. */}
                 {rfq.status === 'DRAFT' && (
                   <Button
@@ -162,6 +194,16 @@ export default function RfqDetailPage() {
           isError={sendRfq.isError}
           onCancel={() => setShowSendDialog(false)}
           onSend={(cc) => void handleSend(cc)}
+        />
+      )}
+
+      {showVendorsDialog && (
+        <ManageVendorsDialog
+          currentVendorIds={rfq.vendors?.map((v) => v.id) ?? []}
+          isSaving={updateRfq.isPending}
+          isError={updateRfq.isError}
+          onCancel={() => setShowVendorsDialog(false)}
+          onSave={(vendorIds) => void handleSaveVendors(vendorIds)}
         />
       )}
     </div>
