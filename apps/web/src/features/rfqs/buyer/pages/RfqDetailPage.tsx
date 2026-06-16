@@ -2,16 +2,19 @@ import { exportRfqs } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
   usePageTitleStore,
+  useCreateDraftPoFromQuote,
   useRfq,
   RfqDetailTabs,
   RfqResponsesTab,
   ResponsesViewToggle,
 } from '@forethread/rfq-shared';
 import type { RfqTab } from '@forethread/rfq-shared';
-import { Button, Spinner } from '@forethread/ui-components';
+import { Button, Spinner, toast } from '@forethread/ui-components';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import { useCallback, useEffect, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+
+import { ROUTES } from '@/app/route-config';
 
 import { SendRfqDialog } from '../components/create/SendRfqDialog';
 import { ManageVendorsDialog } from '../components/ManageVendorsDialog';
@@ -55,6 +58,31 @@ export default function RfqDetailPage() {
   const [showVendorsDialog, setShowVendorsDialog] = useState(false);
   const sendRfq = useSendRfq();
   const updateRfq = useUpdateRfq();
+  const navigate = useNavigate();
+  const createDraftPo = useCreateDraftPoFromQuote(id ?? '');
+
+  // On an AWARDED RFQ the winning quote is the APPROVED response. Awarding only
+  // marks the RFQ awarded; the post-approve prompt that offers to spin up the
+  // draft PO is transient, so expose a persistent fallback that recreates it on
+  // demand (the backend keeps APPROVED quotes in the comparison, so this works
+  // any time after the award).
+  const awardedQuote = rfq?.quoteResponses?.find((qr) => qr.status === 'APPROVED');
+
+  const handleCreateDraftPo = useCallback(() => {
+    if (!awardedQuote) return;
+    createDraftPo.mutate(awardedQuote.id, {
+      onSuccess: (pos) => {
+        const po = pos[0];
+        toast.success(
+          po
+            ? t('actions.draftPoCreated', { poNumber: po.poNumber })
+            : t('startOrder.poDraftCreated'),
+        );
+        if (po) navigate(ROUTES.purchaseOrderDetail.replace(':id', po.id));
+      },
+      onError: () => toast.error(t('startOrder.createError')),
+    });
+  }, [awardedQuote, createDraftPo, navigate, t]);
 
   // Close the dialog when the mutation succeeds; the RFQ cache update flips the
   // status to OPEN, which re-renders the page without the Send button.
@@ -142,6 +170,22 @@ export default function RfqDetailPage() {
                     data-testid="send-to-vendors"
                   >
                     {t('actions.sendToVendors')}
+                  </Button>
+                )}
+                {/* Awarding an RFQ only flips it to AWARDED. The prompt that
+                    offers to spin up the draft PO is transient, so give the
+                    buyer a persistent fallback to create it from the winning
+                    quote at any time. */}
+                {rfq.status === 'AWARDED' && awardedQuote && (
+                  <Button
+                    size="sm"
+                    onClick={handleCreateDraftPo}
+                    disabled={createDraftPo.isPending}
+                    data-testid="create-draft-po"
+                  >
+                    {createDraftPo.isPending
+                      ? t('actions.creatingDraftPo')
+                      : t('actions.createDraftPo')}
                   </Button>
                 )}
                 <Button

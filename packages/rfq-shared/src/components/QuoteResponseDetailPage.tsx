@@ -116,30 +116,34 @@ export function QuoteResponseActions({
   const isMutating = approveMutation.isPending || declineMutation.isPending;
   const isPending = status.toUpperCase() === 'PENDING' || status.toUpperCase() === 'SUBMITTED';
 
-  if (!isPending) return null;
-
+  // Hide the Decline/Approve buttons once the quote is no longer pending, but
+  // keep the post-approve PO prompt mounted. Approving flips the quote to
+  // APPROVED on the cache refetch, so an early `return null` here would unmount
+  // the StartOrderModal the instant it opened — the "prompt flashes shut" bug.
   return (
     <>
-      <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size={size}
-          disabled={isMutating}
-          onClick={() => declineMutation.mutate()}
-          leftIcon={<CrossInCircleIcon className="w-[18px] h-[18px]" />}
-        >
-          {t('responsesTab.decline')}
-        </Button>
-        <Button
-          variant="outline"
-          size={size}
-          disabled={isMutating}
-          onClick={() => approveMutation.mutate()}
-          leftIcon={<CheckCircleIcon className="w-[18px] h-[18px]" />}
-        >
-          {t('responsesTab.approve')}
-        </Button>
-      </div>
+      {isPending && (
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size={size}
+            disabled={isMutating}
+            onClick={() => declineMutation.mutate()}
+            leftIcon={<CrossInCircleIcon className="w-[18px] h-[18px]" />}
+          >
+            {t('responsesTab.decline')}
+          </Button>
+          <Button
+            variant="outline"
+            size={size}
+            disabled={isMutating}
+            onClick={() => approveMutation.mutate()}
+            leftIcon={<CheckCircleIcon className="w-[18px] h-[18px]" />}
+          >
+            {t('responsesTab.approve')}
+          </Button>
+        </div>
+      )}
       {showPoPrompt && (
         <StartOrderModal
           kind="po"
