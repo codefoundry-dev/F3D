@@ -41,8 +41,10 @@ export const createPoDeliverySchema = z
 export const createPurchaseOrderSchema = z.object({
   projectId: z.string().uuid(),
   vendorId: z.string().uuid(),
-  deliveryLocationId: z.string().uuid(),
-  plannedDeliveryDate: z.string().datetime(),
+  // Optional at create: a draft PO (e.g. from an approved RFQ quote) fills these
+  // in the wizard before issue. Mirrors CreatePurchaseOrderDto.
+  deliveryLocationId: z.string().uuid().optional(),
+  plannedDeliveryDate: z.string().datetime().optional(),
   poType: z.nativeEnum(PoType).optional(),
   sourceOfCreation: z.nativeEnum(PoSourceOfCreation).optional(),
   priority: z.nativeEnum(PoPriority).optional(),
