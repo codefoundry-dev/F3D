@@ -37,6 +37,9 @@ const QuoteResponseDetailPage = lazy(
 );
 const RfqResponsePage = lazy(() => import('@/features/rfqs/vendor/pages/RfqResponsePage'));
 const GuestInvitationPage = lazy(() => import('@/features/rfqs/vendor/pages/GuestInvitationPage'));
+const GuestPurchaseOrderPage = lazy(
+  () => import('@/features/purchase-orders/vendor/pages/GuestPurchaseOrderPage'),
+);
 const PurchaseOrderListRoleSwitch = lazy(
   () => import('@/features/purchase-orders/PurchaseOrderListRoleSwitch'),
 );
@@ -193,6 +196,7 @@ export const routes: RouteObject[] = [
       { path: ROUTES.activate, element: withSuspense(<ActivateAccountPage />) },
       { path: ROUTES.resetPassword, element: withSuspense(<ResetPasswordPage />) },
       { path: ROUTES.guestInvitation, element: withSuspense(<GuestInvitationPage />) },
+      { path: ROUTES.guestPurchaseOrder, element: withSuspense(<GuestPurchaseOrderPage />) },
 
       // ── Authenticated ─────────────────────────────────────────────
       {

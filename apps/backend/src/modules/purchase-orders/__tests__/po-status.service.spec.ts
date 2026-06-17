@@ -37,6 +37,10 @@ const mockPrisma = {
   auditLog: {
     findMany: jest.fn(),
   },
+  accessToken: {
+    findFirst: jest.fn(),
+    create: jest.fn(),
+  },
   $transaction: jest.fn(),
 };
 
@@ -129,6 +133,10 @@ const mockAuditService = {
   log: jest.fn(),
 };
 
+const mockAccessTokensService = {
+  issueTokenIfNoneLive: jest.fn(),
+};
+
 const mockConfig = {
   get: jest.fn((_key: string, fallback: string) => fallback),
 };
@@ -145,12 +153,25 @@ describe('PoStatusService', () => {
       mockPoExportService as never,
       mockApprovalAuth as never,
       mockAuditService as never,
+      mockAccessTokensService as never,
       mockConfig as never,
     );
     // Default: getPurchaseOrder returns fullPoDetail-shaped response
     mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue(fullPoDetail);
     // Default: approval authorization grants the action (null threshold = unlimited).
     mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
+    // Run interactive transactions against the same mock client so existing
+    // assertions on mockPrisma.purchaseOrder.update still apply (FOR-246 wrapped
+    // the SENT transition + token issuance in prisma.$transaction).
+    mockPrisma.$transaction.mockImplementation((cb: (tx: typeof mockPrisma) => unknown) =>
+      cb(mockPrisma),
+    );
+    // Default: minting a PO_VIEW token yields a fresh opaque token.
+    mockAccessTokensService.issueTokenIfNoneLive.mockResolvedValue({
+      token: 'lookup1234567890.secretsecretsecret',
+      record: { id: 'tok-1' },
+      reused: false,
+    });
   });
 
   describe('approvePurchaseOrder', () => {
@@ -257,6 +278,8 @@ describe('PoStatusService', () => {
           },
         }),
       );
+      // Approving to ACKNOWLEDGED does not send to the vendor, so no PO token.
+      expect(mockAccessTokensService.issueTokenIfNoneLive).not.toHaveBeenCalled();
     });
 
     it('approves a SENT PO successfully', async () => {
@@ -1131,6 +1154,10 @@ describe('PoStatusService', () => {
       await service.issuePurchaseOrder('po-1', procurementOfficer);
       await new Promise((r) => setTimeout(r, 10));
 
+      // A PO_VIEW token is always minted at SENT (the portal foundation), but an
+      // activated vendor — one with a user account — is sent the authenticated
+      // app route, not the tokenised link (FOR-246).
+      expect(mockAccessTokensService.issueTokenIfNoneLive).toHaveBeenCalledTimes(1);
       expect(mockEmailService.sendPoIssuedEmail).toHaveBeenCalledWith(
         'vendor@test.com',
         'PO-1',
@@ -1140,7 +1167,9 @@ describe('PoStatusService', () => {
       );
     });
 
-    it('falls back to the company contactEmail when the vendor has no user accounts', async () => {
+    it('emails the tokenised portal link to an unactivated vendor (contactEmail, no users)', async () => {
+      // FOR-246: an email-only vendor cannot log in, so the "View" link is the
+      // tokenised public PO portal (/po/<token>), not the authenticated route.
       mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
         id: 'po-1',
         status: 'DRAFT',
@@ -1149,6 +1178,52 @@ describe('PoStatusService', () => {
         currency: 'AUD',
       });
       mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        poNumber: 'PO-1',
+        vendor: { users: [], contactEmail: 'sales@vendor.com' },
+      });
+      mockPoExportService.generatePoPdfBuffer.mockResolvedValue(Buffer.from('pdf'));
+      mockEmailService.sendPoIssuedEmail.mockResolvedValue(undefined);
+
+      await service.issuePurchaseOrder('po-1', companyAdmin);
+      await new Promise((r) => setTimeout(r, 10));
+
+      // A single reusable 30-day PO_VIEW token was minted in the same transaction.
+      expect(mockAccessTokensService.issueTokenIfNoneLive).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subjectType: 'PURCHASE_ORDER',
+          subjectId: 'po-1',
+          purpose: 'PO_VIEW',
+          ttlMs: 30 * 24 * 60 * 60 * 1000,
+        }),
+        mockPrisma,
+      );
+      expect(mockEmailService.sendPoIssuedEmail).toHaveBeenCalledWith(
+        'sales@vendor.com',
+        'PO-1',
+        'http://localhost:5179/po/lookup1234567890.secretsecretsecret',
+        expect.any(Buffer),
+        expect.objectContaining({ purchaseOrderId: 'po-1' }),
+      );
+    });
+
+    it('falls back to the authenticated link for an unactivated vendor when no fresh token is available', async () => {
+      // Defensive path: if a live token already existed (idempotent reuse), no
+      // plaintext is returned, so there is no tokenised link to send. The state
+      // machine makes this unreachable in practice, but the code must not break.
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'DRAFT',
+        companyId: 'comp-1',
+        totalAmount: { toString: () => '5000' },
+        currency: 'AUD',
+      });
+      mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
+      mockAccessTokensService.issueTokenIfNoneLive.mockResolvedValue({
+        token: null,
+        record: { id: 'tok-existing' },
+        reused: true,
+      });
       mockPrisma.purchaseOrder.update.mockResolvedValue({
         poNumber: 'PO-1',
         vendor: { users: [], contactEmail: 'sales@vendor.com' },
@@ -1266,6 +1341,13 @@ describe('PoStatusService', () => {
       expect(data.approvedById).toBe('ca-1');
       expect(data.issuedAt).toBeInstanceOf(Date);
 
+      // Completing a held send mints the PO_VIEW token too (FOR-246), so the
+      // approval path matches the direct-issue path.
+      expect(mockAccessTokensService.issueTokenIfNoneLive).toHaveBeenCalledWith(
+        expect.objectContaining({ subjectId: 'po-pa', purpose: 'PO_VIEW' }),
+        mockPrisma,
+      );
+
       await new Promise((r) => setTimeout(r, 10));
       expect(mockEmailService.sendPoIssuedEmail).toHaveBeenCalledWith(
         'vendor@test.com',
@@ -1273,6 +1355,39 @@ describe('PoStatusService', () => {
         'http://localhost:5179/purchase-orders/po-pa',
         expect.any(Buffer),
         expect.objectContaining({ purchaseOrderId: 'po-pa' }),
+      );
+    });
+
+    it('emails the tokenised portal link when the held PO goes to an unactivated vendor', async () => {
+      // FOR-246: approval → SENT must behave identically to direct issue, so an
+      // email-only vendor receives the tokenised /po/<token> link here too.
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-pa2',
+        status: 'PENDING_APPROVAL',
+        companyId: 'comp-1',
+        totalAmount: { toString: () => '30000' },
+        currency: 'AUD',
+      });
+      mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        id: 'po-pa2',
+        status: 'SENT',
+        poNumber: 'PO-PA2',
+        project: { name: 'Alpha' },
+        vendor: { legalName: 'VendorCo', users: [], contactEmail: 'sales@vendor.com' },
+      });
+      mockPoExportService.generatePoPdfBuffer.mockResolvedValue(Buffer.from('pdf'));
+      mockEmailService.sendPoIssuedEmail.mockResolvedValue(undefined);
+
+      await service.approvePurchaseOrder('po-pa2', companyAdmin);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendPoIssuedEmail).toHaveBeenCalledWith(
+        'sales@vendor.com',
+        'PO-PA2',
+        'http://localhost:5179/po/lookup1234567890.secretsecretsecret',
+        expect.any(Buffer),
+        expect.objectContaining({ purchaseOrderId: 'po-pa2' }),
       );
     });
 

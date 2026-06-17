@@ -20,6 +20,7 @@ export const ROUTES = {
   forgotPassword: '/forgot-password',
   resetPassword: '/reset-password',
   guestInvitation: '/invitation/:token',
+  guestPurchaseOrder: '/po/:token',
   forbidden: '/forbidden',
 
   // ── RFQs ───────────────────────────────────────────────────────────

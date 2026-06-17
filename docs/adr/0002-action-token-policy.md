@@ -50,3 +50,20 @@ The original two-tier model (long-lived action tokens for read/draft + commit-ac
 - **The token-validation middleware still resolves `current_contractor_id`** for RLS (ADR-0009). The amendment touches authority, not tenancy.
 
 The full two-tier (token + commit-OTP) model remains the post-v1 target if abuse is observed in production.
+
+## Amendment — Release 1 PO token policy (2026-06-16)
+
+Extends the action-token model to the **Purchase Order** so an Unactivated Vendor can view a PO and Acknowledge / Accept / Decline it from an emailed link (closing the ADR-0001 gap where the PO email pointed at the authenticated route).
+
+- **PO subject + single purpose.** Add `AccessTokenSubject.PURCHASE_ORDER` and one `PO_VIEW` purpose. The token is **PO-scoped**: its authority spans every vendor-facing PO action for the document's life (acknowledge/accept/decline now; delivery confirmation, change-request reply, dispute reply later), even though only the three response endpoints ship in R1.
+- **Validated, never consumed.** Like the guest RFQ path, the PO token is validated but not `consume()`d, so it stays reusable across the vendor's interactions.
+- **Fixed 30-day expiry — deliberate deviation.** Unlike the general rule above ("lifetime = lifetime of the underlying document"), a PO token expires **30 days after issue**. The 30-day window comfortably covers acknowledge/accept (which happen within days); it does *not* cover later lifecycle actions, which will **re-issue** a fresh token when those features are built.
+- **Issued transactionally at `SENT`.** The token is created as part of the PO's DRAFT→SENT transition (both the direct-issue and approval→SENT paths), so a best-effort email failure cannot orphan the link.
+
+### Consequences of the amendment
+
+- **No re-send / recovery in R1 (accepted gap).** With a fixed 30-day cap and no re-send UI, a vendor who lets the link lapse — or never received the email — has no in-product recovery; resolution is out-of-band until re-send ships.
+- **Revocation is backend-only in R1.** Per-document revocation (the base ADR) still holds as a capability, but no contractor-facing "revoke link" UI ships yet.
+- **Guest actions are audited via the context table, not the global log.** Mirroring `QuoteAudit`, tokenless PO actions record an `actor {userId: null, label: <vendor legal name>}`; the global `AuditLog` remains real-users-only. The PO activity trail merges both sources.
+- **Contractor notifications fire on Accept and Decline** (not Acknowledge), on the state transition itself, so both the authenticated and tokenised paths behave identically.
+- Re-introducing a longer/sliding expiry or a re-send refresh later is a server-side rule change, not a token-format change.

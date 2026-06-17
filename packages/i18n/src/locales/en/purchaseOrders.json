@@ -1,4 +1,14 @@
 {
+  "guest": {
+    "title": "Purchase Order {{poNumber}}",
+    "subtitle": "From {{contractor}} · To {{vendor}}",
+    "infoBanner": "You're viewing this purchase order securely from your email link. This is a read-only view — no account needed.",
+    "download": "Download PDF",
+    "expiredToken": "This link has expired",
+    "expiredTokenHint": "Purchase order links are valid for 30 days. Please contact the buyer to request a new link.",
+    "invalidToken": "This link is invalid",
+    "invalidTokenHint": "The link may be incomplete or incorrect. Please reopen it from the email, or contact the buyer."
+  },
   "list": {
     "title": "PO Management",
     "subtitle": "Track and manage all project purchase orders",
