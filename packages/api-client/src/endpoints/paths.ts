@@ -143,6 +143,9 @@ export const PURCHASE_ORDERS_PATHS = {
   documents: (poId: string) => `/purchase-orders/${poId}/documents`,
   document: (poId: string, docId: string) => `/purchase-orders/${poId}/documents/${docId}`,
   exportSingle: (id: string, format: string) => `/purchase-orders/${id}/export/${format}`,
+  // Tokenised vendor PO portal (FOR-246) — public, authorised by access token.
+  portal: '/purchase-orders/portal',
+  portalPdf: '/purchase-orders/portal/pdf',
   changeRequests: (id: string) => `/purchase-orders/${id}/change-requests`,
   approveChange: (id: string, crId: string) =>
     `/purchase-orders/${id}/change-requests/${crId}/approve`,

@@ -2,12 +2,14 @@ enum AccessTokenSubject {
   RFQ
   QUOTE_RESPONSE
   INVOICE
+  PURCHASE_ORDER
 }
 
 enum AccessTokenPurpose {
   RFQ_VIEW
   QUOTE_SUBMIT
   INVOICE_UPLOAD
+  PO_VIEW
 }
 
 /// Tokenized access grant used by the vendor portal (FOR-201).

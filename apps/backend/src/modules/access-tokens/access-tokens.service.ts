@@ -1,13 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 
-import {
-  ForbiddenException,
-  HttpException,
-  HttpStatus,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
-import { AccessTokenPurpose, AccessTokenSubject, type AccessToken } from '@prisma/client';
+import { ForbiddenException, HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { AccessTokenPurpose, AccessTokenSubject, Prisma, type AccessToken } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -68,15 +62,22 @@ export class AccessTokensService {
   /**
    * Issue a fresh token. Returns the opaque token (only available here — it is
    * never persisted in plaintext) and the underlying DB row.
+   *
+   * Pass a transaction `client` to mint the token atomically with another write
+   * (e.g. a PO's DRAFT→SENT transition) so a later best-effort email failure
+   * cannot orphan the link.
    */
-  async issueToken(input: IssueTokenInput): Promise<IssuedToken> {
+  async issueToken(
+    input: IssueTokenInput,
+    client: Prisma.TransactionClient = this.prisma,
+  ): Promise<IssuedToken> {
     const lookupId = generateLookupId();
     const secret = generateSecret();
     const tokenHash = hashSecret(secret);
 
     const expiresAt = new Date(Date.now() + input.ttlMs);
 
-    const record = await this.prisma.accessToken.create({
+    const record = await client.accessToken.create({
       data: {
         lookupId,
         tokenHash,
@@ -91,6 +92,42 @@ export class AccessTokensService {
     });
 
     return { token: `${lookupId}${TOKEN_SEPARATOR}${secret}`, record };
+  }
+
+  /**
+   * Issue a token only if no live (non-expired, non-revoked, unused) token
+   * already exists for `(subjectType, subjectId, purpose)`. Idempotent: when a
+   * live token is already present it is reused and `token` is `null` — the
+   * plaintext of an existing token cannot be reconstructed (only its hash is
+   * stored). Accepts an optional transaction `client` so issuance is atomic with
+   * a status change.
+   *
+   * In the normal flow there is never a pre-existing live token at the moment of
+   * issue (a PO reaches SENT exactly once), so `token` is populated. The reuse
+   * branch is a defensive guard that keeps "exactly one live token per document"
+   * true under a redundant or concurrent call.
+   */
+  async issueTokenIfNoneLive(
+    input: IssueTokenInput,
+    client: Prisma.TransactionClient = this.prisma,
+  ): Promise<{ token: string | null; record: AccessToken; reused: boolean }> {
+    const existing = await client.accessToken.findFirst({
+      where: {
+        subjectType: input.subjectType,
+        subjectId: input.subjectId,
+        purpose: input.purpose,
+        revokedAt: null,
+        usedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (existing) {
+      return { token: null, record: existing, reused: true };
+    }
+
+    const issued = await this.issueToken(input, client);
+    return { token: issued.token, record: issued.record, reused: false };
   }
 
   /**
@@ -196,7 +233,9 @@ export class AccessTokensService {
       where: { expiresAt: { lt: cutoff } },
     });
     if (result.count > 0) {
-      this.logger.log(`Pruned ${result.count} expired access token(s) older than ${cutoff.toISOString()}`);
+      this.logger.log(
+        `Pruned ${result.count} expired access token(s) older than ${cutoff.toISOString()}`,
+      );
     }
     return result.count;
   }

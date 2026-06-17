@@ -12,6 +12,7 @@ import { PurchaseOrdersService } from '../purchase-orders.service';
 const mockService = {
   listPurchaseOrders: jest.fn(),
   getPurchaseOrder: jest.fn(),
+  getPurchaseOrderById: jest.fn(),
   createPurchaseOrder: jest.fn(),
   updatePurchaseOrder: jest.fn(),
   copyPurchaseOrder: jest.fn(),
@@ -19,6 +20,7 @@ const mockService = {
 
 const mockExportService = {
   exportPos: jest.fn(),
+  exportPublicPoPdf: jest.fn(),
 };
 
 const mockDocumentService = {
@@ -76,6 +78,31 @@ describe('PurchaseOrdersController', () => {
     }).compile();
 
     controller = module.get<PurchaseOrdersController>(PurchaseOrdersController);
+  });
+
+  describe('tokenised vendor PO portal (FOR-246)', () => {
+    // The access token resolved by the guard binds the request to one PO — the
+    // controller reads the PO id from the token's subject, never from the caller.
+    const token = { id: 'tok-1', subjectId: 'po-99' };
+
+    it('getPublicPurchaseOrder loads the PO named by the token subject', async () => {
+      const expected = { id: 'po-99', poNumber: 'PO-99' };
+      mockService.getPurchaseOrderById.mockResolvedValue(expected);
+
+      const result = await controller.getPublicPurchaseOrder(token as never);
+
+      expect(mockService.getPurchaseOrderById).toHaveBeenCalledWith('po-99');
+      expect(result).toEqual(expected);
+    });
+
+    it('exportPublicPurchaseOrderPdf returns a PDF url for the token subject', async () => {
+      mockExportService.exportPublicPoPdf.mockResolvedValue({ url: 'https://files/po-99.pdf' });
+
+      const result = await controller.exportPublicPurchaseOrderPdf(token as never);
+
+      expect(mockExportService.exportPublicPoPdf).toHaveBeenCalledWith('po-99');
+      expect(result).toEqual({ url: 'https://files/po-99.pdf' });
+    });
   });
 
   describe('listPurchaseOrders', () => {

@@ -13,6 +13,7 @@ const companyAdmin = {
 const mockPoService = {
   listPurchaseOrders: jest.fn(),
   getPurchaseOrder: jest.fn(),
+  getPurchaseOrderById: jest.fn(),
 };
 
 const mockPdfExportService = {
@@ -664,6 +665,31 @@ describe('PoExportService', () => {
       expect(options.terms?.lines).toEqual(
         expect.arrayContaining(['Delivery contact: Jordan Contact']),
       );
+    });
+  });
+
+  describe('exportPublicPoPdf (FOR-246)', () => {
+    it('loads the PO by id (no user) and returns the generated PDF url', async () => {
+      mockPoService.getPurchaseOrderById.mockResolvedValue({
+        poNumber: 'PO-77',
+        projectName: 'Portal',
+        status: 'SENT',
+        currency: 'AUD',
+        totalAmount: 1000,
+        lineItems: [],
+        createdAt: '2026-06-16T00:00:00.000Z',
+      });
+      mockPdfExportService.exportInvoicePDF.mockResolvedValue({ url: 'https://files/po-77.pdf' });
+
+      const result = await service.exportPublicPoPdf('po-77');
+
+      expect(mockPoService.getPurchaseOrderById).toHaveBeenCalledWith('po-77');
+      // Identity-free: the authenticated getPurchaseOrder(user) path is not used.
+      expect(mockPoService.getPurchaseOrder).not.toHaveBeenCalled();
+      expect(mockPdfExportService.exportInvoicePDF).toHaveBeenCalledWith(
+        expect.objectContaining({ filenamePrefix: 'po-PO-77' }),
+      );
+      expect(result).toEqual({ url: 'https://files/po-77.pdf' });
     });
   });
 });

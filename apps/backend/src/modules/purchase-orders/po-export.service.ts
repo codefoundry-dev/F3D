@@ -285,6 +285,16 @@ export class PoExportService {
   }
 
   /**
+   * Export a single PO as a PDF for the tokenised vendor portal (FOR-246).
+   * Identity-free: the validated access token has already authorised this exact
+   * PO, so there is no caller user. Returns a URL, mirroring exportSinglePo.
+   */
+  async exportPublicPoPdf(id: string): Promise<{ url: string }> {
+    const po = await this.poService.getPurchaseOrderById(id);
+    return this.pdfExportService.exportInvoicePDF(this.buildPoPdfOptions(po));
+  }
+
+  /**
    * Build the polished PO PDF template model (FOR-211): renders number, vendor,
    * line items, the multi-delivery schedule (FOR-210), terms and signature lines.
    * Shared by the download and email-attachment paths so both stay in sync.

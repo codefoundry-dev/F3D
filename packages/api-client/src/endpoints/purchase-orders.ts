@@ -243,6 +243,40 @@ export async function getPurchaseOrder(id: string, config?: AxiosRequestConfig):
   return data.data;
 }
 
+/** Header carrying a vendor portal access token (FOR-246). Mirrors the backend guard. */
+const ACCESS_TOKEN_HEADER = 'X-Access-Token';
+
+/**
+ * Fetch a PO for the tokenised vendor portal (FOR-246). Public — authorised by
+ * the access token (sent in the `X-Access-Token` header), not a session. The PO
+ * is resolved server-side from the token's subject, so no id is passed. Opts out
+ * of the global error toast: the portal page renders its own friendly state for
+ * expired / invalid links.
+ */
+export async function getPublicPurchaseOrder(
+  token: string,
+  config?: AxiosRequestConfig,
+): Promise<PoDetail> {
+  const { data } = await getApiClient().get<{ data: PoDetail }>(PURCHASE_ORDERS_PATHS.portal, {
+    headers: { [ACCESS_TOKEN_HEADER]: token },
+    skipErrorHandler: true,
+    ...config,
+  });
+  return data.data;
+}
+
+/** Get a download URL for the PO PDF via the tokenised vendor portal (FOR-246). */
+export async function exportPublicPurchaseOrder(
+  token: string,
+  config?: AxiosRequestConfig,
+): Promise<{ url: string }> {
+  const { data } = await getApiClient().get<{ data: { url: string } }>(
+    PURCHASE_ORDERS_PATHS.portalPdf,
+    { headers: { [ACCESS_TOKEN_HEADER]: token }, skipErrorHandler: true, ...config },
+  );
+  return data.data;
+}
+
 /** Fetch the outbound email delivery log for a PO (newest event first). FOR-213. */
 export async function getPurchaseOrderEmailLog(
   poId: string,

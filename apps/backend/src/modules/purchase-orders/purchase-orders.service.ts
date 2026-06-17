@@ -196,6 +196,17 @@ export class PurchaseOrdersService {
   // ── Get single Purchase Order ──────────────────────────────────────────────
 
   async getPurchaseOrder(id: string, _user: AuthenticatedUser) {
+    return this.getPurchaseOrderById(id);
+  }
+
+  /**
+   * Load a single PO detail without a caller identity. Backs both the
+   * authenticated detail endpoint (read access is gated at the controller, so
+   * the user is unused there) and the tokenised vendor PO portal (FOR-246),
+   * where the validated access token already binds the request to this exact
+   * PO. Tenancy is implicit — the row carries its own companyId.
+   */
+  async getPurchaseOrderById(id: string) {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id },
       include: {
