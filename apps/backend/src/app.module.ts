@@ -25,6 +25,7 @@ import { EmailLogModule } from './modules/email-log/email-log.module';
 import { GeminiModule } from './modules/gemini/gemini.module';
 import { GoogleModule } from './modules/google/google.module';
 import { HealthModule } from './modules/health/health.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
 import { MaterialListsModule } from './modules/material-lists/material-lists.module';
 import { MaterialRequestsModule } from './modules/material-requests/material-requests.module';
@@ -98,6 +99,7 @@ import { PrismaModule } from './prisma/prisma.module';
     RolesModule,
     BulkOrdersModule,
     InvoicesModule,
+    InventoryModule,
     MaterialsModule,
     MaterialListsModule,
     DashboardModule,

@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { AccessTokensModule } from '../access-tokens/access-tokens.module';
 import { AuditModule } from '../audit/audit.module';
 import { ExportModule } from '../export/export.module';
+import { InventoryModule } from '../inventory/inventory.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { StorageModule } from '../storage/storage.module';
 
@@ -15,7 +16,14 @@ import { PurchaseOrdersController } from './purchase-orders.controller';
 import { PurchaseOrdersService } from './purchase-orders.service';
 
 @Module({
-  imports: [ExportModule, StorageModule, NotificationsModule, AuditModule, AccessTokensModule],
+  imports: [
+    ExportModule,
+    StorageModule,
+    NotificationsModule,
+    AuditModule,
+    InventoryModule,
+    AccessTokensModule,
+  ],
   controllers: [PurchaseOrdersController],
   providers: [
     PurchaseOrdersService,

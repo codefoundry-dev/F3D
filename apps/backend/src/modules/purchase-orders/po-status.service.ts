@@ -25,6 +25,7 @@ import { resolveVendorEmailRecipients } from '../../common/utils/vendor-recipien
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { AuditService } from '../audit/audit.service';
+import { InventoryService } from '../inventory/inventory.service';
 import { EmailService } from '../notifications/email.service';
 
 import { PoExportService } from './po-export.service';
@@ -55,6 +56,7 @@ export class PoStatusService {
     private readonly poExportService: PoExportService,
     private readonly approvalAuth: ApprovalAuthorizationService,
     private readonly auditService: AuditService,
+    private readonly inventoryService: InventoryService,
     private readonly accessTokens: AccessTokensService,
     config: ConfigService,
   ) {
@@ -579,7 +581,16 @@ export class PoStatusService {
         id: true,
         status: true,
         companyId: true,
-        lineItems: { select: { id: true, quantityOrdered: true, quantityDelivered: true } },
+        deliveryLocationId: true,
+        lineItems: {
+          select: {
+            id: true,
+            quantityOrdered: true,
+            quantityDelivered: true,
+            materialId: true,
+            deliveryLocationId: true,
+          },
+        },
       },
     });
 
@@ -634,10 +645,32 @@ export class PoStatusService {
 
     await this.prisma.$transaction(async (tx) => {
       for (const line of dto.lines) {
+        const existing = lineById.get(line.lineItemId);
         await tx.poLineItem.update({
           where: { id: line.lineItemId },
           data: { quantityDelivered: line.quantityDelivered },
         });
+
+        // Push the newly-received quantity into inventory. Only the positive
+        // delta over the previously-recorded cumulative delivered counts (a
+        // re-post of the same figures yields delta 0 → no movement), and only
+        // when the line carries a catalogue material and a resolvable location
+        // (line-level override, else the PO header). Lines without material or
+        // location simply aren't tracked — quantityDelivered still updates.
+        const delta = line.quantityDelivered - (existing?.quantityDelivered ?? 0);
+        const locationId = existing?.deliveryLocationId ?? po.deliveryLocationId;
+        if (delta > 0 && existing?.materialId && locationId) {
+          await this.inventoryService.applyIn(tx, {
+            companyId: po.companyId,
+            materialId: existing.materialId,
+            locationId,
+            quantity: delta,
+            sourceType: 'PURCHASE_ORDER',
+            sourceId: po.id,
+            sourceLineId: line.lineItemId,
+            createdById: user.id,
+          });
+        }
       }
       if (nextStatus !== po.status) {
         await tx.purchaseOrder.update({

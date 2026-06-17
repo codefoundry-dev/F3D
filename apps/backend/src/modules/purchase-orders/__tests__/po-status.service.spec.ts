@@ -133,6 +133,10 @@ const mockAuditService = {
   log: jest.fn(),
 };
 
+const mockInventoryService = {
+  applyIn: jest.fn().mockResolvedValue({ id: 'mov-1' }),
+};
+
 const mockAccessTokensService = {
   issueTokenIfNoneLive: jest.fn(),
 };
@@ -153,6 +157,7 @@ describe('PoStatusService', () => {
       mockPoExportService as never,
       mockApprovalAuth as never,
       mockAuditService as never,
+      mockInventoryService as never,
       mockAccessTokensService as never,
       mockConfig as never,
     );
@@ -1451,7 +1456,18 @@ describe('PoStatusService', () => {
       id: 'po-1',
       status: 'ACCEPTED',
       companyId: 'comp-1',
-      lineItems: [{ id: 'li-1', quantityOrdered: 10, quantityDelivered: 0 }],
+      deliveryLocationId: 'loc-hdr',
+      // Untracked line (no material / no line location): receiving updates
+      // quantityDelivered but pushes nothing into inventory.
+      lineItems: [
+        {
+          id: 'li-1',
+          quantityOrdered: 10,
+          quantityDelivered: 0,
+          materialId: null,
+          deliveryLocationId: null,
+        },
+      ],
     };
 
     beforeEach(() => {
@@ -1593,6 +1609,120 @@ describe('PoStatusService', () => {
 
       expect(mockPrisma.purchaseOrder.update).not.toHaveBeenCalled();
       expect(mockAuditService.log).not.toHaveBeenCalled();
+    });
+
+    // ── Epic 7: inventory push-in on receipt ─────────────────────────────────
+    it('does NOT push inventory for a line without material or location', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(receivePo);
+      mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue({
+        id: 'po-1',
+        status: 'PARTIALLY_DELIVERED',
+      });
+
+      await service.receivePurchaseOrder(
+        'po-1',
+        { lines: [{ lineItemId: 'li-1', quantityDelivered: 5 }] },
+        companyAdmin,
+      );
+
+      expect(mockInventoryService.applyIn).not.toHaveBeenCalled();
+    });
+
+    it('pushes the delivered delta into inventory for a tracked line (line location wins)', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        ...receivePo,
+        lineItems: [
+          {
+            id: 'li-1',
+            quantityOrdered: 10,
+            quantityDelivered: 0,
+            materialId: 'mat-1',
+            deliveryLocationId: 'loc-line',
+          },
+        ],
+      });
+      mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue({
+        id: 'po-1',
+        status: 'PARTIALLY_DELIVERED',
+      });
+
+      await service.receivePurchaseOrder(
+        'po-1',
+        { lines: [{ lineItemId: 'li-1', quantityDelivered: 4 }] },
+        companyAdmin,
+      );
+
+      expect(mockInventoryService.applyIn).toHaveBeenCalledTimes(1);
+      expect(mockInventoryService.applyIn.mock.calls[0][1]).toMatchObject({
+        companyId: 'comp-1',
+        materialId: 'mat-1',
+        locationId: 'loc-line',
+        quantity: 4,
+        sourceType: 'PURCHASE_ORDER',
+        sourceId: 'po-1',
+        sourceLineId: 'li-1',
+        createdById: 'ca-1',
+      });
+    });
+
+    it('falls back to the PO header location and pushes only the positive delta', async () => {
+      // Already 3 delivered; re-posting 7 cumulative pushes a delta of 4.
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        ...receivePo,
+        status: 'PARTIALLY_DELIVERED',
+        lineItems: [
+          {
+            id: 'li-1',
+            quantityOrdered: 10,
+            quantityDelivered: 3,
+            materialId: 'mat-1',
+            deliveryLocationId: null,
+          },
+        ],
+      });
+      mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue({
+        id: 'po-1',
+        status: 'PARTIALLY_DELIVERED',
+      });
+
+      await service.receivePurchaseOrder(
+        'po-1',
+        { lines: [{ lineItemId: 'li-1', quantityDelivered: 7 }] },
+        companyAdmin,
+      );
+
+      expect(mockInventoryService.applyIn.mock.calls[0][1]).toMatchObject({
+        locationId: 'loc-hdr',
+        quantity: 4,
+      });
+    });
+
+    it('does not push inventory on an idempotent re-post (delta 0)', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        ...receivePo,
+        status: 'PARTIALLY_DELIVERED',
+        lineItems: [
+          {
+            id: 'li-1',
+            quantityOrdered: 10,
+            quantityDelivered: 5,
+            materialId: 'mat-1',
+            deliveryLocationId: 'loc-line',
+          },
+        ],
+      });
+      mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue({
+        id: 'po-1',
+        status: 'PARTIALLY_DELIVERED',
+      });
+
+      await service.receivePurchaseOrder(
+        'po-1',
+        { lines: [{ lineItemId: 'li-1', quantityDelivered: 5 }] },
+        companyAdmin,
+      );
+
+      expect(mockInventoryService.applyIn).not.toHaveBeenCalled();
     });
   });
 
