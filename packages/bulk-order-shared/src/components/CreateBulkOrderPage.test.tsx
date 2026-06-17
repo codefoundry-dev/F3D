@@ -155,7 +155,7 @@ describe('CreateBulkOrderPage', () => {
   it('submits createBulkOrder with derived vendor + line items and navigates to the new detail', () => {
     state.hasDetail = true;
     mockMutate.mockImplementation((_payload: any, opts: any) =>
-      opts.onSuccess({ bulkId: 'bo-99' }),
+      opts.onSuccess({ id: 'bo-99', bulkId: 'BULK-099' }),
     );
 
     render(<CreateBulkOrderPage />);

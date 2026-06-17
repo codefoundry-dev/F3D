@@ -20,9 +20,12 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { AccessTokenPurpose, AccessTokenSubject, type AccessToken } from '@prisma/client';
 
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { RequirePermissions } from '../../common/permissions';
+import { CurrentAccessToken, RequireAccessToken } from '../access-tokens/access-token.decorators';
 
 import { CreatePoChangeRequestDto, RejectPoChangeRequestDto } from './po-change.dto';
 import { PoChangeService } from './po-change.service';
@@ -68,6 +71,39 @@ export class PurchaseOrdersController {
   @ApiResponse({ status: 200, description: 'Pending-approval purchase orders for the approver' })
   async listPendingApproval(@CurrentUser() user: AuthenticatedUser) {
     return this.poStatusService.listPendingApproval(user);
+  }
+
+  // ── Tokenised vendor PO portal (FOR-246) ───────────────────────────────────
+  // Public, token-authorised reads, declared before the `:id` routes so the
+  // literal `portal` path is matched first. The PO is resolved from the access
+  // token's subject — the caller never names a PO id, so a token can only ever
+  // reach the PO it was issued for. The token is validated, never consumed, so
+  // the link stays reusable (ADR-0002 R1 PO token amendment).
+
+  @Get('portal')
+  @Public()
+  @RequireAccessToken({
+    expectedPurpose: AccessTokenPurpose.PO_VIEW,
+    expectedSubjectType: AccessTokenSubject.PURCHASE_ORDER,
+  })
+  @ApiOperation({ summary: 'View a purchase order via a tokenised vendor link (no login)' })
+  @ApiResponse({ status: 200, description: 'Read-only purchase order detail' })
+  @ApiResponse({ status: 403, description: 'Token missing, expired, revoked, or invalid' })
+  async getPublicPurchaseOrder(@CurrentAccessToken() token: AccessToken) {
+    return this.purchaseOrdersService.getPurchaseOrderById(token.subjectId);
+  }
+
+  @Get('portal/pdf')
+  @Public()
+  @RequireAccessToken({
+    expectedPurpose: AccessTokenPurpose.PO_VIEW,
+    expectedSubjectType: AccessTokenSubject.PURCHASE_ORDER,
+  })
+  @ApiOperation({ summary: 'Download the purchase order PDF via a tokenised vendor link' })
+  @ApiResponse({ status: 200, description: 'URL to the generated PO PDF' })
+  @ApiResponse({ status: 403, description: 'Token missing, expired, revoked, or invalid' })
+  async exportPublicPurchaseOrderPdf(@CurrentAccessToken() token: AccessToken) {
+    return this.poExportService.exportPublicPoPdf(token.subjectId);
   }
 
   // ── POST /v1/purchase-orders ──────────────────────────────────────────────

@@ -21,6 +21,10 @@ const mockUpdateRfq = vi.hoisted(() => ({
   isPending: false,
   isError: false,
 }));
+const mockCreateDraftPoMutate = vi.hoisted(() => vi.fn());
+const mockUseCreateDraftPoFromQuote = vi.hoisted(() => vi.fn());
+const mockNavigate = vi.hoisted(() => vi.fn());
+const mockToast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 
 vi.mock('@forethread/i18n', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -72,6 +76,7 @@ vi.mock('@forethread/api-client', () => ({
 vi.mock('react-router-dom', () => ({
   useParams: mockUseParams,
   useSearchParams: mockUseSearchParams,
+  useNavigate: () => mockNavigate,
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),
@@ -79,6 +84,7 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('@forethread/rfq-shared', () => ({
   useRfq: mockUseRfq,
+  useCreateDraftPoFromQuote: mockUseCreateDraftPoFromQuote,
   usePageTitleStore: () => vi.fn(),
   RfqDetailTabs: ({
     activeTab,
@@ -156,6 +162,7 @@ vi.mock('@forethread/ui-components', () => ({
     </button>
   ),
   Spinner: ({ size }: { size?: string }) => <div data-testid="spinner" data-size={size} />,
+  toast: mockToast,
 }));
 
 vi.mock('@forethread/ui-components/assets/icons/caret-left.svg?react', () => ({
@@ -218,7 +225,21 @@ describe('RfqDetailPage', () => {
     mockUpdateRfq.isPending = false;
     mockUpdateRfq.isError = false;
     mockUpdateRfq.mutateAsync.mockResolvedValue({ ...MOCK_RFQ });
+    mockUseCreateDraftPoFromQuote.mockReturnValue({
+      mutate: mockCreateDraftPoMutate,
+      isPending: false,
+    });
   });
+
+  /** An AWARDED RFQ whose winning quote is the APPROVED response. */
+  const AWARDED_RFQ = {
+    ...MOCK_RFQ,
+    status: 'AWARDED',
+    quoteResponses: [
+      { id: 'qr-1', vendorId: 'company-1', vendorName: 'Acme', status: 'DECLINED' },
+      { id: 'qr-2', vendorId: 'company-2', vendorName: 'BuildCo', status: 'APPROVED' },
+    ],
+  };
 
   /** A sendable DRAFT RFQ (status DRAFT, with line items + vendors). */
   const DRAFT_RFQ = {
@@ -468,5 +489,58 @@ describe('RfqDetailPage', () => {
         dto: { vendorIds: ['company-9'] },
       }),
     );
+  });
+
+  // ── Create draft PO (AWARDED fallback) ────────────────────────────────────
+
+  it('shows the Create draft PO button for an AWARDED RFQ with an approved quote', () => {
+    mockUseRfq.mockReturnValue({ data: AWARDED_RFQ, isLoading: false, isError: false });
+    render(<RfqDetailPage />, { wrapper });
+    expect(screen.getByTestId('create-draft-po')).toBeInTheDocument();
+  });
+
+  it('hides the Create draft PO button when the RFQ is not awarded', () => {
+    mockUseRfq.mockReturnValue({ data: MOCK_RFQ, isLoading: false, isError: false });
+    render(<RfqDetailPage />, { wrapper });
+    expect(screen.queryByTestId('create-draft-po')).not.toBeInTheDocument();
+  });
+
+  it('hides the Create draft PO button when an awarded RFQ has no approved quote', () => {
+    mockUseRfq.mockReturnValue({
+      data: { ...AWARDED_RFQ, quoteResponses: [{ id: 'qr-1', status: 'DECLINED' }] },
+      isLoading: false,
+      isError: false,
+    });
+    render(<RfqDetailPage />, { wrapper });
+    expect(screen.queryByTestId('create-draft-po')).not.toBeInTheDocument();
+  });
+
+  it('creates a draft PO from the approved quote, then toasts and navigates to it', () => {
+    mockCreateDraftPoMutate.mockImplementation(
+      (_quoteId: string, opts: { onSuccess: (p: unknown) => void }) =>
+        opts.onSuccess([{ id: 'PO-1', poNumber: 'PO-2024-001' }]),
+    );
+    mockUseRfq.mockReturnValue({ data: AWARDED_RFQ, isLoading: false, isError: false });
+    render(<RfqDetailPage />, { wrapper });
+
+    fireEvent.click(screen.getByTestId('create-draft-po'));
+
+    expect(mockCreateDraftPoMutate).toHaveBeenCalledWith('qr-2', expect.any(Object));
+    expect(mockToast.success).toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalledWith('/purchase-orders/PO-1');
+  });
+
+  it('surfaces an error toast when draft PO creation fails', () => {
+    mockCreateDraftPoMutate.mockImplementation(
+      (_quoteId: string, opts: { onError: (e: unknown) => void }) =>
+        opts.onError(new Error('boom')),
+    );
+    mockUseRfq.mockReturnValue({ data: AWARDED_RFQ, isLoading: false, isError: false });
+    render(<RfqDetailPage />, { wrapper });
+
+    fireEvent.click(screen.getByTestId('create-draft-po'));
+
+    expect(mockToast.error).toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });

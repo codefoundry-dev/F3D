@@ -7,7 +7,10 @@ module.exports = {
   },
   rules: {
     // NestJS uses decorators extensively — param decorators need @CurrentUser() etc.
-    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
+    ],
   },
   overrides: [
     {

@@ -14,6 +14,7 @@ import { AccessTokensService } from './access-tokens.service';
 
 type MockedAccessTokenDelegate = {
   create: jest.Mock;
+  findFirst: jest.Mock;
   findUnique: jest.Mock;
   findUniqueOrThrow: jest.Mock;
   update: jest.Mock;
@@ -53,6 +54,7 @@ describe('AccessTokensService', () => {
     prisma = {
       accessToken: {
         create: jest.fn(),
+        findFirst: jest.fn(),
         findUnique: jest.fn(),
         findUniqueOrThrow: jest.fn(),
         update: jest.fn(),
@@ -65,15 +67,18 @@ describe('AccessTokensService', () => {
 
   describe('issueToken', () => {
     it('returns an opaque <lookupId>_<secret> token and persists a hashed secret', async () => {
-      prisma.accessToken.create.mockImplementation(({ data }: { data: Prisma.AccessTokenCreateInput }) =>
-        Promise.resolve(makeRow({
-          lookupId: data.lookupId,
-          tokenHash: data.tokenHash,
-          subjectType: data.subjectType,
-          subjectId: data.subjectId,
-          purpose: data.purpose,
-          expiresAt: data.expiresAt as Date,
-        })),
+      prisma.accessToken.create.mockImplementation(
+        ({ data }: { data: Prisma.AccessTokenCreateInput }) =>
+          Promise.resolve(
+            makeRow({
+              lookupId: data.lookupId,
+              tokenHash: data.tokenHash,
+              subjectType: data.subjectType,
+              subjectId: data.subjectId,
+              purpose: data.purpose,
+              expiresAt: data.expiresAt as Date,
+            }),
+          ),
       );
 
       const { token, record } = await service.issueToken({
@@ -97,7 +102,9 @@ describe('AccessTokensService', () => {
     });
 
     it('respects custom maxAttempts and createdByUserId', async () => {
-      prisma.accessToken.create.mockResolvedValue(makeRow({ maxAttempts: 3, createdByUserId: 'u-1' }));
+      prisma.accessToken.create.mockResolvedValue(
+        makeRow({ maxAttempts: 3, createdByUserId: 'u-1' }),
+      );
 
       await service.issueToken({
         subjectType: AccessTokenSubject.QUOTE_RESPONSE,
@@ -116,12 +123,81 @@ describe('AccessTokensService', () => {
     });
   });
 
+  describe('issueTokenIfNoneLive', () => {
+    const poInput = {
+      subjectType: AccessTokenSubject.PURCHASE_ORDER,
+      subjectId: 'po-1',
+      purpose: AccessTokenPurpose.PO_VIEW,
+      ttlMs: 30 * 24 * 60 * 60 * 1000,
+    };
+
+    it('mints a fresh token when no live token exists for the subject', async () => {
+      prisma.accessToken.findFirst.mockResolvedValue(null);
+      prisma.accessToken.create.mockImplementation(
+        ({ data }: { data: Prisma.AccessTokenCreateInput }) =>
+          Promise.resolve(makeRow({ lookupId: data.lookupId, tokenHash: data.tokenHash })),
+      );
+
+      const result = await service.issueTokenIfNoneLive(poInput);
+
+      expect(result.reused).toBe(false);
+      expect(result.token).toMatch(/^[A-Za-z0-9]{16}\..+/);
+      expect(prisma.accessToken.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            subjectType: AccessTokenSubject.PURCHASE_ORDER,
+            subjectId: 'po-1',
+            purpose: AccessTokenPurpose.PO_VIEW,
+            revokedAt: null,
+            usedAt: null,
+            expiresAt: { gt: expect.any(Date) },
+          }),
+        }),
+      );
+      expect(prisma.accessToken.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('reuses an existing live token and returns no plaintext (idempotent)', async () => {
+      const existing = makeRow({ id: 'tok-live', subjectType: AccessTokenSubject.PURCHASE_ORDER });
+      prisma.accessToken.findFirst.mockResolvedValue(existing);
+
+      const result = await service.issueTokenIfNoneLive(poInput);
+
+      expect(result.reused).toBe(true);
+      expect(result.token).toBeNull();
+      expect(result.record).toBe(existing);
+      expect(prisma.accessToken.create).not.toHaveBeenCalled();
+    });
+
+    it('runs against a provided transaction client', async () => {
+      const tx = {
+        accessToken: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      };
+      tx.accessToken.create.mockImplementation(
+        ({ data }: { data: Prisma.AccessTokenCreateInput }) =>
+          Promise.resolve(makeRow({ lookupId: data.lookupId, tokenHash: data.tokenHash })),
+      );
+
+      await service.issueTokenIfNoneLive(poInput, tx as unknown as Prisma.TransactionClient);
+
+      // The base client is untouched; both reads and writes go through the tx.
+      expect(prisma.accessToken.findFirst).not.toHaveBeenCalled();
+      expect(prisma.accessToken.create).not.toHaveBeenCalled();
+      expect(tx.accessToken.findFirst).toHaveBeenCalledTimes(1);
+      expect(tx.accessToken.create).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('validateToken', () => {
     it('returns the row for a valid token and records the attempt', async () => {
       const secret = 'super-random-secret-value';
       const row = makeRow({ tokenHash: createHash('sha256').update(secret).digest('hex') });
       prisma.accessToken.findUnique.mockResolvedValue(row);
-      prisma.accessToken.update.mockResolvedValue({ ...row, attempts: 1, lastAttemptIp: '1.2.3.4' });
+      prisma.accessToken.update.mockResolvedValue({
+        ...row,
+        attempts: 1,
+        lastAttemptIp: '1.2.3.4',
+      });
 
       const result = await service.validateToken(`${row.lookupId}.${secret}`, { ip: '1.2.3.4' });
 
@@ -172,7 +248,9 @@ describe('AccessTokensService', () => {
       prisma.accessToken.findUnique.mockResolvedValue(row);
       prisma.accessToken.update.mockResolvedValue({ ...row, attempts: 1 });
 
-      await expect(service.validateToken(`${row.lookupId}.${secret}`)).rejects.toThrow(/already been used/i);
+      await expect(service.validateToken(`${row.lookupId}.${secret}`)).rejects.toThrow(
+        /already been used/i,
+      );
     });
 
     it('throws 403 for a revoked token', async () => {
@@ -188,11 +266,15 @@ describe('AccessTokensService', () => {
     });
 
     it('throws 403 when the secret does not match the stored hash', async () => {
-      const row = makeRow({ tokenHash: createHash('sha256').update('correct-secret').digest('hex') });
+      const row = makeRow({
+        tokenHash: createHash('sha256').update('correct-secret').digest('hex'),
+      });
       prisma.accessToken.findUnique.mockResolvedValue(row);
       prisma.accessToken.update.mockResolvedValue({ ...row, attempts: 1 });
 
-      await expect(service.validateToken(`${row.lookupId}.wrong-secret`)).rejects.toThrow(/invalid/i);
+      await expect(service.validateToken(`${row.lookupId}.wrong-secret`)).rejects.toThrow(
+        /invalid/i,
+      );
     });
 
     it('throws 403 when the purpose does not match expectedPurpose', async () => {
@@ -222,8 +304,12 @@ describe('AccessTokensService', () => {
       // Simulate the increment putting attempts above maxAttempts.
       prisma.accessToken.update.mockResolvedValue({ ...row, attempts: 11 });
 
-      await expect(service.validateToken(`${row.lookupId}.${secret}`)).rejects.toThrow(HttpException);
-      await expect(service.validateToken(`${row.lookupId}.${secret}`)).rejects.toThrow(/too many attempts/i);
+      await expect(service.validateToken(`${row.lookupId}.${secret}`)).rejects.toThrow(
+        HttpException,
+      );
+      await expect(service.validateToken(`${row.lookupId}.${secret}`)).rejects.toThrow(
+        /too many attempts/i,
+      );
     });
 
     it('bumps attempts even when the secret is wrong (brute-force protection)', async () => {

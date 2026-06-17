@@ -81,6 +81,7 @@ import { BulkOrderDetailPage } from './BulkOrderDetailPage';
 
 function makeDetail(overrides: Partial<BulkOrderDetail> = {}): BulkOrderDetail {
   return {
+    id: 'bo-1',
     bulkId: 'BULK-2025-011',
     rfqReference: 'RFQ-2025-011',
     contractorName: 'Acme',

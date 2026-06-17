@@ -8,6 +8,7 @@ import {
   getRfqQuoteAudit,
   getRfqQuoteComparison,
   updateQuoteLineItemStatuses,
+  type PoDetail,
   type QuoteLineItemReviewStatus,
   type RfqListParams,
 } from '@forethread/api-client';
@@ -95,7 +96,7 @@ export function useUpdateQuoteLineItemStatuses(rfqId: string) {
 export function useCreateDraftPoFromQuote(rfqId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (quoteResponseId: string) => {
+    mutationFn: async (quoteResponseId: string): Promise<PoDetail[]> => {
       const comparison = await getRfqQuoteComparison(rfqId);
       const vendor = comparison.vendors.find((v) => v.quoteResponseId === quoteResponseId);
       if (!vendor) throw new Error('Quote not found in comparison');
@@ -124,24 +125,35 @@ export function useCreateDraftPoFromQuote(rfqId: string) {
         byProject.set(row.projectId, lines);
       }
 
-      for (const [projectId, lines] of byProject) {
-        await createPurchaseOrder({
-          projectId,
-          vendorId: vendor.vendorId,
-          poType: 'STANDARD',
-          sourceOfCreation: 'RFQ',
-          currency: comparison.currency,
-          pickUp: false,
-          rfqId,
-          lineItems: lines.map((line) => ({
-            description: line.description,
-            quantityOrdered: line.qty,
-            unitOfMeasure: line.unit,
-            unitPrice: line.price,
-            expectedDeliveryDate: line.delivery,
-          })),
-        });
+      // Guard the silent-success case: an awarded quote with no priced lines
+      // would otherwise create zero POs and still resolve, leaving the caller
+      // to believe a draft PO exists. Fail so the error path is taken instead.
+      if (byProject.size === 0) {
+        throw new Error('Awarded quote has no priced lines to turn into a PO');
       }
+
+      const created: PoDetail[] = [];
+      for (const [projectId, lines] of byProject) {
+        created.push(
+          await createPurchaseOrder({
+            projectId,
+            vendorId: vendor.vendorId,
+            poType: 'STANDARD',
+            sourceOfCreation: 'RFQ',
+            currency: comparison.currency,
+            pickUp: false,
+            rfqId,
+            lineItems: lines.map((line) => ({
+              description: line.description,
+              quantityOrdered: line.qty,
+              unitOfMeasure: line.unit,
+              unitPrice: line.price,
+              expectedDeliveryDate: line.delivery,
+            })),
+          }),
+        );
+      }
+      return created;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });

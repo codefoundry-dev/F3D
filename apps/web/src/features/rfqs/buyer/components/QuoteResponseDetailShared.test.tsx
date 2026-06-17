@@ -1,4 +1,4 @@
-import { QuoteResponseDetailPage } from '@forethread/rfq-shared';
+import { QuoteResponseActions, QuoteResponseDetailPage } from '@forethread/rfq-shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -33,7 +33,6 @@ vi.mock('@forethread/i18n', () => ({
       opts && 'count' in opts ? `${key}:${String(opts.count)}` : key,
   }),
 }));
-
 
 /* ── Fixtures ───────────────────────────────────────────────────────────── */
 
@@ -228,5 +227,38 @@ describe('QuoteResponseDetailPage (shared)', () => {
     expect(backBtn).not.toBeNull();
     fireEvent.click(backBtn!);
     expect(onBack).toHaveBeenCalled();
+  });
+});
+
+describe('QuoteResponseActions post-approve prompt', () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+
+  const tree = (status: string) => (
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <QuoteResponseActions rfqId="rfq-1" quoteId="q-1" vendorId="v-1" status={status} />
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+
+  it('keeps the PO prompt mounted after the quote flips to APPROVED on refetch', async () => {
+    mockApproveQuote.mockResolvedValue({});
+    const { rerender } = render(tree('SUBMITTED'));
+
+    fireEvent.click(screen.getByText('responsesTab.approve'));
+
+    // The prompt opens once the approval resolves.
+    expect(await screen.findByText('startOrder.poTitle')).toBeInTheDocument();
+
+    // Simulate the cache invalidation refetching the quote as APPROVED. The
+    // component re-renders non-pending, but the prompt must NOT be unmounted
+    // (regression guard for the "prompt flashes shut" bug).
+    rerender(tree('APPROVED'));
+
+    expect(screen.getByText('startOrder.poTitle')).toBeInTheDocument();
+    // The Decline/Approve buttons are hidden once the quote is no longer pending.
+    expect(screen.queryByText('responsesTab.approve')).not.toBeInTheDocument();
   });
 });

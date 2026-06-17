@@ -196,6 +196,17 @@ export class PurchaseOrdersService {
   // ── Get single Purchase Order ──────────────────────────────────────────────
 
   async getPurchaseOrder(id: string, _user: AuthenticatedUser) {
+    return this.getPurchaseOrderById(id);
+  }
+
+  /**
+   * Load a single PO detail without a caller identity. Backs both the
+   * authenticated detail endpoint (read access is gated at the controller, so
+   * the user is unused there) and the tokenised vendor PO portal (FOR-246),
+   * where the validated access token already binds the request to this exact
+   * PO. Tenancy is implicit — the row carries its own companyId.
+   */
+  async getPurchaseOrderById(id: string) {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id },
       include: {
@@ -460,12 +471,15 @@ export class PurchaseOrdersService {
       if (!vendor) throw new NotFoundException(ERR.purchaseOrders.vendorNotFound);
     }
 
-    // Validate deliveryLocationId belongs to project
-    const location = await this.prisma.projectLocation.findUnique({
-      where: { id: dto.deliveryLocationId },
-    });
-    if (!location || location?.projectId !== dto.projectId) {
-      throw new BadRequestException(ERR.purchaseOrders.invalidDeliveryLocation);
+    // Validate deliveryLocationId belongs to project (when provided — a draft PO
+    // may omit it; the buyer sets the delivery location before the PO is issued).
+    if (dto.deliveryLocationId) {
+      const location = await this.prisma.projectLocation.findUnique({
+        where: { id: dto.deliveryLocationId },
+      });
+      if (location?.projectId !== dto.projectId) {
+        throw new BadRequestException(ERR.purchaseOrders.invalidDeliveryLocation);
+      }
     }
 
     // Hold-for-release requires earliest delivery date (FRD US 5.07 AC 5)

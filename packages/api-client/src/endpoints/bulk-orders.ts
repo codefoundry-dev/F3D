@@ -115,6 +115,9 @@ export interface BulkOrderLineItemDetail {
 }
 
 export interface BulkOrderDetail {
+  /** Primary key — use this for routing to the detail page and sub-resources. */
+  id: string;
+  /** Human-readable bulk order number, e.g. BULK-0001 (display only). */
   bulkId: string;
   rfqReference: string | null;
   contractorName: string;

@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  AccessTokenPurpose,
+  AccessTokenSubject,
   AuditAction,
   ApprovalStatus,
   PoStatus as PrismaPoStatus,
@@ -21,6 +23,7 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
 import { ApprovalAuthorizationService } from '../../common/permissions';
 import { resolveVendorEmailRecipients } from '../../common/utils/vendor-recipients.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { AuditService } from '../audit/audit.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { EmailService } from '../notifications/email.service';
@@ -30,6 +33,15 @@ import { assertTransition } from './po-state-machine';
 import { DeclinePoDto, ReceivePoDto } from './po-status.dto';
 import { VendorAcceptPoDto, VendorDeclinePoDto } from './po-vendor.dto';
 import { PurchaseOrdersService } from './purchase-orders.service';
+
+/**
+ * Lifetime of a tokenised vendor PO link. A fixed 30-day cap — a deliberate
+ * deviation from the base ADR's "lifetime of the document" rule, per the
+ * ADR-0002 Release-1 PO token amendment (2026-06-16). The window comfortably
+ * covers acknowledge/accept (which happen within days); later lifecycle actions
+ * (delivery confirmation, change-request reply, …) will re-issue a fresh token.
+ */
+const PO_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class PoStatusService {
@@ -45,6 +57,7 @@ export class PoStatusService {
     private readonly approvalAuth: ApprovalAuthorizationService,
     private readonly auditService: AuditService,
     private readonly inventoryService: InventoryService,
+    private readonly accessTokens: AccessTokensService,
     config: ConfigService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
@@ -139,28 +152,45 @@ export class PoStatusService {
     }
 
     assertTransition(po.status, PrismaPoStatus.SENT);
-    const updated = await this.prisma.purchaseOrder.update({
-      where: { id },
-      data: {
-        status: PrismaPoStatus.SENT,
-        issuedAt: new Date(),
-        lastModifiedById: user.id,
-      },
-      include: {
-        vendor: {
-          select: {
-            id: true,
-            contactEmail: true,
-            users: { where: { role: UserRole.VENDOR }, select: { email: true } },
+    // Mint the tokenised vendor PO link in the same transaction as the
+    // DRAFT→SENT transition so a later best-effort email failure cannot leave
+    // the PO sent without a usable link (ADR-0002 R1 PO token amendment).
+    const { updated, poViewToken } = await this.prisma.$transaction(async (tx) => {
+      const sent = await tx.purchaseOrder.update({
+        where: { id },
+        data: {
+          status: PrismaPoStatus.SENT,
+          issuedAt: new Date(),
+          lastModifiedById: user.id,
+        },
+        include: {
+          vendor: {
+            select: {
+              id: true,
+              contactEmail: true,
+              users: { where: { role: UserRole.VENDOR }, select: { email: true } },
+            },
           },
         },
-      },
+      });
+      const issued = await this.accessTokens.issueTokenIfNoneLive(
+        {
+          subjectType: AccessTokenSubject.PURCHASE_ORDER,
+          subjectId: id,
+          purpose: AccessTokenPurpose.PO_VIEW,
+          ttlMs: PO_TOKEN_TTL_MS,
+          createdByUserId: user.id,
+        },
+        tx,
+      );
+      return { updated: sent, poViewToken: issued.token };
     });
 
     await this.auditTransition(AuditAction.PO_ISSUED, id, user, po.status, PrismaPoStatus.SENT);
 
-    // Send email notification to vendor with PDF attachment (fire-and-forget)
-    this.notifyVendorOfPo(id, updated.poNumber, updated.vendor, user).catch(() => {});
+    // Send email notification to vendor with PDF attachment (fire-and-forget).
+    // The "View" link is chosen per vendor state inside notifyVendorOfPo.
+    this.notifyVendorOfPo(id, updated.poNumber, updated.vendor, user, poViewToken).catch(() => {});
 
     return this.purchaseOrdersService.getPurchaseOrder(id, user);
   }
@@ -259,32 +289,56 @@ export class PoStatusService {
     const nextStatus = isPendingApprovalSend ? PrismaPoStatus.SENT : PrismaPoStatus.ACKNOWLEDGED;
 
     assertTransition(po.status, nextStatus);
-    const updated = await this.prisma.purchaseOrder.update({
-      where: { id },
-      data: {
-        status: nextStatus,
-        approvalStatus: ApprovalStatus.APPROVED,
-        approvedById: user.id,
-        lastModifiedById: user.id,
-        ...(isPendingApprovalSend && { issuedAt: new Date() }),
-      },
-      include: {
-        project: { select: { name: true } },
-        vendor: {
-          select: {
-            legalName: true,
-            contactEmail: true,
-            users: { where: { role: UserRole.VENDOR }, select: { email: true } },
+    const { updated, poViewToken } = await this.prisma.$transaction(async (tx) => {
+      const approved = await tx.purchaseOrder.update({
+        where: { id },
+        data: {
+          status: nextStatus,
+          approvalStatus: ApprovalStatus.APPROVED,
+          approvedById: user.id,
+          lastModifiedById: user.id,
+          ...(isPendingApprovalSend && { issuedAt: new Date() }),
+        },
+        include: {
+          project: { select: { name: true } },
+          vendor: {
+            select: {
+              legalName: true,
+              contactEmail: true,
+              users: { where: { role: UserRole.VENDOR }, select: { email: true } },
+            },
           },
         },
-      },
+      });
+
+      // Approving a held PO completes the send (→ SENT): mint the tokenised
+      // vendor link atomically, mirroring the direct-issue path. Other approvable
+      // statuses (→ ACKNOWLEDGED) do not send to the vendor, so no token.
+      const issuedToken = isPendingApprovalSend
+        ? (
+            await this.accessTokens.issueTokenIfNoneLive(
+              {
+                subjectType: AccessTokenSubject.PURCHASE_ORDER,
+                subjectId: id,
+                purpose: AccessTokenPurpose.PO_VIEW,
+                ttlMs: PO_TOKEN_TTL_MS,
+                createdByUserId: user.id,
+              },
+              tx,
+            )
+          ).token
+        : null;
+
+      return { updated: approved, poViewToken: issuedToken };
     });
 
     await this.auditTransition(AuditAction.PO_APPROVED, id, user, po.status, nextStatus);
 
     if (isPendingApprovalSend) {
-      // Send email notification to vendor with PDF attachment (fire-and-forget)
-      this.notifyVendorOfPo(id, updated.poNumber, updated.vendor, user).catch(() => {});
+      // Send email notification to vendor with PDF attachment (fire-and-forget).
+      this.notifyVendorOfPo(id, updated.poNumber, updated.vendor, user, poViewToken).catch(
+        () => {},
+      );
     }
 
     return {
@@ -728,6 +782,7 @@ export class PoStatusService {
     poNumber: string,
     vendor: { users: Array<{ email: string }>; contactEmail: string | null } | null | undefined,
     user: AuthenticatedUser,
+    poViewToken?: string | null,
   ): Promise<void> {
     // Reach the vendor's user accounts, or fall back to the company contact
     // email when the vendor was quick-added without a user (US-3.01).
@@ -742,7 +797,18 @@ export class PoStatusService {
       // PDF generation failure is non-critical — send email without attachment
     }
 
-    const viewUrl = `${this.webAppUrl}/purchase-orders/${poId}`;
+    // Choose the "View" link by vendor state (ADR-0001 / ADR-0002 R1 PO token):
+    //  - Activated vendor (has a real account) → authenticated app route.
+    //  - Unactivated vendor (email-only) → tokenised public PO portal so they can
+    //    view (and later act on) the PO with no login.
+    // resolveVendorEmailRecipients() already collapses to a single state — it
+    // returns user emails when the vendor is activated, otherwise the contact
+    // email — so the whole recipient set shares one link type.
+    const isActivated = (vendor?.users?.length ?? 0) > 0;
+    const viewUrl =
+      !isActivated && poViewToken
+        ? `${this.webAppUrl}/po/${poViewToken}`
+        : `${this.webAppUrl}/purchase-orders/${poId}`;
 
     // Track each vendor email so it surfaces on the PO email log (FOR-213).
     const po = await this.prisma.purchaseOrder.findUnique({
