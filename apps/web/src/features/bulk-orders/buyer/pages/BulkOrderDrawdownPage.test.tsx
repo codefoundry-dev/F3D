@@ -66,6 +66,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import BulkOrderDrawdownPage from './BulkOrderDrawdownPage';
 
 const BULK_ORDER = {
+  id: 'bo-1',
   bulkId: 'BULK-2025-011',
   projectName: 'Project Alpha',
   vendorName: 'Vendor Alpha',

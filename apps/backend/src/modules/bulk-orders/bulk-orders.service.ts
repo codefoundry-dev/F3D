@@ -420,6 +420,7 @@ export class BulkOrdersService {
     }));
 
     return {
+      id: bo.id,
       bulkId: bo.bulkOrderNumber ?? bo.id,
       rfqReference: bo.rfq?.id ?? null,
       contractorName: bo.company.legalName,

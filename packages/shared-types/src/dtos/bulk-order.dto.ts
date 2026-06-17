@@ -136,7 +136,10 @@ export class BulkOrderLineItemDetailDto {
 }
 
 export class BulkOrderDetailDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'Primary key — use this for routing to the detail/sub-resources' })
+  id!: string;
+
+  @ApiProperty({ description: 'Human-readable bulk order number, e.g. BULK-0001' })
   bulkId!: string;
 
   @ApiPropertyOptional()
