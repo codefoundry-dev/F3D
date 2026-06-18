@@ -9,6 +9,7 @@ import {
 import { useTranslation } from '@forethread/i18n';
 import {
   PO_CA_COLUMNS,
+  PO_CA_DEFAULT_VISIBLE,
   PO_CA_QUICK_FILTERS,
   PO_STATUS_KEYS,
   PO_TYPE_KEYS,
@@ -72,14 +73,20 @@ import { PoDetailPanel } from '../components/PoDetailPanel';
 type SortableField = keyof PoListItem;
 
 const ALL_COLUMNS = PO_CA_COLUMNS;
-const DEFAULT_VISIBLE = ALL_COLUMNS.map((c) => c.key);
+/** Full catalogue order (drives column order + Table settings list). */
+const COLUMN_ORDER = ALL_COLUMNS.map((c) => c.key);
 
 /** PO statuses for which the "Change PO" kebab action is offered (FLOW 3). */
 const CHANGEABLE_PO_STATUSES = ['SENT', 'ACKNOWLEDGED', 'ACCEPTED'];
 
 /* ─── Store ────────────────────────────────────────────────────────────────── */
 
-const usePoTableStore = createPoTableStore(DEFAULT_VISIBLE);
+const usePoTableStore = createPoTableStore(
+  COLUMN_ORDER,
+  'purchase-orders',
+  'poNumber',
+  PO_CA_DEFAULT_VISIBLE,
+);
 
 /* ─── Page component ──────────────────────────────────────────────────────── */
 

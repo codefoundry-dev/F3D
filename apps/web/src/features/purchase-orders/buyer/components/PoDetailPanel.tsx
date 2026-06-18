@@ -98,7 +98,7 @@ export function PoDetailPanel({ poId, onClose }: PoDetailPanelProps) {
         <>
           {/* Title row */}
           <div className="flex items-center gap-4.5 shrink-0">
-            <h2 className="flex-1 text-lg font-medium text-foreground">{po.projectName}</h2>
+            <h2 className="flex-1 text-lg font-medium text-foreground">{po.poNumber}</h2>
             <PoSendButton po={po} size="sm" />
             <Badge className={getStatusColor(PO_STATUS_COLORS, po.status)}>
               {t(`status.${po.status}` as never)}

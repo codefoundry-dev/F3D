@@ -113,6 +113,9 @@ export const createPoTableStore = (
   defaultColumns: string[],
   tableName = 'purchase-orders',
   defaultSortBy = 'poNumber',
+  // Columns shown by default. Defaults to the full catalog, but pages pass a
+  // curated subset so the rest stay available (toggleable) via Table settings.
+  defaultVisible: string[] = defaultColumns,
 ) =>
   create<PoTableState>((set, get) => ({
     page: 1,
@@ -124,7 +127,7 @@ export const createPoTableStore = (
     quickFilter: '',
     groupBy: '',
     columnOrder: [...defaultColumns],
-    visibleColumns: [...defaultColumns],
+    visibleColumns: [...defaultVisible],
     advancedFilters: { ...EMPTY_PO_FILTERS },
     savedViews: [],
     activeViewId: null,
@@ -166,7 +169,7 @@ export const createPoTableStore = (
       if (!viewId) {
         set({
           activeViewId: null,
-          visibleColumns: [...defaultColumns],
+          visibleColumns: [...defaultVisible],
           columnOrder: [...defaultColumns],
           sortBy: defaultSortBy,
           sortDir: 'asc',
@@ -180,7 +183,7 @@ export const createPoTableStore = (
       if (!view) return;
       set({
         activeViewId: viewId,
-        visibleColumns: view.visibleColumns?.length ? view.visibleColumns : [...defaultColumns],
+        visibleColumns: view.visibleColumns?.length ? view.visibleColumns : [...defaultVisible],
         columnOrder: view.columnOrder?.length ? view.columnOrder : [...defaultColumns],
         sortBy: view.sortBy ?? defaultSortBy,
         sortDir: (view.sortDir as SortDirection) ?? 'asc',

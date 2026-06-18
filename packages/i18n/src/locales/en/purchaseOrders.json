@@ -82,7 +82,7 @@
     "deliveryLocation": "Delivery location",
     "deliveryLocationId": "Delivery location",
     "pickUpLocation": "Pick-up location",
-    "paymentTermsDays": "Payment terms (days)",
+    "paymentTermsDays": "Payment terms",
     "totalAmount": "Total amount",
     "needBy": "Need by",
     "earliestDate": "Earliest date",
@@ -333,7 +333,8 @@
     "decline": "Decline",
     "changeRequest": "Change request",
     "acknowledgeAlert": "This PO requires your acknowledgement and response. Please review and take action.",
-    "recordDelivery": "Record delivery"
+    "recordDelivery": "Record delivery",
+    "deliveryReport": "Delivery report"
   },
   "pagination": {
     "back": "Back",

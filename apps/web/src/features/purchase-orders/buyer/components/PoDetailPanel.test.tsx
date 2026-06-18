@@ -119,7 +119,8 @@ describe('PoDetailPanel', () => {
 
   it('renders PO details when data loads', () => {
     render(<PoDetailPanel poId="po-1" onClose={onClose} />);
-    expect(screen.getByText('Test Project')).toBeInTheDocument();
+    // Panel title is the PO number (Figma US 2.07), not the project name
+    expect(screen.getByText('PO-001')).toBeInTheDocument();
     expect(screen.getByTestId('po-details-tab')).toBeInTheDocument();
   });
 
