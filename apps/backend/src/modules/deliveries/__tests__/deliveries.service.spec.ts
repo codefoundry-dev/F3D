@@ -1,4 +1,3 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import {
   DamageDisposition,
   DamageType,
@@ -6,6 +5,7 @@ import {
   DeliveryReportSource,
   DeliveryReportStatus,
 } from '@forethread/shared-types';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 
 import { AuthenticatedUser } from '../../../common/decorators/current-user.decorator';
@@ -13,8 +13,8 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { PoStatusService } from '../../purchase-orders/po-status.service';
 import { StorageService } from '../../storage/storage.service';
-import { DeliveriesService } from '../deliveries.service';
 import { CreateDeliveryReportDto } from '../deliveries.dto';
+import { DeliveriesService } from '../deliveries.service';
 
 // ── Test users ────────────────────────────────────────────────────────────────
 const officer: AuthenticatedUser = {
@@ -40,8 +40,20 @@ function deliverablePo(overrides: Record<string, unknown> = {}) {
     vendorId: 'vendor-1',
     deliveryLocationId: 'loc-hdr',
     lineItems: [
-      { id: 'li-1', materialId: 'mat-1', quantityOrdered: 100, quantityDelivered: 0, deliveryLocationId: null },
-      { id: 'li-2', materialId: 'mat-2', quantityOrdered: 60, quantityDelivered: 0, deliveryLocationId: null },
+      {
+        id: 'li-1',
+        materialId: 'mat-1',
+        quantityOrdered: 100,
+        quantityDelivered: 0,
+        deliveryLocationId: null,
+      },
+      {
+        id: 'li-2',
+        materialId: 'mat-2',
+        quantityOrdered: 60,
+        quantityDelivered: 0,
+        deliveryLocationId: null,
+      },
     ],
     ...overrides,
   };
@@ -84,9 +96,11 @@ function makeService() {
   } as unknown as StorageService & { getSignedUrl: jest.Mock };
 
   const poStatus = {
-    applyDeliveryDeltasInTx: jest
-      .fn()
-      .mockResolvedValue({ transitioned: true, fromStatus: 'ACCEPTED', nextStatus: 'PARTIALLY_DELIVERED' }),
+    applyDeliveryDeltasInTx: jest.fn().mockResolvedValue({
+      transitioned: true,
+      fromStatus: 'ACCEPTED',
+      nextStatus: 'PARTIALLY_DELIVERED',
+    }),
     auditDeliveryTransition: jest.fn().mockResolvedValue(undefined),
   } as unknown as PoStatusService & {
     applyDeliveryDeltasInTx: jest.Mock;
@@ -308,7 +322,13 @@ describe('DeliveriesService', () => {
               id: 'att-1',
               fileId: 'f-1',
               createdAt: new Date('2026-06-18'),
-              file: { id: 'f-1', filename: 'pod.pdf', key: 'k', size: 10, mimeType: 'application/pdf' },
+              file: {
+                id: 'f-1',
+                filename: 'pod.pdf',
+                key: 'k',
+                size: 10,
+                mimeType: 'application/pdf',
+              },
             },
           ],
         }),
@@ -523,7 +543,9 @@ describe('DeliveriesService', () => {
       await expect(
         service.create(officer, {
           purchaseOrderId: 'po-1',
-          lines: [{ poLineItemId: 'nope', quantityReceived: 5, outcome: DeliveryOutcome.DELIVERED }],
+          lines: [
+            { poLineItemId: 'nope', quantityReceived: 5, outcome: DeliveryOutcome.DELIVERED },
+          ],
         }),
       ).rejects.toThrow(BadRequestException);
     });
@@ -545,7 +567,9 @@ describe('DeliveriesService', () => {
       await expect(
         service.create(officer, {
           purchaseOrderId: 'po-1',
-          lines: [{ poLineItemId: 'li-1', quantityReceived: -1, outcome: DeliveryOutcome.DELIVERED }],
+          lines: [
+            { poLineItemId: 'li-1', quantityReceived: -1, outcome: DeliveryOutcome.DELIVERED },
+          ],
         }),
       ).rejects.toThrow(BadRequestException);
     });
@@ -701,9 +725,9 @@ describe('DeliveriesService', () => {
     it('rejects an empty lines array', async () => {
       const { service, prisma } = makeService();
       (prisma.purchaseOrder.findUnique as jest.Mock).mockResolvedValue(deliverablePo());
-      await expect(
-        service.create(officer, { purchaseOrderId: 'po-1', lines: [] }),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.create(officer, { purchaseOrderId: 'po-1', lines: [] })).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -727,9 +751,7 @@ describe('DeliveriesService', () => {
 
     it('throws Forbidden when the company does not match', async () => {
       const { service, prisma } = makeService();
-      (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue(
-        reportForApproval([]),
-      );
+      (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue(reportForApproval([]));
       const other = { ...officer, companyId: 'other' };
       await expect(service.approve('dr-1', other)).rejects.toThrow(ForbiddenException);
     });
@@ -771,8 +793,20 @@ describe('DeliveriesService', () => {
       (prisma.deliveryReport.findUnique as jest.Mock)
         .mockResolvedValueOnce(
           reportForApproval([
-            { poLineItemId: 'li-1', quantityReceived: 10, outcome: 'NOT_DELIVERED', damagedQuantity: null, damageDisposition: null },
-            { poLineItemId: 'li-2', quantityReceived: 10, outcome: 'REJECTED', damagedQuantity: null, damageDisposition: null },
+            {
+              poLineItemId: 'li-1',
+              quantityReceived: 10,
+              outcome: 'NOT_DELIVERED',
+              damagedQuantity: null,
+              damageDisposition: null,
+            },
+            {
+              poLineItemId: 'li-2',
+              quantityReceived: 10,
+              outcome: 'REJECTED',
+              damagedQuantity: null,
+              damageDisposition: null,
+            },
           ]),
         )
         .mockResolvedValueOnce(detailRow({ companyId: 'company-1' }));
@@ -836,8 +870,20 @@ describe('DeliveriesService', () => {
       (prisma.deliveryReport.findUnique as jest.Mock)
         .mockResolvedValueOnce(
           reportForApproval([
-            { poLineItemId: 'li-1', quantityReceived: 100, outcome: 'DELIVERED', damagedQuantity: null, damageDisposition: null },
-            { poLineItemId: 'li-2', quantityReceived: 40, outcome: 'DAMAGED', damagedQuantity: 10, damageDisposition: 'RETURNED' },
+            {
+              poLineItemId: 'li-1',
+              quantityReceived: 100,
+              outcome: 'DELIVERED',
+              damagedQuantity: null,
+              damageDisposition: null,
+            },
+            {
+              poLineItemId: 'li-2',
+              quantityReceived: 40,
+              outcome: 'DAMAGED',
+              damagedQuantity: 10,
+              damageDisposition: 'RETURNED',
+            },
           ]),
         )
         .mockResolvedValueOnce(detailRow({ companyId: 'company-1' }));
@@ -856,7 +902,13 @@ describe('DeliveriesService', () => {
         .mockResolvedValueOnce(
           reportForApproval([
             // damagedQuantity null → nets off nothing → full received.
-            { poLineItemId: 'li-1', quantityReceived: 40, outcome: 'DAMAGED', damagedQuantity: null, damageDisposition: 'RETURNED' },
+            {
+              poLineItemId: 'li-1',
+              quantityReceived: 40,
+              outcome: 'DAMAGED',
+              damagedQuantity: null,
+              damageDisposition: 'RETURNED',
+            },
           ]),
         )
         .mockResolvedValueOnce(detailRow({ companyId: 'company-1' }));
@@ -872,8 +924,20 @@ describe('DeliveriesService', () => {
       (prisma.deliveryReport.findUnique as jest.Mock)
         .mockResolvedValueOnce(
           reportForApproval([
-            { poLineItemId: 'li-1', quantityReceived: 30, outcome: 'DELIVERED', damagedQuantity: null, damageDisposition: null },
-            { poLineItemId: 'li-1', quantityReceived: 20, outcome: 'DELIVERED', damagedQuantity: null, damageDisposition: null },
+            {
+              poLineItemId: 'li-1',
+              quantityReceived: 30,
+              outcome: 'DELIVERED',
+              damagedQuantity: null,
+              damageDisposition: null,
+            },
+            {
+              poLineItemId: 'li-1',
+              quantityReceived: 20,
+              outcome: 'DELIVERED',
+              damagedQuantity: null,
+              damageDisposition: null,
+            },
           ]),
         )
         .mockResolvedValueOnce(detailRow({ companyId: 'company-1' }));
@@ -888,7 +952,13 @@ describe('DeliveriesService', () => {
       const { service, prisma, poStatus, tx } = makeService();
       (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue(
         reportForApproval([
-          { poLineItemId: 'li-1', quantityReceived: 100, outcome: 'DELIVERED', damagedQuantity: null, damageDisposition: null },
+          {
+            poLineItemId: 'li-1',
+            quantityReceived: 100,
+            outcome: 'DELIVERED',
+            damagedQuantity: null,
+            damageDisposition: null,
+          },
         ]),
       );
       (prisma.purchaseOrder.findUnique as jest.Mock).mockResolvedValue(deliverablePo());
@@ -905,17 +975,28 @@ describe('DeliveriesService', () => {
       (prisma.deliveryReport.findUnique as jest.Mock)
         .mockResolvedValueOnce(
           reportForApproval([
-            { poLineItemId: 'li-1', quantityReceived: 100, outcome: 'DELIVERED', damagedQuantity: null, damageDisposition: null },
+            {
+              poLineItemId: 'li-1',
+              quantityReceived: 100,
+              outcome: 'DELIVERED',
+              damagedQuantity: null,
+              damageDisposition: null,
+            },
           ]),
         )
-        .mockResolvedValueOnce(detailRow({ companyId: 'company-1', status: DeliveryReportStatus.APPROVED }));
+        .mockResolvedValueOnce(
+          detailRow({ companyId: 'company-1', status: DeliveryReportStatus.APPROVED }),
+        );
       (prisma.purchaseOrder.findUnique as jest.Mock).mockResolvedValue(deliverablePo());
 
       await service.approve('dr-1', officer);
 
       expect(tx.deliveryReport.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ status: DeliveryReportStatus.APPROVED, reviewedByUserId: 'u-1' }),
+          data: expect.objectContaining({
+            status: DeliveryReportStatus.APPROVED,
+            reviewedByUserId: 'u-1',
+          }),
         }),
       );
       expect(poStatus.auditDeliveryTransition).toHaveBeenCalled();
@@ -927,9 +1008,17 @@ describe('DeliveriesService', () => {
     it('allows a super admin to approve a report from any company', async () => {
       const { service, prisma } = makeService();
       (prisma.deliveryReport.findUnique as jest.Mock)
-        .mockResolvedValueOnce(reportForApproval([
-          { poLineItemId: 'li-1', quantityReceived: 100, outcome: 'DELIVERED', damagedQuantity: null, damageDisposition: null },
-        ]))
+        .mockResolvedValueOnce(
+          reportForApproval([
+            {
+              poLineItemId: 'li-1',
+              quantityReceived: 100,
+              outcome: 'DELIVERED',
+              damagedQuantity: null,
+              damageDisposition: null,
+            },
+          ]),
+        )
         .mockResolvedValueOnce(detailRow({ companyId: 'company-1' }));
       (prisma.purchaseOrder.findUnique as jest.Mock).mockResolvedValue(deliverablePo());
       await expect(service.approve('dr-1', superAdmin)).resolves.toBeDefined();
@@ -939,7 +1028,13 @@ describe('DeliveriesService', () => {
       const { service, prisma } = makeService();
       (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue(
         reportForApproval([
-          { poLineItemId: 'li-1', quantityReceived: 100, outcome: 'DELIVERED', damagedQuantity: null, damageDisposition: null },
+          {
+            poLineItemId: 'li-1',
+            quantityReceived: 100,
+            outcome: 'DELIVERED',
+            damagedQuantity: null,
+            damageDisposition: null,
+          },
         ]),
       );
       (prisma.purchaseOrder.findUnique as jest.Mock).mockResolvedValue(null);
@@ -975,7 +1070,9 @@ describe('DeliveriesService', () => {
           companyId: 'company-1',
           purchaseOrderId: 'po-1',
         })
-        .mockResolvedValueOnce(detailRow({ companyId: 'company-1', status: DeliveryReportStatus.REJECTED }));
+        .mockResolvedValueOnce(
+          detailRow({ companyId: 'company-1', status: DeliveryReportStatus.REJECTED }),
+        );
 
       await service.reject('dr-1', 'Wrong items', officer);
 

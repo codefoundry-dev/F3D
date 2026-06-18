@@ -1,20 +1,22 @@
+import { DeliveryOutcome } from '@forethread/shared-types';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { AccessTokenPurpose, AccessTokenSubject, type AccessToken } from '@prisma/client';
-import { DeliveryOutcome } from '@forethread/shared-types';
 
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AccessTokensService } from '../../access-tokens/access-tokens.service';
 import { EmailService } from '../../notifications/email.service';
+import { PortalSubmitDto } from '../deliveries.dto';
 import { DeliveriesService } from '../deliveries.service';
 import { DeliveryCodeService } from '../delivery-code.service';
 import { DeliveryPortalService } from '../delivery-portal.service';
-import { PortalSubmitDto } from '../deliveries.dto';
 
 function makeService() {
   const prisma = {
     purchaseOrder: { findUnique: jest.fn() },
     accessToken: { update: jest.fn().mockResolvedValue({}) },
-    deliveryReport: { findUniqueOrThrow: jest.fn().mockResolvedValue({ reportNumber: 'DR-00001' }) },
+    deliveryReport: {
+      findUniqueOrThrow: jest.fn().mockResolvedValue({ reportNumber: 'DR-00001' }),
+    },
   } as unknown as PrismaService & Record<string, never>;
 
   const accessTokens = {
@@ -23,7 +25,9 @@ function makeService() {
   } as unknown as AccessTokensService & { issueToken: jest.Mock; consumeToken: jest.Mock };
 
   const deliveryCode = {
-    generateAndStore: jest.fn().mockResolvedValue({ code: '123456', expiresAt: new Date(Date.now() + 60000) }),
+    generateAndStore: jest
+      .fn()
+      .mockResolvedValue({ code: '123456', expiresAt: new Date(Date.now() + 60000) }),
     verifyCode: jest.fn().mockResolvedValue(true),
   } as unknown as DeliveryCodeService & { generateAndStore: jest.Mock; verifyCode: jest.Mock };
 
@@ -120,6 +124,33 @@ describe('DeliveryPortalService', () => {
       expect(res.deliveryDate).toBeNull();
       expect(res.lines[0].lineItemRef).toBe('Line 3');
       expect(res.lines[0].materialName).toBe('Free-text item');
+    });
+
+    it('falls back to the location address (null label) and empty material name (no material/description)', async () => {
+      const { service, prisma } = makeService();
+      (prisma.purchaseOrder.findUnique as jest.Mock).mockResolvedValue({
+        poNumber: 'PO-00003',
+        plannedDeliveryDate: null,
+        project: null,
+        vendor: null,
+        // label null → address; line with no material AND no description → ''.
+        deliveryLocation: { label: null, address: '12 Dock Rd' },
+        lineItems: [
+          {
+            id: 'li-7',
+            lineNumber: 2,
+            materialCode: 'MC-2',
+            description: null,
+            unitOfMeasure: 'm',
+            quantityOrdered: 5,
+            material: null,
+          },
+        ],
+      });
+
+      const res = await service.getPortalPo('po-1');
+      expect(res.deliveryLocationName).toBe('12 Dock Rd');
+      expect(res.lines[0].materialName).toBe('');
     });
   });
 
