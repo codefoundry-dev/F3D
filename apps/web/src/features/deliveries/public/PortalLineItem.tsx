@@ -3,6 +3,7 @@ import { DamageDisposition, DamageType, DeliveryOutcome } from '@forethread/shar
 import { Badge, Button, RadioGroup, Select, cn } from '@forethread/ui-components';
 import CircleReloadIcon from '@forethread/ui-components/assets/icons/circle-reload.svg?react';
 import CrossCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
+import ImageIcon from '@forethread/ui-components/assets/icons/image.svg?react';
 import NoteIcon from '@forethread/ui-components/assets/icons/note.svg?react';
 import PaperclipIcon from '@forethread/ui-components/assets/icons/paperclip.svg?react';
 import { useRef } from 'react';
@@ -242,7 +243,7 @@ export function PortalLineItem({ line, onChange }: PortalLineItemProps) {
               active={false}
               onClick={() => toggleStatus('DAMAGED')}
               testId={`portal-line-damaged-${line.id}`}
-              icon={<PaperclipIcon className="h-4 w-4" />}
+              icon={<ImageIcon className="h-4 w-4" />}
             >
               {t('portal.report.damaged')}
             </ToggleButton>

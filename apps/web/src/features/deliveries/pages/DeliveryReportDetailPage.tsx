@@ -2,17 +2,11 @@ import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import type { DeliveryReportLineResponse } from '@forethread/shared-types/client';
 import { DeliveryOutcome, DeliveryReportStatus } from '@forethread/shared-types/client';
-import {
-  Button,
-  Spinner,
-  cn,
-  formatDate,
-  notificationService,
-} from '@forethread/ui-components';
+import { Button, Spinner, cn, formatDate, notificationService } from '@forethread/ui-components';
 import CheckIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
-import ImageIcon from '@forethread/ui-components/assets/icons/paperclip.svg?react';
+import ImageIcon from '@forethread/ui-components/assets/icons/image.svg?react';
 import { Fragment, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
@@ -114,10 +108,16 @@ export default function DeliveryReportDetailPage() {
         <div className="grid grid-cols-1 gap-x-10 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
           <InfoField label={t('detail.fields.poNumber')} value={report.poNumber} />
           <InfoField label={t('detail.fields.project')} value={report.projectName} />
-          <InfoField label={t('detail.fields.deliveryDate')} value={formatDate(report.deliveryDate)} />
+          <InfoField
+            label={t('detail.fields.deliveryDate')}
+            value={formatDate(report.deliveryDate)}
+          />
           <InfoField label={t('detail.fields.location')} value={report.deliveryLocationName} />
           <InfoField label={t('detail.fields.submittedBy')} value={report.submitterName} />
-          <InfoField label={t('detail.fields.submittedDate')} value={formatDate(report.createdAt)} />
+          <InfoField
+            label={t('detail.fields.submittedDate')}
+            value={formatDate(report.createdAt)}
+          />
           <InfoField label={t('detail.fields.vendorCompany')} value={report.vendorName} />
           <InfoField label={t('detail.fields.contactPerson')} value={report.contactPerson} />
           <InfoField label={t('detail.fields.phoneNumber')} value={report.contactPhone} />
@@ -186,7 +186,10 @@ function LineRow({ line }: { line: DeliveryReportLineResponse }) {
 
   return (
     <Fragment>
-      <tr className="border-b border-border last:border-b-0" data-testid={`delivery-detail-row-${line.id}`}>
+      <tr
+        className="border-b border-border last:border-b-0"
+        data-testid={`delivery-detail-row-${line.id}`}
+      >
         <td className="px-3 py-2.5 text-foreground">{line.lineItemRef}</td>
         <td className="px-3 py-2.5 font-medium text-foreground">{line.materialName}</td>
         <td className="max-w-[260px] truncate px-3 py-2.5 text-foreground">
@@ -242,7 +245,10 @@ function LineRow({ line }: { line: DeliveryReportLineResponse }) {
                 />
               </div>
               {line.damagePhotos.length > 0 && (
-                <div className="flex flex-wrap gap-2" data-testid={`delivery-damage-photos-${line.id}`}>
+                <div
+                  className="flex flex-wrap gap-2"
+                  data-testid={`delivery-damage-photos-${line.id}`}
+                >
                   {line.damagePhotos.map((photo) =>
                     photo.url ? (
                       <a
@@ -253,7 +259,11 @@ function LineRow({ line }: { line: DeliveryReportLineResponse }) {
                         className="block h-12 w-12 overflow-hidden rounded-lg border border-border"
                         title={photo.fileName}
                       >
-                        <img src={photo.url} alt={photo.fileName} className="h-full w-full object-cover" />
+                        <img
+                          src={photo.url}
+                          alt={photo.fileName}
+                          className="h-full w-full object-cover"
+                        />
                       </a>
                     ) : (
                       <span
