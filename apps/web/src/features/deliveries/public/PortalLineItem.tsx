@@ -1,11 +1,7 @@
 import { useTranslation } from '@forethread/i18n';
-import {
-  DamageDisposition,
-  DamageType,
-  DeliveryOutcome,
-} from '@forethread/shared-types/client';
-import { Badge, Button, RadioGroup, Select, StepperInput, cn } from '@forethread/ui-components';
-import BackArrowIcon from '@forethread/ui-components/assets/icons/back-arrow.svg?react';
+import { DamageDisposition, DamageType, DeliveryOutcome } from '@forethread/shared-types/client';
+import { Badge, Button, RadioGroup, Select, cn } from '@forethread/ui-components';
+import CircleReloadIcon from '@forethread/ui-components/assets/icons/circle-reload.svg?react';
 import CrossCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
 import NoteIcon from '@forethread/ui-components/assets/icons/note.svg?react';
 import PaperclipIcon from '@forethread/ui-components/assets/icons/paperclip.svg?react';
@@ -71,7 +67,8 @@ export function PortalLineItem({ line, onChange }: PortalLineItemProps) {
             </Badge>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            {line.lineItemRef} · {t('portal.report.ordered', { count: line.quantityOrdered, uom: line.uom })}
+            {line.lineItemRef} ·{' '}
+            {t('portal.report.ordered', { count: line.quantityOrdered, uom: line.uom })}
           </p>
         </div>
         <span
@@ -82,49 +79,167 @@ export function PortalLineItem({ line, onChange }: PortalLineItemProps) {
         </span>
       </div>
 
-      {/* ── Rejected → collapse to "Change status" ── */}
+      {/* ── Rejected → collapse to "Change status" (screenshot 13) ── */}
       {isRejected ? (
         <button
           type="button"
           onClick={() => onChange({ status: null })}
           data-testid={`portal-line-change-status-${line.id}`}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-black/15 bg-card py-3 text-sm font-medium text-foreground"
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-black/15 bg-card py-3 text-sm font-medium text-foreground hover:bg-accent"
         >
-          <BackArrowIcon className="h-4 w-4" />
+          <CircleReloadIcon className="h-4 w-4" />
           {t('portal.report.changeStatus')}
         </button>
+      ) : isDamaged ? (
+        /* ── Damaged → delivered + damage steppers replace the toggles (screenshot 13) ── */
+        <div className="mt-4 flex flex-col gap-4" data-testid={`portal-line-damage-${line.id}`}>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">
+              {t('portal.report.deliveredQty')}
+            </label>
+            <QtyStepper
+              className="mt-1.5"
+              value={line.quantityReceived}
+              uom={line.uom}
+              onChange={(v) => onChange({ quantityReceived: v })}
+              ariaLabel={`${t('portal.report.deliveredQty')} ${line.materialName}`}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">
+              {t('portal.report.damageQty')}
+            </label>
+            <QtyStepper
+              className="mt-1.5"
+              value={line.damagedQuantity}
+              uom={line.uom}
+              onChange={(v) => onChange({ damagedQuantity: v })}
+              ariaLabel={`${t('portal.report.damageQty')} ${line.materialName}`}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">
+              {t('portal.report.damageType')}
+            </label>
+            <div className="mt-1.5">
+              <Select
+                value={line.damageType}
+                aria-label={`${t('portal.report.damageType')} ${line.materialName}`}
+                onChange={(e) => onChange({ damageType: e.target.value as DamageType | '' })}
+              >
+                <option value="">{t('portal.report.damageTypePlaceholder')}</option>
+                {DAMAGE_TYPE_OPTIONS.map((dt) => (
+                  <option key={dt} value={dt}>
+                    {t(`damageType.${dt}` as never)}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">
+              {t('portal.report.disposition')}
+            </label>
+            <div className="mt-1.5">
+              <RadioGroup
+                value={line.damageDisposition}
+                onChange={(v) => onChange({ damageDisposition: v as DamageDisposition })}
+                options={[
+                  { value: DamageDisposition.RETURNED, label: t('portal.report.returned') },
+                  { value: DamageDisposition.ACCEPTED, label: t('portal.report.accepted') },
+                ]}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={DELIVERY_ATTACHMENT_ACCEPT}
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                addPhotos(e.target.files);
+                e.target.value = '';
+              }}
+            />
+            <Button
+              variant="primary"
+              className="flex-1"
+              leftIcon={<PaperclipIcon className="h-4 w-4" />}
+              onClick={() => fileInputRef.current?.click()}
+              data-testid={`portal-line-add-photo-${line.id}`}
+            >
+              {t('portal.report.addPhoto')}
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1"
+              leftIcon={<CrossCircleIcon className="h-4 w-4" />}
+              onClick={() => onChange({ status: null })}
+            >
+              {t('portal.report.cancel')}
+            </Button>
+          </div>
+
+          {line.photos.length > 0 && (
+            <ul className="flex flex-col gap-1" data-testid={`portal-line-photos-${line.id}`}>
+              {line.photos.map((file, i) => (
+                <li key={`${file.name}-${i}`} className="truncate text-xs text-muted-foreground">
+                  {file.name}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       ) : (
+        /* ── Default → Delivered qty + Not Delivered (row 1), Damaged + Rejected (row 2) ── */
         <>
-          {/* ── Delivered qty ── */}
-          {!isNotDelivered && (
+          {isNotDelivered ? (
+            <div className="mt-4">
+              <ToggleButton
+                active
+                className="w-full"
+                onClick={() => toggleStatus('NOT_DELIVERED')}
+                testId={`portal-line-not-delivered-${line.id}`}
+                icon={<CrossCircleIcon className="h-4 w-4" />}
+              >
+                {t('portal.report.notDelivered')}
+              </ToggleButton>
+            </div>
+          ) : (
             <div className="mt-4">
               <label className="text-xs font-medium text-muted-foreground">
                 {t('portal.report.deliveredQty')}
               </label>
-              <div className="mt-1.5">
-                <StepperInput
+              <div className="mt-1.5 flex items-stretch gap-2">
+                <QtyStepper
+                  className="flex-1"
                   value={line.quantityReceived}
-                  onValueChange={(v) => onChange({ quantityReceived: v })}
-                  min={0}
-                  aria-label={`${t('portal.report.deliveredQty')} ${line.materialName}`}
+                  uom={line.uom}
+                  onChange={(v) => onChange({ quantityReceived: v })}
+                  ariaLabel={`${t('portal.report.deliveredQty')} ${line.materialName}`}
                 />
+                <ToggleButton
+                  active={false}
+                  className="flex-1"
+                  onClick={() => toggleStatus('NOT_DELIVERED')}
+                  testId={`portal-line-not-delivered-${line.id}`}
+                  icon={<CrossCircleIcon className="h-4 w-4" />}
+                >
+                  {t('portal.report.notDelivered')}
+                </ToggleButton>
               </div>
             </div>
           )}
 
-          {/* ── Status toggles ── */}
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="mt-2 grid grid-cols-2 gap-2">
             <ToggleButton
-              active={isNotDelivered}
-              onClick={() => toggleStatus('NOT_DELIVERED')}
-              testId={`portal-line-not-delivered-${line.id}`}
-              icon={<CrossCircleIcon className="h-4 w-4" />}
-            >
-              {t('portal.report.notDelivered')}
-            </ToggleButton>
-            <ToggleButton
-              active={isDamaged}
-              variant="warning"
+              active={false}
               onClick={() => toggleStatus('DAMAGED')}
               testId={`portal-line-damaged-${line.id}`}
               icon={<PaperclipIcon className="h-4 w-4" />}
@@ -132,7 +247,8 @@ export function PortalLineItem({ line, onChange }: PortalLineItemProps) {
               {t('portal.report.damaged')}
             </ToggleButton>
             <ToggleButton
-              active={isRejected}
+              active={false}
+              filled
               variant="destructive"
               onClick={() => toggleStatus('REJECTED')}
               testId={`portal-line-reject-${line.id}`}
@@ -141,104 +257,62 @@ export function PortalLineItem({ line, onChange }: PortalLineItemProps) {
               {t('portal.report.rejected')}
             </ToggleButton>
           </div>
-
-          {/* ── Damage sub-form ── */}
-          {isDamaged && (
-            <div className="mt-4 flex flex-col gap-4" data-testid={`portal-line-damage-${line.id}`}>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">
-                  {t('portal.report.damageQty')}
-                </label>
-                <div className="mt-1.5">
-                  <StepperInput
-                    value={line.damagedQuantity}
-                    onValueChange={(v) => onChange({ damagedQuantity: v })}
-                    min={0}
-                    aria-label={`${t('portal.report.damageQty')} ${line.materialName}`}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">
-                  {t('portal.report.damageType')}
-                </label>
-                <div className="mt-1.5">
-                  <Select
-                    value={line.damageType}
-                    aria-label={`${t('portal.report.damageType')} ${line.materialName}`}
-                    onChange={(e) => onChange({ damageType: e.target.value as DamageType | '' })}
-                  >
-                    <option value="">{t('portal.report.damageTypePlaceholder')}</option>
-                    {DAMAGE_TYPE_OPTIONS.map((dt) => (
-                      <option key={dt} value={dt}>
-                        {t(`damageType.${dt}` as never)}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">
-                  {t('portal.report.disposition')}
-                </label>
-                <div className="mt-1.5">
-                  <RadioGroup
-                    value={line.damageDisposition}
-                    onChange={(v) => onChange({ damageDisposition: v as DamageDisposition })}
-                    options={[
-                      { value: DamageDisposition.RETURNED, label: t('portal.report.returned') },
-                      { value: DamageDisposition.ACCEPTED, label: t('portal.report.accepted') },
-                    ]}
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept={DELIVERY_ATTACHMENT_ACCEPT}
-                  multiple
-                  className="hidden"
-                  onChange={(e) => {
-                    addPhotos(e.target.files);
-                    e.target.value = '';
-                  }}
-                />
-                <Button
-                  variant="primary"
-                  className="flex-1"
-                  leftIcon={<PaperclipIcon className="h-4 w-4" />}
-                  onClick={() => fileInputRef.current?.click()}
-                  data-testid={`portal-line-add-photo-${line.id}`}
-                >
-                  {t('portal.report.addPhoto')}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  leftIcon={<CrossCircleIcon className="h-4 w-4" />}
-                  onClick={() => onChange({ status: null })}
-                >
-                  {t('portal.report.cancel')}
-                </Button>
-              </div>
-
-              {line.photos.length > 0 && (
-                <ul className="flex flex-col gap-1" data-testid={`portal-line-photos-${line.id}`}>
-                  {line.photos.map((file, i) => (
-                    <li key={`${file.name}-${i}`} className="truncate text-xs text-muted-foreground">
-                      {file.name}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
         </>
       )}
+    </div>
+  );
+}
+
+/* ── Segmented quantity stepper ([−] [value uom] [+], screenshots 12/13) ─────── */
+
+function QtyStepper({
+  value,
+  uom,
+  onChange,
+  ariaLabel,
+  className,
+}: {
+  /** Kept as a string so the middle input can be empty mid-edit (see PortalLineDraft). */
+  value: string;
+  uom: string;
+  onChange: (v: string) => void;
+  ariaLabel: string;
+  className?: string;
+}) {
+  const current = Number(value);
+  const safe = Number.isFinite(current) ? current : 0;
+  const step = (delta: number) => onChange(String(Math.max(0, safe + delta)));
+
+  return (
+    <div className={cn('flex items-stretch gap-2', className)}>
+      <button
+        type="button"
+        aria-label={`decrease ${ariaLabel}`}
+        onClick={() => step(-1)}
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-black/15 text-lg leading-none text-foreground hover:bg-accent"
+      >
+        −
+      </button>
+      <div className="flex h-11 min-w-0 flex-1 items-center gap-1 rounded-xl border border-black/15 px-3">
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={ariaLabel}
+          className="min-w-0 flex-1 bg-transparent text-sm font-medium text-foreground outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        />
+        <span className="shrink-0 text-sm text-muted-foreground">{uom}</span>
+      </div>
+      <button
+        type="button"
+        aria-label={`increase ${ariaLabel}`}
+        onClick={() => step(1)}
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-black/15 text-lg leading-none text-foreground hover:bg-accent"
+      >
+        +
+      </button>
     </div>
   );
 }
@@ -247,18 +321,23 @@ export function PortalLineItem({ line, onChange }: PortalLineItemProps) {
 
 function ToggleButton({
   active,
+  filled = false,
   variant = 'neutral',
   icon,
   children,
   onClick,
   testId,
+  className,
 }: {
   active: boolean;
+  /** Render the coloured variant even when inactive (the Rejected button is always red). */
+  filled?: boolean;
   variant?: 'neutral' | 'warning' | 'destructive';
   icon: React.ReactNode;
   children: React.ReactNode;
   onClick: () => void;
   testId: string;
+  className?: string;
 }) {
   const activeClass =
     variant === 'destructive'
@@ -273,8 +352,9 @@ function ToggleButton({
       aria-pressed={active}
       data-testid={testId}
       className={cn(
-        'flex items-center justify-center gap-2 rounded-xl border py-3 text-sm font-medium transition-colors',
-        active ? activeClass : 'border-black/15 bg-card text-foreground hover:bg-accent',
+        'flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-2 py-3 text-sm font-medium transition-colors',
+        active || filled ? activeClass : 'border-black/15 bg-card text-foreground hover:bg-accent',
+        className,
       )}
     >
       {icon}

@@ -20,7 +20,6 @@ import {
   cn,
   notificationService,
 } from '@forethread/ui-components';
-import BackArrowIcon from '@forethread/ui-components/assets/icons/back-arrow.svg?react';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock-icon.svg?react';
 import CloseIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import EyeClosedIcon from '@forethread/ui-components/assets/icons/eye-closed.svg?react';
@@ -108,7 +107,7 @@ export default function PublicDeliveryPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-background px-4 py-8">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-8">
       <div className="w-full max-w-md">
         {step === 'identify' && (
           <IdentifyStep
@@ -758,7 +757,6 @@ function SubmittedStep({
         variant="primary"
         size="lg"
         className="mt-6 w-full"
-        leftIcon={<BackArrowIcon className="h-4 w-4" />}
         onClick={onLogOut}
         data-testid="portal-logout"
       >
