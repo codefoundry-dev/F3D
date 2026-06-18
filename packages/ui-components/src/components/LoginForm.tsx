@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import { Alert } from './Alert';
 import { AuthLayout } from './AuthLayout';
+import { AUTH_INPUT_CLASS } from './authStyles';
 import { Button } from './Button';
 import { FormField } from './FormField';
 import { IconBadge } from './IconBadge';
@@ -88,14 +89,14 @@ export function LoginForm({
 }: LoginFormProps) {
   return (
     <AuthLayout icon={<IconBadge icon={icon} />} title={title} description={description}>
-      <form onSubmit={onSubmit} className="space-y-6" noValidate>
-        {isError && errorMessage && (
-          <Alert variant="destructive" icon={errorIcon}>
-            {errorMessage}
-          </Alert>
-        )}
+      <form onSubmit={onSubmit} className="space-y-10" noValidate>
+        <div className="space-y-6">
+          {isError && errorMessage && (
+            <Alert variant="destructive" icon={errorIcon}>
+              {errorMessage}
+            </Alert>
+          )}
 
-        <div className="space-y-4">
           <FormField label={emailLabel} error={emailError} htmlFor="email">
             <Input
               id="email"
@@ -104,6 +105,7 @@ export function LoginForm({
               placeholder={emailPlaceholder}
               disabled={isPending}
               leftIcon={emailIcon}
+              className={AUTH_INPUT_CLASS}
               {...emailInputProps}
             />
           </FormField>
@@ -117,17 +119,16 @@ export function LoginForm({
               leftIcon={passwordIcon}
               showIcon={eyeOpenIcon}
               hideIcon={eyeClosedIcon}
+              className={AUTH_INPUT_CLASS}
               {...passwordInputProps}
             />
           </FormField>
 
-          <div className="flex justify-between items-center">
-            <a href={forgotPasswordPath} className="text-foreground hover:underline">
-              <Text variant="label-l" as="span">
-                {forgotPasswordLabel}
-              </Text>
-            </a>
-          </div>
+          <a href={forgotPasswordPath} className="inline-block text-foreground hover:underline">
+            <Text variant="label-l" as="span">
+              {forgotPasswordLabel}
+            </Text>
+          </a>
         </div>
 
         <Button

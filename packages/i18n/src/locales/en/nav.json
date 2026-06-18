@@ -38,5 +38,7 @@
   "companyProfile": "Company Profile",
   "companyProfileSubtitle": "View and manage your user information",
   "adminPanel": "Administration Panel",
-  "adminPanelSubtitle": "Monitor external integrations, background jobs, and notification delivery."
+  "adminPanelSubtitle": "Monitor external integrations, background jobs, and notification delivery.",
+  "adminPanelNav": "Admin panel",
+  "usersManagement": "Users management"
 }

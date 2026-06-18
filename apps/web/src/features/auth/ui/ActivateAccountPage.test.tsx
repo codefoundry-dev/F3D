@@ -167,10 +167,10 @@ describe('ActivateAccountPage', () => {
     expect(mockRequestInvitationMutate).toHaveBeenCalledWith('test@test.com');
   });
 
-  it('shows back to sign in link on expired token page', () => {
+  it('omits the back-to-sign-in link on the expired token page (Figma shows only request + contact support)', () => {
     mockTokenQueryState.data = { valid: false, email: 'test@test.com' };
     render(<ActivateAccountPage />);
-    expect(screen.getByText('backToSignIn')).toBeInTheDocument();
+    expect(screen.queryByText('backToSignIn')).not.toBeInTheDocument();
   });
 
   it('shows contact support on expired token page', () => {

@@ -42,16 +42,16 @@ describe('HomeRedirect', () => {
     useAuthStore.getState().clearAuth();
   });
 
-  it('redirects SUPER_ADMIN to /admin-panel', () => {
+  it('renders the role-switched dashboard for SUPER_ADMIN (home is /)', () => {
     setUser(UserRole.SUPER_ADMIN);
     renderHome();
-    expect(screen.getByText('admin-panel-page')).toBeInTheDocument();
+    expect(screen.getByText('dashboard-role-switch')).toBeInTheDocument();
   });
 
-  it('redirects FINANCIAL_OFFICER to /invoices', () => {
+  it('renders the role-switched dashboard for FINANCIAL_OFFICER (home is /)', () => {
     setUser(UserRole.FINANCIAL_OFFICER);
     renderHome();
-    expect(screen.getByText('invoices-page')).toBeInTheDocument();
+    expect(screen.getByText('dashboard-role-switch')).toBeInTheDocument();
   });
 
   it('renders the role-switched dashboard for COMPANY_ADMIN (home is /)', () => {

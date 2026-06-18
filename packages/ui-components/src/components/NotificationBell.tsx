@@ -16,14 +16,14 @@ export function NotificationBell({
     <button
       type="button"
       className={cn(
-        'relative flex items-center justify-center w-[34px] h-[34px] rounded-lg border border-[#E8EAED] text-muted-foreground hover:text-foreground transition-colors',
+        'relative flex items-center justify-center w-10 h-10 rounded-xl border border-[rgba(19,19,19,0.2)] text-muted-foreground hover:text-foreground transition-colors',
         className,
       )}
       {...props}
     >
       <NotificationIcon className="w-[18px] h-[18px]" />
       {hasNotifications && (
-        <span className="absolute -top-[1px] right-0 w-2 h-2 rounded-[4px] bg-[#2E90FA] border border-[#175CD3]" />
+        <span className="absolute -top-px -right-px w-2 h-2 rounded-full bg-destructive" />
       )}
     </button>
   );

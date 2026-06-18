@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { getSidebarItemsForRole } from './sidebarConfig';
 
 const LABELS = {
+  adminPanel: 'Admin panel',
+  usersManagement: 'Users management',
   projects: 'Projects',
   materialRequests: 'Material Requests',
   rfqs: 'RFQs',
@@ -60,11 +62,19 @@ describe('getSidebarItemsForRole', () => {
     expect(labels).toEqual(['Material Requests', 'Settings']);
   });
 
-  it('shows materials + settings to SUPER_ADMIN (owns the catalogue; admin panel reached separately)', () => {
-    // SUPER_ADMIN owns the public material catalogue + approval queue (US 4.01),
-    // so the Materials item is visible alongside Settings.
+  it('shows admin panel, users management, materials + settings to SUPER_ADMIN', () => {
+    // SUPER_ADMIN gets the platform-admin items (Admin panel + Users management) plus
+    // the public material catalogue / approval queue (US 4.01) and Settings, in the
+    // order shown on the super-admin dashboard frame.
     const labels = getSidebarItemsForRole(UserRole.SUPER_ADMIN, '/', LABELS).map((i) => i.label);
-    expect(labels).toEqual(['Materials', 'Settings']);
+    expect(labels).toEqual(['Admin panel', 'Users management', 'Materials', 'Settings']);
+  });
+
+  it('marks the Users management item active on /users and its sub-routes for SUPER_ADMIN', () => {
+    const onList = getSidebarItemsForRole(UserRole.SUPER_ADMIN, '/users', LABELS);
+    expect(onList.find((i) => i.label === 'Users management')?.isActive).toBe(true);
+    const onDetail = getSidebarItemsForRole(UserRole.SUPER_ADMIN, '/users/u-123', LABELS);
+    expect(onDetail.find((i) => i.label === 'Users management')?.isActive).toBe(true);
   });
 
   it('marks the RFQs item active when pathname starts with /rfqs', () => {

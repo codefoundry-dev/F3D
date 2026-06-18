@@ -8,6 +8,7 @@ import { cn } from '../utils/cn';
 
 import { Alert } from './Alert';
 import { AuthLayout } from './AuthLayout';
+import { AUTH_OUTLINE_BTN_CLASS } from './authStyles';
 import { Badge } from './Badge';
 import { Button } from './Button';
 import { Text } from './Text';
@@ -56,8 +57,8 @@ function ShieldBadge() {
 
 function EmailBadge({ email }: { email: string }) {
   return (
-    <div className="flex items-center justify-center gap-2 h-11 rounded-[10px] bg-badge-blue-text/[0.04] border border-badge-blue-text/20">
-      <EnvelopeIcon className="flex-shrink-0 w-5 h-5 text-badge-blue-text" />
+    <div className="flex w-full items-center justify-center gap-2 h-11 rounded-[10px] bg-badge-blue-text/[0.04] border border-badge-blue-text/20">
+      <EnvelopeIcon className="flex-shrink-0 w-[18px] h-[18px] text-badge-blue-text" />
       <Text variant="body-14" as="span" className="text-badge-blue-text">
         {email}
       </Text>
@@ -183,9 +184,9 @@ export function TwoFactorCard({
   if (isLocked) {
     return (
       <AuthLayout icon={<ShieldBadge />} title={title} description={description}>
-        <div className="space-y-6">
+        <div className="space-y-10">
           {lockedMessage && (
-            <Alert variant="destructive" icon={<InfoIcon className="w-5 h-5" />}>
+            <Alert variant="destructive" icon={<InfoIcon className="w-[18px] h-[18px]" />}>
               {lockedMessage}
             </Alert>
           )}
@@ -193,7 +194,7 @@ export function TwoFactorCard({
           {contactSupportLabel && onContactSupport && (
             <div className="text-center">
               <button type="button" className="hover:underline" onClick={onContactSupport}>
-                <Text variant="body-18" as="span">
+                <Text variant="body-18" as="span" className="font-medium text-foreground">
                   {contactSupportLabel}
                 </Text>
               </button>
@@ -207,23 +208,32 @@ export function TwoFactorCard({
   if (isExpired) {
     return (
       <AuthLayout icon={<ShieldBadge />} title={title} description={description}>
-        <div className="space-y-6">
-          <EmailBadge email={email} />
+        <div className="flex flex-col gap-[72px]">
+          <div className="flex flex-col items-center gap-8">
+            <EmailBadge email={email} />
 
-          <div className="flex items-center justify-center gap-1.5">
-            <ClockIcon className="w-4 h-4 text-foreground" />
-            <Text variant="body-16" as="span" className="text-foreground">
-              {expiredText}
-            </Text>
+            <div className="flex items-center justify-center gap-2">
+              <ClockIcon className="w-4 h-4 text-foreground" />
+              <Text variant="body-16" as="span">
+                {expiredText}
+              </Text>
+            </div>
           </div>
 
-          <Button size="lg" className="w-full" onClick={handleResend} isLoading={isResending}>
-            {resendLabel}
-          </Button>
+          <div className="flex flex-col gap-4">
+            <Button size="lg" className="w-full" onClick={handleResend} isLoading={isResending}>
+              {resendLabel}
+            </Button>
 
-          <Button variant="outline" size="lg" className="w-full" onClick={onBackToLogin}>
-            {backLabel}
-          </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              className={AUTH_OUTLINE_BTN_CLASS}
+              onClick={onBackToLogin}
+            >
+              {backLabel}
+            </Button>
+          </div>
         </div>
       </AuthLayout>
     );
@@ -231,81 +241,92 @@ export function TwoFactorCard({
 
   return (
     <AuthLayout icon={<ShieldBadge />} title={title} description={description}>
-      <div className="space-y-6">
-        <EmailBadge email={email} />
+      <div className="flex flex-col gap-[72px]">
+        <div className="flex flex-col items-center gap-8">
+          <EmailBadge email={email} />
 
-        <div className="flex gap-1 justify-center" onPaste={handlePaste}>
-          {digits.map((digit, i) => (
-            <input
-              key={i}
-              ref={(el) => {
-                inputRefs.current[i] = el;
-              }}
-              type="text"
-              inputMode="numeric"
-              maxLength={1}
-              value={digit}
-              onChange={(e) => handleChange(i, e.target.value)}
-              onKeyDown={(e) => handleKeyDown(i, e)}
-              disabled={isPending}
-              className={cn(
-                'w-14 h-14 text-center text-base font-normal leading-6 font-[Inter] transition-colors',
-                'border-[0.8px] border-transparent bg-muted',
-                'focus:outline-none focus:border-foreground/50 focus:bg-muted',
-                'disabled:opacity-50',
-                i === 0 && 'rounded-l-lg',
-                i === OTP_LENGTH - 1 && 'rounded-r-lg',
-                i > 0 && i < OTP_LENGTH - 1 && 'rounded-none',
-              )}
-              aria-label={digitLabel(i + 1)}
-            />
-          ))}
-        </div>
+          <div className="flex w-full flex-col gap-4">
+            <div className="flex gap-1 justify-center" onPaste={handlePaste}>
+              {digits.map((digit, i) => (
+                <input
+                  key={i}
+                  ref={(el) => {
+                    inputRefs.current[i] = el;
+                  }}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleChange(i, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(i, e)}
+                  disabled={isPending}
+                  className={cn(
+                    'w-14 h-14 text-center text-base font-normal leading-6 transition-colors',
+                    'border-[0.8px] border-transparent bg-muted',
+                    'focus:outline-none focus:border-foreground/50 focus:bg-muted',
+                    'disabled:opacity-50',
+                    i === 0 && 'rounded-l-lg',
+                    i === OTP_LENGTH - 1 && 'rounded-r-lg',
+                    i > 0 && i < OTP_LENGTH - 1 && 'rounded-none',
+                  )}
+                  aria-label={digitLabel(i + 1)}
+                />
+              ))}
+            </div>
 
-        <div className="flex items-center justify-center gap-1.5">
-          <ClockIcon className="w-4 h-4 text-foreground" />
-          <Text variant="body-16" as="span" className="text-foreground">
-            {expiresInText} {formatTime(secondsLeft)}
-          </Text>
-        </div>
+            <div className="flex items-center justify-center gap-2">
+              <ClockIcon className="w-4 h-4 text-foreground" />
+              <Text variant="body-16" as="span">
+                {expiresInText} {formatTime(secondsLeft)}
+              </Text>
+            </div>
 
-        {isError && errorMessage && (
-          <Alert variant="destructive" icon={<InfoIcon className="w-5 h-5" />}>
-            {errorMessage}
-          </Alert>
-        )}
-
-        <Button
-          size="lg"
-          className="w-full"
-          onClick={handleSubmit}
-          isLoading={isPending}
-          disabled={!isComplete || isPending}
-        >
-          {verifyLabel}
-        </Button>
-
-        <div className="text-center">
-          <Text variant="body-16" as="p" className="font-[Inter] font-normal leading-[140%]">
-            {didntReceiveText}{' '}
-            {resendCooldown > 0 ? (
-              resendTimerText(formatTime(resendCooldown))
-            ) : (
-              <button
-                type="button"
-                onClick={handleResend}
-                disabled={isResending}
-                className="font-medium underline hover:no-underline disabled:opacity-50"
-              >
-                {resendLabel}
-              </button>
+            {isError && errorMessage && (
+              <Alert variant="destructive" icon={<InfoIcon className="w-[18px] h-[18px]" />}>
+                {errorMessage}
+              </Alert>
             )}
-          </Text>
+          </div>
         </div>
 
-        <Button variant="outline" size="lg" className="w-full" onClick={onBackToLogin}>
-          {backLabel}
-        </Button>
+        <div className="flex flex-col gap-4">
+          <Button
+            size="lg"
+            className="w-full"
+            onClick={handleSubmit}
+            isLoading={isPending}
+            disabled={!isComplete || isPending}
+          >
+            {verifyLabel}
+          </Button>
+
+          <div className="text-center">
+            <Text variant="body-16" as="p">
+              {didntReceiveText}{' '}
+              {resendCooldown > 0 ? (
+                resendTimerText(formatTime(resendCooldown))
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  disabled={isResending}
+                  className="font-medium underline hover:no-underline disabled:opacity-50"
+                >
+                  {resendLabel}
+                </button>
+              )}
+            </Text>
+          </div>
+
+          <Button
+            variant="outline"
+            size="lg"
+            className={AUTH_OUTLINE_BTN_CLASS}
+            onClick={onBackToLogin}
+          >
+            {backLabel}
+          </Button>
+        </div>
       </div>
     </AuthLayout>
   );

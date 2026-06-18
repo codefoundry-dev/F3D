@@ -37,15 +37,15 @@ export function AuthLayout({
             )}
           </div>
         )}
-        <div className="bg-card rounded-2xl shadow-sm border border-border p-8">
-          {icon && <div className="flex justify-center mb-4">{icon}</div>}
+        <div className="bg-card rounded-[14px] border-[0.8px] border-black/20 p-8">
+          {icon && <div className="flex justify-center mb-2">{icon}</div>}
           {title && (
             <Text variant="title-m" as="h2" className="text-center mb-2">
               {title}
             </Text>
           )}
           {(description ?? (icon && subtitle)) && (
-            <Text variant="body-14" as="p" className="text-center mb-6">
+            <Text variant="body-14" as="p" className="text-center mb-10">
               {description ?? subtitle}
             </Text>
           )}

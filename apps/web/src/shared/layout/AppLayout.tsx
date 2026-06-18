@@ -1,13 +1,14 @@
 import { useTranslation } from '@forethread/i18n';
 import { useAvatarUrl, useProfile } from '@forethread/profile-shared';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import {
   AvatarWithStatus,
   NotificationBell,
   PageHeader,
-  SearchInput,
   Sidebar,
   type WorkStatusType,
 } from '@forethread/ui-components';
+import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 import LogoIcon from '@forethread/ui-components/assets/icons/logo.svg?react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
@@ -27,8 +28,13 @@ export function AppLayout() {
   const role = useUserRole();
   const { data: avatarUrl } = useAvatarUrl();
   const { data: profile } = useProfile();
+  const pageTitle = usePageTitleStore((s) => s.title);
+  const pageSubtitle = usePageTitleStore((s) => s.subtitle);
+  const pageBackTo = usePageTitleStore((s) => s.backTo);
 
   const sidebarItems = getSidebarItemsForRole(role, location.pathname, {
+    adminPanel: t('nav:adminPanelNav', { defaultValue: 'Admin panel' }),
+    usersManagement: t('nav:usersManagement', { defaultValue: 'Users management' }),
     projects: t('nav:projects'),
     materialRequests: t('nav:materialRequests'),
     rfqs: t('nav:rfqs'),
@@ -47,28 +53,38 @@ export function AppLayout() {
           items={sidebarItems}
           onNavigate={navigate}
           logo={<LogoIcon className="w-8 h-8" />}
+          companyName={t('common:appName', { defaultValue: 'Forethread' })}
           onLogoClick={() => navigate(homePathForRole(role))}
         />
       </div>
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="sticky top-0 z-10 h-16 bg-card border-b border-border flex items-center justify-between px-6">
-          <PageHeader title="" subtitle="" />
-          <div className="flex items-center gap-3">
-            <SearchInput className="w-48" placeholder={t('common:search')} />
-            <NotificationBell aria-label={t('nav:notifications')} />
+          <PageHeader
+            title={pageTitle ?? ''}
+            subtitle={pageSubtitle ?? undefined}
+            onBack={pageBackTo ? () => navigate(pageBackTo) : undefined}
+          />
+          <div className="flex items-center gap-2">
+            <NotificationBell aria-label={t('nav:notifications')} hasNotifications />
 
             <div className="relative group">
               <button
                 type="button"
-                className="flex items-center text-sm text-card-foreground hover:text-foreground"
+                className="flex h-10 w-[180px] items-center gap-1.5 rounded-xl border border-[rgba(19,19,19,0.2)] px-1 py-0.5 text-sm text-card-foreground transition-colors hover:bg-accent"
               >
-                <AvatarWithStatus
-                  name={currentUser?.name ?? ''}
-                  avatarUrl={avatarUrl}
-                  workStatus={profile?.workStatus as WorkStatusType}
-                  size={34}
-                />
+                <span className="flex min-w-0 flex-1 items-center gap-2">
+                  <AvatarWithStatus
+                    name={currentUser?.name ?? ''}
+                    avatarUrl={avatarUrl}
+                    workStatus={profile?.workStatus as WorkStatusType}
+                    size={32}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-left text-card-foreground">
+                    {currentUser?.name ?? ''}
+                  </span>
+                </span>
+                <ChevronDownIcon className="mr-1.5 h-[18px] w-[18px] shrink-0 text-muted-foreground" />
               </button>
 
               <div className="absolute right-0 pt-1 w-48 hidden group-hover:block z-10">
