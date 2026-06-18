@@ -86,6 +86,7 @@ const CreateDeliveryReportPage = lazy(
 const DeliveryReportDetailPage = lazy(
   () => import('@/features/deliveries/pages/DeliveryReportDetailPage'),
 );
+const PublicDeliveryPage = lazy(() => import('@/features/deliveries/public/PublicDeliveryPage'));
 const MaterialRequestListRoleSwitch = lazy(
   () => import('@/features/material-requests/MaterialRequestListRoleSwitch'),
 );
@@ -212,6 +213,7 @@ export const routes: RouteObject[] = [
       { path: ROUTES.resetPassword, element: withSuspense(<ResetPasswordPage />) },
       { path: ROUTES.guestInvitation, element: withSuspense(<GuestInvitationPage />) },
       { path: ROUTES.guestPurchaseOrder, element: withSuspense(<GuestPurchaseOrderPage />) },
+      { path: ROUTES.guestDelivery, element: withSuspense(<PublicDeliveryPage />) },
 
       // ── Authenticated ─────────────────────────────────────────────
       {

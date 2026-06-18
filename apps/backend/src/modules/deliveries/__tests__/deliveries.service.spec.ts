@@ -381,6 +381,113 @@ describe('DeliveriesService', () => {
     });
   });
 
+  // ── list/get serialiser fallbacks ─────────────────────────────────────────────
+  // These exercise the right-hand sides of the `?? ` fallback chains in the list +
+  // detail serialisers that the happy-path fixtures (fully-populated relations)
+  // never reach — keeping the module's branch coverage above the 90% gate.
+  describe('serialiser fallbacks', () => {
+    it('falls back to the location address when the label is null (list)', async () => {
+      const { service, prisma } = makeService();
+      (prisma.deliveryReport.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'dr-3',
+          reportNumber: 'DR-00003',
+          status: 'SUBMITTED',
+          source: 'INTERNAL',
+          purchaseOrderId: 'po-3',
+          deliveryDate: new Date('2026-06-18'),
+          projectId: 'proj-1',
+          vendorId: 'vendor-1',
+          deliveryLocationId: 'loc-1',
+          submitterName: 'Jane',
+          createdAt: new Date('2026-06-18'),
+          purchaseOrder: { poNumber: 'PO-00003', rfqId: 'rfq-x' },
+          project: { name: 'Alpha' },
+          vendor: { legalName: 'VendorCo' },
+          // Label is null → name resolves to the address.
+          deliveryLocation: { label: null, address: '12 Dock Rd' },
+        },
+      ]);
+      (prisma.deliveryReport.count as jest.Mock).mockResolvedValue(1);
+      // PO has an rfqId but no matching RFQ row → linkedRfqNumber null.
+      (prisma.rfq.findMany as jest.Mock).mockResolvedValue([]);
+
+      const res = await service.list(officer, {});
+      expect(res.items[0].deliveryLocationName).toBe('12 Dock Rd');
+      expect(res.items[0].linkedRfqNumber).toBeNull();
+    });
+
+    it('falls back to the location address when the label is null (detail)', async () => {
+      const { service, prisma } = makeService();
+      (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue(
+        detailRow({
+          companyId: 'company-1',
+          deliveryLocation: { id: 'loc-hdr', label: null, address: '12 Dock Rd' },
+        }),
+      );
+      const res = await service.get('dr-1', officer);
+      expect(res.deliveryLocationName).toBe('12 Dock Rd');
+    });
+
+    it('null-coalesces every missing relation + date in the detail', async () => {
+      const { service, prisma } = makeService();
+      (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue(
+        detailRow({
+          companyId: 'company-1',
+          projectId: null,
+          project: null,
+          deliveryDate: null,
+          deliveryLocationId: null,
+          deliveryLocation: null,
+          vendorId: null,
+          vendor: null,
+          reviewer: null,
+          reviewedAt: null,
+        }),
+      );
+      const res = await service.get('dr-1', officer);
+      expect(res.projectName).toBeNull();
+      expect(res.deliveryDate).toBeNull();
+      expect(res.deliveryLocationName).toBeNull();
+      expect(res.vendorName).toBeNull();
+      expect(res.reviewedByName).toBeNull();
+      expect(res.reviewedAt).toBeNull();
+    });
+
+    it('falls back to the PO line uom + poLineItemId ref when no material and no materialCode/lineNumber', async () => {
+      const { service, prisma } = makeService();
+      // poLineItem entirely absent → lineItemRef falls all the way back to the id,
+      // and material/uom fall back to empty string.
+      const row = detailRow({
+        companyId: 'company-1',
+        lines: [
+          {
+            id: 'drl-9',
+            poLineItemId: 'li-orphan',
+            materialId: null,
+            quantityOrdered: 0,
+            quantityReceived: 0,
+            outcome: DeliveryOutcome.NOT_DELIVERED,
+            notes: null,
+            damagedQuantity: null,
+            damageType: null,
+            damageDisposition: null,
+            material: null,
+            poLineItem: null,
+            damagePhotos: [],
+          },
+        ],
+      });
+      (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue(row);
+
+      const res = await service.get('dr-1', officer);
+      expect(res.lines[0].lineItemRef).toBe('li-orphan');
+      expect(res.lines[0].materialName).toBe('');
+      expect(res.lines[0].description).toBeNull();
+      expect(res.lines[0].uom).toBe('');
+    });
+  });
+
   // ── create (INTERNAL) ─────────────────────────────────────────────────────────
   describe('create', () => {
     const dto: CreateDeliveryReportDto = {
@@ -572,6 +679,32 @@ describe('DeliveriesService', () => {
       expect(data.lines.create[0].damageType).toBe('PACKAGING');
       expect(data.lines.create[0].damageDisposition).toBe('ACCEPTED');
     });
+
+    it('null-coalesces project/location/vendor when neither header nor PO supply them', async () => {
+      const { service, prisma, tx } = makeService();
+      // PO carries no project / location / vendor and the header omits them → null.
+      (prisma.purchaseOrder.findUnique as jest.Mock).mockResolvedValue(
+        deliverablePo({ projectId: null, deliveryLocationId: null, vendorId: null }),
+      );
+      (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue(
+        detailRow({ companyId: 'company-1' }),
+      );
+
+      await service.create(officer, dto);
+
+      const data = tx.deliveryReport.create.mock.calls[0][0].data;
+      expect(data.projectId).toBeNull();
+      expect(data.deliveryLocationId).toBeNull();
+      expect(data.vendorId).toBeNull();
+    });
+
+    it('rejects an empty lines array', async () => {
+      const { service, prisma } = makeService();
+      (prisma.purchaseOrder.findUnique as jest.Mock).mockResolvedValue(deliverablePo());
+      await expect(
+        service.create(officer, { purchaseOrderId: 'po-1', lines: [] }),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   // ── approve: delta math + idempotency ──────────────────────────────────────────
@@ -715,6 +848,40 @@ describe('DeliveriesService', () => {
       const deltas = poStatus.applyDeliveryDeltasInTx.mock.calls[0][2] as Map<string, number>;
       expect(deltas.get('li-1')).toBe(100);
       expect(deltas.get('li-2')).toBe(30);
+    });
+
+    it('treats a missing damagedQuantity as 0 for a DAMAGED + RETURNED line (full received)', async () => {
+      const { service, prisma, poStatus } = makeService();
+      (prisma.deliveryReport.findUnique as jest.Mock)
+        .mockResolvedValueOnce(
+          reportForApproval([
+            // damagedQuantity null → nets off nothing → full received.
+            { poLineItemId: 'li-1', quantityReceived: 40, outcome: 'DAMAGED', damagedQuantity: null, damageDisposition: 'RETURNED' },
+          ]),
+        )
+        .mockResolvedValueOnce(detailRow({ companyId: 'company-1' }));
+      (prisma.purchaseOrder.findUnique as jest.Mock).mockResolvedValue(deliverablePo());
+
+      await service.approve('dr-1', officer);
+      const deltas = poStatus.applyDeliveryDeltasInTx.mock.calls[0][2] as Map<string, number>;
+      expect(deltas.get('li-1')).toBe(40);
+    });
+
+    it('accumulates multiple report lines that target the same PO line', async () => {
+      const { service, prisma, poStatus } = makeService();
+      (prisma.deliveryReport.findUnique as jest.Mock)
+        .mockResolvedValueOnce(
+          reportForApproval([
+            { poLineItemId: 'li-1', quantityReceived: 30, outcome: 'DELIVERED', damagedQuantity: null, damageDisposition: null },
+            { poLineItemId: 'li-1', quantityReceived: 20, outcome: 'DELIVERED', damagedQuantity: null, damageDisposition: null },
+          ]),
+        )
+        .mockResolvedValueOnce(detailRow({ companyId: 'company-1' }));
+      (prisma.purchaseOrder.findUnique as jest.Mock).mockResolvedValue(deliverablePo());
+
+      await service.approve('dr-1', officer);
+      const deltas = poStatus.applyDeliveryDeltasInTx.mock.calls[0][2] as Map<string, number>;
+      expect(deltas.get('li-1')).toBe(50);
     });
 
     it('is idempotent: a concurrent double-approve is defeated by the in-tx re-read', async () => {
