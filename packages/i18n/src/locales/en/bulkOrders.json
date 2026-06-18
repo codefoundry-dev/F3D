@@ -321,8 +321,8 @@
       "date": "Date / Timestamp",
       "poNumber": "Related PO number",
       "material": "Material",
-      "qtyBefore": "Qty before drawdown",
-      "drawnQty": "Drawn quantity",
+      "qtyBefore": "Qty ordered",
+      "drawnQty": "Drawdown qty",
       "remainingQty": "Remaining qty"
     }
   },

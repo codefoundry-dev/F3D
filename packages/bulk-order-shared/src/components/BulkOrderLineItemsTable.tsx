@@ -1,6 +1,7 @@
 import type { BulkOrderLineItemDetail } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { formatCurrency, MessageBadgeIcon } from '@forethread/ui-components';
+import { formatCurrency } from '@forethread/ui-components';
+import EditInSquareIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
 
 export interface BulkOrderLineItemsTableProps {
   lineItems: BulkOrderLineItemDetail[];
@@ -61,10 +62,16 @@ export function BulkOrderLineItemsTable({
                 </td>
                 <td className="p-3 border border-border">
                   <div className="flex items-center justify-center">
-                    <MessageBadgeIcon
-                      hasNotification={notifications?.[item.lineItemId] ?? false}
+                    <button
+                      type="button"
+                      className="relative text-muted-foreground transition-colors hover:text-foreground"
                       onClick={() => onMessageClick?.(item.lineItemId)}
-                    />
+                    >
+                      <EditInSquareIcon className="h-4 w-4" />
+                      {(notifications?.[item.lineItemId] ?? false) && (
+                        <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-red-500" />
+                      )}
+                    </button>
                   </div>
                 </td>
               </tr>

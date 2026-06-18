@@ -8,7 +8,9 @@ interface BulkOrderDetailTabsProps {
   onTabChange: (tab: BulkOrderTab) => void;
 }
 
-const TABS: BulkOrderTab[] = ['lineItems', 'drawdownHistory', 'changeHistory'];
+// The detail view exposes only Line items + Drawdown History (Figma US 2.11).
+// Change history lives on the list page (AllChangeHistorySection).
+const TABS: BulkOrderTab[] = ['lineItems', 'drawdownHistory'];
 
 export function BulkOrderDetailTabs({ activeTab, onTabChange }: BulkOrderDetailTabsProps) {
   const { t } = useTranslation('bulkOrders');
@@ -22,7 +24,7 @@ export function BulkOrderDetailTabs({ activeTab, onTabChange }: BulkOrderDetailT
             type="button"
             onClick={() => onTabChange(tab)}
             className={cn(
-              'px-3 py-3 text-lg font-medium border-b-2 transition-colors',
+              'px-3 py-3 text-base font-medium border-b-2 transition-colors',
               activeTab === tab
                 ? 'border-foreground text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground',

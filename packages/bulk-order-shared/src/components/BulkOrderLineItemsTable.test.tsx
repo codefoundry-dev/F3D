@@ -7,7 +7,10 @@ vi.mock('@forethread/i18n', () => ({
 
 vi.mock('@forethread/ui-components', () => ({
   formatCurrency: (n: number) => `$${n}`,
-  MessageBadgeIcon: () => <span data-testid="message-badge" />,
+}));
+
+vi.mock('@forethread/ui-components/assets/icons/edit-in-square.svg?react', () => ({
+  default: () => <span data-testid="edit-icon" />,
 }));
 
 import { render, screen } from '@testing-library/react';

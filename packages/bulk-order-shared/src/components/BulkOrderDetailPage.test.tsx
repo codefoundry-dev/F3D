@@ -120,11 +120,12 @@ beforeEach(() => {
 });
 
 describe('BulkOrderDetailPage action buttons', () => {
-  it('renders Create drawdown, Change and Propose extension when there is no pending change', () => {
+  it('renders Create drawdown and Change when there is no pending change (Figma US 2.11)', () => {
     render(<BulkOrderDetailPage />);
     expect(screen.getByText('detail.createDrawdown')).toBeInTheDocument();
     expect(screen.getByText('detail.change')).toBeInTheDocument();
-    expect(screen.getByText('detail.proposeExtension')).toBeInTheDocument();
+    // Propose extension was consolidated into the Change flow per the Figma design.
+    expect(screen.queryByText('detail.proposeExtension')).not.toBeInTheDocument();
   });
 
   it('navigates to the drawdown route from Create drawdown', () => {
@@ -138,13 +139,6 @@ describe('BulkOrderDetailPage action buttons', () => {
     fireEvent.click(screen.getByText('detail.change'));
     expect(mockNavigate).toHaveBeenCalledWith('/bulk-orders/bo-1/change');
   });
-
-  it('opens the propose-extension modal from Propose extension', () => {
-    render(<BulkOrderDetailPage />);
-    expect(screen.queryByTestId('propose-extension-modal')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText('detail.proposeExtension'));
-    expect(screen.getByTestId('propose-extension-modal')).toBeInTheDocument();
-  });
 });
 
 describe('BulkOrderDetailPage extension review', () => {
@@ -153,8 +147,8 @@ describe('BulkOrderDetailPage extension review', () => {
     // currentUserId differs from the proposer => current user is the approver.
     render(<BulkOrderDetailPage currentUserId="u-approver" />);
     expect(screen.getByTestId('inline-extension-review')).toBeInTheDocument();
-    // The action trio is hidden while reviewing an extension.
-    expect(screen.queryByText('detail.proposeExtension')).not.toBeInTheDocument();
+    // The change/drawdown action bar is hidden while reviewing an extension.
+    expect(screen.queryByText('detail.change')).not.toBeInTheDocument();
   });
 
   it('does not render the inline review for the proposer (shows generic pending alert)', () => {

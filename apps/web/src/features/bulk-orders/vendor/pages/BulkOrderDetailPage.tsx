@@ -9,7 +9,7 @@ export default function BulkOrderDetailPage() {
 
   return (
     <SharedBulkOrderDetailPage
-      counterpartyLabel={t('detail.contractor')}
+      counterpartyLabel={t('detail.contractorName')}
       showDrawdown={false}
       showChangeActions
       isVendorView
