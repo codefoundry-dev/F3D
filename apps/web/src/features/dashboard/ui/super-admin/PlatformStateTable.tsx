@@ -106,7 +106,9 @@ export function PlatformStateTable() {
                 >
                   <td className="px-3 py-3 text-foreground font-medium">{row.name}</td>
                   <td className="px-3 py-3">
-                    <Badge className={`rounded text-xs ${STATUS_COLORS[row.status] ?? ''}`}>
+                    <Badge
+                      className={`rounded-full px-2 py-1 text-xs font-normal ${STATUS_COLORS[row.status] ?? ''}`}
+                    >
                       {row.status}
                     </Badge>
                   </td>

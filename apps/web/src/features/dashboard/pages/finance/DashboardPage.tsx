@@ -1,6 +1,7 @@
 import { useTranslation } from '@forethread/i18n';
-import { Button } from '@forethread/ui-components';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import UploadIcon from '@forethread/ui-components/assets/icons/upload.svg?react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -13,6 +14,7 @@ import { InvoicesPendingSection } from '../../ui/finance/InvoicesPendingSection'
 export default function DashboardPage() {
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
   const {
     totalPendingAmount,
     pendingInvoiceCount,
@@ -25,17 +27,25 @@ export default function DashboardPage() {
     isLoading,
   } = useDashboardData();
 
+  // Finance lands on `/`, so this dashboard owns the global header copy.
+  useEffect(() => {
+    setPageTitle(t('title'), t('subtitle'));
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
+
   return (
     <div className="p-4 space-y-4 h-full overflow-auto">
       <div className="flex items-center">
-        <Button
-          variant="primary"
-          size="lg"
-          leftIcon={<UploadIcon className="w-6 h-6" />}
+        {/* Dark pill matches the Figma #131313 and the super-admin quick-action
+            pills; hardcoded so it stays dark in dark mode (--foreground flips). */}
+        <button
+          type="button"
           onClick={() => navigate(ROUTES.invoices)}
+          className="flex items-center gap-2.5 rounded-xl bg-[#131313] px-6 py-4 text-lg font-medium text-white transition-colors hover:bg-[#131313]/90"
         >
+          <UploadIcon className="w-6 h-6" />
           {t('finance.uploadInvoice')}
-        </Button>
+        </button>
       </div>
 
       <InvoiceKpiCards

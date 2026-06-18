@@ -87,6 +87,7 @@
       "contractorName": "Contractor Name",
       "poStatus": "PO Status",
       "revision": "Revision",
+      "revisionActive": "Active",
       "poType": "PO Type",
       "pickUp": "Pick Up"
     }
