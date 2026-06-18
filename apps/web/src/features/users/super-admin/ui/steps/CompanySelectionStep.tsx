@@ -68,9 +68,9 @@ export function CompanySelectionStep({
 
   return (
     <div className="flex flex-col items-center text-center">
-      <IconBadge icon={<NewUserIcon className="w-6 h-6 text-foreground" />} className="bg-muted" />
+      <IconBadge icon={<NewUserIcon className="w-6 h-6 text-foreground" />} />
 
-      <h2 className="text-lg font-medium leading-6 text-foreground mt-4">
+      <h2 className="text-2xl font-semibold leading-[140%] text-foreground mt-4">
         {t('createUserPage.title')}
       </h2>
       <p className="text-sm text-muted-foreground mt-1">{t('createUserPage.subtitle')}</p>
@@ -113,17 +113,17 @@ export function CompanySelectionStep({
       )}
 
       {/* Buttons */}
-      <div className="flex gap-3 w-full mt-6">
-        <Button variant="outline" type="button" onClick={onCancel} className="flex-1">
-          {t('createUserPage.cancel')}
-        </Button>
+      <div className="flex flex-col gap-3 w-full mt-6">
         <Button
           type="button"
           onClick={onContinue}
           disabled={!companyType || !localCompanyId}
-          className="flex-1"
+          className="w-full"
         >
           {t('createUserPage.continue')}
+        </Button>
+        <Button variant="outline" type="button" onClick={onCancel} className="w-full">
+          {t('createUserPage.cancel')}
         </Button>
       </div>
     </div>

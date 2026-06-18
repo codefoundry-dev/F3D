@@ -46,7 +46,7 @@ export function ProfileInfoGrid({
         </InfoField>
 
         <InfoField label={t('status')}>
-          <Badge className="rounded bg-muted text-foreground text-xs">
+          <Badge className="border border-border bg-secondary text-[hsl(var(--badge-neutral-text))]">
             {t(`users:statuses.${status}` as 'users:statuses.ACTIVE')}
           </Badge>
         </InfoField>

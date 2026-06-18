@@ -56,12 +56,14 @@ export function EditUserModal({ onClose }: EditUserModalProps) {
                   <ModalCloseButton onClose={onClose} />
                 </div>
               </div>
-              <h2 className="text-lg font-semibold text-foreground mt-4">{t('editModal.title')}</h2>
+              <h2 className="text-2xl font-semibold leading-[140%] text-foreground mt-4">
+                {t('editModal.title')}
+              </h2>
               <p className="text-sm text-muted-foreground mt-1">{t('editModal.subtitle')}</p>
             </div>
 
             {/* Full Name */}
-            <FormField label={t('editModal.fullName')} error={errors.name?.message} required>
+            <FormField label={t('editModal.fullName')} error={errors.name?.message}>
               <Input
                 type="text"
                 placeholder={t('editModal.namePlaceholder')}
@@ -72,12 +74,13 @@ export function EditUserModal({ onClose }: EditUserModalProps) {
 
             {/* Email + Phone */}
             <div className="grid grid-cols-2 gap-3">
-              <FormField label={t('editModal.email')} error={errors.email?.message} required>
+              <FormField label={t('editModal.email')} error={errors.email?.message}>
                 <Input
                   type="email"
                   placeholder={t('editModal.emailPlaceholder')}
                   leftIcon={<EnvelopeIcon className="w-5 h-5" />}
-                  disabled
+                  readOnly
+                  className="cursor-not-allowed"
                   {...register('email')}
                 />
               </FormField>
@@ -95,7 +98,7 @@ export function EditUserModal({ onClose }: EditUserModalProps) {
             </div>
 
             {/* Role */}
-            <FormField label={t('editModal.role')} error={errors.role?.message} required>
+            <FormField label={t('editModal.role')} error={errors.role?.message}>
               <Controller
                 name="role"
                 control={control}

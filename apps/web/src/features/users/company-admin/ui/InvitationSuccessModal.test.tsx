@@ -4,36 +4,43 @@ const mockUsersStore = vi.hoisted(() => vi.fn());
 
 vi.mock('@forethread/i18n', () => ({
   useTranslation: () => ({
-    t: (key: string, opts?: any) => (opts ? `${key}:${JSON.stringify(opts)}` : key),
+    t: (key: string, opts?: any) => {
+      // Resolve the email-sent copy with the interpolated email so the
+      // component can split + bold the address (mirrors real i18n behaviour).
+      if (key === 'invitationSuccess.emailSent' && opts?.email) {
+        return `The user ${opts.email} will receive an activation email.`;
+      }
+      if (key === 'invitationSuccess.redirecting' && opts?.seconds !== undefined) {
+        return `Redirecting in ${opts.seconds} seconds`;
+      }
+      return key;
+    },
   }),
 }));
 
 vi.mock('@forethread/ui-components', () => ({
-  StatusSuccessModal: ({
-    title,
-    subtitle,
-    description,
-    note,
-    buttonLabel,
-    redirectLabel,
-    onClose,
-  }: any) => (
+  Modal: ({ children, onClose }: any) => (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
     <div data-testid="modal" onClick={onClose}>
-      <span>{title}</span>
-      <span>{subtitle}</span>
-      <div>{description}</div>
-      {note && <span>{note}</span>}
-      <button data-testid="btn" onClick={onClose}>
-        {buttonLabel}
-      </button>
-      <span>{redirectLabel(3)}</span>
+      {children}
     </div>
+  ),
+  ModalBody: ({ children }: any) => <div>{children}</div>,
+  ModalCloseButton: ({ onClose }: any) => (
+    <button data-testid="close" onClick={onClose} type="button">
+      close
+    </button>
+  ),
+  IconBadge: ({ icon }: any) => <div data-testid="icon-badge">{icon}</div>,
+  Button: ({ children, onClick }: any) => (
+    <button data-testid="btn" onClick={onClick} type="button">
+      {children}
+    </button>
   ),
 }));
 
 vi.mock('@forethread/ui-components/assets/icons/checkcircle-icon.svg?react', () => ({
-  default: () => <div />,
+  default: () => <div data-testid="check-icon" />,
 }));
 
 vi.mock('../state/users.store', () => ({
@@ -73,5 +80,16 @@ describe('InvitationSuccessModal', () => {
   it('renders back to users button', () => {
     render(<InvitationSuccessModal onClose={mockOnClose} />);
     expect(screen.getByText('invitationSuccess.backToUsers')).toBeInTheDocument();
+  });
+
+  it('renders the created user email in bold', () => {
+    render(<InvitationSuccessModal onClose={mockOnClose} />);
+    const strong = screen.getByText('user@example.com');
+    expect(strong.tagName).toBe('STRONG');
+  });
+
+  it('shows the redirect countdown', () => {
+    render(<InvitationSuccessModal onClose={mockOnClose} />);
+    expect(screen.getByText('Redirecting in 3 seconds')).toBeInTheDocument();
   });
 });

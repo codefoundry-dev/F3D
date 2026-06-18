@@ -51,7 +51,7 @@ export function CreateUserModal({ onClose }: CreateUserModalProps) {
                   <ModalCloseButton onClose={onClose} />
                 </div>
               </div>
-              <h2 className="text-2xl font-normal leading-[140%] text-foreground mt-4">
+              <h2 className="text-2xl font-semibold leading-[140%] text-foreground mt-4">
                 {t('createModal.title')}
               </h2>
               <p className="text-sm text-muted-foreground mt-1">{t('createModal.subtitle')}</p>
@@ -102,7 +102,7 @@ export function CreateUserModal({ onClose }: CreateUserModalProps) {
             </FormField>
 
             {/* Position */}
-            <FormField label={t('createModal.position')} error={errors.position?.message}>
+            <FormField label={t('createModal.position')} optional error={errors.position?.message}>
               <Input
                 type="text"
                 placeholder={t('createModal.positionPlaceholder')}

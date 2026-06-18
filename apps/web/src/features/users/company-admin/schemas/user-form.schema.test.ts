@@ -41,14 +41,23 @@ describe('createUserFormSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects empty position', () => {
+  it('allows empty position (position is optional per design + DTO)', () => {
     const result = createUserFormSchema.safeParse({
       name: 'John',
       email: 'john@test.com',
       role: 'COMPANY_ADMIN',
       position: '',
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+  });
+
+  it('allows omitted position', () => {
+    const result = createUserFormSchema.safeParse({
+      name: 'John',
+      email: 'john@test.com',
+      role: 'COMPANY_ADMIN',
+    });
+    expect(result.success).toBe(true);
   });
 });
 

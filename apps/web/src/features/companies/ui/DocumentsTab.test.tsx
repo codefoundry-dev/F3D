@@ -1,6 +1,9 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 
 // Mock SVG icons
+vi.mock('@forethread/ui-components/assets/icons/clock.svg?react', () => ({
+  default: () => <div />,
+}));
 vi.mock('@forethread/ui-components/assets/icons/delete.svg?react', () => ({
   default: () => <div />,
 }));
@@ -78,8 +81,8 @@ vi.mock('@forethread/api-client', () => ({
   getCompanyDocuments: vi.fn(),
   uploadCompanyDocument: vi.fn(),
   deleteCompanyDocument: vi.fn(),
-  exportCompanyDocuments: vi.fn(),
-  getFileUrl: vi.fn(),
+  downloadFile: vi.fn(),
+  openFileInNewTab: vi.fn(),
 }));
 
 import { DocumentsTab } from './DocumentsTab';
@@ -145,7 +148,7 @@ describe('DocumentsTab', () => {
     expect(addBtn).toBeInTheDocument();
   });
 
-  it('renders view and delete buttons for each document', () => {
+  it('renders view, download and delete buttons for each document', () => {
     mockUseQuery.mockReturnValue({
       data: [
         {
@@ -162,15 +165,13 @@ describe('DocumentsTab', () => {
     });
     render(<DocumentsTab companyId="c1" />);
     expect(screen.getByLabelText('View')).toBeInTheDocument();
+    expect(screen.getByLabelText('Download')).toBeInTheDocument();
     expect(screen.getByLabelText('Delete')).toBeInTheDocument();
   });
 
-  it('clicking View button triggers handleView', async () => {
+  it('clicking View button triggers openFileInNewTab', async () => {
     const apiClient = await import('@forethread/api-client');
-    vi.mocked(apiClient.getFileUrl).mockResolvedValue({
-      url: 'https://example.com/view.pdf',
-    } as never);
-    vi.spyOn(window, 'open').mockImplementation(() => null);
+    vi.mocked(apiClient.openFileInNewTab).mockResolvedValue(undefined as never);
     mockUseQuery.mockReturnValue({
       data: [
         {
@@ -187,9 +188,7 @@ describe('DocumentsTab', () => {
     });
     render(<DocumentsTab companyId="c1" />);
     fireEvent.click(screen.getByLabelText('View'));
-    await new Promise((r) => setTimeout(r, 10));
-    expect(screen.getByLabelText('View')).toBeInTheDocument();
-    vi.restoreAllMocks();
+    expect(apiClient.openFileInNewTab).toHaveBeenCalledWith('file1');
   });
 
   it('clicking Delete button opens confirm dialog and confirming triggers delete', () => {
@@ -359,15 +358,9 @@ describe('DocumentsTab', () => {
     expect(apiClient.deleteCompanyDocument).toHaveBeenCalledWith('c1', 'doc1');
   });
 
-  it('handleView calls getFileUrl and opens URL in new tab', async () => {
+  it('clicking Download button triggers downloadFile with file id and name', async () => {
     const apiClient = await import('@forethread/api-client');
-    vi.mocked(apiClient.getFileUrl).mockResolvedValue({
-      url: 'https://example.com/file.pdf',
-    } as never);
-    const mockNewTab = { location: { href: '' } };
-    const openSpy = vi
-      .spyOn(window, 'open')
-      .mockImplementation(() => mockNewTab as unknown as Window);
+    vi.mocked(apiClient.downloadFile).mockResolvedValue(undefined as never);
     mockUseQuery.mockReturnValue({
       data: [
         {
@@ -379,12 +372,8 @@ describe('DocumentsTab', () => {
       isLoading: false,
     });
     render(<DocumentsTab companyId="c1" />);
-    fireEvent.click(screen.getByLabelText('View'));
-    // Wait for the async handleView to complete
-    await new Promise((r) => setTimeout(r, 10));
-    expect(openSpy).toHaveBeenCalledWith('', '_blank');
-    expect(mockNewTab.location.href).toBe('https://example.com/file.pdf');
-    openSpy.mockRestore();
+    fireEvent.click(screen.getByLabelText('Download'));
+    expect(apiClient.downloadFile).toHaveBeenCalledWith('file1', 'test.pdf');
   });
 
   it('shows uploading text when upload mutation is pending', () => {

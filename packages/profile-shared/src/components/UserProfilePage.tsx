@@ -98,8 +98,8 @@ export default function UserProfilePage({
               onUpload={(file) => uploadAvatarMutation.mutate(file)}
             />
             <div>
-              <h2 className="text-2xl font-bold text-foreground">{profile.name}</h2>
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
+              <h2 className="text-2xl font-normal text-foreground">{profile.name}</h2>
+              <div className="flex items-center gap-1.5 text-base text-muted-foreground mt-1">
                 <EnvelopeIcon className="w-4 h-4" />
                 {profile.email}
               </div>
@@ -123,7 +123,6 @@ export default function UserProfilePage({
           role={profile.role}
           createdAt={profile.createdAt}
           position={profile.position}
-          company={profile.company?.legalName}
           projects={projects}
           onProjectAccess={onProjectAccess}
         />

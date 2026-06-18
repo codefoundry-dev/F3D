@@ -8,7 +8,9 @@ export const createUserFormSchema = z.object({
   role: z.enum(COMPANY_ROLE_OPTIONS, {
     required_error: 'Role is required',
   }),
-  position: z.string().min(1, 'Position is required').max(255),
+  // Position is optional per the Figma design (label shows "(optional)") and the
+  // backend CreateUserDto (`position?: string`).
+  position: z.string().max(255).optional(),
 });
 
 export type CreateUserFormValues = z.infer<typeof createUserFormSchema>;

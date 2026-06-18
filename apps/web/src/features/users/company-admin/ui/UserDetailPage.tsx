@@ -1,5 +1,6 @@
 ﻿import { type UserResponse } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { UserStatus } from '@forethread/shared-types/client';
 import {
   Spinner,
@@ -12,7 +13,7 @@ import {
 } from '@forethread/ui-components';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
 import EnvelopeIcon from '@forethread/ui-components/assets/icons/envelope-simple.svg?react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -39,7 +40,15 @@ export default function UserDetailPage() {
   const { t } = useTranslation(['users', 'common', 'profile']);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
   const [isProjectAccessOpen, setIsProjectAccessOpen] = useState(false);
+
+  // Surface the page title + subtitle in the global app header; back-arrow
+  // returns to the users list (matches Figma — every screen titles itself there).
+  useEffect(() => {
+    setPageTitle(t('detail.pageTitle'), t('detail.pageSubtitle'), ROUTES.users);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
 
   const {
     isEditModalOpen,
@@ -94,7 +103,7 @@ export default function UserDetailPage() {
           <div className="flex items-center gap-5">
             <AvatarUpload name={user.name} avatarUrl={user.avatarUrl} editable={false} />
             <div>
-              <h2 className="text-2xl font-bold text-foreground">{user.name}</h2>
+              <h2 className="text-2xl font-semibold text-foreground">{user.name}</h2>
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
                 <EnvelopeIcon className="w-4 h-4" />
                 {user.email}

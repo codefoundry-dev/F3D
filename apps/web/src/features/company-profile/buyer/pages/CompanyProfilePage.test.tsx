@@ -60,6 +60,15 @@ vi.mock('@forethread/ui-components', () => ({
   ),
   Alert: ({ children }: any) => <div data-testid="alert">{children}</div>,
   onPhoneOnly: vi.fn(),
+  // Edit Company Details modal primitives
+  Modal: ({ children }: any) => <div data-testid="modal">{children}</div>,
+  ModalBody: ({ children }: any) => <div data-testid="modal-body">{children}</div>,
+  ModalIconHeader: ({ title, subtitle }: any) => (
+    <div data-testid="modal-icon-header">
+      <span>{title}</span>
+      {subtitle && <span>{subtitle}</span>}
+    </div>
+  ),
 }));
 
 const mockUseAuthStore = vi.hoisted(() => vi.fn());
@@ -257,27 +266,28 @@ describe('CompanyProfilePage (buyer)', () => {
     expect(img).toHaveAttribute('src', 'https://example.com/logo.png');
   });
 
-  it('switches to inline edit mode when edit button is clicked', () => {
+  it('opens the Edit Company Details modal when edit button is clicked', () => {
     mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
     render(<CompanyProfilePage />);
-    const editBtn = screen.getByText('editProfile');
-    fireEvent.click(editBtn);
-    // Should show submit and cancel buttons instead of edit button
+    expect(screen.queryByTestId('modal')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('editProfile'));
+    // The modal opens, showing its header + stacked submit/cancel footer.
+    expect(screen.getByTestId('modal')).toBeInTheDocument();
+    expect(screen.getByText('editModal.title')).toBeInTheDocument();
     expect(screen.getByText('editModal.submit')).toBeInTheDocument();
     expect(screen.getByText('common:cancel')).toBeInTheDocument();
-    expect(screen.queryByText('editProfile')).not.toBeInTheDocument();
   });
 
-  it('exits edit mode when cancel is clicked', () => {
+  it('closes the edit modal when cancel is clicked', () => {
     mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
     render(<CompanyProfilePage />);
     fireEvent.click(screen.getByText('editProfile'));
-    expect(screen.getByText('common:cancel')).toBeInTheDocument();
+    expect(screen.getByTestId('modal')).toBeInTheDocument();
     fireEvent.click(screen.getByText('common:cancel'));
-    expect(screen.getByText('editProfile')).toBeInTheDocument();
+    expect(screen.queryByTestId('modal')).not.toBeInTheDocument();
   });
 
-  it('calls mutate when submit is clicked in edit mode', () => {
+  it('calls mutate when submit is clicked in the edit modal', () => {
     mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
     render(<CompanyProfilePage />);
     fireEvent.click(screen.getByText('editProfile'));

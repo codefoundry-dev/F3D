@@ -13,14 +13,6 @@ const mockUseCreateCompany = vi.fn().mockReturnValue({
 });
 
 vi.mock('@/features/companies/services/companies.service', () => ({
-  useCompanies: () => ({
-    data: {
-      items: [
-        { id: 'c1', legalName: 'Contractor One' },
-        { id: 'c2', legalName: 'Contractor Two' },
-      ],
-    },
-  }),
   useCreateCompany: () => mockUseCreateCompany(),
 }));
 
@@ -39,12 +31,15 @@ vi.mock('@forethread/ui-components', () => ({
       {children}
     </div>
   ),
-  CustomDropdown: () => <div data-testid="dropdown" />,
-  Checkbox: ({ checked, onChange, label }: any) => (
-    <label>
-      <input type="checkbox" checked={checked} onChange={() => onChange(!checked)} />
-      {label}
-    </label>
+  CustomDropdown: ({ options, onChange, placeholder }: any) => (
+    <div data-testid="dropdown">
+      <span>{placeholder}</span>
+      {options?.map((o: any) => (
+        <button key={o.value} data-testid={`spec-${o.value}`} onClick={() => onChange(o.value)}>
+          {o.label}
+        </button>
+      ))}
+    </div>
   ),
   Alert: ({ children }: any) => <div data-testid="alert">{children}</div>,
   onPhoneOnly: vi.fn(),
@@ -52,16 +47,13 @@ vi.mock('@forethread/ui-components', () => ({
   onDecimalOnly: vi.fn(),
 }));
 
-vi.mock('@forethread/ui-components/assets/icons/briefcase.svg?react', () => ({
-  default: (p: any) => <svg {...p} />,
-}));
 vi.mock('@forethread/ui-components/assets/icons/department.svg?react', () => ({
   default: (p: any) => <svg {...p} />,
 }));
 vi.mock('@forethread/ui-components/assets/icons/envelope-simple.svg?react', () => ({
   default: (p: any) => <svg {...p} />,
 }));
-vi.mock('@forethread/ui-components/assets/icons/suppliers.svg?react', () => ({
+vi.mock('@forethread/ui-components/assets/icons/wrench.svg?react', () => ({
   default: (p: any) => <svg {...p} />,
 }));
 
@@ -92,13 +84,17 @@ describe('AddVendorCompanyModal', () => {
     expect(screen.getByText('addCompanyModal.companyName')).toBeInTheDocument();
     expect(screen.getByText('addCompanyModal.companyEmail')).toBeInTheDocument();
     expect(screen.getByText('addCompanyModal.specialisation')).toBeInTheDocument();
-    expect(screen.getByText('addCompanyModal.assignContractors')).toBeInTheDocument();
   });
 
-  it('renders contractor checkboxes', () => {
+  it('does not render an assign-contractors field', () => {
     render(<AddVendorCompanyModal onClose={onClose} onSuccess={onSuccess} />);
-    expect(screen.getByText('Contractor One')).toBeInTheDocument();
-    expect(screen.getByText('Contractor Two')).toBeInTheDocument();
+    expect(screen.queryByText('addCompanyModal.assignContractors')).not.toBeInTheDocument();
+  });
+
+  it('renders the specialisation dropdown with placeholder', () => {
+    render(<AddVendorCompanyModal onClose={onClose} onSuccess={onSuccess} />);
+    expect(screen.getByTestId('dropdown')).toBeInTheDocument();
+    expect(screen.getByText('addCompanyModal.selectSpecialisation')).toBeInTheDocument();
   });
 
   it('renders cancel and create buttons', () => {
@@ -119,34 +115,17 @@ describe('AddVendorCompanyModal', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('toggles contractor checkbox selection', () => {
-    render(<AddVendorCompanyModal onClose={onClose} onSuccess={onSuccess} />);
-    const contractorCheckbox = screen
-      .getByText('Contractor One')
-      .closest('label')!
-      .querySelector('input')!;
-    expect(contractorCheckbox).not.toBeChecked();
-    fireEvent.click(contractorCheckbox);
-    expect(contractorCheckbox).toBeChecked();
-    // Toggle off
-    fireEvent.click(contractorCheckbox);
-    expect(contractorCheckbox).not.toBeChecked();
-  });
-
   it('does not call mutate when company name is empty on submit', () => {
     render(<AddVendorCompanyModal onClose={onClose} onSuccess={onSuccess} />);
     fireEvent.submit(screen.getByTestId('input-text').closest('form')!);
     expect(mockMutate).not.toHaveBeenCalled();
   });
 
-  it('calls mutate with correct data on submit', () => {
+  it('calls mutate with a single specialisation and no assignedContractorIds', () => {
     render(<AddVendorCompanyModal onClose={onClose} onSuccess={onSuccess} />);
     fireEvent.change(screen.getByTestId('input-text'), { target: { value: 'Vendor Co' } });
     fireEvent.change(screen.getByTestId('input-email'), { target: { value: 'vendor@test.com' } });
-    // Select a specialisation
-    fireEvent.click(screen.getByText('Civil'));
-    // Select a contractor
-    fireEvent.click(screen.getByText('Contractor One'));
+    fireEvent.click(screen.getByTestId('spec-Civil'));
     fireEvent.submit(screen.getByTestId('input-text').closest('form')!);
     expect(mockMutate).toHaveBeenCalledWith(
       {
@@ -154,16 +133,24 @@ describe('AddVendorCompanyModal', () => {
         legalName: 'Vendor Co',
         contactEmail: 'vendor@test.com',
         specialisations: ['Civil'],
-        assignedContractorIds: ['c1'],
       },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
+  it('omits specialisations when none chosen', () => {
+    render(<AddVendorCompanyModal onClose={onClose} onSuccess={onSuccess} />);
+    fireEvent.change(screen.getByTestId('input-text'), { target: { value: 'Vendor Co' } });
+    fireEvent.submit(screen.getByTestId('input-text').closest('form')!);
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ specialisations: undefined }),
+      expect.anything(),
     );
   });
 
   it('calls onSuccess and onClose callbacks on mutation success', () => {
     render(<AddVendorCompanyModal onClose={onClose} onSuccess={onSuccess} />);
     fireEvent.change(screen.getByTestId('input-text'), { target: { value: 'Vendor Co' } });
-    fireEvent.click(screen.getByText('Contractor One'));
     fireEvent.submit(screen.getByTestId('input-text').closest('form')!);
     const mutateCall = mockMutate.mock.calls[0];
     const successCb = mutateCall[1].onSuccess;
@@ -213,17 +200,16 @@ describe('AddVendorCompanyModal', () => {
     expect(submitBtn).toBeDisabled();
   });
 
-  it('submit button is disabled when no contractors selected', () => {
+  it('submit button is enabled when company name is filled (no contractor required)', () => {
     render(<AddVendorCompanyModal onClose={onClose} onSuccess={onSuccess} />);
     fireEvent.change(screen.getByTestId('input-text'), { target: { value: 'Vendor Co' } });
     const submitBtn = screen.getByText('addCompanyModal.create');
-    expect(submitBtn).toBeDisabled();
+    expect(submitBtn).not.toBeDisabled();
   });
 
   it('sends undefined for contactEmail when empty', () => {
     render(<AddVendorCompanyModal onClose={onClose} onSuccess={onSuccess} />);
     fireEvent.change(screen.getByTestId('input-text'), { target: { value: 'Vendor Co' } });
-    fireEvent.click(screen.getByText('Contractor One'));
     fireEvent.submit(screen.getByTestId('input-text').closest('form')!);
     expect(mockMutate).toHaveBeenCalledWith(
       expect.objectContaining({ contactEmail: undefined }),

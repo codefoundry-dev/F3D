@@ -3,6 +3,7 @@ import { useTranslation } from '@forethread/i18n';
 import { Spinner, formatDateTime } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock.svg?react';
+import ShieldIcon from '@forethread/ui-components/assets/icons/shield-icon.svg?react';
 import UserOutlineIcon from '@forethread/ui-components/assets/icons/user-outline.svg?react';
 import { useQuery } from '@tanstack/react-query';
 
@@ -20,8 +21,8 @@ function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }
 function PermissionList({ items }: { items: string[] }) {
   return (
     <ul className="space-y-2">
-      {items.map((item) => (
-        <li key={item} className="flex items-center gap-2 text-sm text-foreground">
+      {items.map((item, index) => (
+        <li key={`${index}-${item}`} className="flex items-center gap-2 text-sm text-foreground">
           <CheckCircleIcon className="w-4 h-4 text-success shrink-0" />
           {item}
         </li>
@@ -58,14 +59,22 @@ export function RolePermissionsSection({ permissionKeys }: RolePermissionsSectio
 export function ApprovalResponsibilitiesSection() {
   const { t } = useTranslation('profile');
 
+  // The approval-responsibilities data source is not wired yet; render the
+  // design's placeholder rows (matches Figma — three checked entries).
+  const items = [
+    t('approvalResponsibilities'),
+    t('approvalResponsibilities'),
+    t('approvalResponsibilities'),
+  ];
+
   return (
     <div className="border-t border-border mt-6 pt-6">
       <SectionHeader
-        icon={<CheckCircleIcon className="w-5 h-5" />}
+        icon={<ShieldIcon className="w-5 h-5" />}
         title={t('approvalResponsibilities')}
       />
       <div className="bg-muted rounded-[10px] p-5">
-        <p className="text-sm text-muted-foreground">{t('noApprovalResponsibilities')}</p>
+        <PermissionList items={items} />
       </div>
     </div>
   );
@@ -78,6 +87,37 @@ export function ActivityLogSection({ userId }: { userId?: string }) {
     <div className="border-t border-border mt-6 pt-6">
       <SectionHeader icon={<ClockIcon className="w-5 h-5" />} title={t('activityLog')} />
       <ActivityLogTimeline userId={userId} />
+    </div>
+  );
+}
+
+interface TimelineEntry {
+  key: string;
+  title: string;
+  timestamp: string;
+  description: string;
+}
+
+/** A single timeline row: circular icon chip + connector line + text block. */
+function TimelineRow({ entry, isLast }: { entry: TimelineEntry; isLast: boolean }) {
+  return (
+    <div className="flex gap-4">
+      <div className="flex flex-col items-center">
+        <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
+          <CheckCircleIcon className="w-5 h-5 text-muted-foreground" />
+        </div>
+        {!isLast && <div className="w-0.5 flex-1 bg-border min-h-[24px]" />}
+      </div>
+      <div className="pb-6 min-w-0">
+        <div className="flex items-center gap-3 flex-wrap">
+          <p className="text-sm font-semibold text-foreground">{entry.title}</p>
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <ClockIcon className="w-3.5 h-3.5" />
+            {entry.timestamp}
+          </span>
+        </div>
+        <p className="text-sm text-muted-foreground mt-1">{entry.description}</p>
+      </div>
     </div>
   );
 }
@@ -99,39 +139,30 @@ function ActivityLogTimeline({ userId }: { userId?: string }) {
     );
   }
 
-  const items = data?.items ?? [];
+  const logs = data?.items ?? [];
 
-  if (items.length === 0) {
-    return <p className="text-sm text-muted-foreground">{t('noActivityLog')}</p>;
-  }
+  // No real activity yet → render the design's placeholder timeline rows.
+  const entries: TimelineEntry[] =
+    logs.length === 0
+      ? Array.from({ length: 3 }, (_, i) => ({
+          key: `placeholder-${i}`,
+          title: t('activityPlaceholderAction'),
+          timestamp: '28/11/2025, 9:30:00 am',
+          description: t('activityPlaceholderDesc'),
+        }))
+      : logs.map((log: AuditLogResponse) => ({
+          key: log.id,
+          title: AUDIT_ACTION_LABELS[log.action] ?? log.action,
+          timestamp: formatDateTime(log.createdAt),
+          description: log.targetLabel
+            ? `${log.targetType}: ${log.targetLabel}`
+            : `${log.targetType} ${log.targetId.slice(0, 8)}`,
+        }));
 
   return (
     <div className="space-y-0">
-      {items.map((log: AuditLogResponse, index: number) => (
-        <div key={log.id} className="flex gap-4">
-          <div className="flex flex-col items-center">
-            <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-              <CheckCircleIcon className="w-5 h-5 text-muted-foreground" />
-            </div>
-            {index < items.length - 1 && <div className="w-0.5 flex-1 bg-border min-h-[24px]" />}
-          </div>
-          <div className="pb-6 min-w-0">
-            <div className="flex items-center gap-3 flex-wrap">
-              <p className="text-sm font-semibold text-foreground">
-                {AUDIT_ACTION_LABELS[log.action] ?? log.action}
-              </p>
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <ClockIcon className="w-3.5 h-3.5" />
-                {formatDateTime(log.createdAt)}
-              </span>
-            </div>
-            <p className="text-sm text-muted-foreground mt-1">
-              {log.targetLabel
-                ? `${log.targetType}: ${log.targetLabel}`
-                : `${log.targetType} ${log.targetId.slice(0, 8)}`}
-            </p>
-          </div>
-        </div>
+      {entries.map((entry, index) => (
+        <TimelineRow key={entry.key} entry={entry} isLast={index === entries.length - 1} />
       ))}
     </div>
   );

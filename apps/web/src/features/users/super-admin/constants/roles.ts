@@ -14,8 +14,8 @@ export const CONTRACTOR_ROLE_OPTIONS = [
   UserRole.COMPANY_ADMIN,
   UserRole.PROCUREMENT_OFFICER,
   UserRole.FINANCIAL_OFFICER,
-  UserRole.WAREHOUSE_OFFICER,
   UserRole.FOREMAN,
+  UserRole.WAREHOUSE_OFFICER,
 ] as const;
 
 export const ROLE_BADGE_COLORS: Record<string, string> = {

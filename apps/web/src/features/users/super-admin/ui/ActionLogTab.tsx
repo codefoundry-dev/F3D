@@ -51,7 +51,7 @@ export function ActionLogTab() {
 
   return (
     <div className="bg-card rounded-lg border border-border p-6">
-      <h3 className="text-base font-semibold text-foreground mb-6">{t('tabs.actionLog')}</h3>
+      <h3 className="text-base font-semibold text-foreground mb-6">{t('tabs.activityLogTitle')}</h3>
 
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('tabs.actionLogPlaceholder')}</p>
@@ -61,7 +61,7 @@ export function ActionLogTab() {
             <div key={log.id} className="flex gap-4">
               {/* Timeline connector */}
               <div className="flex flex-col items-center">
-                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
                   <CheckCircleIcon className="w-5 h-5 text-muted-foreground" />
                 </div>
                 {index < items.length - 1 && (

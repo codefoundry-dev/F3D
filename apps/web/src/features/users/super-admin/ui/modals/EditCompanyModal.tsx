@@ -39,26 +39,24 @@ export function EditCompanyModal() {
         <div className="flex flex-col items-center text-center">
           <div className="w-full flex justify-between items-start">
             <div className="flex-1" />
-            <IconBadge
-              icon={<EditIcon className="w-6 h-6 text-foreground" />}
-              className="bg-muted"
-            />
+            <IconBadge icon={<EditIcon className="w-6 h-6 text-foreground" />} />
             <div className="flex-1 flex justify-end">
               <ModalCloseButton onClose={closeEditCompanyModal} />
             </div>
           </div>
 
-          <h2 className="text-lg font-semibold text-foreground mt-4">
+          <h2 className="text-2xl font-semibold leading-[140%] text-foreground mt-4">
             {t('editCompanyModal.title')}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">{t('editCompanyModal.subtitle')}</p>
 
           <form onSubmit={handleSubmit} className="w-full mt-5 space-y-4 text-left" noValidate>
-            <FormField label={t('editCompanyModal.companyName')} required>
+            <FormField label={t('editCompanyModal.companyName')}>
               <Input
                 type="text"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
+                placeholder={t('editCompanyModal.companyNamePlaceholder')}
                 leftIcon={<DepartmentIcon className="w-5 h-5" />}
               />
             </FormField>

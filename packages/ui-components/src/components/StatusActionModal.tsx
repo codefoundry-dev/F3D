@@ -56,7 +56,7 @@ export function StatusActionModal({
           </div>
 
           {/* Title */}
-          <h2 className="text-lg font-semibold text-foreground mt-4">{title}</h2>
+          <h2 className="text-2xl font-semibold leading-[140%] text-foreground mt-4">{title}</h2>
 
           {/* Subtitle */}
           <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>

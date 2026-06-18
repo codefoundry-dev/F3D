@@ -2,8 +2,8 @@ import {
   getCompanyDocuments,
   uploadCompanyDocument,
   deleteCompanyDocument,
-  exportCompanyDocuments,
-  getFileUrl,
+  downloadFile,
+  openFileInNewTab,
   type CompanyDocumentResponse,
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
@@ -14,6 +14,7 @@ import {
   ConfirmDialog,
   notificationService,
 } from '@forethread/ui-components';
+import ClockIcon from '@forethread/ui-components/assets/icons/clock.svg?react';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
@@ -64,12 +65,12 @@ export function DocumentsTab({ companyId }: DocumentsTabProps) {
     }
   };
 
-  const handleView = async (fileId: string) => {
-    const newTab = window.open('', '_blank');
-    const { url } = await getFileUrl(fileId);
-    if (newTab) {
-      newTab.location.href = url;
-    }
+  const handleView = (fileId: string) => {
+    void openFileInNewTab(fileId);
+  };
+
+  const handleDownload = (fileId: string, fileName: string) => {
+    void downloadFile(fileId, fileName);
   };
 
   const handleDelete = (doc: CompanyDocumentResponse) => {
@@ -82,14 +83,6 @@ export function DocumentsTab({ companyId }: DocumentsTabProps) {
     setDeletingId(docToDelete.id);
     deleteMutation.mutate(docToDelete.id);
     setDocToDelete(null);
-  };
-
-  const handleExport = async (format: 'pdf' | 'csv') => {
-    const newTab = window.open('', '_blank');
-    const { url } = await exportCompanyDocuments(companyId, format);
-    if (newTab) {
-      newTab.location.href = url;
-    }
   };
 
   const formatDate = (dateStr: string) => {
@@ -105,20 +98,10 @@ export function DocumentsTab({ companyId }: DocumentsTabProps) {
       {/* Header */}
       <div className="flex items-center justify-between pb-4">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">{t('documentsTitle')}</h3>
-          <p className="text-xs text-muted-foreground">{t('documentsSubtitle')}</p>
+          <h3 className="text-base font-semibold text-foreground">{t('documentsTitle')}</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">{t('documentsSubtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="p-2 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-            aria-label={t('exportPdf', { defaultValue: 'Export PDF' })}
-            title={t('exportPdf', { defaultValue: 'Export PDF' })}
-            onClick={() => void handleExport('pdf')}
-            disabled={!documents?.length}
-          >
-            <DownloadIcon className="w-4 h-4" />
-          </button>
           <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
           <Button
             variant="outline"
@@ -142,40 +125,57 @@ export function DocumentsTab({ companyId }: DocumentsTabProps) {
           <EmptyState title={t('noDocuments')} />
         </div>
       ) : (
-        <div className="border border-border rounded-lg divide-y divide-border">
-          {documents.map((doc) => (
-            <div
-              key={doc.id}
-              className="flex items-center gap-4 px-4 py-3 hover:bg-accent/50 transition-colors"
-            >
-              <PaperclipIcon className="w-4 h-4 text-muted-foreground shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-foreground truncate">{doc.file.filename}</p>
-                <p className="text-xs text-muted-foreground">
-                  {doc.file.uploadedBy?.email ?? '—'} &middot; {formatDate(doc.createdAt)}
-                </p>
+        <div className="space-y-3">
+          {documents.map((doc) => {
+            const uploaderEmail = doc.file.uploadedBy?.email ?? '—';
+            return (
+              <div
+                key={doc.id}
+                className="flex items-center gap-4 rounded-lg border border-border px-4 py-3 hover:bg-accent/50 transition-colors"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {doc.file.filename}
+                  </p>
+                  <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium uppercase text-foreground">
+                      {uploaderEmail.slice(0, 2)}
+                    </span>
+                    <span className="truncate">{uploaderEmail}</span>
+                    <ClockIcon className="w-3.5 h-3.5 shrink-0" />
+                    <span>{formatDate(doc.createdAt)}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label="View"
+                    onClick={() => handleView(doc.file.id)}
+                  >
+                    <EyeIcon className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label="Download"
+                    onClick={() => handleDownload(doc.file.id, doc.file.filename)}
+                  >
+                    <DownloadIcon className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label="Delete"
+                    onClick={() => handleDelete(doc)}
+                    disabled={deleteMutation.isPending && deletingId === doc.id}
+                  >
+                    <DeleteIcon className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label="View"
-                  onClick={() => void handleView(doc.file.id)}
-                >
-                  <EyeIcon className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label="Delete"
-                  onClick={() => handleDelete(doc)}
-                  disabled={deleteMutation.isPending && deletingId === doc.id}
-                >
-                  <DeleteIcon className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
       {docToDelete && (

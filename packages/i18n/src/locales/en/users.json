@@ -1,6 +1,7 @@
 {
   "title": "Users",
   "userManagement": "User Management",
+  "userManagementSubtitle": "Manage user accounts, roles, and permissions across the platform",
   "placeholderDescription": "User management — implemented in Phase 3 (T059–T067)",
   "totalUsers": "{{total}} total users",
   "createUser": "+ Create User",
@@ -12,6 +13,11 @@
     "company": "Company",
     "status": "Status",
     "role": "Role",
+    "date": "Date",
+    "from": "From",
+    "to": "To",
+    "searchCompany": "Search",
+    "clear": "Clear",
     "clearAll": "Clear all"
   },
   "groupedTable": {
@@ -26,6 +32,7 @@
     "companyUsers": "Company users",
     "platformUsers": "Platform users",
     "actionLog": "Action Log",
+    "activityLogTitle": "Activity Log",
     "actionLogPlaceholder": "Action log will be available soon.",
     "approvalConfiguration": "Approval configuration",
     "rolePermissions": "Role permissions",
@@ -70,10 +77,10 @@
   "createUserPage": {
     "title": "Create a new user account",
     "subtitle": "Fill in the details below to invite a new team member.",
-    "companyTypeLabel": "Company type",
+    "companyTypeLabel": "Company type:",
     "contractor": "Contractor",
     "vendor": "Vendor",
-    "selectCompany": "Select a company…",
+    "selectCompany": "Choose company",
     "company": "Company",
     "continue": "Continue",
     "cancel": "Cancel",
@@ -92,12 +99,12 @@
     "createVendorTitle": "Create vendor company",
     "createVendorSubtitle": "Add a new vendor company to the platform.",
     "companyName": "Company name",
-    "companyNamePlaceholder": "Enter company name",
+    "companyNamePlaceholder": "Company Name",
     "companyEmail": "Company email",
-    "companyEmailPlaceholder": "company@example.com",
+    "companyEmailPlaceholder": "admin@example.com",
     "specialisation": "Specialisation",
-    "selectSpecialisation": "Select specialisation…",
-    "create": "Create",
+    "selectSpecialisation": "Choose specialisation",
+    "create": "Create company",
     "creating": "Creating…",
     "createError": "Failed to create company. Please try again.",
     "assignContractors": "Assign to contractors",
@@ -134,6 +141,7 @@
     "title": "Edit Company Details",
     "subtitle": "Update the company information and details.",
     "companyName": "Company name",
+    "companyNamePlaceholder": "Company name",
     "submitChanges": "Submit changes",
     "submitting": "Submitting…",
     "updateError": "Failed to update company. Please try again."
@@ -152,8 +160,8 @@
   },
   "deactivateModal": {
     "title": "Deactivate User",
-    "subtitle": "This user will lose access to the system immediately.",
-    "info": "<span class=\"text-destructive\">You are going to deactivate the user <strong class=\"font-bold\">{{email}}</strong>. After changing the status, the user will no longer be able to log in and will receive a notification by email.</span>",
+    "subtitle": "This user will lose access to the system immediately. They will not be able to log in until reactivated.",
+    "info": "<span class=\"text-destructive\">You are going to deactivate the user <strong class=\"font-bold\">{{email}}</strong>. After changing the status, the user will receive a message by email.</span>",
     "confirm": "Deactivate User"
   },
   "activationSuccess": {
@@ -180,12 +188,14 @@
   "actions": {
     "projectAccess": "Project access",
     "resetPassword": "Reset password",
-    "resendInvitation": "Resend Invitation",
+    "resendInvitation": "Reset Invitation",
     "cancelInvitation": "Cancel Invitation",
     "deactivate": "Deactivate",
     "activate": "Activate",
     "editUser": "Edit user",
     "editCompany": "Edit company details",
+    "viewCompanyDetails": "View company details",
+    "editCompanyDetails": "Edit company details",
     "deactivateAll": "Deactivate all users",
     "activateAll": "Activate all users"
   },
@@ -223,10 +233,12 @@
   },
   "statuses": {
     "ACTIVE": "Active",
-    "INACTIVE": "Inactive",
+    "INACTIVE": "Deactivated",
     "INVITED": "Invited"
   },
   "detail": {
+    "pageTitle": "User Profile",
+    "pageSubtitle": "View and manage user information",
     "notFound": "User not found.",
     "phone": "Phone",
     "status": "Status",
