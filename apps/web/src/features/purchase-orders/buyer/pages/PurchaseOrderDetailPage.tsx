@@ -14,7 +14,7 @@ import {
   PoChangeRequestTab,
   PoChangeRequestTabLoading,
 } from '@forethread/po-shared';
-import type { PoTab } from '@forethread/po-shared';
+import type { PoTab, RelatedDocument } from '@forethread/po-shared';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { Button, Spinner } from '@forethread/ui-components';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
@@ -28,7 +28,6 @@ import { ROUTES } from '@/app/route-config';
 import { useAuthStore } from '@/features/auth/state/auth.store';
 import { DeliveryQrSection } from '@/features/deliveries/components/DeliveryQrSection';
 import { usePermissions } from '@/shared/role/usePermissions';
-
 
 import { PoSendButton } from '../components/PoSendButton';
 import { ReceiveDeliveryModal } from '../components/ReceiveDeliveryModal';
@@ -72,7 +71,7 @@ export default function PurchaseOrderDetailPage() {
   );
 
   useEffect(() => {
-    if (po) setPageTitle(po.projectName);
+    if (po) setPageTitle(po.poNumber, null, ROUTES.purchaseOrders);
     return () => setPageTitle(null);
   }, [po, setPageTitle]);
 
@@ -81,11 +80,27 @@ export default function PurchaseOrderDetailPage() {
     [changeRequests],
   );
 
-  // The "Changes request" tab only appears while a pending CR exists.
+  // Related procurement documents (linked RFQ + invoices) shown alongside the
+  // uploaded attachments in the Documents tab (Figma US 2.07 "Related Documents").
+  const relatedDocuments = useMemo((): RelatedDocument[] => {
+    if (!po) return [];
+    const docs: RelatedDocument[] = [];
+    if (po.rfqId) {
+      docs.push({ id: `rfq-${po.rfqId}`, label: String(po.rfqId), url: `/rfqs/${po.rfqId}` });
+    }
+    for (const inv of po.invoices ?? []) {
+      docs.push({ id: `inv-${inv.id}`, label: `Invoice ${inv.id}`, url: `/invoices/${inv.id}` });
+    }
+    return docs;
+  }, [po]);
+
+  // The "Changes request" tab only appears while a pending CR exists. Tab order
+  // mirrors the Figma US 2.07 PO view (Details · Line items · Messages ·
+  // Documents · Action log); "Email log" is a buyer-only extra appended last.
   const validTabs: PoTab[] = useMemo(() => {
     const tabs: PoTab[] = ['details'];
     if (pendingCr) tabs.push('changeRequest');
-    tabs.push('lineItems', 'documents', 'emailLog', 'messages', 'actionLog');
+    tabs.push('lineItems', 'messages', 'documents', 'actionLog', 'emailLog');
     return tabs;
   }, [pendingCr]);
 
@@ -184,11 +199,7 @@ export default function PurchaseOrderDetailPage() {
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-6 md:pb-8">
         {activeTab === 'details' && (
-          <PoDetailsTab
-            po={po}
-            layout="page"
-            deliveryQrSlot={<DeliveryQrSection poId={po.id} />}
-          />
+          <PoDetailsTab po={po} layout="page" deliveryQrSlot={<DeliveryQrSection poId={po.id} />} />
         )}
         {activeTab === 'changeRequest' &&
           (isLoadingCrs ? (
@@ -205,10 +216,23 @@ export default function PurchaseOrderDetailPage() {
           <PoLineItemsTab poId={po.id} lineItems={po.lineItems ?? []} layout="page" />
         )}
         {activeTab === 'documents' && (
-          <PoDocumentsTab poId={po.id} documents={po.documents ?? []} hideUpload />
+          <PoDocumentsTab
+            poId={po.id}
+            documents={po.documents ?? []}
+            hideUpload
+            relatedDocuments={relatedDocuments}
+          />
         )}
         {activeTab === 'emailLog' && <PoEmailLogTab poId={po.id} />}
-        {activeTab === 'messages' && <PoMessagesTab />}
+        {activeTab === 'messages' && (
+          <PoMessagesTab
+            poId={po.id}
+            poStatus={po.status}
+            currentUserId={currentUser?.id}
+            vendorUserId={po.vendor?.id}
+            creatorUserId={po.createdBy.id}
+          />
+        )}
         {activeTab === 'actionLog' && (
           <PoActionLogTab
             logs={actionLogs}

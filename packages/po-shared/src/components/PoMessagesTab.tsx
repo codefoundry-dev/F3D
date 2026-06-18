@@ -14,7 +14,7 @@ import {
   formatDateLabel,
   groupMessagesByDate,
 } from '@forethread/ui-components';
-import LetterIcon from '@forethread/ui-components/assets/icons/letter.svg?react';
+import PaperPlaneIcon from '@forethread/ui-components/assets/icons/paper-plane.svg?react';
 import PaperclipIcon from '@forethread/ui-components/assets/icons/paperclip.svg?react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -258,7 +258,7 @@ export function PoMessagesTab({
             className="h-12 px-8 rounded-xl"
             onClick={() => void handleSend()}
             disabled={!messageText.trim() || isBusy}
-            leftIcon={<LetterIcon className="w-5 h-5" />}
+            leftIcon={<PaperPlaneIcon className="w-5 h-5" />}
           >
             {t('comms.send')}
           </Button>

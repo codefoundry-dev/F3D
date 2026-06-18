@@ -272,6 +272,10 @@
     "shipmentCost": "Shipment Cost",
     "needBy": "Need by",
     "earliestDelivery": "Earliest Delivery",
+    "vendors": "Vendors",
+    "pickUpTimeExpectation": "Pick-up Time Expectation",
+    "pickUpContactName": "Pick-up Contact Name",
+    "pickUpContactPhone": "Pick up Contact Phone Number",
     "warehouseLocation": "Warehouse Location",
     "activityLog": "Activity Log",
     "noActivityLogs": "No activity logs yet"
