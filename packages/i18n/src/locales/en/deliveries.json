@@ -189,6 +189,15 @@
         "delivered": "Delivered",
         "damaged": "Damaged",
         "rejected": "Rejected"
+      },
+      "poDetails": {
+        "title": "Purchase order",
+        "close": "Close",
+        "poNumber": "PO Number",
+        "project": "Project",
+        "vendor": "Vendor company",
+        "location": "Delivery location",
+        "expectedDate": "Expected delivery date"
       }
     },
     "submitted": {

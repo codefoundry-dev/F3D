@@ -9,10 +9,20 @@ import {
   isApiError,
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { DeliveryOutcome } from '@forethread/shared-types/client';
 import type { DeliveryPortalPoResponse } from '@forethread/shared-types/client';
-import { Alert, Button, Input, Spinner, Textarea, cn, notificationService } from '@forethread/ui-components';
+import {
+  Alert,
+  Button,
+  Input,
+  Spinner,
+  Textarea,
+  cn,
+  notificationService,
+} from '@forethread/ui-components';
 import BackArrowIcon from '@forethread/ui-components/assets/icons/back-arrow.svg?react';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock-icon.svg?react';
+import CloseIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import EyeClosedIcon from '@forethread/ui-components/assets/icons/eye-closed.svg?react';
 import EyeOpenIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import FileTextIcon from '@forethread/ui-components/assets/icons/file-text.svg?react';
@@ -131,7 +141,6 @@ export default function PublicDeliveryPage() {
           ) : (
             <ReportFormStep
               po={po}
-              token={token}
               sessionToken={sessionToken}
               name={name}
               email={email}
@@ -197,7 +206,8 @@ function IdentifyStep({
   const submit = async () => {
     const next: { name?: string; email?: string } = {};
     if (!name.trim()) next.name = t('portal.identify.nameRequired');
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) next.email = t('portal.identify.emailRequired');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim()))
+      next.email = t('portal.identify.emailRequired');
     setErrors(next);
     if (next.name || next.email) return;
 
@@ -272,7 +282,9 @@ function IdentifyStep({
         </Button>
       </form>
 
-      <p className="mt-4 text-center text-xs text-muted-foreground">{t('portal.identify.helper')}</p>
+      <p className="mt-4 text-center text-xs text-muted-foreground">
+        {t('portal.identify.helper')}
+      </p>
     </PortalCard>
   );
 }
@@ -321,9 +333,7 @@ function CodeStep({
         onVerified(sessionToken);
       } catch (err) {
         // 429 (or a locked 403) → lockout copy; anything else → invalid code.
-        setErrorKey(
-          isApiError(err, 429) ? 'portal.code.locked' : 'portal.code.invalid',
-        );
+        setErrorKey(isApiError(err, 429) ? 'portal.code.locked' : 'portal.code.invalid');
         setDigits(Array(OTP_LENGTH).fill(''));
         inputRefs.current[0]?.focus();
       } finally {
@@ -387,7 +397,9 @@ function CodeStep({
 
       <div className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
         <ClockIcon className="h-4 w-4" />
-        {isExpired ? t('portal.code.expired') : t('portal.code.expiresIn', { time: formatCountdown(secondsLeft) })}
+        {isExpired
+          ? t('portal.code.expired')
+          : t('portal.code.expiresIn', { time: formatCountdown(secondsLeft) })}
       </div>
 
       {errorKey && (
@@ -426,14 +438,12 @@ function CodeStep({
 
 function ReportFormStep({
   po,
-  token,
   sessionToken,
   name,
   email,
   onSubmitted,
 }: {
   po: DeliveryPortalPoResponse;
-  token: string;
   sessionToken: string | null;
   name: string;
   email: string;
@@ -446,13 +456,17 @@ function ReportFormStep({
   const [attachments, setAttachments] = useState<File[]>([]);
   const [filter, setFilter] = useState<LineFilter>('all');
   const [showEmail, setShowEmail] = useState(true);
+  const [showPoDetails, setShowPoDetails] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const attachmentRef = useRef<HTMLInputElement>(null);
 
   const updateLine = (id: string, patch: Partial<PortalLineDraft>) =>
     setLines((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
 
-  const visibleLines = useMemo(() => lines.filter((l) => matchesFilter(l, filter)), [lines, filter]);
+  const visibleLines = useMemo(
+    () => lines.filter((l) => matchesFilter(l, filter)),
+    [lines, filter],
+  );
   const allValid = useMemo(() => lines.length > 0 && lines.every(isPortalLineValid), [lines]);
 
   const handleSubmit = async () => {
@@ -514,30 +528,32 @@ function ReportFormStep({
             className="text-muted-foreground"
             data-testid="portal-toggle-contact"
           >
-            {showEmail ? <EyeClosedIcon className="h-5 w-5" /> : <EyeOpenIcon className="h-5 w-5" />}
+            {showEmail ? (
+              <EyeClosedIcon className="h-5 w-5" />
+            ) : (
+              <EyeOpenIcon className="h-5 w-5" />
+            )}
           </button>
         </div>
 
         <div className="mt-4 flex gap-2">
-          {po.poNumber && (
-            <a
-              href={`/po/${token}`}
-              target="_blank"
-              rel="noreferrer"
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-foreground py-2.5 text-sm font-medium text-background"
-              data-testid="portal-view-po"
-            >
-              <FileTextIcon className="h-4 w-4" />
-              {t('portal.report.viewPo')}
-            </a>
-          )}
+          <button
+            type="button"
+            onClick={() => setShowPoDetails(true)}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-foreground py-2.5 text-sm font-medium text-background"
+            data-testid="portal-view-po"
+          >
+            <FileTextIcon className="h-4 w-4" />
+            {t('portal.report.viewPo')}
+          </button>
           <input
             ref={attachmentRef}
             type="file"
             multiple
             className="hidden"
             onChange={(e) => {
-              if (e.target.files) setAttachments((prev) => [...prev, ...Array.from(e.target.files!)]);
+              const picked = e.target.files;
+              if (picked) setAttachments((prev) => [...prev, ...Array.from(picked)]);
               e.target.value = '';
             }}
           />
@@ -624,6 +640,74 @@ function ReportFormStep({
       >
         {t('portal.report.submit')}
       </Button>
+
+      {/* ── View PO (read-only sheet built from the already-loaded portal PO; the
+            QR token is DELIVERY_SUBMIT-scoped so it can't open the PO_VIEW portal). ── */}
+      {showPoDetails && (
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('portal.report.poDetails.title')}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowPoDetails(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setShowPoDetails(false);
+          }}
+          data-testid="portal-po-details"
+        >
+          <div className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl bg-card p-5 sm:max-w-md sm:rounded-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-foreground">
+                {t('portal.report.poDetails.title')}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowPoDetails(false)}
+                aria-label={t('portal.report.poDetails.close')}
+                className="rounded-full p-1 text-muted-foreground hover:bg-muted"
+                data-testid="portal-po-details-close"
+              >
+                <CloseIcon className="h-5 w-5" />
+              </button>
+            </div>
+            <dl className="flex flex-col gap-2 text-sm">
+              <PoDetailRow label={t('portal.report.poDetails.poNumber')} value={po.poNumber} />
+              <PoDetailRow label={t('portal.report.poDetails.project')} value={po.projectName} />
+              <PoDetailRow label={t('portal.report.poDetails.vendor')} value={po.vendorName} />
+              <PoDetailRow
+                label={t('portal.report.poDetails.location')}
+                value={po.deliveryLocationName}
+              />
+              <PoDetailRow
+                label={t('portal.report.poDetails.expectedDate')}
+                value={formatPoDate(po.deliveryDate)}
+              />
+            </dl>
+            <h3 className="mb-2 mt-5 text-sm font-semibold text-foreground">
+              {t('portal.report.lineItems')}
+            </h3>
+            <ul className="flex flex-col gap-2">
+              {po.lines.map((l) => (
+                <li
+                  key={l.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-black/10 p-3"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-foreground">{l.materialName}</p>
+                    <p className="truncate text-xs text-muted-foreground">{l.lineItemRef}</p>
+                  </div>
+                  <span className="whitespace-nowrap text-sm text-muted-foreground">
+                    {l.quantityOrdered} {l.uom}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -652,7 +736,9 @@ function SubmittedStep({
 
   return (
     <PortalCard>
-      <h1 className="text-center text-2xl font-bold text-foreground">{t('portal.submitted.title')}</h1>
+      <h1 className="text-center text-2xl font-bold text-foreground">
+        {t('portal.submitted.title')}
+      </h1>
       <p className="mt-1 text-center text-sm text-muted-foreground">
         {t('portal.submitted.subtitle', { poNumber: poNumber ?? '—' })}
       </p>
@@ -688,9 +774,7 @@ function SubmittedStep({
 const PORTAL_INPUT_CLASS = 'h-12 rounded-lg border-black/15 bg-card text-base';
 
 function PortalCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-black/10 bg-card p-6 shadow-sm">{children}</div>
-  );
+  return <div className="rounded-2xl border border-black/10 bg-card p-6 shadow-sm">{children}</div>;
 }
 
 const LINE_FILTERS = ['all', 'delivered', 'damaged', 'rejected'] as const;
@@ -700,18 +784,19 @@ function matchesFilter(line: PortalLineDraft, filter: LineFilter): boolean {
   if (filter === 'all') return true;
   const outcome = resolveOutcome(line);
   if (filter === 'delivered')
-    return outcome === 'DELIVERED' || outcome === 'PARTIALLY_DELIVERED';
-  if (filter === 'damaged') return outcome === 'DAMAGED';
-  return outcome === 'REJECTED';
+    return outcome === DeliveryOutcome.DELIVERED || outcome === DeliveryOutcome.PARTIALLY_DELIVERED;
+  if (filter === 'damaged') return outcome === DeliveryOutcome.DAMAGED;
+  return outcome === DeliveryOutcome.REJECTED;
 }
 
 function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '—';
-  return parts
+  const letters = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
     .slice(0, 2)
-    .map((p) => p[0]!.toUpperCase())
-    .join('');
+    .map((part) => part.charAt(0).toUpperCase());
+  return letters.length > 0 ? letters.join('') : '—';
 }
 
 function maskEmail(email: string): string {
@@ -719,4 +804,22 @@ function maskEmail(email: string): string {
   if (!domain) return '•••';
   const head = local.slice(0, 1);
   return `${head}${'•'.repeat(Math.max(local.length - 1, 1))}@${domain}`;
+}
+
+/** Format the PO's expected delivery date for the read-only "View PO" sheet. */
+function formatPoDate(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? '—'
+    : d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function PoDetailRow({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="text-right font-medium text-foreground">{value ?? '—'}</dd>
+    </div>
+  );
 }
