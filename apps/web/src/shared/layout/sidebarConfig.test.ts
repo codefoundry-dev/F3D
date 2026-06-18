@@ -11,6 +11,7 @@ const LABELS = {
   rfqs: 'RFQs',
   purchaseOrders: 'POs',
   bulkOrders: 'Bulk',
+  deliveries: 'Deliveries',
   invoices: 'Invoices',
   vendors: 'Vendors',
   materialCatalogue: 'Materials',
@@ -30,6 +31,7 @@ describe('getSidebarItemsForRole', () => {
       'RFQs',
       'POs',
       'Bulk',
+      'Deliveries',
       'Invoices',
       'Vendors',
       'Materials',
@@ -46,20 +48,21 @@ describe('getSidebarItemsForRole', () => {
     expect(labels).toContain('Invoices');
   });
 
-  it('shows only invoices + settings to FINANCIAL_OFFICER', () => {
+  it('shows deliveries + invoices + settings to FINANCIAL_OFFICER', () => {
+    // The Financial officer reviews deliveries (Epic 6) alongside invoices.
     const labels = getSidebarItemsForRole(UserRole.FINANCIAL_OFFICER, '/', LABELS).map(
       (i) => i.label,
     );
-    expect(labels).toEqual(['Invoices', 'Settings']);
+    expect(labels).toEqual(['Deliveries', 'Invoices', 'Settings']);
   });
 
-  it('shows material requests + settings to WAREHOUSE_OFFICER', () => {
-    // The Warehouse officer holds materialRequest.list, so the Material Requests
-    // item is visible alongside Settings.
+  it('shows material requests + deliveries + settings to WAREHOUSE_OFFICER', () => {
+    // The Warehouse officer holds materialRequest.list and reviews deliveries
+    // (Epic 6), so both are visible alongside Settings.
     const labels = getSidebarItemsForRole(UserRole.WAREHOUSE_OFFICER, '/', LABELS).map(
       (i) => i.label,
     );
-    expect(labels).toEqual(['Material Requests', 'Settings']);
+    expect(labels).toEqual(['Material Requests', 'Deliveries', 'Settings']);
   });
 
   it('shows admin panel, users management, materials + settings to SUPER_ADMIN', () => {

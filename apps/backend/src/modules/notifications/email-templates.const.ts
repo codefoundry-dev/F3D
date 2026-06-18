@@ -17,6 +17,7 @@ export const EMAIL_TEMPLATES = {
   QUOTE_SUBMITTED: 'quote-submitted',
   PO_DECLINED_BY_VENDOR: 'po-declined-by-vendor',
   PO_PENDING_APPROVAL: 'po-pending-approval',
+  DELIVERY_CODE: 'delivery-code',
 } as const;
 
 export type EmailTemplateName = (typeof EMAIL_TEMPLATES)[keyof typeof EMAIL_TEMPLATES];

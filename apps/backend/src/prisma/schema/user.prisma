@@ -70,6 +70,8 @@ model User {
   createdMaterialLists MaterialList[]    @relation("MaterialListCreatedBy")
   requestedMaterialRequests MaterialRequest[] @relation("MaterialRequestRequestedBy")
   reviewedMaterialRequests  MaterialRequest[] @relation("MaterialRequestReviewedBy")
+  submittedDeliveryReports  DeliveryReport[]  @relation("DeliveryReportSubmitter")
+  reviewedDeliveryReports   DeliveryReport[]  @relation("DeliveryReportReviewer")
   tableViews           UserTableView[]
 
   // Messaging relations

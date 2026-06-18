@@ -58,8 +58,7 @@ export function QuickActions() {
           variant="outline"
           size="md"
           leftIcon={<ReportIcon className="w-[18px] h-[18px]" />}
-          // No delivery-report route exists yet — placeholder action (flagged).
-          onClick={() => {}}
+          onClick={() => navigate(ROUTES.deliveries)}
           className={`w-full ${quickActionBtn}`}
         >
           {t('quickActions.deliveryReport')}

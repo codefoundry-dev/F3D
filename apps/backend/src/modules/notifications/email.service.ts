@@ -274,6 +274,31 @@ export class EmailService implements OnModuleInit {
     }
   }
 
+  async sendDeliveryCodeEmail(
+    to: string,
+    code: string,
+    expiresAt: Date,
+    poNumber: string,
+  ): Promise<void> {
+    const expiresMinutes = Math.round((expiresAt.getTime() - Date.now()) / 60000);
+    const t = this.getTranslations('deliveryCode', { expiresMinutes, poNumber });
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        text: this.interpolate(emailTranslations.deliveryCode.plainText, {
+          code,
+          expiresMinutes,
+          poNumber,
+        }),
+        html: this.renderEmail(EMAIL_TEMPLATES.DELIVERY_CODE, t, { code, expiresMinutes }),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
   async sendPasswordResetEmail(to: string, resetUrl: string, name: string): Promise<void> {
     const t = this.getTranslations('passwordReset', { name });
 

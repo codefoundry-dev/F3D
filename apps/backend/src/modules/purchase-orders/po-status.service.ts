@@ -43,6 +43,35 @@ import { PurchaseOrdersService } from './purchase-orders.service';
  */
 const PO_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
+/**
+ * Lifetime of a public QR delivery-submission link (Epic 6). 90 days — the link
+ * is printed on paperwork / shown as a QR and must outlast the whole delivery
+ * window; like PO_VIEW it is validated, never consumed, and re-mintable.
+ */
+const DELIVERY_LINK_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
+/** Minimal PO shape the delivery-delta applier needs (close-out leg). */
+export interface DeliveryDeltaPo {
+  id: string;
+  status: PrismaPoStatus;
+  companyId: string;
+  deliveryLocationId: string | null;
+  lineItems: Array<{
+    id: string;
+    quantityOrdered: number;
+    quantityDelivered: number;
+    materialId: string | null;
+    deliveryLocationId: string | null;
+  }>;
+}
+
+/** Outcome of applying delivery deltas to a PO — drives the post-commit audit. */
+export interface DeliveryDeltaOutcome {
+  transitioned: boolean;
+  fromStatus: PrismaPoStatus;
+  nextStatus: PrismaPoStatus;
+}
+
 @Injectable()
 export class PoStatusService {
   private readonly logger = new Logger(PoStatusService.name);
@@ -603,7 +632,9 @@ export class PoStatusService {
     const lineById = new Map(po.lineItems.map((li) => [li.id, li]));
 
     // Validate every referenced line belongs to this PO and is not over-received
-    // before mutating anything.
+    // before mutating anything. The manual receive path stays strict: a
+    // cumulative figure above the ordered quantity is rejected (the
+    // delivery-report approval path, by contrast, ALLOWS over-receipt).
     for (const line of dto.lines) {
       const existing = lineById.get(line.lineItemId);
       if (!existing) {
@@ -619,10 +650,68 @@ export class PoStatusService {
       }
     }
 
-    // Project the post-update delivered quantities to decide the next status.
-    const nextDelivered = new Map(po.lineItems.map((li) => [li.id, li.quantityDelivered]));
+    // Convert the cumulative figures the manual path supplies into per-line
+    // positive deltas (existing + (new − existing) === new), then delegate to the
+    // shared delta-based applier. A re-post of the same figures yields delta 0 on
+    // every line → no inventory movement and no status change (idempotent).
+    const deltas = new Map<string, number>();
     for (const line of dto.lines) {
-      nextDelivered.set(line.lineItemId, line.quantityDelivered);
+      const existing = lineById.get(line.lineItemId);
+      deltas.set(line.lineItemId, line.quantityDelivered - (existing?.quantityDelivered ?? 0));
+    }
+
+    const outcome = await this.prisma.$transaction((tx) =>
+      this.applyDeliveryDeltasTx(tx, po, deltas, user.id),
+    );
+
+    // Audit the transition (best-effort) after the receipt commits — matches the
+    // original post-commit ordering of receivePurchaseOrder.
+    if (outcome.transitioned) {
+      const action =
+        outcome.nextStatus === PrismaPoStatus.DELIVERED
+          ? AuditAction.PO_DELIVERED
+          : AuditAction.PO_PARTIALLY_DELIVERED;
+      await this.auditTransition(action, id, user, outcome.fromStatus, outcome.nextStatus, {
+        lines: dto.lines.map((l) => ({
+          lineItemId: l.lineItemId,
+          quantityDelivered: l.quantityDelivered,
+        })),
+      });
+    }
+
+    return this.purchaseOrdersService.getPurchaseOrder(id, user);
+  }
+
+  /**
+   * Apply per-line delivered DELTAS to a PO inside an open transaction (the
+   * shared close-out leg used by both the manual receive path and the
+   * delivery-report approval path). For each line with a positive delta it bumps
+   * `poLineItem.quantityDelivered` by the delta (write is the projected
+   * cumulative), pushes that delta into inventory when the line resolves a
+   * catalogue material + location (line override, else the PO header), then
+   * recomputes the PO status from the projected cumulative quantities —
+   * DELIVERED when every line is delivered ≥ ordered, else PARTIALLY_DELIVERED
+   * when any is delivered, gated by `assertTransition` and only written when the
+   * status actually moves. Returns the transition outcome so the caller can emit
+   * a best-effort transition audit AFTER the surrounding transaction commits.
+   *
+   * Callers are responsible for their own validation (e.g. the manual path's
+   * over-receipt guard) before invoking this. Deltas of 0 are no-ops.
+   */
+  private async applyDeliveryDeltasTx(
+    tx: Prisma.TransactionClient,
+    po: DeliveryDeltaPo,
+    deltas: Map<string, number>,
+    actorUserId: string,
+  ): Promise<DeliveryDeltaOutcome> {
+    const lineById = new Map(po.lineItems.map((li) => [li.id, li]));
+
+    // Project post-update cumulative delivered quantities to decide the status.
+    const nextDelivered = new Map(po.lineItems.map((li) => [li.id, li.quantityDelivered]));
+    for (const [lineId, delta] of deltas) {
+      const existing = lineById.get(lineId);
+      if (!existing) continue;
+      nextDelivered.set(lineId, existing.quantityDelivered + delta);
     }
 
     const allFullyDelivered = po.lineItems.every(
@@ -643,57 +732,162 @@ export class PoStatusService {
       assertTransition(po.status, nextStatus);
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      for (const line of dto.lines) {
-        const existing = lineById.get(line.lineItemId);
-        await tx.poLineItem.update({
-          where: { id: line.lineItemId },
-          data: { quantityDelivered: line.quantityDelivered },
-        });
+    for (const [lineId, delta] of deltas) {
+      const existing = lineById.get(lineId);
+      if (!existing) continue;
 
-        // Push the newly-received quantity into inventory. Only the positive
-        // delta over the previously-recorded cumulative delivered counts (a
-        // re-post of the same figures yields delta 0 → no movement), and only
-        // when the line carries a catalogue material and a resolvable location
-        // (line-level override, else the PO header). Lines without material or
-        // location simply aren't tracked — quantityDelivered still updates.
-        const delta = line.quantityDelivered - (existing?.quantityDelivered ?? 0);
-        const locationId = existing?.deliveryLocationId ?? po.deliveryLocationId;
-        if (delta > 0 && existing?.materialId && locationId) {
-          await this.inventoryService.applyIn(tx, {
-            companyId: po.companyId,
-            materialId: existing.materialId,
-            locationId,
-            quantity: delta,
-            sourceType: 'PURCHASE_ORDER',
-            sourceId: po.id,
-            sourceLineId: line.lineItemId,
-            createdById: user.id,
-          });
-        }
-      }
-      if (nextStatus !== po.status) {
-        await tx.purchaseOrder.update({
-          where: { id },
-          data: { status: nextStatus, lastModifiedById: user.id },
+      // Write the projected cumulative; only a positive delta changes anything.
+      await tx.poLineItem.update({
+        where: { id: lineId },
+        data: { quantityDelivered: existing.quantityDelivered + delta },
+      });
+
+      // Push the newly-received quantity into inventory. Only the positive delta
+      // counts (a re-post of the same figures yields delta 0 → no movement), and
+      // only when the line carries a catalogue material and a resolvable location
+      // (line-level override, else the PO header). Lines without material or
+      // location simply aren't tracked — quantityDelivered still updates.
+      const locationId = existing.deliveryLocationId ?? po.deliveryLocationId;
+      if (delta > 0 && existing.materialId && locationId) {
+        await this.inventoryService.applyIn(tx, {
+          companyId: po.companyId,
+          materialId: existing.materialId,
+          locationId,
+          quantity: delta,
+          sourceType: 'PURCHASE_ORDER',
+          sourceId: po.id,
+          sourceLineId: lineId,
+          createdById: actorUserId,
         });
       }
-    });
+    }
 
     if (nextStatus !== po.status) {
-      const action =
-        nextStatus === PrismaPoStatus.DELIVERED
-          ? AuditAction.PO_DELIVERED
-          : AuditAction.PO_PARTIALLY_DELIVERED;
-      await this.auditTransition(action, id, user, po.status, nextStatus, {
-        lines: dto.lines.map((l) => ({
-          lineItemId: l.lineItemId,
-          quantityDelivered: l.quantityDelivered,
-        })),
+      await tx.purchaseOrder.update({
+        where: { id: po.id },
+        data: { status: nextStatus, lastModifiedById: actorUserId },
       });
     }
 
-    return this.purchaseOrdersService.getPurchaseOrder(id, user);
+    return {
+      transitioned: nextStatus !== po.status,
+      fromStatus: po.status,
+      nextStatus,
+    };
+  }
+
+  /**
+   * Public entry point onto the shared delivery close-out leg, used by the
+   * delivery-report APPROVAL path (DeliveriesService.approveDeliveryReport). The
+   * caller supplies an open transaction `tx`, the PO snapshot, the per-line
+   * received DELTAS to apply, and the approving user — exactly the same
+   * machinery the manual receive path runs, but the caller decides the deltas
+   * (over-receipt is permitted on the approval path). Returns the transition
+   * outcome so the caller can audit AFTER its transaction commits via
+   * {@link auditDeliveryTransition}. Inventory is append-only and the line bump
+   * is an `increment`-equivalent absolute write of the projected cumulative, so
+   * idempotency must be enforced by the caller (re-read the report status inside
+   * the same tx before applying).
+   */
+  async applyDeliveryDeltasInTx(
+    tx: Prisma.TransactionClient,
+    po: DeliveryDeltaPo,
+    deltas: Map<string, number>,
+    actorUserId: string,
+  ): Promise<DeliveryDeltaOutcome> {
+    return this.applyDeliveryDeltasTx(tx, po, deltas, actorUserId);
+  }
+
+  /**
+   * Mint (or reuse) a long-lived public QR delivery-submission link for a PO
+   * (Epic 6). The PO must be in a deliverable status. The token is a 90-day
+   * DELIVERY_SUBMIT grant, idempotent per (PO, purpose) via issueTokenIfNoneLive
+   * — like PO_VIEW it is validated, never consumed, so the QR stays reusable.
+   * Returns { token, url, poNumber }. When a live token already exists its
+   * plaintext cannot be reconstructed, so a fresh one is force-minted to keep the
+   * caller's QR functional.
+   */
+  async generateDeliveryLink(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<{ token: string; url: string; poNumber: string | null }> {
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id },
+      select: { id: true, poNumber: true, companyId: true, status: true },
+    });
+    if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
+
+    if (user.role !== UserRole.SUPER_ADMIN && user.companyId !== po.companyId) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
+
+    const deliverable: PrismaPoStatus[] = [
+      PrismaPoStatus.SENT,
+      PrismaPoStatus.ACKNOWLEDGED,
+      PrismaPoStatus.ACCEPTED,
+      PrismaPoStatus.SCHEDULED_FOR_DELIVERY,
+      PrismaPoStatus.PARTIALLY_DELIVERED,
+      PrismaPoStatus.LATE_FOR_DELIVERY,
+    ];
+    if (!deliverable.includes(po.status)) {
+      throw new BadRequestException(
+        `A delivery link cannot be generated for a PO in status ${po.status}.`,
+      );
+    }
+
+    const issued = await this.accessTokens.issueTokenIfNoneLive({
+      subjectType: AccessTokenSubject.PURCHASE_ORDER,
+      subjectId: po.id,
+      purpose: AccessTokenPurpose.DELIVERY_SUBMIT,
+      ttlMs: DELIVERY_LINK_TTL_MS,
+      createdByUserId: user.id,
+    });
+
+    // A reused live token can't expose its plaintext (only its hash is stored);
+    // force-mint a fresh one so the QR the caller renders actually resolves.
+    const token =
+      issued.token ??
+      (
+        await this.accessTokens.issueToken({
+          subjectType: AccessTokenSubject.PURCHASE_ORDER,
+          subjectId: po.id,
+          purpose: AccessTokenPurpose.DELIVERY_SUBMIT,
+          ttlMs: DELIVERY_LINK_TTL_MS,
+          createdByUserId: user.id,
+        })
+      ).token;
+
+    return {
+      token,
+      url: `${this.webAppUrl}/delivery/${token}`,
+      poNumber: po.poNumber,
+    };
+  }
+
+  /**
+   * Emit the best-effort PO status-transition audit for a delivery-driven
+   * close-out, AFTER the surrounding transaction has committed. No-op when the
+   * status did not move. Reuses PO_DELIVERED / PO_PARTIALLY_DELIVERED.
+   */
+  async auditDeliveryTransition(
+    poId: string,
+    actorUserId: string,
+    outcome: DeliveryDeltaOutcome,
+    extra?: Record<string, unknown>,
+  ): Promise<void> {
+    if (!outcome.transitioned) return;
+    const action =
+      outcome.nextStatus === PrismaPoStatus.DELIVERED
+        ? AuditAction.PO_DELIVERED
+        : AuditAction.PO_PARTIALLY_DELIVERED;
+    await this.auditTransition(
+      action,
+      poId,
+      { id: actorUserId } as AuthenticatedUser,
+      outcome.fromStatus,
+      outcome.nextStatus,
+      extra,
+    );
   }
 
   // ── Pending-approval queue ──────────────────────────────────────────────────

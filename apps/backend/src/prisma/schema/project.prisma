@@ -42,6 +42,7 @@ model Project {
   invoices        Invoice[]
   boms            Bom[]
   materialRequests MaterialRequest[]
+  deliveryReports  DeliveryReport[] @relation("DeliveryReportProject")
 
   @@unique([companyId, name], map: "idx_projects_company_name")
   @@index([companyId], map: "idx_projects_company")
@@ -69,6 +70,7 @@ model ProjectLocation {
   materialRequestLineItems MaterialRequestLineItem[] @relation("MaterialRequestLineItemDeliveryLocation")
   stockBalances            StockBalance[]            @relation("StockBalanceLocation")
   stockMovements           StockMovement[]           @relation("StockMovementLocation")
+  deliveryReports          DeliveryReport[]          @relation("DeliveryReportLocation")
 
   @@index([projectId], map: "idx_projectlocation_project")
   @@index([projectId, type], map: "idx_projectlocation_project_type")

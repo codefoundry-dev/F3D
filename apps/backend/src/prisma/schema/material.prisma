@@ -81,6 +81,7 @@ model Material {
   favourites           MaterialFavourite[]
   stockBalances        StockBalance[]          @relation("StockBalanceMaterial")
   stockMovements       StockMovement[]         @relation("StockMovementMaterial")
+  deliveryReportLines  DeliveryReportLine[]    @relation("DeliveryReportLineMaterial")
 
   @@index([categoryId], map: "idx_materials_category")
   @@index([status], map: "idx_materials_status")

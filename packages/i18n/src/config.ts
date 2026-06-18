@@ -22,6 +22,7 @@ import rolesEn from './locales/en/roles.json';
 import docExtractionsEn from './locales/en/docExtractions.json';
 import materialCatalogueEn from './locales/en/materialCatalogue.json';
 import materialRequestsEn from './locales/en/materialRequests.json';
+import deliveriesEn from './locales/en/deliveries.json';
 import bomsEn from './locales/en/boms.json';
 
 export const defaultNS = 'common';
@@ -49,6 +50,7 @@ export const resources = {
     docExtractions: docExtractionsEn,
     materialCatalogue: materialCatalogueEn,
     materialRequests: materialRequestsEn,
+    deliveries: deliveriesEn,
     boms: bomsEn,
   },
 } as const;

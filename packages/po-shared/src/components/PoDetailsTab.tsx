@@ -12,6 +12,13 @@ interface PoDetailsTabProps {
   isVendorView?: boolean;
   /** Optional slot rendered at the bottom of Basic Information card (e.g. vendor accept fields) */
   vendorAcceptSlot?: React.ReactNode;
+  /**
+   * Optional slot rendered at the bottom of the page-layout Basic Information
+   * card (Epic 6 delivery QR, screenshot 09). Only the buyer/internal page passes
+   * it, so the QR never renders on the vendor view. Kept as a slot to avoid a
+   * cross-package dependency on `qrcode.react` (apps/web only).
+   */
+  deliveryQrSlot?: React.ReactNode;
 }
 
 export function PoDetailsTab({
@@ -19,6 +26,7 @@ export function PoDetailsTab({
   layout = 'panel',
   isVendorView,
   vendorAcceptSlot,
+  deliveryQrSlot,
 }: PoDetailsTabProps) {
   const { t } = useTranslation(['purchaseOrders', 'common']);
 
@@ -113,6 +121,12 @@ export function PoDetailsTab({
               )}
             </div>
           </div>
+          {deliveryQrSlot && (
+            <>
+              <SectionDivider />
+              {deliveryQrSlot}
+            </>
+          )}
           {vendorAcceptSlot && (
             <>
               <SectionDivider />

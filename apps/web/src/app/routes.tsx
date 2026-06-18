@@ -79,6 +79,13 @@ const BulkOrderDrawdownPage = lazy(
 const BulkOrderEditPage = lazy(
   () => import('@/features/bulk-orders/buyer/pages/BulkOrderEditPage'),
 );
+const DeliveriesListPage = lazy(() => import('@/features/deliveries/pages/DeliveriesListPage'));
+const CreateDeliveryReportPage = lazy(
+  () => import('@/features/deliveries/pages/CreateDeliveryReportPage'),
+);
+const DeliveryReportDetailPage = lazy(
+  () => import('@/features/deliveries/pages/DeliveryReportDetailPage'),
+);
 const MaterialRequestListRoleSwitch = lazy(
   () => import('@/features/material-requests/MaterialRequestListRoleSwitch'),
 );
@@ -164,6 +171,14 @@ const INVOICE_DETAIL_VIEWERS = [
   UserRole.PROCUREMENT_OFFICER,
   UserRole.FINANCIAL_OFFICER,
   UserRole.VENDOR,
+] as const;
+// Deliveries (Epic 6): buyer roles review reports; Warehouse + Finance also see
+// the list. The route additionally enforces the backend delivery.* permissions.
+const DELIVERY_VIEWERS = [
+  UserRole.COMPANY_ADMIN,
+  UserRole.PROCUREMENT_OFFICER,
+  UserRole.WAREHOUSE_OFFICER,
+  UserRole.FINANCIAL_OFFICER,
 ] as const;
 const USERS_VIEWERS = [UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.VENDOR] as const;
 const COMPANY_PROFILE_VIEWERS = [
@@ -343,6 +358,37 @@ export const routes: RouteObject[] = [
                   {
                     path: ROUTES.materialRequestJobOverview,
                     element: withSuspense(<JobOverviewPage />),
+                  },
+                ],
+              },
+
+              // Deliveries (Epic 6). Gated by role (buyer + warehouse + finance)
+              // AND the backend delivery.* permission keys. The static
+              // "/deliveries/new" create route precedes the "/:id" detail route
+              // so it is not swallowed by it.
+              {
+                element: <RoleRoute allow={DELIVERY_VIEWERS} />,
+                children: [
+                  {
+                    element: <PermissionRoute require={['delivery.create']} />,
+                    children: [
+                      { path: ROUTES.deliveryNew, element: withSuspense(<CreateDeliveryReportPage />) },
+                    ],
+                  },
+                  {
+                    element: <PermissionRoute require={['delivery.list']} />,
+                    children: [
+                      { path: ROUTES.deliveries, element: withSuspense(<DeliveriesListPage />) },
+                    ],
+                  },
+                  {
+                    element: <PermissionRoute require={['delivery.read']} />,
+                    children: [
+                      {
+                        path: ROUTES.deliveryDetail,
+                        element: withSuspense(<DeliveryReportDetailPage />),
+                      },
+                    ],
                   },
                 ],
               },

@@ -21,6 +21,7 @@ export const ROUTES = {
   resetPassword: '/reset-password',
   guestInvitation: '/invitation/:token',
   guestPurchaseOrder: '/po/:token',
+  guestDelivery: '/delivery/:token',
   forbidden: '/forbidden',
 
   // ── RFQs ───────────────────────────────────────────────────────────
@@ -38,6 +39,11 @@ export const ROUTES = {
   purchaseOrderComms: '/purchase-orders/:id/comms',
   purchaseOrderChange: '/purchase-orders/:id/change',
   purchaseOrderChangeRequest: '/purchase-orders/:id/change-request',
+
+  // ── Deliveries (Epic 6) ────────────────────────────────────────────
+  deliveries: '/deliveries',
+  deliveryNew: '/deliveries/new',
+  deliveryDetail: '/deliveries/:id',
 
   // ── Material requests (Foreman mobile flow + US 2.08 officer review) ─
   materialRequests: '/material-requests',

@@ -21,6 +21,7 @@ export * from './endpoints/google';
 export * from './endpoints/rfqs';
 export * from './endpoints/purchase-orders';
 export * from './endpoints/material-requests';
+export * from './endpoints/deliveries';
 export * from './endpoints/materials';
 export * from './endpoints/bulk-orders';
 export * from './endpoints/invoices';

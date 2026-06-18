@@ -4,6 +4,7 @@ import BulkOrdersIcon from '@forethread/ui-components/assets/icons/bulk-orders.s
 import AdminPanelIcon from '@forethread/ui-components/assets/icons/dashboard.svg?react';
 import InvoiceIcon from '@forethread/ui-components/assets/icons/invoice.svg?react';
 import MaterialCatalogueIcon from '@forethread/ui-components/assets/icons/material-catalogue.svg?react';
+import DeliveriesIcon from '@forethread/ui-components/assets/icons/package.svg?react';
 import ProjectsIcon from '@forethread/ui-components/assets/icons/projects.svg?react';
 import PurchaseOrdersIcon from '@forethread/ui-components/assets/icons/purchase-orders.svg?react';
 import RequestIcon from '@forethread/ui-components/assets/icons/request.svg?react';
@@ -44,6 +45,13 @@ const CATALOGUE_VIEWERS: readonly UserRole[] = [UserRole.SUPER_ADMIN, ...BUYER_S
 const RFQ_VIEWERS: readonly UserRole[] = [...BUYER_SIDE, UserRole.VENDOR];
 const PO_VIEWERS = RFQ_VIEWERS;
 const BULK_VIEWERS = RFQ_VIEWERS;
+
+// Deliveries (Epic 6): buyer roles + Warehouse + Finance.
+const DELIVERY_VIEWERS: readonly UserRole[] = [
+  ...BUYER_SIDE,
+  UserRole.WAREHOUSE_OFFICER,
+  UserRole.FINANCIAL_OFFICER,
+];
 
 // Material requests are raised by the Foreman and also visible to the
 // Warehouse officer + buyer roles that hold materialRequest.list/create.
@@ -108,6 +116,12 @@ export function getSidebarItemsForRole(
       label: labels.bulkOrders,
       href: ROUTES.bulkOrders,
       roles: BULK_VIEWERS,
+    },
+    {
+      icon: <DeliveriesIcon className="w-6 h-6" />,
+      label: labels.deliveries,
+      href: ROUTES.deliveries,
+      roles: DELIVERY_VIEWERS,
     },
     {
       icon: <InvoiceIcon className="w-6 h-6" />,

@@ -43,6 +43,13 @@ export const PO_STATUS_COLORS: Record<string, string> = {
   CHANGE_PENDING: 'bg-[hsl(var(--badge-orange))] text-[hsl(var(--badge-orange-text))]',
 };
 
+/** Epic 6 — Delivery Report review states (screenshots 01/04/16). */
+export const DELIVERY_STATUS_COLORS: Record<string, string> = {
+  SUBMITTED: 'bg-[hsl(var(--badge-orange))] text-[hsl(var(--badge-orange-text))]',
+  APPROVED: 'bg-success/10 text-success',
+  REJECTED: 'bg-destructive/10 text-destructive',
+};
+
 export const BULK_ORDER_STATUS_COLORS: Record<string, string> = {
   ACTIVE: 'bg-success/10 text-success',
   EXPIRED: 'bg-destructive/10 text-destructive',

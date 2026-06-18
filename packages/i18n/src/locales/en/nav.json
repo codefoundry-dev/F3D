@@ -26,6 +26,8 @@
   "purchaseOrdersSubtitle": "Track and manage all project purchase orders",
   "bulkOrders": "Bulk Orders",
   "bulkOrdersSubtitle": "Track and manage all project Bulk orders",
+  "deliveries": "Deliveries",
+  "deliveriesSubtitle": "Review and approve delivery reports",
   "vendors": "Vendors",
   "vendorsSubtitle": "Manage your vendor relationships",
   "materialCatalogue": "Material Catalogue",

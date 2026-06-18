@@ -40,6 +40,7 @@ export function AppLayout() {
     rfqs: t('nav:rfqs'),
     purchaseOrders: t('nav:purchaseOrders'),
     bulkOrders: t('nav:bulkOrders'),
+    deliveries: t('nav:deliveries'),
     invoices: t('nav:invoices'),
     vendors: t('nav:vendors'),
     materialCatalogue: t('nav:materialCatalogue'),

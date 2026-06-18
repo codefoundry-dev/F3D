@@ -20,12 +20,15 @@ import { Button, Spinner } from '@forethread/ui-components';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import EditWithoutLineIcon from '@forethread/ui-components/assets/icons/edit-without-line.svg?react';
 import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
+import ReportIcon from '@forethread/ui-components/assets/icons/report.svg?react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 import { useAuthStore } from '@/features/auth/state/auth.store';
+import { DeliveryQrSection } from '@/features/deliveries/components/DeliveryQrSection';
 import { usePermissions } from '@/shared/role/usePermissions';
+
 
 import { PoSendButton } from '../components/PoSendButton';
 import { ReceiveDeliveryModal } from '../components/ReceiveDeliveryModal';
@@ -97,6 +100,10 @@ export default function PurchaseOrderDetailPage() {
 
   const canChange = po ? CHANGEABLE_STATUSES.includes(po.status) && has('po.proposeChange') : false;
   const canReceive = po ? RECEIVABLE_STATUSES.includes(po.status) && has('po.receive') : false;
+  // Epic 6: a delivery report can be raised once the PO is in a deliverable state.
+  const canCreateDelivery = po
+    ? RECEIVABLE_STATUSES.includes(po.status) && has('delivery.create')
+    : false;
 
   const [showReceiveModal, setShowReceiveModal] = useState(false);
 
@@ -157,6 +164,16 @@ export default function PurchaseOrderDetailPage() {
                     {t('actions.recordDelivery', 'Record delivery')}
                   </Button>
                 )}
+                {canCreateDelivery && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<ReportIcon className="w-4 h-4" />}
+                    onClick={() => navigate(`${ROUTES.deliveryNew}?poId=${po.id}`)}
+                  >
+                    {t('actions.deliveryReport', 'Delivery report')}
+                  </Button>
+                )}
                 <PoSendButton po={po} size="sm" />
               </div>
             ) : undefined
@@ -166,7 +183,13 @@ export default function PurchaseOrderDetailPage() {
 
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-6 md:pb-8">
-        {activeTab === 'details' && <PoDetailsTab po={po} layout="page" />}
+        {activeTab === 'details' && (
+          <PoDetailsTab
+            po={po}
+            layout="page"
+            deliveryQrSlot={<DeliveryQrSection poId={po.id} />}
+          />
+        )}
         {activeTab === 'changeRequest' &&
           (isLoadingCrs ? (
             <PoChangeRequestTabLoading />
