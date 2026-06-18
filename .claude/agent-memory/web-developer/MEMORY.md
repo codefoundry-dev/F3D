@@ -2,6 +2,18 @@
 
 ## Feature Notes
 
+- [Delivery public QR portal (Epic 6 Part C)](delivery-public-qr-portal-epic6c.md) — public mobile
+  `/delivery/:token` PublicDeliveryPage (no auth, no shell): identify→code→form→submitted step
+  machine; portalLines.ts pure helpers (resolveOutcome DERIVES partial/delivered/not-delivered from
+  qty unless an explicit toggle wins; portalLineToInput zeroes qty for NOT_DELIVERED+REJECTED, carries
+  damage for DAMAGED; summarisePortalLines → screen-14 counts); api-client portal fns used verbatim
+  (X-Access-Token, verify→sessionToken→submit/upload/finalize); copies TwoFactorCard 6-box OTP +
+  authStyles input look inline; "View PO"→/po/:token same token; harness shot_portal.mjs (390x844).
+- [Deliveries test/harness conventions](delivery-feature-test-harness-conventions.md) — vitest
+  mock-everything style for the deliveries feature; GOTCHA: `vi.mock` with a template-literal path in
+  a `.forEach` throws "x is not defined" (hoisting) — write each icon mock literally; run
+  `--pool=threads`; PUBLIC-page harness needs no auth seeding, just route-mock `/v1/delivery-portal/*`.
+
 - [User Mgmt Create/Invite modal (US 1.07)](usermgmt-create-invite-modal.md) — Figma-fidelity for
   CreateUserModal + InvitationSuccessModal; POSITION-OPTIONAL gotcha (design+DTO say optional but zod
   forced it → blocked submit); inlined success modal off shared StatusSuccessModal for bigger title +
