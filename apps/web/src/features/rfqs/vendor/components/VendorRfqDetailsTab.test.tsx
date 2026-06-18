@@ -37,6 +37,7 @@ const rfq = {
   id: 'rfq-1',
   name: 'RFQ-001',
   projectName: 'Project X',
+  projectId: 'PRJ-2024-006',
   status: 'OPEN',
   deliveryLocation: 'Warehouse A',
   deadlineStart: '2026-02-01',
@@ -49,11 +50,16 @@ const rfq = {
 } as never;
 
 describe('VendorRfqDetailsTab', () => {
-  it('renders panel layout by default', () => {
+  it('renders panel layout with Basic Information section by default', () => {
     render(<VendorRfqDetailsTab rfq={rfq} />);
-    expect(screen.getByText('detailFields.rfqDetails')).toBeInTheDocument();
+    expect(screen.getByText('detailFields.basicInformation')).toBeInTheDocument();
     expect(screen.getByText('rfq-1')).toBeInTheDocument();
     expect(screen.getByText('Project X')).toBeInTheDocument();
+  });
+
+  it('renders the Project ID in the panel Basic Information section', () => {
+    render(<VendorRfqDetailsTab rfq={rfq} />);
+    expect(screen.getByText('PRJ-2024-006')).toBeInTheDocument();
   });
 
   it('renders items and quantities section in panel', () => {

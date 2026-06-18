@@ -132,7 +132,9 @@ export function RfqDetailPanel({ rfqId, onClose }: RfqDetailPanelProps) {
       {rfq && !openQuote && (
         <>
           <div className="flex items-center gap-4.5 shrink-0">
-            <h2 className="flex-1 text-lg font-medium text-foreground">{rfq.projectName}</h2>
+            <h2 className="flex-1 text-xl font-semibold text-foreground">
+              {rfq.rfqNumber ?? rfq.id}
+            </h2>
             <Badge className={getStatusColor(RFQ_STATUS_COLORS, rfq.status)}>
               {t(`status.${rfq.status}` as never)}
             </Badge>

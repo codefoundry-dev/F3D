@@ -266,8 +266,21 @@ describe('RfqsService', () => {
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
           approvedBy: null,
-          _count: { lineItems: 3, quoteResponses: 2 },
-          quoteResponses: [{ vendorId: 'v1' }, { vendorId: 'v2' }],
+          _count: { lineItems: 3, quoteResponses: 2, invitedVendors: 4 },
+          quoteResponses: [
+            {
+              vendorId: 'v1',
+              status: 'APPROVED',
+              totalCost: 1000,
+              lineItems: [{ status: 'APPROVED' }, { status: 'APPROVED' }, { status: 'DECLINED' }],
+            },
+            {
+              vendorId: 'v2',
+              status: 'SUBMITTED',
+              totalCost: 3000,
+              lineItems: [{ status: 'APPROVED' }, { status: 'PENDING' }],
+            },
+          ],
         },
       ]);
       mockPrisma.rfq.count.mockResolvedValue(1);
@@ -281,6 +294,42 @@ describe('RfqsService', () => {
       expect(item.recVendors).toBe(2);
       expect(item.deadlineRange).toBe('2026-04-01 - 2026-04-15');
       expect(item.pickUp).toBe(false);
+      // US 2.06 dashboard metrics
+      expect(item.invitedVendors).toBe(4);
+      expect(item.applVendors).toBe(1); // only v1 is APPROVED
+      expect(item.approvedItems).toBe(3); // v1: 2 + v2: 1
+      expect(item.declinedItems).toBe(1); // v1: 1
+      expect(item.avgQuoteCost).toBe(2000); // (1000 + 3000) / 2 received quotes
+    });
+
+    it('returns avgQuoteCost null and zero metrics when no quotes received', async () => {
+      mockPrisma.rfq.findMany.mockResolvedValue([
+        {
+          id: 'rfq-2',
+          projectId: 'proj-1',
+          status: 'DRAFT',
+          totalRequestedQty: 10,
+          pickUpLocation: null,
+          deliveryLocationId: null,
+          deadlineStart: null,
+          deadlineEnd: null,
+          approvalStatus: null,
+          createdAt: new Date('2026-03-01'),
+          project: { name: 'Beta' },
+          createdBy: { id: 'po-1', name: 'PO User' },
+          createdByUserId: 'po-1',
+          approvedBy: null,
+          _count: { lineItems: 2, quoteResponses: 0, invitedVendors: 0 },
+          quoteResponses: [],
+        },
+      ]);
+      mockPrisma.rfq.count.mockResolvedValue(1);
+
+      const item = (await service.listRfqs(q(), companyAdmin)).items[0];
+      expect(item.applVendors).toBe(0);
+      expect(item.approvedItems).toBe(0);
+      expect(item.declinedItems).toBe(0);
+      expect(item.avgQuoteCost).toBeNull();
     });
 
     it('sorts by project name when specified', async () => {

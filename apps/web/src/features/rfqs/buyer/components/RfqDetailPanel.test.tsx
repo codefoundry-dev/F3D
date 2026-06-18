@@ -129,7 +129,9 @@ describe('RfqDetailPanel', () => {
   it('renders RFQ detail with title and status badge', () => {
     mockUseRfq.mockReturnValue({ data: MOCK_RFQ, isLoading: false, isError: false });
     render(<RfqDetailPanel rfqId="RFQ-2024-008" onClose={onClose} />, { wrapper });
-    expect(screen.getByText('Test Project')).toBeInTheDocument();
+    // Title is the RFQ number (falls back to id when rfqNumber is absent) per the
+    // US 2.06 quick-look panel design.
+    expect(screen.getByText('RFQ-2024-008')).toBeInTheDocument();
     expect(screen.getByTestId('badge')).toHaveTextContent('status.IN_REVIEW');
   });
 

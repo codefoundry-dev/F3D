@@ -8,8 +8,15 @@ export const PO_CA_QUICK_FILTERS = [
   'closedRfqs',
 ] as const;
 
-/** Quick filter keys for Vendor */
-export const VENDOR_QUICK_FILTERS = ['myRfqs', 'incoming', 'approvedForMe', 'closedRfqs'] as const;
+/**
+ * Quick filter keys for Vendor. Mirrors the US 2.06 "RFQ dashboard (Vendor)"
+ * Figma (the 4-chip set shown in the grouped-status + advanced-filters frames,
+ * which is the dominant variant): My RFQs / Open RFQs / Approved for a vendor /
+ * Closed RFQs. `approvedForMe` is kept as the key (the backend already scopes
+ * APPROVED quotes to the current vendor under that key) — only its label reads
+ * "Approved for a vendor".
+ */
+export const VENDOR_QUICK_FILTERS = ['myRfqs', 'openRfqs', 'approvedForMe', 'closedRfqs'] as const;
 
 export const GROUP_OPTIONS = ['groupByProject', 'groupByStatus', 'groupByVendor'] as const;
 

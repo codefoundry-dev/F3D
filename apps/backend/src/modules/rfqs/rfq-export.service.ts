@@ -70,13 +70,26 @@ const COLUMN_MAP: Record<string, ExportColumnDef> = {
     pdfWidth: 60,
     value: (r) => str(r.recVendors),
   },
+  invitedVendors: {
+    header: 'Inv. Vendors',
+    pdfWidth: 60,
+    value: (r) => str(r.invitedVendors),
+  },
   recQuotes: {
     header: 'Rec. Quotes',
     pdfWidth: 60,
     value: (r) => str(r.recQuotes),
   },
+  // Vendor dashboard column. `RfqListItem` has no distinct "responded quotes"
+  // count, so this mirrors `recQuotes` (received quotes) — matches the vendor
+  // VENDOR_COLUMNS mapping so the export stays consistent with the on-screen table.
+  totalRespondedQuotes: {
+    header: 'Total Responded Quotes',
+    pdfWidth: 90,
+    value: (r) => str(r.recQuotes),
+  },
   applVendors: {
-    header: 'Appl. Vendors',
+    header: 'Appr. Vendors',
     pdfWidth: 60,
     value: (r) => str(r.applVendors),
   },
@@ -85,10 +98,26 @@ const COLUMN_MAP: Record<string, ExportColumnDef> = {
     pdfWidth: 50,
     value: (r) => str(r.lineItems),
   },
+  declinedItems: {
+    header: 'Decline items',
+    pdfWidth: 60,
+    value: (r) => str(r.declinedItems),
+  },
+  approvedItems: {
+    header: 'Appr. items',
+    pdfWidth: 60,
+    value: (r) => str(r.approvedItems),
+  },
   totalRequestedQty: {
-    header: 'Total Quantity',
+    header: 'Total requested Qty',
     pdfWidth: 60,
     value: (r) => str(r.totalRequestedQty),
+  },
+  avgQuoteCost: {
+    header: 'Avr. Quote Cost',
+    pdfWidth: 80,
+    value: (r) =>
+      r.avgQuoteCost === null || r.avgQuoteCost === undefined ? '' : str(r.avgQuoteCost),
   },
   applIssues: {
     header: 'Appl. Issues',
@@ -112,6 +141,14 @@ const COLUMN_MAP: Record<string, ExportColumnDef> = {
   },
   contractorName: {
     header: 'Contractor Name',
+    pdfWidth: 100,
+    value: (r) => str(r.createdBy),
+  },
+  // Vendor dashboard column. `RfqListItem` exposes a single contractor identity
+  // (no separate org/person split), so this mirrors `contractorName` →
+  // `createdBy`, matching the vendor VENDOR_COLUMNS mapping.
+  contractorCompany: {
+    header: 'Contractor Company',
     pdfWidth: 100,
     value: (r) => str(r.createdBy),
   },

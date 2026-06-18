@@ -59,7 +59,15 @@ const RFQ_LIST_INCLUDE = {
   approvedBy: { select: { id: true, name: true } },
   invitedVendors: { select: { vendor: { select: { id: true, legalName: true } } } },
   _count: { select: { lineItems: true, quoteResponses: true, invitedVendors: true } },
-  quoteResponses: { select: { vendorId: true, status: true }, distinct: ['vendorId' as const] },
+  quoteResponses: {
+    select: {
+      vendorId: true,
+      status: true,
+      totalCost: true,
+      lineItems: { select: { status: true } },
+    },
+    distinct: ['vendorId' as const],
+  },
 } satisfies Prisma.RfqInclude;
 
 const RFQ_DETAIL_INCLUDE = {
@@ -183,6 +191,33 @@ export class RfqsService {
         }[];
         const isPickUp = (rfqAny.isPickUp as boolean | undefined) ?? false;
 
+        // PO/CA review metrics. Vendors get a trimmed quoteResponses select (no
+        // totalCost / lineItems) and don't render these columns, so leave them empty.
+        const responses = (rfqAny.quoteResponses ?? []) as Array<{
+          status: string;
+          totalCost?: Prisma.Decimal | null;
+          lineItems?: { status: string }[];
+        }>;
+        const applVendors = isVendor ? 0 : responses.filter((r) => r.status === 'APPROVED').length;
+        const approvedItems = isVendor
+          ? 0
+          : responses.reduce(
+              (n, r) => n + (r.lineItems?.filter((li) => li.status === 'APPROVED').length ?? 0),
+              0,
+            );
+        const declinedItems = isVendor
+          ? 0
+          : responses.reduce(
+              (n, r) => n + (r.lineItems?.filter((li) => li.status === 'DECLINED').length ?? 0),
+              0,
+            );
+        const receivedQuotes = isVendor ? [] : responses.filter((r) => r.status !== 'PENDING');
+        const avgQuoteCost =
+          receivedQuotes.length > 0
+            ? receivedQuotes.reduce((sum, r) => sum + Number(r.totalCost ?? 0), 0) /
+              receivedQuotes.length
+            : null;
+
         return {
           id: rfq.id,
           rfqNumber: rfqAny.rfqNumber ?? null,
@@ -203,7 +238,10 @@ export class RfqsService {
           recQuotes: rfq._count.quoteResponses,
           invitedVendors: rfq._count.invitedVendors,
           invitedVendorNames: invitedVendors.map((iv) => iv.vendor.legalName),
-          applVendors: 0,
+          applVendors,
+          approvedItems,
+          declinedItems,
+          avgQuoteCost,
           lineItems: rfq._count.lineItems,
           deadlineRange:
             rfq.deadlineStart && rfq.deadlineEnd

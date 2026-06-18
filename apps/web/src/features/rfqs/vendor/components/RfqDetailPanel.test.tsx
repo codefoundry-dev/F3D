@@ -4,6 +4,7 @@ const mockRfq = vi.hoisted(() => ({
   value: {
     data: {
       id: 'rfq-1',
+      rfqNumber: 'RFQ-2024-008',
       projectName: 'Project X',
       status: 'OPEN',
       lineItems: [],
@@ -75,6 +76,7 @@ describe('RfqDetailPanel', () => {
     mockRfq.value = {
       data: {
         id: 'rfq-1',
+        rfqNumber: 'RFQ-2024-008',
         projectName: 'Project X',
         status: 'OPEN',
         lineItems: [],
@@ -90,9 +92,9 @@ describe('RfqDetailPanel', () => {
     };
   });
 
-  it('renders project name when rfq loaded', () => {
+  it('renders the RFQ number as the panel title when rfq loaded', () => {
     render(<RfqDetailPanel rfqId="rfq-1" onClose={onClose} />);
-    expect(screen.getByText('Project X')).toBeInTheDocument();
+    expect(screen.getByText('RFQ-2024-008')).toBeInTheDocument();
   });
 
   it('renders details tab', () => {

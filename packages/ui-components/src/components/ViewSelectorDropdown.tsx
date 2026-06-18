@@ -13,8 +13,10 @@ export interface ViewSelectorDropdownProps {
   savedViews: SavedView[];
   /** Called to apply a view (null = reset to default) */
   onApplyView: (viewId: string | null) => void;
-  /** Label for the default view */
+  /** Label for the default view (shown on the trigger button) */
   defaultViewLabel: string;
+  /** Label for the default view's row inside the dropdown (defaults to defaultViewLabel) */
+  defaultViewItemLabel?: string;
   /** Message when no saved views exist */
   noSavedViewsHint?: string;
   /** Whether the dropdown is open */
@@ -30,6 +32,7 @@ export function ViewSelectorDropdown({
   savedViews,
   onApplyView,
   defaultViewLabel,
+  defaultViewItemLabel,
   noSavedViewsHint,
   isOpen,
   onOpenChange,
@@ -63,7 +66,7 @@ export function ViewSelectorDropdown({
               onOpenChange(false);
             }}
           >
-            {defaultViewLabel}
+            {defaultViewItemLabel ?? defaultViewLabel}
           </button>
           {savedViews.map((view) => (
             <button

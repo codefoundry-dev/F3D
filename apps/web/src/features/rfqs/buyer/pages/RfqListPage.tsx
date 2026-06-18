@@ -6,6 +6,7 @@ import {
   useRfqSort,
   useRfqGrouping,
   useRfqExport,
+  usePageTitleStore,
   PO_CA_QUICK_FILTERS,
   GROUP_OPTIONS,
   GROUP_FIELD_MAP,
@@ -63,6 +64,12 @@ export default function RfqListPage() {
   const navigate = useNavigate();
 
   const activeView = s.savedViews.find((v) => v.id === s.activeViewId);
+
+  const setPageTitle = usePageTitleStore((st) => st.setTitle);
+  useEffect(() => {
+    setPageTitle(t('list.title'), t('list.subtitle'));
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
 
   useEffect(() => {
     s.loadViews();
@@ -149,7 +156,13 @@ export default function RfqListPage() {
         </Badge>
       );
     }
-    if (key === 'pickUp') return rfq.pickUp ? t('common:yes') : t('common:no');
+    if (key === 'pickUp') {
+      return (
+        <Badge className="bg-muted text-muted-foreground">
+          {rfq.pickUp ? t('common:yes') : t('common:no')}
+        </Badge>
+      );
+    }
     if (key === 'createdDate') {
       return new Date(rfq.createdDate).toLocaleDateString('en-US', {
         month: 'short',
@@ -157,7 +170,36 @@ export default function RfqListPage() {
         year: 'numeric',
       });
     }
+    // Res. Deadline — backend sends either null or a "YYYY-MM-DD - YYYY-MM-DD"
+    // range. Design shows a friendly "MMM d, yyyy"; render each end formatted.
+    if (key === 'resDeadline') {
+      if (!rfq.deadlineRange) return '-';
+      return rfq.deadlineRange
+        .split(' - ')
+        .map((d) => {
+          const parsed = new Date(d);
+          return isNaN(parsed.getTime())
+            ? d
+            : parsed.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              });
+        })
+        .filter((v, i, arr) => arr.indexOf(v) === i) // collapse identical start/end
+        .join(' - ');
+    }
+    // Avr. Quote Cost — design renders "$ 10000000" (space after $, no
+    // separators/decimals). null (no quotes yet) → "-".
+    if (key === 'avgQuoteCost') {
+      return rfq.avgQuoteCost === null || rfq.avgQuoteCost === undefined
+        ? '-'
+        : `$ ${rfq.avgQuoteCost}`;
+    }
     const val = rfq[field];
+    // Count columns (invitedVendors / recQuotes / applVendors / lineItems /
+    // declinedItems / approvedItems / totalRequestedQty) — 0 is a real value,
+    // so only treat null/undefined as missing.
     if (val === null || val === undefined) return '-';
     return String(val);
   };
@@ -173,7 +215,7 @@ export default function RfqListPage() {
           key={key}
           className={cn(
             'py-3 px-3 text-foreground',
-            TRUNCATE_COLUMNS.includes(key) && 'truncate max-w-[180px]',
+            TRUNCATE_COLUMNS.includes(key) ? 'truncate max-w-[180px]' : 'whitespace-nowrap',
           )}
           style={
             dragColKey === key
@@ -312,6 +354,7 @@ export default function RfqListPage() {
                 savedViews={s.savedViews}
                 onApplyView={s.applyView}
                 defaultViewLabel={t('list.viewDefault')}
+                defaultViewItemLabel={t('views.defaultView')}
                 noSavedViewsHint={t('views.noSavedViews')}
                 isOpen={viewDD.isOpen}
                 onOpenChange={viewDD.setIsOpen}
@@ -502,7 +545,10 @@ export default function RfqListPage() {
           <TableManagementModal
             columns={ALL_COLUMNS.map((c) => ({
               id: c.key,
-              label: t(`columns.${c.key}` as never),
+              // Modal uses the descriptive long-form labels from the design
+              // (e.g. "Number of invited vendors"), not the short table
+              // headers ("Inv.Vendors").
+              label: t(`columnLabels.${c.key}` as never),
             }))}
             visibleColumns={s.visibleColumns}
             onSave={(cols) => {

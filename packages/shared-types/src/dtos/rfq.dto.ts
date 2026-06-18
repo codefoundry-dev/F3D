@@ -24,7 +24,10 @@ import { BasePaginationQueryDto, PaginationMetaDto } from './pagination.dto';
 // ── Create / Update DTOs ────────────────────────────────────────────────────
 
 export class CreateRfqLineItemDto {
-  @ApiPropertyOptional({ enum: RfqLineItemSource, description: 'Origin of the line item (FOR-204)' })
+  @ApiPropertyOptional({
+    enum: RfqLineItemSource,
+    description: 'Origin of the line item (FOR-204)',
+  })
   @IsEnum(RfqLineItemSource)
   @IsOptional()
   source?: RfqLineItemSource;
@@ -34,7 +37,9 @@ export class CreateRfqLineItemDto {
   @IsOptional()
   materialId?: string;
 
-  @ApiPropertyOptional({ description: 'Free-text material name (BOM-sourced items without a catalog match)' })
+  @ApiPropertyOptional({
+    description: 'Free-text material name (BOM-sourced items without a catalog match)',
+  })
   @IsString()
   @IsOptional()
   materialName?: string;
@@ -496,6 +501,25 @@ export class RfqListItemDto {
 
   @ApiPropertyOptional()
   arcBlocksDist!: string | null;
+
+  @ApiProperty({ description: 'Count of vendors invited to the RFQ (Inv. Vendors)' })
+  invitedVendors!: number;
+
+  @ApiProperty({
+    description: 'Count of quote-response line items approved on review (Appr. items)',
+  })
+  approvedItems!: number;
+
+  @ApiProperty({
+    description: 'Count of quote-response line items declined on review (Decline items)',
+  })
+  declinedItems!: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Average total cost across received quote responses; null when no quotes (Avr. Quote Cost)',
+  })
+  avgQuoteCost!: number | null;
 
   @ApiProperty()
   createdDate!: string;

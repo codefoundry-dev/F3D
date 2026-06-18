@@ -185,6 +185,39 @@ describe('RfqExportService', () => {
     expect(rows[1][2]).toBe('1');
   });
 
+  it('maps US 2.06 dashboard columns (Inv. Vendors, Appr./Decline items, Avr. Quote Cost)', async () => {
+    mockPdfExportService.exportToCSV.mockResolvedValue({ url: 'https://storage/rfqs.csv' });
+
+    const extendedItems = [
+      {
+        ...sampleItems[0],
+        invitedVendors: 4,
+        approvedItems: 3,
+        declinedItems: 1,
+        avgQuoteCost: 2000,
+      },
+      {
+        ...sampleItems[1],
+        invitedVendors: 0,
+        approvedItems: 0,
+        declinedItems: 0,
+        avgQuoteCost: null,
+      },
+    ];
+    mockRfqsService.listRfqs.mockResolvedValue({ items: extendedItems, meta: {} });
+
+    await service.exportRfqs(
+      'csv',
+      q({ columns: 'invitedVendors,declinedItems,approvedItems,avgQuoteCost' } as never),
+      companyAdmin as never,
+    );
+
+    const { headers, rows } = mockPdfExportService.exportToCSV.mock.calls[0][0];
+    expect(headers).toEqual(['Inv. Vendors', 'Decline items', 'Appr. items', 'Avr. Quote Cost']);
+    expect(rows[0]).toEqual(['4', '1', '3', '2000']);
+    expect(rows[1]).toEqual(['0', '0', '0', '']); // null avgQuoteCost → empty string
+  });
+
   it('maps custom columns including applIssues, arcBlocksDist, contractorName', async () => {
     mockPdfExportService.exportToCSV.mockResolvedValue({ url: 'https://storage/rfqs.csv' });
 
@@ -233,6 +266,22 @@ describe('RfqExportService', () => {
     expect(rows[1][3]).toBe('');
     expect(rows[1][4]).toBe('');
     expect(rows[1][5]).toBe('');
+  });
+
+  it('maps US 2.06 vendor dashboard columns (Contractor Company, Total Responded Quotes)', async () => {
+    mockPdfExportService.exportToCSV.mockResolvedValue({ url: 'https://storage/rfqs.csv' });
+
+    await service.exportRfqs(
+      'csv',
+      q({ columns: 'contractorCompany,totalRespondedQuotes' } as never),
+      companyAdmin as never,
+    );
+
+    const { headers, rows } = mockPdfExportService.exportToCSV.mock.calls[0][0];
+    expect(headers).toEqual(['Contractor Company', 'Total Responded Quotes']);
+    // contractorCompany → createdBy, totalRespondedQuotes → recQuotes
+    expect(rows[0]).toEqual(['PO User', '3']);
+    expect(rows[1]).toEqual(['CA User', '0']);
   });
 
   it('maps PDF rows as objects with correct keys', async () => {
@@ -290,6 +339,10 @@ describe('RfqExportService', () => {
       totalRequestedQty: null,
       applIssues: null,
       arcBlocksDist: null,
+      invitedVendors: null,
+      approvedItems: null,
+      declinedItems: null,
+      avgQuoteCost: null,
       createdDate: null,
       createdBy: null,
       contractorName: null,
@@ -315,9 +368,15 @@ describe('RfqExportService', () => {
       'totalRequestedQty',
       'applIssues',
       'arcBlocksDist',
+      'invitedVendors',
+      'declinedItems',
+      'approvedItems',
+      'avgQuoteCost',
       'createdDate',
       'createdBy',
       'contractorName',
+      'contractorCompany',
+      'totalRespondedQuotes',
       'approvalStatus',
       'approvedBy',
       'lastModifiedBy',

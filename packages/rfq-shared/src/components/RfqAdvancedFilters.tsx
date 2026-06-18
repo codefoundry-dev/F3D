@@ -82,7 +82,7 @@ export function RfqAdvancedFilters({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <FilterField label={t('advancedFilters.issueDateTo')}>
+        <FilterField label={t('advancedFilters.issueDate')}>
           <div className="flex gap-2">
             <DatePicker
               placeholder="From"
@@ -101,7 +101,7 @@ export function RfqAdvancedFilters({
             />
           </div>
         </FilterField>
-        <FilterField label={t('advancedFilters.deadlineFrom')}>
+        <FilterField label={t('advancedFilters.responseDeadline')}>
           <div className="flex gap-2">
             <DatePicker
               placeholder="From"
@@ -117,9 +117,9 @@ export function RfqAdvancedFilters({
             />
           </div>
         </FilterField>
-        <FilterField label={t('advancedFilters.approvedQuotesMin')}>
+        <FilterField label={t('advancedFilters.approvedQuotes')}>
           <Input
-            placeholder={t('advancedFilters.approvedQuotesMin')}
+            placeholder={t('advancedFilters.enterNumber')}
             inputMode="numeric"
             pattern="[0-9]*"
             value={af.minApprovedQuotes}
@@ -128,9 +128,9 @@ export function RfqAdvancedFilters({
             className="h-10 bg-transparent"
           />
         </FilterField>
-        <FilterField label={t('advancedFilters.approvedVendorsMin')}>
+        <FilterField label={t('advancedFilters.approvedVendors')}>
           <Input
-            placeholder={t('advancedFilters.approvedVendorsMin')}
+            placeholder={t('advancedFilters.enterNumber')}
             inputMode="numeric"
             pattern="[0-9]*"
             value={af.minApprovedVendors}
