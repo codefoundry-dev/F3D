@@ -139,7 +139,7 @@
   },
   "create": {
     "title": "Create new Bulk",
-    "subtitle": "Text goes here",
+    "subtitle": "",
     "bulkDetails": "Bulk details",
     "projectDetails": "Project details",
     "projectAssignment": "Project assignment",
