@@ -28,16 +28,6 @@ const DIMENSION_AXES = [
   'weightPerUnit',
 ] as const;
 
-/** Keys of the "Specific data" card; mapped onto the API `properties` JSON. */
-export const SPECIFIC_DATA_KEYS = [
-  'compressiveStrength',
-  'tensileStrength',
-  'fireRating',
-  'density',
-] as const;
-
-export type SpecificDataKey = (typeof SPECIFIC_DATA_KEYS)[number];
-
 /** Blank form state for the create wizard. */
 export const emptyMaterialForm: MaterialFormValues = {
   name: '',
@@ -69,7 +59,8 @@ export const emptyMaterialForm: MaterialFormValues = {
     weightPerUnit: { value: '', uom: '' },
     packaging: { packagingUnit: '', unitsPerPackage: '', weightPerPackage: '' },
   },
-  specificData: { compressiveStrength: '', tensileStrength: '', fireRating: '', density: '' },
+  // Category-driven; AdditionalPropertiesFields seeds the active schema's keys.
+  specificData: {},
 };
 
 // ── detail → form ─────────────────────────────────────────────────────────────
@@ -87,10 +78,11 @@ export function detailToForm(material: MaterialDetailDto): MaterialFormValues {
   const dims = material.dimensions ?? null;
   const packaging = dims?.packaging;
 
-  // Surface every stored property as a string so the Specific-data inputs keep
-  // any custom keys that aren't part of the four curated ones.
+  // Surface every stored property as a string. The form's category-driven
+  // "Specific data" section (AdditionalPropertiesFields) reconciles these
+  // against the selected category's schema — keeping the material's own
+  // attributes and preserving any custom / imported keys.
   const specificData: Record<string, string> = {};
-  for (const key of SPECIFIC_DATA_KEYS) specificData[key] = '';
   if (material.properties) {
     for (const [key, value] of Object.entries(material.properties)) {
       specificData[key] = value === null || value === undefined ? '' : String(value);

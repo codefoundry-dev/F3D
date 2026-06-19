@@ -11,7 +11,8 @@ import { usePermissions } from '@/shared/role';
 
 import { MaterialStatusBadge } from '../components/MaterialStatusBadge';
 import { useMaterial } from '../hooks/useMaterial';
-import { formatLongDate, formatPrice, humanizeKey } from '../lib/format';
+import { formatLongDate, formatPrice } from '../lib/format';
+import { specificDataLabel } from '../lib/specificDataSchema';
 
 const DASH = '—';
 
@@ -239,7 +240,7 @@ export default function MaterialDetailPage() {
             <SectionTitle>{t('detail.specificData')}</SectionTitle>
             <div className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">
               {properties.map(([key, value]) => (
-                <Field key={key} label={humanizeKey(key)}>
+                <Field key={key} label={specificDataLabel(key)}>
                   {val(value)}
                 </Field>
               ))}

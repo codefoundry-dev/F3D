@@ -109,7 +109,13 @@ export default function EditMaterialAdditionalPage() {
           className="mt-6 space-y-6"
           noValidate
         >
-          <AdditionalPropertiesFields />
+          <AdditionalPropertiesFields
+            categories={
+              material.categoryName
+                ? [{ id: material.categoryId, name: material.categoryName }]
+                : []
+            }
+          />
 
           <div className="flex items-center justify-between pt-2">
             <Link
