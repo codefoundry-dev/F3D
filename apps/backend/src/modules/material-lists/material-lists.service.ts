@@ -17,6 +17,7 @@ import { MaterialStatus, Prisma } from '@prisma/client';
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MaterialsService } from '../materials/materials.service';
 
 const materialListDetailInclude = {
   items: {
@@ -52,7 +53,10 @@ const materialListDetailInclude = {
  */
 @Injectable()
 export class MaterialListsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly materials: MaterialsService,
+  ) {}
 
   async listMaterialLists(
     query: MaterialListsQueryDto,
@@ -221,6 +225,10 @@ export class MaterialListsService {
       where: { id },
       data: { updatedAt: new Date() },
     });
+
+    // Record a per-user usage signal for the added materials (US 4.04), backing
+    // the catalogue search "recently/frequently used" groups. Best-effort.
+    await this.materials.recordMaterialUsage(user.id, materialIds);
 
     return this.getMaterialList(id, user);
   }

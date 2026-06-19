@@ -548,3 +548,51 @@ export interface MaterialChangeRequestDto {
   resolvedAt: string | null;
   createdAt: string;
 }
+
+// ── Search suggestions (US 4.04 catalogue autocomplete) ───────────────────────
+
+/** Query for the catalogue search autocomplete. */
+export class MaterialSuggestionsQueryDto {
+  @ApiPropertyOptional({ description: 'Search term: matches name / UPC / manufacturer.' })
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  /**
+   * Legacy alias for `q`, accepted so older callers keep working. Whitelisted so
+   * `forbidNonWhitelisted` validation doesn't 400 on it; `q` takes precedence.
+   */
+  @ApiPropertyOptional({ description: 'Deprecated alias for `q`.' })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({
+    description: 'Max rows per group (results / recentlyUsed / frequentlyUsed). Default 8.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  limit?: number;
+}
+
+/** A single autocomplete row. */
+export interface MaterialSuggestionDto {
+  id: string;
+  name: string;
+  categoryName: string | null;
+  uom: string | null;
+  description: string | null;
+  imageUrl: string | null;
+}
+
+/**
+ * Grouped autocomplete payload (US 4.04). `results` is the contains-match on the
+ * search term; `frequentlyUsed` / `recentlyUsed` are the caller's own usage
+ * signal (empty arrays when the user has no usage history yet).
+ */
+export interface MaterialSuggestionsResponseDto {
+  results: MaterialSuggestionDto[];
+  frequentlyUsed: MaterialSuggestionDto[];
+  recentlyUsed: MaterialSuggestionDto[];
+}

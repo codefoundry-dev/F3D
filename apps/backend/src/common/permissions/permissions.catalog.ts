@@ -188,6 +188,7 @@ export const PERMISSIONS = {
   // ── Bill of materials (US 5.01) ──────────────────────────────────────────
   'bom.create': 'Create a project BOM from a reviewed extraction',
   'bom.read': 'Read project BOMs',
+  'bom.update': 'Edit a project BOM line items in place',
 
   // ── Users ───────────────────────────────────────────────────────────────
   'user.list': 'List users',
@@ -381,6 +382,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
 
     'bom.create',
     'bom.read',
+    'bom.update',
   ],
 
   PROCUREMENT_OFFICER: [
@@ -518,6 +520,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
 
     'bom.create',
     'bom.read',
+    'bom.update',
   ],
 
   FINANCIAL_OFFICER: [

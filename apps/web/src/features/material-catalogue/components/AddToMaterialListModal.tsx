@@ -43,7 +43,7 @@ export function AddToMaterialListModal({ material, onClose }: AddToMaterialListM
   };
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-xl" scrollBody>
+    <Modal onClose={onClose} maxWidth="max-w-2xl" scrollBody>
       <ModalBody>
         <ModalIconHeader
           icon={<PackageIcon className="w-6 h-6 text-foreground" />}

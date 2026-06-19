@@ -27,6 +27,8 @@ const CreateProjectPage = lazy(() => import('@/features/projects/pages/CreatePro
 const ProjectDetailPage = lazy(() => import('@/features/projects/pages/ProjectDetailPage'));
 const EditProjectPage = lazy(() => import('@/features/projects/pages/EditProjectPage'));
 const CreateBomPage = lazy(() => import('@/features/boms/pages/CreateBomPage'));
+const BomDetailPage = lazy(() => import('@/features/boms/pages/BomDetailPage'));
+const EditBomPage = lazy(() => import('@/features/boms/pages/EditBomPage'));
 const RfqListRoleSwitch = lazy(() => import('@/features/rfqs/RfqListRoleSwitch'));
 const RfqDetailRoleSwitch = lazy(() => import('@/features/rfqs/RfqDetailRoleSwitch'));
 const MaterialDetailRoleSwitch = lazy(() => import('@/features/rfqs/MaterialDetailRoleSwitch'));
@@ -374,7 +376,10 @@ export const routes: RouteObject[] = [
                   {
                     element: <PermissionRoute require={['delivery.create']} />,
                     children: [
-                      { path: ROUTES.deliveryNew, element: withSuspense(<CreateDeliveryReportPage />) },
+                      {
+                        path: ROUTES.deliveryNew,
+                        element: withSuspense(<CreateDeliveryReportPage />),
+                      },
                     ],
                   },
                   {
@@ -454,6 +459,8 @@ export const routes: RouteObject[] = [
                   { path: ROUTES.projectDetail, element: withSuspense(<ProjectDetailPage />) },
                   { path: ROUTES.projectEdit, element: withSuspense(<EditProjectPage />) },
                   { path: ROUTES.projectBomCreate, element: withSuspense(<CreateBomPage />) },
+                  { path: ROUTES.projectBomDetail, element: withSuspense(<BomDetailPage />) },
+                  { path: ROUTES.projectBomEdit, element: withSuspense(<EditBomPage />) },
                 ],
               },
 

@@ -11,6 +11,8 @@ import {
   type MaterialDimensions,
   type MaterialFieldChange,
   type MaterialProperties,
+  type MaterialSuggestionDto,
+  type MaterialSuggestionsResponseDto,
   CreateMaterialDto,
   DetectMaterialDuplicatesDto,
   MaterialListQueryDto,
@@ -167,27 +169,150 @@ export class MaterialsService {
     }));
   }
 
-  // ── Suggestions (quick search) ──────────────────────────────────────────────
+  // ── Suggestions (catalogue search autocomplete, US 4.04) ────────────────────
 
-  async suggestions(search: string, user: AuthenticatedUser) {
-    const items = await this.prisma.material.findMany({
+  /** Default rows per group when the caller doesn't pass `limit`. */
+  private static readonly SUGGESTIONS_DEFAULT_LIMIT = 8;
+  /** Hard cap so a caller can't request an unbounded scan. */
+  private static readonly SUGGESTIONS_MAX_LIMIT = 25;
+
+  /** Columns selected for every suggestion row (matches MaterialSuggestionDto). */
+  private static readonly suggestionSelect = {
+    id: true,
+    name: true,
+    uom: true,
+    description: true,
+    imageUrl: true,
+    category: { select: { name: true } },
+  } satisfies Prisma.MaterialSelect;
+
+  /**
+   * Catalogue search autocomplete (US 4.04). Returns three groups:
+   *  - `results`: name / UPC / manufacturer contains-match on the materials the
+   *    user can see (PUBLIC shared catalogue + the user's own company-private
+   *    rows, US 4.02), limited.
+   *  - `recentlyUsed`: the caller's own materials by `lastUsedAt` desc.
+   *  - `frequentlyUsed`: the caller's own materials by `useCount` desc.
+   * The two usage groups are empty when the user has no usage history yet.
+   */
+  async suggestions(
+    search: string,
+    user: AuthenticatedUser,
+    limit?: number,
+  ): Promise<MaterialSuggestionsResponseDto> {
+    const take = this.normaliseSuggestionLimit(limit);
+    const term = search.trim();
+    // Public shared catalogue PLUS the user's own company-private rows (US 4.02).
+    const visibilityWhere: Prisma.MaterialWhereInput = {
+      OR: [{ status: MaterialStatus.PUBLIC }, { companyId: user.companyId ?? '__none__' }],
+    };
+
+    const results = await this.prisma.material.findMany({
       where: {
-        // Public shared catalogue PLUS the user's own company-private rows
-        // (US 4.02), so autocomplete surfaces a company's private materials too.
-        OR: [{ status: MaterialStatus.PUBLIC }, { companyId: user.companyId ?? '__none__' }],
-        ...(search ? { name: { contains: search, mode: 'insensitive' as const } } : {}),
+        AND: [
+          visibilityWhere,
+          ...(term
+            ? [
+                {
+                  OR: [
+                    { name: { contains: term, mode: Prisma.QueryMode.insensitive } },
+                    { upc: { contains: term, mode: Prisma.QueryMode.insensitive } },
+                    { manufacturer: { contains: term, mode: Prisma.QueryMode.insensitive } },
+                  ],
+                } satisfies Prisma.MaterialWhereInput,
+              ]
+            : []),
+        ],
       },
-      take: 10,
+      take,
       orderBy: { name: 'asc' },
-      include: { category: { select: { name: true } } },
+      select: MaterialsService.suggestionSelect,
     });
 
-    return items.map((m) => ({
-      id: m.id,
-      name: m.name,
-      categoryName: m.category.name,
-      uom: m.uom,
-    }));
+    const [recentlyUsed, frequentlyUsed] = await Promise.all([
+      this.loadUsedSuggestions(user, take, { lastUsedAt: 'desc' }),
+      this.loadUsedSuggestions(user, take, { useCount: 'desc' }),
+    ]);
+
+    return {
+      results: results.map((m) => this.toSuggestion(m)),
+      recentlyUsed,
+      frequentlyUsed,
+    };
+  }
+
+  /** Clamp the requested limit into [1, MAX], defaulting when absent/invalid. */
+  private normaliseSuggestionLimit(limit?: number): number {
+    if (!limit || !Number.isFinite(limit) || limit < 1) {
+      return MaterialsService.SUGGESTIONS_DEFAULT_LIMIT;
+    }
+    return Math.min(Math.floor(limit), MaterialsService.SUGGESTIONS_MAX_LIMIT);
+  }
+
+  /**
+   * Load the caller's used materials, ordered by the given usage signal, mapped
+   * to suggestion rows. The joined material is re-filtered for visibility so a
+   * material that has since been archived/made private isn't leaked back.
+   */
+  private async loadUsedSuggestions(
+    user: AuthenticatedUser,
+    take: number,
+    orderBy: Prisma.MaterialUsageOrderByWithRelationInput,
+  ): Promise<MaterialSuggestionDto[]> {
+    const usages = await this.prisma.materialUsage.findMany({
+      where: {
+        userId: user.id,
+        material: {
+          OR: [{ status: MaterialStatus.PUBLIC }, { companyId: user.companyId ?? '__none__' }],
+        },
+      },
+      orderBy,
+      take,
+      select: { material: { select: MaterialsService.suggestionSelect } },
+    });
+    return usages.map((u) => this.toSuggestion(u.material));
+  }
+
+  private toSuggestion(material: {
+    id: string;
+    name: string;
+    uom: string | null;
+    description: string | null;
+    imageUrl: string | null;
+    category: { name: string } | null;
+  }): MaterialSuggestionDto {
+    return {
+      id: material.id,
+      name: material.name,
+      categoryName: material.category?.name ?? null,
+      uom: material.uom,
+      description: material.description,
+      imageUrl: material.imageUrl,
+    };
+  }
+
+  /**
+   * Record (or bump) a per-user material usage signal (US 4.04) — one upsert per
+   * material: first use inserts useCount=1, subsequent uses increment it and
+   * refresh lastUsedAt. Best-effort and idempotent. Unknown/foreign materialIds
+   * are skipped (the caller already validated visibility); a failed bump must
+   * never fail the originating action, so errors are swallowed.
+   */
+  async recordMaterialUsage(userId: string, materialIds: string[]): Promise<void> {
+    const ids = [...new Set(materialIds)].filter(Boolean);
+    if (ids.length === 0) return;
+    const now = new Date();
+    await Promise.all(
+      ids.map((materialId) =>
+        this.prisma.materialUsage
+          .upsert({
+            where: { userId_materialId: { userId, materialId } },
+            create: { userId, materialId, useCount: 1, lastUsedAt: now },
+            update: { useCount: { increment: 1 }, lastUsedAt: now },
+          })
+          .catch(() => undefined),
+      ),
+    );
   }
 
   // ── Create Material ─────────────────────────────────────────────────────────

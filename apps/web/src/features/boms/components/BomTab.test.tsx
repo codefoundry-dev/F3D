@@ -35,6 +35,10 @@ vi.mock('@forethread/ui-components/assets/icons/eye-opened.svg?react', () => ({
   default: (p: any) => <svg data-testid="eye-icon" {...p} />,
 }));
 
+vi.mock('@forethread/ui-components/assets/icons/edit.svg?react', () => ({
+  default: (p: any) => <svg data-testid="edit-icon" {...p} />,
+}));
+
 vi.mock('@forethread/ui-components/assets/icons/search.svg?react', () => ({
   default: (p: any) => <svg data-testid="search-icon" {...p} />,
 }));
@@ -44,20 +48,15 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('@/app/route-config', () => ({
-  ROUTES: { projectBomCreate: '/projects/:id/boms/new' },
+  ROUTES: {
+    projectBomCreate: '/projects/:id/bom/new',
+    projectBomDetail: '/projects/:id/bom/:bomId',
+    projectBomEdit: '/projects/:id/bom/:bomId/edit',
+  },
 }));
 
 vi.mock('../hooks/useBoms', () => ({
   useProjectBoms: mockUseProjectBoms,
-}));
-
-vi.mock('./BomItemsModal', () => ({
-  BomItemsModal: ({ bomId, onClose }: { bomId: string; onClose: () => void }) => (
-    <div data-testid="bom-items-modal">
-      {bomId}
-      <button onClick={onClose}>x</button>
-    </div>
-  ),
 }));
 
 import { BomTab } from './BomTab';
@@ -171,10 +170,10 @@ describe('BomTab', () => {
     render(<BomTab projectId="proj-42" />);
 
     fireEvent.click(screen.getByText('tab.createNew'));
-    expect(mockNavigate).toHaveBeenCalledWith('/projects/proj-42/boms/new');
+    expect(mockNavigate).toHaveBeenCalledWith('/projects/proj-42/bom/new');
   });
 
-  it('opens the view modal when the eye button is clicked and closes it again', () => {
+  it('navigates to the BOM detail page when the eye button is clicked', () => {
     mockUseProjectBoms.mockReturnValue({
       data: [makeBom({ id: 'bom-1' })],
       isLoading: false,
@@ -182,16 +181,32 @@ describe('BomTab', () => {
     });
     render(<BomTab projectId="proj-1" />);
 
-    expect(screen.queryByTestId('bom-items-modal')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('bom-view-bom-1'));
+    expect(mockNavigate).toHaveBeenCalledWith('/projects/proj-1/bom/bom-1');
+  });
 
-    fireEvent.click(screen.getByLabelText('tab.viewBom'));
+  it('navigates to the Edit BOM page from an active BOM row', () => {
+    mockUseProjectBoms.mockReturnValue({
+      data: [makeBom({ id: 'bom-1', status: 'ACTIVE' })],
+      isLoading: false,
+      isError: false,
+    });
+    render(<BomTab projectId="proj-1" />);
 
-    const modal = screen.getByTestId('bom-items-modal');
-    expect(modal).toBeInTheDocument();
-    expect(modal).toHaveTextContent('bom-1');
+    fireEvent.click(screen.getByTestId('bom-edit-bom-1'));
+    expect(mockNavigate).toHaveBeenCalledWith('/projects/proj-1/bom/bom-1/edit');
+  });
 
-    fireEvent.click(screen.getByText('x'));
-    expect(screen.queryByTestId('bom-items-modal')).not.toBeInTheDocument();
+  it('does not render an Edit action for historical BOM rows', () => {
+    mockUseProjectBoms.mockReturnValue({
+      data: [makeBom({ id: 'bom-2', status: 'SUPERSEDED' })],
+      isLoading: false,
+      isError: false,
+    });
+    render(<BomTab projectId="proj-1" />);
+
+    expect(screen.getByTestId('bom-view-bom-2')).toBeInTheDocument();
+    expect(screen.queryByTestId('bom-edit-bom-2')).not.toBeInTheDocument();
   });
 
   it('renders pagination and forwards page/size changes for non-empty tables', () => {

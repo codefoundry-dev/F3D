@@ -159,7 +159,11 @@ export function useMrProjectDetail(projectId: string | undefined) {
 export function useMrMaterialSuggestions(search: string) {
   return useQuery({
     queryKey: ['material-suggestions', search],
-    queryFn: () => getMaterialSuggestions(search),
+    // The catalogue suggestions endpoint now returns grouped results
+    // ({ results, frequentlyUsed, recentlyUsed }, US 4.04); the MR Catalog tab
+    // only needs the flat search results.
+    queryFn: () => getMaterialSuggestions({ q: search, limit: 25 }),
+    select: (data) => data.results,
   });
 }
 

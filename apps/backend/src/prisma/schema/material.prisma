@@ -79,6 +79,7 @@ model Material {
   materialListItems    MaterialListItem[]
   changeRequests       MaterialChangeRequest[]
   favourites           MaterialFavourite[]
+  usages               MaterialUsage[]         @relation("MaterialUsageMaterial")
   stockBalances        StockBalance[]          @relation("StockBalanceMaterial")
   stockMovements       StockMovement[]         @relation("StockMovementMaterial")
   deliveryReportLines  DeliveryReportLine[]    @relation("DeliveryReportLineMaterial")
@@ -167,4 +168,27 @@ model MaterialFavourite {
   @@unique([userId, materialId], map: "idx_material_favourites_user_material")
   @@index([materialId], map: "idx_material_favourites_material")
   @@map("material_favourites")
+}
+
+/// A lightweight per-user usage signal on a catalogue material (US 4.04). Bumped
+/// (upsert: useCount + 1, lastUsedAt = now) whenever the user "uses" a material
+/// — currently when it is added to a material list or referenced by a created
+/// BOM line. Backs the catalogue search autocomplete's "Recently used" (top by
+/// lastUsedAt) and "Frequently used" (top by useCount) groups. The composite
+/// (user_id, material_id) unique makes the bump idempotent per user+material.
+model MaterialUsage {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  materialId String   @map("material_id")
+  useCount   Int      @default(1) @map("use_count")
+  lastUsedAt DateTime @default(now()) @map("last_used_at")
+
+  user     User     @relation("MaterialUsageUser", fields: [userId], references: [id], onDelete: Cascade)
+  material Material  @relation("MaterialUsageMaterial", fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, materialId], map: "idx_material_usage_user_material")
+  @@index([userId, lastUsedAt], map: "idx_material_usage_user_recent")
+  @@index([userId, useCount], map: "idx_material_usage_user_frequent")
+  @@index([materialId], map: "idx_material_usage_material")
+  @@map("material_usage")
 }

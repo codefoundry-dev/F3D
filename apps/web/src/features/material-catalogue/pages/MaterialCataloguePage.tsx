@@ -1,10 +1,11 @@
 import { type MaterialListItemDto, type MaterialListSummaryDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { Button, Input, Select, TablePagination, useDebounce } from '@forethread/ui-components';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
 import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -17,6 +18,8 @@ import {
 } from '../components/ConfirmMaterialModal';
 import { CreateEditMaterialListModal } from '../components/CreateEditMaterialListModal';
 import { MaterialListsPanel } from '../components/MaterialListsPanel';
+import { MaterialNoResults } from '../components/MaterialNoResults';
+import { MaterialSearchDropdown } from '../components/MaterialSearchDropdown';
 import { MaterialTable, type MaterialSortKey } from '../components/MaterialTable';
 import { PendingApprovalList } from '../components/PendingApprovalList';
 import { PendingChangeRequestCard } from '../components/PendingChangeRequestCard';
@@ -24,10 +27,16 @@ import {
   useMaterialChangeRequestMutations,
   useMaterialChangeRequests,
 } from '../hooks/useMaterialChangeRequests';
+import { useMaterialFacets } from '../hooks/useMaterialFacets';
 import { useMaterialFavouriteMutations } from '../hooks/useMaterialFavouriteMutations';
 import { useMaterialLists, useMaterialListMutations } from '../hooks/useMaterialLists';
 import { useMaterialMutations } from '../hooks/useMaterialMutations';
 import { useMaterialCategories, useMaterials } from '../hooks/useMaterials';
+import {
+  useFrequentlyUsedMaterials,
+  useMaterialSearchSuggestions,
+  useRecentMaterials,
+} from '../hooks/useMaterialSearch';
 
 // SA manages the public catalogue lifecycle; CA / PO contribute + curate lists.
 type Tab = 'public' | 'pending' | 'archived' | 'favorites' | 'materialList';
@@ -45,6 +54,15 @@ export default function MaterialCataloguePage() {
   const { has } = usePermissions();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Surface the page title + subtitle in the global app header (matches Figma —
+  // the catalogue header lives in AppLayout, not in-content). No back route for
+  // the top-level catalogue page.
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(t('page.title'), t('page.subtitle'));
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
 
   const canApprove = has('material.approve');
   // SA (approver) sees the lifecycle-management tabs; CA / PO see the
@@ -91,11 +109,32 @@ export default function MaterialCataloguePage() {
   const [editList, setEditList] = useState<MaterialListSummaryDto | null>(null);
   const [deleteList, setDeleteList] = useState<MaterialListSummaryDto | null>(null);
 
+  // Search autocomplete dropdown (US 4.04) — focus state + a short debounce so
+  // suggestions fire while typing without hammering the endpoint.
+  const [searchFocused, setSearchFocused] = useState(false);
+  const searchWrapRef = useRef<HTMLDivElement>(null);
+
   const debouncedSearch = useDebounce(search, 400);
   const debouncedListSearch = useDebounce(listSearch, 400);
+  const suggestionTerm = useDebounce(search.trim(), 250);
 
   const { data: categories } = useMaterialCategories();
+  const { facets } = useMaterialFacets();
   const mutations = useMaterialMutations();
+
+  // Suggestion data for the dropdown. Only the contributor table tabs show it,
+  // and only while the input is focused with a non-empty query.
+  const dropdownOpen = searchFocused && Boolean(suggestionTerm);
+  const suggestionsQuery = useMaterialSearchSuggestions(suggestionTerm, {
+    enabled: dropdownOpen,
+  });
+  const frequentlyUsed = useFrequentlyUsedMaterials(suggestionsQuery.data);
+  const { recent: recentMaterials, record: recordRecentMaterial } = useRecentMaterials();
+
+  // Prefer the locally-tracked recents (what the user opened from the dropdown);
+  // fall back to the backend's recentlyUsed group before the user has any.
+  const recentlyUsed =
+    recentMaterials.length > 0 ? recentMaterials : (suggestionsQuery.data?.recentlyUsed ?? []);
 
   // Favourites (US 4.03) — optimistic star toggle for CA / PO.
   const canFavourite = has('material.favourite');
@@ -164,6 +203,12 @@ export default function MaterialCataloguePage() {
   const total = tableQuery.data?.meta.total ?? 0;
   const searchActive = Boolean(debouncedSearch.trim());
 
+  // A committed search that returned zero rows swaps the table + pagination for
+  // the centered "No results found" empty state (US 4.04). Favourites uses its
+  // own empty copy, so we only take over the search-zero case here.
+  const showNoResults =
+    searchActive && !tableQuery.isLoading && !tableQuery.isError && tableItems.length === 0;
+
   const handleSort = (key: MaterialSortKey) => {
     if (sortBy === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -176,6 +221,26 @@ export default function MaterialCataloguePage() {
 
   const openConfirm = (action: ConfirmMaterialAction, material: MaterialListItemDto) =>
     setConfirm({ action, material });
+
+  // Preview a material from the search dropdown: remember it (Recently used) and
+  // navigate to its detail page.
+  const handleSearchSelect = (material: { id: string; name: string }) => {
+    const groups = suggestionsQuery.data;
+    const full = groups?.results.find((m) => m.id === material.id) ??
+      groups?.frequentlyUsed.find((m) => m.id === material.id) ??
+      groups?.recentlyUsed.find((m) => m.id === material.id) ??
+      recentMaterials.find((m) => m.id === material.id) ?? {
+        id: material.id,
+        name: material.name,
+        categoryName: null,
+        uom: null,
+        description: null,
+        imageUrl: null,
+      };
+    recordRecentMaterial(full);
+    setSearchFocused(false);
+    navigate(buildDetailPath(material.id));
+  };
 
   const runConfirm = () => {
     if (!confirm) return;
@@ -207,11 +272,6 @@ export default function MaterialCataloguePage() {
 
   return (
     <div className="p-8 space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-foreground">{t('page.title')}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t('page.subtitle')}</p>
-      </header>
-
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border">
         <div className="flex items-center gap-6" role="tablist" aria-label={t('page.title')}>
           {tabs.map((tab) => {
@@ -351,8 +411,18 @@ export default function MaterialCataloguePage() {
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-3">
-            <div className="relative w-full sm:w-80">
-              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <div
+              ref={searchWrapRef}
+              className="relative w-full sm:w-72"
+              onBlur={(e) => {
+                // Close only when focus leaves the whole search region (input +
+                // dropdown), so clicking a result still registers.
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                  setSearchFocused(false);
+                }
+              }}
+            >
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
               <Input
                 aria-label={t('page.searchLabel')}
                 placeholder={t('page.searchPlaceholder')}
@@ -361,9 +431,27 @@ export default function MaterialCataloguePage() {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
+                onFocus={() => setSearchFocused(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setSearchFocused(false);
+                }}
+                role="combobox"
+                aria-expanded={dropdownOpen}
+                aria-controls="material-search-dropdown"
                 data-testid="material-search"
                 className="pl-9"
               />
+              {dropdownOpen && (
+                <MaterialSearchDropdown
+                  query={suggestionTerm}
+                  results={suggestionsQuery.data?.results ?? []}
+                  resultCount={suggestionsQuery.data?.results.length}
+                  frequentlyUsed={frequentlyUsed.data}
+                  recentlyUsed={recentlyUsed}
+                  isLoading={suggestionsQuery.isLoading}
+                  onSelect={handleSearchSelect}
+                />
+              )}
             </div>
 
             <FilterSelect
@@ -376,7 +464,7 @@ export default function MaterialCataloguePage() {
               testId="filter-category"
               options={(categories ?? []).map((c) => ({ value: c.id, label: c.name }))}
             />
-            <FreeTextFilter
+            <FilterSelect
               value={manufacturer}
               onChange={(v) => {
                 setManufacturer(v);
@@ -384,8 +472,9 @@ export default function MaterialCataloguePage() {
               }}
               placeholder={t('filters.manufacturer')}
               testId="filter-manufacturer"
+              options={facets.manufacturers.map((m) => ({ value: m, label: m }))}
             />
-            <FreeTextFilter
+            <FilterSelect
               value={uom}
               onChange={(v) => {
                 setUom(v);
@@ -393,8 +482,9 @@ export default function MaterialCataloguePage() {
               }}
               placeholder={t('filters.uom')}
               testId="filter-uom"
+              options={facets.uoms.map((u) => ({ value: u, label: u }))}
             />
-            <FreeTextFilter
+            <FilterSelect
               value={materialType}
               onChange={(v) => {
                 setMaterialType(v);
@@ -402,8 +492,9 @@ export default function MaterialCataloguePage() {
               }}
               placeholder={t('filters.materialType')}
               testId="filter-material-type"
+              options={facets.materialTypes.map((m) => ({ value: m, label: m }))}
             />
-            <FreeTextFilter
+            <FilterSelect
               value={countryOfOrigin}
               onChange={(v) => {
                 setCountryOfOrigin(v);
@@ -411,59 +502,67 @@ export default function MaterialCataloguePage() {
               }}
               placeholder={t('filters.countryOfOrigin')}
               testId="filter-country"
+              options={facets.countriesOfOrigin.map((c) => ({ value: c, label: c }))}
             />
           </div>
 
-          <MaterialTable
-            tab={activeTab === 'archived' ? 'archived' : 'public'}
-            items={tableItems}
-            isLoading={tableQuery.isLoading}
-            isError={tableQuery.isError}
-            searchActive={searchActive}
-            emptyText={activeTab === 'favorites' ? t('favourites.empty') : undefined}
-            permissions={{
-              canEdit: has('material.update'),
-              canArchive: has('material.archive'),
-              canRestore: has('material.restore'),
-              canDelete: has('material.delete'),
-            }}
-            sortBy={sortBy}
-            sortDir={sortDir}
-            onSort={handleSort}
-            onView={(id) => navigate(buildDetailPath(id))}
-            onEdit={(id) => navigate(buildEditPath(id))}
-            onArchive={(m) => openConfirm('archive', m)}
-            onRestore={(m) => openConfirm('restore', m)}
-            onDelete={(m) => openConfirm('delete', m)}
-            onToggleFavourite={
-              showContributorTabs && canFavourite
-                ? (m) => favouriteMutations.toggle(m.id, Boolean(m.isFavourite))
-                : undefined
-            }
-            onAddToList={
-              showContributorTabs && has('materialList.manageItems')
-                ? (m) => setAddToListMaterial(m)
-                : undefined
-            }
-          />
+          {showNoResults ? (
+            <MaterialNoResults query={debouncedSearch.trim()} />
+          ) : (
+            <>
+              <MaterialTable
+                tab={activeTab === 'archived' ? 'archived' : 'public'}
+                items={tableItems}
+                isLoading={tableQuery.isLoading}
+                isError={tableQuery.isError}
+                searchActive={searchActive}
+                searchQuery={debouncedSearch.trim()}
+                emptyText={activeTab === 'favorites' ? t('favourites.empty') : undefined}
+                permissions={{
+                  canEdit: has('material.update'),
+                  canArchive: has('material.archive'),
+                  canRestore: has('material.restore'),
+                  canDelete: has('material.delete'),
+                }}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                onSort={handleSort}
+                onView={(id) => navigate(buildDetailPath(id))}
+                onEdit={(id) => navigate(buildEditPath(id))}
+                onArchive={(m) => openConfirm('archive', m)}
+                onRestore={(m) => openConfirm('restore', m)}
+                onDelete={(m) => openConfirm('delete', m)}
+                onToggleFavourite={
+                  showContributorTabs && canFavourite
+                    ? (m) => favouriteMutations.toggle(m.id, Boolean(m.isFavourite))
+                    : undefined
+                }
+                onAddToList={
+                  showContributorTabs && has('materialList.manageItems')
+                    ? (m) => setAddToListMaterial(m)
+                    : undefined
+                }
+              />
 
-          <TablePagination
-            page={page}
-            totalItems={total}
-            pageSize={pageSize}
-            pageSizeOptions={PAGE_SIZE_OPTIONS}
-            onPageChange={setPage}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setPage(1);
-            }}
-            rowsPerPageLabel={t('pagination.rowsPerPage')}
-            showingLabel={({ from, to, total: tot }) =>
-              t('pagination.showing', { from, to, total: tot })
-            }
-            backLabel={t('pagination.back')}
-            nextLabel={t('pagination.next')}
-          />
+              <TablePagination
+                page={page}
+                totalItems={total}
+                pageSize={pageSize}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
+                onPageChange={setPage}
+                onPageSizeChange={(size) => {
+                  setPageSize(size);
+                  setPage(1);
+                }}
+                rowsPerPageLabel={t('pagination.rowsPerPage')}
+                showingLabel={({ from, to, total: tot }) =>
+                  t('pagination.showing', { from, to, total: tot })
+                }
+                backLabel={t('pagination.back')}
+                nextLabel={t('pagination.next')}
+              />
+            </>
+          )}
         </>
       )}
 
@@ -548,6 +647,12 @@ interface FilterSelectProps {
   options: { value: string; label: string }[];
 }
 
+/**
+ * A catalogue filter dropdown (US 4.04). All five facets — category,
+ * manufacturer, UoM, material type, country of origin — render as a Select with
+ * a placeholder "all" option, matching the Figma chevron dropdowns. When a facet
+ * has no derived options the dropdown still renders (placeholder only).
+ */
 function FilterSelect({ value, onChange, placeholder, testId, options }: FilterSelectProps) {
   return (
     <Select
@@ -555,7 +660,7 @@ function FilterSelect({ value, onChange, placeholder, testId, options }: FilterS
       onChange={(e) => onChange(e.target.value)}
       aria-label={placeholder}
       data-testid={testId}
-      className="w-auto min-w-[150px] rounded-xl"
+      className="w-auto min-w-[128px] rounded-xl"
     >
       <option value="">{placeholder}</option>
       {options.map((o) => (
@@ -564,33 +669,5 @@ function FilterSelect({ value, onChange, placeholder, testId, options }: FilterS
         </option>
       ))}
     </Select>
-  );
-}
-
-interface FreeTextFilterProps {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  testId: string;
-}
-
-/**
- * The manufacturer / uom / material-type / country facets are free-text on the
- * backend (it does a contains / equals match), and the catalogue has no fixed
- * enum for them yet, so we expose a compact text input rather than a dropdown
- * of unknown options. Visually it sits alongside the category dropdown.
- */
-function FreeTextFilter({ value, onChange, placeholder, testId }: FreeTextFilterProps) {
-  return (
-    <div className="w-44">
-      <Input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        aria-label={placeholder}
-        data-testid={testId}
-        className="w-full"
-      />
-    </div>
   );
 }

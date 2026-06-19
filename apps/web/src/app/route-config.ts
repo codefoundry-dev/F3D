@@ -68,6 +68,8 @@ export const ROUTES = {
   projectDetail: '/projects/:id',
   projectEdit: '/projects/:id/edit',
   projectBomCreate: '/projects/:id/bom/new',
+  projectBomDetail: '/projects/:id/bom/:bomId',
+  projectBomEdit: '/projects/:id/bom/:bomId/edit',
 
   // ── Invoices ───────────────────────────────────────────────────────
   invoices: '/invoices',

@@ -1,6 +1,7 @@
 import type { BomListItemDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { Button, Input, Spinner, TablePagination } from '@forethread/ui-components';
+import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
 import { useMemo, useState } from 'react';
@@ -9,8 +10,6 @@ import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/app/route-config';
 
 import { useProjectBoms } from '../hooks/useBoms';
-
-import { BomItemsModal } from './BomItemsModal';
 
 type TFn = (key: string, options?: Record<string, unknown>) => string;
 
@@ -24,11 +23,14 @@ function BomTable({
   boms,
   emptyText,
   onView,
+  onEdit,
   t,
 }: {
   boms: BomListItemDto[];
   emptyText: string;
   onView: (id: string) => void;
+  /** When supplied, an Edit action is rendered per row (active BOMs only). */
+  onEdit?: (id: string) => void;
   t: TFn;
 }) {
   const [page, setPage] = useState(1);
@@ -73,15 +75,30 @@ function BomTable({
                 <td className={td}>{formatDate(bom.createdAt)}</td>
                 <td className={td}>{formatDate(bom.updatedAt)}</td>
                 <td className={td}>
-                  <button
-                    type="button"
-                    onClick={() => onView(bom.id)}
-                    aria-label={t('tab.viewBom')}
-                    title={t('tab.viewBom')}
-                    className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <EyeIcon className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onView(bom.id)}
+                      aria-label={t('tab.viewBom')}
+                      title={t('tab.viewBom')}
+                      className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                      data-testid={`bom-view-${bom.id}`}
+                    >
+                      <EyeIcon className="w-4 h-4" />
+                    </button>
+                    {onEdit && (
+                      <button
+                        type="button"
+                        onClick={() => onEdit(bom.id)}
+                        aria-label={t('tab.editBom')}
+                        title={t('tab.editBom')}
+                        className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                        data-testid={`bom-edit-${bom.id}`}
+                      >
+                        <EditIcon className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -106,9 +123,9 @@ function BomTable({
 }
 
 /**
- * "Bill of Materials" tab of the project details view (US 5.01): the active
- * project BOM plus superseded versions, with the Create-new entry point into
- * the BOM upload wizard.
+ * "Bill of Materials" tab of the project details view (US 5.01 / 5.02): the
+ * active project BOM plus superseded versions, with the Create-new entry point
+ * into the upload wizard and Eye / Edit actions into the BOM detail + editor.
  */
 export function BomTab({ projectId }: { projectId: string }) {
   const { t: tRaw } = useTranslation('boms');
@@ -116,7 +133,11 @@ export function BomTab({ projectId }: { projectId: string }) {
   const navigate = useNavigate();
   const { data: boms, isLoading, isError } = useProjectBoms(projectId);
   const [search, setSearch] = useState('');
-  const [viewBomId, setViewBomId] = useState<string | null>(null);
+
+  const viewBom = (bomId: string) =>
+    navigate(ROUTES.projectBomDetail.replace(':id', projectId).replace(':bomId', bomId));
+  const editBom = (bomId: string) =>
+    navigate(ROUTES.projectBomEdit.replace(':id', projectId).replace(':bomId', bomId));
 
   const filtered = useMemo(() => {
     const all = boms ?? [];
@@ -166,22 +187,21 @@ export function BomTab({ projectId }: { projectId: string }) {
             </Button>
           </div>
 
-          <BomTable boms={active} emptyText={t('tab.emptyActive')} onView={setViewBomId} t={t} />
+          <BomTable
+            boms={active}
+            emptyText={t('tab.emptyActive')}
+            onView={viewBom}
+            onEdit={editBom}
+            t={t}
+          />
         </div>
       </section>
 
       {/* Historical BOM versions */}
       <section className="bg-card rounded-lg border border-border p-4">
         <h2 className="text-base font-bold text-foreground mb-4">{t('tab.historicalTitle')}</h2>
-        <BomTable
-          boms={historical}
-          emptyText={t('tab.emptyHistorical')}
-          onView={setViewBomId}
-          t={t}
-        />
+        <BomTable boms={historical} emptyText={t('tab.emptyHistorical')} onView={viewBom} t={t} />
       </section>
-
-      {viewBomId && <BomItemsModal bomId={viewBomId} onClose={() => setViewBomId(null)} />}
     </div>
   );
 }

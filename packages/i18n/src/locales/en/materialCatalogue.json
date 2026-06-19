@@ -40,6 +40,18 @@
     "materialType": "Material type",
     "countryOfOrigin": "Country of origin"
   },
+  "search": {
+    "dropdownLabel": "Search suggestions",
+    "resultCount": "{{count}} results",
+    "resultCount_one": "{{count}} result",
+    "loading": "Searching…",
+    "noSuggestions": "No suggestions for \"{{query}}\".",
+    "frequentlyUsed": "Frequently used",
+    "recentlyUsed": "Recently used",
+    "unitOfMeasuresFallback": "Unit of measures",
+    "noResultsTitle": "No results found",
+    "noResultsBody": "We couldn't find any results matching \"{{query}}\". Try adjusting your search or filters to find what you're looking for."
+  },
   "status": {
     "public": "Public",
     "pending": "Pending",
@@ -473,7 +485,7 @@
     "nameRequired": "Name is required."
   },
   "addToMaterialListModal": {
-    "title": "Add to material list",
+    "title": "Add from Material list",
     "subtitle": "Choose a list to add this material to",
     "searchPlaceholder": "Search",
     "loading": "Loading material lists…",

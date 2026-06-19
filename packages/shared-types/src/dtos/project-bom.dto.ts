@@ -92,6 +92,20 @@ export class CreateBomDto {
   items!: CreateBomItemDto[];
 }
 
+export class UpdateBomDto {
+  @ApiProperty({
+    type: [CreateBomItemDto],
+    description:
+      'Replacement line items for the BOM. The full set is replaced in place ' +
+      '(existing lines deleted, these recreated) — this does NOT create a new ' +
+      'BOM version. An empty array clears all lines.',
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateBomItemDto)
+  items!: CreateBomItemDto[];
+}
+
 export class BomListQueryDto {
   @ApiPropertyOptional({ description: 'Filter BOMs to one project.' })
   @IsOptional()

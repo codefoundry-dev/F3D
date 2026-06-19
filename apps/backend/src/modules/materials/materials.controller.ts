@@ -3,6 +3,7 @@ import {
   CreateMaterialDto,
   DetectMaterialDuplicatesDto,
   MaterialListQueryDto,
+  MaterialSuggestionsQueryDto,
   RejectMaterialDto,
   ResolveMaterialChangeDto,
   UpdateMaterialDto,
@@ -67,10 +68,15 @@ export class MaterialsController {
 
   @Get('suggestions')
   @RequirePermissions('material.suggestions')
-  @ApiOperation({ summary: 'Quick search for materials (autocomplete)' })
-  @ApiResponse({ status: 200, description: 'List of matching materials (max 10)' })
-  async suggestions(@Query('search') search: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.materialsService.suggestions(search ?? '', user);
+  @ApiOperation({ summary: 'Catalogue search autocomplete (results + recently/frequently used)' })
+  @ApiResponse({ status: 200, description: 'Grouped material suggestions' })
+  async suggestions(
+    @Query() query: MaterialSuggestionsQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    // `q` is the documented param; `search` is accepted as a legacy alias.
+    const term = query.q ?? query.search ?? '';
+    return this.materialsService.suggestions(term, user, query.limit);
   }
 
   // ── POST /v1/materials ──────────────────────────────────────────────────────

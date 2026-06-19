@@ -20,6 +20,10 @@ const mockPrisma = {
   },
 };
 
+const mockMaterials = {
+  recordMaterialUsage: jest.fn().mockResolvedValue(undefined),
+};
+
 const companyAdmin = {
   id: 'ca-1',
   email: 'ca@test.com',
@@ -66,7 +70,7 @@ describe('MaterialListsService (CRUD — US 4.03)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new MaterialListsService(mockPrisma as never);
+    service = new MaterialListsService(mockPrisma as never, mockMaterials as never);
   });
 
   // ── createList ─────────────────────────────────────────────────────────────
@@ -214,6 +218,8 @@ describe('MaterialListsService (CRUD — US 4.03)', () => {
       expect(mockPrisma.materialList.update).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: 'list-1' } }),
       );
+      // Per-user usage signal recorded for the added materials (US 4.04).
+      expect(mockMaterials.recordMaterialUsage).toHaveBeenCalledWith('ca-1', ['m-1', 'm-2']);
       expect(res.id).toBe('list-1');
       expect(res.items).toHaveLength(1);
     });

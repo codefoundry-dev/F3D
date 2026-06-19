@@ -17,6 +17,7 @@ import PlusInCircleIcon from '@forethread/ui-components/assets/icons/plus-in-cir
 import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
 import { useMemo, useState } from 'react';
 
+import { useMaterialFacets } from '../hooks/useMaterialFacets';
 import { useMaterialListMutations } from '../hooks/useMaterialLists';
 import { useMaterialCategories, useMaterials } from '../hooks/useMaterials';
 
@@ -99,6 +100,7 @@ export function AddMaterialsToListModal({
   const debouncedSearch = useDebounce(search, 400);
   const existing = useMemo(() => new Set(existingMaterialIds), [existingMaterialIds]);
   const { data: categories } = useMaterialCategories();
+  const { facets } = useMaterialFacets();
 
   const hasActiveFilters = Boolean(
     categoryId || manufacturer || uom || materialType || countryOfOrigin,
@@ -200,47 +202,40 @@ export function AddMaterialsToListModal({
             clearAllLabel={t('addMaterialsToListModal.clearFilters')}
           >
             <div className="space-y-3" data-testid="add-materials-filters">
-              <Select
+              <FacetSelect
                 value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                aria-label={t('filters.allCategories')}
-                data-testid="add-materials-filter-category"
-                className="w-full rounded-xl"
-              >
-                <option value="">{t('filters.allCategories')}</option>
-                {(categories ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </Select>
-              <Input
+                onChange={setCategoryId}
+                placeholder={t('filters.allCategories')}
+                testId="add-materials-filter-category"
+                options={(categories ?? []).map((c) => ({ value: c.id, label: c.name }))}
+              />
+              <FacetSelect
                 value={manufacturer}
-                onChange={(e) => setManufacturer(e.target.value)}
+                onChange={setManufacturer}
                 placeholder={t('filters.manufacturer')}
-                aria-label={t('filters.manufacturer')}
-                data-testid="add-materials-filter-manufacturer"
+                testId="add-materials-filter-manufacturer"
+                options={facets.manufacturers.map((m) => ({ value: m, label: m }))}
               />
-              <Input
+              <FacetSelect
                 value={uom}
-                onChange={(e) => setUom(e.target.value)}
+                onChange={setUom}
                 placeholder={t('filters.uom')}
-                aria-label={t('filters.uom')}
-                data-testid="add-materials-filter-uom"
+                testId="add-materials-filter-uom"
+                options={facets.uoms.map((u) => ({ value: u, label: u }))}
               />
-              <Input
+              <FacetSelect
                 value={materialType}
-                onChange={(e) => setMaterialType(e.target.value)}
+                onChange={setMaterialType}
                 placeholder={t('filters.materialType')}
-                aria-label={t('filters.materialType')}
-                data-testid="add-materials-filter-material-type"
+                testId="add-materials-filter-material-type"
+                options={facets.materialTypes.map((m) => ({ value: m, label: m }))}
               />
-              <Input
+              <FacetSelect
                 value={countryOfOrigin}
-                onChange={(e) => setCountryOfOrigin(e.target.value)}
+                onChange={setCountryOfOrigin}
                 placeholder={t('filters.countryOfOrigin')}
-                aria-label={t('filters.countryOfOrigin')}
-                data-testid="add-materials-filter-country"
+                testId="add-materials-filter-country"
+                options={facets.countriesOfOrigin.map((c) => ({ value: c, label: c }))}
               />
             </div>
           </FilterPanel>
@@ -346,5 +341,37 @@ export function AddMaterialsToListModal({
         </Button>
       </ModalFooter>
     </Modal>
+  );
+}
+
+interface FacetSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  testId: string;
+  options: { value: string; label: string }[];
+}
+
+/**
+ * A facet dropdown for the add-materials filters — "Filter as in material
+ * catalog" per the Figma annotation, so these mirror the catalogue's dropdowns.
+ * Renders gracefully (placeholder only) when a facet has no values.
+ */
+function FacetSelect({ value, onChange, placeholder, testId, options }: FacetSelectProps) {
+  return (
+    <Select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label={placeholder}
+      data-testid={testId}
+      className="w-full rounded-xl"
+    >
+      <option value="">{placeholder}</option>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </Select>
   );
 }

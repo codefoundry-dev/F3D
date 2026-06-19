@@ -29,6 +29,8 @@ export interface MaterialTableProps {
   isLoading: boolean;
   isError: boolean;
   searchActive: boolean;
+  /** The active search term, echoed into the in-table "no results" copy. */
+  searchQuery?: string;
   /** Overrides the default "no materials yet" empty-state copy (e.g. favourites). */
   emptyText?: string;
   permissions: MaterialTablePermissions;
@@ -109,6 +111,7 @@ export function MaterialTable({
   isLoading,
   isError,
   searchActive,
+  searchQuery,
   emptyText,
   permissions,
   sortBy,
@@ -235,7 +238,11 @@ export function MaterialTable({
           ) : items.length === 0 ? (
             <tr>
               <td colSpan={columnCount} className="px-3 py-8 text-center text-muted-foreground">
-                {searchActive ? t('table.noResults') : (emptyText ?? t('table.empty'))}
+                {searchActive
+                  ? searchQuery
+                    ? t('search.noResultsBody', { query: searchQuery })
+                    : t('table.noResults')
+                  : (emptyText ?? t('table.empty'))}
               </td>
             </tr>
           ) : (
