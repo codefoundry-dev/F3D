@@ -41,6 +41,7 @@ const mockTx = {
   project: {
     create: jest.fn(),
     update: jest.fn(),
+    count: jest.fn(),
   },
   projectLocation: {
     deleteMany: jest.fn(),
@@ -135,10 +136,17 @@ describe('ProjectsService', () => {
       ]);
     });
 
+    it('filters by project type', async () => {
+      await service.listProjects(q({ type: 'Residential' }), superAdmin);
+      const whereArg = mockPrisma.project.findMany.mock.calls[0][0].where;
+      expect(whereArg.type).toBe('Residential');
+    });
+
     it('returns mapped items with meta', async () => {
       mockPrisma.project.findMany.mockResolvedValue([
         {
           id: 'p-1',
+          code: 'PRJ-2025-001',
           name: 'Test',
           description: 'Desc',
           status: 'PLANNED',
@@ -146,6 +154,10 @@ describe('ProjectsService', () => {
           locations: [
             { type: 'DELIVERY', address: '123 Main', isDefault: true },
             { type: 'STORAGE', address: '456 Ware', isDefault: true },
+          ],
+          members: [
+            { user: { id: 'u-1', name: 'Alice', avatarUrl: 'http://img/a.png' } },
+            { user: { id: 'u-2', name: 'Bob', avatarUrl: null } },
           ],
           _count: { members: 3 },
           startDate: new Date('2026-01-01'),
@@ -157,10 +169,26 @@ describe('ProjectsService', () => {
 
       const result = await service.listProjects(q({ page: 1, limit: 25 }), superAdmin);
       expect(result.items).toHaveLength(1);
+      expect(result.items[0].code).toBe('PRJ-2025-001');
       expect(result.items[0].defaultDeliveryLocation).toBe('123 Main');
       expect(result.items[0].defaultStorageLocation).toBe('456 Ware');
       expect(result.items[0].memberCount).toBe(3);
+      expect(result.items[0].memberAvatars).toEqual([
+        { id: 'u-1', name: 'Alice', avatarUrl: 'http://img/a.png' },
+        { id: 'u-2', name: 'Bob', avatarUrl: null },
+      ]);
       expect(result.meta).toEqual({ page: 1, limit: 25, total: 1, totalPages: 1 });
+    });
+
+    it('requests a capped member preview for the avatar stack', async () => {
+      await service.listProjects(q(), superAdmin);
+      const includeArg = mockPrisma.project.findMany.mock.calls[0][0].include;
+      expect(includeArg.members.take).toBe(5);
+      expect(includeArg.members.include.user.select).toEqual({
+        id: true,
+        name: true,
+        avatarUrl: true,
+      });
     });
 
     it('caps limit at 100', async () => {
@@ -173,11 +201,13 @@ describe('ProjectsService', () => {
       mockPrisma.project.findMany.mockResolvedValue([
         {
           id: 'p-2',
+          code: 'PRJ-2026-001',
           name: 'Empty',
           description: null,
           status: 'PLANNED',
           type: null,
           locations: [],
+          members: [],
           _count: { members: 1 },
           startDate: null,
           expectedEndDate: null,
@@ -220,6 +250,42 @@ describe('ProjectsService', () => {
       expect(orderBy.startDate).toBe('asc');
     });
 
+    it('sorts by code', async () => {
+      await service.listProjects(
+        q({ sortBy: 'code' as never, sortDir: 'asc' as never }),
+        superAdmin,
+      );
+      const orderBy = mockPrisma.project.findMany.mock.calls[0][0].orderBy;
+      expect(orderBy.code).toBe('asc');
+    });
+
+    it('sorts by expectedEndDate', async () => {
+      await service.listProjects(
+        q({ sortBy: 'expectedEndDate' as never, sortDir: 'desc' as never }),
+        superAdmin,
+      );
+      const orderBy = mockPrisma.project.findMany.mock.calls[0][0].orderBy;
+      expect(orderBy.expectedEndDate).toBe('desc');
+    });
+
+    it('sorts by type', async () => {
+      await service.listProjects(
+        q({ sortBy: 'type' as never, sortDir: 'asc' as never }),
+        superAdmin,
+      );
+      const orderBy = mockPrisma.project.findMany.mock.calls[0][0].orderBy;
+      expect(orderBy.type).toBe('asc');
+    });
+
+    it('maps the endDate sort alias onto expectedEndDate', async () => {
+      await service.listProjects(
+        q({ sortBy: 'endDate' as never, sortDir: 'asc' as never }),
+        superAdmin,
+      );
+      const orderBy = mockPrisma.project.findMany.mock.calls[0][0].orderBy;
+      expect(orderBy.expectedEndDate).toBe('asc');
+    });
+
     it('defaults to createdAt sort when unknown sortBy', async () => {
       await service.listProjects(q({ sortBy: 'unknown' as never }), superAdmin);
       const orderBy = mockPrisma.project.findMany.mock.calls[0][0].orderBy;
@@ -240,6 +306,7 @@ describe('ProjectsService', () => {
 
     beforeEach(() => {
       mockPrisma.project.findUnique.mockResolvedValue(null); // no duplicate
+      mockTx.project.count.mockResolvedValue(0); // first project of the year
       mockTx.project.create.mockResolvedValue({ id: 'p-new' });
       // Mock getProject after create
       mockPrisma.project.findUnique
@@ -269,6 +336,29 @@ describe('ProjectsService', () => {
       expect(mockTx.project.create).toHaveBeenCalled();
       expect(result).toBeDefined();
       expect(result.id).toBe('p-new');
+    });
+
+    it('generates a PRJ-<year>-001 code for the first project of the year', async () => {
+      mockTx.project.count.mockResolvedValue(0);
+      await service.createProject(dto, companyAdmin);
+
+      // Count is scoped to the company + the current year's code prefix.
+      const year = new Date().getFullYear();
+      const countArg = mockTx.project.count.mock.calls[0][0];
+      expect(countArg.where.companyId).toBe('comp-1');
+      expect(countArg.where.code).toEqual({ startsWith: `PRJ-${year}-` });
+
+      const createData = mockTx.project.create.mock.calls[0][0].data;
+      expect(createData.code).toBe(`PRJ-${year}-001`);
+    });
+
+    it('zero-pads the next sequence number based on the existing count', async () => {
+      mockTx.project.count.mockResolvedValue(11); // 11 projects already this year
+      await service.createProject(dto, companyAdmin);
+
+      const year = new Date().getFullYear();
+      const createData = mockTx.project.create.mock.calls[0][0].data;
+      expect(createData.code).toBe(`PRJ-${year}-012`);
     });
 
     it('throws ConflictException on duplicate name', async () => {
@@ -510,6 +600,7 @@ describe('ProjectsService', () => {
     it('returns formatted project', async () => {
       mockPrisma.project.findUnique.mockResolvedValue({
         id: 'p-1',
+        code: 'PRJ-2025-007',
         name: 'Test',
         description: 'Desc',
         status: 'PLANNED',
@@ -519,7 +610,16 @@ describe('ProjectsService', () => {
         ],
         members: [
           {
-            user: { id: 'u-1', name: 'User', email: 'u@t.com', role: 'PROCUREMENT_OFFICER' },
+            user: {
+              id: 'u-1',
+              name: 'User',
+              email: 'u@t.com',
+              role: 'PROCUREMENT_OFFICER',
+              avatarUrl: 'http://img/u.png',
+              phone: '+61400000000',
+              status: 'ACTIVE',
+              workStatus: 'AVAILABLE',
+            },
             assignedBy: { id: 'ca-1', name: 'Admin' },
             assignedAt: new Date('2026-01-01'),
           },
@@ -536,10 +636,48 @@ describe('ProjectsService', () => {
 
       const result = await service.getProject('p-1');
       expect(result.id).toBe('p-1');
+      expect(result.code).toBe('PRJ-2025-007');
       expect(result.assignedUsers).toHaveLength(1);
+      expect(result.assignedUsers[0]).toMatchObject({
+        id: 'u-1',
+        avatarUrl: 'http://img/u.png',
+        phone: '+61400000000',
+        status: 'ACTIVE',
+        workStatus: 'AVAILABLE',
+      });
       expect(result.plannedBudget).toBe(50000);
       expect(result.activeBom).toBeNull();
       expect(result.rfqCount).toBe(0);
+    });
+
+    it('requests the enriched member profile fields', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({
+        id: 'p-1',
+        code: 'PRJ-2025-001',
+        name: 'Test',
+        description: null,
+        status: 'PLANNED',
+        type: null,
+        locations: [],
+        members: [],
+        pointOfContact: null,
+        createdBy: { id: 'ca-1', name: 'Admin' },
+        plannedBudget: null,
+        currency: 'AUD',
+        startDate: null,
+        expectedEndDate: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      await service.getProject('p-1');
+      const includeArg = mockPrisma.project.findUnique.mock.calls[0][0].include;
+      expect(includeArg.members.include.user.select).toMatchObject({
+        avatarUrl: true,
+        phone: true,
+        status: true,
+        workStatus: true,
+      });
     });
 
     it('throws NotFoundException when project does not exist', async () => {
@@ -758,7 +896,16 @@ describe('ProjectsService', () => {
         .mockResolvedValueOnce([]) // existing members check
         .mockResolvedValueOnce([
           {
-            user: { id: 'u-new', name: 'New', email: 'n@t.com', role: 'PROCUREMENT_OFFICER' },
+            user: {
+              id: 'u-new',
+              name: 'New',
+              email: 'n@t.com',
+              role: 'PROCUREMENT_OFFICER',
+              avatarUrl: null,
+              phone: '+61411111111',
+              status: 'ACTIVE',
+              workStatus: null,
+            },
             assignedBy: { id: 'ca-1', name: 'Admin' },
             assignedAt: new Date(),
           },
@@ -769,6 +916,25 @@ describe('ProjectsService', () => {
       const result = await service.addMembers('p-1', ['u-new'], companyAdmin);
       expect(mockPrisma.projectMember.createMany).toHaveBeenCalled();
       expect(result.members).toHaveLength(1);
+    });
+
+    it('returns enriched member profile fields in the response', async () => {
+      const result = await service.addMembers('p-1', ['u-new'], companyAdmin);
+      expect(result.members[0]).toMatchObject({
+        id: 'u-new',
+        avatarUrl: null,
+        phone: '+61411111111',
+        status: 'ACTIVE',
+        workStatus: null,
+      });
+      // The member query must request the new profile columns.
+      const memberQuery = mockPrisma.projectMember.findMany.mock.calls.at(-1)?.[0];
+      expect(memberQuery.include.user.select).toMatchObject({
+        avatarUrl: true,
+        phone: true,
+        status: true,
+        workStatus: true,
+      });
     });
 
     it('throws NotFoundException when project not found', async () => {

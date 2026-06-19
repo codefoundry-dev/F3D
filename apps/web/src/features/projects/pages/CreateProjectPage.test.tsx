@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 const mockCreateMutation = vi.hoisted(() => ({
   mutate: vi.fn(),
@@ -9,13 +9,24 @@ const mockCreateMutation = vi.hoisted(() => ({
 
 const mockUseCompanyUsers = vi.hoisted(() => vi.fn());
 const mockUseCreateProject = vi.hoisted(() => vi.fn());
+const mockNavigate = vi.hoisted(() => vi.fn());
+const mockSetPageTitle = vi.hoisted(() => vi.fn());
+const mockAuthUser = vi.hoisted(() => ({ value: { id: 'u1', name: 'Sarah Chen', role: 'COMPANY_ADMIN' } as any }));
 
 vi.mock('@forethread/i18n', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
+vi.mock('@forethread/rfq-shared', () => ({
+  usePageTitleStore: (selector: (s: any) => any) => selector({ setTitle: mockSetPageTitle }),
+}));
+
+vi.mock('@forethread/po-shared', () => ({
+  Stepper: ({ step }: any) => <div data-testid="stepper">step-{step}</div>,
+}));
+
 vi.mock('react-router-dom', () => ({
-  Link: ({ children, to }: any) => <a href={to}>{children}</a>,
+  useNavigate: () => mockNavigate,
 }));
 
 vi.mock('@forethread/api-client', () => ({
@@ -25,16 +36,13 @@ vi.mock('@forethread/api-client', () => ({
 vi.mock('@forethread/shared-types/client', () => ({
   createProjectSchema: { parse: vi.fn() },
   ProjectStatus: {
-    ACTIVE: 'ACTIVE',
-    ON_HOLD: 'ON_HOLD',
-    COMPLETED: 'COMPLETED',
-    CANCELLED: 'CANCELLED',
     PLANNED: 'PLANNED',
+    ONGOING: 'ONGOING',
+    COMPLETED: 'COMPLETED',
+    ARCHIVED: 'ARCHIVED',
   },
-  LocationType: {
-    DELIVERY: 'DELIVERY',
-    STORAGE: 'STORAGE',
-  },
+  LocationType: { DELIVERY: 'DELIVERY', STORAGE: 'STORAGE' },
+  UserRole: { COMPANY_ADMIN: 'COMPANY_ADMIN', PROCUREMENT_OFFICER: 'PROCUREMENT_OFFICER' },
 }));
 
 vi.mock('@forethread/ui-components', () => ({
@@ -54,22 +62,6 @@ vi.mock('@forethread/ui-components', () => ({
       onChange={(e: any) => props.onChange?.(e.target.value)}
     />
   ),
-  Checkbox: (props: any) => (
-    <label>
-      <input
-        type="checkbox"
-        checked={props.checked}
-        onChange={(e: any) => props.onChange?.(e.target.checked)}
-      />
-      {props.label}
-    </label>
-  ),
-  RadioButton: (props: any) => (
-    <label>
-      <input type="radio" checked={props.checked} onChange={props.onChange} />
-      {props.label}
-    </label>
-  ),
   FormField: ({ children, label, error }: any) => (
     <div data-testid="form-field">
       <label>{label}</label>
@@ -83,27 +75,41 @@ vi.mock('@forethread/ui-components', () => ({
     </button>
   ),
   Alert: ({ children }: any) => <div data-testid="alert">{children}</div>,
+  AvatarWithStatus: ({ name }: any) => <span data-testid="avatar" title={name} />,
   DatePicker: (props: any) => (
     <input
       data-testid="date-picker"
       type="date"
       value={props.value ?? ''}
       onChange={(e: any) => props.onChange?.(e.target.value)}
-      placeholder={props.placeholder}
     />
   ),
-  buttonVariants: () => 'btn-class',
-  onPhoneOnly: vi.fn(),
-  onDigitsOnly: vi.fn(),
+  cn: (...args: any[]) => args.filter(Boolean).join(' '),
   onDecimalOnly: vi.fn(),
 }));
 
 vi.mock('@forethread/ui-components/assets/icons/delete.svg?react', () => ({
   default: () => <div data-testid="delete-icon" />,
 }));
+vi.mock('@forethread/ui-components/assets/icons/flag.svg?react', () => ({
+  default: () => <div data-testid="flag-icon" />,
+}));
+vi.mock('@forethread/ui-components/assets/icons/info.svg?react', () => ({
+  default: () => <div data-testid="info-icon" />,
+}));
+vi.mock('@forethread/ui-components/assets/icons/paperclip.svg?react', () => ({
+  default: () => <div data-testid="paperclip-icon" />,
+}));
+vi.mock('@forethread/ui-components/assets/icons/plus.svg?react', () => ({
+  default: () => <div data-testid="plus-icon" />,
+}));
 
 vi.mock('@hookform/resolvers/zod', () => ({
   zodResolver: () => () => ({ values: {}, errors: {} }),
+}));
+
+vi.mock('@/features/auth/state/auth.store', () => ({
+  useAuthStore: (selector: (s: any) => any) => selector({ currentUser: mockAuthUser.value }),
 }));
 
 vi.mock('../services/projects.service', () => ({
@@ -116,92 +122,96 @@ import CreateProjectPage from './CreateProjectPage';
 describe('CreateProjectPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAuthUser.value = { id: 'u1', name: 'Sarah Chen', role: 'COMPANY_ADMIN' };
     mockUseCreateProject.mockReturnValue(mockCreateMutation);
     mockUseCompanyUsers.mockReturnValue({ data: [] });
   });
 
-  it('renders the page title', () => {
+  it('sets the wizard title and back route on mount', () => {
     render(<CreateProjectPage />);
-    expect(screen.getByText('create.title')).toBeInTheDocument();
+    expect(mockSetPageTitle).toHaveBeenCalledWith('create.title', 'create.subtitle', '/projects');
   });
 
-  it('renders project details section', () => {
+  it('renders the stepper starting at step 1', () => {
     render(<CreateProjectPage />);
-    expect(screen.getByText('create.projectDetails')).toBeInTheDocument();
+    expect(screen.getByTestId('stepper')).toHaveTextContent('step-1');
   });
 
-  it('renders form field labels', () => {
+  it('renders the step 1 heading and project details section', () => {
     render(<CreateProjectPage />);
-    expect(screen.getByText('create.name')).toBeInTheDocument();
-    expect(screen.getByText('create.description')).toBeInTheDocument();
-    expect(screen.getByText('create.type')).toBeInTheDocument();
-    expect(screen.getByText('create.status')).toBeInTheDocument();
-    expect(screen.getByText('create.budget')).toBeInTheDocument();
-    expect(screen.getByText('create.currency')).toBeInTheDocument();
-    expect(screen.getByText('create.startDate')).toBeInTheDocument();
-    expect(screen.getByText('create.expectedEndDate')).toBeInTheDocument();
+    expect(screen.getByText('create.step1Heading')).toBeInTheDocument();
+    expect(screen.getAllByText('create.projectDetails').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders delivery locations section', () => {
+  it('renders the mandatory project name and status chips on step 1', () => {
     render(<CreateProjectPage />);
-    expect(screen.getByText('create.deliveryLocations')).toBeInTheDocument();
+    expect(screen.getByText('create.name *')).toBeInTheDocument();
+    expect(screen.getByText('create.statusChips.PLANNED')).toBeInTheDocument();
+    expect(screen.getByText('create.statusChips.ONGOING')).toBeInTheDocument();
+    expect(screen.getByText('create.statusChips.COMPLETED')).toBeInTheDocument();
   });
 
-  it('renders storage locations section', () => {
+  it('renders both location groups with add buttons on step 1', () => {
     render(<CreateProjectPage />);
-    expect(screen.getByText('create.storageLocations')).toBeInTheDocument();
+    expect(screen.getByText('create.addLocation')).toBeInTheDocument();
+    expect(screen.getByText('create.addStorageLocation')).toBeInTheDocument();
   });
 
-  it('renders team members section', () => {
+  it('does NOT show the procurement-officer banner for a company admin', () => {
     render(<CreateProjectPage />);
-    expect(screen.getByText('create.teamMembers')).toBeInTheDocument();
-    expect(screen.getByText('create.selectMembers')).toBeInTheDocument();
-    expect(screen.getByText('create.pointOfContact')).toBeInTheDocument();
+    expect(screen.queryByText('create.poBanner')).not.toBeInTheDocument();
   });
 
-  it('renders submit button with correct text', () => {
-    render(<CreateProjectPage />);
-    expect(screen.getByText('create.submit')).toBeInTheDocument();
-  });
-
-  it('renders cancel link to /projects', () => {
-    render(<CreateProjectPage />);
-    const cancelLink = screen.getByText('edit.cancel');
-    expect(cancelLink.closest('a')).toHaveAttribute('href', '/projects');
-  });
-
-  it('renders add location buttons', () => {
-    render(<CreateProjectPage />);
-    const addButtons = screen.getAllByText('create.addLocation');
-    expect(addButtons.length).toBe(2);
-  });
-
-  it('shows creating text when mutation is pending', () => {
-    mockUseCreateProject.mockReturnValue({ ...mockCreateMutation, isPending: true });
-    render(<CreateProjectPage />);
-    expect(screen.getByText('create.creating')).toBeInTheDocument();
-  });
-
-  it('shows error alert when mutation fails with non-409', () => {
-    mockUseCreateProject.mockReturnValue({
-      ...mockCreateMutation,
-      isError: true,
-      error: new Error('Server error'),
+  it('shows the procurement-officer banner and locks the assigned creator chip', () => {
+    mockAuthUser.value = { id: 'u1', name: 'Sarah Chen', role: 'PROCUREMENT_OFFICER' };
+    mockUseCompanyUsers.mockReturnValue({
+      data: [{ id: 'u1', name: 'Sarah Chen', email: 's@x.com', avatarUrl: null, workStatus: null }],
     });
     render(<CreateProjectPage />);
-    expect(screen.getByTestId('alert')).toBeInTheDocument();
-    expect(screen.getByText('create.createError')).toBeInTheDocument();
+    expect(screen.getByText('create.poBanner')).toBeInTheDocument();
+    // The creator chip is rendered (avatar) but no search box for a PO.
+    expect(screen.getByText('Sarah Chen')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('create.searchUsers')).not.toBeInTheDocument();
   });
 
-  it('shows duplicate name error for 409 response', () => {
+  it('advances to step 2 when Continue is clicked (validation passes)', async () => {
+    render(<CreateProjectPage />);
+    fireEvent.click(screen.getByText('create.continue'));
+    expect(await screen.findByText('create.step2Heading')).toBeInTheDocument();
+    expect(screen.getByText('create.plannedBudgetAud')).toBeInTheDocument();
+    expect(screen.getByText('create.uploadFile')).toBeInTheDocument();
+  });
+
+  it('reaches the review step and shows the Create project button', async () => {
+    render(<CreateProjectPage />);
+    fireEvent.click(screen.getByText('create.continue'));
+    await screen.findByText('create.step2Heading');
+    fireEvent.click(screen.getByText('create.continue'));
+    expect(await screen.findByText('create.step3Heading')).toBeInTheDocument();
+    expect(screen.getByText('create.createProject')).toBeInTheDocument();
+  });
+
+  it('calls the create mutation from the review step', async () => {
+    render(<CreateProjectPage />);
+    fireEvent.click(screen.getByText('create.continue'));
+    await screen.findByText('create.step2Heading');
+    fireEvent.click(screen.getByText('create.continue'));
+    await screen.findByText('create.step3Heading');
+    fireEvent.click(screen.getByText('create.createProject'));
+    await waitFor(() => expect(mockCreateMutation.mutate).toHaveBeenCalled());
+  });
+
+  it('cancels back to the projects list', () => {
+    render(<CreateProjectPage />);
+    fireEvent.click(screen.getByText('create.cancel'));
+    expect(mockNavigate).toHaveBeenCalledWith('/projects');
+  });
+
+  it('shows the duplicate-name error on a 409 response', () => {
     const axiosError = new Error('Conflict') as any;
     axiosError.isAxiosError = true;
     axiosError.response = { status: 409 };
-
-    vi.mock('axios', () => ({
-      isAxiosError: (err: any) => err?.isAxiosError === true,
-    }));
-
+    vi.mock('axios', () => ({ isAxiosError: (err: any) => err?.isAxiosError === true }));
     mockUseCreateProject.mockReturnValue({
       ...mockCreateMutation,
       isError: true,
@@ -209,115 +219,36 @@ describe('CreateProjectPage', () => {
     });
     render(<CreateProjectPage />);
     expect(screen.getByTestId('alert')).toBeInTheDocument();
+    expect(screen.getByText('create.duplicateNameError')).toBeInTheDocument();
   });
 
-  it('renders company users as checkboxes when available', () => {
+  it('shows a generic error on a non-409 failure', () => {
+    mockUseCreateProject.mockReturnValue({
+      ...mockCreateMutation,
+      isError: true,
+      error: new Error('Server error'),
+    });
+    render(<CreateProjectPage />);
+    expect(screen.getByText('create.createError')).toBeInTheDocument();
+  });
+
+  it('selects a user from search and renders the chip (company admin)', () => {
     mockUseCompanyUsers.mockReturnValue({
       data: [
-        { id: 'u1', name: 'Alice', email: 'alice@example.com' },
-        { id: 'u2', name: 'Bob', email: 'bob@example.com' },
+        { id: 'u2', name: 'Bob', email: 'bob@x.com', avatarUrl: null, workStatus: null },
       ],
     });
     render(<CreateProjectPage />);
-    expect(screen.getByText('Alice (alice@example.com)')).toBeInTheDocument();
-    expect(screen.getByText('Bob (bob@example.com)')).toBeInTheDocument();
+    const search = screen.getByPlaceholderText('create.searchUsers');
+    fireEvent.change(search, { target: { value: 'Bob' } });
+    fireEvent.click(screen.getByText('bob@x.com'));
+    expect(screen.getAllByText('Bob').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders default radio buttons for locations', () => {
+  it('adds a delivery location row when Add location is clicked', () => {
     render(<CreateProjectPage />);
-    const radios = screen.getAllByRole('radio');
-    expect(radios.length).toBe(2);
-  });
-
-  it('adds a new delivery location when add location is clicked', () => {
-    render(<CreateProjectPage />);
-    const addButtons = screen.getAllByText('create.addLocation');
-    fireEvent.click(addButtons[0]);
-    const addressInputs = screen.getAllByTestId('address-input');
-    expect(addressInputs.length).toBeGreaterThanOrEqual(3);
-  });
-
-  it('adds a new storage location when add location is clicked', () => {
-    render(<CreateProjectPage />);
-    const addButtons = screen.getAllByText('create.addLocation');
-    fireEvent.click(addButtons[1]);
-    const addressInputs = screen.getAllByTestId('address-input');
-    expect(addressInputs.length).toBeGreaterThanOrEqual(3);
-  });
-
-  it('removes a delivery location when delete is clicked after adding a second one', () => {
-    render(<CreateProjectPage />);
-    const addButtons = screen.getAllByText('create.addLocation');
-    fireEvent.click(addButtons[0]);
-    const deleteIcons = screen.getAllByLabelText('create.removeLocation');
-    expect(deleteIcons.length).toBeGreaterThanOrEqual(1);
-    fireEvent.click(deleteIcons[0]);
-    const addressInputsAfter = screen.getAllByTestId('address-input');
-    expect(addressInputsAfter.length).toBe(2);
-  });
-
-  it('submits the form when submit button is clicked', () => {
-    render(<CreateProjectPage />);
-    const submitButton = screen.getByText('create.submit');
-    fireEvent.click(submitButton);
-    expect(submitButton).toBeInTheDocument();
-  });
-
-  it('toggles member checkbox when clicked', () => {
-    mockUseCompanyUsers.mockReturnValue({
-      data: [
-        { id: 'u1', name: 'Alice', email: 'alice@example.com' },
-        { id: 'u2', name: 'Bob', email: 'bob@example.com' },
-      ],
-    });
-    render(<CreateProjectPage />);
-    const checkboxes = screen.getAllByRole('checkbox');
-    fireEvent.click(checkboxes[0]);
-    expect(checkboxes[0]).toBeInTheDocument();
-  });
-
-  it('changes radio button selection for delivery location default', () => {
-    render(<CreateProjectPage />);
-    const radios = screen.getAllByRole('radio');
-    fireEvent.click(radios[0]);
-    expect(radios[0]).toBeChecked();
-  });
-
-  it('removes a storage location when delete is clicked after adding a second one', () => {
-    render(<CreateProjectPage />);
-    const addButtons = screen.getAllByText('create.addLocation');
-    fireEvent.click(addButtons[1]);
-    const deleteIcons = screen.getAllByLabelText('create.removeLocation');
-    expect(deleteIcons.length).toBeGreaterThanOrEqual(1);
-    fireEvent.click(deleteIcons[deleteIcons.length - 1]);
-    const addressInputsAfter = screen.getAllByTestId('address-input');
-    expect(addressInputsAfter.length).toBe(2);
-  });
-
-  it('changes radio button selection for storage location default', () => {
-    render(<CreateProjectPage />);
-    const addButtons = screen.getAllByText('create.addLocation');
-    fireEvent.click(addButtons[1]);
-    const radios = screen.getAllByRole('radio');
-    fireEvent.click(radios[radios.length - 1]);
-    expect(radios[radios.length - 1]).toBeInTheDocument();
-  });
-
-  it('updates address value via AddressInput onChange', () => {
-    render(<CreateProjectPage />);
-    const addressInputs = screen.getAllByTestId('address-input');
-    fireEvent.change(addressInputs[0], { target: { value: '123 Test St' } });
-    expect(addressInputs[0]).toHaveValue('123 Test St');
-  });
-
-  it('unchecks a member checkbox when clicked twice', () => {
-    mockUseCompanyUsers.mockReturnValue({
-      data: [{ id: 'u1', name: 'Alice', email: 'alice@example.com' }],
-    });
-    render(<CreateProjectPage />);
-    const checkboxes = screen.getAllByRole('checkbox');
-    fireEvent.click(checkboxes[0]);
-    fireEvent.click(checkboxes[0]);
-    expect(checkboxes[0]).toBeInTheDocument();
+    const before = screen.getAllByTestId('address-input').length;
+    fireEvent.click(screen.getByText('create.addLocation'));
+    expect(screen.getAllByTestId('address-input').length).toBe(before + 1);
   });
 });

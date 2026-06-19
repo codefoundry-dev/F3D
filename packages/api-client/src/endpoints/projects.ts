@@ -50,6 +50,7 @@ export interface ProjectListParams {
   page?: number;
   limit?: number;
   status?: string;
+  type?: string;
   search?: string;
   sortBy?: string;
   sortDir?: 'asc' | 'desc';
@@ -70,6 +71,14 @@ export interface ProjectMemberResponse {
   name: string;
   email: string;
   role: string;
+  /** Profile photo URL, null when the user has not uploaded one. */
+  avatarUrl: string | null;
+  /** Contact phone, null when not provided. */
+  phone: string | null;
+  /** Account status (UserStatus enum value, e.g. ACTIVE / DEACTIVATED). */
+  status: string;
+  /** Optional presence/work status driving the avatar status dot. */
+  workStatus: string | null;
   assignedAt: string;
   assignedBy?: { id: string; name: string };
 }
@@ -79,8 +88,17 @@ export interface UserRef {
   name: string;
 }
 
+/** Lightweight member shape used to render the avatar stack on the list. */
+export interface ProjectMemberAvatar {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+}
+
 export interface ProjectListItem {
   id: string;
+  /** Human-readable project code, e.g. "PRJ-2025-001". */
+  code: string;
   name: string;
   description: string | null;
   status: string;
@@ -88,6 +106,8 @@ export interface ProjectListItem {
   defaultDeliveryLocation: string;
   defaultStorageLocation: string;
   memberCount: number;
+  /** First few members for the avatar stack; full count in memberCount. */
+  memberAvatars: ProjectMemberAvatar[];
   startDate: string | null;
   expectedEndDate: string | null;
   createdAt: string;
@@ -95,6 +115,8 @@ export interface ProjectListItem {
 
 export interface ProjectDetail {
   id: string;
+  /** Human-readable project code, e.g. "PRJ-2025-001". */
+  code: string;
   name: string;
   description: string | null;
   status: string;

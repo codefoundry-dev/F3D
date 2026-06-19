@@ -201,6 +201,7 @@ async function main() {
     update: {},
     create: {
       companyId: contractorCompany.id,
+      code: 'PRJ-2026-001',
       name: 'Alpha Construction',
       description: 'Main construction project for the new office building',
       type: 'Commercial',
@@ -273,6 +274,7 @@ async function main() {
     update: {},
     create: {
       companyId: contractorCompany.id,
+      code: 'PRJ-2026-002',
       name: 'Beta Fitout',
       description: 'Interior fitout for retail space',
       type: 'Residential',
@@ -696,6 +698,7 @@ async function main() {
     update: {},
     create: {
       companyId: northsideContractor.id,
+      code: 'PRJ-2026-001',
       name: 'Riverside Apartments',
       description: '40-unit residential build',
       type: 'Residential',

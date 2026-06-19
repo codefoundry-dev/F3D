@@ -4,6 +4,7 @@ import type {
   ProjectMemberResponse,
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { UserRole } from '@forethread/shared-types/client';
 import {
   Spinner,
@@ -12,9 +13,15 @@ import {
   Checkbox,
   Modal,
   ConfirmDialog,
+  AvatarWithStatus,
+  EmptyState,
+  DotActionsMenu,
   buttonVariants,
 } from '@forethread/ui-components';
-import { useCallback, useState } from 'react';
+import FlagIcon from '@forethread/ui-components/assets/icons/flag.svg?react';
+import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
+import { useCallback, useEffect, useState } from 'react';
+import type React from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -30,18 +37,33 @@ import {
 
 type TranslationFn = (key: string, options?: Record<string, unknown>) => string;
 
-type Tab = 'overview' | 'members' | 'bom' | 'procurement' | 'financial';
+type Tab = 'details' | 'bom' | 'procurement' | 'vendors' | 'financials';
+
+const TABS: Tab[] = ['details', 'bom', 'procurement', 'vendors', 'financials'];
+
+const DATE_FORMAT: Intl.DateTimeFormatOptions = { month: 'short', day: '2-digit', year: 'numeric' };
+
+function formatDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return new Date(value).toLocaleDateString('en-US', DATE_FORMAT);
+}
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { t } = useTranslation('projects');
+  const { t: tRaw } = useTranslation('projects');
+  const t = tRaw as TranslationFn;
   const currentUser = useAuthStore((s) => s.currentUser);
   const { data: project, isLoading, isError } = useProject(id ?? '');
 
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(t('detail.title'), null, ROUTES.projects);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
+
   const [searchParams, setSearchParams] = useSearchParams();
-  const validTabs: Tab[] = ['overview', 'members', 'bom', 'procurement', 'financial'];
   const tabParam = searchParams.get('tab') as Tab | null;
-  const activeTab: Tab = tabParam && validTabs.includes(tabParam) ? tabParam : 'overview';
+  const activeTab: Tab = tabParam && TABS.includes(tabParam) ? tabParam : 'details';
   const setActiveTab = useCallback(
     (tab: Tab) => setSearchParams({ tab }, { replace: true }),
     [setSearchParams],
@@ -49,8 +71,7 @@ export default function ProjectDetailPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<{ id: string; name: string } | null>(null);
 
-  // Both COMPANY_ADMIN and PROCUREMENT_OFFICER manage projects in the unified app
-  // (the buyer-side projects feature is shared between them per MIGRATION.md).
+  // Both COMPANY_ADMIN and PROCUREMENT_OFFICER manage projects in the unified app.
   const canManageProject =
     currentUser?.role === UserRole.COMPANY_ADMIN ||
     currentUser?.role === UserRole.PROCUREMENT_OFFICER;
@@ -77,138 +98,100 @@ export default function ProjectDetailPage() {
     );
   }
 
-  const deliveryLocations = project.locations.filter((l) => l.type === 'DELIVERY');
-  const storageLocations = project.locations.filter((l) => l.type === 'STORAGE');
-
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'overview', label: t('detail.overview') },
-    { key: 'members', label: `${t('detail.members')} (${project.assignedUsers.length})` },
-    { key: 'bom', label: t('detail.billOfMaterials') },
-    { key: 'procurement', label: t('detail.procurementDocs') },
-    { key: 'financial', label: t('detail.financialSummary') },
-  ];
-
   return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-foreground">{project.name}</h1>
-            <StatusBadge status={project.status} t={t as TranslationFn} />
-          </div>
-          {canManageProject && (
-            <Link to={ROUTES.projectEdit.replace(':id', id ?? '')} className={buttonVariants()}>
-              {t('detail.editProject')}
-            </Link>
-          )}
-        </div>
-        {project.description && <p className="mt-2 text-muted-foreground">{project.description}</p>}
-      </div>
-
+    <div className="px-4 sm:px-8 pt-4 sm:pt-6 pb-8">
       {/* Tabs */}
       <div className="border-b border-border mb-6">
-        <nav className="flex gap-6">
-          {tabs.map((tab) => (
+        <nav className="flex gap-6 overflow-x-auto">
+          {TABS.map((tab) => (
             <button
-              key={tab.key}
+              key={tab}
               type="button"
-              onClick={() => setActiveTab(tab.key)}
-              className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab.key
-                  ? 'border-primary text-primary'
+              onClick={() => setActiveTab(tab)}
+              className={`pb-3 text-[18px] leading-6 font-medium border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === tab
+                  ? 'border-foreground text-foreground'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
-              {tab.label}
+              {t(`detail.tabs.${tab}`)}
             </button>
           ))}
         </nav>
       </div>
 
-      {/* Tab Content */}
-      {activeTab === 'overview' && (
-        <OverviewTab
+      {activeTab === 'details' && (
+        <DetailsTab
           project={project}
-          deliveryLocations={deliveryLocations}
-          storageLocations={storageLocations}
-          t={t as TranslationFn}
-        />
-      )}
-
-      {activeTab === 'members' && (
-        <MembersTab
-          project={project}
+          projectId={id ?? ''}
           canManageProject={canManageProject}
-          onAdd={() => setShowAddModal(true)}
-          onRemove={(member) => setConfirmRemove({ id: member.id, name: member.name })}
-          t={t as TranslationFn}
+          onAddMembers={() => setShowAddModal(true)}
+          onRemoveMember={(member) => setConfirmRemove({ id: member.id, name: member.name })}
+          t={t}
         />
       )}
 
       {activeTab === 'bom' && <BomTab projectId={id ?? ''} />}
 
       {activeTab === 'procurement' && (
-        <div className="text-center py-12 text-muted-foreground">
-          {t('detail.procurementPlaceholder')}
-        </div>
+        <ComingSoon title={t('detail.comingSoon.title')} description={t('detail.comingSoon.procurement')} />
+      )}
+      {activeTab === 'vendors' && (
+        <ComingSoon title={t('detail.comingSoon.title')} description={t('detail.comingSoon.vendors')} />
+      )}
+      {activeTab === 'financials' && (
+        <ComingSoon title={t('detail.comingSoon.title')} description={t('detail.comingSoon.financials')} />
       )}
 
-      {activeTab === 'financial' && (
-        <div className="text-center py-12 text-muted-foreground">
-          {t('detail.financialPlaceholder')}
-        </div>
-      )}
-
-      {/* Add Members Modal */}
       {showAddModal && (
         <AddMembersModal
           projectId={id ?? ''}
           existingMemberIds={project.assignedUsers.map((m) => m.id)}
           onClose={() => setShowAddModal(false)}
-          t={t as TranslationFn}
+          t={t}
         />
       )}
 
-      {/* Remove Confirmation */}
       {confirmRemove && (
         <RemoveConfirmDialog
           projectId={id ?? ''}
           member={confirmRemove}
           onClose={() => setConfirmRemove(null)}
-          t={t as TranslationFn}
+          t={t}
         />
       )}
     </div>
   );
 }
 
-function StatusBadge({ status, t }: { status: string; t: TranslationFn }) {
-  const colorMap: Record<string, string> = {
-    PLANNED: 'bg-[hsl(var(--badge-blue))] text-[hsl(var(--badge-blue-text))]',
-    ONGOING: 'bg-[hsl(var(--badge-teal))] text-[hsl(var(--badge-teal-text))]',
-    COMPLETED: 'bg-success/10 text-success',
-    ARCHIVED: 'bg-[hsl(var(--badge-orange))] text-[hsl(var(--badge-orange-text))]',
-  };
-
+function ComingSoon({ title, description }: { title: string; description: string }) {
   return (
-    <Badge className={colorMap[status] ?? 'bg-muted text-muted-foreground'}>
-      {t(`statuses.${status}`)}
-    </Badge>
+    <div className="bg-card rounded-lg border border-border">
+      <EmptyState title={title} description={description} />
+    </div>
   );
 }
 
-function OverviewTab({
+// ── Details & Documents tab ──────────────────────────────────────────────────
+
+function DetailsTab({
   project,
-  deliveryLocations,
-  storageLocations,
+  projectId,
+  canManageProject,
+  onAddMembers,
+  onRemoveMember,
   t,
 }: {
   project: ProjectDetail;
-  deliveryLocations: ProjectLocationResponse[];
-  storageLocations: ProjectLocationResponse[];
+  projectId: string;
+  canManageProject: boolean;
+  onAddMembers: () => void;
+  onRemoveMember: (member: { id: string; name: string }) => void;
   t: TranslationFn;
 }) {
+  const deliveryLocations = project.locations.filter((l) => l.type === 'DELIVERY');
+  const storageLocations = project.locations.filter((l) => l.type === 'STORAGE');
+
   const formatCurrency = (amount: number | null, currency: string) => {
     if (amount === null || amount === undefined) return t('detail.notSet');
     return new Intl.NumberFormat('en-AU', { style: 'currency', currency }).format(amount);
@@ -216,10 +199,28 @@ function OverviewTab({
 
   return (
     <div className="space-y-6">
-      {/* Project Info */}
-      <div className="bg-card rounded-lg border border-border p-6">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-          <InfoField label={t('detail.type')} value={project.type ?? t('detail.notSet')} />
+      {/* Basic Information */}
+      <section className="bg-card rounded-lg border border-border p-6">
+        <div className="flex items-start justify-between mb-4">
+          <h2 className="text-base font-bold text-foreground">{t('detail.basicInformation')}</h2>
+          {canManageProject && (
+            <Link
+              to={ROUTES.projectEdit.replace(':id', projectId)}
+              className={buttonVariants({ size: 'md' })}
+            >
+              {t('detail.editProject')}
+            </Link>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-5">
+          <InfoField label={t('detail.projectId')} value={project.code} />
+          <InfoField label={t('detail.projectName')} value={project.name} />
+          <InfoField
+            label={t('detail.projectStatus')}
+            value={<Badge className="bg-muted text-muted-foreground">{t(`statuses.${project.status}`)}</Badge>}
+          />
+          <InfoField label={t('detail.projectType')} value={project.type ?? t('detail.notSet')} />
           <InfoField
             label={t('detail.budget')}
             value={formatCurrency(project.plannedBudget, project.currency)}
@@ -230,21 +231,12 @@ function OverviewTab({
           />
           <InfoField
             label={t('detail.startDate')}
-            value={
-              project.startDate
-                ? new Date(project.startDate).toLocaleDateString()
-                : t('detail.notSet')
-            }
+            value={formatDate(project.startDate) ?? t('detail.notSet')}
           />
           <InfoField
             label={t('detail.expectedEndDate')}
-            value={
-              project.expectedEndDate
-                ? new Date(project.expectedEndDate).toLocaleDateString()
-                : t('detail.notSet')
-            }
+            value={formatDate(project.expectedEndDate) ?? t('detail.notSet')}
           />
-          <InfoField label={t('detail.currency')} value={project.currency} />
           <InfoField
             label={t('detail.pointOfContact')}
             value={project.pointOfContact?.name ?? t('detail.notSet')}
@@ -252,149 +244,163 @@ function OverviewTab({
           <InfoField label={t('detail.createdBy')} value={project.createdBy.name} />
           <InfoField
             label={t('detail.createdAt')}
-            value={new Date(project.createdAt).toLocaleDateString()}
+            value={formatDate(project.createdAt) ?? t('detail.notSet')}
           />
         </div>
-      </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label={t('detail.rfqs')} value={project.rfqCount} />
-        <StatCard label={t('detail.purchaseOrders')} value={project.poCount} />
-        <StatCard label={t('detail.invoices')} value={project.invoiceCount} />
-        <StatCard label={t('detail.vendors')} value={project.vendorCount} />
-      </div>
+        {/* Locations */}
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-border pt-6">
+          <LocationColumn title={t('detail.deliveryLocations')} locations={deliveryLocations} t={t} />
+          <LocationColumn title={t('detail.storageLocations')} locations={storageLocations} t={t} />
+        </div>
+      </section>
 
-      {/* Locations */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-card rounded-lg border border-border p-6">
-          <h3 className="text-sm font-semibold text-foreground mb-3">
-            {t('detail.deliveryLocations')}
-          </h3>
-          <div className="space-y-2">
-            {deliveryLocations.map((loc) => (
-              <div key={loc.id} className="text-sm">
-                <span className="text-foreground">{loc.address}</span>
-                {loc.label && <span className="text-muted-foreground ml-2">({loc.label})</span>}
-                {loc.isDefault && (
-                  <span className="ml-2 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                    {t('detail.defaultBadge')}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
+      {/* Assigned users and roles */}
+      <section className="bg-card rounded-lg border border-border p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-bold text-foreground">{t('detail.assignedUsersRoles')}</h2>
+          {canManageProject && (
+            <Button
+              size="md"
+              leftIcon={<PlusIcon className="w-4 h-4" />}
+              onClick={onAddMembers}
+            >
+              {t('detail.addMembers')}
+            </Button>
+          )}
         </div>
 
-        <div className="bg-card rounded-lg border border-border p-6">
-          <h3 className="text-sm font-semibold text-foreground mb-3">
-            {t('detail.storageLocations')}
-          </h3>
-          <div className="space-y-2">
-            {storageLocations.map((loc) => (
-              <div key={loc.id} className="text-sm">
-                <span className="text-foreground">{loc.address}</span>
-                {loc.label && <span className="text-muted-foreground ml-2">({loc.label})</span>}
-                {loc.isDefault && (
-                  <span className="ml-2 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                    {t('detail.defaultBadge')}
-                  </span>
+        <div className="overflow-x-auto border border-border rounded-lg">
+          <table className="w-full min-w-[760px] text-sm">
+            <thead>
+              <tr className="bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] text-left">
+                {(['name', 'email', 'phone', 'role', 'status', 'dateJoined'] as const).map((c) => (
+                  <th
+                    key={c}
+                    className="px-4 py-3 text-xs font-bold leading-4 tracking-[0.6px] whitespace-nowrap"
+                  >
+                    {t(`detail.memberColumns.${c}`)}
+                  </th>
+                ))}
+                {canManageProject && (
+                  <th className="px-4 py-3 text-xs font-bold leading-4 tracking-[0.6px] whitespace-nowrap">
+                    {t('detail.memberColumns.actions')}
+                  </th>
                 )}
-              </div>
-            ))}
+              </tr>
+            </thead>
+            <tbody>
+              {project.assignedUsers.map((member: ProjectMemberResponse) => (
+                <tr key={member.id} className="border-t border-border">
+                  <td className="px-4 py-3">
+                    <span className="flex items-center gap-2 text-foreground">
+                      <AvatarWithStatus
+                        name={member.name}
+                        avatarUrl={member.avatarUrl}
+                        workStatus={member.workStatus as never}
+                        size={28}
+                      />
+                      {member.name}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">{member.email}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{member.phone ?? '-'}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{member.role}</td>
+                  <td className="px-4 py-3">
+                    <Badge className="bg-muted text-muted-foreground">{member.status}</Badge>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                    {formatDate(member.assignedAt) ?? '-'}
+                  </td>
+                  {canManageProject && (
+                    <td className="px-4 py-3">
+                      <DotActionsMenu
+                        bordered={false}
+                        actions={[
+                          {
+                            key: 'remove',
+                            label: t('detail.removeMember'),
+                            onClick: () => onRemoveMember({ id: member.id, name: member.name }),
+                          },
+                        ]}
+                      />
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Attached Documents — no backend yet */}
+      {/* TODO(US5.04): wire ProjectDocument backend */}
+      <section className="bg-card rounded-lg border border-border p-6">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-base font-bold text-foreground">{t('detail.attachedDocuments')}</h2>
+          <div className="flex items-center gap-2">
+            <Button
+              size="md"
+              variant="outline"
+              leftIcon={<PlusIcon className="w-4 h-4" />}
+              disabled
+            >
+              {t('detail.addDoc')}
+            </Button>
+            <Button size="md" variant="outline" disabled>
+              {t('detail.exportAs')}
+            </Button>
           </div>
         </div>
-      </div>
+        <EmptyState title={t('detail.noDocuments')} description={t('detail.noDocumentsHint')} />
+      </section>
     </div>
   );
 }
 
-function InfoField({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-sm font-medium text-foreground mt-0.5">{value}</p>
-    </div>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="bg-card rounded-lg border border-border p-4">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-xl font-bold text-foreground mt-1">{value}</p>
-    </div>
-  );
-}
-
-function MembersTab({
-  project,
-  canManageProject,
-  onAdd,
-  onRemove,
+function LocationColumn({
+  title,
+  locations,
   t,
 }: {
-  project: ProjectDetail;
-  canManageProject: boolean;
-  onAdd: () => void;
-  onRemove: (member: { id: string; name: string }) => void;
+  title: string;
+  locations: ProjectLocationResponse[];
   t: TranslationFn;
 }) {
   return (
     <div>
-      {canManageProject && (
-        <div className="flex justify-end mb-4">
-          <Button onClick={onAdd}>{t('detail.addMembers')}</Button>
-        </div>
-      )}
-
-      <table className="w-full min-w-[600px] text-sm">
-        <thead>
-          <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] font-['Inter'] text-[hsl(var(--table-header-foreground))]">
-            <th className="px-4 py-3 text-xs font-bold leading-4 tracking-[0.6px]">
-              {t('detail.memberColumns.name')}
-            </th>
-            <th className="px-4 py-3 text-xs font-bold leading-4 tracking-[0.6px]">
-              {t('detail.memberColumns.email')}
-            </th>
-            <th className="px-4 py-3 text-xs font-bold leading-4 tracking-[0.6px]">
-              {t('detail.memberColumns.role')}
-            </th>
-            <th className="px-4 py-3 text-xs font-bold leading-4 tracking-[0.6px]">
-              {t('detail.memberColumns.assignedDate')}
-            </th>
-            {canManageProject && (
-              <th className="px-4 py-3 text-xs font-bold leading-4 tracking-[0.6px]" />
+      <h3 className="text-sm font-semibold text-foreground mb-3">{title}</h3>
+      <div className="space-y-2">
+        {locations.length === 0 && <p className="text-sm text-muted-foreground">-</p>}
+        {locations.map((loc) => (
+          <div key={loc.id} className="flex items-start gap-2 text-sm">
+            {loc.isDefault && <FlagIcon className="w-3.5 h-3.5 mt-0.5 text-muted-foreground shrink-0" />}
+            <span className="text-foreground">
+              {loc.address}
+              {loc.label && <span className="text-muted-foreground"> ({loc.label})</span>}
+            </span>
+            {loc.isDefault && (
+              <span className="ml-1 text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                {t('detail.defaultBadge')}
+              </span>
             )}
-          </tr>
-        </thead>
-        <tbody>
-          {project.assignedUsers.map((member: ProjectMemberResponse) => (
-            <tr key={member.id} className="border-b border-border">
-              <td className="py-3 text-foreground">{member.name}</td>
-              <td className="py-3 text-muted-foreground">{member.email}</td>
-              <td className="py-3 text-muted-foreground">{member.role}</td>
-              <td className="py-3 text-muted-foreground">
-                {new Date(member.assignedAt).toLocaleDateString()}
-              </td>
-              {canManageProject && (
-                <td className="py-3 text-right">
-                  <button
-                    type="button"
-                    onClick={() => onRemove({ id: member.id, name: member.name })}
-                    className="text-xs text-destructive hover:underline"
-                  >
-                    {t('detail.removeMember')}
-                  </button>
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
+
+function InfoField({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <div className="text-sm font-medium text-foreground mt-1">{value}</div>
+    </div>
+  );
+}
+
+// ── Member add / remove ──────────────────────────────────────────────────────
 
 function AddMembersModal({
   projectId,
@@ -415,12 +421,7 @@ function AddMembersModal({
 
   const handleAdd = () => {
     if (selectedIds.length === 0) return;
-    addMutation.mutate(
-      { userIds: selectedIds },
-      {
-        onSuccess: () => onClose(),
-      },
-    );
+    addMutation.mutate({ userIds: selectedIds }, { onSuccess: () => onClose() });
   };
 
   return (
@@ -444,7 +445,7 @@ function AddMembersModal({
                   if (checked) {
                     setSelectedIds((prev) => [...prev, user.id]);
                   } else {
-                    setSelectedIds((prev) => prev.filter((id) => id !== user.id));
+                    setSelectedIds((prev) => prev.filter((uid) => uid !== user.id));
                   }
                 }}
                 label={`${user.name} (${user.email})`}
@@ -455,7 +456,7 @@ function AddMembersModal({
 
         <div className="flex justify-end gap-3">
           <Button variant="outline" onClick={onClose}>
-            {t('edit.cancel')}
+            {t('create.cancel')}
           </Button>
           <Button
             onClick={handleAdd}
@@ -486,9 +487,7 @@ function RemoveConfirmDialog({
   const removeMutation = useRemoveProjectMember(projectId);
 
   const handleRemove = () => {
-    removeMutation.mutate(member.id, {
-      onSuccess: () => onClose(),
-    });
+    removeMutation.mutate(member.id, { onSuccess: () => onClose() });
   };
 
   return (
@@ -496,7 +495,7 @@ function RemoveConfirmDialog({
       title={t('detail.confirmRemoveTitle')}
       message={t('detail.confirmRemoveMessage', { name: member.name })}
       confirmLabel={t('detail.removeMember')}
-      cancelLabel={t('edit.cancel')}
+      cancelLabel={t('create.cancel')}
       confirmVariant="bg-destructive hover:bg-destructive/90"
       onConfirm={handleRemove}
       onCancel={onClose}

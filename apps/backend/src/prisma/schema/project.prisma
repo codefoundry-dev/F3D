@@ -13,6 +13,7 @@ enum LocationType {
 model Project {
   id                 String        @id @default(uuid())
   companyId          String        @map("company_id")
+  code               String        @db.VarChar(20)
   name               String        @db.VarChar(255)
   description        String?
   type               String?       @db.VarChar(100)
@@ -45,6 +46,7 @@ model Project {
   deliveryReports  DeliveryReport[] @relation("DeliveryReportProject")
 
   @@unique([companyId, name], map: "idx_projects_company_name")
+  @@unique([companyId, code], map: "idx_projects_company_code")
   @@index([companyId], map: "idx_projects_company")
   @@index([companyId, status], map: "idx_projects_company_status")
   @@index([createdByUserId], map: "idx_projects_created_by")
