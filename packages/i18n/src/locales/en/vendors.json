@@ -179,8 +179,20 @@
     "email": "Email",
     "phone": "Phone",
     "position": "Position",
-    "noRepresentatives": "No representatives found"
+    "noRepresentatives": "No representatives found",
+    "addUser": "Add user",
+    "inviteUser": "Invite user"
   },
+  "vendorProfile": {
+    "pageTitle": "Vendor Company Profile",
+    "pageSubtitle": "View and manage your user information"
+  },
+  "noRepresentatives": "No representatives added yet.",
+  "representativesDetails": "Representatives' details",
+  "legalInformation": "Legal Information",
+  "contactInformation": "Contact Information",
+  "warehouseLocations": "Warehouse locations",
+  "editProfile": "Edit Profile",
   "userInvite": {
     "title": "Invite User",
     "name": "Name",

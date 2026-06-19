@@ -296,6 +296,7 @@ function VendorGroupSection({
       <CompanyGroupRow
         companyName={group.companyName}
         companyId={group.companyId}
+        categories={group.categories}
         isExpanded={isExpanded}
         onToggle={onToggle}
         actions={getCompanyRowActions(group.companyId, group)}

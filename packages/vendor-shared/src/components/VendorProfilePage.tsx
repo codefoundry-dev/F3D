@@ -14,9 +14,11 @@ import EnvelopeIcon from '@forethread/ui-components/assets/icons/envelope-simple
 import LegalNameIcon from '@forethread/ui-components/assets/icons/legal-name.svg?react';
 import LocationIcon from '@forethread/ui-components/assets/icons/location.svg?react';
 import PhoneIcon from '@forethread/ui-components/assets/icons/phone.svg?react';
+import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
 import TaxIcon from '@forethread/ui-components/assets/icons/tax.svg?react';
 import WebIcon from '@forethread/ui-components/assets/icons/web.svg?react';
 import WrenchIcon from '@forethread/ui-components/assets/icons/wrench.svg?react';
+import { lazy, Suspense, useState } from 'react';
 
 import { useAddressSearch } from '../hooks/useAddressSearch';
 import { useVendorProfileForm } from '../hooks/useVendorProfileForm';
@@ -25,6 +27,15 @@ import { InfoItem } from './InfoItem';
 import { RepresentativesSection } from './RepresentativesSection';
 import { WarehouseCard } from './WarehouseCard';
 import { WarehouseLocationFields } from './WarehouseLocationFields';
+
+// Invite-user flow is lazy-loaded so the (svg-heavy) modal tree is only pulled
+// in when the vendor opens it — keeps the profile page's test/render light.
+const InviteVendorModal = lazy(() =>
+  import('./InviteVendorModal').then((m) => ({ default: m.InviteVendorModal })),
+);
+const VendorInviteSuccessModal = lazy(() =>
+  import('./VendorInviteSuccessModal').then((m) => ({ default: m.VendorInviteSuccessModal })),
+);
 
 interface VendorProfilePageProps {
   vendorId: string;
@@ -68,6 +79,17 @@ export default function VendorProfilePage({ vendorId, initialEdit }: VendorProfi
     handleWarehouseDelete,
     handleWarehousePageEditChange,
   } = useVendorProfileForm(vendorId, initialEdit);
+
+  const [isInviteUserOpen, setIsInviteUserOpen] = useState(false);
+  const [inviteSuccessEmail, setInviteSuccessEmail] = useState<string | null>(null);
+
+  // "Add user" drops an inline draft row; in view mode it first flips to edit
+  // (which seeds a single empty draft), matching the Figma where the action is
+  // available from both states.
+  const handleAddUser = () => {
+    if (isEditing) handleAddRepDraft();
+    else handleEdit();
+  };
 
   if (isLoading) {
     return (
@@ -298,9 +320,20 @@ export default function VendorProfilePage({ vendorId, initialEdit }: VendorProfi
 
         {/* ── Representatives' details ── */}
         <section className="mb-8">
-          <h3 className="text-lg font-bold text-foreground mb-4">
-            {t('vendors:representativesDetails', { defaultValue: "Representatives' details" })}
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-foreground">
+              {t('vendors:representativesDetails', { defaultValue: "Representatives' details" })}
+            </h3>
+            <div className="flex items-center gap-2">
+              <Button size="sm" className="gap-1.5" onClick={handleAddUser}>
+                <PlusIcon className="w-4 h-4" />
+                {t('vendors:representatives.addUser', { defaultValue: 'Add user' })}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setIsInviteUserOpen(true)}>
+                {t('vendors:representatives.inviteUser', { defaultValue: 'Invite user' })}
+              </Button>
+            </div>
+          </div>
           <RepresentativesSection
             isEditing={isEditing}
             representatives={profile.representatives ?? []}
@@ -308,7 +341,6 @@ export default function VendorProfilePage({ vendorId, initialEdit }: VendorProfi
             draftErrors={repDraftErrors}
             onDraftFieldChange={handleRepDraftFieldChange}
             onDraftBlur={handleRepDraftBlur}
-            onAddDraft={handleAddRepDraft}
             onRemoveDraft={handleRemoveRepDraft}
           />
           <hr className="border-border mt-6" />
@@ -352,6 +384,26 @@ export default function VendorProfilePage({ vendorId, initialEdit }: VendorProfi
           </div>
         </section>
       </div>
+
+      {(isInviteUserOpen || inviteSuccessEmail) && (
+        <Suspense fallback={null}>
+          {isInviteUserOpen && (
+            <InviteVendorModal
+              onClose={() => setIsInviteUserOpen(false)}
+              onSuccess={(email) => {
+                setIsInviteUserOpen(false);
+                setInviteSuccessEmail(email);
+              }}
+            />
+          )}
+          {inviteSuccessEmail && (
+            <VendorInviteSuccessModal
+              email={inviteSuccessEmail}
+              onClose={() => setInviteSuccessEmail(null)}
+            />
+          )}
+        </Suspense>
+      )}
     </div>
   );
 }

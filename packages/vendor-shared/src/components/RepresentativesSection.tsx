@@ -1,14 +1,15 @@
 import type { VendorRepresentative } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { isValidEmail } from '@forethread/shared-types/client';
-import { Button, FormField, Input, onPhoneOnly } from '@forethread/ui-components';
+import { FormField, Input, onPhoneOnly } from '@forethread/ui-components';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import EnvelopeIcon from '@forethread/ui-components/assets/icons/envelope-simple.svg?react';
 import IdBadgeIcon from '@forethread/ui-components/assets/icons/id-badge.svg?react';
 import PhoneIcon from '@forethread/ui-components/assets/icons/phone.svg?react';
-import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
 import UserIcon from '@forethread/ui-components/assets/icons/user-outline.svg?react';
 import { useCallback } from 'react';
+
+import { RepresentativeRow } from './RepresentativeRow';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,7 +37,6 @@ interface RepresentativesSectionProps {
   draftErrors: RepDraftErrors[];
   onDraftFieldChange: (index: number, field: keyof RepDraft, value: string) => void;
   onDraftBlur: (index: number, field: keyof RepDraft) => void;
-  onAddDraft: () => void;
   onRemoveDraft: (index: number) => void;
 }
 
@@ -66,27 +66,36 @@ export function RepresentativesSection({
   draftErrors,
   onDraftFieldChange,
   onDraftBlur,
-  onAddDraft,
   onRemoveDraft,
 }: RepresentativesSectionProps) {
   const { t } = useTranslation(['vendors']);
 
-  // ── Read-only mode ──
-  // Backend for representatives CRUD is not yet ready — show placeholder.
+  const hasRepresentatives = representatives.length > 0;
+
+  // ── Read-only mode — existing representatives as info rows ──
   if (!isEditing) {
+    if (!hasRepresentatives) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          {t('vendors:noRepresentatives', { defaultValue: 'No representatives added yet.' })}
+        </p>
+      );
+    }
     return (
-      <p className="text-sm text-muted-foreground">
-        {t('vendors:representativesComingSoon', {
-          defaultValue: 'Representatives management is not yet available.',
-        })}
-      </p>
+      <div className="space-y-4">
+        {representatives.map((rep) => (
+          <RepresentativeRow key={rep.id} rep={rep} isEditing={false} />
+        ))}
+      </div>
     );
   }
 
-  // ── Edit mode — draft input rows with validation ──
+  // ── Edit mode — existing reps (read-only) + draft input rows for new ones ──
   return (
     <div className="space-y-4">
-      {/* Draft rows (new representatives being added) */}
+      {representatives.map((rep) => (
+        <RepresentativeRow key={rep.id} rep={rep} isEditing={false} />
+      ))}
       {drafts.map((draft, idx) => (
         <DraftRow
           key={idx}
@@ -94,17 +103,9 @@ export function RepresentativesSection({
           errors={draftErrors[idx]}
           onChange={(field, value) => onDraftFieldChange(idx, field, value)}
           onBlur={(field) => onDraftBlur(idx, field)}
-          onRemove={
-            drafts.length > 1 || representatives.length > 0 ? () => onRemoveDraft(idx) : undefined
-          }
+          onRemove={drafts.length > 1 || hasRepresentatives ? () => onRemoveDraft(idx) : undefined}
         />
       ))}
-
-      {/* Add button */}
-      <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={onAddDraft}>
-        <PlusIcon className="w-4 h-4" />
-        {t('vendors:addRepresentative', { defaultValue: 'Add Representative' })}
-      </Button>
     </div>
   );
 }
