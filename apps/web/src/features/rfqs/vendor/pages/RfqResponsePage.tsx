@@ -17,7 +17,7 @@ import {
 } from '@forethread/ui-components';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock-icon.svg?react';
 import FileTextIcon from '@forethread/ui-components/assets/icons/file-text.svg?react';
-import LetterIcon from '@forethread/ui-components/assets/icons/letter.svg?react';
+import PaperPlaneIcon from '@forethread/ui-components/assets/icons/paper-plane.svg?react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -233,7 +233,7 @@ function RfqResponseForm({
             variant="primary"
             size="md"
             className="h-[42px]"
-            leftIcon={<LetterIcon className="w-[18px] h-[18px]" />}
+            leftIcon={<PaperPlaneIcon className="w-[18px] h-[18px]" />}
             onClick={() => void form.handleSubmit()}
             disabled={form.isSubmitting || !form.isValid}
           >

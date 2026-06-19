@@ -1,7 +1,6 @@
 import {
   getUsers,
   getUser,
-  updateUser,
   inviteVendorUser,
   resendVendorUserInvitation,
   cancelVendorUserInvitation,
@@ -9,7 +8,6 @@ import {
   reactivateUser,
   type UserListParams,
   type InviteVendorUserInput,
-  type UpdateUserDto,
 } from '@forethread/api-client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -45,19 +43,6 @@ export function useVendorUser(id: string) {
     queryKey: [VENDOR_USERS_KEY, id],
     queryFn: () => getUser(id),
     enabled: Boolean(id),
-  });
-}
-
-export function useUpdateVendorUser() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ id, dto }: { id: string; dto: UpdateUserDto }) =>
-      updateUser(id, dto, { skipErrorHandler: true }),
-    onSuccess: (_, { id }) => {
-      void queryClient.invalidateQueries({ queryKey: [VENDOR_USERS_KEY] });
-      void queryClient.invalidateQueries({ queryKey: [VENDOR_USERS_KEY, id] });
-    },
   });
 }
 

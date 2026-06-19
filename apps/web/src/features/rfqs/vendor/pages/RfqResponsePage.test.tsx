@@ -147,7 +147,7 @@ vi.mock('@forethread/ui-components/assets/icons/clock-icon.svg?react', () => ({
 vi.mock('@forethread/ui-components/assets/icons/file-text.svg?react', () => ({
   default: () => <span />,
 }));
-vi.mock('@forethread/ui-components/assets/icons/letter.svg?react', () => ({
+vi.mock('@forethread/ui-components/assets/icons/paper-plane.svg?react', () => ({
   default: () => <span />,
 }));
 
