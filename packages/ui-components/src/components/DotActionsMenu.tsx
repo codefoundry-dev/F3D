@@ -123,12 +123,12 @@ export function DotActionsMenu({
           onClick={handleAction(action)}
           disabled={action.disabled}
           className={cn(
-            'w-full text-left px-4 py-2.5 text-sm text-card-foreground hover:bg-accent transition-colors',
+            'w-full rounded-[8px] px-2.5 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50',
             'flex items-center gap-2',
-            'disabled:opacity-50 disabled:cursor-not-allowed',
+            'disabled:cursor-not-allowed disabled:opacity-50',
           )}
         >
-          {action.icon && <span className="flex-shrink-0 w-4 h-4">{action.icon}</span>}
+          {action.icon && <span className="h-4 w-4 flex-shrink-0">{action.icon}</span>}
           {action.label}
         </button>
       ))}
@@ -161,7 +161,7 @@ export function DotActionsMenu({
         <div
           ref={menuRef}
           className={cn(
-            'fixed w-48 bg-card border border-border rounded-lg shadow-lg z-50 py-1 overflow-hidden',
+            'fixed z-50 w-48 overflow-hidden rounded-[12px] border border-gray-100 bg-white p-1 shadow-[0_12px_16px_-4px_rgba(10,13,18,0.08),0_4px_6px_-2px_rgba(10,13,18,0.03)]',
             menuClassName,
           )}
           style={{ top: menuPos.top, left: menuPos.left }}

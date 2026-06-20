@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
+import CheckmarkIcon from '../assets/icons/checkmark.svg?react';
 import ChevronDownIcon from '../assets/icons/chevron-down.svg?react';
 import { cn } from '../utils/cn';
 
@@ -210,7 +211,7 @@ export function CustomDropdown({
             }}
             role="listbox"
             style={portalStyle}
-            className="bg-card border border-border rounded-xl shadow-lg z-[9999] py-1 max-h-60 overflow-auto"
+            className="z-[9999] max-h-60 overflow-auto rounded-[12px] border border-gray-100 bg-white p-1 shadow-[0_12px_16px_-4px_rgba(10,13,18,0.08),0_4px_6px_-2px_rgba(10,13,18,0.03)]"
           >
             {searchable && (
               <div className="px-2 py-1.5">
@@ -242,13 +243,16 @@ export function CustomDropdown({
                         aria-selected={option.value === value}
                         onClick={() => handleSelect(option.value)}
                         className={cn(
-                          'w-full text-left px-3 py-2 text-sm transition-colors',
+                          'flex w-full items-center justify-between gap-2 rounded-[8px] px-2.5 py-2 text-left text-sm transition-colors',
                           option.value === value
-                            ? 'bg-accent text-foreground font-medium'
-                            : 'text-card-foreground hover:bg-accent',
+                            ? 'bg-gray-50 font-semibold text-gray-900'
+                            : 'text-gray-700 hover:bg-gray-50',
                         )}
                       >
-                        {option.label}
+                        <span className="truncate">{option.label}</span>
+                        {option.value === value && (
+                          <CheckmarkIcon className="size-4 shrink-0 text-gray-900" />
+                        )}
                       </button>
                     ))}
                   </div>
@@ -261,13 +265,16 @@ export function CustomDropdown({
                     aria-selected={option.value === value}
                     onClick={() => handleSelect(option.value)}
                     className={cn(
-                      'w-full text-left px-3 py-2 text-sm transition-colors',
+                      'flex w-full items-center justify-between gap-2 rounded-[8px] px-2.5 py-2 text-left text-sm transition-colors',
                       option.value === value
-                        ? 'bg-accent text-foreground font-medium'
-                        : 'text-card-foreground hover:bg-accent',
+                        ? 'bg-gray-50 font-semibold text-gray-900'
+                        : 'text-gray-700 hover:bg-gray-50',
                     )}
                   >
-                    {option.label}
+                    <span className="truncate">{option.label}</span>
+                    {option.value === value && (
+                      <CheckmarkIcon className="size-4 shrink-0 text-gray-900" />
+                    )}
                   </button>
                 ))}
 
@@ -277,14 +284,14 @@ export function CustomDropdown({
 
             {actionItem && (
               <>
-                <div className="border-t border-border my-1" />
+                <div className="my-1 border-t border-gray-100" />
                 <button
                   type="button"
                   onClick={() => {
                     actionItem.onClick();
                     close();
                   }}
-                  className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors flex items-center gap-2"
+                  className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
                 >
                   {actionItem.icon}
                   {actionItem.label}

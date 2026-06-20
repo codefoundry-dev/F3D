@@ -14,6 +14,7 @@ import {
   Card,
   Divider,
   IconBadge,
+  SelectDropdown,
   SegmentedControl,
   TABLE_CELL,
   TABLE_CONTAINER,
@@ -85,6 +86,7 @@ const TAB_ITEMS: TabItem[] = [
 export default function DesignSystemPlayground() {
   const [tab, setTab] = useState('details');
   const [view, setView] = useState('list');
+  const [vendor, setVendor] = useState('acme');
 
   return (
     <div className="mx-auto max-w-[960px] px-10 py-10" data-testid="ds-playground">
@@ -182,6 +184,21 @@ export default function DesignSystemPlayground() {
           <IconBadge color="purple" icon={HeartIcon} />
           <IconBadge color="red" icon={HeartIcon} size="md" />
           <IconBadge color="gray" icon={HeartIcon} size="sm" />
+        </div>
+      </Section>
+
+      <Section title="Select dropdown">
+        <div className="flex max-w-xs flex-col gap-2" data-testid="ds-select">
+          <SelectDropdown
+            value={vendor}
+            onChange={setVendor}
+            options={[
+              { value: 'acme', label: 'Acme Steel Co.' },
+              { value: 'buildright', label: 'BuildRight Supply' },
+              { value: 'nakamura', label: 'Nakamura Cement' },
+            ]}
+            placeholder="Select a vendor"
+          />
         </div>
       </Section>
 

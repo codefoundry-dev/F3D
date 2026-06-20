@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
+import CheckmarkIcon from '../assets/icons/checkmark.svg?react';
 import ChevronDownIcon from '../assets/icons/chevron-down.svg?react';
 import { cn } from '../utils/cn';
 
@@ -82,29 +83,28 @@ export function SelectDropdown({
         type="button"
         onClick={() => setIsOpen((p) => !p)}
         className={cn(
-          'flex items-center justify-between w-full h-10 px-3 border border-border rounded-lg text-sm transition-colors hover:border-foreground/40',
-          isOpen && 'border-foreground/50 bg-muted',
-          displayLabel ? 'text-foreground' : 'text-muted-foreground',
+          'flex h-[34px] w-full items-center justify-between gap-2 rounded-[12px] border bg-white px-2.5 text-[14px] font-medium tracking-[0.3px] shadow-[0_1px_3px_rgba(10,13,18,0.06),0_1px_1px_rgba(10,13,18,0.02)] transition-shadow',
+          'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+          isOpen ? 'border-[#D2D5DB]' : 'border-[#E8EAED] hover:border-[#D2D5DB]',
+          displayLabel ? 'text-gray-900' : 'text-gray-500',
         )}
       >
         <span className="truncate">{displayLabel ?? placeholder}</span>
         <ChevronDownIcon
           className={cn(
-            'w-4 h-4 flex-shrink-0 text-muted-foreground transition-transform',
+            'size-4 shrink-0 text-gray-500 transition-transform',
             isOpen && 'rotate-180',
           )}
         />
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 mt-1 w-full bg-card border border-border rounded-xl shadow-lg z-50 py-1 max-h-48 overflow-auto">
+        <div className="absolute left-0 z-50 mt-1.5 max-h-60 w-full overflow-auto rounded-[12px] border border-gray-100 bg-white p-1 shadow-[0_12px_16px_-4px_rgba(10,13,18,0.08),0_4px_6px_-2px_rgba(10,13,18,0.03)]">
           {options.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-muted-foreground text-center">
-              {emptyMessage}
-            </div>
+            <div className="px-3 py-2.5 text-center text-[13px] text-gray-500">{emptyMessage}</div>
           ) : isMulti ? (
             options.map((opt) => (
-              <div key={opt.value} className="px-3 py-1.5">
+              <div key={opt.value} className="rounded-[8px] px-2.5 py-2 hover:bg-gray-50">
                 <Checkbox
                   checked={selected?.includes(opt.value) ?? false}
                   onChange={() => toggleOption(opt.value)}
@@ -113,24 +113,28 @@ export function SelectDropdown({
               </div>
             ))
           ) : (
-            options.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange?.(opt.value);
-                  setIsOpen(false);
-                }}
-                className={cn(
-                  'w-full text-left px-4 py-2.5 text-sm transition-colors',
-                  opt.value === value
-                    ? 'text-foreground bg-accent font-medium'
-                    : 'text-card-foreground hover:bg-accent',
-                )}
-              >
-                {opt.label}
-              </button>
-            ))
+            options.map((opt) => {
+              const isSelected = opt.value === value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    onChange?.(opt.value);
+                    setIsOpen(false);
+                  }}
+                  className={cn(
+                    'flex w-full items-center justify-between gap-2 rounded-[8px] px-2.5 py-2 text-left text-[14px] transition-colors',
+                    isSelected
+                      ? 'bg-gray-50 font-semibold text-gray-900'
+                      : 'text-gray-700 hover:bg-gray-50',
+                  )}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {isSelected && <CheckmarkIcon className="size-4 shrink-0 text-gray-900" />}
+                </button>
+              );
+            })
           )}
         </div>
       )}
