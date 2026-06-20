@@ -14,6 +14,7 @@ import {
   Button,
   Card,
   Divider,
+  FileChip,
   IconBadge,
   SelectDropdown,
   SegmentedControl,
@@ -254,6 +255,15 @@ export default function DesignSystemPlayground() {
           <Alert variant="info" icon={CheckIcon}>
             A new catalogue version is available.
           </Alert>
+        </div>
+      </Section>
+
+      <Section title="File chips">
+        <div className="grid max-w-xl grid-cols-2 gap-2">
+          <FileChip name="RFQ-2024-014.pdf" size="248 KB" onRemove={() => undefined} />
+          <FileChip name="Scope-of-works.docx" size="1.2 MB" onRemove={() => undefined} />
+          <FileChip name="BOM-export.xlsx" size="86 KB" onRemove={() => undefined} />
+          <FileChip name="site-photo.jpg" size="3.4 MB" onRemove={() => undefined} />
         </div>
       </Section>
 
