@@ -1,6 +1,6 @@
 export const DEFAULT_STATUS_COLOR = 'bg-muted text-muted-foreground';
 
-/** Neutral gray chip used for statuses on vendor-facing screens (design #E4E4E4 / #262626) */
+/** Neutral gray chip used for statuses on vendor-facing screens (design #E8EAED / #2D3139) */
 export const NEUTRAL_STATUS_COLOR =
   'bg-[hsl(var(--badge-neutral))] text-[hsl(var(--badge-neutral-text))]';
 

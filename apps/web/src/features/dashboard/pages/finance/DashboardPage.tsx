@@ -36,12 +36,12 @@ export default function DashboardPage() {
   return (
     <div className="p-4 space-y-4 h-full overflow-auto">
       <div className="flex items-center">
-        {/* Dark pill matches the Figma #131313 and the super-admin quick-action
+        {/* Dark pill matches the Figma #1B1D22 and the super-admin quick-action
             pills; hardcoded so it stays dark in dark mode (--foreground flips). */}
         <button
           type="button"
           onClick={() => navigate(ROUTES.invoices)}
-          className="flex items-center gap-2.5 rounded-xl bg-[#131313] px-6 py-4 text-lg font-medium text-white transition-colors hover:bg-[#131313]/90"
+          className="flex items-center gap-2.5 rounded-xl bg-[#1B1D22] px-6 py-4 text-lg font-medium text-white transition-colors hover:bg-[#1B1D22]/90"
         >
           <UploadIcon className="w-6 h-6" />
           {t('finance.uploadInvoice')}

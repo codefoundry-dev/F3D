@@ -7,7 +7,7 @@ import type { ColumnConfig } from './types';
 
 // Uniform gray pill — the Figma frame renders PO status and Revision with the
 // same neutral chip (severity is not colour-coded here). `--accent` (#e8eaed)
-// is the tokenized match for the frame's #e4e4e4 / #262626.
+// is the tokenized match for the frame's #E8EAED / #2D3139.
 const PILL_CLASS = 'bg-accent text-foreground border-0 rounded-full px-2 py-1 text-xs font-normal';
 
 export function useActivePosColumns(): ColumnConfig[] {

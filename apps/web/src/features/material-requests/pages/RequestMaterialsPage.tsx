@@ -217,14 +217,14 @@ export default function RequestMaterialsPage() {
       return (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-[#525252]" data-testid="mr-selected-count">
+            <span className="text-sm text-[#525866]" data-testid="mr-selected-count">
               {t('requestMaterials.itemsSelected', { count: selectedCount })}
             </span>
             {selectedCount > 0 && (
               <button
                 type="button"
                 onClick={() => setLines([])}
-                className="text-sm text-[#737373] underline"
+                className="text-sm text-[#6D7588] underline"
               >
                 {t('requestMaterials.clearAll')}
               </button>
@@ -265,7 +265,7 @@ export default function RequestMaterialsPage() {
         <SecondaryButton disabled title={t('review.raisePoUnavailable')} data-testid="mr-raise-po">
           {t('review.raisePo')}
         </SecondaryButton>
-        <p className="text-center text-xs text-[#737373]">{t('review.footerHint')}</p>
+        <p className="text-center text-xs text-[#6D7588]">{t('review.footerHint')}</p>
       </div>
     );
   }

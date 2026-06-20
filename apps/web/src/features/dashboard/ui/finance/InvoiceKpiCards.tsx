@@ -12,7 +12,7 @@ const CARD_CLASS =
   'bg-white rounded-[14px] border-[0.8px] border-black/20 px-[16.8px] py-[12.8px] flex items-center gap-4';
 const ICON_BOX_CLASS =
   'w-12 h-12 rounded-xl bg-foreground/10 flex items-center justify-center shrink-0';
-const LABEL_CLASS = 'text-sm font-medium leading-5 text-[#525252]';
+const LABEL_CLASS = 'text-sm font-medium leading-5 text-[#525866]';
 const VALUE_CLASS = 'text-2xl font-normal leading-8 text-foreground';
 const SUBTEXT_CLASS = 'text-xs text-[#717182]';
 

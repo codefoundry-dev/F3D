@@ -133,7 +133,7 @@ export default function DashboardPage() {
             key={action.label}
             type="button"
             onClick={action.onClick}
-            className="flex items-center justify-center gap-2.5 px-6 py-4 rounded-xl bg-[#131313] text-white text-lg font-medium hover:bg-[#131313]/90 transition-colors"
+            className="flex items-center justify-center gap-2.5 px-6 py-4 rounded-xl bg-[#1B1D22] text-white text-lg font-medium hover:bg-[#1B1D22]/90 transition-colors"
           >
             {action.icon}
             {action.label}

@@ -360,7 +360,7 @@ export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomRev
                     </td>
                     <td className={cn(td, 'px-3')}>
                       <span className="inline-flex items-center gap-2 whitespace-nowrap">
-                        <Badge className="bg-[#E4E4E4] text-[#262626]">{badge.label}</Badge>
+                        <Badge className="bg-[#E8EAED] text-[#2D3139]">{badge.label}</Badge>
                         {badge.pct && <span className="text-sm text-foreground">{badge.pct}</span>}
                       </span>
                     </td>

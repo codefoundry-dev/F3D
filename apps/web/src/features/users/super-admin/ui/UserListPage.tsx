@@ -330,7 +330,7 @@ export default function UserListPage() {
   return (
     <div className="flex flex-col gap-6 p-4">
       {/* ── Tabs ── */}
-      <div className="flex items-start border-b border-[#c9c9c9]">
+      <div className="flex items-start border-b border-[#D2D5DB]">
         {TABS.map((tab) => {
           const isActive = activeTab === tab;
           return (
@@ -342,7 +342,7 @@ export default function UserListPage() {
                 '-mb-px border-b-2 p-3 text-lg font-medium leading-4 transition-colors',
                 isActive
                   ? 'border-foreground text-foreground'
-                  : 'border-transparent text-[#686868] hover:text-foreground',
+                  : 'border-transparent text-[#6D7588] hover:text-foreground',
               )}
             >
               {t(`tabs.${tab}` as 'tabs.platformUsers')}

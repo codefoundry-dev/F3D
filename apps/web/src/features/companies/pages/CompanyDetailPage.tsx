@@ -189,7 +189,7 @@ export default function CompanyDetailPage() {
   return (
     <div className="p-6">
       {/* Tabs (18px pattern, matches the user-management boards) */}
-      <div className="flex items-start border-b border-[#c9c9c9]">
+      <div className="flex items-start border-b border-[#D2D5DB]">
         {tabs.map((tab) => (
           <button
             key={tab.key}
@@ -199,7 +199,7 @@ export default function CompanyDetailPage() {
               '-mb-px border-b-2 p-3 text-lg font-medium leading-4 transition-colors',
               activeTab === tab.key
                 ? 'border-foreground text-foreground'
-                : 'border-transparent text-[#686868] hover:text-foreground',
+                : 'border-transparent text-[#6D7588] hover:text-foreground',
             )}
           >
             {tab.label}

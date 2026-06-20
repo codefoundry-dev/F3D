@@ -2,7 +2,7 @@ import { useTranslation } from '@forethread/i18n';
 
 /**
  * "Step N of 3 / <label>" header plus the progress bar (Figma 2002:176 — the
- * 6px track is #E5E5E5 with a #171717 fill). Sits directly under the dark
+ * 6px track is #E8EAED with a #1B1D22 fill). Sits directly under the dark
  * header on every wizard step.
  */
 export interface StepProgressProps {
@@ -18,14 +18,14 @@ export function StepProgress({ current, total, label }: StepProgressProps) {
   return (
     <div className="flex flex-col gap-[5px] bg-white px-4 py-4">
       <div className="flex items-center justify-between">
-        <span className="text-xs text-[#525252]">
+        <span className="text-xs text-[#525866]">
           {t('requestMaterials.stepOf', { current, total })}
         </span>
-        <span className="text-xs text-[#525252]">{label}</span>
+        <span className="text-xs text-[#525866]">{label}</span>
       </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#E5E5E5]">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#E8EAED]">
         <div
-          className="h-full rounded-full bg-[#171717] transition-all"
+          className="h-full rounded-full bg-[#1B1D22] transition-all"
           style={{ width: `${pct}%` }}
           role="progressbar"
           aria-valuenow={current}

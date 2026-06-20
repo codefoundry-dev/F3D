@@ -307,7 +307,7 @@ export function QuoteResponseDetailPage({
             <BackArrowIcon className="w-4 h-4" />
           </button>
           <h3 className="flex-1 text-base font-semibold text-foreground truncate">{vendorName}</h3>
-          <Badge className="bg-[#e4e4e4] text-[#262626] border-0 rounded-full text-xs px-2 py-0.5 shrink-0">
+          <Badge className="bg-[#E8EAED] text-[#2D3139] border-0 rounded-full text-xs px-2 py-0.5 shrink-0">
             {formatStatus(status)}
           </Badge>
         </div>
@@ -623,25 +623,25 @@ function QuoteLineItemsTab({
       >
         <thead>
           <tr className="bg-[#F2F2F2]">
-            <th className="px-3 py-3 text-left text-sm font-medium text-[#171717] border-b border-foreground/10 min-w-[180px]">
+            <th className="px-3 py-3 text-left text-sm font-medium text-[#1B1D22] border-b border-foreground/10 min-w-[180px]">
               {t('quoteResponseDetail.item')}
             </th>
-            <th className="px-3 py-3 text-left text-sm font-medium text-[#171717] border-b border-foreground/10 min-w-[100px]">
+            <th className="px-3 py-3 text-left text-sm font-medium text-[#1B1D22] border-b border-foreground/10 min-w-[100px]">
               {t('quoteResponseDetail.priceUnit')}
             </th>
-            <th className="px-3 py-3 text-left text-sm font-medium text-[#171717] border-b border-foreground/10 min-w-[150px]">
+            <th className="px-3 py-3 text-left text-sm font-medium text-[#1B1D22] border-b border-foreground/10 min-w-[150px]">
               {t('quoteResponseDetail.quantityAvailable')}
             </th>
-            <th className="px-3 py-3 text-left text-sm font-medium text-[#171717] border-b border-foreground/10 min-w-[120px]">
+            <th className="px-3 py-3 text-left text-sm font-medium text-[#1B1D22] border-b border-foreground/10 min-w-[120px]">
               {t('quoteResponseDetail.discount')}
             </th>
-            <th className="px-3 py-3 text-left text-sm font-medium text-[#171717] border-b border-foreground/10 min-w-[140px]">
+            <th className="px-3 py-3 text-left text-sm font-medium text-[#1B1D22] border-b border-foreground/10 min-w-[140px]">
               {t('quoteResponseDetail.lineTotalWithTax')}
             </th>
-            <th className="px-3 py-3 text-left text-sm font-medium text-[#171717] border-b border-foreground/10 min-w-[110px]">
+            <th className="px-3 py-3 text-left text-sm font-medium text-[#1B1D22] border-b border-foreground/10 min-w-[110px]">
               {t('quoteResponseDetail.deliveryDate')}
             </th>
-            <th className="px-3 py-3 text-left text-sm font-medium text-[#171717] border-b border-foreground/10 min-w-[92px]">
+            <th className="px-3 py-3 text-left text-sm font-medium text-[#1B1D22] border-b border-foreground/10 min-w-[92px]">
               {t('quoteResponseDetail.actions')}
             </th>
           </tr>

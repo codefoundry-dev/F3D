@@ -187,7 +187,7 @@ function PoCard({ item, canApprove }: { item: PoCardData; canApprove: boolean })
           navigate(`${ROUTES.purchaseOrderDetail.replace(':id', item.id)}?tab=documents`)
         }
         statusBadge={
-          <Badge className="bg-[#e4e4e4] text-[#262626] border-0 rounded-full text-xs px-2 py-0.5">
+          <Badge className="bg-[#E8EAED] text-[#2D3139] border-0 rounded-full text-xs px-2 py-0.5">
             {formatStatus(item.status)}
           </Badge>
         }

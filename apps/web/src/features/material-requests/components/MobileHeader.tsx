@@ -2,7 +2,7 @@ import BackArrowIcon from '@forethread/ui-components/assets/icons/back-arrow.svg
 import type { ReactNode } from 'react';
 
 /**
- * Dark (#171717) sticky header used across the Material Request flow
+ * Dark (#1B1D22) sticky header used across the Material Request flow
  * (Figma 2002:176). 18px white title, a back button on the left, and an
  * optional right-hand slot (e.g. the "Project: JOB-2847" pill on Job Overview).
  */
@@ -17,7 +17,7 @@ export interface MobileHeaderProps {
 
 export function MobileHeader({ title, onBack, subline, trailing }: MobileHeaderProps) {
   return (
-    <header className="sticky top-0 z-10 flex flex-col gap-2 bg-[#171717] px-4 py-4">
+    <header className="sticky top-0 z-10 flex flex-col gap-2 bg-[#1B1D22] px-4 py-4">
       <div className="flex items-center gap-3">
         {onBack && (
           <button

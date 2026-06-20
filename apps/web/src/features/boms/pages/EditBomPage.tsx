@@ -80,9 +80,9 @@ function EditBomForm({ bom }: { bom: BomDetailDto }) {
 
   return (
     <div className="p-4 sm:p-8 space-y-6" data-testid="edit-bom-page">
-      <div className="rounded-xl bg-[#0634BA]/[0.06] p-4 flex items-start gap-2.5">
-        <InfoIcon className="w-[18px] h-[18px] shrink-0 mt-0.5 text-[#0634BA]" />
-        <p className="text-sm text-[#0634BA] leading-relaxed">{t('edit.banner')}</p>
+      <div className="rounded-xl bg-[#175CD3]/[0.06] p-4 flex items-start gap-2.5">
+        <InfoIcon className="w-[18px] h-[18px] shrink-0 mt-0.5 text-[#175CD3]" />
+        <p className="text-sm text-[#175CD3] leading-relaxed">{t('edit.banner')}</p>
       </div>
 
       <BomReviewStep rows={rows} onRowsChange={setRows} variant="edit" />
@@ -98,7 +98,7 @@ function EditBomForm({ bom }: { bom: BomDetailDto }) {
         </Button>
         <Button
           size="lg"
-          className="h-12 text-sm disabled:bg-[#9C9C9C] disabled:opacity-100"
+          className="h-12 text-sm disabled:bg-[#999FAD] disabled:opacity-100"
           disabled={unmatched > 0}
           isLoading={updateMutation.isPending}
           onClick={handleSave}
