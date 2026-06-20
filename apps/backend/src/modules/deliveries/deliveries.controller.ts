@@ -18,12 +18,12 @@ import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/permissions';
 
-import { DeliveriesService } from './deliveries.service';
 import {
   CreateDeliveryReportDto,
   ListDeliveryReportQueryDto,
   RejectDeliveryReportDto,
 } from './deliveries.dto';
+import { DeliveriesService } from './deliveries.service';
 import { DeliveryAttachmentService } from './delivery-attachment.service';
 
 @ApiTags('Delivery Reports')

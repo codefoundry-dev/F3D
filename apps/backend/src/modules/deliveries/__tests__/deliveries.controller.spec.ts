@@ -1,9 +1,9 @@
-import { AccessTokenPurpose, AccessTokenSubject, UserRole, type AccessToken } from '@prisma/client';
 import { DeliveryOutcome } from '@forethread/shared-types';
+import { AccessTokenPurpose, AccessTokenSubject, UserRole, type AccessToken } from '@prisma/client';
 
 import { AuthenticatedUser } from '../../../common/decorators/current-user.decorator';
-import { DeliveriesController } from '../deliveries.controller';
 import { DeliveriesPortalController } from '../deliveries-portal.controller';
+import { DeliveriesController } from '../deliveries.controller';
 import { DeliveriesService } from '../deliveries.service';
 import { DeliveryAttachmentService } from '../delivery-attachment.service';
 import { DeliveryPortalService } from '../delivery-portal.service';
@@ -125,7 +125,9 @@ describe('DeliveriesPortalController', () => {
   });
 
   it('submits', async () => {
-    const dto = { lines: [{ poLineItemId: 'li-1', quantityReceived: 1, outcome: DeliveryOutcome.DELIVERED }] };
+    const dto = {
+      lines: [{ poLineItemId: 'li-1', quantityReceived: 1, outcome: DeliveryOutcome.DELIVERED }],
+    };
     await controller.submit(sessionToken, dto);
     expect(portal.submit).toHaveBeenCalledWith(sessionToken, dto);
   });

@@ -6,8 +6,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { PurchaseOrdersModule } from '../purchase-orders/purchase-orders.module';
 import { StorageModule } from '../storage/storage.module';
 
-import { DeliveriesController } from './deliveries.controller';
 import { DeliveriesPortalController } from './deliveries-portal.controller';
+import { DeliveriesController } from './deliveries.controller';
 import { DeliveriesService } from './deliveries.service';
 import { DeliveryAttachmentService } from './delivery-attachment.service';
 import { DeliveryCodeService } from './delivery-code.service';

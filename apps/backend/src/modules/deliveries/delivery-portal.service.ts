@@ -1,17 +1,14 @@
+import type { DeliveryPortalPoResponse, PortalSubmitResponse } from '@forethread/shared-types';
+import { DeliveryReportSource } from '@forethread/shared-types';
 import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { AccessTokenPurpose, AccessTokenSubject, Prisma, type AccessToken } from '@prisma/client';
-import type {
-  DeliveryPortalPoResponse,
-  PortalSubmitResponse,
-} from '@forethread/shared-types';
-import { DeliveryReportSource } from '@forethread/shared-types';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { EmailService } from '../notifications/email.service';
 
-import { DeliveriesService, DeliveryLineInput } from './deliveries.service';
 import { PortalSubmitDto } from './deliveries.dto';
+import { DeliveriesService, DeliveryLineInput } from './deliveries.service';
 import { DeliveryCodeService } from './delivery-code.service';
 
 /** Lifetime of a short-lived delivery session token minted after code verify. */
@@ -90,11 +87,7 @@ export class DeliveryPortalService {
    * `{ ok: true }` regardless of outcome (anti-enumeration) — a failure to send
    * must not reveal whether the PO/email is valid.
    */
-  async identify(
-    purchaseOrderId: string,
-    name: string,
-    email: string,
-  ): Promise<{ ok: true }> {
+  async identify(purchaseOrderId: string, name: string, email: string): Promise<{ ok: true }> {
     try {
       const po = await this.prisma.purchaseOrder.findUnique({
         where: { id: purchaseOrderId },
@@ -230,7 +223,8 @@ export class DeliveryPortalService {
     return {
       email: meta.email,
       name: meta.name,
-      deliveryReportId: typeof meta.deliveryReportId === 'string' ? meta.deliveryReportId : undefined,
+      deliveryReportId:
+        typeof meta.deliveryReportId === 'string' ? meta.deliveryReportId : undefined,
     };
   }
 }

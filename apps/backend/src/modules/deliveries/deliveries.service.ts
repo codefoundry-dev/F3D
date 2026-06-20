@@ -1,3 +1,13 @@
+import type {
+  DeliveryReportDetailResponse,
+  DeliveryReportLineResponse,
+  DeliveryReportListItem,
+  DamageDisposition as DamageDispositionContract,
+  DamageType as DamageTypeContract,
+  DeliveryOutcome as DeliveryOutcomeContract,
+  DeliveryReportSource as DeliveryReportSourceContract,
+  DeliveryReportStatus as DeliveryReportStatusContract,
+} from '@forethread/shared-types';
 import {
   BadRequestException,
   ForbiddenException,
@@ -14,27 +24,12 @@ import {
   Prisma,
   UserRole,
 } from '@prisma/client';
-import type {
-  DeliveryReportDetailResponse,
-  DeliveryReportLineResponse,
-  DeliveryReportListItem,
-} from '@forethread/shared-types';
-import type {
-  DamageDisposition as DamageDispositionContract,
-  DamageType as DamageTypeContract,
-  DeliveryOutcome as DeliveryOutcomeContract,
-  DeliveryReportSource as DeliveryReportSourceContract,
-  DeliveryReportStatus as DeliveryReportStatusContract,
-} from '@forethread/shared-types';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import {
-  DeliveryDeltaPo,
-  PoStatusService,
-} from '../purchase-orders/po-status.service';
+import { DeliveryDeltaPo, PoStatusService } from '../purchase-orders/po-status.service';
 import { StorageService } from '../storage/storage.service';
 
 import { CreateDeliveryReportDto, ListDeliveryReportQueryDto } from './deliveries.dto';
@@ -107,11 +102,15 @@ const REPORT_DETAIL_INCLUDE = {
   },
   attachments: {
     orderBy: { createdAt: 'asc' as const },
-    include: { file: { select: { id: true, filename: true, key: true, size: true, mimeType: true } } },
+    include: {
+      file: { select: { id: true, filename: true, key: true, size: true, mimeType: true } },
+    },
   },
 } satisfies Prisma.DeliveryReportInclude;
 
-type ReportWithRelations = Prisma.DeliveryReportGetPayload<{ include: typeof REPORT_DETAIL_INCLUDE }>;
+type ReportWithRelations = Prisma.DeliveryReportGetPayload<{
+  include: typeof REPORT_DETAIL_INCLUDE;
+}>;
 
 @Injectable()
 export class DeliveriesService {
@@ -129,13 +128,19 @@ export class DeliveriesService {
   async list(
     user: AuthenticatedUser,
     query: ListDeliveryReportQueryDto,
-  ): Promise<{ items: DeliveryReportListItem[]; meta: { page: number; limit: number; total: number; totalPages: number } }> {
+  ): Promise<{
+    items: DeliveryReportListItem[];
+    meta: { page: number; limit: number; total: number; totalPages: number };
+  }> {
     const where: Prisma.DeliveryReportWhereInput = {};
 
     // Company scoping (SUPER_ADMIN sees all; everyone else their own company).
     if (user.role !== UserRole.SUPER_ADMIN) {
       if (!user.companyId) {
-        return { items: [], meta: { page: 1, limit: query.limit ?? DEFAULT_LIMIT, total: 0, totalPages: 0 } };
+        return {
+          items: [],
+          meta: { page: 1, limit: query.limit ?? DEFAULT_LIMIT, total: 0, totalPages: 0 },
+        };
       }
       where.companyId = user.companyId;
     }
@@ -185,11 +190,16 @@ export class DeliveriesService {
     ]);
 
     // Resolve the linked-RFQ + linked-invoice references per PO in one pass.
-    const rfqIds = [...new Set(rows.map((r) => r.purchaseOrder.rfqId).filter((x): x is string => !!x))];
+    const rfqIds = [
+      ...new Set(rows.map((r) => r.purchaseOrder.rfqId).filter((x): x is string => !!x)),
+    ];
     const poIds = [...new Set(rows.map((r) => r.purchaseOrderId))];
     const [rfqs, invoices] = await Promise.all([
       rfqIds.length
-        ? this.prisma.rfq.findMany({ where: { id: { in: rfqIds } }, select: { id: true, rfqNumber: true } })
+        ? this.prisma.rfq.findMany({
+            where: { id: { in: rfqIds } },
+            select: { id: true, rfqNumber: true },
+          })
         : Promise.resolve([]),
       poIds.length
         ? this.prisma.invoice.findMany({
@@ -223,7 +233,9 @@ export class DeliveriesService {
       deliveryLocationName: r.deliveryLocation
         ? (r.deliveryLocation.label ?? r.deliveryLocation.address)
         : null,
-      linkedRfqNumber: r.purchaseOrder.rfqId ? (rfqNumberById.get(r.purchaseOrder.rfqId) ?? null) : null,
+      linkedRfqNumber: r.purchaseOrder.rfqId
+        ? (rfqNumberById.get(r.purchaseOrder.rfqId) ?? null)
+        : null,
       invoiceNumber: invoiceByPoId.get(r.purchaseOrderId) ?? null,
       submitterName: r.submitterName,
       createdAt: r.createdAt.toISOString(),
@@ -249,7 +261,10 @@ export class DeliveriesService {
 
   // ── Create (INTERNAL) ────────────────────────────────────────────────────────
 
-  async create(user: AuthenticatedUser, dto: CreateDeliveryReportDto): Promise<DeliveryReportDetailResponse> {
+  async create(
+    user: AuthenticatedUser,
+    dto: CreateDeliveryReportDto,
+  ): Promise<DeliveryReportDetailResponse> {
     // AuthenticatedUser carries no display name — resolve it for the submitter
     // snapshot, falling back to the email.
     const dbUser = await this.prisma.user.findUnique({
@@ -426,7 +441,7 @@ export class DeliveriesService {
         where: { id },
         select: { status: true },
       });
-      if (!fresh || fresh.status !== DeliveryReportStatus.SUBMITTED) {
+      if (fresh?.status !== DeliveryReportStatus.SUBMITTED) {
         throw new BadRequestException('Only a submitted delivery report can be approved.');
       }
 
@@ -464,7 +479,11 @@ export class DeliveriesService {
 
   // ── Reject (SUBMITTED → REJECTED) ─────────────────────────────────────────────
 
-  async reject(id: string, reason: string, user: AuthenticatedUser): Promise<DeliveryReportDetailResponse> {
+  async reject(
+    id: string,
+    reason: string,
+    user: AuthenticatedUser,
+  ): Promise<DeliveryReportDetailResponse> {
     const report = await this.prisma.deliveryReport.findUnique({
       where: { id },
       select: { id: true, status: true, companyId: true, purchaseOrderId: true },
@@ -509,7 +528,10 @@ export class DeliveriesService {
     const deltas = new Map<string, number>();
     for (const line of lines) {
       let delta: number;
-      if (line.outcome === DeliveryOutcome.NOT_DELIVERED || line.outcome === DeliveryOutcome.REJECTED) {
+      if (
+        line.outcome === DeliveryOutcome.NOT_DELIVERED ||
+        line.outcome === DeliveryOutcome.REJECTED
+      ) {
         delta = 0;
       } else if (
         line.outcome === DeliveryOutcome.DAMAGED &&
@@ -549,11 +571,9 @@ export class DeliveriesService {
    * received quantity, and — when DAMAGED — a damaged quantity that does not
    * exceed what was received, plus a damage type + disposition.
    */
-  private validateLines(
-    lines: DeliveryLineInput[],
-    poLines: Array<{ id: string }>,
-  ): void {
-    if (lines.length === 0) throw new BadRequestException('At least one delivery line is required.');
+  private validateLines(lines: DeliveryLineInput[], poLines: Array<{ id: string }>): void {
+    if (lines.length === 0)
+      throw new BadRequestException('At least one delivery line is required.');
     const poLineIds = new Set(poLines.map((li) => li.id));
     for (const line of lines) {
       if (!poLineIds.has(line.poLineItemId)) {
@@ -563,7 +583,11 @@ export class DeliveriesService {
         throw new BadRequestException('Received quantity cannot be negative.');
       }
       if (line.outcome === DeliveryOutcome.DAMAGED) {
-        if (line.damagedQuantity == null || line.damagedQuantity < 0) {
+        if (
+          line.damagedQuantity === null ||
+          line.damagedQuantity === undefined ||
+          line.damagedQuantity < 0
+        ) {
           throw new BadRequestException('A damaged line requires a non-negative damaged quantity.');
         }
         if (line.damagedQuantity > line.quantityReceived) {
@@ -668,7 +692,8 @@ export class DeliveriesService {
     line: ReportWithRelations['lines'][number],
   ): Promise<DeliveryReportLineResponse> {
     const poLine = line.poLineItem;
-    const lineItemRef = poLine?.materialCode ?? (poLine ? `Line ${poLine.lineNumber}` : line.poLineItemId);
+    const lineItemRef =
+      poLine?.materialCode ?? (poLine ? `Line ${poLine.lineNumber}` : line.poLineItemId);
     const damagePhotos = await Promise.all(
       line.damagePhotos.map(async (p) => ({
         id: p.id,
