@@ -14,37 +14,60 @@ interface CustomToastProps {
   onClose?: () => void;
 }
 
-/** Per-type DS status icon + colour (Figma Toast 3719-72068). */
-const typeStyles: Record<ToastType, { Icon: typeof InfoIcon; icon: string }> = {
-  success: { Icon: CheckCircleIcon, icon: 'text-green-600' },
-  error: { Icon: CrossInCircleIcon, icon: 'text-destructive-600' },
-  info: { Icon: InfoIcon, icon: 'text-blue-600' },
+/**
+ * Per-type tinted surface — Forethread design system
+ * ("Notifications / Alerts / Toast" Figma 3719-72068 / 3719-72110).
+ *
+ * Each state is a subtle vertical gradient surface (hue-100 → hue-25) + hue-200
+ * border + a hue-600 icon, with Gray-900 copy. `info` maps to the Figma
+ * "Notification" (indigo) state.
+ */
+const typeStyles: Record<ToastType, { Icon: typeof InfoIcon; surface: string; icon: string }> = {
+  success: {
+    Icon: CheckCircleIcon,
+    surface: 'from-success-100 to-success-25 border-success-200',
+    icon: 'text-success-600',
+  },
+  error: {
+    Icon: CrossInCircleIcon,
+    surface: 'from-destructive-100 to-destructive-25 border-destructive-200',
+    icon: 'text-destructive-600',
+  },
+  info: {
+    Icon: InfoIcon,
+    surface: 'from-indigo-100 to-indigo-25 border-indigo-200',
+    icon: 'text-indigo-600',
+  },
 };
 
 function CustomToast({ type, message, onClose }: CustomToastProps) {
-  const styles = typeStyles[type];
-  const Icon = styles.Icon;
+  const { Icon, surface, icon } = typeStyles[type];
 
   return (
-    <div className="flex w-full items-center justify-between gap-3 px-3 py-2">
-      <div className="flex items-center gap-3">
-        <div className={cn('flex h-4 w-4 flex-shrink-0 items-center justify-center', styles.icon)}>
-          <Icon className="h-4 w-4" />
-        </div>
-        <span className="text-sm font-medium leading-[140%] text-gray-900">{message}</span>
+    <div
+      className={cn(
+        'flex w-full items-center justify-between gap-2 rounded-[10px] border bg-gradient-to-b p-1.5 pl-2.5',
+        'shadow-[0px_1px_3px_0px_rgba(10,13,18,0.06),0px_1px_2px_0px_rgba(10,13,18,0.02)]',
+        surface,
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <span className={cn('flex size-[18px] shrink-0 items-center justify-center', icon)}>
+          <Icon className="size-[18px]" />
+        </span>
+        <span className="text-[14px] font-medium leading-[1.4] tracking-[0.3px] text-gray-900">
+          {message}
+        </span>
       </div>
       {onClose && (
-        <div className="flex items-center gap-3">
-          <div className="w-px h-4 bg-border" />
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-foreground hover:opacity-70 transition-opacity"
-            aria-label="Close"
-          >
-            <CrossIcon className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="flex size-7 shrink-0 items-center justify-center rounded-[8px] text-gray-500 transition-colors hover:bg-gray-900/[0.06] hover:text-gray-700"
+        >
+          <CrossIcon className="size-3.5" />
+        </button>
       )}
     </div>
   );
@@ -53,12 +76,14 @@ function CustomToast({ type, message, onClose }: CustomToastProps) {
 const DEFAULT_OPTIONS: ExternalToast = {
   duration: 5000,
   className: 'custom-toast',
+  /* The CustomToast card carries its own surface/border/shadow — keep the
+     sonner wrapper transparent so the tint isn't double-painted. */
   style: {
-    background: 'hsl(var(--card))',
-    border: '1px solid hsl(var(--border))',
-    borderRadius: 'var(--radius)',
+    background: 'transparent',
+    border: 'none',
+    boxShadow: 'none',
     padding: '0',
-    boxShadow: 'var(--shadow-sm)',
+    width: '100%',
   },
 };
 

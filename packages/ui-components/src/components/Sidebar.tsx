@@ -3,6 +3,7 @@ import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import ArrowRightIcon from '../assets/icons/arrow-right.svg?react';
 import OpenSidebarIcon from '../assets/icons/open-sidebar.svg?react';
 import { cn } from '../utils/cn';
+
 import { Tooltip } from './Tooltip';
 
 const STORAGE_KEY = 'sidebar-collapsed';
@@ -71,14 +72,14 @@ export function Sidebar({ items, onNavigate, logo, onLogoClick, companyName }: S
       <aside
         className={cn(
           'hidden md:flex flex-col bg-white border-r border-[#E8EAED] h-full transition-[width] duration-200 ease-in-out p-2',
-          isCollapsed ? 'w-[68px]' : 'w-[224px]',
+          isCollapsed ? 'w-[56px]' : 'w-[224px]',
         )}
       >
-        {/* Header: logo lockup + collapse toggle */}
+        {/* Header: logo lockup + (expanded) collapse toggle */}
         <div
           className={cn(
-            'flex items-center shrink-0',
-            isCollapsed ? 'flex-col gap-2' : 'gap-2.5 pl-0.5',
+            'flex shrink-0 items-center',
+            isCollapsed ? 'justify-center' : 'gap-2.5 pl-0.5',
           )}
         >
           {logo && (
@@ -86,7 +87,7 @@ export function Sidebar({ items, onNavigate, logo, onLogoClick, companyName }: S
               type="button"
               aria-label="Home"
               onClick={onLogoClick}
-              className="flex size-[34px] shrink-0 items-center justify-center rounded-[10px] transition-opacity hover:opacity-90 cursor-pointer"
+              className="flex size-[34px] shrink-0 items-center justify-center rounded-[10px] transition-opacity hover:opacity-90 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {logo}
             </button>
@@ -98,13 +99,11 @@ export function Sidebar({ items, onNavigate, logo, onLogoClick, companyName }: S
             </span>
           )}
 
-          <RailIconButton
-            aria-label="Toggle sidebar"
-            onClick={toggle}
-            className={isCollapsed ? '' : 'ml-auto'}
-          >
-            <OpenSidebarIcon className="h-[18px] w-[18px]" />
-          </RailIconButton>
+          {!isCollapsed && (
+            <RailIconButton aria-label="Collapse sidebar" onClick={toggle} className="ml-auto">
+              <OpenSidebarIcon className="h-[18px] w-[18px]" />
+            </RailIconButton>
+          )}
         </div>
 
         {/* Divider */}
@@ -154,6 +153,15 @@ export function Sidebar({ items, onNavigate, logo, onLogoClick, companyName }: S
             );
           })}
         </nav>
+
+        {/* Collapsed: expand toggle pinned to the bottom of the rail (Figma 3947-75707) */}
+        {isCollapsed && (
+          <div className="flex shrink-0 justify-center pt-1">
+            <RailIconButton aria-label="Expand sidebar" onClick={toggle}>
+              <OpenSidebarIcon className="h-[18px] w-[18px]" />
+            </RailIconButton>
+          </div>
+        )}
       </aside>
 
       {/* Mobile: bottom tab bar */}

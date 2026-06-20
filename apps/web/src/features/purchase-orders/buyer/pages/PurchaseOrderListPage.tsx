@@ -373,7 +373,7 @@ export default function PurchaseOrderListPage() {
             <div ref={createDD.ref} className="relative">
               <Button
                 variant="primary"
-                size="lg"
+                size="md"
                 leftIcon={<span className="text-lg leading-none">+</span>}
                 onClick={() => createDD.setIsOpen((p) => !p)}
               >

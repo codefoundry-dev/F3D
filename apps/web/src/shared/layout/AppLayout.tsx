@@ -53,7 +53,7 @@ export function AppLayout() {
         <Sidebar
           items={sidebarItems}
           onNavigate={navigate}
-          logo={<LogoIcon className="w-8 h-8" />}
+          logo={<LogoIcon className="h-[34px] w-[34px]" />}
           companyName={t('common:appName', { defaultValue: 'Forethread' })}
           onLogoClick={() => navigate(homePathForRole(role))}
         />

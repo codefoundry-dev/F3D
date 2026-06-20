@@ -6,21 +6,28 @@ import { cn } from '../utils/cn';
 /**
  * Alert — Forethread design system (Figma "Notifications / Alerts / Toast" 3719-72068).
  *
- * Tinted banner: hue-50 background + hue-200 border + a hue-coloured icon, with
- * grey title (Gray-900) and body (Gray-700) text — the colour lives in the icon
- * and surface, not the copy. Optional `title`, `actions` row and dismiss `✕`.
+ * Tinted banner: a subtle vertical gradient surface (hue-100 → hue-25) + hue-200
+ * border + a hue-coloured icon, with grey title (Gray-900) and body (Gray-700)
+ * text — the colour lives in the icon and surface, not the copy. Optional
+ * `title`, `actions` row and dismiss `✕`.
  *
  * Back-compat: the original `{ variant, icon, children }` shape still renders
- * (children become the body). `info` keeps mapping to blue; `error` aliases
- * `destructive`.
+ * (children become the body). `info` maps to the Figma "Notification" (indigo)
+ * state; `error` aliases `destructive`.
  */
 const variantStyles = {
-  neutral: { wrap: 'bg-gray-50 border-gray-200', icon: 'text-gray-500' },
-  info: { wrap: 'bg-blue-50 border-blue-200', icon: 'text-blue-600' },
-  success: { wrap: 'bg-green-50 border-green-200', icon: 'text-green-600' },
-  warning: { wrap: 'bg-warning-50 border-warning-200', icon: 'text-warning-600' },
-  destructive: { wrap: 'bg-destructive-50 border-destructive-200', icon: 'text-destructive-600' },
-  error: { wrap: 'bg-destructive-50 border-destructive-200', icon: 'text-destructive-600' },
+  neutral: { wrap: 'from-gray-50 to-white border-gray-100', icon: 'text-gray-500' },
+  info: { wrap: 'from-indigo-100 to-indigo-25 border-indigo-200', icon: 'text-indigo-600' },
+  success: { wrap: 'from-success-100 to-success-25 border-success-200', icon: 'text-success-600' },
+  warning: { wrap: 'from-warning-100 to-warning-25 border-warning-200', icon: 'text-warning-600' },
+  destructive: {
+    wrap: 'from-destructive-100 to-destructive-25 border-destructive-200',
+    icon: 'text-destructive-600',
+  },
+  error: {
+    wrap: 'from-destructive-100 to-destructive-25 border-destructive-200',
+    icon: 'text-destructive-600',
+  },
 } as const;
 
 export interface AlertProps {
@@ -49,7 +56,10 @@ export function Alert({
 }: AlertProps) {
   const tone = variantStyles[variant];
   return (
-    <div className={cn('rounded-[12px] border px-4 py-3', tone.wrap, className)} role="alert">
+    <div
+      className={cn('rounded-[12px] border bg-gradient-to-b px-4 py-3', tone.wrap, className)}
+      role="alert"
+    >
       <div className="flex items-start gap-3">
         {icon && (
           <span
