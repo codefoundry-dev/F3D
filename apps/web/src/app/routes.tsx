@@ -138,6 +138,9 @@ const CompanyProfileRoleSwitch = lazy(
   () => import('@/features/company-profile/CompanyProfileRoleSwitch'),
 );
 
+// DEV-only design-system playground (mounted at /__ds below; never in prod).
+const DesignSystemPlayground = lazy(() => import('@/shared/dev/DesignSystemPlayground'));
+
 // ── Allowed-role sets, derived from each role's app today ───────────
 // (Source of truth for the migration; see apps/web/MIGRATION.md.)
 const ALL_INTERNAL = [
@@ -209,6 +212,11 @@ export const routes: RouteObject[] = [
           { path: ROUTES.forgotPassword, element: withSuspense(<ForgotPasswordPage />) },
         ],
       },
+
+      // ── DEV-only design-system playground (stripped from prod builds) ──
+      ...(import.meta.env.DEV
+        ? [{ path: '/__ds', element: withSuspense(<DesignSystemPlayground />) }]
+        : []),
 
       // ── Always-public ─────────────────────────────────────────────
       { path: ROUTES.activate, element: withSuspense(<ActivateAccountPage />) },
