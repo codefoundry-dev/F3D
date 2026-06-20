@@ -40,6 +40,13 @@
     --accent: 220 12% 92%;
     --accent-foreground: 220 10% 12%;
 
+    /* ───── Brand accent (orange) ───── */
+    /* Orange-600 #E04F16 / Orange-700 #B93815 / Orange-800 #772917 */
+    --brand: 17 82% 48%;
+    --brand-foreground: 0 0% 100%;
+    --brand-hover: 13 80% 40%;
+    --brand-pressed: 11 67% 28%;
+
     /* ───── Destructive ───── */
     /* Destructive-500 #F04438 */
     --destructive: 4 87% 58%;
@@ -134,6 +141,12 @@
     /* Gray-700 #40454F */
     --accent: 220 8% 28%;
     --accent-foreground: 0 0% 99%;
+
+    /* ───── Brand accent (orange) ───── */
+    --brand: 17 82% 52%;
+    --brand-foreground: 0 0% 100%;
+    --brand-hover: 17 82% 48%;
+    --brand-pressed: 13 80% 40%;
 
     /* ───── Destructive ───── */
     /* Destructive-400 #F97066 */

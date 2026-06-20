@@ -32,7 +32,7 @@ export { Button, buttonVariants } from './components/Button';
 export type { ButtonProps, ButtonVariant, ButtonSize } from './components/Button';
 
 export { Input } from './components/Input';
-export type { InputProps } from './components/Input';
+export type { InputProps, InputSize } from './components/Input';
 
 export { StepperInput } from './components/StepperInput';
 export type { StepperInputProps } from './components/StepperInput';
@@ -56,7 +56,7 @@ export { Spinner, PageLoader } from './components/Spinner';
 export type { SpinnerProps } from './components/Spinner';
 
 export { Badge } from './components/Badge';
-export type { BadgeProps } from './components/Badge';
+export type { BadgeProps, BadgeColor, BadgeSize } from './components/Badge';
 
 export {
   Modal,
@@ -262,6 +262,9 @@ export type { MessageBadgeIconProps } from './components/MessageBadgeIcon';
 
 export { InfoHint } from './components/InfoHint';
 export type { InfoHintProps } from './components/InfoHint';
+
+export { Tooltip } from './components/Tooltip';
+export type { TooltipProps, TooltipSide } from './components/Tooltip';
 
 export { DatePicker } from './components/DatePicker';
 export type { DatePickerProps } from './components/DatePicker';

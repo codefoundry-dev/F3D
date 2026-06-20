@@ -7,9 +7,15 @@ export interface RadioButtonProps {
   value?: string;
   name?: string;
   disabled?: boolean;
+  size?: 'sm' | 'md';
   className?: string;
 }
 
+/**
+ * RadioButton — Forethread design system (Figma node 3581-46580 "Radio base").
+ * Checked = dark charcoal gradient fill + white centre dot; unchecked = white
+ * with a gray-300 border (hover gray-700).
+ */
 export function RadioButton({
   checked,
   onChange,
@@ -17,13 +23,17 @@ export function RadioButton({
   value,
   name,
   disabled,
+  size = 'md',
   className,
 }: RadioButtonProps) {
+  const box = size === 'sm' ? 'size-4' : 'size-5';
+  const dot = size === 'sm' ? 'size-1.5' : 'size-2';
+
   return (
     <label
       className={cn(
         'inline-flex items-center gap-2.5 cursor-pointer select-none',
-        disabled && 'opacity-50 cursor-not-allowed',
+        disabled && 'cursor-not-allowed opacity-60',
         className,
       )}
     >
@@ -39,15 +49,16 @@ export function RadioButton({
         />
         <span
           className={cn(
-            'w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center transition-all',
-            'peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-focus-visible:ring-offset-2',
+            'flex items-center justify-center rounded-full border-[1.5px] transition-colors',
+            'peer-focus-visible:ring-4 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background',
+            box,
             checked
-              ? 'bg-background border-foreground'
-              : 'bg-background border-border hover:border-foreground/40',
-            disabled && 'bg-muted border-border',
+              ? 'border-transparent bg-gradient-to-b from-[#090A0B] to-[#2D3139]'
+              : 'border-[#B0B5BF] bg-white hover:border-[#40454F]',
+            disabled && (checked ? 'bg-none bg-[#B0B5BF]' : 'border-[#E8EAED] bg-[#F4F4F6]'),
           )}
         >
-          {checked && <span className="w-2.5 h-2.5 rounded-full bg-foreground" />}
+          {checked && <span className={cn('rounded-full bg-white', dot)} />}
         </span>
       </span>
       {label && <span className="text-sm text-card-foreground">{label}</span>}
