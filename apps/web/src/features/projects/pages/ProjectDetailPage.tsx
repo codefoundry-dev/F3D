@@ -134,13 +134,22 @@ export default function ProjectDetailPage() {
       {activeTab === 'bom' && <BomTab projectId={id ?? ''} />}
 
       {activeTab === 'procurement' && (
-        <ComingSoon title={t('detail.comingSoon.title')} description={t('detail.comingSoon.procurement')} />
+        <ComingSoon
+          title={t('detail.comingSoon.title')}
+          description={t('detail.comingSoon.procurement')}
+        />
       )}
       {activeTab === 'vendors' && (
-        <ComingSoon title={t('detail.comingSoon.title')} description={t('detail.comingSoon.vendors')} />
+        <ComingSoon
+          title={t('detail.comingSoon.title')}
+          description={t('detail.comingSoon.vendors')}
+        />
       )}
       {activeTab === 'financials' && (
-        <ComingSoon title={t('detail.comingSoon.title')} description={t('detail.comingSoon.financials')} />
+        <ComingSoon
+          title={t('detail.comingSoon.title')}
+          description={t('detail.comingSoon.financials')}
+        />
       )}
 
       {showAddModal && (
@@ -189,6 +198,8 @@ function DetailsTab({
   onRemoveMember: (member: { id: string; name: string }) => void;
   t: TranslationFn;
 }) {
+  const { t: tRolesRaw } = useTranslation('roles');
+  const tRoles = tRolesRaw as TranslationFn;
   const deliveryLocations = project.locations.filter((l) => l.type === 'DELIVERY');
   const storageLocations = project.locations.filter((l) => l.type === 'STORAGE');
 
@@ -218,7 +229,11 @@ function DetailsTab({
           <InfoField label={t('detail.projectName')} value={project.name} />
           <InfoField
             label={t('detail.projectStatus')}
-            value={<Badge className="bg-muted text-muted-foreground">{t(`statuses.${project.status}`)}</Badge>}
+            value={
+              <Badge className="bg-muted text-muted-foreground">
+                {t(`statuses.${project.status}`)}
+              </Badge>
+            }
           />
           <InfoField label={t('detail.projectType')} value={project.type ?? t('detail.notSet')} />
           <InfoField
@@ -250,7 +265,11 @@ function DetailsTab({
 
         {/* Locations */}
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-border pt-6">
-          <LocationColumn title={t('detail.deliveryLocations')} locations={deliveryLocations} t={t} />
+          <LocationColumn
+            title={t('detail.deliveryLocations')}
+            locations={deliveryLocations}
+            t={t}
+          />
           <LocationColumn title={t('detail.storageLocations')} locations={storageLocations} t={t} />
         </div>
       </section>
@@ -260,11 +279,7 @@ function DetailsTab({
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-bold text-foreground">{t('detail.assignedUsersRoles')}</h2>
           {canManageProject && (
-            <Button
-              size="md"
-              leftIcon={<PlusIcon className="w-4 h-4" />}
-              onClick={onAddMembers}
-            >
+            <Button size="md" leftIcon={<PlusIcon className="w-4 h-4" />} onClick={onAddMembers}>
               {t('detail.addMembers')}
             </Button>
           )}
@@ -305,7 +320,9 @@ function DetailsTab({
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{member.email}</td>
                   <td className="px-4 py-3 text-muted-foreground">{member.phone ?? '-'}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{member.role}</td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {tRoles(`roleNames.${member.role}`)}
+                  </td>
                   <td className="px-4 py-3">
                     <Badge className="bg-muted text-muted-foreground">{member.status}</Badge>
                   </td>
@@ -374,7 +391,9 @@ function LocationColumn({
         {locations.length === 0 && <p className="text-sm text-muted-foreground">-</p>}
         {locations.map((loc) => (
           <div key={loc.id} className="flex items-start gap-2 text-sm">
-            {loc.isDefault && <FlagIcon className="w-3.5 h-3.5 mt-0.5 text-muted-foreground shrink-0" />}
+            {loc.isDefault && (
+              <FlagIcon className="w-3.5 h-3.5 mt-0.5 text-muted-foreground shrink-0" />
+            )}
             <span className="text-foreground">
               {loc.address}
               {loc.label && <span className="text-muted-foreground"> ({loc.label})</span>}
