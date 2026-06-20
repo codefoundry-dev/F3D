@@ -94,7 +94,7 @@ export function PoDetailsTab({
                 <div className="grid grid-cols-2 gap-x-14 gap-y-3">
                   <DetailField
                     label={`${t('detailFields.projectId')}:`}
-                    value={po.projectId ?? '-'}
+                    value={po.projectCode ?? '-'}
                   />
                   <DetailField label={`${t('detailFields.projectName')}:`} value={po.projectName} />
                   <DetailField
@@ -274,7 +274,7 @@ export function PoDetailsTab({
           <div className="grid grid-cols-2 gap-x-8 gap-y-3">
             <DetailField label={`${t('detailFields.poId')}:`} value={po.poNumber} />
             <DetailField label={`${t('detailFields.poName')}:`} value={po.documentName ?? '-'} />
-            <DetailField label={`${t('detailFields.projectId')}:`} value={po.projectId ?? '-'} />
+            <DetailField label={`${t('detailFields.projectId')}:`} value={po.projectCode ?? '-'} />
             <DetailField label={`${t('detailFields.projectName')}:`} value={po.projectName} />
           </div>
           <DetailField label={`${t('detailFields.poStatus')}:`} value={statusBadge} />

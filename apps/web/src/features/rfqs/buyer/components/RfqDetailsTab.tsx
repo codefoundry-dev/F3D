@@ -55,7 +55,7 @@ export function RfqDetailsTab({ rfq, layout = 'panel' }: RfqDetailsTabProps) {
         <div className="grid grid-cols-2 gap-x-8 gap-y-3">
           <DetailField label={t('detailFields.rfqId')} value={rfq.rfqNumber ?? rfq.id} />
           <DetailField label={t('detailFields.rfqName')} value={rfq.name ?? '-'} />
-          <DetailField label={t('detailFields.projectId')} value={rfq.projectId} />
+          <DetailField label={t('detailFields.projectId')} value={rfq.projectCode} />
           <DetailField label={t('detailFields.projectName')} value={rfq.projectName} />
           <DetailField label={t('detailFields.rfqType')} value={rfq.rfqType ?? '-'} />
           <DetailField label={t('detailFields.paymentTerms')} value={rfq.paymentTerms ?? '-'} />
@@ -193,7 +193,7 @@ function RfqDetailsTabPageLayout({ rfq }: { rfq: RfqDetail }) {
           <div className="grid grid-cols-2 gap-x-8 gap-y-2 mt-3">
             <DetailRow label={t('detailFields.rfqId')} value={rfq.rfqNumber ?? rfq.id} />
             <DetailRow label={t('detailFields.rfqName')} value={rfq.name ?? '-'} />
-            <DetailRow label={t('detailFields.projectId')} value={rfq.projectId} />
+            <DetailRow label={t('detailFields.projectId')} value={rfq.projectCode} />
             <DetailRow label={t('detailFields.projectName')} value={rfq.projectName} />
             <DetailRow label={t('detailFields.rfqType')} value={rfq.rfqType ?? '-'} />
             <DetailRow label={t('detailFields.paymentTerms')} value={rfq.paymentTerms ?? '-'} />

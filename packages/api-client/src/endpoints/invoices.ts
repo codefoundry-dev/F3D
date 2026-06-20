@@ -54,6 +54,8 @@ export interface InvoiceListItem {
   id: string;
   projectName: string;
   projectId: string;
+  /** Human-readable project code (PRJ-YYYY-NNN); shown wherever a "Project ID" is labelled. */
+  projectCode: string;
   vendorName: string;
   status: string;
   relatedPo: string | null;

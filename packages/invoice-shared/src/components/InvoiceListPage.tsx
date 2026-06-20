@@ -432,9 +432,7 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
                         <td className="py-3 px-3 text-foreground truncate max-w-[180px]">
                           {invoice.projectName}
                         </td>
-                        <td className="py-3 px-3 text-foreground">
-                          {invoice.projectId.slice(0, 8)}
-                        </td>
+                        <td className="py-3 px-3 text-foreground">{invoice.projectCode}</td>
                         <td className="py-3 px-3 text-foreground truncate max-w-[180px]">
                           {invoice.vendorName}
                         </td>

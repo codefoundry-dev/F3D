@@ -16,7 +16,9 @@ export interface ColumnDef {
 export const PO_CA_COLUMNS: ColumnDef[] = [
   { field: 'poNumber', key: 'poNumber' },
   { field: 'projectName', key: 'projectName' },
-  { field: 'projectId', key: 'projectId' },
+  // "Project ID" column shows the human-readable code (PRJ-YYYY-NNN) to match
+  // the Projects table; the key stays `projectId` (label/visibility/export).
+  { field: 'projectCode', key: 'projectId' },
   { field: 'vendorName', key: 'vendorName' },
   { field: 'status', key: 'poStatus' },
   { field: 'revision', key: 'revision' },
@@ -83,7 +85,9 @@ export const PO_CA_DEFAULT_VISIBLE: string[] = [
 export const VENDOR_COLUMNS: ColumnDef[] = [
   { field: 'poNumber', key: 'poNumber' },
   { field: 'projectName', key: 'projectName' },
-  { field: 'projectId', key: 'projectId' },
+  // "Project ID" column shows the human-readable code (PRJ-YYYY-NNN) to match
+  // the Projects table; the key stays `projectId` (label/visibility/export).
+  { field: 'projectCode', key: 'projectId' },
   { field: 'contractorName', key: 'contractorName' },
   { field: 'status', key: 'poStatus' },
   { field: 'revision', key: 'revision' },

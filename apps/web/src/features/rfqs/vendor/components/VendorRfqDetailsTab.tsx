@@ -81,7 +81,7 @@ export function VendorRfqDetailsTab({ rfq, layout = 'panel' }: VendorRfqDetailsT
         <SectionTitle>{t('detailFields.basicInformation')}</SectionTitle>
         <div className="grid grid-cols-2 gap-x-3 gap-y-2">
           <DetailField label={t('detailFields.rfqId')} value={rfq.rfqNumber ?? rfq.id} />
-          <DetailField label={t('detailFields.projectId')} value={rfq.projectId ?? '-'} />
+          <DetailField label={t('detailFields.projectId')} value={rfq.projectCode ?? '-'} />
         </div>
         <DetailField label={t('detailFields.projectName')} value={rfq.projectName} />
         <DetailField

@@ -114,7 +114,7 @@ export class InvoicesService {
         take: query.take,
         orderBy,
         include: {
-          project: { select: { name: true } },
+          project: { select: { name: true, code: true } },
           vendor: { select: { legalName: true } },
           relatedPo: { select: { id: true } },
         },
@@ -127,6 +127,7 @@ export class InvoicesService {
         id: inv.id,
         projectName: inv.project.name,
         projectId: inv.projectId,
+        projectCode: inv.project.code,
         vendorName: inv.vendor.legalName,
         status: inv.status,
         relatedPo: inv.relatedPo?.id ?? null,

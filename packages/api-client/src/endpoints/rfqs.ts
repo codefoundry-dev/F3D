@@ -119,6 +119,8 @@ export interface RfqDetail {
   rfqNumber: string | null;
   projectName: string;
   projectId: string;
+  /** Human-readable project code (PRJ-YYYY-NNN); shown wherever a "Project ID" is labelled. */
+  projectCode: string;
   status: string;
   rfqType: string | null;
   paymentTerms: string | null;
