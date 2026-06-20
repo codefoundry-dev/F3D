@@ -43,6 +43,8 @@ export interface RfqListItem {
   rfqNumber: string | null;
   projectName: string;
   projectId: string;
+  /** Human-readable project code (PRJ-YYYY-NNN) — matches the Projects table. */
+  projectCode: string;
   status: string;
   reqQuantities: number;
   pickUp: boolean;
@@ -56,6 +58,14 @@ export interface RfqListItem {
   applIssues: number;
   totalRequestedQty: number;
   arcBlocksDist: string | null;
+  /** Count of vendors invited to the RFQ (Inv. Vendors column). */
+  invitedVendors: number;
+  /** Count of quote-response line items approved on review (Appr. items column). */
+  approvedItems: number;
+  /** Count of quote-response line items declined on review (Decline items column). */
+  declinedItems: number;
+  /** Average total cost across received quote responses; null when no quotes (Avr. Quote Cost column). */
+  avgQuoteCost: number | null;
   createdDate: string;
   createdBy: string;
   createdByUserId: string;

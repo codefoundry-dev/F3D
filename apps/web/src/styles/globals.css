@@ -5,20 +5,21 @@
 @layer base {
   :root {
     /* ───── Core surfaces ───── */
-    /* White #FFFFFF / #171717 */
+    /* Surface White #FFFFFF / text Gray-900 #1B1D22 (DS text/primary) */
     --background: 0 0% 100%;
-    --foreground: 0 0% 9%;
-    /* #2A2A2A */
-    --sort-icon: 0 0% 16.5%;
-    /* #F2F2F2 */
-    --table-header: 0 0% 94.9%;
-    --table-header-foreground: 0 0% 16.5%;
+    --foreground: 223 11% 12%;
+    /* Sort affordance — Gray-500 #6D7588 (softer DS grey) */
+    --sort-icon: 222 11% 48%;
+    /* Table header — Gray-50 #F4F4F6 bg / Gray-700 #40454F text (Figma Table cell 4188-8547) */
+    --table-header: 240 10% 96.1%;
+    --table-header-foreground: 220 10.5% 28%;
 
     /* ───── Card / popover ───── */
+    /* Surface White #FFFFFF / text Gray-900 #1B1D22 */
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 9%;
+    --card-foreground: 223 11% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 9%;
+    --popover-foreground: 223 11% 12%;
 
     /* ───── Primary (brand blue) ───── */
     /* Blue-500 #2E90FA */
@@ -26,19 +27,26 @@
     --primary-foreground: 0 0% 100%;
 
     /* ───── Secondary ───── */
-    /* Gray-50 #F4F4F6 / #252525 */
+    /* Gray-50 #F4F4F6 / text Gray-800 #2D3139 */
     --secondary: 240 10% 96%;
-    --secondary-foreground: 0 0% 15%;
+    --secondary-foreground: 220 12% 20%;
 
     /* ───── Muted ───── */
-    /* Gray-50 #F4F4F6 / #717182 */
+    /* Gray-50 #F4F4F6 / text Gray-500 #6D7588 */
     --muted: 240 10% 96%;
-    --muted-foreground: 240 7% 48%;
+    --muted-foreground: 222 11% 48%;
 
     /* ───── Accent (hover/focus backgrounds) ───── */
-    /* Gray-100 #E8EAED */
-    --accent: 220 12% 92%;
-    --accent-foreground: 220 10% 12%;
+    /* Gray-100 #E8EAED / text Gray-900 #1B1D22 */
+    --accent: 216 12% 92%;
+    --accent-foreground: 223 11% 12%;
+
+    /* ───── Brand accent (orange) ───── */
+    /* Orange-600 #E04F16 / Orange-700 #B93815 / Orange-800 #772917 */
+    --brand: 17 82% 48%;
+    --brand-foreground: 0 0% 100%;
+    --brand-hover: 13 80% 40%;
+    --brand-pressed: 11 67% 28%;
 
     /* ───── Destructive ───── */
     /* Destructive-500 #F04438 */
@@ -65,10 +73,10 @@
     --filter-chip-foreground: 0 0% 100%;
 
     /* ───── Border / input / ring ───── */
-    /* Gray-200 #E5E5E5 */
-    --border: 0 0% 90%;
-    --border-hover: 0 0% 39%; /* Gray-500 #636363 — card hover state */
-    --input: 0 0% 90%;
+    /* Gray-100 #E8EAED (DS stroke/light) */
+    --border: 216 12% 92%;
+    --border-hover: 222 11% 48%; /* Gray-500 #6D7588 — card hover state */
+    --input: 216 12% 92%;
     --ring: 211 96% 58%;
 
     /* ───── Border radius ───── */
@@ -134,6 +142,12 @@
     /* Gray-700 #40454F */
     --accent: 220 8% 28%;
     --accent-foreground: 0 0% 99%;
+
+    /* ───── Brand accent (orange) ───── */
+    --brand: 17 82% 52%;
+    --brand-foreground: 0 0% 100%;
+    --brand-hover: 17 82% 48%;
+    --brand-pressed: 13 80% 40%;
 
     /* ───── Destructive ───── */
     /* Destructive-400 #F97066 */

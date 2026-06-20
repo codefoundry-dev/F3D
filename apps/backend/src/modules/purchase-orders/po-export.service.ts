@@ -42,7 +42,7 @@ const COLUMN_MAP: Record<string, ExportColumnDef> = {
   projectId: {
     header: 'Project ID',
     pdfWidth: 80,
-    value: (r) => str(r.projectId),
+    value: (r) => str(r.projectCode),
   },
   vendorName: {
     header: 'Vendor Name',

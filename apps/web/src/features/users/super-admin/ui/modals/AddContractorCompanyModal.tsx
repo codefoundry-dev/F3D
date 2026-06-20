@@ -47,16 +47,13 @@ export function AddContractorCompanyModal({ onClose, onSuccess }: AddContractorC
         <div className="flex flex-col items-center text-center">
           <div className="w-full flex justify-between items-start">
             <div className="flex-1" />
-            <IconBadge
-              icon={<DepartmentIcon className="w-6 h-6 text-foreground" />}
-              className="bg-muted"
-            />
+            <IconBadge icon={<DepartmentIcon className="w-6 h-6 text-foreground" />} />
             <div className="flex-1 flex justify-end">
               <ModalCloseButton onClose={onClose} />
             </div>
           </div>
 
-          <h2 className="text-lg font-semibold text-foreground mt-4">
+          <h2 className="text-2xl font-semibold leading-[140%] text-foreground mt-4">
             {t('addCompanyModal.createContractorTitle')}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
@@ -64,13 +61,12 @@ export function AddContractorCompanyModal({ onClose, onSuccess }: AddContractorC
           </p>
 
           <form onSubmit={handleSubmit} className="w-full mt-5 space-y-4 text-left" noValidate>
-            <FormField label={t('addCompanyModal.companyName')} required>
+            <FormField label={t('addCompanyModal.companyName')}>
               <Input
                 type="text"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 placeholder={t('addCompanyModal.companyNamePlaceholder')}
-                leftIcon={<DepartmentIcon className="w-5 h-5" />}
               />
             </FormField>
 
@@ -81,19 +77,19 @@ export function AddContractorCompanyModal({ onClose, onSuccess }: AddContractorC
               </Alert>
             )}
 
-            <div className="flex gap-3 pt-2">
-              <Button variant="outline" type="button" onClick={onClose} className="flex-1">
-                {t('common:cancel')}
-              </Button>
+            <div className="flex flex-col gap-3 pt-2">
               <Button
                 type="submit"
                 isLoading={createMutation.isPending}
                 disabled={!companyName.trim()}
-                className="flex-1"
+                className="w-full"
               >
                 {createMutation.isPending
                   ? t('addCompanyModal.creating')
                   : t('addCompanyModal.create')}
+              </Button>
+              <Button variant="outline" type="button" onClick={onClose} className="w-full">
+                {t('common:cancel')}
               </Button>
             </div>
           </form>

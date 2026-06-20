@@ -7,6 +7,10 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
 }));
 
+vi.mock('@forethread/i18n', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
 vi.mock('@/features/auth/state/auth.store', () => ({
   useAuthStore: (
     selector: (s: { currentUser: { companyId: string | undefined } | null }) => unknown,

@@ -7,10 +7,10 @@ import { UserRole } from '@forethread/shared-types/client';
  *   - the Forbidden page "Go home" CTA
  */
 export const ROLE_HOME_PATH: Record<UserRole, string> = {
-  [UserRole.SUPER_ADMIN]: '/admin-panel',
+  [UserRole.SUPER_ADMIN]: '/',
   [UserRole.COMPANY_ADMIN]: '/',
   [UserRole.PROCUREMENT_OFFICER]: '/',
-  [UserRole.FINANCIAL_OFFICER]: '/invoices',
+  [UserRole.FINANCIAL_OFFICER]: '/',
   [UserRole.WAREHOUSE_OFFICER]: '/',
   [UserRole.FOREMAN]: '/material-requests',
   [UserRole.VENDOR]: '/',

@@ -39,7 +39,7 @@ describe('AddToMaterialListModal', () => {
 
     expect(await screen.findByTestId('add-to-list-card-l-1')).toBeInTheDocument();
     expect(screen.getByTestId('add-to-list-card-l-2')).toBeInTheDocument();
-    expect(screen.getByText('Add to material list')).toBeInTheDocument();
+    expect(screen.getByText('Add from Material list')).toBeInTheDocument();
   });
 
   it('adds the material to the clicked list, then closes', async () => {

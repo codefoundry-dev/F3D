@@ -13,6 +13,7 @@ export * from './dtos/po-delivery.types';
 export * from './dtos/user-profile.types';
 export * from './dtos/email-log.types';
 export * from './dtos/inventory.types';
+export * from './dtos/delivery.types';
 
 // Validation utils
 export * from './validation';

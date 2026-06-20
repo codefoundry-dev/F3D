@@ -53,13 +53,21 @@ import { VENDOR_STATUS_MAP, VENDOR_STATUS_TO_RFQ } from './vendor-status.constan
 
 /** Prisma includes shared by list & detail queries */
 const RFQ_LIST_INCLUDE = {
-  project: { select: { id: true, name: true } },
+  project: { select: { id: true, name: true, code: true } },
   deliveryLocation: { select: { id: true, label: true, address: true } },
   createdBy: { select: { id: true, name: true } },
   approvedBy: { select: { id: true, name: true } },
   invitedVendors: { select: { vendor: { select: { id: true, legalName: true } } } },
   _count: { select: { lineItems: true, quoteResponses: true, invitedVendors: true } },
-  quoteResponses: { select: { vendorId: true, status: true }, distinct: ['vendorId' as const] },
+  quoteResponses: {
+    select: {
+      vendorId: true,
+      status: true,
+      totalCost: true,
+      lineItems: { select: { status: true } },
+    },
+    distinct: ['vendorId' as const],
+  },
 } satisfies Prisma.RfqInclude;
 
 const RFQ_DETAIL_INCLUDE = {
@@ -183,11 +191,40 @@ export class RfqsService {
         }[];
         const isPickUp = (rfqAny.isPickUp as boolean | undefined) ?? false;
 
+        // PO/CA review metrics. Vendors get a trimmed quoteResponses select (no
+        // totalCost / lineItems) and don't render these columns, so leave them empty.
+        const responses = (rfqAny.quoteResponses ?? []) as Array<{
+          status: string;
+          totalCost?: Prisma.Decimal | null;
+          lineItems?: { status: string }[];
+        }>;
+        const applVendors = isVendor ? 0 : responses.filter((r) => r.status === 'APPROVED').length;
+        const approvedItems = isVendor
+          ? 0
+          : responses.reduce(
+              (n, r) => n + (r.lineItems?.filter((li) => li.status === 'APPROVED').length ?? 0),
+              0,
+            );
+        const declinedItems = isVendor
+          ? 0
+          : responses.reduce(
+              (n, r) => n + (r.lineItems?.filter((li) => li.status === 'DECLINED').length ?? 0),
+              0,
+            );
+        const receivedQuotes = isVendor ? [] : responses.filter((r) => r.status !== 'PENDING');
+        const avgQuoteCost =
+          receivedQuotes.length > 0
+            ? receivedQuotes.reduce((sum, r) => sum + Number(r.totalCost ?? 0), 0) /
+              receivedQuotes.length
+            : null;
+
         return {
           id: rfq.id,
           rfqNumber: rfqAny.rfqNumber ?? null,
           projectName: rfq.project.name,
           projectId: rfq.projectId,
+          /** Human-readable project code (PRJ-YYYY-NNN) — matches the Projects table. */
+          projectCode: rfq.project.code,
           /** Primary project (US 5.05 — RFQs may span several projects). */
           project: { id: rfq.projectId, name: rfq.project.name },
           status: isVendor ? this.computeVendorStatus(rfq, user.id) : rfq.status,
@@ -203,7 +240,10 @@ export class RfqsService {
           recQuotes: rfq._count.quoteResponses,
           invitedVendors: rfq._count.invitedVendors,
           invitedVendorNames: invitedVendors.map((iv) => iv.vendor.legalName),
-          applVendors: 0,
+          applVendors,
+          approvedItems,
+          declinedItems,
+          avgQuoteCost,
           lineItems: rfq._count.lineItems,
           deadlineRange:
             rfq.deadlineStart && rfq.deadlineEnd
@@ -1537,6 +1577,8 @@ export class RfqsService {
         return { project: { name: sortDir } };
       case 'projectId':
         return { projectId: sortDir };
+      case 'projectCode':
+        return { project: { code: sortDir } };
       case 'status':
         return { status: sortDir };
       case 'totalRequestedQty':

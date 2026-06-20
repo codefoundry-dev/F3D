@@ -1,15 +1,15 @@
-# Week 3 Demo Runbook — The Procurement Loop
+# Demo Runbook — The Full Procurement + Delivery Loop
 
-A continuous, end-to-end demo of everything shipped in Week 3: material requisitions, quote
-comparison, the PO approval workflow, the full PO state machine, the audit trail, and email
-notifications — across all the roles.
+A continuous, end-to-end demo of the whole procurement loop: material requisitions, quote
+comparison, the PO approval workflow, the full PO state machine, **delivery capture & approval
+(Epic 6)**, the audit trail, and email notifications — across all the roles.
 
 > **Run it locally.** Staging/prod still need `migrate deploy` and staging is on the legacy host, so
 > the local stack with seed data is the reliable surface for a demo.
 
 ---
 
-## What this demo proves (Week 3 scope)
+## What this demo proves
 
 - **Material Requisition** as a first-class object — raised by an internal user, routed to the
   Procurement Officer, approved/declined with a reason, converted to an RFQ **or** a PO, fully
@@ -17,16 +17,20 @@ notifications — across all the roles.
 - **Quote comparison & RFQ polish** — side-by-side vendor quotes, award the winner, spin up a PO.
 - **PO approval workflow** — RBAC threshold routing, approver inbox, decline-with-reason.
 - **Full PO state machine** + an **audit trail on every order**.
-- **Email notifications** throughout (OTP, pending-approval, issued).
+- **Delivery capture & approval (Epic 6)** — a delivery report as its own object, recorded either
+  internally or via a **no-login mobile QR portal**, with per-line outcomes, damage + photos; a
+  buyer-side reviewer approves it, which advances the PO and pushes stock into inventory.
+  Segregation of duties throughout.
+- **Email notifications** throughout (OTP, pending-approval, issued, delivery access code).
 - **Role-based routing** across foreman / procurement / company-admin / vendor / warehouse.
 
-> **Two honest notes**
+> **One honest note on the PO lifecycle**
 >
-> - **Basic inventory** (push-in / push-out movements) from the Week 3 brief was **descoped to v2**
->   — it isn't built, so it's not in this script.
-> - The brief's PO state names (Ordered / Confirmed / Shipped…) were superseded. The shipped
->   lifecycle is: **Draft → (Pending approval) → Sent → Acknowledged → Accepted → Partially
->   delivered → Delivered → Closed** (plus Cancelled / Declined). Those are the labels on screen.
+> The original brief's PO state names (Ordered / Confirmed / Shipped…) were superseded. The shipped
+> lifecycle is: **Draft → (Pending approval) → Sent → Acknowledged → Accepted → Partially delivered
+> → Delivered → Closed** (plus Cancelled / Declined). Those are the labels on screen. Inventory
+> push-in (descoped at Week 3) is now wired up — approving a delivery report increments stock
+> balances.
 
 ---
 
@@ -86,18 +90,22 @@ cookie jar. Keep **Mailhog (8025)** visible the whole time.
 
 ## Cast (every password is `Dev@123456`)
 
-| Role                 | Email                               | Plays                                 |
-| -------------------- | ----------------------------------- | ------------------------------------- |
-| Foreman              | `foreman@testcontractor.local`      | raises the requisition                |
-| Procurement Officer  | `procurement@testcontractor.local`  | reviews/converts, builds the RFQ & PO |
-| Company Admin        | `companyadmin@testcontractor.local` | approves over-threshold POs           |
-| Vendor — Test Vendor | `vendor@testvendor.local`           | quotes the RFQ, acknowledges the PO   |
-| Vendor — Acme        | `admin@acmebs.local`                | second competing quote                |
-| Warehouse Officer    | `warehouse@testcontractor.local`    | records delivery                      |
-| Super Admin          | `superadmin@forethread.local`       | one-time threshold setup only         |
+| Role                 | Email                               | Plays                                                         |
+| -------------------- | ----------------------------------- | ------------------------------------------------------------- |
+| Foreman              | `foreman@testcontractor.local`      | raises the requisition                                        |
+| Procurement Officer  | `procurement@testcontractor.local`  | reviews/converts, builds the RFQ & PO, can approve deliveries |
+| Company Admin        | `companyadmin@testcontractor.local` | approves over-threshold POs **and** delivery reports          |
+| Vendor — Test Vendor | `vendor@testvendor.local`           | quotes the RFQ, acknowledges the PO                           |
+| Vendor — Acme        | `admin@acmebs.local`                | second competing quote                                        |
+| Warehouse Officer    | `warehouse@testcontractor.local`    | **submits** a delivery report (cannot approve)                |
+| Super Admin          | `superadmin@forethread.local`       | one-time threshold setup only                                 |
 
 **To log in each:** enter email + password → read the 6-digit code from **Mailhog (8025)** → enter
 it on the Verify screen.
+
+> **No account needed for the mobile portal.** The delivery-driver path (Act 6, Path B) opens from a
+> QR link with no login — the driver just enters a name + email and a one-time code (which also
+> lands in Mailhog locally).
 
 ---
 
@@ -151,7 +159,7 @@ it on the Verify screen.
 3. On the **Approved** tab, set order quantities → select lines → **Create PO**.
    > _"Award the best quote and spin up a PO directly from the comparison."_
 
-### Act 5 — PO approval + state machine · **PO → Company Admin → Vendor → Warehouse**
+### Act 5 — PO approval + state machine · **PO → Company Admin → Vendor**
 
 1. The new PO opens as **Draft** with real prices from the quote. Because the total exceeds the
    $1,000 threshold, the action button reads **"Submit for Approval"** (not "Send"). Click it → PO
@@ -165,13 +173,60 @@ it on the Verify screen.
 4. PO transitions **Pending approval → Sent**; Mailhog shows the **"PO Issued"** email to the
    vendor.
 5. **Switch to Vendor** → open the PO → **Acknowledge** (→ Acknowledged) → **Accept** (→ Accepted).
-6. **Switch to Warehouse Officer** → open the PO → **Record delivery** → enter received quantities.
-   Partial → **Partially delivered**; full → **Delivered**.
-7. Open the PO **Action Log** tab: the entire chain — created, submitted, approved, sent,
+   The PO is now ready to receive against.
+
+### Act 6 — Record the delivery · **Warehouse Officer (or a delivery driver)**
+
+> Delivery is its own object now (**`DR-000001`**), with a **Submitted → Approved / Rejected**
+> lifecycle separate from the PO. There are two ways to raise one — show **Path A**, and demo or
+> describe **Path B** for the mobile wow-factor. Either way the report lands in **Submitted** and
+> changes nothing on the PO until a reviewer approves it (Act 7).
+
+**Path A — internal report · Warehouse Officer**
+
+1. Log in as **Warehouse Officer** → sidebar **Deliveries** (`/deliveries`) → **New delivery
+   report** (`/deliveries/new`).
+2. **Select PO** → pick the Accepted PO. The line-item table seeds from the PO, with **Qty
+   received** pre-filled to the ordered quantity.
+3. Make it interesting:
+   - Drop one line's **Qty received** below ordered (this is what makes the PO **Partially
+     delivered**).
+   - Set another line's **Outcome → Damaged** — the inline **damage sub-form** opens: damaged qty,
+     damage type, disposition, and a **photo upload**.
+   - Outcome options are Delivered / Partially delivered / Not delivered / Damaged / Rejected.
+4. _(Optional)_ add an overall report note and/or an attachment.
+5. **Submit.** Report **DR-000001** is created in **Submitted** and you land on its detail page.
+   > _"The person on the dock records exactly what arrived — including damage with photos. Note
+   > there's no Approve button here: the warehouse can submit, but not self-approve."_
+
+**Path B — no-login mobile QR portal · delivery driver** _(optional, the wow-factor)_
+
+1. As the **buyer** (Procurement Officer or Company Admin), open the **PO detail** page → the
+   **Generate delivery QR** card → click it. A QR + a copyable `/delivery/<token>` link appear.
+2. Open that link on a phone (or paste it into a fresh window). A 4-step mobile flow runs:
+   **Identify** (name + email) → a **6-digit access code is emailed** (read it from **Mailhog**) →
+   **Verify** → fill the per-line **delivery cards** (same outcomes + damage/photos) → **Submit**.
+3. This produces the same **Submitted** `DR-000001` report — just sourced externally, with no
+   account.
+   > _"A driver with only a phone and the QR on the paperwork can file a delivery report — no login,
+   > one-time code, fully captured."_
+
+### Act 7 — Approve the delivery & close the loop · **Company Admin (or Procurement Officer)**
+
+1. **Switch to Company Admin** → **Deliveries** (`/deliveries`) → open **DR-000001**. Show the
+   received quantities, the damaged line + its photo, and the submitter's details.
+2. _(Optional)_ **Reject** → forces a reason; the PO is left untouched. For the main flow,
+   **Approve**.
+3. On **Approve**, the received quantities flow onto the PO lines and **stock is pushed into
+   inventory** (stock balances increment). The PO transitions to **Partially delivered** (if any
+   line is short) or **Delivered** (all lines full).
+   > _"It only becomes real when a buyer-side reviewer approves — that's what advances the PO and
+   > updates stock. Segregation of duties, end to end."_
+4. Open the PO **Action Log** tab: the entire chain — created, submitted, approved, sent,
    acknowledged, accepted, delivered — each stamped with actor + time.
    > _"Every order carries a complete audit trail, and the state machine blocks illegal jumps."_
 
-### Act 6 — The shortcut: requisition straight to PO · **optional, ~1 min**
+### Act 8 — The shortcut: requisition straight to PO · **optional, ~1 min**
 
 - Raise a second quick requisition as **Foreman** → approve as **Procurement Officer** → this time
   click **Convert to PO** → pick a vendor → **Create purchase order**.
@@ -188,16 +243,18 @@ it on the Verify screen.
 - ✅ Quote comparison & RFQ polish.
 - ✅ PO approval via RBAC threshold routing, approver inbox, decline-with-reason.
 - ✅ Full PO state machine + audit trail on every order.
+- ✅ Delivery capture & approval: a delivery report as its own object — recorded internally or via
+  the no-login mobile QR portal, with damage + photos — approved by a buyer-side reviewer, which
+  advances the PO (Partially delivered / Delivered) and pushes stock into inventory.
 - ✅ Email notifications throughout (Mailhog).
 - ✅ Role-based routing across foreman / procurement / company-admin / vendor / warehouse.
-- ⏭️ Basic inventory (push-in/out) — **descoped to v2**, not shown.
 
 ---
 
 ## Reset between runs
 
-- Re-run `pnpm db:seed` to wipe back to a clean slate (clears the MRs/RFQs/POs you created and
-  resets MR/PO numbering). Do this before a fresh run.
+- Re-run `pnpm db:seed` to wipe back to a clean slate (clears the MRs/RFQs/POs/delivery reports you
+  created and resets MR/PO/DR numbering). Do this before a fresh run.
 - If OTP emails stop appearing, re-confirm `RESEND_API_KEY` is still blank and the backend was
   restarted after the change.
 
@@ -214,4 +271,13 @@ it on the Verify screen.
   vendor login. Seeded vendors assigned to Test Contractor: Test Vendor, Acme, Delta, Summit, Rexel.
 - **Convert-to-PO shows $0 total** → expected on the direct path; fill prices in PO edit before
   issuing.
+- **Warehouse Officer has no Approve button on a delivery report** → expected; only Company Admin /
+  Procurement Officer hold `delivery.approve`. Switch to one of them to approve.
+- **PO state doesn't change after submitting a delivery** → the report is only **Submitted**; the PO
+  advances **on approval** (Act 7), not on submit.
+- **Mobile portal code never arrives** → same Mailhog rule as OTP — the 6-digit delivery access code
+  lands in **Mailhog (8025)**, not a real inbox; codes expire after ~15 min and lock after 3 bad
+  tries.
+- **No "Generate delivery QR" on the PO** → it only renders on the **buyer** PO detail view;
+  generate it as Procurement Officer or Company Admin.
 - **vitest stalls** → if you also run tests, stop `turbo dev` first (known fork-pool contention).

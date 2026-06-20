@@ -3,47 +3,47 @@ import { exportRfqs } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
   useRfqs,
-  useDropdown,
   useRfqSort,
   useRfqGrouping,
   useRfqExport,
+  usePageTitleStore,
   VENDOR_QUICK_FILTERS,
   VENDOR_GROUP_OPTIONS,
   VENDOR_GROUP_FIELD_MAP,
   PAGE_SIZE_OPTIONS,
   VENDOR_RFQ_STATUS_KEYS,
   createRfqTableStore,
-  ToolbarIconButton,
   RfqAdvancedFilters,
 } from '@forethread/rfq-shared';
 import {
   Badge,
-  Button,
   cn,
   CreateViewModal,
   DotActionsMenu,
+  ExportDropdownButton,
   FilterChip,
   FilterPanel,
   getStatusColor,
-  InfoHint,
-  Input,
+  GroupByButton,
   MessageBadgeIcon,
   VENDOR_RFQ_STATUS_COLORS,
   SortIcon,
+  Spinner,
   TableManagementModal,
   TablePagination,
+  ToolbarIconButton,
+  ToolbarSearchToggle,
   useColumnDragDrop,
+  useDropdown,
+  ViewSelectorDropdown,
 } from '@forethread/ui-components';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
-import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
-import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import DragHandleIcon from '@forethread/ui-components/assets/icons/drag-and-drop.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import FloppyDiskIcon from '@forethread/ui-components/assets/icons/floppy-disk.svg?react';
-import InfoIcon from '@forethread/ui-components/assets/icons/info.svg?react';
-import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
 import SettingsIcon from '@forethread/ui-components/assets/icons/settings.svg?react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type React from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -64,10 +64,23 @@ export default function RfqListPage() {
 
   const activeView = s.savedViews.find((v) => v.id === s.activeViewId);
 
+  /* Page header is owned by the app-shell header via the page-title store. */
+  const setPageTitle = usePageTitleStore((st) => st.setTitle);
+  useEffect(() => {
+    setPageTitle(t('list.title'), t('list.subtitle'));
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
+
+  useEffect(() => {
+    s.loadViews();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   /* refs */
   const containerRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
+
+  /* preview panel anchor (Y offset of the clicked row, relative to container) */
+  const [previewY, setPreviewY] = useState(0);
 
   /* dropdowns */
   const viewDD = useDropdown();
@@ -143,12 +156,6 @@ export default function RfqListPage() {
     .map((key) => colByKey.get(key))
     .filter((c): c is (typeof ALL_COLUMNS)[number] => Boolean(c));
 
-  /* ─── Focus search on open ─────────────────────────────────── */
-
-  useEffect(() => {
-    if (s.searchOpen && searchRef.current) searchRef.current.focus();
-  }, [s.searchOpen]);
-
   /* ─── Cell renderer ─────────────────────────────────────────── */
 
   const renderCell = (rfq: RfqListItem, field: SortableField, key: string) => {
@@ -159,7 +166,13 @@ export default function RfqListPage() {
         </Badge>
       );
     }
-    if (key === 'pickUp') return rfq.pickUp ? t('common:yes') : t('common:no');
+    if (key === 'pickUp') {
+      return (
+        <Badge className="bg-muted text-muted-foreground">
+          {rfq.pickUp ? t('common:yes') : t('common:no')}
+        </Badge>
+      );
+    }
     if (key === 'createdDate') {
       return new Date(rfq.createdDate).toLocaleDateString('en-US', {
         month: 'short',
@@ -167,7 +180,28 @@ export default function RfqListPage() {
         year: 'numeric',
       });
     }
+    // Res. Deadline — backend sends either null or a "YYYY-MM-DD - YYYY-MM-DD"
+    // range. Design shows a friendly "MMM d, yyyy"; render each end formatted.
+    if (key === 'resDeadline') {
+      if (!rfq.deadlineRange) return '-';
+      return rfq.deadlineRange
+        .split(' - ')
+        .map((d) => {
+          const parsed = new Date(d);
+          return isNaN(parsed.getTime())
+            ? d
+            : parsed.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              });
+        })
+        .filter((v, i, arr) => arr.indexOf(v) === i) // collapse identical start/end
+        .join(' - ');
+    }
     const val = rfq[field];
+    // Count columns (lineItems / totalRequestedQty / recQuotes) — 0 is a real
+    // value, so only treat null/undefined as missing.
     if (val === null || val === undefined) return '-';
     return String(val);
   };
@@ -185,7 +219,7 @@ export default function RfqListPage() {
           key={key}
           className={cn(
             'py-3 px-3 text-foreground',
-            TRUNCATE_COLUMNS.includes(key) && 'truncate max-w-[180px]',
+            TRUNCATE_COLUMNS.includes(key) ? 'truncate max-w-[180px]' : 'whitespace-nowrap',
           )}
           style={
             dragColKey === key
@@ -210,7 +244,11 @@ export default function RfqListPage() {
             type="button"
             className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
             title={t('actions.view')}
-            onClick={() => {
+            onClick={(e: React.MouseEvent) => {
+              const containerRect = containerRef.current?.getBoundingClientRect();
+              const btnRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              const y = btnRect.top - (containerRect?.top ?? 0);
+              setPreviewY(y);
               s.openPreview(rfq.id);
             }}
           >
@@ -241,113 +279,36 @@ export default function RfqListPage() {
       <div className="flex flex-col rounded-lg border border-border bg-background pb-4">
         {/* ═══ Toolbar Row 1 ═══ */}
         <div className="px-4 sm:px-8 pt-4">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            {/* Left – Create new */}
-            <Button
-              variant="primary"
-              size="lg"
-              leftIcon={<span className="text-lg leading-none">+</span>}
-            >
-              {t('list.createNew')}
-            </Button>
-
-            {/* Right – View / Save / Export / Settings */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
+            {/* Right – View / Save / Export / Settings (vendors cannot create RFQs) */}
             <div className="flex items-center gap-3">
-              {/* View selector */}
-              <div ref={viewDD.ref} className="relative">
-                <button
-                  type="button"
-                  onClick={() => viewDD.setIsOpen((p) => !p)}
-                  className="flex items-center gap-2.5 h-12 px-4 border border-foreground/20 rounded-xl text-foreground hover:bg-accent transition-colors"
-                >
-                  <EyeIcon className="w-5 h-5" />
-                  <span className="text-base font-medium">
-                    {activeView ? activeView.name : t('list.viewDefault')}
-                  </span>
-                  {s.savedViews.length > 0 && (
-                    <ChevronDownIcon
-                      className={cn('w-5 h-5 transition-transform', viewDD.isOpen && 'rotate-180')}
-                    />
-                  )}
-                </button>
-                {/* Saved views dropdown */}
-                {viewDD.isOpen && s.savedViews.length > 0 && (
-                  <div className="absolute left-0 mt-1 w-48 bg-card border border-border rounded-xl shadow-lg z-50 py-1">
-                    <button
-                      type="button"
-                      className={cn(
-                        'w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-accent transition-colors',
-                        !s.activeViewId && 'font-medium bg-accent',
-                      )}
-                      onClick={() => {
-                        s.applyView(null);
-                        viewDD.setIsOpen(false);
-                      }}
-                    >
-                      {t('views.defaultView')}
-                    </button>
-                    {s.savedViews.map((view) => (
-                      <button
-                        key={view.id}
-                        type="button"
-                        className={cn(
-                          'w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-accent transition-colors',
-                          s.activeViewId === view.id && 'font-medium bg-accent',
-                        )}
-                        onClick={() => {
-                          s.applyView(view.id);
-                          viewDD.setIsOpen(false);
-                        }}
-                      >
-                        {view.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {viewDD.isOpen && s.savedViews.length === 0 && (
-                  <InfoHint
-                    icon={<InfoIcon className="w-4 h-4 text-[hsl(var(--badge-blue-text))]" />}
-                    className="text-[hsl(var(--badge-blue-text))]"
-                  >
-                    {t('views.noSavedViews')}
-                  </InfoHint>
-                )}
-              </div>
+              <ViewSelectorDropdown
+                activeView={activeView}
+                savedViews={s.savedViews}
+                onApplyView={s.applyView}
+                defaultViewLabel={t('list.viewDefault')}
+                defaultViewItemLabel={t('views.defaultView')}
+                noSavedViewsHint={t('views.noSavedViews')}
+                isOpen={viewDD.isOpen}
+                onOpenChange={viewDD.setIsOpen}
+                dropdownRef={viewDD.ref}
+              />
 
               <ToolbarIconButton title={t('list.save')} onClick={() => s.setShowCreateView(true)}>
                 <FloppyDiskIcon className="w-6 h-6" />
               </ToolbarIconButton>
 
-              {/* Export */}
-              <div ref={exportDD.ref} className="relative">
-                <ToolbarIconButton title="Export" onClick={() => exportDD.setIsOpen((p) => !p)}>
-                  <DownloadIcon className="w-6 h-6" />
-                </ToolbarIconButton>
-                {exportDD.isOpen && (
-                  <div className="absolute right-0 mt-1 w-44 bg-card border border-border rounded-xl shadow-lg z-50 py-1">
-                    <button
-                      type="button"
-                      className="w-full text-left px-4 py-2.5 text-sm text-card-foreground hover:bg-accent transition-colors"
-                      onClick={() => {
-                        exportDD.setIsOpen(false);
-                        handleExport('csv');
-                      }}
-                    >
-                      {t('list.exportCsv')}
-                    </button>
-                    <button
-                      type="button"
-                      className="w-full text-left px-4 py-2.5 text-sm text-card-foreground hover:bg-accent transition-colors"
-                      onClick={() => {
-                        exportDD.setIsOpen(false);
-                        handleExport('xlsx');
-                      }}
-                    >
-                      {t('list.exportXlsx')}
-                    </button>
-                  </div>
-                )}
-              </div>
+              <ExportDropdownButton
+                title="Export"
+                formats={[
+                  { key: 'csv', label: t('list.exportCsv') },
+                  { key: 'xlsx', label: t('list.exportXlsx') },
+                ]}
+                onExport={(fmt) => handleExport(fmt as 'csv' | 'xlsx')}
+                isOpen={exportDD.isOpen}
+                onOpenChange={exportDD.setIsOpen}
+                dropdownRef={exportDD.ref}
+              />
 
               <ToolbarIconButton
                 title={t('list.settings')}
@@ -386,51 +347,17 @@ export default function RfqListPage() {
 
             {/* Right – Group / Filters / Search */}
             <div className="flex items-center gap-2 shrink-0">
-              {/* Group */}
-              <div ref={groupDD.ref} className="relative">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (s.groupBy) {
-                      s.setGroupBy('');
-                    } else {
-                      groupDD.setIsOpen((p) => !p);
-                    }
-                  }}
-                  className="flex items-center gap-1.5 h-9 px-4 text-sm font-medium border rounded-xl transition-colors border-foreground/20 text-foreground hover:bg-accent"
-                >
-                  {s.groupBy ? (
-                    <>
-                      {t(`list.${s.groupBy}` as never)}
-                      <CrossIcon className="w-3 h-3 ml-1" />
-                    </>
-                  ) : (
-                    <>
-                      {t('list.group')}
-                      <ChevronDownIcon className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
-                {groupDD.isOpen && !s.groupBy && (
-                  <div className="absolute right-0 mt-1 w-44 bg-card border border-border rounded-xl shadow-lg z-50 py-1">
-                    {(VENDOR_GROUP_OPTIONS as readonly string[]).map((opt) => (
-                      <button
-                        key={opt}
-                        type="button"
-                        className="w-full text-left px-4 py-2.5 text-sm text-card-foreground hover:bg-accent transition-colors"
-                        onClick={() => {
-                          s.setGroupBy(opt);
-                          groupDD.setIsOpen(false);
-                        }}
-                      >
-                        {t(`list.${opt}` as never)}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <GroupByButton
+                groupBy={s.groupBy}
+                onGroupByChange={s.setGroupBy}
+                options={VENDOR_GROUP_OPTIONS}
+                getOptionLabel={(opt) => t(`list.${opt}` as never)}
+                label={t('list.group')}
+                isOpen={groupDD.isOpen}
+                onOpenChange={groupDD.setIsOpen}
+                dropdownRef={groupDD.ref}
+              />
 
-              {/* Filters */}
               <FilterPanel
                 label={t('list.filters')}
                 title={t('advancedFilters.title')}
@@ -448,133 +375,92 @@ export default function RfqListPage() {
                 />
               </FilterPanel>
 
-              {/* Search */}
-              {s.searchOpen ? (
-                <div className="relative flex items-center">
-                  <Input
-                    ref={searchRef}
-                    value={s.search}
-                    onChange={(e) => s.setSearch(e.target.value)}
-                    placeholder={t('list.searchPlaceholder')}
-                    className="h-9 w-56 pr-8 text-sm"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        s.setSearchOpen(false);
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-2 text-muted-foreground hover:text-foreground"
-                    onClick={() => s.setSearchOpen(false)}
-                  >
-                    <CrossIcon className="w-3 h-3" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => s.setSearchOpen(true)}
-                  className="flex items-center justify-center w-9 h-9 border border-foreground/20 rounded-xl text-foreground hover:bg-accent transition-colors"
-                >
-                  <SearchIcon className="w-4 h-4" />
-                </button>
-              )}
+              <ToolbarSearchToggle
+                search={s.search}
+                onSearchChange={s.setSearch}
+                searchOpen={s.searchOpen}
+                onSearchOpenChange={s.setSearchOpen}
+                placeholder={t('list.searchPlaceholder')}
+              />
             </div>
           </div>
         </div>
 
         {/* ═══ Table ═══ */}
         <div className="px-8">
-          <div className="rounded-lg border border-border overflow-x-auto">
-            <table ref={tableRef} className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] font-['Inter'] text-[hsl(var(--table-header-foreground))]">
-                  {visibleCols.map(({ field, key }) => {
-                    const isDragged = dragColKey === key;
-                    const isDropTarget = dragOverColKey === key && dragColKey !== key;
-                    return (
-                      <th
-                        key={key}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, key)}
-                        onDragOver={(e) => handleDragOver(e, key)}
-                        onDrop={(e) => handleDrop(e, key)}
-                        onDragEnd={handleDragEnd}
-                        className={cn(
-                          'py-3 px-3 text-xs font-bold leading-4 tracking-[0.6px] whitespace-nowrap cursor-pointer select-none',
-                          isDropTarget && 'border-l-2 border-l-primary',
-                        )}
-                        style={
-                          isDragged
-                            ? {
-                                background: 'hsl(var(--accent))',
-                                border: '0 solid hsl(var(--border))',
-                              }
-                            : undefined
-                        }
-                        onClick={() => handleSort(field)}
-                      >
-                        <span className="flex items-center justify-between gap-2">
-                          <span className="flex items-center gap-1.5">
-                            <DragHandleIcon className="w-[6px] h-[10px] shrink-0 text-[hsl(var(--sort-icon))] cursor-grab" />
-                            {t(`columns.${key}` as never)}
-                          </span>
-                          <SortIcon
-                            active={s.sortBy === field}
-                            direction={s.sortBy === field ? s.sortDir : null}
-                          />
-                        </span>
-                      </th>
-                    );
-                  })}
-                  <th className="py-3 px-3 text-xs font-bold leading-4 tracking-[0.6px] whitespace-nowrap">
-                    {t('columns.actions')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {isLoading &&
-                  Array.from({ length: 5 }, (_, i) => (
-                    <tr key={i} className="border-b border-border">
-                      {Array.from({ length: visibleCols.length + 1 }, (__, j) => (
-                        <td key={j} className="py-3 px-3">
-                          <div className="h-4 rounded bg-muted animate-pulse" />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-
-                {!isLoading && items.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={visibleCols.length + 1}
-                      className="py-12 text-center text-muted-foreground"
-                    >
-                      {t('list.noRfqsFound')}
-                    </td>
-                  </tr>
-                )}
-
-                {!isLoading && groupedItems
-                  ? Array.from(groupedItems.entries()).map(([groupKey, groupItems]) => {
-                      const isExpanded = expandedGroups.has(groupKey);
+          {isLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Spinner size="md" />
+            </div>
+          ) : items.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground">{t('list.noRfqsFound')}</div>
+          ) : (
+            <div className="rounded-lg border border-border overflow-x-auto">
+              <table ref={tableRef} className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
+                    {visibleCols.map(({ field, key }) => {
+                      const isDropTarget = dragOverColKey === key && dragColKey !== key;
                       return (
-                        <GroupSection
-                          key={groupKey}
-                          groupKey={groupKey}
-                          isExpanded={isExpanded}
-                          onToggle={toggleGroup}
-                          colSpan={visibleCols.length + 1}
+                        <th
+                          key={key}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, key)}
+                          onDragOver={(e) => handleDragOver(e, key)}
+                          onDrop={(e) => handleDrop(e, key)}
+                          onDragEnd={handleDragEnd}
+                          className={cn(
+                            'py-3 px-3 text-xs font-bold leading-4 tracking-[0.6px] whitespace-nowrap cursor-pointer select-none',
+                            isDropTarget && 'border-l-2 border-l-primary',
+                          )}
+                          style={
+                            dragColKey === key
+                              ? {
+                                  background: 'hsl(var(--accent))',
+                                }
+                              : undefined
+                          }
+                          onClick={() => handleSort(field)}
                         >
-                          {groupItems.map((rfq) => renderRfqRow(rfq))}
-                        </GroupSection>
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-1.5">
+                              <DragHandleIcon className="w-[6px] h-[10px] shrink-0 text-[hsl(var(--sort-icon))] cursor-grab" />
+                              {t(`columns.${key}` as never)}
+                            </span>
+                            <SortIcon
+                              active={s.sortBy === field}
+                              direction={s.sortBy === field ? s.sortDir : null}
+                            />
+                          </span>
+                        </th>
                       );
-                    })
-                  : !isLoading && items.map((rfq) => renderRfqRow(rfq))}
-              </tbody>
-            </table>
-          </div>
+                    })}
+                    <th className="py-3 px-3 text-xs font-bold leading-4 tracking-[0.6px] whitespace-nowrap">
+                      {t('columns.actions')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groupedItems
+                    ? Array.from(groupedItems.entries()).map(([groupKey, groupItems]) => {
+                        const isExpanded = expandedGroups.has(groupKey);
+                        return (
+                          <GroupSection
+                            key={groupKey}
+                            groupKey={groupKey}
+                            isExpanded={isExpanded}
+                            onToggle={toggleGroup}
+                            colSpan={visibleCols.length + 1}
+                          >
+                            {groupItems.map((rfq) => renderRfqRow(rfq))}
+                          </GroupSection>
+                        );
+                      })
+                    : items.map((rfq) => renderRfqRow(rfq))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
         {totalCount >= 25 && (
           <div className="px-8">
@@ -598,7 +484,9 @@ export default function RfqListPage() {
           <TableManagementModal
             columns={ALL_COLUMNS.map((c) => ({
               id: c.key,
-              label: t(`columns.${c.key}` as never),
+              // Modal uses the descriptive long-form labels from the design
+              // (columnLabels.*), not the short table headers (columns.*).
+              label: t(`columnLabels.${c.key}` as never),
             }))}
             visibleColumns={s.visibleColumns}
             onSave={(cols) => {
@@ -635,9 +523,9 @@ export default function RfqListPage() {
         )}
       </div>
 
-      {/* ═══ Preview Panel (fixed to viewport right) ═══ */}
+      {/* ═══ Preview Panel (absolute, anchored to the clicked row) ═══ */}
       {s.previewOpen && s.previewRfqId && (
-        <div className="fixed z-30 inset-0 top-16 md:inset-auto md:right-8 md:top-24 md:bottom-8">
+        <div className="absolute right-8 z-30" style={{ top: previewY }}>
           <RfqDetailPanel rfqId={s.previewRfqId} onClose={s.closePreview} />
         </div>
       )}

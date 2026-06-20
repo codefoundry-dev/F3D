@@ -8,7 +8,7 @@ import {
 } from '@forethread/rfq-shared';
 import { Button, Spinner } from '@forethread/ui-components';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
-import LetterIcon from '@forethread/ui-components/assets/icons/letter.svg?react';
+import PaperPlaneIcon from '@forethread/ui-components/assets/icons/paper-plane.svg?react';
 import { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -52,7 +52,7 @@ export default function RfqDetailPage() {
           variant="primary"
           size="md"
           className="h-[42px]"
-          leftIcon={<LetterIcon className="w-4 h-4" />}
+          leftIcon={<PaperPlaneIcon className="w-4 h-4" />}
           onClick={() => navigate(ROUTES.rfqResponse.replace(':id', rfq.id))}
           disabled={!canCreate && !canEdit}
         >

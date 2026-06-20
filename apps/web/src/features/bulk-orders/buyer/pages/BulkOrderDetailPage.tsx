@@ -9,7 +9,7 @@ export default function BulkOrderDetailPage() {
 
   return (
     <SharedBulkOrderDetailPage
-      counterpartyLabel={t('detail.vendor')}
+      counterpartyLabel={t('detail.vendorName')}
       currentUserId={currentUserId}
     />
   );

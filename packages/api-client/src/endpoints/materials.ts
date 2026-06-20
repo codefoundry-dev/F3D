@@ -270,6 +270,33 @@ export interface MaterialChangeRequestDto {
   createdAt: string;
 }
 
+// ── Search suggestions (US 4.04 catalogue autocomplete) ───────────────────────
+
+export interface MaterialSuggestionsParams {
+  /** Search term: matches name / UPC / manufacturer. */
+  q?: string;
+  /** Max rows per group (results / recentlyUsed / frequentlyUsed). Default 8. */
+  limit?: number;
+}
+
+/** A single autocomplete row (mirrors backend MaterialSuggestionDto). */
+export interface MaterialSuggestionDto {
+  id: string;
+  name: string;
+  categoryName: string | null;
+  uom: string | null;
+  description: string | null;
+  imageUrl: string | null;
+}
+
+/** Grouped autocomplete payload. The two usage groups are empty when the user
+ *  has no usage history yet. */
+export interface MaterialSuggestionsResponse {
+  results: MaterialSuggestionDto[];
+  frequentlyUsed: MaterialSuggestionDto[];
+  recentlyUsed: MaterialSuggestionDto[];
+}
+
 // ── Endpoint functions ───────────────────────────────────────────────────────
 
 export async function getMaterials(
@@ -293,13 +320,19 @@ export async function getMaterialCategories(
   return data.data;
 }
 
+/**
+ * Catalogue search autocomplete (US 4.04). Returns three groups:
+ *  - `results`: name / UPC / manufacturer contains-match on visible materials.
+ *  - `recentlyUsed` / `frequentlyUsed`: the caller's own usage signal (empty
+ *    arrays when the user has no usage history yet).
+ */
 export async function getMaterialSuggestions(
-  search: string,
+  params?: MaterialSuggestionsParams,
   config?: AxiosRequestConfig,
-): Promise<MaterialListItemDto[]> {
-  const { data } = await getApiClient().get<{ data: MaterialListItemDto[] }>(
+): Promise<MaterialSuggestionsResponse> {
+  const { data } = await getApiClient().get<{ data: MaterialSuggestionsResponse }>(
     MATERIALS_PATHS.SUGGESTIONS,
-    { params: { search }, ...config },
+    { params, ...config },
   );
   return data.data;
 }

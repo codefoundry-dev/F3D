@@ -1,6 +1,6 @@
 export const DEFAULT_STATUS_COLOR = 'bg-muted text-muted-foreground';
 
-/** Neutral gray chip used for statuses on vendor-facing screens (design #E4E4E4 / #262626) */
+/** Neutral gray chip used for statuses on vendor-facing screens (design #E8EAED / #2D3139) */
 export const NEUTRAL_STATUS_COLOR =
   'bg-[hsl(var(--badge-neutral))] text-[hsl(var(--badge-neutral-text))]';
 
@@ -41,6 +41,13 @@ export const PO_STATUS_COLORS: Record<string, string> = {
   DISPUTE: 'bg-destructive/10 text-destructive',
   NOT_DELIVERED: 'bg-destructive/10 text-destructive',
   CHANGE_PENDING: 'bg-[hsl(var(--badge-orange))] text-[hsl(var(--badge-orange-text))]',
+};
+
+/** Epic 6 — Delivery Report review states (screenshots 01/04/16). */
+export const DELIVERY_STATUS_COLORS: Record<string, string> = {
+  SUBMITTED: 'bg-[hsl(var(--badge-orange))] text-[hsl(var(--badge-orange-text))]',
+  APPROVED: 'bg-success/10 text-success',
+  REJECTED: 'bg-destructive/10 text-destructive',
 };
 
 export const BULK_ORDER_STATUS_COLORS: Record<string, string> = {

@@ -13,6 +13,7 @@ vi.mock('@forethread/api-client', async (importOriginal) => {
     ...actual,
     getMaterials: vi.fn(),
     getMaterialCategories: vi.fn(),
+    getMaterialSuggestions: vi.fn(),
     approveMaterial: vi.fn(),
     rejectMaterial: vi.fn(),
     archiveMaterial: vi.fn(),
@@ -39,7 +40,24 @@ vi.mock('@/shared/role', () => ({
 
 const mockedGetMaterials = apiClient.getMaterials as unknown as ReturnType<typeof vi.fn>;
 const mockedGetCategories = apiClient.getMaterialCategories as unknown as ReturnType<typeof vi.fn>;
+const mockedGetSuggestions = apiClient.getMaterialSuggestions as unknown as ReturnType<
+  typeof vi.fn
+>;
 const mockedArchive = apiClient.archiveMaterial as unknown as ReturnType<typeof vi.fn>;
+
+function suggestion(
+  over: Partial<apiClient.MaterialSuggestionDto> = {},
+): apiClient.MaterialSuggestionDto {
+  return {
+    id: 's-1',
+    name: 'Paint Primer White 5-Gal',
+    categoryName: 'Paint & coatings',
+    uom: 'gal',
+    description: 'Interior/exterior primer',
+    imageUrl: null,
+    ...over,
+  };
+}
 
 function listItem(over: Partial<apiClient.MaterialListItemDto>): apiClient.MaterialListItemDto {
   return {
@@ -89,9 +107,15 @@ describe('MaterialCataloguePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     permissionSet.current = new Set();
+    window.localStorage.clear();
     mockedGetCategories.mockResolvedValue([
       { id: 'c-1', name: 'Concrete & cement', parentId: null },
     ]);
+    mockedGetSuggestions.mockResolvedValue({
+      results: [],
+      frequentlyUsed: [],
+      recentlyUsed: [],
+    });
   });
 
   it('renders the table rows from the materials query', async () => {
@@ -179,5 +203,89 @@ describe('MaterialCataloguePage', () => {
 
     expect(screen.getByTestId('material-create')).toBeInTheDocument();
     expect(screen.getByTestId('material-upload')).toBeInTheDocument();
+  });
+
+  it('renders the facet filters as dropdowns sourced from the catalogue (US 4.04)', async () => {
+    mockedGetMaterials.mockResolvedValue(
+      page([
+        { id: 'm-1', name: 'Portland Cement', manufacturer: 'LafargeHolcim', uom: 'bag' },
+        { id: 'm-2', name: 'Rebar', manufacturer: 'Nucor Steel', uom: 'ton' },
+      ]),
+    );
+
+    renderPage();
+    await screen.findByText('Portland Cement');
+
+    // All five facets are <select> dropdowns, not free-text inputs.
+    const manufacturer = screen.getByTestId('filter-manufacturer');
+    expect(manufacturer.tagName).toBe('SELECT');
+    // Options are the sorted-unique manufacturers derived from the facets fetch.
+    expect(within(manufacturer).getByRole('option', { name: 'LafargeHolcim' })).toBeInTheDocument();
+    expect(within(manufacturer).getByRole('option', { name: 'Nucor Steel' })).toBeInTheDocument();
+
+    const uom = screen.getByTestId('filter-uom');
+    expect(uom.tagName).toBe('SELECT');
+    expect(within(uom).getByRole('option', { name: 'bag' })).toBeInTheDocument();
+    expect(within(uom).getByRole('option', { name: 'ton' })).toBeInTheDocument();
+  });
+
+  it('opens the search dropdown with grouped suggestions when the input is focused', async () => {
+    mockedGetMaterials.mockResolvedValue(page([{ name: 'Portland Cement' }]));
+    mockedGetSuggestions.mockResolvedValue({
+      results: [suggestion({ id: 's-1', name: 'Paint Primer White 5-Gal' })],
+      frequentlyUsed: [],
+      recentlyUsed: [],
+    });
+
+    renderPage();
+    await screen.findByText('Portland Cement');
+
+    const input = screen.getByTestId('material-search');
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: 'paint' } });
+
+    expect(await screen.findByTestId('material-search-dropdown')).toBeInTheDocument();
+    expect(await screen.findByText('Paint Primer White 5-Gal')).toBeInTheDocument();
+    await waitFor(() => expect(mockedGetSuggestions).toHaveBeenCalledWith({ q: 'paint' }));
+  });
+
+  it('navigates to the material detail when a search result is selected', async () => {
+    mockedGetMaterials.mockResolvedValue(page([{ name: 'Portland Cement' }]));
+    mockedGetSuggestions.mockResolvedValue({
+      results: [suggestion({ id: 's-9', name: 'Paint Primer White 5-Gal' })],
+      frequentlyUsed: [],
+      recentlyUsed: [],
+    });
+
+    renderPage();
+    await screen.findByText('Portland Cement');
+
+    const input = screen.getByTestId('material-search');
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: 'paint' } });
+
+    const result = await screen.findByTestId('material-search-result-s-9');
+    fireEvent.mouseDown(result);
+
+    expect(mockNavigate).toHaveBeenCalledWith('/material-catalogue/s-9');
+  });
+
+  it('shows the no-results empty state when a committed search returns zero rows (US 4.04)', async () => {
+    // Default (empty) page for the search query; a row for the initial load.
+    mockedGetMaterials.mockImplementation((params?: apiClient.MaterialListQueryParams) => {
+      if (params?.search === 'zzz') return Promise.resolve(page([]));
+      return Promise.resolve(page([{ name: 'Portland Cement' }]));
+    });
+
+    renderPage();
+    await screen.findByText('Portland Cement');
+
+    fireEvent.change(screen.getByTestId('material-search'), { target: { value: 'zzz' } });
+
+    const empty = await screen.findByTestId('material-no-results');
+    expect(empty).toHaveTextContent('No results found');
+    expect(empty).toHaveTextContent('matching "zzz"');
+    // Table + pagination are replaced by the empty state.
+    expect(screen.queryByTestId('material-table')).not.toBeInTheDocument();
   });
 });

@@ -51,28 +51,28 @@ export function OverviewTab({ company, isEditing, formData, onFieldChange }: Ove
     <div className="space-y-8">
       {/* Legal information */}
       <section>
-        <h3 className="text-sm font-semibold text-foreground mb-4">{t('legalInfo')}</h3>
+        <h3 className="text-base font-semibold text-foreground mb-4">{t('legalInfo')}</h3>
         {isEditing && formData && onFieldChange ? (
           <>
             <div className="grid grid-cols-4 gap-6">
-              <FormField label={t('legalName')}>
+              <FormField label={t('overviewLabels.legalName')}>
                 <Input
                   leftIcon={<LegalNameIcon className="w-5 h-5" />}
                   value={formData.legalName}
                   onChange={(e) => onFieldChange('legalName', e.target.value)}
                 />
               </FormField>
-              <FormField label={t('tradeName')}>
+              <FormField label={t('overviewLabels.tradeName')}>
                 <Input
                   leftIcon={<TradeNameIcon className="w-5 h-5" />}
                   value={formData.tradeName}
                   onChange={(e) => onFieldChange('tradeName', e.target.value)}
                 />
               </FormField>
-              <FormField label={t('abn')}>
+              <FormField label={t('overviewLabels.abn')}>
                 <Input leftIcon={<AbnIcon className="w-5 h-5" />} value={formData.abn} readOnly />
               </FormField>
-              <FormField label={t('taxCode')}>
+              <FormField label={t('overviewLabels.taxCode')}>
                 <Input
                   leftIcon={<TaxIcon className="w-5 h-5" />}
                   value={formData.taxCode}
@@ -81,7 +81,7 @@ export function OverviewTab({ company, isEditing, formData, onFieldChange }: Ove
               </FormField>
             </div>
             <div className="mt-4">
-              <FormField label={t('location')}>
+              <FormField label={t('overviewLabels.location')}>
                 <Input
                   leftIcon={<LocationIcon className="w-5 h-5" />}
                   value={formData.legalAddress}
@@ -95,30 +95,30 @@ export function OverviewTab({ company, isEditing, formData, onFieldChange }: Ove
             <div className="grid grid-cols-4 gap-6">
               <InfoItem
                 icon={<LegalNameIcon className="w-4 h-4" />}
-                label={t('legalName')}
+                label={t('overviewLabels.legalName')}
                 value={company.legalName}
               />
               <InfoItem
                 icon={<TradeNameIcon className="w-4 h-4" />}
-                label={t('tradeName')}
+                label={t('overviewLabels.tradeName')}
                 value={company.tradeName}
               />
               <InfoItem
                 icon={<AbnIcon className="w-4 h-4" />}
-                label={t('abn')}
+                label={t('overviewLabels.abn')}
                 value={company.abn}
                 masked
               />
               <InfoItem
                 icon={<TaxIcon className="w-4 h-4" />}
-                label={t('taxCode')}
+                label={t('overviewLabels.taxCode')}
                 value={company.taxCode}
               />
             </div>
             <div className="mt-4">
               <InfoItem
                 icon={<LocationIcon className="w-4 h-4" />}
-                label={t('location')}
+                label={t('overviewLabels.location')}
                 value={company.legalAddress}
               />
             </div>
@@ -130,10 +130,10 @@ export function OverviewTab({ company, isEditing, formData, onFieldChange }: Ove
 
       {/* Contact information */}
       <section>
-        <h3 className="text-sm font-semibold text-foreground mb-4">{t('contactInfo')}</h3>
+        <h3 className="text-base font-semibold text-foreground mb-4">{t('contactInfo')}</h3>
         {isEditing && formData && onFieldChange ? (
           <div className="grid grid-cols-3 gap-6">
-            <FormField label={t('contactEmail')}>
+            <FormField label={t('overviewLabels.email')}>
               <Input
                 type="email"
                 leftIcon={<EnvelopeIcon className="w-5 h-5" />}
@@ -141,7 +141,7 @@ export function OverviewTab({ company, isEditing, formData, onFieldChange }: Ove
                 onChange={(e) => onFieldChange('contactEmail', e.target.value)}
               />
             </FormField>
-            <FormField label={t('contactPhone')}>
+            <FormField label={t('overviewLabels.phoneNumber')}>
               <Input
                 type="tel"
                 leftIcon={<PhoneIcon className="w-5 h-5" />}
@@ -149,7 +149,7 @@ export function OverviewTab({ company, isEditing, formData, onFieldChange }: Ove
                 onChange={(e) => onFieldChange('contactPhone', e.target.value)}
               />
             </FormField>
-            <FormField label={t('website')}>
+            <FormField label={t('overviewLabels.website')}>
               <Input
                 leftIcon={<WebIcon className="w-5 h-5" />}
                 value={formData.website}
@@ -161,17 +161,17 @@ export function OverviewTab({ company, isEditing, formData, onFieldChange }: Ove
           <div className="grid grid-cols-3 gap-6">
             <InfoItem
               icon={<EnvelopeIcon className="w-4 h-4" />}
-              label={t('contactEmail')}
+              label={t('overviewLabels.email')}
               value={company.contactEmail}
             />
             <InfoItem
               icon={<PhoneIcon className="w-4 h-4" />}
-              label={t('contactPhone')}
+              label={t('overviewLabels.phoneNumber')}
               value={company.contactPhone}
             />
             <InfoItem
               icon={<WebIcon className="w-4 h-4" />}
-              label={t('website')}
+              label={t('overviewLabels.website')}
               value={company.website}
             />
           </div>

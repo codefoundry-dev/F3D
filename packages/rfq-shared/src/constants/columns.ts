@@ -7,23 +7,32 @@ export interface ColumnDef {
   key: string;
 }
 
-/** Full column set for Procurement Officer & Company Admin */
+/**
+ * Full column set for Procurement Officer & Company Admin.
+ * Order + keys mirror the US 2.06 "RFQ dashboard (PO + CA)" Figma design,
+ * left→right. The `key`s are also the values sent to the export endpoint
+ * (`columns` param) so they MUST stay stable across this list, the i18n
+ * `columns.*` labels, and the table-management modal options.
+ */
 export const PO_CA_COLUMNS: ColumnDef[] = [
   { field: 'rfqNumber', key: 'rfqId' },
   { field: 'projectName', key: 'projectName' },
-  { field: 'projectId', key: 'projectId' },
+  // "Project ID" column shows the human-readable code (PRJ-YYYY-NNN) to match
+  // the Projects table; the key stays `projectId` (label/visibility/export).
+  { field: 'projectCode', key: 'projectId' },
   { field: 'status', key: 'rfqStatus' },
   { field: 'deadlineRange', key: 'resDeadline' },
   { field: 'pickUp', key: 'pickUp' },
   { field: 'deliveryLocation', key: 'deliveryLocation' },
   { field: 'pickUpLocation', key: 'pickUpLocation' },
-  { field: 'recVendors', key: 'recVendors' },
+  { field: 'invitedVendors', key: 'invitedVendors' },
   { field: 'recQuotes', key: 'recQuotes' },
   { field: 'applVendors', key: 'applVendors' },
   { field: 'lineItems', key: 'lineItems' },
+  { field: 'declinedItems', key: 'declinedItems' },
+  { field: 'approvedItems', key: 'approvedItems' },
   { field: 'totalRequestedQty', key: 'totalRequestedQty' },
-  { field: 'applIssues', key: 'applIssues' },
-  { field: 'arcBlocksDist', key: 'arcBlocksDist' },
+  { field: 'avgQuoteCost', key: 'avgQuoteCost' },
   { field: 'createdDate', key: 'createdDate' },
   { field: 'createdBy', key: 'createdBy' },
   { field: 'approvalStatus', key: 'approvalStatus' },
@@ -31,14 +40,29 @@ export const PO_CA_COLUMNS: ColumnDef[] = [
   { field: 'lastModifiedBy', key: 'lastModifiedBy' },
 ];
 
-/** Vendor-specific columns (per Figma vendor view — 8 columns) */
+/**
+ * Vendor dashboard columns. Order + short labels mirror the US 2.06
+ * "RFQ dashboard (Vendor)" Figma table header (node 2934:13774), left→right.
+ *
+ * Field-mapping notes (no vendor-only DTO fields exist on `RfqListItem`):
+ *  - `contractorCompany` + `contractorName` both resolve to `createdBy` — the
+ *    DTO has a single contractor identity, not a separate org/person split.
+ *  - `totalRespondedQuotes` maps to `recQuotes` (received quotes) — the closest
+ *    real metric; there is no distinct "responded quotes" count.
+ *
+ * Keys MUST stay stable across this list, the i18n `columns.*` / `columnLabels.*`
+ * labels, and the export `columns` param (rfq-export.service COLUMN_MAP).
+ */
 export const VENDOR_COLUMNS: ColumnDef[] = [
   { field: 'rfqNumber', key: 'rfqId' },
-  { field: 'createdBy', key: 'contractorName' },
-  { field: 'deliveryLocation', key: 'deliveryLocation' },
-  { field: 'status', key: 'rfqStatus' },
   { field: 'projectName', key: 'projectName' },
+  { field: 'createdBy', key: 'contractorCompany' },
+  { field: 'createdBy', key: 'contractorName' },
+  { field: 'status', key: 'rfqStatus' },
   { field: 'deadlineRange', key: 'resDeadline' },
+  { field: 'pickUp', key: 'pickUp' },
+  { field: 'deliveryLocation', key: 'deliveryLocation' },
+  { field: 'pickUpLocation', key: 'pickUpLocation' },
   { field: 'lineItems', key: 'lineItems' },
-  { field: 'totalRequestedQty', key: 'totalRequestedQty' },
+  { field: 'recQuotes', key: 'totalRespondedQuotes' },
 ];

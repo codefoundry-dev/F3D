@@ -1,10 +1,17 @@
-import { approveInvoice, rejectInvoice } from '@forethread/api-client';
 import type { InvoicePendingItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { DashboardSection, DashboardSectionSkeleton, InvoiceCard } from '@forethread/ui-components';
-import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
-import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  DashboardItemCard,
+  DashboardSectionSkeleton,
+  formatCurrency,
+  formatDate,
+} from '@forethread/ui-components';
+import BriefcaseIcon from '@forethread/ui-components/assets/icons/briefcase.svg?react';
+import CartIcon from '@forethread/ui-components/assets/icons/cart.svg?react';
+import CoinsIcon from '@forethread/ui-components/assets/icons/coins.svg?react';
+import DateIcon from '@forethread/ui-components/assets/icons/date.svg?react';
+import FileTextIcon from '@forethread/ui-components/assets/icons/file-text.svg?react';
+import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -14,6 +21,8 @@ interface InvoicesPendingApprovalProps {
   isLoading?: boolean;
 }
 
+const ICON = 'w-[18px] h-[18px]';
+
 export function InvoicesPendingApproval({ items, isLoading }: InvoicesPendingApprovalProps) {
   const { t } = useTranslation('dashboard');
 
@@ -22,66 +31,56 @@ export function InvoicesPendingApproval({ items, isLoading }: InvoicesPendingApp
   }
 
   return (
-    <DashboardSection title={t('invoicesPendingApproval.title')} className="h-[420px]">
-      {items.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          {t('invoicesPendingApproval.noInvoices')}
-        </p>
-      ) : (
-        items.map((item) => <PendingInvoiceCard key={item.id} item={item} />)
-      )}
-    </DashboardSection>
+    <div className="bg-white rounded-[14px] border border-black/20 overflow-hidden flex flex-col h-[420px]">
+      <div className="px-4 pt-4 pb-3">
+        <h2 className="text-base font-semibold text-foreground">
+          {t('invoicesPendingApproval.title')}
+        </h2>
+      </div>
+      <div className="px-4 pb-4 pt-0.5 flex-1 overflow-y-auto space-y-2">
+        {items.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            {t('invoicesPendingApproval.noInvoices')}
+          </p>
+        ) : (
+          items.map((item) => <PendingInvoiceCard key={item.id} item={item} />)
+        )}
+      </div>
+    </div>
   );
 }
 
 function PendingInvoiceCard({ item }: { item: InvoicePendingItem }) {
-  const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
-  const approveMutation = useMutation({
-    mutationFn: () => approveInvoice(item.id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['dashboard', 'po-ca'] });
-    },
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: () => rejectInvoice(item.id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['dashboard', 'po-ca'] });
-    },
-  });
-
-  const isMutating = approveMutation.isPending || rejectMutation.isPending;
-
+  // Per the frame, invoice cards carry no status badge and no inline actions —
+  // approve/reject lives on the invoice detail page (reachable via the card).
   return (
-    <InvoiceCard
+    <DashboardItemCard
       name={item.vendorName}
-      item={item}
       onCardClick={() => navigate(ROUTES.invoiceDetail.replace(':id', item.id))}
-      actions={
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 h-8 px-3 py-2 border border-foreground rounded-xl text-sm font-medium text-foreground hover:bg-foreground/5 transition-colors disabled:opacity-50"
-            disabled={isMutating}
-            onClick={() => rejectMutation.mutate()}
-          >
-            <CrossInCircleIcon className="w-[18px] h-[18px]" />
-            {t('invoicesPendingApproval.reject')}
-          </button>
-          <button
-            type="button"
-            className="flex items-center gap-1.5 h-8 px-3 py-2 border border-foreground rounded-xl text-sm font-medium text-foreground hover:bg-foreground/5 transition-colors disabled:opacity-50"
-            disabled={isMutating}
-            onClick={() => approveMutation.mutate()}
-          >
-            <CheckCircleIcon className="w-[18px] h-[18px]" />
-            {t('invoicesPendingApproval.approve')}
-          </button>
-        </div>
+      hasChatNotification={item.hasUnreadMessages}
+      hasAttachment={item.hasAttachments ?? false}
+      onMessageClick={() =>
+        navigate(`${ROUTES.invoiceDetail.replace(':id', item.id)}?tab=messages`)
       }
+      onAttachmentClick={() =>
+        navigate(`${ROUTES.invoiceDetail.replace(':id', item.id)}?tab=documents`)
+      }
+      fields={[
+        { icon: <FileTextIcon className={ICON} />, value: item.invoiceId },
+        { icon: <BriefcaseIcon className={ICON} />, value: item.projectName },
+        { icon: <CartIcon className={ICON} />, value: item.poReference ?? '-' },
+        { icon: <DateIcon className={ICON} />, value: formatDate(item.date) },
+        {
+          icon: <CoinsIcon className={ICON} />,
+          value: formatCurrency(item.totalCost ?? 0),
+        },
+        {
+          icon: <PackageIcon className={ICON} />,
+          value: `${item.itemCount} ${item.itemCount === 1 ? 'item' : 'items'}`,
+        },
+      ]}
     />
   );
 }

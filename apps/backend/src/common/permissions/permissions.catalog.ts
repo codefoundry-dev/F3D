@@ -164,6 +164,16 @@ export const PERMISSIONS = {
   'inventory.viewBalances': 'View on-hand stock balances',
   'inventory.viewMovements': 'View the inventory movement ledger',
 
+  // ── Deliveries (Epic 6) ───────────────────────────────────────────────────
+  'delivery.list': 'List delivery reports',
+  'delivery.read': 'Read a single delivery report',
+  'delivery.create': 'Create a delivery report',
+  'delivery.approve': 'Approve a submitted delivery report',
+  'delivery.reject': 'Reject a submitted delivery report',
+  'delivery.uploadAttachment': 'Upload an attachment or damage photo to a delivery report',
+  'delivery.deleteAttachment': 'Delete a delivery report attachment or damage photo',
+  'delivery.generateLink': 'Generate a public QR delivery-submission link for a PO',
+
   // ── Roles & permissions (admin) ─────────────────────────────────────────
   'role.list': 'List built-in roles and the permissions granted to each',
   'role.update': 'Grant or revoke permissions on a built-in role',
@@ -178,6 +188,7 @@ export const PERMISSIONS = {
   // ── Bill of materials (US 5.01) ──────────────────────────────────────────
   'bom.create': 'Create a project BOM from a reviewed extraction',
   'bom.read': 'Read project BOMs',
+  'bom.update': 'Edit a project BOM line items in place',
 
   // ── Users ───────────────────────────────────────────────────────────────
   'user.list': 'List users',
@@ -342,6 +353,15 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'inventory.viewBalances',
     'inventory.viewMovements',
 
+    'delivery.list',
+    'delivery.read',
+    'delivery.create',
+    'delivery.approve',
+    'delivery.reject',
+    'delivery.uploadAttachment',
+    'delivery.deleteAttachment',
+    'delivery.generateLink',
+
     'role.list',
     'role.update',
 
@@ -362,6 +382,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
 
     'bom.create',
     'bom.read',
+    'bom.update',
   ],
 
   PROCUREMENT_OFFICER: [
@@ -480,6 +501,15 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'inventory.viewBalances',
     'inventory.viewMovements',
 
+    'delivery.list',
+    'delivery.read',
+    'delivery.create',
+    'delivery.approve',
+    'delivery.reject',
+    'delivery.uploadAttachment',
+    'delivery.deleteAttachment',
+    'delivery.generateLink',
+
     'user.update',
 
     'docExtraction.create',
@@ -490,6 +520,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
 
     'bom.create',
     'bom.read',
+    'bom.update',
   ],
 
   FINANCIAL_OFFICER: [
@@ -527,6 +558,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'materialRequest.list',
     'materialRequest.read',
 
+    'delivery.list',
+    'delivery.read',
+
     'docExtraction.create',
     'docExtraction.read',
     'docExtraction.update',
@@ -559,6 +593,12 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
 
     'inventory.viewBalances',
     'inventory.viewMovements',
+
+    'delivery.list',
+    'delivery.read',
+    'delivery.create',
+    'delivery.uploadAttachment',
+    'delivery.generateLink',
   ],
 
   FOREMAN: [

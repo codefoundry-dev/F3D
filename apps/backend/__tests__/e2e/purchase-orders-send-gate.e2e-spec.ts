@@ -225,7 +225,7 @@ describe('PO send-gate threshold enforcement (FOR-210, e2e)', () => {
       const created = await prisma.project.create({
         data: {
           name: `FOR-210 send-gate test ${Date.now()}`,
-          status: ProjectStatus.ACTIVE,
+          status: ProjectStatus.ONGOING,
           companyId: contractorId,
           createdByUserId: caUserId,
           locations: {

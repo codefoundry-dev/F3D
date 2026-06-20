@@ -9,7 +9,6 @@ import {
   cn,
   Button,
   Spinner,
-  Badge,
   TablePagination,
   EmptyState,
   DotActionsMenu,
@@ -36,7 +35,7 @@ import { ROUTES } from '@/app/route-config';
 import { useCompanies } from '@/features/companies/services/companies.service';
 
 import { TABS, PAGE_SIZE_OPTIONS, type SortField } from '../constants';
-import { ROLE_BADGE_COLORS, STATUS_TEXT_COLORS, ALL_ROLE_OPTIONS } from '../constants/roles';
+import { ALL_ROLE_OPTIONS } from '../constants/roles';
 import { useGroupedUsers } from '../hooks/useGroupedUsers';
 import { useUserSort } from '../hooks/useUserSort';
 import {
@@ -51,6 +50,7 @@ import { useUsersStore } from '../state/users.store';
 
 import { ActionLogTab } from './ActionLogTab';
 import { CreateUserModal } from './CreateUserModal';
+import { DateRangeFilterPopover } from './DateRangeFilterPopover';
 import { EditUserModal } from './EditUserModal';
 import { EditCompanyModal } from './modals/EditCompanyModal';
 
@@ -76,6 +76,8 @@ export default function UserListPage() {
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   // Reset page when debounced search changes
   useEffect(() => {
@@ -138,6 +140,8 @@ export default function UserListPage() {
     role: selectedRoles.length ? selectedRoles.join(',') : undefined,
     status: selectedStatuses.length ? selectedStatuses.join(',') : undefined,
     companyId: selectedCompanies.length ? selectedCompanies.join(',') : undefined,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
     sortBy: sortField ?? undefined,
     sortDir: sortDir ?? undefined,
   });
@@ -192,13 +196,9 @@ export default function UserListPage() {
       ];
     }
 
-    const actions: DotAction[] = [
-      {
-        key: 'editUser',
-        label: t('actions.editUser'),
-        onClick: () => openEditModal(user.id),
-      },
-    ];
+    // Note: "Edit" is the dedicated pencil icon on each row, so it is intentionally
+    // omitted from the ⋮ menu here (matches Figma sa-popup-1).
+    const actions: DotAction[] = [];
 
     if (user.status !== UserStatus.INACTIVE) {
       actions.push({
@@ -272,8 +272,13 @@ export default function UserListPage() {
 
     return [
       {
+        key: 'viewCompany',
+        label: t('actions.viewCompanyDetails'),
+        onClick: () => navigate(ROUTES.companyDetail.replace(':id', companyId)),
+      },
+      {
         key: 'editCompany',
-        label: t('actions.editCompany'),
+        label: t('actions.editCompanyDetails'),
         onClick: () => openEditCompanyModal(companyId, companyName),
       },
       allInactive
@@ -323,32 +328,34 @@ export default function UserListPage() {
   ];
 
   return (
-    <div className="p-6">
+    <div className="flex flex-col gap-6 p-4">
       {/* ── Tabs ── */}
-      <div className="flex gap-6 border-b border-border mb-6">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => setActiveTab(tab)}
-            className={cn(
-              'pb-3 text-sm font-medium transition-colors relative',
-              activeTab === tab ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {t(`tabs.${tab}` as 'tabs.platformUsers')}
-            {activeTab === tab && (
-              <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-foreground" />
-            )}
-          </button>
-        ))}
+      <div className="flex items-start border-b border-[#D2D5DB]">
+        {TABS.map((tab) => {
+          const isActive = activeTab === tab;
+          return (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={cn(
+                '-mb-px border-b-2 p-3 text-lg font-medium leading-4 transition-colors',
+                isActive
+                  ? 'border-foreground text-foreground'
+                  : 'border-transparent text-[#6D7588] hover:text-foreground',
+              )}
+            >
+              {t(`tabs.${tab}` as 'tabs.platformUsers')}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Platform users tab ── */}
       {activeTab === 'platformUsers' && (
         <div className="bg-card rounded-lg border border-border">
           {/* Toolbar: search + filters + invite */}
-          <div className="flex items-center gap-3 px-6 pt-5 pb-4 flex-wrap">
+          <div className="flex items-center gap-3 px-4 pt-4 pb-4 flex-wrap">
             {/* Search */}
             <SearchInput
               className="flex-1 min-w-48 max-w-[450px]"
@@ -361,6 +368,10 @@ export default function UserListPage() {
             {/* Filters */}
             <FilterPopover
               label={t('filters.company')}
+              popoverTitle={t('filters.company')}
+              searchable
+              searchPlaceholder={t('filters.searchCompany')}
+              clearLabel={t('filters.clear')}
               options={companyOptions}
               selected={selectedCompanies}
               onChange={(v) => {
@@ -370,6 +381,8 @@ export default function UserListPage() {
             />
             <FilterPopover
               label={t('filters.status')}
+              popoverTitle={t('filters.status')}
+              clearLabel={t('filters.clear')}
               options={statusOptions}
               selected={selectedStatuses}
               onChange={(v) => {
@@ -379,10 +392,34 @@ export default function UserListPage() {
             />
             <FilterPopover
               label={t('filters.role')}
+              popoverTitle={t('filters.role')}
+              clearLabel={t('filters.clear')}
               options={roleOptions}
               selected={selectedRoles}
               onChange={(v) => {
                 setSelectedRoles(v);
+                setPage(1);
+              }}
+            />
+            <DateRangeFilterPopover
+              label={t('filters.date')}
+              popoverTitle={t('filters.date')}
+              clearLabel={t('filters.clear')}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              fromPlaceholder={t('filters.from')}
+              toPlaceholder={t('filters.to')}
+              onChangeFrom={(d) => {
+                setDateFrom(d);
+                setPage(1);
+              }}
+              onChangeTo={(d) => {
+                setDateTo(d);
+                setPage(1);
+              }}
+              onClear={() => {
+                setDateFrom('');
+                setDateTo('');
                 setPage(1);
               }}
             />
@@ -411,7 +448,9 @@ export default function UserListPage() {
                   debouncedSearch ||
                   selectedCompanies.length ||
                   selectedStatuses.length ||
-                  selectedRoles.length
+                  selectedRoles.length ||
+                  dateFrom ||
+                  dateTo
                     ? t('adjustFilters')
                     : t('createFirstUser')
                 }
@@ -419,11 +458,11 @@ export default function UserListPage() {
             </div>
           ) : (
             <>
-              <div className="mx-6 mb-6 border border-border rounded-lg overflow-x-auto">
-                <table className="w-full min-w-[800px] text-sm table-fixed">
+              <div className="mx-4 mb-4 border border-border rounded-lg overflow-x-auto">
+                <table className="w-full min-w-[900px] text-sm table-fixed">
                   {/* Column headers */}
                   <thead>
-                    <tr className="border-b border-border bg-[hsl(var(--table-header))] font-['Inter'] text-[hsl(var(--table-header-foreground))]">
+                    <tr className="border-b border-border bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
                       {/* Expand/collapse spacer */}
                       <th className="w-10" />
                       {sortableColumns.map((col) => (
@@ -458,6 +497,9 @@ export default function UserListPage() {
                           userCount={group.users.length}
                           isExpanded={isExpanded}
                           onToggle={() => toggleCompany(group.companyId)}
+                          onEditCompany={() =>
+                            openEditCompanyModal(group.companyId, group.companyName)
+                          }
                           companyActions={getCompanyActions(
                             group.companyId,
                             group.companyName,
@@ -482,7 +524,7 @@ export default function UserListPage() {
               </div>
 
               {data && data.meta.total > 10 && (
-                <div className="px-6">
+                <div className="px-4">
                   <TablePagination
                     page={data.meta.page}
                     totalItems={data.meta.total}
@@ -672,6 +714,7 @@ interface CompanySectionProps {
   userCount: number;
   isExpanded: boolean;
   onToggle: () => void;
+  onEditCompany: () => void;
   companyActions: DotAction[];
   children: React.ReactNode;
 }
@@ -682,6 +725,7 @@ function CompanySection({
   userCount,
   isExpanded,
   onToggle,
+  onEditCompany,
   companyActions,
   children,
 }: CompanySectionProps) {
@@ -722,6 +766,14 @@ function CompanySection({
             >
               <EyeIcon className="w-4 h-4" />
             </button>
+            <button
+              type="button"
+              className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Edit company"
+              onClick={onEditCompany}
+            >
+              <EditIcon className="w-4 h-4" />
+            </button>
             <DotActionsMenu actions={companyActions} bordered={false} />
           </div>
         </td>
@@ -759,17 +811,12 @@ function UserRow({ user, actions, onView, onEdit }: UserRowProps) {
       <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
       <td className="px-4 py-3 text-muted-foreground">{user.phone ?? '—'}</td>
       <td className="px-4 py-3">
-        <Badge
-          className={cn(
-            'rounded',
-            ROLE_BADGE_COLORS[user.role] ?? 'bg-muted text-muted-foreground',
-          )}
-        >
+        <span className="inline-flex items-center rounded-full bg-[hsl(var(--badge-neutral))] px-2 py-1 text-xs text-[hsl(var(--badge-neutral-text))]">
           {t(`roles.${user.role}` as 'roles.COMPANY_ADMIN')}
-        </Badge>
+        </span>
       </td>
       <td className="px-4 py-3">
-        <span className={cn('text-sm', STATUS_TEXT_COLORS[user.status] ?? 'text-muted-foreground')}>
+        <span className="inline-flex items-center rounded-full border border-border bg-secondary px-2 py-1 text-xs text-[hsl(var(--badge-neutral-text))]">
           {t(`statuses.${user.status}` as 'statuses.ACTIVE')}
         </span>
       </td>

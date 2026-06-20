@@ -337,9 +337,9 @@ export default function CreateBomPage() {
         </div>
       )}
 
-      <div className="rounded-xl bg-[#0634BA]/[0.06] p-4 flex items-start gap-2.5">
-        <EnvelopeIcon className="w-[18px] h-[18px] shrink-0 mt-0.5 text-[#0634BA]" />
-        <div className="text-sm text-[#0634BA] leading-relaxed">
+      <div className="rounded-xl bg-[#175CD3]/[0.06] p-4 flex items-start gap-2.5">
+        <EnvelopeIcon className="w-[18px] h-[18px] shrink-0 mt-0.5 text-[#175CD3]" />
+        <div className="text-sm text-[#175CD3] leading-relaxed">
           <p>{t('create.requiredColumnsTitle')}</p>
           <ul className="list-disc pl-5 my-1">
             {(t('create.requiredColumnsList', { returnObjects: true }) as unknown as string[]).map(
@@ -441,7 +441,7 @@ export default function CreateBomPage() {
       {step === 2 && (
         <Button
           size="lg"
-          className="h-12 text-sm disabled:bg-[#9C9C9C] disabled:opacity-100"
+          className="h-12 text-sm disabled:bg-[#999FAD] disabled:opacity-100"
           disabled={unmatched > 0 || !hasRows}
           onClick={() => setStep(3)}
           data-testid="bom-continue"

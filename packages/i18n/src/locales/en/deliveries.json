@@ -1,0 +1,238 @@
+{
+  "nav": {
+    "deliveries": "Deliveries"
+  },
+  "list": {
+    "title": "Deliveries",
+    "subtitle": "Review and approve delivery reports raised against your purchase orders",
+    "searchPlaceholder": "Search",
+    "createNew": "Create new",
+    "upload": "Upload",
+    "view": "View report",
+    "approve": "Approve",
+    "reject": "Reject",
+    "empty": "No delivery reports yet",
+    "emptyHint": "Delivery reports submitted against your purchase orders will appear here.",
+    "loadFailed": "Failed to load delivery reports. Please try again.",
+    "rowsPerPage": "Rows per page",
+    "showing": "Showing {{from}} to {{to}} of {{total}}",
+    "fields": {
+      "deliveryDate": "Delivery date",
+      "project": "Project",
+      "vendor": "Vendor",
+      "location": "Location",
+      "linkedRfq": "Linked RFQ",
+      "invoice": "Invoice"
+    },
+    "filters": {
+      "vendor": "Vendor",
+      "status": "Status",
+      "project": "Project",
+      "location": "Location"
+    }
+  },
+  "create": {
+    "title": "Create Delivery report",
+    "subtitle": "Record what was received against the purchase order",
+    "lineItems": "Line Items",
+    "columns": {
+      "lineItemId": "Line Item ID",
+      "itemMaterial": "Item/Material",
+      "description": "Description",
+      "unit": "Unit",
+      "qtyOrdered": "Qty. Ordered",
+      "qtyReceived": "Qty received",
+      "outcome": "Outcome",
+      "actions": "Actions"
+    },
+    "attachments": "Attachments",
+    "optional": "(optional)",
+    "addAttachment": "Add Attachment",
+    "attachmentHint": "Supported formats: PDF, XLSX, DOCX, JPG, CSV. Max size: 10 MB",
+    "report": "Report",
+    "reportPlaceholder": "Add some additional information ..",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "selectPo": "Select a purchase order",
+    "noPo": "No purchase order selected",
+    "noPoHint": "Choose the purchase order this delivery is for.",
+    "loadFailed": "Failed to load the purchase order. Please try again.",
+    "validation": "Each received quantity must be a whole number of 0 or more.",
+    "submitFailed": "Could not submit the delivery report. Please try again.",
+    "submitted": "Delivery report submitted"
+  },
+  "detail": {
+    "title": "Delivery report",
+    "subtitle": "Review the submitted delivery against the purchase order",
+    "approve": "Approve",
+    "reject": "Reject",
+    "information": "Information",
+    "lineItems": "Line Items",
+    "notes": "Notes:",
+    "noData": "Delivery report not found.",
+    "fields": {
+      "poNumber": "PO Number",
+      "project": "Project",
+      "deliveryDate": "Delivery date",
+      "location": "Location",
+      "submittedBy": "Submitted by",
+      "submittedDate": "Submitted Date",
+      "vendorCompany": "Vendor company",
+      "contactPerson": "Contact person",
+      "phoneNumber": "Phone number",
+      "rejectionReason": "Rejection reason"
+    },
+    "columns": {
+      "lineItemId": "Line Item ID",
+      "itemMaterial": "Item/Material",
+      "description": "Description",
+      "unit": "Unit",
+      "qtyOrdered": "Qty. Ordered",
+      "qtyReceived": "Qty received",
+      "outcome": "Outcome",
+      "actions": "Actions"
+    }
+  },
+  "review": {
+    "approve": "Approve",
+    "reject": "Reject",
+    "approveFailed": "Could not approve the delivery report. Please try again.",
+    "approved": "Delivery report approved",
+    "rejectTitle": "Reject delivery report",
+    "rejectDescription": "Rejection reason will be stored. The PO status will not be affected.",
+    "rejectPlaceholder": "Add some information ..",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "rejectFailed": "Could not reject the delivery report. Please try again.",
+    "rejected": "Delivery report rejected"
+  },
+  "damage": {
+    "title": "Damage details",
+    "damagedQty": "Damaged qty",
+    "type": "Type",
+    "typePlaceholder": "Select",
+    "disposition": "Disposition",
+    "returned": "Returned",
+    "accepted": "Accepted",
+    "addPhoto": "Add Photo evidence",
+    "photos": "Photos"
+  },
+  "qr": {
+    "title": "QR code",
+    "generate": "Generate delivery QR",
+    "regenerate": "Regenerate",
+    "helper": "Share this code with the delivery person. Scanning it opens a form to submit a delivery report for this purchase order — no login required.",
+    "copyLink": "Copy link",
+    "copied": "Link copied",
+    "generateFailed": "Could not generate the delivery link. Please try again."
+  },
+  "portal": {
+    "loadFailed": "We couldn't load this delivery. Please try again.",
+    "expiredToken": "This delivery link has expired or is no longer valid.",
+    "expiredTokenHint": "Ask the buyer to share a new delivery QR code or link.",
+    "invalidToken": "This delivery link is invalid.",
+    "invalidTokenHint": "Check the link you scanned and try again.",
+    "identify": {
+      "title": "Identify yourself",
+      "subtitle": "Enter your name and email to receive a one-time access code.",
+      "fullName": "Full name",
+      "fullNamePlaceholder": "Enter name and surname",
+      "email": "Email address",
+      "emailPlaceholder": "Enter email address",
+      "submit": "Send access code",
+      "helper": "A 6-digit OTP will be sent to your email. Valid for 15 minutes.",
+      "nameRequired": "Enter your full name.",
+      "emailRequired": "Enter a valid email address.",
+      "sendFailed": "Couldn't send the access code. Please try again."
+    },
+    "code": {
+      "title": "Enter access code",
+      "subtitle": "Sent to {{email}}. Enter the 6-digit code below.",
+      "digitLabel": "Access code digit {{index}}",
+      "expiresIn": "Code expires in {{time}}",
+      "expired": "Your access code has expired. Change your email to request a new one.",
+      "verify": "Verify and continue",
+      "changeEmail": "Change email",
+      "invalid": "That code is incorrect. Please check your email and try again.",
+      "locked": "Too many attempts. Please request a new code.",
+      "verifyFailed": "Couldn't verify the code. Please try again."
+    },
+    "report": {
+      "title": "Delivery Report",
+      "viewPo": "View PO",
+      "addAttachment": "Add Attachment",
+      "reportNotes": "Report Notes",
+      "optional": "(optional)",
+      "notesPlaceholder": "Add overall notes about this delivery…",
+      "lineItems": "Line Items",
+      "ordered": "Ordered: {{count}} {{uom}}",
+      "deliveredQty": "Delivered qty:",
+      "notDelivered": "Not Delivered",
+      "damaged": "Damaged",
+      "rejected": "Rejected",
+      "changeStatus": "Change status",
+      "damageQty": "Damage qty:",
+      "damageType": "Damage type:",
+      "damageTypePlaceholder": "Select",
+      "disposition": "Disposition:",
+      "returned": "Returned",
+      "accepted": "Accepted",
+      "addPhoto": "Add photo evidence",
+      "cancel": "Cancel",
+      "logOut": "Log Out",
+      "submit": "Submit report",
+      "hideContact": "Hide email",
+      "showContact": "Show email",
+      "submitFailed": "Couldn't submit your delivery report. Please try again.",
+      "filters": {
+        "all": "All",
+        "delivered": "Delivered",
+        "damaged": "Damaged",
+        "rejected": "Rejected"
+      },
+      "poDetails": {
+        "title": "Purchase order",
+        "close": "Close",
+        "poNumber": "PO Number",
+        "project": "Project",
+        "vendor": "Vendor company",
+        "location": "Delivery location",
+        "expectedDate": "Expected delivery date"
+      }
+    },
+    "submitted": {
+      "title": "Report submitted",
+      "subtitle": "Your delivery report for {{poNumber}} has been received.",
+      "delivered": "Delivered",
+      "notDelivered": "Not Delivered",
+      "partialDelivered": "Partial Delivered",
+      "damage": "Damage",
+      "rejected": "Rejected",
+      "items": "{{count}} items",
+      "logOut": "Log Out"
+    }
+  },
+  "status": {
+    "SUBMITTED": "Submitted",
+    "APPROVED": "Approved",
+    "REJECTED": "Rejected"
+  },
+  "outcome": {
+    "DELIVERED": "Delivered",
+    "PARTIALLY_DELIVERED": "Partially delivered",
+    "NOT_DELIVERED": "Not delivered",
+    "DAMAGED": "Damaged",
+    "REJECTED": "Rejected"
+  },
+  "damageType": {
+    "IN_TRANSIT": "Damaged in transit",
+    "MANUFACTURING_DEFECT": "Manufacturing defect",
+    "PACKAGING": "Packaging damage",
+    "WATER": "Water damage",
+    "OTHER": "Other"
+  },
+  "disposition": {
+    "RETURNED": "Returned",
+    "ACCEPTED": "Accepted"
+  }
+}

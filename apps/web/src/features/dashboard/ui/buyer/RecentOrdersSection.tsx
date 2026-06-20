@@ -2,18 +2,18 @@ import type { RecentOrderItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
   Badge,
+  DashboardItemCard,
+  DashboardSectionSkeleton,
   formatCurrency,
   formatStatus,
-  getStatusColor,
-  MessageBadgeIcon,
-  ORDER_STATUS_COLORS,
 } from '@forethread/ui-components';
+import type { MetadataField } from '@forethread/ui-components';
+import BriefcaseIcon from '@forethread/ui-components/assets/icons/briefcase.svg?react';
 import CoinsIcon from '@forethread/ui-components/assets/icons/coins.svg?react';
 import DateIcon from '@forethread/ui-components/assets/icons/date.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import LocationIcon from '@forethread/ui-components/assets/icons/location.svg?react';
 import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
-import ProjectsIcon from '@forethread/ui-components/assets/icons/projects.svg?react';
 import UsersGroupIcon from '@forethread/ui-components/assets/icons/users-group.svg?react';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,6 +23,8 @@ interface RecentOrdersSectionProps {
   items: RecentOrderItem[];
   isLoading?: boolean;
 }
+
+const ICON = 'w-[18px] h-[18px]';
 
 function formatOrderId(item: RecentOrderItem): string {
   const prefixes: Record<string, string> = {
@@ -34,19 +36,56 @@ function formatOrderId(item: RecentOrderItem): string {
   return `${prefix}-${item.id.slice(0, 8)}`;
 }
 
+/** Per-type metadata fields, mirroring the frame's RFQ / PO / BULK card variants. */
+function buildFields(item: RecentOrderItem): MetadataField[] {
+  const fields: MetadataField[] = [
+    { icon: <BriefcaseIcon className={ICON} />, value: item.projectName },
+  ];
+
+  if (item.vendorName) {
+    fields.push({ icon: <UsersGroupIcon className={ICON} />, value: item.vendorName });
+  } else if (item.location) {
+    fields.push({ icon: <LocationIcon className={ICON} />, value: item.location });
+  }
+
+  if (item.dateRange) {
+    fields.push({ icon: <DateIcon className={ICON} />, value: item.dateRange });
+  }
+  if (item.itemCount > 0) {
+    fields.push({
+      icon: <PackageIcon className={ICON} />,
+      value: `${item.itemCount} ${item.itemCount === 1 ? 'item' : 'items'}`,
+    });
+  }
+  if (item.totalCost !== null) {
+    fields.push({ icon: <CoinsIcon className={ICON} />, value: formatCurrency(item.totalCost) });
+  }
+  if (item.remainingPercent !== null) {
+    fields.push({
+      icon: <PackageIcon className={ICON} />,
+      value: `Remaining ${item.remainingPercent}%`,
+    });
+  } else if (item.vendorName && item.location) {
+    // PO variant: show the delivery/pick-up location after vendor.
+    fields.push({ icon: <LocationIcon className={ICON} />, value: item.location });
+  }
+
+  return fields;
+}
+
 export function RecentOrdersSection({ items, isLoading }: RecentOrdersSectionProps) {
   const { t } = useTranslation('dashboard');
 
   if (isLoading) {
-    return <SectionSkeleton title={t('recentOrders.title')} />;
+    return <DashboardSectionSkeleton title={t('recentOrders.title')} />;
   }
 
   return (
-    <div className="rounded-2xl border border-border/20 bg-card h-[420px] flex flex-col">
-      <div className="border-b border-border/20 px-4 py-3">
-        <h2 className="text-lg font-medium text-foreground">{t('recentOrders.title')}</h2>
+    <div className="bg-white rounded-[14px] border border-black/20 overflow-hidden flex flex-col h-[420px]">
+      <div className="px-4 pt-4 pb-3">
+        <h2 className="text-base font-semibold text-foreground">{t('recentOrders.title')}</h2>
       </div>
-      <div className="p-4 space-y-2 flex-1 overflow-y-auto">
+      <div className="px-4 pb-4 pt-0.5 flex-1 overflow-y-auto space-y-2">
         {items.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             {t('recentOrders.noOrders')}
@@ -75,97 +114,26 @@ function RecentOrderCard({ item }: { item: RecentOrderItem }) {
   }
 
   return (
-    <div
-      className="rounded-lg border border-border p-3 space-y-2 cursor-pointer transition-[box-shadow,border-color] hover:border-border-hover hover:ring-1 hover:ring-border-hover"
-      onClick={handleViewClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          handleViewClick();
-        }
-      }}
-    >
-      {/* Row 1: Order ID + Status + flag/eye icons */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-foreground">{formatOrderId(item)}</span>
-          <Badge className={getStatusColor(ORDER_STATUS_COLORS, item.status)}>
-            {formatStatus(item.status)}
-          </Badge>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <MessageBadgeIcon hasNotification={item.hasMessages} className="text-muted-foreground" />
-          <button
-            type="button"
-            className="inline-flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-            onClick={handleViewClick}
-          >
-            <EyeIcon className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {/* Row 2: Project name, Location/Vendor, Date */}
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1 truncate">
-          <ProjectsIcon className="h-3 w-3 shrink-0" />
-          {item.projectName}
-        </span>
-        {item.location && (
-          <span className="flex items-center gap-1 truncate">
-            <LocationIcon className="h-3 w-3 shrink-0" />
-            {item.location}
-          </span>
-        )}
-        {item.vendorName && (
-          <span className="flex items-center gap-1 truncate">
-            <UsersGroupIcon className="h-3 w-3 shrink-0" />
-            {item.vendorName}
-          </span>
-        )}
-        {item.dateRange && (
-          <span className="flex items-center gap-1 ml-auto shrink-0">
-            <DateIcon className="h-3 w-3 shrink-0" />
-            {item.dateRange}
-          </span>
-        )}
-      </div>
-
-      {/* Row 3: Items, Cost, Remaining */}
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-        {item.itemCount > 0 && (
-          <span className="flex items-center gap-1">
-            <PackageIcon className="h-3 w-3 shrink-0" />
-            {item.itemCount} {item.itemCount === 1 ? 'item' : 'items'}
-          </span>
-        )}
-        {item.totalCost !== null && item.totalCost !== undefined && (
-          <span className="flex items-center gap-1">
-            <CoinsIcon className="h-3 w-3 shrink-0" />
-            {formatCurrency(item.totalCost)}
-          </span>
-        )}
-        {item.remainingPercent !== null && item.remainingPercent !== undefined && (
-          <span className="ml-auto shrink-0">Remaining quantity {item.remainingPercent}%</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function SectionSkeleton({ title }: { title: string }) {
-  return (
-    <div className="rounded-2xl border border-border/20 bg-card">
-      <div className="border-b border-border/20 px-4 py-3">
-        <h2 className="text-lg font-medium text-foreground">{title}</h2>
-      </div>
-      <div className="p-4 space-y-2">
-        {Array.from({ length: 3 }, (_, i) => (
-          <div key={i} className="h-24 animate-pulse rounded-lg bg-muted" />
-        ))}
-      </div>
-    </div>
+    <DashboardItemCard
+      name={formatOrderId(item)}
+      onCardClick={handleViewClick}
+      hasChatNotification={item.hasMessages}
+      statusBadge={
+        <Badge className="bg-[#E8EAED] text-[#2D3139] border-0 rounded-full text-xs px-2 py-0.5">
+          {formatStatus(item.status)}
+        </Badge>
+      }
+      actions={
+        <button
+          type="button"
+          className="inline-flex items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          onClick={handleViewClick}
+          aria-label="View order"
+        >
+          <EyeIcon className="w-4 h-4" />
+        </button>
+      }
+      fields={buildFields(item)}
+    />
   );
 }

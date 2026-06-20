@@ -51,20 +51,39 @@ describe('MaterialsController', () => {
     expect(result).toBe(expected);
   });
 
-  it('suggestions delegates to service with search param and the current user', async () => {
-    const expected = [{ id: 'm-1', name: 'Bolt' }];
+  it('suggestions delegates to service with the q term, limit, and the current user', async () => {
+    const expected = {
+      results: [{ id: 'm-1', name: 'Bolt' }],
+      recentlyUsed: [],
+      frequentlyUsed: [],
+    };
     mockService.suggestions.mockResolvedValue(expected);
 
-    const result = await controller.suggestions('bolt', user as never);
+    const result = await controller.suggestions({ q: 'bolt', limit: 5 } as never, user as never);
     expect(result).toBe(expected);
-    expect(mockService.suggestions).toHaveBeenCalledWith('bolt', user);
+    expect(mockService.suggestions).toHaveBeenCalledWith('bolt', user, 5);
   });
 
-  it('suggestions passes empty string when search is undefined', async () => {
-    mockService.suggestions.mockResolvedValue([]);
+  it('suggestions accepts `search` as a legacy alias for `q`', async () => {
+    mockService.suggestions.mockResolvedValue({
+      results: [],
+      recentlyUsed: [],
+      frequentlyUsed: [],
+    });
 
-    await controller.suggestions(undefined as never, user as never);
-    expect(mockService.suggestions).toHaveBeenCalledWith('', user);
+    await controller.suggestions({ search: 'cable' } as never, user as never);
+    expect(mockService.suggestions).toHaveBeenCalledWith('cable', user, undefined);
+  });
+
+  it('suggestions passes empty string when neither q nor search is provided', async () => {
+    mockService.suggestions.mockResolvedValue({
+      results: [],
+      recentlyUsed: [],
+      frequentlyUsed: [],
+    });
+
+    await controller.suggestions({} as never, user as never);
+    expect(mockService.suggestions).toHaveBeenCalledWith('', user, undefined);
   });
 
   it('createMaterial delegates to service', async () => {

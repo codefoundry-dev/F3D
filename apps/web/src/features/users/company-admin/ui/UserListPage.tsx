@@ -1,11 +1,11 @@
 import type { UserResponse } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { UserStatus } from '@forethread/shared-types/client';
 import {
   cn,
   Button,
   Spinner,
-  Badge,
   TablePagination,
   EmptyState,
   DotActionsMenu,
@@ -20,13 +20,12 @@ import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-c
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import NewUserIcon from '@forethread/ui-components/assets/icons/new-user.svg?react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 
 import { TABS, PAGE_SIZE_OPTIONS, type SortField } from '../constants';
-import { ROLE_BADGE_COLORS, STATUS_TEXT_COLORS } from '../constants/roles';
 import { useUserSort } from '../hooks/useUserSort';
 import {
   useUsers,
@@ -46,6 +45,7 @@ import { ProjectAccessModal } from './ProjectAccessModal';
 export default function UserListPage() {
   const { t } = useTranslation(['users', 'common']);
   const navigate = useNavigate();
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') as (typeof TABS)[number] | null;
   const activeTab =
@@ -91,6 +91,13 @@ export default function UserListPage() {
     openCancelInvitationModal,
     closeCancelInvitationModal,
   } = useUsersStore();
+
+  // Surface the page title + subtitle in the global app header (per Figma every
+  // screen shows its title there). Back-arrow returns to Settings.
+  useEffect(() => {
+    setPageTitle(t('userManagement'), t('userManagementSubtitle'), ROUTES.settings);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
 
   const deactivateMutation = useDeactivateUser();
   const reactivateMutation = useReactivateUser();
@@ -187,54 +194,78 @@ export default function UserListPage() {
     return actions;
   };
 
-  const sortableColumns: { field: SortField; label: string; className?: string }[] = [
-    { field: 'name', label: t('columns.fullName'), className: 'px-6' },
-    { field: 'email', label: t('columns.email') },
-    { field: 'phone', label: t('columns.phone') },
-    { field: 'role', label: t('columns.role') },
-    { field: 'status', label: t('columns.status') },
-  ];
+  const headerCellClass =
+    'p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))]';
+
+  /** A sortable column header — label + sort arrows, matches the Figma table head. */
+  const renderSortHeader = (field: SortField, label: string, className?: string) => (
+    <th className={cn(headerCellClass, className)}>
+      <button
+        type="button"
+        onClick={() => handleSort(field)}
+        className="flex w-full select-none items-center justify-between gap-2"
+      >
+        {label}
+        <SortIcon active={sortField === field} direction={sortField === field ? sortDir : null} />
+      </button>
+    </th>
+  );
+
+  /** A non-sortable header. `decorative` shows the static sort glyph (per Figma). */
+  const renderPlainHeader = (label: string, className?: string, decorative?: boolean) => (
+    <th className={cn(headerCellClass, className)}>
+      <span className="flex w-full items-center justify-between gap-2">
+        {label}
+        {decorative && <SortIcon />}
+      </span>
+    </th>
+  );
 
   return (
-    <div className="p-6">
+    <div className="flex flex-col gap-6 p-4">
       {/* Tabs */}
-      <div className="flex gap-6 border-b border-border mb-6">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => setActiveTab(tab)}
-            className={cn(
-              'pb-3 text-sm font-medium transition-colors relative',
-              activeTab === tab ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {t(`tabs.${tab}` as 'tabs.companyUsers')}
-            {activeTab === tab && (
-              <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-foreground" />
-            )}
-          </button>
-        ))}
+      <div className="flex items-start border-b border-[#D2D5DB]">
+        {TABS.map((tab) => {
+          const isActive = activeTab === tab;
+          return (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={cn(
+                '-mb-px border-b-2 p-3 text-lg font-medium leading-4 transition-colors',
+                isActive
+                  ? 'border-foreground text-foreground'
+                  : 'border-transparent text-[#6D7588] hover:text-foreground',
+              )}
+            >
+              {t(`tabs.${tab}` as 'tabs.companyUsers')}
+            </button>
+          );
+        })}
       </div>
 
       {/* Content — Company users tab */}
       {activeTab === 'companyUsers' && (
-        <div className="bg-card rounded-lg border border-border">
-          {/* Invite user button */}
-          <div className="flex justify-end px-6 pt-5 pb-4">
-            <Button onClick={openCreateModal} className="gap-2">
-              <NewUserIcon className="w-4 h-4" />
+        <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
+          {/* Invite user */}
+          <div className="flex items-center justify-end">
+            <Button
+              onClick={openCreateModal}
+              className="h-[42px] gap-1.5 rounded-xl px-3 text-base"
+            >
+              <NewUserIcon className="h-[18px] w-[18px]" />
               {t('inviteUser')}
             </Button>
           </div>
 
           {/* Table */}
           {isLoading ? (
-            <div className="flex items-center justify-center h-48">
+            <div className="flex h-48 items-center justify-center">
               <Spinner size="md" />
             </div>
           ) : isError ? (
-            <div className="flex items-center justify-center h-48 text-destructive text-sm">
+            <div className="flex h-48 items-center justify-center text-sm text-destructive">
               {t('failedToLoad')}
             </div>
           ) : !data?.items.length ? (
@@ -243,113 +274,88 @@ export default function UserListPage() {
             </div>
           ) : (
             <>
-              <div className="mx-6 mb-6 border border-border rounded-lg overflow-x-auto">
-                <table className="w-full min-w-[800px] text-sm table-fixed">
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <table className="w-full min-w-[900px] table-fixed text-sm">
                   <thead>
-                    <tr className="border-b border-border bg-[hsl(var(--table-header))] font-['Inter'] text-[hsl(var(--table-header-foreground))]">
-                      {sortableColumns.map((col) => (
-                        <th
-                          key={col.field}
-                          className={cn(
-                            'px-4 py-3 text-left text-xs font-bold leading-4 tracking-[0.6px] cursor-pointer select-none transition-colors',
-                            col.className,
-                          )}
-                          onClick={() => handleSort(col.field)}
-                        >
-                          <span className="flex items-center justify-between w-full">
-                            {col.label}
-                            <SortIcon
-                              active={sortField === col.field}
-                              direction={sortField === col.field ? sortDir : null}
-                            />
-                          </span>
-                        </th>
-                      ))}
-                      <th className="px-4 py-3 text-left text-xs font-bold leading-4 tracking-[0.6px] cursor-pointer select-none">
-                        <span className="flex items-center justify-between w-full">
-                          {t('columns.projects')}
-                          <SortIcon />
-                        </span>
-                      </th>
-                      <th className="w-[100px] px-4 py-3 text-right text-xs font-bold leading-4 tracking-[0.6px]">
-                        {t('columns.actions')}
-                      </th>
+                    <tr className="bg-[hsl(var(--table-header))]">
+                      {renderSortHeader('name', t('columns.fullName'), 'w-[200px]')}
+                      {renderSortHeader('email', t('columns.email'))}
+                      {renderPlainHeader(t('columns.phone'))}
+                      {renderSortHeader('role', t('columns.role'), 'w-[180px]')}
+                      {renderSortHeader('status', t('columns.status'), 'w-[156px]')}
+                      {renderPlainHeader(t('columns.projects'), undefined, true)}
+                      {renderPlainHeader(t('columns.actions'), 'w-[120px]')}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border">
-                    {data.items.map((user) => (
-                      <tr key={user.id} className="hover:bg-accent/50 transition-colors">
-                        <td className="px-6 py-4 text-foreground">{user.name}</td>
-                        <td className="px-4 py-4 text-muted-foreground">{user.email}</td>
-                        <td className="px-4 py-4 text-muted-foreground">{user.phone ?? '—'}</td>
-                        <td className="px-4 py-4">
-                          <Badge
-                            className={cn(
-                              'rounded',
-                              ROLE_BADGE_COLORS[user.role] ?? 'bg-muted text-muted-foreground',
-                            )}
-                          >
-                            {t(`roles.${user.role}` as 'roles.COMPANY_ADMIN')}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-4">
-                          <span
-                            className={cn(
-                              'text-sm',
-                              STATUS_TEXT_COLORS[user.status] ?? 'text-muted-foreground',
-                            )}
-                          >
-                            {t(`statuses.${user.status}` as 'statuses.ACTIVE')}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-muted-foreground text-sm truncate">—</td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              type="button"
-                              className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                              aria-label="View"
-                              onClick={() => navigate(ROUTES.userDetail.replace(':id', user.id))}
-                            >
-                              <EyeIcon className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                              aria-label="Edit"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openEditModal(user.id);
-                              }}
-                            >
-                              <EditIcon className="w-4 h-4" />
-                            </button>
-                            <DotActionsMenu actions={getRowActions(user)} bordered={false} />
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-[rgba(0,0,0,0.08)]">
+                    {data.items.map((user) => {
+                      const projectNames = user.projects?.length
+                        ? user.projects.map((p) => p.name).join(', ')
+                        : null;
+                      return (
+                        <tr key={user.id} className="h-11 transition-colors hover:bg-accent/40">
+                          <td className="p-3 text-foreground">{user.name}</td>
+                          <td className="p-3 text-foreground">{user.email}</td>
+                          <td className="p-3 text-foreground">{user.phone ?? '—'}</td>
+                          <td className="p-3">
+                            <span className="inline-flex items-center rounded-full bg-[hsl(var(--badge-neutral))] px-2 py-1 text-xs text-[hsl(var(--badge-neutral-text))]">
+                              {t(`roles.${user.role}` as 'roles.COMPANY_ADMIN')}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <span className="inline-flex items-center rounded-full border border-border bg-secondary px-2 py-1 text-xs text-[hsl(var(--badge-neutral-text))]">
+                              {t(`statuses.${user.status}` as 'statuses.ACTIVE')}
+                            </span>
+                          </td>
+                          <td className="p-3 text-foreground">
+                            <span className="block truncate">{projectNames ?? '—'}</span>
+                          </td>
+                          <td className="p-3">
+                            <div className="flex items-center justify-center gap-3 text-foreground">
+                              <button
+                                type="button"
+                                className="transition-colors hover:text-foreground/60"
+                                aria-label="View"
+                                onClick={() => navigate(ROUTES.userDetail.replace(':id', user.id))}
+                              >
+                                <EyeIcon className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                className="transition-colors hover:text-foreground/60"
+                                aria-label="Edit"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditModal(user.id);
+                                }}
+                              >
+                                <EditIcon className="h-4 w-4" />
+                              </button>
+                              <DotActionsMenu actions={getRowActions(user)} bordered={false} />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
 
               {data && (
-                <div className="px-6">
-                  <TablePagination
-                    page={data.meta.page}
-                    totalItems={data.meta.total}
-                    pageSize={pageSize}
-                    pageSizeOptions={PAGE_SIZE_OPTIONS}
-                    onPageChange={setPage}
-                    onPageSizeChange={setPageSize}
-                    rowsPerPageLabel={t('common:rowsPerPage')}
-                    showingLabel={({ from, to, total }) =>
-                      t('common:showingItems', { from, to, total })
-                    }
-                    backLabel={t('common:back')}
-                    nextLabel={t('common:next')}
-                  />
-                </div>
+                <TablePagination
+                  page={data.meta.page}
+                  totalItems={data.meta.total}
+                  pageSize={pageSize}
+                  pageSizeOptions={PAGE_SIZE_OPTIONS}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                  rowsPerPageLabel={t('common:rowsPerPage')}
+                  showingLabel={({ from, to, total }) =>
+                    t('common:showingItems', { from, to, total })
+                  }
+                  backLabel={t('common:back')}
+                  nextLabel={t('common:next')}
+                />
               )}
             </>
           )}
@@ -358,12 +364,12 @@ export default function UserListPage() {
 
       {/* Placeholder tabs */}
       {activeTab === 'approvalConfiguration' && (
-        <div className="bg-card rounded-lg border border-border p-12 text-center text-muted-foreground">
+        <div className="rounded-lg border border-border bg-card p-12 text-center text-muted-foreground">
           {t('tabs.approvalConfigurationPlaceholder')}
         </div>
       )}
       {activeTab === 'rolePermissions' && (
-        <div className="bg-card rounded-lg border border-border p-12 text-center text-muted-foreground">
+        <div className="rounded-lg border border-border bg-card p-12 text-center text-muted-foreground">
           {t('tabs.rolePermissionsPlaceholder')}
         </div>
       )}
@@ -406,7 +412,7 @@ export default function UserListPage() {
           variant={statusActionType === 'deactivate' ? 'danger' : 'default'}
           icon={
             statusActionType === 'deactivate' ? (
-              <CrossInCircleIcon className="w-6 h-6 text-foreground" />
+              <CrossInCircleIcon className="h-6 w-6 text-foreground" />
             ) : undefined
           }
         />
@@ -484,7 +490,7 @@ export default function UserListPage() {
           confirmLabel={t('cancelInvitationModal.confirm')}
           cancelLabel={t('common:cancel')}
           variant="danger"
-          icon={<CrossInCircleIcon className="w-6 h-6 text-foreground" />}
+          icon={<CrossInCircleIcon className="h-6 w-6 text-foreground" />}
         />
       )}
     </div>

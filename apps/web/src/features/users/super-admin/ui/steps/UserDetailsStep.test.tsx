@@ -104,13 +104,8 @@ describe('UserDetailsStep', () => {
 
   it('renders title and subtitle', () => {
     render(<UserDetailsStep {...defaultProps} />);
-    expect(screen.getByText('createUserPage.userDetailsTitle')).toBeInTheDocument();
-    expect(screen.getByText('createUserPage.userDetailsSubtitle')).toBeInTheDocument();
-  });
-
-  it('renders company name', () => {
-    render(<UserDetailsStep {...defaultProps} />);
-    expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+    expect(screen.getByText('createUserPage.title')).toBeInTheDocument();
+    expect(screen.getByText('createUserPage.subtitle')).toBeInTheDocument();
   });
 
   it('renders form fields', () => {
@@ -118,6 +113,14 @@ describe('UserDetailsStep', () => {
     expect(screen.getByText('createModal.representativeName')).toBeInTheDocument();
     expect(screen.getByText('createModal.representativeEmail')).toBeInTheDocument();
     expect(screen.getByText('createModal.position')).toBeInTheDocument();
+  });
+
+  it('renders the position field with a lowercase optional label', () => {
+    render(<UserDetailsStep {...defaultProps} />);
+    expect(
+      screen.getAllByText((_content, el) => el?.textContent?.includes('common:optional') ?? false)
+        .length,
+    ).toBeGreaterThan(0);
   });
 
   it('renders role dropdown for contractor', () => {

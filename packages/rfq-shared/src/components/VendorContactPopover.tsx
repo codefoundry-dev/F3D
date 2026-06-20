@@ -1,7 +1,7 @@
 import type { RfqVendorContact } from '@forethread/api-client';
 import { cn, DotActionsMenu } from '@forethread/ui-components';
 import UsersGroupIcon from '@forethread/ui-components/assets/icons/users-group.svg?react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 interface VendorContactPopoverProps {
   contacts: RfqVendorContact[];
@@ -118,6 +118,33 @@ export function VendorContactPopover({ contacts }: VendorContactPopoverProps) {
     const handler = () => setOpen(false);
     window.addEventListener('scroll', handler, true);
     return () => window.removeEventListener('scroll', handler, true);
+  }, [open, isMobile]);
+
+  // Keep the popover inside the viewport: when the trigger sits near the right
+  // (or bottom) edge, flip/clamp so the contacts list isn't cut off. Runs
+  // before paint, so the corrected position is the only one shown.
+  useLayoutEffect(() => {
+    if (!open || isMobile || !menuRef.current || !triggerRef.current) return;
+    const menu = menuRef.current.getBoundingClientRect();
+    const trigger = triggerRef.current.getBoundingClientRect();
+    const margin = 8;
+    let left = trigger.left;
+    if (left + menu.width > window.innerWidth - margin) {
+      // Align the menu's right edge to the trigger, clamped to the viewport.
+      left = Math.max(
+        margin,
+        Math.min(trigger.right - menu.width, window.innerWidth - menu.width - margin),
+      );
+    }
+    let top = trigger.bottom + 4;
+    if (top + menu.height > window.innerHeight - margin) {
+      top = Math.max(margin, trigger.top - menu.height - 4);
+    }
+    setMenuPos((prev) =>
+      prev && Math.abs(prev.left - left) < 0.5 && Math.abs(prev.top - top) < 0.5
+        ? prev
+        : { top, left },
+    );
   }, [open, isMobile]);
 
   const show = () => {

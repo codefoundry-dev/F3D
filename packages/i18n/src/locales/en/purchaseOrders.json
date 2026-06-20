@@ -82,7 +82,7 @@
     "deliveryLocation": "Delivery location",
     "deliveryLocationId": "Delivery location",
     "pickUpLocation": "Pick-up location",
-    "paymentTermsDays": "Payment terms (days)",
+    "paymentTermsDays": "Payment terms",
     "totalAmount": "Total amount",
     "needBy": "Need by",
     "earliestDate": "Earliest date",
@@ -272,6 +272,10 @@
     "shipmentCost": "Shipment Cost",
     "needBy": "Need by",
     "earliestDelivery": "Earliest Delivery",
+    "vendors": "Vendors",
+    "pickUpTimeExpectation": "Pick-up Time Expectation",
+    "pickUpContactName": "Pick-up Contact Name",
+    "pickUpContactPhone": "Pick up Contact Phone Number",
     "warehouseLocation": "Warehouse Location",
     "activityLog": "Activity Log",
     "noActivityLogs": "No activity logs yet"
@@ -333,7 +337,8 @@
     "decline": "Decline",
     "changeRequest": "Change request",
     "acknowledgeAlert": "This PO requires your acknowledgement and response. Please review and take action.",
-    "recordDelivery": "Record delivery"
+    "recordDelivery": "Record delivery",
+    "deliveryReport": "Delivery report"
   },
   "pagination": {
     "back": "Back",

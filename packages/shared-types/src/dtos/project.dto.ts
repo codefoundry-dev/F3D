@@ -191,7 +191,14 @@ export class ProjectListQueryDto extends BasePaginationQueryDto {
   @IsOptional()
   search?: string;
 
-  @ApiPropertyOptional({ enum: ['name', 'createdAt', 'status', 'startDate'] })
+  @ApiPropertyOptional({ description: 'Filter by project type (free-text, e.g. Residential)' })
+  @IsString()
+  @IsOptional()
+  type?: string;
+
+  @ApiPropertyOptional({
+    enum: ['code', 'name', 'createdAt', 'status', 'type', 'startDate', 'expectedEndDate'],
+  })
   @IsString()
   @IsOptional()
   sortBy?: string = 'createdAt';
@@ -229,11 +236,34 @@ export class ProjectMemberResponseDto {
   @ApiProperty()
   role!: string;
 
+  @ApiPropertyOptional({ nullable: true })
+  avatarUrl!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  phone!: string | null;
+
+  @ApiProperty()
+  status!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  workStatus!: string | null;
+
   @ApiProperty()
   assignedAt!: string;
 
   @ApiPropertyOptional()
   assignedBy?: { id: string; name: string };
+}
+
+export class ProjectMemberAvatarDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  avatarUrl!: string | null;
 }
 
 export class UserRefDto {
@@ -247,6 +277,9 @@ export class UserRefDto {
 export class ProjectListItemDto {
   @ApiProperty()
   id!: string;
+
+  @ApiProperty({ example: 'PRJ-2025-001' })
+  code!: string;
 
   @ApiProperty()
   name!: string;
@@ -268,6 +301,9 @@ export class ProjectListItemDto {
 
   @ApiProperty()
   memberCount!: number;
+
+  @ApiProperty({ type: [ProjectMemberAvatarDto] })
+  memberAvatars!: ProjectMemberAvatarDto[];
 
   @ApiPropertyOptional()
   startDate!: string | null;
@@ -294,6 +330,9 @@ export class PaginatedProjectsResponseDto {
 export class ProjectResponseDto {
   @ApiProperty()
   id!: string;
+
+  @ApiProperty({ example: 'PRJ-2025-001' })
+  code!: string;
 
   @ApiProperty()
   name!: string;

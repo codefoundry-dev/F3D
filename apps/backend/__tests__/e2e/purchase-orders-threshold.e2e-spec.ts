@@ -3,8 +3,8 @@ import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   CompanyType,
+  LocationType,
   PoStatus,
-  ProjectLocationType,
   ProjectStatus,
   UserRole,
   UserStatus,
@@ -251,7 +251,7 @@ describe('PO approval threshold enforcement (FOR-196, e2e)', () => {
       const loc = await prisma.projectLocation.create({
         data: {
           projectId,
-          type: ProjectLocationType.DELIVERY,
+          type: LocationType.DELIVERY,
           label: 'FOR-196 test location',
           address: 'Test address',
           isDefault: true,
@@ -262,12 +262,12 @@ describe('PO approval threshold enforcement (FOR-196, e2e)', () => {
       const created = await prisma.project.create({
         data: {
           name: `FOR-196 threshold test ${Date.now()}`,
-          status: ProjectStatus.ACTIVE,
+          status: ProjectStatus.ONGOING,
           companyId: contractorId,
           createdByUserId: caUserId,
           locations: {
             create: {
-              type: ProjectLocationType.DELIVERY,
+              type: LocationType.DELIVERY,
               label: 'FOR-196 test location',
               address: 'Test address',
               isDefault: true,

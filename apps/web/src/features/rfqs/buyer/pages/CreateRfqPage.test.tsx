@@ -355,15 +355,14 @@ describe('CreateRfqPage', () => {
     await continueWizard();
     await screen.findByText(/create\.headings\.step3Title/);
 
-    // Cover the single line from the single vendor, then continue.
-    fireEvent.click(await screen.findByTestId('cover-all'));
+    // Cover the single line from the single vendor (per-vendor column
+    // checkbox), then continue.
+    fireEvent.click(await screen.findByTestId('cover-vendor-v1'));
     await continueWizard();
 
     await waitFor(() =>
       expect(mockApi.confirmRfqCoverage).toHaveBeenCalledWith('rfq-1', {
-        allocations: [
-          { rfqLineItemId: 'srv-li-1', bulkOrderLineItemId: 'bol-1', quantity: 1 },
-        ],
+        allocations: [{ rfqLineItemId: 'srv-li-1', bulkOrderLineItemId: 'bol-1', quantity: 1 }],
       }),
     );
     expect(await screen.findByText('create.noRfqRequired.title')).toBeInTheDocument();

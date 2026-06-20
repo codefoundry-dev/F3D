@@ -138,6 +138,13 @@ function MatchCell({ index, row, open, onOpen, onClose, onPick, onCreateNew, t }
 export interface BomReviewStepProps {
   rows: BomDraftRow[];
   onRowsChange: (rows: BomDraftRow[]) => void;
+  /**
+   * 'create' (default) is the upload wizard: shows the destructive unmatched
+   * alert and colour-codes rows by match state. 'edit' (US 5.02 Edit BOM) is
+   * the cleaner in-place editor — the page owns its own info banner, so the
+   * alert and row tints are suppressed to match the design.
+   */
+  variant?: 'create' | 'edit';
 }
 
 /**
@@ -145,7 +152,7 @@ export interface BomReviewStepProps {
  * must be matched to a catalogue material (via the search popup or by creating
  * a private material) before the wizard can continue.
  */
-export function BomReviewStep({ rows, onRowsChange }: BomReviewStepProps) {
+export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomReviewStepProps) {
   const { t: tRaw } = useTranslation('boms');
   const t = tRaw as TFn;
   const [openMatchRow, setOpenMatchRow] = useState<number | null>(null);
@@ -217,7 +224,7 @@ export function BomReviewStep({ rows, onRowsChange }: BomReviewStepProps) {
 
   return (
     <div className="space-y-6" data-testid="bom-review-step">
-      {unmatched > 0 && (
+      {variant === 'create' && unmatched > 0 && (
         <Alert variant="destructive" icon={<InfoIcon className="w-[18px] h-[18px]" />}>
           {t('create.unmatchedAlert')}
         </Alert>
@@ -244,7 +251,11 @@ export function BomReviewStep({ rows, onRowsChange }: BomReviewStepProps) {
                 const badge = confidenceBadge(row, t);
                 const empty = isRowEmpty(row);
                 return (
-                  <tr key={index} className={rowTint(row)} data-testid={`bom-review-row-${index}`}>
+                  <tr
+                    key={index}
+                    className={variant === 'edit' ? undefined : rowTint(row)}
+                    data-testid={`bom-review-row-${index}`}
+                  >
                     <td className={td}>
                       <Input
                         aria-label={t('create.columns.materialName')}
@@ -349,22 +360,24 @@ export function BomReviewStep({ rows, onRowsChange }: BomReviewStepProps) {
                     </td>
                     <td className={cn(td, 'px-3')}>
                       <span className="inline-flex items-center gap-2 whitespace-nowrap">
-                        <Badge className="bg-[#E4E4E4] text-[#262626]">{badge.label}</Badge>
+                        <Badge className="bg-[#E8EAED] text-[#2D3139]">{badge.label}</Badge>
                         {badge.pct && <span className="text-sm text-foreground">{badge.pct}</span>}
                       </span>
                     </td>
                     <td className={cn(td, 'px-3')}>
                       <div className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          aria-label={t('create.duplicateRow')}
-                          title={t('create.duplicateRow')}
-                          onClick={() => duplicateRow(index)}
-                          disabled={empty}
-                          className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                        >
-                          <CopyIcon className="w-4 h-4" />
-                        </button>
+                        {variant !== 'edit' && (
+                          <button
+                            type="button"
+                            aria-label={t('create.duplicateRow')}
+                            title={t('create.duplicateRow')}
+                            onClick={() => duplicateRow(index)}
+                            disabled={empty}
+                            className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                          >
+                            <CopyIcon className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
                           type="button"
                           aria-label={t('create.removeRow')}

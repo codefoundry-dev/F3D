@@ -44,6 +44,10 @@ const mockPrisma = {
     upsert: jest.fn(),
     deleteMany: jest.fn(),
   },
+  materialUsage: {
+    findMany: jest.fn(),
+    upsert: jest.fn(),
+  },
   $transaction: jest.fn(),
   $queryRaw: jest.fn(),
 };
@@ -72,6 +76,8 @@ describe('MaterialsService', () => {
     // unless a test overrides these.
     mockPrisma.materialFavourite.findMany.mockResolvedValue([]);
     mockPrisma.materialFavourite.findUnique.mockResolvedValue(null);
+    // Default: no usage history — recently/frequently used resolve to [].
+    mockPrisma.materialUsage.findMany.mockResolvedValue([]);
   });
 
   // ── listMaterials ──────────────────────────────────────────────────────
@@ -282,40 +288,169 @@ describe('MaterialsService', () => {
   // ── suggestions ───────────────────────────────────────────────────────
 
   describe('suggestions', () => {
-    it('returns mapped suggestions', async () => {
-      mockPrisma.material.findMany.mockResolvedValue([
-        { id: 'm-1', name: 'Bolt', category: { name: 'Fasteners' }, uom: 'pcs' },
-      ]);
+    const row = {
+      id: 'm-1',
+      name: 'Bolt',
+      category: { name: 'Fasteners' },
+      uom: 'pcs',
+      description: 'M8 bolt',
+      imageUrl: 'http://img/bolt.png',
+    };
+
+    it('returns the grouped shape with mapped result rows', async () => {
+      mockPrisma.material.findMany.mockResolvedValue([row]);
 
       const result = await service.suggestions('bolt', companyAdmin);
-      expect(result).toEqual([{ id: 'm-1', name: 'Bolt', categoryName: 'Fasteners', uom: 'pcs' }]);
+
+      expect(result).toEqual({
+        results: [
+          {
+            id: 'm-1',
+            name: 'Bolt',
+            categoryName: 'Fasteners',
+            uom: 'pcs',
+            description: 'M8 bolt',
+            imageUrl: 'http://img/bolt.png',
+          },
+        ],
+        recentlyUsed: [],
+        frequentlyUsed: [],
+      });
     });
 
-    it('applies search filter for non-empty string', async () => {
+    it('matches the term against name / UPC / manufacturer (case-insensitive)', async () => {
       mockPrisma.material.findMany.mockResolvedValue([]);
       await service.suggestions('test', companyAdmin);
 
       const where = mockPrisma.material.findMany.mock.calls[0][0].where;
-      expect(where.name).toEqual({ contains: 'test', mode: 'insensitive' });
+      // where = { AND: [ visibility, { OR: [name, upc, manufacturer] } ] }
+      const orClause = where.AND[1].OR;
+      expect(orClause).toEqual([
+        { name: { contains: 'test', mode: 'insensitive' } },
+        { upc: { contains: 'test', mode: 'insensitive' } },
+        { manufacturer: { contains: 'test', mode: 'insensitive' } },
+      ]);
     });
 
-    it('does not apply name filter for empty search', async () => {
+    it('does not apply the term filter for empty/whitespace search', async () => {
       mockPrisma.material.findMany.mockResolvedValue([]);
-      await service.suggestions('', companyAdmin);
+      await service.suggestions('   ', companyAdmin);
 
       const where = mockPrisma.material.findMany.mock.calls[0][0].where;
-      expect(where.name).toBeUndefined();
+      expect(where.AND).toHaveLength(1); // visibility only, no term clause
     });
 
-    it('broadens the where to public OR the user company-private rows (US 4.02)', async () => {
+    it('scopes results to public OR the user company-private rows (US 4.02)', async () => {
       mockPrisma.material.findMany.mockResolvedValue([]);
       await service.suggestions('cable', companyAdmin);
 
       const where = mockPrisma.material.findMany.mock.calls[0][0].where;
-      expect(where.OR).toEqual([
+      expect(where.AND[0].OR).toEqual([
         { status: MaterialStatus.PUBLIC },
         { companyId: companyAdmin.companyId },
       ]);
+    });
+
+    it('falls back to a sentinel companyId for a user with no company (sees only PUBLIC)', async () => {
+      mockPrisma.material.findMany.mockResolvedValue([]);
+      await service.suggestions('cable', superAdmin); // companyId: null
+
+      // results visibility AND both usage-group visibility filters use the sentinel.
+      const resultsWhere = mockPrisma.material.findMany.mock.calls[0][0].where;
+      expect(resultsWhere.AND[0].OR).toEqual([
+        { status: MaterialStatus.PUBLIC },
+        { companyId: '__none__' },
+      ]);
+      const usageWhere = mockPrisma.materialUsage.findMany.mock.calls[0][0].where;
+      expect(usageWhere.material.OR).toEqual([
+        { status: MaterialStatus.PUBLIC },
+        { companyId: '__none__' },
+      ]);
+    });
+
+    it('maps a null category to categoryName: null', async () => {
+      mockPrisma.material.findMany.mockResolvedValue([
+        { id: 'm-9', name: 'Loose', category: null, uom: null, description: null, imageUrl: null },
+      ]);
+
+      const result = await service.suggestions('loose', companyAdmin);
+      expect(result.results[0]).toEqual({
+        id: 'm-9',
+        name: 'Loose',
+        categoryName: null,
+        uom: null,
+        description: null,
+        imageUrl: null,
+      });
+    });
+
+    it('defaults the per-group limit to 8 and clamps it to a max of 25', async () => {
+      mockPrisma.material.findMany.mockResolvedValue([]);
+
+      await service.suggestions('x', companyAdmin); // no limit → default 8
+      expect(mockPrisma.material.findMany.mock.calls[0][0].take).toBe(8);
+
+      await service.suggestions('x', companyAdmin, 100); // over cap → 25
+      expect(mockPrisma.material.findMany.mock.calls[1][0].take).toBe(25);
+
+      await service.suggestions('x', companyAdmin, 3); // honoured
+      expect(mockPrisma.material.findMany.mock.calls[2][0].take).toBe(3);
+
+      await service.suggestions('x', companyAdmin, 0); // < 1 → default 8
+      expect(mockPrisma.material.findMany.mock.calls[3][0].take).toBe(8);
+    });
+
+    it('fills recentlyUsed (lastUsedAt desc) and frequentlyUsed (useCount desc) from usage rows', async () => {
+      mockPrisma.material.findMany.mockResolvedValue([]);
+      mockPrisma.materialUsage.findMany
+        .mockResolvedValueOnce([{ material: row }]) // recentlyUsed call
+        .mockResolvedValueOnce([{ material: row }]); // frequentlyUsed call
+
+      const result = await service.suggestions('', companyAdmin);
+
+      expect(result.recentlyUsed).toEqual([
+        {
+          id: 'm-1',
+          name: 'Bolt',
+          categoryName: 'Fasteners',
+          uom: 'pcs',
+          description: 'M8 bolt',
+          imageUrl: 'http://img/bolt.png',
+        },
+      ]);
+      expect(result.frequentlyUsed).toHaveLength(1);
+      // The two usage queries use the two different orderings, scoped to the user.
+      const orderings = mockPrisma.materialUsage.findMany.mock.calls.map((c) => c[0].orderBy);
+      expect(orderings).toContainEqual({ lastUsedAt: 'desc' });
+      expect(orderings).toContainEqual({ useCount: 'desc' });
+      mockPrisma.materialUsage.findMany.mock.calls.forEach((c) => {
+        expect(c[0].where.userId).toBe(companyAdmin.id);
+      });
+    });
+  });
+
+  describe('recordMaterialUsage', () => {
+    it('upserts one row per distinct material (insert + increment semantics)', async () => {
+      mockPrisma.materialUsage.upsert.mockResolvedValue({});
+
+      await service.recordMaterialUsage('u-1', ['m-1', 'm-2', 'm-1']);
+
+      // De-duplicated to 2 distinct materials.
+      expect(mockPrisma.materialUsage.upsert).toHaveBeenCalledTimes(2);
+      const first = mockPrisma.materialUsage.upsert.mock.calls[0][0];
+      expect(first.where).toEqual({ userId_materialId: { userId: 'u-1', materialId: 'm-1' } });
+      expect(first.create).toMatchObject({ userId: 'u-1', materialId: 'm-1', useCount: 1 });
+      expect(first.update.useCount).toEqual({ increment: 1 });
+    });
+
+    it('no-ops on an empty / falsy id list', async () => {
+      await service.recordMaterialUsage('u-1', []);
+      expect(mockPrisma.materialUsage.upsert).not.toHaveBeenCalled();
+    });
+
+    it('swallows a failed upsert so it never breaks the originating action', async () => {
+      mockPrisma.materialUsage.upsert.mockRejectedValue(new Error('db down'));
+      await expect(service.recordMaterialUsage('u-1', ['m-1'])).resolves.toBeUndefined();
     });
   });
 

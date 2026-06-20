@@ -20,6 +20,7 @@ import { BomsModule } from './modules/boms/boms.module';
 import { BulkOrdersModule } from './modules/bulk-orders/bulk-orders.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { DeliveriesModule } from './modules/deliveries/deliveries.module';
 import { DocIntelligenceModule } from './modules/doc-intelligence/doc-intelligence.module';
 import { EmailLogModule } from './modules/email-log/email-log.module';
 import { GeminiModule } from './modules/gemini/gemini.module';
@@ -100,6 +101,7 @@ import { PrismaModule } from './prisma/prisma.module';
     BulkOrdersModule,
     InvoicesModule,
     InventoryModule,
+    DeliveriesModule,
     MaterialsModule,
     MaterialListsModule,
     DashboardModule,

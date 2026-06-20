@@ -9,10 +9,9 @@ import { RoleSwitch } from '@/shared/role';
  * Renders the per-role dashboard at `/`. Each role's dashboard is lazy-loaded
  * so unused bundles aren't shipped.
  *
- * FINANCIAL_OFFICER and SUPER_ADMIN are bounced away from `/` by HomeRedirect
- * (their landing is `/invoices` and `/admin-panel` respectively), so they
- * never reach this switch via the home redirect path. The mapping is kept
- * so direct navigation to `/` keeps working for them.
+ * Every internal role lands on `/` and gets its dashboard here. SUPER_ADMIN
+ * and FINANCIAL_OFFICER used to bounce to `/admin-panel` and `/invoices`;
+ * those pages are now opened from the sidebar instead, and `/` is their home.
  *
  * FOREMAN lands on `/` too, but the field-worker surface is the offline Field
  * PWA (ADR-0008), deferred to Phase 2. Until then FOREMAN gets a "Field App"

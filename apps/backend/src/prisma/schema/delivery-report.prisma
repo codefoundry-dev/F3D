@@ -1,0 +1,164 @@
+// Epic 6 — Delivery. A Delivery Report records what physically arrived against a
+// Purchase Order. It is created as SUBMITTED — by internal staff via the web app
+// (source INTERNAL) or by an unauthenticated delivery person through the public
+// QR-code portal (source EXTERNAL) — then reviewed by the buyer: APPROVED flows
+// the received quantities onto the PO lines + inventory (advancing PO status),
+// while REJECTED stores a reason and leaves the PO untouched.
+//
+// company_id is a scalar FK column with a real constraint added in the migration
+// (no Prisma relation field), mirroring inventory.prisma — it is only ever
+// filtered/scoped, never traversed. Report attachments + damage photos reuse the
+// shared File model via join rows, mirroring PoDocument.
+
+enum DeliveryReportStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum DeliveryReportSource {
+  INTERNAL
+  EXTERNAL
+}
+
+enum DeliveryOutcome {
+  DELIVERED
+  PARTIALLY_DELIVERED
+  NOT_DELIVERED
+  DAMAGED
+  REJECTED
+}
+
+enum DamageType {
+  IN_TRANSIT
+  MANUFACTURING_DEFECT
+  PACKAGING
+  WATER
+  OTHER
+}
+
+enum DamageDisposition {
+  RETURNED
+  ACCEPTED
+}
+
+model DeliveryReport {
+  id                 String               @id @default(uuid())
+  reportNumber       String               @unique @map("report_number") @db.VarChar(50)
+  purchaseOrderId    String               @map("purchase_order_id")
+  companyId          String               @map("company_id") // scalar FK (constraint in migration; no relation field)
+  projectId          String?              @map("project_id")
+  status             DeliveryReportStatus @default(SUBMITTED)
+  source             DeliveryReportSource
+  deliveryDate       DateTime?            @map("delivery_date")
+  deliveryLocationId String?              @map("delivery_location_id")
+  vendorId           String?              @map("vendor_id")
+  overallNotes       String?              @map("overall_notes")
+
+  // Submitter identity. submitterUserId is null for EXTERNAL (portal) reports;
+  // submitterName / submitterEmail are always captured.
+  submitterUserId String? @map("submitter_user_id")
+  submitterName   String  @map("submitter_name") @db.VarChar(255)
+  submitterEmail  String  @map("submitter_email") @db.VarChar(255)
+  contactPerson   String? @map("contact_person") @db.VarChar(255)
+  contactPhone    String? @map("contact_phone") @db.VarChar(50)
+
+  // Review.
+  reviewedByUserId String?   @map("reviewed_by_user_id")
+  reviewedAt       DateTime? @map("reviewed_at")
+  rejectionReason  String?   @map("rejection_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  purchaseOrder    PurchaseOrder    @relation("DeliveryReportPo", fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  project          Project?         @relation("DeliveryReportProject", fields: [projectId], references: [id])
+  deliveryLocation ProjectLocation? @relation("DeliveryReportLocation", fields: [deliveryLocationId], references: [id])
+  vendor           Company?         @relation("DeliveryReportVendor", fields: [vendorId], references: [id])
+  submitter        User?            @relation("DeliveryReportSubmitter", fields: [submitterUserId], references: [id])
+  reviewer         User?            @relation("DeliveryReportReviewer", fields: [reviewedByUserId], references: [id])
+
+  lines       DeliveryReportLine[]
+  attachments DeliveryReportAttachment[]
+
+  @@index([companyId], map: "idx_delivery_reports_company")
+  @@index([purchaseOrderId], map: "idx_delivery_reports_po")
+  @@index([status], map: "idx_delivery_reports_status")
+  @@index([projectId], map: "idx_delivery_reports_project")
+  @@map("delivery_reports")
+}
+
+model DeliveryReportLine {
+  id               String          @id @default(uuid())
+  deliveryReportId String          @map("delivery_report_id")
+  poLineItemId     String          @map("po_line_item_id")
+  // Material snapshot for inventory push-in at approval; null for free-text PO lines.
+  materialId       String?         @map("material_id")
+  // Quantity snapshots captured at submit time.
+  quantityOrdered  Int             @map("quantity_ordered")
+  // Quantity received this delivery; may exceed quantityOrdered (over-receipt).
+  quantityReceived Int             @map("quantity_received")
+  outcome          DeliveryOutcome
+  notes            String?
+
+  // Inline damage details — populated when outcome === DAMAGED.
+  damagedQuantity   Int?               @map("damaged_quantity")
+  damageType        DamageType?        @map("damage_type")
+  damageDisposition DamageDisposition? @map("damage_disposition")
+
+  deliveryReport DeliveryReport @relation(fields: [deliveryReportId], references: [id], onDelete: Cascade)
+  poLineItem     PoLineItem     @relation("DeliveryReportLinePoLine", fields: [poLineItemId], references: [id])
+  material       Material?      @relation("DeliveryReportLineMaterial", fields: [materialId], references: [id])
+
+  damagePhotos DeliveryDamagePhoto[]
+
+  @@index([deliveryReportId], map: "idx_delivery_report_lines_report")
+  @@index([poLineItemId], map: "idx_delivery_report_lines_po_line")
+  @@map("delivery_report_lines")
+}
+
+model DeliveryDamagePhoto {
+  id                   String   @id @default(uuid())
+  deliveryReportLineId String   @map("delivery_report_line_id")
+  fileId               String   @map("file_id")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  deliveryReportLine DeliveryReportLine @relation(fields: [deliveryReportLineId], references: [id], onDelete: Cascade)
+  file               File               @relation("DeliveryDamagePhotoFile", fields: [fileId], references: [id])
+
+  @@index([deliveryReportLineId], map: "idx_delivery_damage_photos_line")
+  @@map("delivery_damage_photos")
+}
+
+model DeliveryReportAttachment {
+  id               String   @id @default(uuid())
+  deliveryReportId String   @map("delivery_report_id")
+  fileId           String   @map("file_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  deliveryReport DeliveryReport @relation(fields: [deliveryReportId], references: [id], onDelete: Cascade)
+  file           File           @relation("DeliveryReportAttachmentFile", fields: [fileId], references: [id])
+
+  @@index([deliveryReportId], map: "idx_delivery_report_attachments_report")
+  @@map("delivery_report_attachments")
+}
+
+/// Per-(purchaseOrder, email) access-code slot for the public delivery portal,
+/// mirroring EmailVerification/OtpService mechanics keyed differently. `codes`
+/// holds the most-recent 6-digit codes as `{ hash, expiresAt }` (argon2, 15-min
+/// TTL, capped at 3); `attempts` locks the slot at 3 failed verifies.
+model DeliveryAccessCode {
+  id              String   @id @default(uuid())
+  purchaseOrderId String   @map("purchase_order_id")
+  email           String   @db.VarChar(255)
+  codes           Json     @default("[]")
+  attempts        Int      @default(0)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  purchaseOrder PurchaseOrder @relation("DeliveryAccessCodePo", fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([purchaseOrderId, email], map: "uq_delivery_access_codes_po_email")
+  @@index([purchaseOrderId], map: "idx_delivery_access_codes_po")
+  @@map("delivery_access_codes")
+}

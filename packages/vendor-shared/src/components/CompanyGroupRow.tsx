@@ -6,6 +6,8 @@ import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react
 interface CompanyGroupRowProps {
   companyName: string;
   companyId: string;
+  /** Category enum keys — the first drives the specialisation chip beside the name. */
+  categories?: string[];
   isExpanded: boolean;
   onToggle: () => void;
   actions: DotAction[];
@@ -14,12 +16,20 @@ interface CompanyGroupRowProps {
 
 export function CompanyGroupRow({
   companyName,
+  categories,
   isExpanded,
   onToggle,
   actions,
   onView,
 }: CompanyGroupRowProps) {
-  useTranslation(['vendors']);
+  const { t } = useTranslation(['vendors']);
+
+  const primaryCategory = categories?.[0];
+  const categoryLabel = primaryCategory
+    ? t(`vendorCategories.${primaryCategory}` as 'vendorCategories.ELECTRICAL', {
+        defaultValue: primaryCategory,
+      })
+    : null;
 
   return (
     <tr
@@ -35,6 +45,11 @@ export function CompanyGroupRow({
             )}
           />
           <span className="font-medium text-foreground">{companyName}</span>
+          {categoryLabel && (
+            <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+              {categoryLabel}
+            </span>
+          )}
         </div>
       </td>
       <td className="px-4 py-3" />

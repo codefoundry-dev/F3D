@@ -7,4 +7,10 @@ export const ALL_COLUMNS = VENDOR_COLUMNS;
 
 export const DEFAULT_VISIBLE = ALL_COLUMNS.map((c) => c.key);
 
-export const TRUNCATE_COLUMNS = ['projectName', 'deliveryLocation', 'contractorName'];
+export const TRUNCATE_COLUMNS = [
+  'projectName',
+  'deliveryLocation',
+  'pickUpLocation',
+  'contractorCompany',
+  'contractorName',
+];

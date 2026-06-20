@@ -17,6 +17,7 @@ import InfoIcon from '@forethread/ui-components/assets/icons/info.svg?react';
 import NewUserIcon from '@forethread/ui-components/assets/icons/new-user.svg?react';
 import PlusInCircleIcon from '@forethread/ui-components/assets/icons/plus-in-circle.svg?react';
 import UserOutlineIcon from '@forethread/ui-components/assets/icons/user-outline.svg?react';
+import VendorsIcon from '@forethread/ui-components/assets/icons/vendors.svg?react';
 import { Controller } from 'react-hook-form';
 
 import { useInviteVendorForm } from '../hooks/useInviteVendorForm';
@@ -97,6 +98,7 @@ export function InviteVendorModal({ onClose, onSuccess }: InviteVendorModalProps
                     value={field.value}
                     onChange={field.onChange}
                     placeholder={t('inviteModal.companyPlaceholder')}
+                    leftIcon={<VendorsIcon className="w-5 h-5" />}
                     searchable
                     error={Boolean(errors.companyId)}
                     actionItem={{

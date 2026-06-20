@@ -107,6 +107,9 @@ export enum AuditAction {
   MATERIAL_REQUEST_DECLINED = 'MATERIAL_REQUEST_DECLINED',
   MATERIAL_REQUEST_CANCELLED = 'MATERIAL_REQUEST_CANCELLED',
   MATERIAL_REQUEST_CONVERTED = 'MATERIAL_REQUEST_CONVERTED',
+  DELIVERY_REPORT_CREATED = 'DELIVERY_REPORT_CREATED',
+  DELIVERY_REPORT_APPROVED = 'DELIVERY_REPORT_APPROVED',
+  DELIVERY_REPORT_REJECTED = 'DELIVERY_REPORT_REJECTED',
 }
 
 export enum RfqStatus {
@@ -392,4 +395,57 @@ export enum EmailEventType {
   BOUNCED = 'BOUNCED',
   COMPLAINED = 'COMPLAINED',
   FAILED = 'FAILED',
+}
+
+/**
+ * Epic 6 — Delivery. Lifecycle of a Delivery Report. A report is created as
+ * SUBMITTED (by internal staff, or externally by a delivery person via the QR
+ * portal), then reviewed by the buyer: APPROVED flows the received quantities
+ * onto the PO lines + inventory (advancing PO status), while REJECTED stores a
+ * reason and leaves the PO untouched. Mirrors the DeliveryReport Prisma enum.
+ */
+export enum DeliveryReportStatus {
+  SUBMITTED = 'SUBMITTED',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+}
+
+/**
+ * How a Delivery Report was created: INTERNAL (a logged-in user via the web app)
+ * or EXTERNAL (an unauthenticated delivery person via the public QR-code portal).
+ */
+export enum DeliveryReportSource {
+  INTERNAL = 'INTERNAL',
+  EXTERNAL = 'EXTERNAL',
+}
+
+/**
+ * Per-line delivery outcome on a Delivery Report. Drives the approve-time
+ * inventory delta: NOT_DELIVERED / REJECTED contribute 0, DAMAGED nets off the
+ * returned damaged quantity, everything else flows the full received quantity.
+ */
+export enum DeliveryOutcome {
+  DELIVERED = 'DELIVERED',
+  PARTIALLY_DELIVERED = 'PARTIALLY_DELIVERED',
+  NOT_DELIVERED = 'NOT_DELIVERED',
+  DAMAGED = 'DAMAGED',
+  REJECTED = 'REJECTED',
+}
+
+/** Category of damage recorded on a damaged delivery line (options confirmed against the Figma dropdown). */
+export enum DamageType {
+  IN_TRANSIT = 'IN_TRANSIT',
+  MANUFACTURING_DEFECT = 'MANUFACTURING_DEFECT',
+  PACKAGING = 'PACKAGING',
+  WATER = 'WATER',
+  OTHER = 'OTHER',
+}
+
+/**
+ * What happens to damaged goods on a delivery line: RETURNED to the vendor
+ * (excluded from received stock at approval) or ACCEPTED (counted into stock).
+ */
+export enum DamageDisposition {
+  RETURNED = 'RETURNED',
+  ACCEPTED = 'ACCEPTED',
 }

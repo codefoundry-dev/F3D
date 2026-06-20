@@ -78,8 +78,11 @@ export function VendorRfqDetailsTab({ rfq, layout = 'panel' }: VendorRfqDetailsT
   return (
     <div className="rounded-[10px] border border-foreground/10 p-3 flex flex-col gap-4 overflow-clip">
       <div className="flex flex-col gap-2">
-        <SectionTitle>{t('detailFields.rfqDetails')}</SectionTitle>
-        <DetailField label={t('detailFields.rfqId')} value={rfq.rfqNumber ?? rfq.id} />
+        <SectionTitle>{t('detailFields.basicInformation')}</SectionTitle>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+          <DetailField label={t('detailFields.rfqId')} value={rfq.rfqNumber ?? rfq.id} />
+          <DetailField label={t('detailFields.projectId')} value={rfq.projectId ?? '-'} />
+        </div>
         <DetailField label={t('detailFields.projectName')} value={rfq.projectName} />
         <DetailField
           label={t('detailFields.deliveryLocation')}

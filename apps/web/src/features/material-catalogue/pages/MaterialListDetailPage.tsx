@@ -1,11 +1,12 @@
 import { type MaterialListEntryDto, type MaterialListItemDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { Button, Input } from '@forethread/ui-components';
 import BackArrowIcon from '@forethread/ui-components/assets/icons/back-arrow.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
 import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -57,6 +58,17 @@ export default function MaterialListDetailPage() {
 
   const canManageItems = has('materialList.manageItems');
   const canUpdate = has('materialList.update');
+  const canEditMaterial = has('material.update');
+
+  // Title the page in the global app header (Figma renders the list name +
+  // subtitle there with a back arrow to the Material list tab), not in-content.
+  const backRoute = `${ROUTES.materialCatalogue}?tab=materialList`;
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    if (!list) return;
+    setPageTitle(list.name, list.description ?? t('listDetail.subtitle'), backRoute);
+    return () => setPageTitle(null);
+  }, [setPageTitle, list, t, backRoute]);
 
   // material.id → list-entry id, so remove-X can resolve the item to delete.
   const entryByMaterialId = useMemo(() => {
@@ -109,26 +121,8 @@ export default function MaterialListDetailPage() {
 
   return (
     <div className="p-8 space-y-6" data-testid="material-list-detail-page">
-      <div className="flex items-start gap-3">
-        <button
-          type="button"
-          onClick={() => navigate(`${ROUTES.materialCatalogue}?tab=materialList`)}
-          className="mt-1 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent"
-          aria-label={t('listDetail.back')}
-          data-testid="material-list-detail-back"
-        >
-          <BackArrowIcon className="w-4 h-4" />
-        </button>
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">{list.name}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {list.description ?? t('listDetail.subtitle')}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="relative w-full sm:w-80">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[240px]">
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             value={search}
@@ -177,11 +171,17 @@ export default function MaterialListDetailPage() {
           isLoading={false}
           isError={false}
           searchActive={Boolean(search.trim())}
-          permissions={{ canEdit: false, canArchive: false, canRestore: false, canDelete: false }}
+          searchQuery={search.trim()}
+          permissions={{
+            canEdit: canEditMaterial,
+            canArchive: false,
+            canRestore: false,
+            canDelete: false,
+          }}
           onView={(materialId) =>
             navigate(ROUTES.materialCatalogueDetail.replace(':id', materialId))
           }
-          onEdit={() => undefined}
+          onEdit={(materialId) => navigate(ROUTES.materialCatalogueEdit.replace(':id', materialId))}
           onArchive={() => undefined}
           onRestore={() => undefined}
           onDelete={() => undefined}

@@ -3,6 +3,7 @@ import { exportPurchaseOrders } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
   VENDOR_COLUMNS,
+  VENDOR_DEFAULT_VISIBLE,
   VENDOR_QUICK_FILTERS,
   VENDOR_GROUP_OPTIONS,
   GROUP_FIELD_MAP,
@@ -20,7 +21,6 @@ import {
 import type { ColumnDef } from '@forethread/po-shared';
 import {
   Badge,
-  Button,
   cn,
   CreateViewModal,
   DotActionsMenu,
@@ -28,8 +28,9 @@ import {
   FilterChip,
   MessageBadgeIcon,
   FilterPanel,
+  getStatusColor,
   GroupByButton,
-  NEUTRAL_STATUS_COLOR,
+  PO_STATUS_COLORS,
   SortIcon,
   Spinner,
   TableManagementModal,
@@ -59,22 +60,17 @@ import { PoDetailPanel } from '../components/PoDetailPanel';
 type SortableField = keyof PoListItem;
 
 const ALL_COLUMNS = VENDOR_COLUMNS;
-/** Default visible columns per the Figma design (US 3.08 PO Management) */
-const DEFAULT_VISIBLE = [
-  'poNumber',
-  'projectName',
-  'projectId',
-  'contractorName',
-  'poStatus',
-  'revision',
-  'poType',
-  'pickUp',
-  'deliveryLocationId',
-];
+/** Full catalogue order (drives column order + Table settings list). */
+const COLUMN_ORDER = ALL_COLUMNS.map((c) => c.key);
 
 /* ─── Store ────────────────────────────────────────────────────────────────── */
 
-const usePoTableStore = createPoTableStore(DEFAULT_VISIBLE, 'purchase-orders-vendor');
+const usePoTableStore = createPoTableStore(
+  COLUMN_ORDER,
+  'purchase-orders-vendor',
+  'poNumber',
+  VENDOR_DEFAULT_VISIBLE,
+);
 
 /* ─── Page component ──────────────────────────────────────────────────────── */
 
@@ -165,14 +161,14 @@ export default function PurchaseOrderListPage() {
   const renderCellValue = (po: PoListItem, field: SortableField, key: string) => {
     if (key === 'poStatus') {
       return (
-        <Badge className={NEUTRAL_STATUS_COLOR}>
+        <Badge className={getStatusColor(PO_STATUS_COLORS, po.status)}>
           {t([`vendorStatus.${po.status}`, `status.${po.status}`] as never)}
         </Badge>
       );
     }
     if (key === 'revision') {
       return po.revision !== null && po.revision !== undefined ? (
-        <Badge className="bg-muted text-foreground">Active</Badge>
+        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Active</Badge>
       ) : (
         '-'
       );
@@ -306,17 +302,8 @@ export default function PurchaseOrderListPage() {
       <div className="flex flex-col rounded-lg border border-border bg-background pb-4">
         {/* ═══ Toolbar Row 1 ═══ */}
         <div className="px-4 sm:px-8 pt-4">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            {/* Left – Create new (vendors cannot create POs) */}
-            <Button
-              variant="primary"
-              size="lg"
-              leftIcon={<span className="text-lg leading-none">+</span>}
-              disabled
-            >
-              {t('list.createNew')}
-            </Button>
-
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
+            {/* Vendors cannot create POs — no "Create new" action (see US 2.07) */}
             <div className="flex items-center gap-3">
               <ViewSelectorDropdown
                 activeView={activeView}
@@ -434,7 +421,7 @@ export default function PurchaseOrderListPage() {
                 style={{ tableLayout: Object.keys(columnWidths).length > 0 ? 'fixed' : undefined }}
               >
                 <thead>
-                  <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] font-['Inter'] text-[hsl(var(--table-header-foreground))]">
+                  <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
                     {visibleCols.map(({ field, key }) => {
                       const isDropTarget = dragOverColKey === key && dragColKey !== key;
                       const width = columnWidths[key];

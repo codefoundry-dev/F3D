@@ -1,4 +1,10 @@
-export { PO_CA_COLUMNS, VENDOR_COLUMNS, TRUNCATE_COLUMNS } from './columns';
+export {
+  PO_CA_COLUMNS,
+  VENDOR_COLUMNS,
+  TRUNCATE_COLUMNS,
+  PO_CA_DEFAULT_VISIBLE,
+  VENDOR_DEFAULT_VISIBLE,
+} from './columns';
 export type { ColumnDef } from './columns';
 export {
   PO_CA_QUICK_FILTERS,

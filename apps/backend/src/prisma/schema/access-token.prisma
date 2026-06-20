@@ -10,6 +10,15 @@ enum AccessTokenPurpose {
   QUOTE_SUBMIT
   INVOICE_UPLOAD
   PO_VIEW
+  // Epic 6 — Delivery. DELIVERY_SUBMIT is the long-lived (90-day) QR-link token
+  // embedded in a PO's delivery QR code; like PO_VIEW it is validated, never
+  // consumed, and re-mintable via issueTokenIfNoneLive. DELIVERY_SESSION is a
+  // short-lived (30-min) token minted after the delivery person verifies an
+  // emailed access code; it authorises submit + uploads and carries the
+  // submitter identity ({email,name}) plus, once a report is created, its
+  // {deliveryReportId}.
+  DELIVERY_SUBMIT
+  DELIVERY_SESSION
 }
 
 /// Tokenized access grant used by the vendor portal (FOR-201).

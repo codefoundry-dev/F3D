@@ -12,7 +12,7 @@ import {
 import ArrowLineRightIcon from '@forethread/ui-components/assets/icons/arrow-line-right.svg?react';
 import ArrowsOutSimpleIcon from '@forethread/ui-components/assets/icons/arrows-out-simple.svg?react';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
-import LetterIcon from '@forethread/ui-components/assets/icons/letter.svg?react';
+import PaperPlaneIcon from '@forethread/ui-components/assets/icons/paper-plane.svg?react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -71,7 +71,7 @@ export function RfqDetailPanel({ rfqId, onClose }: RfqDetailPanelProps) {
           <Button
             variant="primary"
             size="sm"
-            leftIcon={<LetterIcon className="w-4 h-4" />}
+            leftIcon={<PaperPlaneIcon className="w-4 h-4" />}
             onClick={() => navigate(ROUTES.rfqResponse.replace(':id', rfqId))}
             disabled={!canCreate && !canEdit}
           >
@@ -107,7 +107,9 @@ export function RfqDetailPanel({ rfqId, onClose }: RfqDetailPanelProps) {
       {rfq && (
         <>
           <div className="flex items-center gap-4.5 shrink-0">
-            <h2 className="flex-1 text-lg font-medium text-foreground">{rfq.projectName}</h2>
+            <h2 className="flex-1 text-lg font-medium text-foreground">
+              {rfq.rfqNumber ?? rfq.id}
+            </h2>
             <Badge className={getStatusColor(VENDOR_RFQ_STATUS_COLORS, rfq.status)}>
               {t(`status.${rfq.status}` as never)}
             </Badge>

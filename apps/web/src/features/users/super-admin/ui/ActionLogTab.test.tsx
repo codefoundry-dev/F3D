@@ -66,9 +66,9 @@ describe('ActionLogTab', () => {
     mockUseQuery.mockClear();
   });
 
-  it('renders the action log heading', () => {
+  it('renders the activity log heading', () => {
     render(<ActionLogTab />);
-    expect(screen.getByText('tabs.actionLog')).toBeInTheDocument();
+    expect(screen.getByText('tabs.activityLogTitle')).toBeInTheDocument();
   });
 
   it('renders audit log entry', () => {

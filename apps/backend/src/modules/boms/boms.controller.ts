@@ -1,5 +1,15 @@
-import { BomListQueryDto, CreateBomDto } from '@forethread/shared-types';
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
+import { BomListQueryDto, CreateBomDto, UpdateBomDto } from '@forethread/shared-types';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -48,6 +58,23 @@ export class BomsController {
   @ApiResponse({ status: 404, description: 'BOM not found' })
   async get(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     const bom = await this.service.getBom(id, user);
+    return toBomDetailResponse(bom);
+  }
+
+  // ── PATCH /v1/boms/:id ────────────────────────────────────────────────────
+
+  @Patch(':id')
+  @RequirePermissions('bom.update')
+  @ApiOperation({ summary: 'Edit a BOM line items in place (does not create a new version)' })
+  @ApiResponse({ status: 200, description: 'BOM updated with the replacement line items' })
+  @ApiResponse({ status: 400, description: 'Invalid items (unknown material)' })
+  @ApiResponse({ status: 404, description: 'BOM not found' })
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateBomDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const bom = await this.service.updateBom(id, dto, user);
     return toBomDetailResponse(bom);
   }
 }

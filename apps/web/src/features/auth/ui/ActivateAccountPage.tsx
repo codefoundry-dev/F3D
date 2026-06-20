@@ -4,7 +4,6 @@ import {
   AuthLayout,
   Button,
   ContactSupportLink,
-  IconBadge,
   PageLoader,
   ResetPasswordForm,
   Text,
@@ -69,13 +68,13 @@ export default function ActivateAccountPage() {
 
     return (
       <AuthLayout
-        icon={<IconBadge icon={<ClockIcon className="w-6 h-6 text-muted-foreground" />} />}
+        icon={<ClockIcon className="w-6 h-6 text-muted-foreground" />}
         title={t('invitationExpiredTitle')}
         description={t('invitationExpiredSubtitle')}
       >
-        <div className="space-y-6">
+        <div className="space-y-10">
           {email && (
-            <Text variant="body-14" as="p" className="text-center">
+            <Text variant="body-16" as="p">
               <span
                 dangerouslySetInnerHTML={{
                   __html: t('invitationExpiredBody', { email }),
@@ -84,26 +83,23 @@ export default function ActivateAccountPage() {
             </Text>
           )}
 
-          <Button
-            type="button"
-            size="lg"
-            className="w-full"
-            isLoading={requestInvitationMutation.isPending}
-            disabled={!email || requestInvitationMutation.isSuccess}
-            onClick={() => email && requestInvitationMutation.mutate(email)}
-          >
-            {t('requestNewLink')}
-          </Button>
+          <div className="space-y-4">
+            <Button
+              type="button"
+              size="lg"
+              className="w-full"
+              isLoading={requestInvitationMutation.isPending}
+              disabled={!email || requestInvitationMutation.isSuccess}
+              onClick={() => email && requestInvitationMutation.mutate(email)}
+            >
+              {t('requestNewLink')}
+            </Button>
 
-          <div className="text-center">
-            <Link to="/login" className="text-foreground hover:underline">
-              <Text variant="label-m" as="span">
-                {t('backToSignIn')}
-              </Text>
-            </Link>
+            <ContactSupportLink
+              label={t('contactSupport')}
+              className="text-lg font-medium text-foreground hover:underline"
+            />
           </div>
-
-          <ContactSupportLink label={t('contactSupport')} />
         </div>
       </AuthLayout>
     );

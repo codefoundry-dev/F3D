@@ -386,8 +386,9 @@ describe('UserListPage', () => {
   it('renders sort icons in headers', () => {
     render(<UserListPage />);
     const sortIcons = screen.getAllByTestId('sort-icon');
-    // 5 sortable columns + 1 projects column
-    expect(sortIcons.length).toBeGreaterThanOrEqual(6);
+    // Per Figma: sort arrows on Full name, Email, Role, Status + the Projects
+    // column (Phone and Actions have none) = 5.
+    expect(sortIcons.length).toBeGreaterThanOrEqual(5);
   });
 
   // --- Interaction / callback tests ---

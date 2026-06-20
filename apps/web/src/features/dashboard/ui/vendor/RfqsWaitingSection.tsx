@@ -10,9 +10,9 @@ import BriefcaseIcon from '@forethread/ui-components/assets/icons/briefcase.svg?
 import CoinsIcon from '@forethread/ui-components/assets/icons/coins.svg?react';
 import DateIcon from '@forethread/ui-components/assets/icons/date.svg?react';
 import FileTextIcon from '@forethread/ui-components/assets/icons/file-text.svg?react';
-import LetterIcon from '@forethread/ui-components/assets/icons/letter.svg?react';
 import LocationIcon from '@forethread/ui-components/assets/icons/location.svg?react';
 import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
+import PaperPlaneIcon from '@forethread/ui-components/assets/icons/paper-plane.svg?react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -55,10 +55,10 @@ function RfqCard({ item }: { item: VendorRfqItem }) {
       actions={
         <button
           type="button"
-          className="flex items-center gap-1.5 h-8 px-3 py-2 border border-black rounded-xl text-sm font-medium text-black hover:bg-black/5 transition-colors"
+          className="flex items-center gap-1.5 h-8 px-3 py-2 border border-black rounded-xl text-sm font-medium leading-6 text-black hover:bg-black/5 transition-colors"
           onClick={() => navigate(ROUTES.rfqDetail.replace(':id', item.id))}
         >
-          <LetterIcon className="w-[18px] h-[18px]" />
+          <PaperPlaneIcon className="w-[18px] h-[18px]" />
           {t('vendor.rfqsWaiting.response')}
         </button>
       }

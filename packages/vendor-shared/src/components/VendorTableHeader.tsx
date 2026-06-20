@@ -17,7 +17,7 @@ export function VendorTableHeader({ sortField, sortDir, onSort }: VendorTableHea
 
   return (
     <thead>
-      <tr className="border-b border-border bg-[hsl(var(--table-header))] font-['Inter'] text-[hsl(var(--table-header-foreground))]">
+      <tr className="border-b border-border bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
         <th
           className={`px-6 py-3 text-left text-xs font-bold leading-4 tracking-[0.6px] ${thSortable}`}
           onClick={() => onSort('companyName')}

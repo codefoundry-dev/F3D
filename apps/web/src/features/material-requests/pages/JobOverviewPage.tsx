@@ -27,12 +27,12 @@ function DetailRow({
 }) {
   return (
     <div className="flex items-center gap-4 py-3">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[#E5E5E5] text-[#404040]">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[#E8EAED] text-[#40454F]">
         {icon}
       </span>
       <div className="min-w-0">
-        <p className="text-xs text-[#525252]">{label}</p>
-        <div className="text-sm text-[#171717]">{children}</div>
+        <p className="text-xs text-[#525866]">{label}</p>
+        <div className="text-sm text-[#1B1D22]">{children}</div>
       </div>
     </div>
   );
@@ -40,9 +40,9 @@ function DetailRow({
 
 function StatTile({ value, label }: { value: string; label: string }) {
   return (
-    <div className="flex flex-1 flex-col gap-2 rounded-lg bg-[#F5F5F5] px-3 py-2">
-      <span className="text-2xl text-[#171717]">{value}</span>
-      <span className="text-xs text-[#525252]">{label}</span>
+    <div className="flex flex-1 flex-col gap-2 rounded-lg bg-[#F4F4F6] px-3 py-2">
+      <span className="text-2xl text-[#1B1D22]">{value}</span>
+      <span className="text-xs text-[#525866]">{label}</span>
     </div>
   );
 }
@@ -96,7 +96,7 @@ export default function JobOverviewPage() {
           />
         }
       >
-        <div className="px-4 py-12 text-center text-sm text-[#737373]">
+        <div className="px-4 py-12 text-center text-sm text-[#6D7588]">
           {t('jobOverview.loadFailed')}
         </div>
       </MobileShell>
@@ -127,7 +127,7 @@ export default function JobOverviewPage() {
           >
             {t('jobOverview.requestMaterials')}
           </PrimaryButton>
-          <p className="text-center text-xs text-[#737373]">
+          <p className="text-center text-xs text-[#6D7588]">
             {t('jobOverview.requestMaterialsHint')}
           </p>
         </div>
@@ -135,25 +135,25 @@ export default function JobOverviewPage() {
     >
       <div className="flex flex-col gap-7 px-4 py-6">
         {/* Job header card */}
-        <div className="flex flex-col gap-3 rounded-lg bg-[#F5F5F5] p-4">
+        <div className="flex flex-col gap-3 rounded-lg bg-[#F4F4F6] p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs text-[#525252]">{t('jobOverview.jobId')}</p>
-              <p className="truncate text-2xl text-[#171717]">{project.name}</p>
+              <p className="text-xs text-[#525866]">{t('jobOverview.jobId')}</p>
+              <p className="truncate text-2xl text-[#1B1D22]">{project.name}</p>
             </div>
-            <span className="shrink-0 rounded-md bg-[#171717] px-2.5 py-1 text-xs text-white">
+            <span className="shrink-0 rounded-md bg-[#1B1D22] px-2.5 py-1 text-xs text-white">
               {t('jobOverview.statusActive')}
             </span>
           </div>
-          {project.description && <p className="text-xs text-[#525252]">{project.description}</p>}
+          {project.description && <p className="text-xs text-[#525866]">{project.description}</p>}
         </div>
 
         <ProcurementStatusBar stages={stages} />
 
         {/* Job details */}
         <div className="flex flex-col gap-2">
-          <p className="text-sm text-[#171717]">{t('jobOverview.jobDetails')}</p>
-          <div className="divide-y divide-[#F5F5F5]">
+          <p className="text-sm text-[#1B1D22]">{t('jobOverview.jobDetails')}</p>
+          <div className="divide-y divide-[#F4F4F6]">
             <DetailRow
               icon={<LocationIcon className="h-4 w-4" />}
               label={t('jobOverview.location')}

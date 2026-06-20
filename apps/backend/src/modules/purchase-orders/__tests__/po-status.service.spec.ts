@@ -139,6 +139,7 @@ const mockInventoryService = {
 
 const mockAccessTokensService = {
   issueTokenIfNoneLive: jest.fn(),
+  issueToken: jest.fn(),
 };
 
 const mockConfig = {
@@ -1974,6 +1975,137 @@ describe('PoStatusService', () => {
 
       const result = await service.getAuditTrail('po-1', superAdmin);
       expect(result).toEqual([]);
+    });
+  });
+
+  // ── Epic 6: delivery QR link ─────────────────────────────────────────────────
+  describe('generateDeliveryLink', () => {
+    it('throws NotFoundException when the PO does not exist', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(null);
+      await expect(service.generateDeliveryLink('missing', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws ForbiddenException when the PO is in another company', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        poNumber: 'PO-1',
+        companyId: 'other',
+        status: 'ACCEPTED',
+      });
+      await expect(service.generateDeliveryLink('po-1', companyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('throws BadRequestException for a PO not in a deliverable status', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        poNumber: 'PO-1',
+        companyId: 'comp-1',
+        status: 'DRAFT',
+      });
+      await expect(service.generateDeliveryLink('po-1', companyAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('mints a fresh DELIVERY_SUBMIT token and builds the /delivery/ url', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        poNumber: 'PO-1',
+        companyId: 'comp-1',
+        status: 'ACCEPTED',
+      });
+      mockAccessTokensService.issueTokenIfNoneLive.mockResolvedValue({
+        token: 'newlookup.newsecret',
+        record: { id: 'tok-2' },
+        reused: false,
+      });
+
+      const res = await service.generateDeliveryLink('po-1', companyAdmin);
+      expect(res.token).toBe('newlookup.newsecret');
+      expect(res.url).toContain('/delivery/newlookup.newsecret');
+      expect(res.poNumber).toBe('PO-1');
+    });
+
+    it('force-mints a fresh token when a live one is reused (plaintext unavailable)', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        poNumber: 'PO-1',
+        companyId: 'comp-1',
+        status: 'PARTIALLY_DELIVERED',
+      });
+      mockAccessTokensService.issueTokenIfNoneLive.mockResolvedValue({
+        token: null,
+        record: { id: 'tok-live' },
+        reused: true,
+      });
+      mockAccessTokensService.issueToken.mockResolvedValue({
+        token: 'forced.secret',
+        record: { id: 'tok-forced' },
+      });
+
+      const res = await service.generateDeliveryLink('po-1', companyAdmin);
+      expect(mockAccessTokensService.issueToken).toHaveBeenCalled();
+      expect(res.token).toBe('forced.secret');
+    });
+  });
+
+  describe('applyDeliveryDeltasInTx / auditDeliveryTransition (delivery-report close-out)', () => {
+    const approvalPo = {
+      id: 'po-1',
+      status: 'ACCEPTED' as const,
+      companyId: 'comp-1',
+      deliveryLocationId: 'loc-hdr',
+      lineItems: [
+        { id: 'li-1', quantityOrdered: 60, quantityDelivered: 0, materialId: 'mat-1', deliveryLocationId: null },
+      ],
+    };
+
+    it('ALLOWS over-receipt (150 against ordered 60) and pushes the full delta to inventory', async () => {
+      const deltas = new Map<string, number>([['li-1', 150]]);
+      const outcome = await service.applyDeliveryDeltasInTx(
+        mockPrisma as never,
+        approvalPo,
+        deltas,
+        'ca-1',
+      );
+
+      expect(mockPrisma.poLineItem.update).toHaveBeenCalledWith({
+        where: { id: 'li-1' },
+        data: { quantityDelivered: 150 },
+      });
+      expect(mockInventoryService.applyIn.mock.calls[0][1]).toMatchObject({
+        materialId: 'mat-1',
+        locationId: 'loc-hdr',
+        quantity: 150,
+      });
+      // 150 >= 60 ordered → DELIVERED
+      expect(outcome.transitioned).toBe(true);
+      expect(outcome.nextStatus).toBe('DELIVERED');
+    });
+
+    it('auditDeliveryTransition is a no-op when the status did not move', async () => {
+      await service.auditDeliveryTransition('po-1', 'ca-1', {
+        transitioned: false,
+        fromStatus: 'ACCEPTED' as never,
+        nextStatus: 'ACCEPTED' as never,
+      });
+      expect(mockAuditService.log).not.toHaveBeenCalled();
+    });
+
+    it('auditDeliveryTransition emits PO_DELIVERED when delivered', async () => {
+      await service.auditDeliveryTransition(
+        'po-1',
+        'ca-1',
+        { transitioned: true, fromStatus: 'PARTIALLY_DELIVERED' as never, nextStatus: 'DELIVERED' as never },
+        { deliveryReportId: 'dr-1' },
+      );
+      expect(mockAuditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PO_DELIVERED' }),
+      );
     });
   });
 });

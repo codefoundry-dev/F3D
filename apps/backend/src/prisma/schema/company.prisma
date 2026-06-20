@@ -86,6 +86,9 @@ model Company {
   // Material requests (Epic 6)
   materialRequests      MaterialRequest[] @relation("MaterialRequestCompany")
 
+  // Delivery reports (Epic 6) — vendor on a delivery report
+  deliveryReportsAsVendor DeliveryReport[] @relation("DeliveryReportVendor")
+
   @@index([type], map: "idx_companies_type")
   @@index([legalName], map: "idx_companies_legal_name")
   @@map("companies")

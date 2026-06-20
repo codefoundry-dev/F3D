@@ -5,7 +5,6 @@ import {
   cn,
   Button,
   Spinner,
-  Badge,
   TablePagination,
   EmptyState,
   DotActionsMenu,
@@ -23,7 +22,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
-import { ROLE_BADGE_COLORS, STATUS_TEXT_COLORS } from '@/features/users/super-admin/constants/roles';
 import {
   useUsers,
   useDeactivateUser,
@@ -47,7 +45,7 @@ interface CompanyUsersTabProps {
 }
 
 export function CompanyUsersTab({ companyId, companyName, companyType }: CompanyUsersTabProps) {
-  const { t } = useTranslation(['users', 'common']);
+  const { t } = useTranslation(['users', 'common', 'company']);
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -195,8 +193,11 @@ export function CompanyUsersTab({ companyId, companyName, companyType }: Company
 
   return (
     <>
-      {/* Invite user button */}
-      <div className="flex justify-end pb-4">
+      {/* Heading + Invite user button */}
+      <div className="flex items-center justify-between pb-4">
+        <h3 className="text-base font-semibold text-foreground">
+          {t('company:companyUsersTitle')}
+        </h3>
         <Button onClick={openCreateModal} className="gap-2">
           <NewUserIcon className="w-4 h-4" />
           {t('inviteUser')}
@@ -220,7 +221,7 @@ export function CompanyUsersTab({ companyId, companyName, companyType }: Company
         <div className="border border-border rounded-lg overflow-x-auto">
           <table className="w-full min-w-[800px] text-sm table-fixed">
             <thead>
-              <tr className="border-b border-border bg-[hsl(var(--table-header))] font-['Inter'] text-[hsl(var(--table-header-foreground))]">
+              <tr className="border-b border-border bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
                 {sortableColumns.map((col) => (
                   <th
                     key={col.field}
@@ -257,22 +258,12 @@ export function CompanyUsersTab({ companyId, companyName, companyType }: Company
                   <td className="px-4 py-4 text-muted-foreground">{user.email}</td>
                   <td className="px-4 py-4 text-muted-foreground">{user.phone ?? '—'}</td>
                   <td className="px-4 py-4">
-                    <Badge
-                      className={cn(
-                        'rounded',
-                        ROLE_BADGE_COLORS[user.role] ?? 'bg-muted text-muted-foreground',
-                      )}
-                    >
+                    <span className="inline-flex items-center rounded-full bg-[hsl(var(--badge-neutral))] px-2 py-1 text-xs text-[hsl(var(--badge-neutral-text))]">
                       {t(`roles.${user.role}` as 'roles.COMPANY_ADMIN')}
-                    </Badge>
+                    </span>
                   </td>
                   <td className="px-4 py-4">
-                    <span
-                      className={cn(
-                        'text-sm',
-                        STATUS_TEXT_COLORS[user.status] ?? 'text-muted-foreground',
-                      )}
-                    >
+                    <span className="inline-flex items-center rounded-full border border-border bg-secondary px-2 py-1 text-xs text-[hsl(var(--badge-neutral-text))]">
                       {t(`statuses.${user.status}` as 'statuses.ACTIVE')}
                     </span>
                   </td>

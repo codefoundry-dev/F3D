@@ -146,6 +146,8 @@ model PurchaseOrder {
   invoices       Invoice[]        @relation("InvoiceRelatedPo")
   emailMessages  EmailMessage[]   @relation("PoEmailMessages")
   sourceMaterialRequests MaterialRequest[] @relation("PoSourceMaterialRequests")
+  deliveryReports        DeliveryReport[]     @relation("DeliveryReportPo")
+  deliveryAccessCodes    DeliveryAccessCode[] @relation("DeliveryAccessCodePo")
 
   @@index([companyId], map: "idx_pos_company")
   @@index([projectId], map: "idx_pos_project")
@@ -178,6 +180,8 @@ model PoLineItem {
   purchaseOrder    PurchaseOrder    @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   material         Material?        @relation(fields: [materialId], references: [id])
   deliveryLocation ProjectLocation? @relation("PoLineItemDeliveryLocation", fields: [deliveryLocationId], references: [id])
+
+  deliveryReportLines DeliveryReportLine[] @relation("DeliveryReportLinePoLine")
 
   @@index([purchaseOrderId], map: "idx_po_line_items_po")
   @@index([materialId], map: "idx_po_line_items_material")

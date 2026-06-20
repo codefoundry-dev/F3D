@@ -353,6 +353,21 @@ export class PurchaseOrdersController {
     return this.poStatusService.receivePurchaseOrder(id, dto, user);
   }
 
+  // ── POST /v1/purchase-orders/:id/delivery-link ─────────────────────────────
+  // Mints a public QR delivery-submission link (Epic 6). The link carries a
+  // long-lived DELIVERY_SUBMIT token the public delivery portal resolves.
+
+  @Post(':id/delivery-link')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('delivery.generateLink')
+  @ApiOperation({ summary: 'Generate a public QR delivery-submission link for a PO' })
+  @ApiResponse({ status: 201, description: 'Delivery link minted' })
+  @ApiResponse({ status: 400, description: 'PO is not in a deliverable status' })
+  @ApiResponse({ status: 404, description: 'PO not found' })
+  async generateDeliveryLink(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.poStatusService.generateDeliveryLink(id, user);
+  }
+
   // ── PO Change Request endpoints ────────────────────────────────────────────
 
   @Post(':id/change-requests')

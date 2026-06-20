@@ -19,6 +19,7 @@ export {
   RFQ_STATUS_COLORS,
   VENDOR_RFQ_STATUS_COLORS,
   PO_STATUS_COLORS,
+  DELIVERY_STATUS_COLORS,
   BULK_ORDER_STATUS_COLORS,
   INVOICE_STATUS_COLORS,
   ORDER_STATUS_COLORS,
@@ -31,7 +32,7 @@ export { Button, buttonVariants } from './components/Button';
 export type { ButtonProps, ButtonVariant, ButtonSize } from './components/Button';
 
 export { Input } from './components/Input';
-export type { InputProps } from './components/Input';
+export type { InputProps, InputSize } from './components/Input';
 
 export { StepperInput } from './components/StepperInput';
 export type { StepperInputProps } from './components/StepperInput';
@@ -55,7 +56,7 @@ export { Spinner, PageLoader } from './components/Spinner';
 export type { SpinnerProps } from './components/Spinner';
 
 export { Badge } from './components/Badge';
-export type { BadgeProps } from './components/Badge';
+export type { BadgeProps, BadgeColor, BadgeSize } from './components/Badge';
 
 export {
   Modal,
@@ -110,7 +111,13 @@ export { Text } from './components/Text';
 export type { TextProps, TextVariant } from './components/Text';
 
 export { IconBadge } from './components/IconBadge';
-export type { IconBadgeProps } from './components/IconBadge';
+export type { IconBadgeProps, IconBadgeColor, IconBadgeSize } from './components/IconBadge';
+
+export { Card } from './components/Card';
+export type { CardProps } from './components/Card';
+
+export { Divider } from './components/Divider';
+export type { DividerProps } from './components/Divider';
 
 export { StepCircle } from './components/StepCircle';
 export type { StepCircleProps } from './components/StepCircle';
@@ -197,6 +204,16 @@ export type { DateRangeFilterDropdownProps } from './components/DateRangeFilterD
 export { SortIcon } from './components/SortIcon';
 export type { SortIconProps, SortDirection } from './components/SortIcon';
 
+export {
+  TABLE_CONTAINER,
+  TABLE_HEADER_ROW,
+  TABLE_HEADER_CELL,
+  TABLE_ROW,
+  TABLE_ROW_SELECTED,
+  TABLE_CELL,
+  TABLE_CELL_CAPTION,
+} from './components/tableStyles';
+
 export { SearchInput } from './components/SearchInput';
 export type { SearchInputProps } from './components/SearchInput';
 
@@ -208,6 +225,9 @@ export type { AvatarUploadProps } from './components/AvatarUpload';
 
 export { AvatarWithStatus } from './components/AvatarWithStatus';
 export type { AvatarWithStatusProps, WorkStatusType } from './components/AvatarWithStatus';
+
+export { AvatarStack } from './components/AvatarStack';
+export type { AvatarStackProps, AvatarStackPerson } from './components/AvatarStack';
 
 export { ContactSupportLink } from './components/ContactSupportLink';
 export type { ContactSupportLinkProps } from './components/ContactSupportLink';
@@ -261,6 +281,18 @@ export type { MessageBadgeIconProps } from './components/MessageBadgeIcon';
 
 export { InfoHint } from './components/InfoHint';
 export type { InfoHintProps } from './components/InfoHint';
+
+export { Tooltip } from './components/Tooltip';
+export type { TooltipProps, TooltipSide } from './components/Tooltip';
+
+export { Tabs } from './components/Tabs';
+export type { TabsProps, TabItem } from './components/Tabs';
+
+export { SegmentedControl } from './components/SegmentedControl';
+export type { SegmentedControlProps, SegmentedControlItem } from './components/SegmentedControl';
+
+export { Breadcrumbs } from './components/Breadcrumbs';
+export type { BreadcrumbsProps, BreadcrumbItem } from './components/Breadcrumbs';
 
 export { DatePicker } from './components/DatePicker';
 export type { DatePickerProps } from './components/DatePicker';

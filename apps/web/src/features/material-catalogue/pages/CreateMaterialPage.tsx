@@ -122,7 +122,7 @@ export default function CreateMaterialPage() {
           noValidate
         >
           {step === 1 && <CoreIdentificationFields categories={categories} />}
-          {step === 2 && <AdditionalPropertiesFields />}
+          {step === 2 && <AdditionalPropertiesFields categories={categories} />}
           {step === 3 && (
             <MaterialReviewSummary
               values={methods.getValues()}

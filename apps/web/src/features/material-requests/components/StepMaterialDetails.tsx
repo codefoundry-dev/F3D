@@ -21,9 +21,9 @@ export interface StepMaterialDetailsProps {
 
 function RequiredLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span className="flex items-center gap-1 text-sm text-[#171717]">
+    <span className="flex items-center gap-1 text-sm text-[#1B1D22]">
       {children}
-      <span className="text-[#737373]">*</span>
+      <span className="text-[#6D7588]">*</span>
     </span>
   );
 }
@@ -45,8 +45,8 @@ function PriorityToggle({
         aria-pressed={value === 'STANDARD'}
         className={`${base} ${
           value === 'STANDARD'
-            ? 'bg-[#171717] font-medium text-white'
-            : 'border border-[#E5E5E5] bg-white text-[#171717]'
+            ? 'bg-[#1B1D22] font-medium text-white'
+            : 'border border-[#E8EAED] bg-white text-[#1B1D22]'
         }`}
       >
         {t('materialDetails.priorityStandard')}
@@ -57,8 +57,8 @@ function PriorityToggle({
         aria-pressed={value === 'HIGH'}
         className={`${base} ${
           value === 'HIGH'
-            ? 'bg-[#171717] font-medium text-white'
-            : 'border border-[#E5E5E5] bg-white text-[#171717]'
+            ? 'bg-[#1B1D22] font-medium text-white'
+            : 'border border-[#E8EAED] bg-white text-[#1B1D22]'
         }`}
       >
         {t('materialDetails.priorityHigh')}
@@ -69,7 +69,7 @@ function PriorityToggle({
 
 /**
  * Step 2 — "Material Details" (Figma 2002:176 frame 14:331). One detail card per
- * selected line: a material summary header (#F5F5F5), then Quantity Needed*, CC
+ * selected line: a material summary header (#F4F4F6), then Quantity Needed*, CC
  * Team Members, the Standard/High priority toggle, Need-by date* + Delivery
  * Time*, Delivery Address*, Instructions and Internal notes.
  */
@@ -88,32 +88,32 @@ export function StepMaterialDetails({
         return (
           <section key={line.key} className="flex flex-col gap-6">
             {lines.length > 1 && (
-              <p className="text-xs font-medium uppercase tracking-wide text-[#737373]">
+              <p className="text-xs font-medium uppercase tracking-wide text-[#6D7588]">
                 {t('materialDetails.itemOf', { current: index + 1, total: lines.length })}
               </p>
             )}
 
             {/* Material summary card */}
-            <div className="flex gap-4 rounded-lg bg-[#F5F5F5] p-4">
-              <span className="flex h-24 w-24 shrink-0 items-center justify-center rounded-md bg-[#A3A3A3] p-3 text-center text-xs text-white">
+            <div className="flex gap-4 rounded-lg bg-[#F4F4F6] p-4">
+              <span className="flex h-24 w-24 shrink-0 items-center justify-center rounded-md bg-[#999FAD] p-3 text-center text-xs text-white">
                 {t('materialDetails.materialImage')}
               </span>
               <div className="flex min-w-0 flex-1 flex-col gap-3">
                 <div>
-                  <p className="truncate text-lg text-[#171717]">{line.materialName}</p>
+                  <p className="truncate text-lg text-[#1B1D22]">{line.materialName}</p>
                   {line.description && (
-                    <p className="truncate text-sm text-[#525252]">{line.description}</p>
+                    <p className="truncate text-sm text-[#525866]">{line.description}</p>
                   )}
                 </div>
                 <div className="flex gap-2">
                   <div className="flex-1">
-                    <p className="text-xs text-[#525252]">{t('materialDetails.unit')}</p>
-                    <p className="text-sm text-[#171717]">{line.unit}</p>
+                    <p className="text-xs text-[#525866]">{t('materialDetails.unit')}</p>
+                    <p className="text-sm text-[#1B1D22]">{line.unit}</p>
                   </div>
                   {typeof line.maxAvailable === 'number' && (
                     <div className="flex-1">
-                      <p className="text-xs text-[#525252]">{t('materialDetails.stock')}</p>
-                      <p className="text-sm text-[#171717]">
+                      <p className="text-xs text-[#525866]">{t('materialDetails.stock')}</p>
+                      <p className="text-sm text-[#1B1D22]">
                         {t('materialDetails.stockAvailable', { count: line.maxAvailable })}
                       </p>
                     </div>
@@ -135,7 +135,7 @@ export function StepMaterialDetails({
                 data-testid={`mr-qty-${line.key}`}
               />
               {typeof line.maxAvailable === 'number' && (
-                <p className="text-xs text-[#525252]">
+                <p className="text-xs text-[#525866]">
                   {t('materialDetails.maxAvailable', {
                     count: line.maxAvailable,
                     unit: line.unit.toLowerCase(),
@@ -157,9 +157,9 @@ export function StepMaterialDetails({
 
             {/* CC Team Members */}
             <div className="flex flex-col gap-2">
-              <span className="flex items-center gap-1 text-sm text-[#171717]">
+              <span className="flex items-center gap-1 text-sm text-[#1B1D22]">
                 {t('materialDetails.ccTeam')}
-                <span className="text-[#737373]">({t('materialDetails.optional')})</span>
+                <span className="text-[#6D7588]">({t('materialDetails.optional')})</span>
               </span>
               <Input
                 value={line.ccTeamMembers ?? ''}
@@ -171,7 +171,7 @@ export function StepMaterialDetails({
 
             {/* Priority */}
             <div className="flex flex-col gap-2">
-              <span className="text-sm text-[#171717]">{t('materialDetails.priority')}</span>
+              <span className="text-sm text-[#1B1D22]">{t('materialDetails.priority')}</span>
               <PriorityToggle
                 value={line.priority}
                 onChange={(priority) => onPatchLine(line.key, { priority })}
@@ -229,7 +229,7 @@ export function StepMaterialDetails({
 
             {/* Instructions */}
             <div className="flex flex-col gap-2.5">
-              <span className="text-sm text-[#171717]">{t('materialDetails.instructions')}</span>
+              <span className="text-sm text-[#1B1D22]">{t('materialDetails.instructions')}</span>
               <Textarea
                 value={line.instructions ?? ''}
                 onChange={(e) => onPatchLine(line.key, { instructions: e.target.value })}
@@ -241,9 +241,9 @@ export function StepMaterialDetails({
 
             {/* Internal notes */}
             <div className="flex flex-col gap-2.5">
-              <span className="flex items-center gap-1 text-sm text-[#171717]">
+              <span className="flex items-center gap-1 text-sm text-[#1B1D22]">
                 {t('materialDetails.internalNotes')}
-                <span className="text-[#737373]">({t('materialDetails.optional')})</span>
+                <span className="text-[#6D7588]">({t('materialDetails.optional')})</span>
               </span>
               <Textarea
                 value={line.internalNotes ?? ''}
@@ -254,7 +254,7 @@ export function StepMaterialDetails({
               />
             </div>
 
-            {index < lines.length - 1 && <hr className="border-[#E5E5E5]" />}
+            {index < lines.length - 1 && <hr className="border-[#E8EAED]" />}
           </section>
         );
       })}

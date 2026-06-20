@@ -1,4 +1,4 @@
-import type { CreateBomItemInput } from '@forethread/api-client';
+import type { BomItemDto, CreateBomItemInput } from '@forethread/api-client';
 import {
   isBomExtractionResult,
   type BomCatalogueCandidate,
@@ -96,6 +96,30 @@ function rowFromLineItem(item: BomLineItem): BomDraftRow {
 export function rowsFromExtraction(result: unknown): BomDraftRow[] {
   if (!isBomExtractionResult(result)) return [];
   return result.items.map(rowFromLineItem);
+}
+
+/**
+ * Map a saved BOM's persisted items into editable review rows (US 5.02 Edit
+ * BOM). Saved items are already resolved to a catalogue material, so there are
+ * no ranked candidates to carry; an item with a blank match falls back to
+ * unmatched so the edit table flags it like the create wizard.
+ */
+export function rowsFromBomItems(items: BomItemDto[]): BomDraftRow[] {
+  return [...items]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((item) => ({
+      materialName: item.materialName,
+      description: item.description ?? '',
+      uom: item.uom ?? '',
+      quantity: item.quantity !== null && item.quantity !== undefined ? String(item.quantity) : '',
+      category: item.category ?? '',
+      materialType: item.materialType ?? '',
+      matchedMaterialId: item.matchedMaterialId || null,
+      matchedMaterialName: item.matchedMaterialName,
+      matchConfidence: item.matchConfidence,
+      candidates: [],
+      manuallyResolved: false,
+    }));
 }
 
 function parseQuantity(raw: string): number | undefined {

@@ -1,14 +1,14 @@
 import type { ReactNode } from 'react';
 
+import { cn } from '../utils/cn';
+
 import { AuthLayout } from './AuthLayout';
-import { Button } from './Button';
+import { Button, buttonVariants } from './Button';
 import { FormField } from './FormField';
-import { IconBadge } from './IconBadge';
 import { Input } from './Input';
-import { Text } from './Text';
 
 export interface ForgotPasswordFormProps {
-  /** Icon inside the badge (e.g. KeyIcon) */
+  /** Icon inside the header badge (e.g. KeyIcon) */
   icon: ReactNode;
   /** Icon inside the email input (e.g. EnvelopeSimpleIcon) */
   emailIcon: ReactNode;
@@ -55,12 +55,13 @@ export function ForgotPasswordForm({
   emailInputProps,
 }: ForgotPasswordFormProps) {
   return (
-    <AuthLayout icon={<IconBadge icon={icon} />} title={title} description={description}>
-      <form onSubmit={onSubmit} className="space-y-6" noValidate>
-        <FormField label={emailLabel} error={emailError} htmlFor="email">
+    <AuthLayout icon={icon} title={title} description={description}>
+      <form onSubmit={onSubmit} className="flex w-full flex-col gap-10" noValidate>
+        <FormField label={emailLabel} error={emailError} htmlFor="email" labelSize="lg">
           <Input
             id="email"
             type="email"
+            inputSize="lg"
             autoComplete="email"
             placeholder={emailPlaceholder}
             disabled={isPending}
@@ -69,21 +70,23 @@ export function ForgotPasswordForm({
           />
         </FormField>
 
-        <Button
-          type="submit"
-          size="lg"
-          isLoading={isPending}
-          disabled={!isValid}
-          className="w-full"
-        >
-          {submitLabel}
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Button
+            type="submit"
+            size="lg"
+            variant="primary"
+            isLoading={isPending}
+            disabled={!isValid}
+            className="w-full"
+          >
+            {submitLabel}
+          </Button>
 
-        <div className="text-center">
-          <a href={backPath} className="text-foreground hover:underline">
-            <Text variant="label-m" as="span">
-              {backLabel}
-            </Text>
+          <a
+            href={backPath}
+            className={cn(buttonVariants({ variant: 'secondary', size: 'lg' }), 'w-full')}
+          >
+            {backLabel}
           </a>
         </div>
       </form>

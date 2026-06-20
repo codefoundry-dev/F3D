@@ -1,17 +1,15 @@
 import type { ReactNode } from 'react';
 
+import LogoFull from '../assets/logo-full.svg?react';
+
 import { Alert } from './Alert';
 import { AuthLayout } from './AuthLayout';
 import { Button } from './Button';
 import { FormField } from './FormField';
-import { IconBadge } from './IconBadge';
 import { Input } from './Input';
 import { PasswordInput } from './PasswordInput';
-import { Text } from './Text';
 
 export interface LoginFormProps {
-  /** Icon inside the badge (e.g. HandWavingIcon) */
-  icon: ReactNode;
   /** Icon for the email input (e.g. EnvelopeSimpleIcon) */
   emailIcon: ReactNode;
   /** Icon for the password input (e.g. LockSimpleIcon) */
@@ -61,7 +59,6 @@ export interface LoginFormProps {
 }
 
 export function LoginForm({
-  icon,
   emailIcon,
   passwordIcon,
   eyeOpenIcon,
@@ -87,52 +84,65 @@ export function LoginForm({
   passwordInputProps,
 }: LoginFormProps) {
   return (
-    <AuthLayout icon={<IconBadge icon={icon} />} title={title} description={description}>
-      <form onSubmit={onSubmit} className="space-y-6" noValidate>
-        {isError && errorMessage && (
-          <Alert variant="destructive" icon={errorIcon}>
-            {errorMessage}
-          </Alert>
-        )}
+    <AuthLayout
+      logo={<LogoFull className="h-[52px] w-auto" aria-label="Forethread" />}
+      title={title}
+      description={description}
+    >
+      <form onSubmit={onSubmit} className="flex w-full flex-col gap-10" noValidate>
+        <div className="flex w-full flex-col gap-4">
+          {isError && errorMessage && (
+            <Alert variant="destructive" icon={errorIcon}>
+              {errorMessage}
+            </Alert>
+          )}
 
-        <div className="space-y-4">
-          <FormField label={emailLabel} error={emailError} htmlFor="email">
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              placeholder={emailPlaceholder}
-              disabled={isPending}
-              leftIcon={emailIcon}
-              {...emailInputProps}
-            />
-          </FormField>
+          <div className="flex w-full flex-col gap-6">
+            <FormField label={emailLabel} error={emailError} htmlFor="email" labelSize="lg">
+              <Input
+                id="email"
+                type="email"
+                inputSize="lg"
+                autoComplete="email"
+                placeholder={emailPlaceholder}
+                disabled={isPending}
+                leftIcon={emailIcon}
+                {...emailInputProps}
+              />
+            </FormField>
 
-          <FormField label={passwordLabel} error={passwordError} htmlFor="password">
-            <PasswordInput
-              id="password"
-              autoComplete="current-password"
-              placeholder={passwordPlaceholder}
-              disabled={isPending}
-              leftIcon={passwordIcon}
-              showIcon={eyeOpenIcon}
-              hideIcon={eyeClosedIcon}
-              {...passwordInputProps}
-            />
-          </FormField>
-
-          <div className="flex justify-between items-center">
-            <a href={forgotPasswordPath} className="text-foreground hover:underline">
-              <Text variant="label-l" as="span">
-                {forgotPasswordLabel}
-              </Text>
-            </a>
+            <FormField
+              label={passwordLabel}
+              error={passwordError}
+              htmlFor="password"
+              labelSize="lg"
+            >
+              <PasswordInput
+                id="password"
+                inputSize="lg"
+                autoComplete="current-password"
+                placeholder={passwordPlaceholder}
+                disabled={isPending}
+                leftIcon={passwordIcon}
+                showIcon={eyeOpenIcon}
+                hideIcon={eyeClosedIcon}
+                {...passwordInputProps}
+              />
+            </FormField>
           </div>
+
+          <a
+            href={forgotPasswordPath}
+            className="self-end text-[14px] font-semibold leading-none tracking-[0.3px] text-gray-800 underline underline-offset-[3px] hover:no-underline"
+          >
+            {forgotPasswordLabel}
+          </a>
         </div>
 
         <Button
           type="submit"
           size="lg"
+          variant="primary"
           isLoading={isPending}
           disabled={!isValid}
           className="w-full"

@@ -17,6 +17,6 @@ describe('BulkOrderDetailPage', () => {
     render(<BulkOrderDetailPage />);
     const el = screen.getByTestId('shared-detail');
     expect(el).toBeInTheDocument();
-    expect(el).toHaveAttribute('data-counterparty-label', 'detail.vendor');
+    expect(el).toHaveAttribute('data-counterparty-label', 'detail.vendorName');
   });
 });

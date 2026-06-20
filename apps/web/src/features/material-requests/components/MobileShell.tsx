@@ -23,7 +23,7 @@ export function MobileShell({ header, footer, children, bodyClassName }: MobileS
         {header}
         <div className={`flex-1 overflow-y-auto ${bodyClassName ?? ''}`}>{children}</div>
         {footer && (
-          <div className="sticky bottom-0 border-t border-[#E5E5E5] bg-white px-4 py-4">
+          <div className="sticky bottom-0 border-t border-[#E8EAED] bg-white px-4 py-4">
             {footer}
           </div>
         )}

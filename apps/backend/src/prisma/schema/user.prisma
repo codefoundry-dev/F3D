@@ -66,10 +66,13 @@ model User {
   materialChangeRequests  MaterialChangeRequest[] @relation("MaterialChangeRequestedBy")
   materialChangeApprovals MaterialChangeRequest[] @relation("MaterialChangeResolvedBy")
   materialFavourites      MaterialFavourite[]     @relation("MaterialFavouriteUser")
+  materialUsages          MaterialUsage[]         @relation("MaterialUsageUser")
   createdBoms          Bom[]             @relation("BomCreatedBy")
   createdMaterialLists MaterialList[]    @relation("MaterialListCreatedBy")
   requestedMaterialRequests MaterialRequest[] @relation("MaterialRequestRequestedBy")
   reviewedMaterialRequests  MaterialRequest[] @relation("MaterialRequestReviewedBy")
+  submittedDeliveryReports  DeliveryReport[]  @relation("DeliveryReportSubmitter")
+  reviewedDeliveryReports   DeliveryReport[]  @relation("DeliveryReportReviewer")
   tableViews           UserTableView[]
 
   // Messaging relations

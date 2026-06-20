@@ -16,6 +16,7 @@ import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-c
 import DateIcon from '@forethread/ui-components/assets/icons/date.svg?react';
 import FileTextIcon from '@forethread/ui-components/assets/icons/file-text.svg?react';
 import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
+import SealPercentIcon from '@forethread/ui-components/assets/icons/seal-percent.svg?react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -25,11 +26,25 @@ import { ROUTES } from '@/app/route-config';
 interface QuoteResponsesSectionProps {
   items: QuoteResponseItem[];
   isLoading?: boolean;
+  /** Whether the current user holds `po.approve` (gates the Approve/Decline actions). */
+  canApprove?: boolean;
 }
 
 type TabFilter = 'all' | 'pending' | 'acknowledged';
 
-export function QuoteResponsesSection({ items, isLoading }: QuoteResponsesSectionProps) {
+/** "8% ($10000)"-style discount label; null when no discount is present. */
+function discountLabel(percent: number | null, amount: number | null): string | null {
+  if (percent === null && amount === null) return null;
+  const pct = percent !== null ? `${percent}%` : '';
+  const amt = amount !== null ? ` (${formatCurrency(amount)})` : '';
+  return `${pct}${amt}`.trim();
+}
+
+export function QuoteResponsesSection({
+  items,
+  isLoading,
+  canApprove = false,
+}: QuoteResponsesSectionProps) {
   const { t } = useTranslation('dashboard');
   const [activeTab, setActiveTab] = useState<TabFilter>('all');
   const navigate = useNavigate();
@@ -61,17 +76,17 @@ export function QuoteResponsesSection({ items, isLoading }: QuoteResponsesSectio
   return (
     <div className="bg-white rounded-[14px] border border-black/20 overflow-hidden flex flex-col h-[420px]">
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
-        <h2 className="text-lg font-medium text-foreground">{t('quoteResponses.title')}</h2>
-        <div className="flex gap-1">
+        <h2 className="text-base font-semibold text-foreground">{t('quoteResponses.title')}</h2>
+        <div className="flex gap-2">
           {(['all', 'pending', 'acknowledged'] as const).map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setActiveTab(tab)}
-              className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+              className={`rounded-full px-2.5 py-1 text-sm font-normal transition-colors ${
                 activeTab === tab
-                  ? 'bg-muted text-foreground'
-                  : 'border border-border text-muted-foreground hover:text-foreground'
+                  ? 'bg-accent text-foreground'
+                  : 'border border-border text-foreground hover:bg-accent/50'
               }`}
             >
               {t(`quoteResponses.${tab}`)}
@@ -90,6 +105,7 @@ export function QuoteResponsesSection({ items, isLoading }: QuoteResponsesSectio
             const isMutating =
               (approveMutation.isPending && approveMutation.variables?.quoteId === item.id) ||
               (declineMutation.isPending && declineMutation.variables?.quoteId === item.id);
+            const discount = discountLabel(item.discountPercent, item.discountAmount);
 
             return (
               <DashboardItemCard
@@ -113,12 +129,12 @@ export function QuoteResponsesSection({ items, isLoading }: QuoteResponsesSectio
                   )
                 }
                 statusBadge={
-                  <Badge className="bg-[#e4e4e4] text-[#262626] border-0 rounded-full text-xs px-2 py-0.5">
+                  <Badge className="bg-[#E8EAED] text-[#2D3139] border-0 rounded-full text-xs px-2 py-0.5">
                     {formatStatus(item.status)}
                   </Badge>
                 }
                 actions={
-                  isPending ? (
+                  isPending && canApprove ? (
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
@@ -159,6 +175,9 @@ export function QuoteResponsesSection({ items, isLoading }: QuoteResponsesSectio
                     icon: <CoinsIcon className="w-[18px] h-[18px]" />,
                     value: formatCurrency(item.totalCost),
                   },
+                  ...(discount
+                    ? [{ icon: <SealPercentIcon className="w-[18px] h-[18px]" />, value: discount }]
+                    : []),
                   {
                     icon: <PackageIcon className="w-[18px] h-[18px]" />,
                     value: `${item.itemsCovered}/${item.totalItems} items`,

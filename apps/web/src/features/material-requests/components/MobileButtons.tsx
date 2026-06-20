@@ -2,7 +2,7 @@ import ArrowRightIcon from '@forethread/ui-components/assets/icons/arrow-right.s
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 /**
- * Full-width primary action (#171717, white label) used in the wizard footers
+ * Full-width primary action (#1B1D22, white label) used in the wizard footers
  * (Figma 2002:176 — "Next", "Submit Request", "Done"). Always `type="button"`:
  * the wizard never uses a native form submit, which avoids the
  * step→final button-morph submit bug.
@@ -27,7 +27,7 @@ export function PrimaryButton({
     <button
       type="button"
       disabled={disabled}
-      className={`flex h-[51px] w-full items-center justify-center gap-3 rounded-lg bg-[#171717] px-4 text-base font-normal text-white transition-colors hover:bg-[#262626] disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ''}`}
+      className={`flex h-[51px] w-full items-center justify-center gap-3 rounded-lg bg-[#1B1D22] px-4 text-base font-normal text-white transition-colors hover:bg-[#2D3139] disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ''}`}
       {...rest}
     >
       {leading}
@@ -48,7 +48,7 @@ export function SecondaryButton({
     <button
       type="button"
       disabled={disabled}
-      className={`flex h-[51px] w-full items-center justify-center gap-2 rounded-lg border border-[#E5E5E5] bg-white px-4 text-base font-normal text-[#171717] transition-colors hover:bg-[#F5F5F5] disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ''}`}
+      className={`flex h-[51px] w-full items-center justify-center gap-2 rounded-lg border border-[#E8EAED] bg-white px-4 text-base font-normal text-[#1B1D22] transition-colors hover:bg-[#F4F4F6] disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ''}`}
       {...rest}
     >
       {children}

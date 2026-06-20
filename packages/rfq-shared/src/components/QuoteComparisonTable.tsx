@@ -55,9 +55,9 @@ import {
 const ROW_BEST_PRICE_BG = 'bg-[#E5F6EB]';
 const ROW_SUBSTITUTE_BG = 'bg-[#FFF2B5]';
 const ROW_SELECTED_BG = 'bg-[#C9EAFB]';
-const NOT_QUOTED_BG = 'bg-[#E5E5E5]';
+const NOT_QUOTED_BG = 'bg-[#E8EAED]';
 const GROUP_HEADER_BG = 'bg-[#E1E1E1]';
-const SUBTOTAL_BG = 'bg-[#F5F5F5]';
+const SUBTOTAL_BG = 'bg-[#F4F4F6]';
 const TABLE_HEAD_BG = 'bg-[#F2F2F2]';
 
 // ── Inline icons not present in the shared icon set ────────────────────────────
@@ -1119,7 +1119,7 @@ export function QuoteComparisonTable({
                       >
                         <EyeClosedIcon className="w-4 h-4" />
                       </button>
-                      <span className="text-sm font-semibold text-[#171717] truncate">
+                      <span className="text-sm font-semibold text-[#1B1D22] truncate">
                         {vendor.vendorName}
                       </span>
                       <span className="flex-1" />
@@ -1179,7 +1179,7 @@ export function QuoteComparisonTable({
                     <th
                       key={`${vendor.quoteResponseId}-${col}`}
                       className={cn(
-                        'border-b border-foreground/10 px-3 py-1.5 text-left text-sm font-medium text-[#171717] whitespace-nowrap',
+                        'border-b border-foreground/10 px-3 py-1.5 text-left text-sm font-medium text-[#1B1D22] whitespace-nowrap',
                         idx === 0 && 'border-l',
                         subColumnWidth[col],
                         TABLE_HEAD_BG,
@@ -1312,7 +1312,7 @@ export function QuoteComparisonTable({
                               </button>
                             </div>
                           ) : (
-                            <Badge className="self-start bg-[#e4e4e4] text-[#262626] border-0 rounded-full text-xs px-2 py-0.5">
+                            <Badge className="self-start bg-[#E8EAED] text-[#2D3139] border-0 rounded-full text-xs px-2 py-0.5">
                               {vendor.status.toUpperCase() === 'APPROVED'
                                 ? t('reviewTable.approvedBadge')
                                 : t('reviewTable.declinedBadge')}

@@ -37,9 +37,9 @@ export function ActivePosTable({ items, isLoading }: ActivePosTableProps) {
   }, [items, sortBy, sortDir]);
 
   return (
-    <div className="rounded-xl border border-border bg-card">
-      <div className="px-4 py-3">
-        <h2 className="text-base font-semibold text-foreground">{t('vendor.activePOs.title')}</h2>
+    <div className="rounded-[14px] border border-black/20 bg-white overflow-hidden">
+      <div className="px-4 pt-4 pb-3">
+        <h2 className="text-lg font-medium text-foreground">{t('vendor.activePOs.title')}</h2>
       </div>
 
       {isLoading ? (
@@ -51,11 +51,11 @@ export function ActivePosTable({ items, isLoading }: ActivePosTableProps) {
           {t('vendor.activePOs.noPOs')}
         </div>
       ) : (
-        <div className="px-4 pb-3">
+        <div className="px-4 pb-4">
           <div className="rounded-lg border border-border overflow-auto">
             <table className="w-full min-w-[600px] text-sm">
               <thead className="sticky top-0 z-10">
-                <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] font-['Inter'] text-[hsl(var(--table-header-foreground))]">
+                <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
                   {columns.map((col) => (
                     <th key={col.key} className={TH_CLASS} onClick={() => handleSort(col.field)}>
                       <span className="flex items-center justify-between gap-2">

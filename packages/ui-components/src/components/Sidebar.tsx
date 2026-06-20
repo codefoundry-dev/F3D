@@ -1,9 +1,10 @@
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
 
 import ArrowRightIcon from '../assets/icons/arrow-right.svg?react';
 import OpenSidebarIcon from '../assets/icons/open-sidebar.svg?react';
 import { cn } from '../utils/cn';
+
+import { Tooltip } from './Tooltip';
 
 const STORAGE_KEY = 'sidebar-collapsed';
 
@@ -20,6 +21,7 @@ export interface SidebarProps {
   onNavigate: (href: string) => void;
   logo?: ReactNode;
   onLogoClick?: () => void;
+  /** Brand / company wordmark shown next to the logo when expanded. */
   companyName?: string;
 }
 
@@ -31,59 +33,28 @@ function readCollapsed(): boolean {
   }
 }
 
-/* ── Fixed-position tooltip that escapes overflow containers ── */
-function SidebarTooltip({
-  label,
-  anchorRef,
-}: {
-  label: string;
-  anchorRef: React.RefObject<HTMLButtonElement | null>;
-}) {
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-
-  useEffect(() => {
-    const el = anchorRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    // Find the sidebar <aside> to position tooltip after its right border
-    const aside = el.closest('aside');
-    const sidebarRight = aside ? aside.getBoundingClientRect().right : rect.right;
-    setPos({
-      top: rect.top + rect.height / 2,
-      left: sidebarRight + 8,
-    });
-  }, [anchorRef]);
-
-  if (!pos) return null;
-
-  return createPortal(
-    <div
-      role="tooltip"
-      className="fixed z-[9999] -translate-y-1/2 pointer-events-none"
-      style={{ top: pos.top, left: pos.left }}
+/** A single 34px square icon-button used for the logo + collapse toggle. */
+function RailIconButton({
+  children,
+  className,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        'flex size-[34px] shrink-0 items-center justify-center rounded-[12px] text-gray-500 transition-colors hover:bg-[#F4F4F6] hover:text-foreground cursor-pointer',
+        className,
+      )}
+      {...props}
     >
-      {/* Arrow */}
-      <span
-        className="absolute top-1/2 -translate-y-1/2 -left-[6px] w-0 h-0"
-        style={{
-          borderTop: '6px solid transparent',
-          borderBottom: '6px solid transparent',
-          borderRight: '6px solid #2D3139',
-        }}
-      />
-      {/* Label */}
-      <span className="block bg-[#2D3139] text-white text-sm font-bold px-3 py-2 rounded-lg max-w-[160px] whitespace-nowrap">
-        {label}
-      </span>
-    </div>,
-    document.body,
+      {children}
+    </button>
   );
 }
 
 export function Sidebar({ items, onNavigate, logo, onLogoClick, companyName }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(readCollapsed);
-  const [hoveredHref, setHoveredHref] = useState<string | null>(null);
-  const itemRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
 
   useEffect(() => {
     try {
@@ -95,27 +66,20 @@ export function Sidebar({ items, onNavigate, logo, onLogoClick, companyName }: S
 
   const toggle = useCallback(() => setIsCollapsed((c) => !c), []);
 
-  const setItemRef = useCallback(
-    (href: string) => (el: HTMLButtonElement | null) => {
-      itemRefs.current.set(href, el);
-    },
-    [],
-  );
-
   return (
     <>
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          'hidden md:flex flex-col bg-card border-r border-border h-full transition-[width] duration-200 ease-in-out overflow-hidden',
-          isCollapsed ? 'w-16' : 'w-[240px]',
+          'hidden md:flex flex-col bg-white border-r border-[#E8EAED] h-full transition-[width] duration-200 ease-in-out p-2',
+          isCollapsed ? 'w-[56px]' : 'w-[224px]',
         )}
       >
-        {/* Header */}
+        {/* Header: logo lockup + (expanded) collapse toggle */}
         <div
           className={cn(
-            'flex items-center shrink-0 h-16',
-            isCollapsed ? 'justify-center px-3' : 'px-4 gap-3',
+            'flex shrink-0 items-center',
+            isCollapsed ? 'justify-center' : 'gap-2.5 pl-0.5',
           )}
         >
           {logo && (
@@ -123,90 +87,85 @@ export function Sidebar({ items, onNavigate, logo, onLogoClick, companyName }: S
               type="button"
               aria-label="Home"
               onClick={onLogoClick}
-              className="shrink-0 flex items-center justify-center w-10 h-10 rounded-md transition-colors hover:bg-accent cursor-pointer"
+              className="flex size-[34px] shrink-0 items-center justify-center rounded-[10px] transition-opacity hover:opacity-90 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {logo}
             </button>
           )}
 
+          {!isCollapsed && companyName && (
+            <span className="flex-1 truncate py-[7px] text-[14px] font-semibold tracking-[0.3px] text-[#2D3139]">
+              {companyName}
+            </span>
+          )}
+
           {!isCollapsed && (
-            <>
-              {companyName && (
-                <span className="text-sm font-semibold text-foreground truncate flex-1">
-                  {companyName}
-                </span>
-              )}
-              <button
-                type="button"
-                aria-label="Toggle sidebar"
-                onClick={toggle}
-                className="shrink-0 flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors ml-auto cursor-pointer"
-              >
-                <OpenSidebarIcon className="w-[18px] h-[18px]" />
-              </button>
-            </>
+            <RailIconButton aria-label="Collapse sidebar" onClick={toggle} className="ml-auto">
+              <OpenSidebarIcon className="h-[18px] w-[18px]" />
+            </RailIconButton>
           )}
         </div>
 
+        {/* Divider */}
+        <div className="my-2 h-px w-full shrink-0 bg-[#E8EAED]" />
+
         {/* Nav items */}
-        <nav className="flex-1 flex flex-col gap-1 px-3 py-3 overflow-y-auto">
-          {items.map((item) => (
-            <div key={item.href}>
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
+          {items.map((item) => {
+            const button = (
               <button
-                ref={setItemRef(item.href)}
                 type="button"
                 onClick={() => onNavigate(item.href)}
-                onMouseEnter={isCollapsed ? () => setHoveredHref(item.href) : undefined}
-                onMouseLeave={isCollapsed ? () => setHoveredHref(null) : undefined}
                 className={cn(
-                  'flex items-center w-full rounded-md transition-colors cursor-pointer',
-                  isCollapsed ? 'justify-center h-10 w-10 mx-auto' : 'gap-3 px-3 h-10',
+                  'flex h-10 items-center rounded-[12px] transition-colors cursor-pointer',
+                  isCollapsed ? 'w-10 justify-center mx-auto' : 'w-full gap-3 px-2',
                   item.isActive
-                    ? 'bg-[#E8EAED] text-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+                    ? 'bg-[#F4F4F6] text-[#1B1D22]'
+                    : 'text-[#40454F] hover:bg-[#F9F9FA] hover:text-[#1B1D22]',
                 )}
               >
-                <span className="flex items-center justify-center w-5 h-5 shrink-0">
+                <span className="flex size-[18px] shrink-0 items-center justify-center [&_svg]:size-[18px]">
                   {item.icon}
                 </span>
                 {!isCollapsed && (
                   <>
-                    <span className="text-sm truncate flex-1 text-left">{item.label}</span>
+                    <span className="flex-1 truncate text-left text-[14px] font-semibold tracking-[0.3px]">
+                      {item.label}
+                    </span>
                     {item.hasSubmenu && (
-                      <ArrowRightIcon className="w-[18px] h-[18px] shrink-0 text-muted-foreground" />
+                      <ArrowRightIcon className="h-[18px] w-[18px] shrink-0 text-gray-400" />
                     )}
                   </>
                 )}
               </button>
+            );
 
-              {/* Tooltip via portal (collapsed mode only) */}
-              {isCollapsed && hoveredHref === item.href && (
-                <SidebarTooltip
-                  label={item.label}
-                  anchorRef={{ current: itemRefs.current.get(item.href) ?? null }}
-                />
-              )}
-            </div>
-          ))}
+            return (
+              <div key={item.href}>
+                {isCollapsed ? (
+                  <Tooltip content={item.label} side="right" delay={800}>
+                    {button}
+                  </Tooltip>
+                ) : (
+                  button
+                )}
+              </div>
+            );
+          })}
         </nav>
 
-        {/* Collapsed toggle at bottom */}
+        {/* Collapsed: expand toggle pinned to the bottom of the rail (Figma 3947-75707) */}
         {isCollapsed && (
-          <div className="shrink-0 flex justify-center px-3 py-3">
-            <button
-              type="button"
-              aria-label="Expand sidebar"
-              onClick={toggle}
-              className="flex items-center justify-center w-10 h-10 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
-            >
-              <OpenSidebarIcon className="w-[18px] h-[18px]" />
-            </button>
+          <div className="flex shrink-0 justify-center pt-1">
+            <RailIconButton aria-label="Expand sidebar" onClick={toggle}>
+              <OpenSidebarIcon className="h-[18px] w-[18px]" />
+            </RailIconButton>
           </div>
         )}
       </aside>
 
-      {/* Mobile: bottom tab bar (unchanged) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border flex items-center justify-around h-14">
+      {/* Mobile: bottom tab bar */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[#E8EAED] flex items-center justify-around h-14">
         {items.map((item) => (
           <button
             key={item.href}
@@ -214,10 +173,10 @@ export function Sidebar({ items, onNavigate, logo, onLogoClick, companyName }: S
             aria-label={item.label}
             onClick={() => onNavigate(item.href)}
             className={cn(
-              'flex items-center justify-center w-10 h-10 rounded-[4px] transition-colors',
+              'flex items-center justify-center w-10 h-10 rounded-[10px] transition-colors [&_svg]:size-[20px]',
               item.isActive
-                ? 'bg-secondary-foreground text-background'
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+                ? 'bg-[#F4F4F6] text-[#1B1D22]'
+                : 'text-gray-500 hover:text-foreground hover:bg-[#F4F4F6]',
             )}
           >
             {item.icon}

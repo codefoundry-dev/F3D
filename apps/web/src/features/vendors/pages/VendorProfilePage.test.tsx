@@ -10,6 +10,10 @@ vi.mock('react-router-dom', () => ({
   useSearchParams: () => [mockSearchParams],
 }));
 
+vi.mock('@forethread/i18n', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
 vi.mock('@forethread/vendor-shared', () => ({
   VendorProfilePage: ({ vendorId, onBack, initialEdit }: any) => (
     <div

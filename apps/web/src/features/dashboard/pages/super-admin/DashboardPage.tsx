@@ -1,13 +1,15 @@
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { Spinner } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock.svg?react';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
-import DashboardIcon from '@forethread/ui-components/assets/icons/dashboard.svg?react';
+import MaterialCatalogueIcon from '@forethread/ui-components/assets/icons/material-catalogue.svg?react';
 import NewUserIcon from '@forethread/ui-components/assets/icons/new-user.svg?react';
 import NoteIcon from '@forethread/ui-components/assets/icons/note.svg?react';
 import SettingsIcon from '@forethread/ui-components/assets/icons/settings.svg?react';
 import SuppliersIcon from '@forethread/ui-components/assets/icons/suppliers.svg?react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -17,41 +19,64 @@ import { KpiCard } from '../../ui/super-admin/KpiCard';
 import { PlatformStateTable } from '../../ui/super-admin/PlatformStateTable';
 import { RecentChangesTimeline } from '../../ui/super-admin/RecentChangesTimeline';
 
+/** Direction arrow for a week-over-week delta: negatives point down, 0/positive up. */
+function trendDirection(delta: number): 'up' | 'down' | 'flat' {
+  if (delta < 0) return 'down';
+  if (delta > 0) return 'up';
+  return 'flat';
+}
+
+/** Signed, human-readable delta: -2 → "-2", 3 → "+3", 0 → "0". */
+function formatDelta(delta: number): string {
+  if (delta > 0) return `+${delta}`;
+  return String(delta);
+}
+
 export default function DashboardPage() {
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
   const { dashboard, dashboardLoading, recentLogs, auditLoading } = useDashboardData();
+
+  // Surface the page title + subtitle in the global app header (super-admin
+  // lands on `/`, so this dashboard owns the header copy).
+  useEffect(() => {
+    setPageTitle(t('title'), t('subtitle'));
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
 
   const quickActions = [
     {
       label: t('quickActions.userManagement'),
-      icon: <NewUserIcon className="w-4 h-4" />,
+      icon: <NewUserIcon className="w-6 h-6" />,
       onClick: () => navigate(ROUTES.users),
     },
     {
       label: t('quickActions.companyManagement'),
-      icon: <SuppliersIcon className="w-4 h-4" />,
+      icon: <SuppliersIcon className="w-6 h-6" />,
       onClick: () => navigate(ROUTES.users),
     },
     {
       label: t('quickActions.materialCatalogue'),
-      icon: <DashboardIcon className="w-4 h-4" />,
-      disabled: true,
+      icon: <MaterialCatalogueIcon className="w-6 h-6" />,
+      onClick: () => navigate(ROUTES.materialCatalogue),
     },
     {
       label: t('quickActions.adminPanel'),
-      icon: <SettingsIcon className="w-4 h-4" />,
+      icon: <SettingsIcon className="w-6 h-6" />,
       onClick: () => navigate(ROUTES.adminPanel),
     },
   ];
 
   const systemHealthy = dashboard?.system.status === 'healthy';
+  const usersDelta = dashboard?.users.newThisWeek ?? 0;
+  const companiesDelta = dashboard?.companies.newThisWeek ?? 0;
 
   return (
     <div className="p-4 space-y-4 overflow-auto">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
         <KpiCard
-          icon={<NoteIcon className="w-6 h-6 text-muted-foreground" />}
+          icon={<NoteIcon className="w-6 h-6 text-foreground" />}
           title={t('kpi.platformStatus')}
           value={
             dashboardLoading
@@ -60,7 +85,7 @@ export default function DashboardPage() {
                 ? t('kpi.allOperational')
                 : t('kpi.degraded', { defaultValue: 'Degraded' })
           }
-          valueClassName="text-sm font-medium"
+          valueClassName="text-sm font-normal text-foreground"
           statusIcon={
             dashboardLoading ? (
               <Spinner size="sm" />
@@ -72,37 +97,43 @@ export default function DashboardPage() {
           }
         />
         <KpiCard
-          icon={<NewUserIcon className="w-6 h-6 text-muted-foreground" />}
+          icon={<NewUserIcon className="w-6 h-6 text-foreground" />}
           title={t('kpi.activeUsers')}
           value={dashboardLoading ? '...' : String(dashboard?.users.active ?? 0)}
-          valueClassName="text-2xl font-bold text-foreground"
-          trend={dashboard ? `+${dashboard.users.newThisWeek} ${t('kpi.thisWeek')}` : undefined}
-          trendUp
+          valueClassName="text-2xl font-normal text-foreground"
+          trend={dashboard ? `${formatDelta(usersDelta)} ${t('kpi.thisWeek')}` : undefined}
+          trendDirection={trendDirection(usersDelta)}
         />
         <KpiCard
-          icon={<SuppliersIcon className="w-6 h-6 text-muted-foreground" />}
+          icon={<SuppliersIcon className="w-6 h-6 text-foreground" />}
           title={t('kpi.totalCompanies')}
           value={dashboardLoading ? '...' : String(dashboard?.companies.total ?? 0)}
-          valueClassName="text-2xl font-bold text-foreground"
-          trend={dashboard ? `+${dashboard.companies.newThisWeek} ${t('kpi.thisWeek')}` : undefined}
-          trendUp
+          valueClassName="text-2xl font-normal text-foreground"
+          trend={dashboard ? `${formatDelta(companiesDelta)} ${t('kpi.thisWeek')}` : undefined}
+          trendDirection={trendDirection(companiesDelta)}
         />
+        {/*
+          Database Performance: the frame shows a "+3 this week" trend, but the
+          SuperAdminDashboard DTO (api-client) exposes no week-over-week delta
+          for dbResponseMs — and that DTO is out of scope for this pass. We omit
+          the trend rather than fabricate one (the frame also annotates this card
+          "Phase 2"). Wire a real delta here once the API provides it.
+        */}
         <KpiCard
-          icon={<ClockIcon className="w-6 h-6 text-muted-foreground" />}
+          icon={<ClockIcon className="w-6 h-6 text-foreground" />}
           title={t('kpi.dbPerformance')}
           value={dashboardLoading ? '...' : `${dashboard?.system.dbResponseMs ?? 0} ms`}
-          valueClassName="text-2xl font-bold text-foreground"
+          valueClassName="text-2xl font-normal text-foreground"
         />
       </div>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-2">
         {quickActions.map((action) => (
           <button
             key={action.label}
             type="button"
             onClick={action.onClick}
-            disabled={'disabled' in action && action.disabled}
-            className="flex items-center gap-2 px-5 py-3 rounded-lg bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center gap-2.5 px-6 py-4 rounded-xl bg-[#1B1D22] text-white text-lg font-medium hover:bg-[#1B1D22]/90 transition-colors"
           >
             {action.icon}
             {action.label}
@@ -110,90 +141,19 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {dashboard && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            title={t('overview.projects', { defaultValue: 'Projects' })}
-            value={dashboard.projects.total}
-            breakdown={Object.entries(dashboard.projects.byStatus).map(([k, v]) => ({
-              label: k,
-              count: v,
-            }))}
-          />
-          <StatCard
-            title={t('overview.rfqs', { defaultValue: 'RFQs' })}
-            value={dashboard.procurement.totalRfqs}
-            breakdown={[{ label: 'Open', count: dashboard.procurement.openRfqs }]}
-          />
-          <StatCard
-            title={t('overview.purchaseOrders', { defaultValue: 'Purchase Orders' })}
-            value={dashboard.procurement.totalPos}
-          />
-          <StatCard
-            title={t('overview.invoices', { defaultValue: 'Invoices' })}
-            value={dashboard.procurement.totalInvoices}
-            breakdown={[{ label: 'Pending', count: dashboard.procurement.pendingInvoices }]}
-          />
-        </div>
-      )}
-
       <PlatformStateTable />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[656fr_488fr] gap-4">
         <RecentChangesTimeline logs={recentLogs} isLoading={auditLoading} />
 
-        {dashboard && (
-          <div className="bg-card rounded-lg border border-border p-4">
-            <h2 className="text-base font-semibold text-foreground mb-4">
-              {t('usersByRole.title', { defaultValue: 'Users by Role' })}
-            </h2>
-            <div className="space-y-2">
-              {dashboard.users.byRole
-                .filter((r) => r.count > 0)
-                .map((r) => (
-                  <div
-                    key={r.role}
-                    className="flex items-center justify-between py-2 border-b border-border last:border-0"
-                  >
-                    <span className="text-sm text-foreground capitalize">
-                      {r.role.replace(/_/g, ' ').toLowerCase()}
-                    </span>
-                    <span className="text-sm font-medium text-foreground">{r.count}</span>
-                  </div>
-                ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function StatCard({
-  title,
-  value,
-  breakdown,
-}: {
-  title: string;
-  value: number;
-  breakdown?: { label: string; count: number }[];
-}) {
-  return (
-    <div className="bg-card rounded-lg border border-border p-4">
-      <p className="text-xs text-muted-foreground">{title}</p>
-      <p className="text-2xl font-bold text-foreground mt-1">{value}</p>
-      {breakdown && breakdown.length > 0 && (
-        <div className="mt-2 space-y-1">
-          {breakdown.map((b) => (
-            <div key={b.label} className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground capitalize">
-                {b.label.replace(/_/g, ' ').toLowerCase()}
-              </span>
-              <span className="font-medium text-foreground">{b.count}</span>
-            </div>
-          ))}
+        {/*
+          Google Analytics: empty Phase-2 placeholder slot (no data wired yet),
+          per the frame — a titled card with an empty body.
+        */}
+        <div className="bg-card rounded-lg border border-border p-4 h-[448px]">
+          <h2 className="text-base font-semibold text-foreground">{t('googleAnalytics.title')}</h2>
         </div>
-      )}
+      </div>
     </div>
   );
 }

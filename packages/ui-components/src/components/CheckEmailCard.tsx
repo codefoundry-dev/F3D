@@ -3,7 +3,6 @@ import type { ReactNode } from 'react';
 import { Alert } from './Alert';
 import { AuthLayout } from './AuthLayout';
 import { Button } from './Button';
-import { IconBadge } from './IconBadge';
 import { Text } from './Text';
 
 export interface CheckEmailCardProps {
@@ -45,11 +44,11 @@ export function CheckEmailCard({
   onResend,
 }: CheckEmailCardProps) {
   return (
-    <AuthLayout icon={<IconBadge icon={icon} />} title={title} description={subtitle}>
-      <div className="space-y-6">
+    <AuthLayout icon={icon} title={title} description={subtitle}>
+      <div className="space-y-10">
         <Alert variant="success">{alertContent}</Alert>
 
-        <div className="text-secondary-foreground space-y-2">
+        <div className="text-secondary-foreground space-y-3">
           <Text variant="body-16">{expiryText}</Text>
           <ul className="list-disc pl-5 space-y-1">
             {tips.map((tip) => (
@@ -62,21 +61,20 @@ export function CheckEmailCard({
           </ul>
         </div>
 
-        <Button size="lg" className="w-full" onClick={onBackToLogin}>
-          {backLabel}
-        </Button>
+        <div className="space-y-2">
+          <Button size="lg" className="w-full" onClick={onBackToLogin}>
+            {backLabel}
+          </Button>
 
-        <div className="text-center">
-          <button
-            type="button"
-            className="hover:underline"
+          <Button
+            variant="secondary"
+            size="lg"
+            className="w-full"
             onClick={onResend}
-            disabled={isResending}
+            isLoading={isResending}
           >
-            <Text variant="label-m" as="span">
-              {resendLabel}
-            </Text>
-          </button>
+            {resendLabel}
+          </Button>
         </div>
       </div>
     </AuthLayout>

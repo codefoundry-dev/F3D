@@ -16,6 +16,8 @@ model File {
   messageAttachments  MessageAttachment[]
   quoteAttachments    QuoteAttachment[]   @relation("QuoteAttachment")
   docExtractions      DocExtraction[]
+  deliveryDamagePhotos      DeliveryDamagePhoto[]      @relation("DeliveryDamagePhotoFile")
+  deliveryReportAttachments DeliveryReportAttachment[] @relation("DeliveryReportAttachmentFile")
 
   @@index([uploadedById], map: "idx_files_uploaded_by")
   @@map("files")

@@ -98,9 +98,9 @@ describe('EditUserModal', () => {
     expect(screen.getByText('editModal.role')).toBeInTheDocument();
   });
 
-  it('renders company read-only field', () => {
+  it('does not render a company field (not in Figma)', () => {
     render(<EditUserModal onClose={onClose} />);
-    expect(screen.getByText('columns.company')).toBeInTheDocument();
+    expect(screen.queryByText('columns.company')).not.toBeInTheDocument();
   });
 
   it('renders submit and cancel buttons', () => {

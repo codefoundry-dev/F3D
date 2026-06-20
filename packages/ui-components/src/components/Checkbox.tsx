@@ -6,15 +6,35 @@ export interface CheckboxProps {
   onChange: (checked: boolean) => void;
   label?: string;
   disabled?: boolean;
+  /** Renders the indeterminate (dash) state — useful for table select-all. */
+  indeterminate?: boolean;
+  size?: 'sm' | 'md';
   className?: string;
 }
 
-export function Checkbox({ checked, onChange, label, disabled, className }: CheckboxProps) {
+/**
+ * Checkbox — Forethread design system (Figma node 3581-46580 "Checkbox base").
+ * Checked/indeterminate = dark charcoal gradient + white glyph; unchecked = white
+ * with a gray-300 border (hover gray-700). Corner/4XS radius.
+ */
+export function Checkbox({
+  checked,
+  onChange,
+  label,
+  disabled,
+  indeterminate,
+  size = 'md',
+  className,
+}: CheckboxProps) {
+  const on = checked || indeterminate;
+  const box = size === 'sm' ? 'size-4' : 'size-5';
+  const glyph = size === 'sm' ? 'size-3' : 'size-3.5';
+
   return (
     <label
       className={cn(
         'inline-flex items-center gap-2.5 cursor-pointer select-none',
-        disabled && 'opacity-50 cursor-not-allowed',
+        disabled && 'cursor-not-allowed opacity-60',
         className,
       )}
     >
@@ -28,15 +48,22 @@ export function Checkbox({ checked, onChange, label, disabled, className }: Chec
         />
         <span
           className={cn(
-            'w-5 h-5 rounded-md border-[1.5px] flex items-center justify-center transition-all',
-            'peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-focus-visible:ring-offset-2',
-            checked
-              ? 'bg-foreground border-foreground'
-              : 'bg-background border-border hover:border-foreground/40',
-            disabled && 'bg-muted border-border',
+            'flex items-center justify-center rounded-[4px] border-[1.5px] transition-colors',
+            'peer-focus-visible:ring-4 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background',
+            box,
+            on
+              ? 'border-transparent bg-gradient-to-b from-[#090A0B] to-[#2D3139] text-white'
+              : 'border-[#B0B5BF] bg-white hover:border-[#40454F]',
+            disabled && (on ? 'bg-none bg-[#B0B5BF]' : 'border-[#E8EAED] bg-[#F4F4F6]'),
           )}
         >
-          {checked && <CheckmarkIcon className="w-3 h-3 text-background" />}
+          {indeterminate ? (
+            <span
+              className={cn('rounded-full bg-white', size === 'sm' ? 'h-0.5 w-2' : 'h-0.5 w-2.5')}
+            />
+          ) : (
+            checked && <CheckmarkIcon className={glyph} />
+          )}
         </span>
       </span>
       {label && <span className="text-sm text-card-foreground">{label}</span>}

@@ -92,6 +92,11 @@ export class ProjectsService {
       where.status = { not: ProjectStatus.ARCHIVED };
     }
 
+    // Filter by project type
+    if (query.type) {
+      where.type = query.type;
+    }
+
     // Search by name or description
     if (query.search) {
       where.OR = [
@@ -102,8 +107,12 @@ export class ProjectsService {
 
     const orderBy: Prisma.ProjectOrderByWithRelationInput = {};
     if (sortBy === 'name') orderBy.name = sortDir;
+    else if (sortBy === 'code') orderBy.code = sortDir;
     else if (sortBy === 'status') orderBy.status = sortDir;
+    else if (sortBy === 'type') orderBy.type = sortDir;
     else if (sortBy === 'startDate') orderBy.startDate = sortDir;
+    else if (sortBy === 'expectedEndDate' || sortBy === 'endDate')
+      orderBy.expectedEndDate = sortDir;
     else orderBy.createdAt = sortDir;
 
     const [items, total] = await Promise.all([
@@ -114,6 +123,11 @@ export class ProjectsService {
         orderBy,
         include: {
           locations: true,
+          // First few members for the list's avatar stack; full count in _count.
+          members: {
+            take: 5,
+            include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+          },
           _count: { select: { members: true } },
         },
       }),
@@ -126,6 +140,7 @@ export class ProjectsService {
         const defaultStorage = p.locations.find((l) => l.type === 'STORAGE' && l.isDefault);
         return {
           id: p.id,
+          code: p.code,
           name: p.name,
           description: p.description,
           status: p.status,
@@ -133,6 +148,11 @@ export class ProjectsService {
           defaultDeliveryLocation: defaultDelivery?.address ?? '',
           defaultStorageLocation: defaultStorage?.address ?? '',
           memberCount: p._count.members,
+          memberAvatars: p.members.map((m) => ({
+            id: m.user.id,
+            name: m.user.name,
+            avatarUrl: m.user.avatarUrl,
+          })),
           startDate: p.startDate?.toISOString() ?? null,
           expectedEndDate: p.expectedEndDate?.toISOString() ?? null,
           createdAt: p.createdAt.toISOString(),
@@ -186,9 +206,20 @@ export class ProjectsService {
 
     // Create project with locations and members in a transaction
     const project = await this.prisma.$transaction(async (tx) => {
+      // Generate a per-company, per-year human-readable code (e.g. PRJ-2025-001).
+      // NOTE: two simultaneous creates in the same company-year can compute the
+      // same code and collide on idx_projects_company_code (throws). Acceptable
+      // for now — codes are rare/manual enough that this is not a real hotspot.
+      const year = new Date().getFullYear();
+      const countThisYear = await tx.project.count({
+        where: { companyId: user.companyId ?? '', code: { startsWith: `PRJ-${year}-` } },
+      });
+      const code = `PRJ-${year}-${String(countThisYear + 1).padStart(3, '0')}`;
+
       const created = await tx.project.create({
         data: {
           companyId: user.companyId ?? '',
+          code,
           name: dto.name,
           description: dto.description,
           type: dto.type,
@@ -234,7 +265,18 @@ export class ProjectsService {
         locations: true,
         members: {
           include: {
-            user: { select: { id: true, name: true, email: true, role: true } },
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+                avatarUrl: true,
+                phone: true,
+                status: true,
+                workStatus: true,
+              },
+            },
             assignedBy: { select: { id: true, name: true } },
           },
         },
@@ -247,6 +289,7 @@ export class ProjectsService {
 
     return {
       id: project.id,
+      code: project.code,
       name: project.name,
       description: project.description,
       status: project.status,
@@ -263,6 +306,10 @@ export class ProjectsService {
         name: m.user.name,
         email: m.user.email,
         role: m.user.role,
+        avatarUrl: m.user.avatarUrl,
+        phone: m.user.phone,
+        status: m.user.status,
+        workStatus: m.user.workStatus,
         assignedAt: m.assignedAt.toISOString(),
         assignedBy: m.assignedBy ? { id: m.assignedBy.id, name: m.assignedBy.name } : undefined,
       })),
@@ -478,7 +525,18 @@ export class ProjectsService {
     const members = await this.prisma.projectMember.findMany({
       where: { projectId },
       include: {
-        user: { select: { id: true, name: true, email: true, role: true } },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            avatarUrl: true,
+            phone: true,
+            status: true,
+            workStatus: true,
+          },
+        },
         assignedBy: { select: { id: true, name: true } },
       },
     });
@@ -489,6 +547,10 @@ export class ProjectsService {
         name: m.user.name,
         email: m.user.email,
         role: m.user.role,
+        avatarUrl: m.user.avatarUrl,
+        phone: m.user.phone,
+        status: m.user.status,
+        workStatus: m.user.workStatus,
         assignedAt: m.assignedAt.toISOString(),
         assignedBy: m.assignedBy ? { id: m.assignedBy.id, name: m.assignedBy.name } : undefined,
       })),

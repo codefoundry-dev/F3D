@@ -17,6 +17,12 @@ export const queryKeys = {
     detail: (id: string) => [...queryKeys.materialRequests.all(), id] as const,
     audit: (id: string) => [...queryKeys.materialRequests.all(), id, 'audit'] as const,
   },
+  deliveries: {
+    all: () => ['delivery-reports'] as const,
+    list: (params?: Record<string, unknown>) =>
+      [...queryKeys.deliveries.all(), 'list', params] as const,
+    detail: (id: string) => [...queryKeys.deliveries.all(), id] as const,
+  },
   rfqs: {
     all: () => ['rfqs'] as const,
     list: (params?: Record<string, unknown>) => [...queryKeys.rfqs.all(), 'list', params] as const,

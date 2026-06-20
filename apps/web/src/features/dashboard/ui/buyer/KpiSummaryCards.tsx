@@ -1,9 +1,6 @@
 import type { KpiSummary } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import InvoiceIcon from '@forethread/ui-components/assets/icons/invoice.svg?react';
-import PurchaseOrdersIcon from '@forethread/ui-components/assets/icons/purchase-orders.svg?react';
-import RequestIcon from '@forethread/ui-components/assets/icons/request.svg?react';
-import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
+import FileTextIcon from '@forethread/ui-components/assets/icons/file-text.svg?react';
 
 interface KpiSummaryCardsProps {
   data: KpiSummary | null;
@@ -11,10 +8,10 @@ interface KpiSummaryCardsProps {
 }
 
 const cards = [
-  { key: 'rfqs' as const, label: 'kpi.rfqs', Icon: SearchIcon },
-  { key: 'pos' as const, label: 'kpi.pos', Icon: PurchaseOrdersIcon },
-  { key: 'quotes' as const, label: 'kpi.quotes', Icon: RequestIcon },
-  { key: 'invoices' as const, label: 'kpi.invoicesLabel', Icon: InvoiceIcon },
+  { key: 'rfqs' as const, label: 'kpi.rfqs' },
+  { key: 'pos' as const, label: 'kpi.pos' },
+  { key: 'quotes' as const, label: 'kpi.quotes' },
+  { key: 'invoices' as const, label: 'kpi.invoicesLabel' },
 ];
 
 export function KpiSummaryCards({ data, isLoading }: KpiSummaryCardsProps) {
@@ -24,7 +21,7 @@ export function KpiSummaryCards({ data, isLoading }: KpiSummaryCardsProps) {
     return (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {Array.from({ length: 4 }, (_, i) => (
-          <div key={i} className="h-20 animate-pulse rounded-xl bg-muted" />
+          <div key={i} className="h-[82px] animate-pulse rounded-[14px] bg-muted" />
         ))}
       </div>
     );
@@ -32,30 +29,30 @@ export function KpiSummaryCards({ data, isLoading }: KpiSummaryCardsProps) {
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      {cards.map(({ key, label, Icon }) => {
+      {cards.map(({ key, label }) => {
         const counts = data?.[key];
         return (
           <div
             key={key}
-            className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
+            className="flex items-center gap-3 rounded-[14px] border border-border bg-card px-4 py-3"
           >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-              <Icon className="h-5 w-5 text-foreground" />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent">
+              <FileTextIcon className="h-6 w-6 text-foreground" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">{t(label as never)}</p>
-              <div className="flex items-center gap-3 text-xs">
-                <span>
-                  <span className="text-base font-bold text-foreground">
+              <p className="text-sm font-medium text-foreground">{t(label as never)}</p>
+              <div className="mt-1 flex items-center gap-4">
+                <span className="flex items-baseline gap-1">
+                  <span className="text-2xl font-semibold text-foreground">
                     {counts?.pending ?? 0}
-                  </span>{' '}
-                  <span className="text-muted-foreground">{t('kpi.pending')}</span>
+                  </span>
+                  <span className="text-sm text-muted-foreground">{t('kpi.pending')}</span>
                 </span>
-                <span>
-                  <span className="text-base font-bold text-destructive">
+                <span className="flex items-baseline gap-1">
+                  <span className="text-2xl font-semibold text-foreground">
                     {counts?.overdue ?? 0}
-                  </span>{' '}
-                  <span className="text-muted-foreground">{t('kpi.overdue')}</span>
+                  </span>
+                  <span className="text-sm text-muted-foreground">{t('kpi.overdue')}</span>
                 </span>
               </div>
             </div>

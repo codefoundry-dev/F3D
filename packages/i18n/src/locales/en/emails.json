@@ -138,5 +138,14 @@
     "heading": "A user you invited tried to activate their account, but the invitation link has expired.",
     "body": "{{invitedUserName}} ({{invitedUserEmail}}) attempted to use their invitation link, which is no longer valid. Please resend the invitation from the user management panel.",
     "action": "You can resend the invitation by navigating to the Users page and selecting \"Reset Invitation\" for this user."
+  },
+  "deliveryCode": {
+    "subject": "Forethread — Your Delivery Confirmation Code ({{poNumber}})",
+    "greeting": "Hi there,",
+    "heading": "Confirm a delivery for purchase order {{poNumber}}.",
+    "body": "Use this one-time code to confirm the delivery:",
+    "expiry": "This code expires in <strong>{{expiresMinutes}} minutes</strong>.",
+    "ignore": "If you did not request this code, you can safely ignore this email.",
+    "plainText": "Your delivery confirmation code for purchase order {{poNumber}} is: {{code}}\n\nThis code expires in {{expiresMinutes}} minutes.\n\nIf you did not request this code, you can safely ignore this email."
   }
 }

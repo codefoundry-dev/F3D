@@ -19,7 +19,8 @@
     "showing": "Showing {{from}} to {{to}} of {{total}} BOMs",
     "back": "Back",
     "next": "Next",
-    "viewBom": "View BOM line items",
+    "viewBom": "View BOM",
+    "editBom": "Edit BOM",
     "loadFailed": "Could not load BOMs for this project."
   },
   "viewModal": {
@@ -36,6 +37,27 @@
     },
     "manual": "Manual",
     "close": "Close"
+  },
+  "detail": {
+    "subtitle": "Bill of materials line items",
+    "edit": "Edit",
+    "back": "Back to project",
+    "loading": "Loading BOM…",
+    "notFound": "This BOM could not be found."
+  },
+  "edit": {
+    "title": "Edit BOM",
+    "subtitle": "Update line items and catalogue matches",
+    "banner": "Changes won’t affect existing RFQs, POs or invoices",
+    "back": "Back to BOM",
+    "cancel": "Cancel",
+    "save": "Save changes",
+    "saving": "Saving…",
+    "matchItemsFirst": "Match items first",
+    "loading": "Loading BOM…",
+    "notFound": "This BOM could not be found.",
+    "saveSuccess": "BOM updated.",
+    "saveError": "Could not update the BOM. Please try again."
   },
   "create": {
     "stepLabel1": "Upload File",

@@ -1,12 +1,15 @@
 import { UserRole } from '@forethread/shared-types/client';
 import type { SidebarNavItem } from '@forethread/ui-components';
 import BulkOrdersIcon from '@forethread/ui-components/assets/icons/bulk-orders.svg?react';
+import AdminPanelIcon from '@forethread/ui-components/assets/icons/dashboard.svg?react';
 import InvoiceIcon from '@forethread/ui-components/assets/icons/invoice.svg?react';
 import MaterialCatalogueIcon from '@forethread/ui-components/assets/icons/material-catalogue.svg?react';
+import DeliveriesIcon from '@forethread/ui-components/assets/icons/package.svg?react';
 import ProjectsIcon from '@forethread/ui-components/assets/icons/projects.svg?react';
 import PurchaseOrdersIcon from '@forethread/ui-components/assets/icons/purchase-orders.svg?react';
 import RequestIcon from '@forethread/ui-components/assets/icons/request.svg?react';
 import SettingsIcon from '@forethread/ui-components/assets/icons/settings.svg?react';
+import UsersManagementIcon from '@forethread/ui-components/assets/icons/users-group.svg?react';
 import VendorsIcon from '@forethread/ui-components/assets/icons/vendors.svg?react';
 
 import { ROUTES } from '@/app/route-config';
@@ -31,6 +34,8 @@ const ALL_INTERNAL: readonly UserRole[] = [
   UserRole.FOREMAN,
 ];
 
+const SUPER_ADMIN_ONLY: readonly UserRole[] = [UserRole.SUPER_ADMIN];
+
 const BUYER_SIDE: readonly UserRole[] = [UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER];
 
 // Material catalogue is owned by the super-admin (public catalogue + approvals)
@@ -40,6 +45,13 @@ const CATALOGUE_VIEWERS: readonly UserRole[] = [UserRole.SUPER_ADMIN, ...BUYER_S
 const RFQ_VIEWERS: readonly UserRole[] = [...BUYER_SIDE, UserRole.VENDOR];
 const PO_VIEWERS = RFQ_VIEWERS;
 const BULK_VIEWERS = RFQ_VIEWERS;
+
+// Deliveries (Epic 6): buyer roles + Warehouse + Finance.
+const DELIVERY_VIEWERS: readonly UserRole[] = [
+  ...BUYER_SIDE,
+  UserRole.WAREHOUSE_OFFICER,
+  UserRole.FINANCIAL_OFFICER,
+];
 
 // Material requests are raised by the Foreman and also visible to the
 // Warehouse officer + buyer roles that hold materialRequest.list/create.
@@ -63,55 +75,74 @@ export function getSidebarItemsForRole(
 
   const items: RoleAwareSidebarItem[] = [
     {
-      icon: <ProjectsIcon className="w-5 h-5" />,
+      icon: <AdminPanelIcon className="w-6 h-6" />,
+      label: labels.adminPanel,
+      href: ROUTES.adminPanel,
+      roles: SUPER_ADMIN_ONLY,
+    },
+    {
+      icon: <UsersManagementIcon className="w-6 h-6" />,
+      label: labels.usersManagement,
+      href: ROUTES.users,
+      roles: SUPER_ADMIN_ONLY,
+      matchPathname: (p) => p === ROUTES.users || p.startsWith(ROUTES.users + '/'),
+    },
+    {
+      icon: <ProjectsIcon className="w-6 h-6" />,
       label: labels.projects,
       href: ROUTES.projects,
       roles: BUYER_SIDE,
     },
     {
-      icon: <RequestIcon className="w-5 h-5" />,
+      icon: <RequestIcon className="w-6 h-6" />,
       label: labels.materialRequests,
       href: ROUTES.materialRequests,
       roles: MATERIAL_REQUEST_VIEWERS,
     },
     {
-      icon: <RequestIcon className="w-5 h-5" />,
+      icon: <RequestIcon className="w-6 h-6" />,
       label: labels.rfqs,
       href: ROUTES.rfqs,
       roles: RFQ_VIEWERS,
     },
     {
-      icon: <PurchaseOrdersIcon className="w-5 h-5" />,
+      icon: <PurchaseOrdersIcon className="w-6 h-6" />,
       label: labels.purchaseOrders,
       href: ROUTES.purchaseOrders,
       roles: PO_VIEWERS,
     },
     {
-      icon: <BulkOrdersIcon className="w-5 h-5" />,
+      icon: <BulkOrdersIcon className="w-6 h-6" />,
       label: labels.bulkOrders,
       href: ROUTES.bulkOrders,
       roles: BULK_VIEWERS,
     },
     {
-      icon: <InvoiceIcon className="w-5 h-5" />,
+      icon: <DeliveriesIcon className="w-6 h-6" />,
+      label: labels.deliveries,
+      href: ROUTES.deliveries,
+      roles: DELIVERY_VIEWERS,
+    },
+    {
+      icon: <InvoiceIcon className="w-6 h-6" />,
       label: labels.invoices,
       href: ROUTES.invoices,
       roles: INVOICE_VIEWERS,
     },
     {
-      icon: <VendorsIcon className="w-5 h-5" />,
+      icon: <VendorsIcon className="w-6 h-6" />,
       label: labels.vendors,
       href: ROUTES.vendors,
       roles: BUYER_SIDE,
     },
     {
-      icon: <MaterialCatalogueIcon className="w-5 h-5" />,
+      icon: <MaterialCatalogueIcon className="w-6 h-6" />,
       label: labels.materialCatalogue,
       href: ROUTES.materialCatalogue,
       roles: CATALOGUE_VIEWERS,
     },
     {
-      icon: <SettingsIcon className="w-5 h-5" />,
+      icon: <SettingsIcon className="w-6 h-6" />,
       label: labels.settings,
       href: ROUTES.settings,
       roles: [...ALL_INTERNAL, UserRole.VENDOR],

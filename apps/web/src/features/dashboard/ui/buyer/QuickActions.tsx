@@ -8,37 +8,38 @@ import {
   bulkOrderToFormDefaults,
 } from '@forethread/po-shared';
 import { Button, useDropdown } from '@forethread/ui-components';
-import PurchaseOrdersIcon from '@forethread/ui-components/assets/icons/purchase-orders.svg?react';
-import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
+import CartIcon from '@forethread/ui-components/assets/icons/cart.svg?react';
+import FileTextIcon from '@forethread/ui-components/assets/icons/file-text.svg?react';
+import NewUserIcon from '@forethread/ui-components/assets/icons/new-user.svg?react';
+import ReportIcon from '@forethread/ui-components/assets/icons/report.svg?react';
 import UploadIcon from '@forethread/ui-components/assets/icons/upload.svg?react';
-import VendorsIcon from '@forethread/ui-components/assets/icons/vendors.svg?react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 
-const quickActionBtn = 'border-foreground bg-background text-foreground rounded-xl';
+const quickActionBtn = 'border-border bg-background text-foreground rounded-xl justify-center';
 
 export function QuickActions() {
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
 
   return (
-    <div>
+    <div className="rounded-[14px] border border-border bg-card px-4 py-4">
       <h2 className="mb-3 text-base font-semibold text-foreground">{t('quickActions.title')}</h2>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <CreatePoDropdown
           label={t('quickActions.createPo')}
-          icon={<PurchaseOrdersIcon className="w-4 h-4" />}
+          icon={<CartIcon className="w-[18px] h-[18px]" />}
         />
         <CreateRfqDropdown
           label={t('quickActions.createRfq')}
-          icon={<SearchIcon className="w-4 h-4" />}
+          icon={<FileTextIcon className="w-[18px] h-[18px]" />}
         />
         <Button
           variant="outline"
           size="md"
-          leftIcon={<VendorsIcon className="w-4 h-4" />}
+          leftIcon={<NewUserIcon className="w-[18px] h-[18px]" />}
           onClick={() => navigate(ROUTES.vendorNew)}
           className={`w-full ${quickActionBtn}`}
         >
@@ -47,11 +48,20 @@ export function QuickActions() {
         <Button
           variant="outline"
           size="md"
-          leftIcon={<UploadIcon className="w-4 h-4" />}
+          leftIcon={<UploadIcon className="w-[18px] h-[18px]" />}
           onClick={() => navigate(ROUTES.invoiceUpload)}
           className={`w-full ${quickActionBtn}`}
         >
           {t('quickActions.uploadInvoice')}
+        </Button>
+        <Button
+          variant="outline"
+          size="md"
+          leftIcon={<ReportIcon className="w-[18px] h-[18px]" />}
+          onClick={() => navigate(ROUTES.deliveries)}
+          className={`w-full ${quickActionBtn}`}
+        >
+          {t('quickActions.deliveryReport')}
         </Button>
       </div>
     </div>

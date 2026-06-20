@@ -1,8 +1,10 @@
 import type { UserResponse } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { UserStatus } from '@forethread/shared-types/client';
 import {
   cn,
+  Badge,
   Button,
   Spinner,
   TablePagination,
@@ -14,36 +16,29 @@ import {
   FilterDropdownButton,
   DateRangeFilterDropdown,
   notificationService,
+  NEUTRAL_STATUS_COLOR,
   type DotAction,
 } from '@forethread/ui-components';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
-import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import NewUserIcon from '@forethread/ui-components/assets/icons/new-user.svg?react';
 import { VendorInviteSuccessModal } from '@forethread/vendor-shared';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+import { ROUTES } from '@/app/route-config';
 
 import { useVendorUserSort, type SortField } from '../hooks/useVendorUserSort';
 import {
   useVendorUsers,
-  useDeactivateVendorUser,
-  useReactivateVendorUser,
   useResendVendorUserInvitation,
   useCancelVendorUserInvitation,
 } from '../services/vendor-users.service';
 import { useVendorUsersStore } from '../state/vendor-users.store';
 
-import { EditVendorUserModal } from './EditVendorUserModal';
 import { InviteVendorUserModal } from './InviteVendorUserModal';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
-
-const STATUS_TEXT_COLORS: Record<string, string> = {
-  ACTIVE: 'text-success',
-  INACTIVE: 'text-muted-foreground',
-  INVITED: 'text-warning',
-};
 
 const STATUS_FILTER_OPTIONS = [
   { value: 'ACTIVE', label: 'Active' },
@@ -62,6 +57,7 @@ function formatDate(dateStr: string): string {
 export default function VendorUserListPage() {
   const { t } = useTranslation(['vendorUsers', 'common']);
   const navigate = useNavigate();
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [search, setSearch] = useState('');
@@ -77,9 +73,6 @@ export default function VendorUserListPage() {
     isSuccessModalOpen,
     invitedUserEmail,
     closeSuccessModal,
-    isEditModalOpen,
-    openEditModal,
-    closeEditModal,
     isStatusActionModalOpen,
     statusActionType,
     statusActionUserId,
@@ -88,10 +81,15 @@ export default function VendorUserListPage() {
     closeStatusActionModal,
   } = useVendorUsersStore();
 
-  const deactivateMutation = useDeactivateVendorUser();
-  const reactivateMutation = useReactivateVendorUser();
   const resendMutation = useResendVendorUserInvitation();
   const cancelInvitationMutation = useCancelVendorUserInvitation();
+
+  // Surface the page title in the global app header (per Figma every screen
+  // shows its title there). Back-arrow returns to Settings. (US 3.10)
+  useEffect(() => {
+    setPageTitle(t('title'), null, ROUTES.settings);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
 
   const { data, isLoading, isError } = useVendorUsers({
     page,
@@ -138,49 +136,25 @@ export default function VendorUserListPage() {
           notificationService.success(t('cancelInvitationSuccess'));
         },
       });
-      return;
     }
-    const mutation = statusActionType === 'deactivate' ? deactivateMutation : reactivateMutation;
-    mutation.mutate(statusActionUserId, {
-      onSuccess: () => {
-        closeStatusActionModal();
-      },
-    });
   };
 
+  // Vendors can only manage invitations (resend / cancel) on pending invites —
+  // they cannot edit or deactivate users. Mirrors VendorUserDetailPage. (US 3.10)
   const getRowActions = (user: UserResponse): DotAction[] => {
-    if (user.status === UserStatus.INVITED) {
-      return [
-        {
-          key: 'resendInvitation',
-          label: t('actions.resendInvitation'),
-          onClick: () => openStatusActionModal('resendInvitation', user.id, user.email),
-        },
-        {
-          key: 'cancelInvitation',
-          label: t('actions.cancelInvitation'),
-          onClick: () => openStatusActionModal('cancelInvitation', user.id, user.email),
-        },
-      ];
-    }
-
-    const actions: DotAction[] = [];
-
-    if (user.status === UserStatus.INACTIVE) {
-      actions.push({
-        key: 'activate',
-        label: t('actions.activateUser'),
-        onClick: () => openStatusActionModal('activate', user.id, user.email),
-      });
-    } else {
-      actions.push({
-        key: 'deactivate',
-        label: t('actions.deactivateUser'),
-        onClick: () => openStatusActionModal('deactivate', user.id, user.email),
-      });
-    }
-
-    return actions;
+    if (user.status !== UserStatus.INVITED) return [];
+    return [
+      {
+        key: 'resendInvitation',
+        label: t('actions.resendInvitation'),
+        onClick: () => openStatusActionModal('resendInvitation', user.id, user.email),
+      },
+      {
+        key: 'cancelInvitation',
+        label: t('actions.cancelInvitation'),
+        onClick: () => openStatusActionModal('cancelInvitation', user.id, user.email),
+      },
+    ];
   };
 
   const sortableColumns: { field: SortField; label: string; className?: string }[] = [
@@ -263,7 +237,7 @@ export default function VendorUserListPage() {
             <div className="border border-border rounded-lg overflow-x-auto">
               <table className="w-full text-sm table-fixed min-w-[800px]">
                 <thead>
-                  <tr className="border-b border-border bg-[hsl(var(--table-header))] font-['Inter'] text-[hsl(var(--table-header-foreground))]">
+                  <tr className="border-b border-border bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
                     {sortableColumns.map((col) => (
                       <th
                         key={col.field}
@@ -315,55 +289,44 @@ export default function VendorUserListPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {data.items.map((user) => (
-                    <tr key={user.id} className="hover:bg-accent/50 transition-colors">
-                      <td className="px-6 py-4 text-foreground">{user.name}</td>
-                      <td
-                        className="px-4 py-4 text-muted-foreground truncate max-w-0"
-                        title={user.email}
-                      >
-                        {user.email}
-                      </td>
-                      <td className="px-4 py-4 text-muted-foreground">{user.phone ?? '—'}</td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={cn(
-                            'text-sm',
-                            STATUS_TEXT_COLORS[user.status] ?? 'text-muted-foreground',
-                          )}
+                  {data.items.map((user) => {
+                    const rowActions = getRowActions(user);
+                    return (
+                      <tr key={user.id} className="hover:bg-accent/50 transition-colors">
+                        <td className="px-6 py-4 text-foreground">{user.name}</td>
+                        <td
+                          className="px-4 py-4 text-muted-foreground truncate max-w-0"
+                          title={user.email}
                         >
-                          {t(`statuses.${user.status}` as 'statuses.ACTIVE')}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-muted-foreground">
-                        {formatDate(user.createdAt)}
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            type="button"
-                            className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                            aria-label="View"
-                            onClick={() => navigate(`/users/${user.id}`)}
-                          >
-                            <EyeIcon className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                            aria-label="Edit"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openEditModal(user.id);
-                            }}
-                          >
-                            <EditIcon className="w-4 h-4" />
-                          </button>
-                          <DotActionsMenu actions={getRowActions(user)} bordered={false} />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                          {user.email}
+                        </td>
+                        <td className="px-4 py-4 text-muted-foreground">{user.phone ?? '—'}</td>
+                        <td className="px-4 py-4">
+                          <Badge className={NEUTRAL_STATUS_COLOR}>
+                            {t(`statuses.${user.status}` as 'statuses.ACTIVE')}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-4 text-muted-foreground">
+                          {formatDate(user.createdAt)}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                              aria-label="View"
+                              onClick={() => navigate(`/users/${user.id}`)}
+                            >
+                              <EyeIcon className="w-4 h-4" />
+                            </button>
+                            {rowActions.length > 0 && (
+                              <DotActionsMenu actions={rowActions} bordered={false} />
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -399,42 +362,32 @@ export default function VendorUserListPage() {
           labels={successLabels}
         />
       )}
-      {isEditModalOpen && <EditVendorUserModal onClose={closeEditModal} />}
-
       {isStatusActionModalOpen && statusActionType && (
         <StatusActionModal
           onClose={closeStatusActionModal}
           onConfirm={handleStatusAction}
           isLoading={
-            statusActionType === 'deactivate'
-              ? deactivateMutation.isPending
-              : statusActionType === 'resendInvitation'
-                ? resendMutation.isPending
-                : statusActionType === 'cancelInvitation'
-                  ? cancelInvitationMutation.isPending
-                  : reactivateMutation.isPending
+            statusActionType === 'cancelInvitation'
+              ? cancelInvitationMutation.isPending
+              : resendMutation.isPending
           }
-          title={t(`${statusActionType}Modal.title` as 'activateModal.title')}
-          subtitle={t(`${statusActionType}Modal.subtitle` as 'activateModal.subtitle')}
+          title={t(`${statusActionType}Modal.title` as 'cancelInvitationModal.title')}
+          subtitle={t(`${statusActionType}Modal.subtitle` as 'cancelInvitationModal.subtitle')}
           infoText={
             <span
               dangerouslySetInnerHTML={{
-                __html: t(`${statusActionType}Modal.info` as 'activateModal.info', {
+                __html: t(`${statusActionType}Modal.info` as 'cancelInvitationModal.info', {
                   email: statusActionUserEmail ?? '',
                   interpolation: { escapeValue: false },
                 }),
               }}
             />
           }
-          confirmLabel={t(`${statusActionType}Modal.confirm` as 'activateModal.confirm')}
+          confirmLabel={t(`${statusActionType}Modal.confirm` as 'cancelInvitationModal.confirm')}
           cancelLabel={t('common:cancel')}
-          variant={
-            statusActionType === 'deactivate' || statusActionType === 'cancelInvitation'
-              ? 'danger'
-              : 'default'
-          }
+          variant={statusActionType === 'cancelInvitation' ? 'danger' : 'default'}
           icon={
-            statusActionType === 'deactivate' || statusActionType === 'cancelInvitation' ? (
+            statusActionType === 'cancelInvitation' ? (
               <CrossInCircleIcon className="w-6 h-6 text-foreground" />
             ) : undefined
           }

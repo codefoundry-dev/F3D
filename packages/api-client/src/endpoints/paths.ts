@@ -154,6 +154,33 @@ export const PURCHASE_ORDERS_PATHS = {
   emails: (poId: string) => `/purchase-orders/${poId}/emails`,
 } as const;
 
+// ── Delivery Reports (Epic 6 — Delivery) ──────────────────────────────────────
+export const DELIVERY_PATHS = {
+  ROOT: '/delivery-reports',
+  byId: (id: string) => `/delivery-reports/${id}`,
+  approve: (id: string) => `/delivery-reports/${id}/approve`,
+  reject: (id: string) => `/delivery-reports/${id}/reject`,
+  attachments: (id: string) => `/delivery-reports/${id}/attachments`,
+  attachment: (id: string, attId: string) => `/delivery-reports/${id}/attachments/${attId}`,
+  linePhotos: (id: string, lineId: string) =>
+    `/delivery-reports/${id}/lines/${lineId}/photos`,
+  linePhoto: (id: string, lineId: string, photoId: string) =>
+    `/delivery-reports/${id}/lines/${lineId}/photos/${photoId}`,
+  // PO → delivery link (QR code, screenshot 09).
+  poDeliveryLink: (poId: string) => `/purchase-orders/${poId}/delivery-link`,
+} as const;
+
+// ── Delivery Portal (Epic 6 — public QR flow, X-Access-Token) ──────────────────
+export const DELIVERY_PORTAL_PATHS = {
+  po: '/delivery-portal/po',
+  identify: '/delivery-portal/identify',
+  verify: '/delivery-portal/verify',
+  submit: '/delivery-portal/submit',
+  linePhotos: (lineId: string) => `/delivery-portal/lines/${lineId}/photos`,
+  attachments: '/delivery-portal/attachments',
+  finalize: '/delivery-portal/finalize',
+} as const;
+
 // ── Material Requests (Epic 6) ────────────────────────────────────────────────
 export const MATERIAL_REQUESTS_PATHS = {
   ROOT: '/material-requests',

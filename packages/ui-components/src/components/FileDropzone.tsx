@@ -51,8 +51,8 @@ export function FileDropzone({
   return (
     <div
       className={cn(
-        'border border-dashed rounded-xl p-6 text-center transition-colors',
-        isDragOver ? 'border-primary bg-primary/5' : 'border-border',
+        'rounded-[12px] border border-dashed p-6 text-center transition-colors',
+        isDragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-200',
         className,
       )}
       onDragOver={(e) => {

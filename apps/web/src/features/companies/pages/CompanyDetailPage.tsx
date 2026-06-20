@@ -6,6 +6,7 @@ import {
   type UpdateCompanyDto,
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { CompanyType, UserStatus } from '@forethread/shared-types/client';
 import {
   cn,
@@ -20,8 +21,10 @@ import {
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
 import EnvelopeIcon from '@forethread/ui-components/assets/icons/envelope-simple.svg?react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
+
+import { ROUTES } from '@/app/route-config';
 
 import { useCompany } from '../services/companies.service';
 import { CompanyUsersTab } from '../ui/CompanyUsersTab';
@@ -33,7 +36,15 @@ type Tab = 'overview' | 'companyUsers' | 'documents';
 export default function CompanyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation(['company', 'common', 'users']);
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
   const { data: company, isLoading } = useCompany(id ?? '');
+
+  // Surface the page title + subtitle in the global app header; the back-arrow
+  // returns to the companies list (matches Figma — every screen titles itself).
+  useEffect(() => {
+    setPageTitle(t('detailPageTitle'), t('detailPageSubtitle'), ROUTES.companies);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
   const [searchParams, setSearchParams] = useSearchParams();
   const validTabs: Tab[] = ['overview', 'companyUsers', 'documents'];
   const tabParam = searchParams.get('tab') as Tab | null;
@@ -177,24 +188,21 @@ export default function CompanyDetailPage() {
 
   return (
     <div className="p-6">
-      {/* Tabs */}
-      <div className="flex gap-0 border-b border-border px-2">
+      {/* Tabs (18px pattern, matches the user-management boards) */}
+      <div className="flex items-start border-b border-[#D2D5DB]">
         {tabs.map((tab) => (
           <button
             key={tab.key}
             type="button"
             onClick={() => setActiveTab(tab.key)}
             className={cn(
-              'px-4 py-3 text-sm font-medium transition-colors relative',
+              '-mb-px border-b-2 p-3 text-lg font-medium leading-4 transition-colors',
               activeTab === tab.key
-                ? 'text-foreground'
-                : 'text-muted-foreground hover:text-foreground',
+                ? 'border-foreground text-foreground'
+                : 'border-transparent text-[#6D7588] hover:text-foreground',
             )}
           >
             {tab.label}
-            {activeTab === tab.key && (
-              <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-foreground" />
-            )}
           </button>
         ))}
       </div>
@@ -208,18 +216,18 @@ export default function CompanyDetailPage() {
               <img
                 src={company.logoUrl}
                 alt={company.legalName}
-                className="w-14 h-14 rounded-full object-cover"
+                className="w-20 h-20 rounded-full object-cover"
               />
             ) : (
-              <div className="w-14 h-14 rounded-full bg-muted text-foreground flex items-center justify-center font-semibold text-lg">
+              <div className="w-20 h-20 rounded-full bg-muted text-foreground flex items-center justify-center font-semibold text-2xl">
                 {initials}
               </div>
             )}
 
             <div className="flex-1 min-w-0">
-              <h2 className="text-lg font-semibold text-foreground">{company.legalName}</h2>
+              <h2 className="text-2xl font-semibold text-foreground">{company.legalName}</h2>
               {company.contactEmail && (
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-0.5">
+                <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
                   <EnvelopeIcon className="w-4 h-4" />
                   <span>{company.contactEmail}</span>
                 </div>
@@ -246,7 +254,7 @@ export default function CompanyDetailPage() {
           </div>
         </div>
 
-        <hr className="border-border mx-6" />
+        <hr className="border-border" />
 
         {/* Error alert */}
         {updateMutation.isError && (

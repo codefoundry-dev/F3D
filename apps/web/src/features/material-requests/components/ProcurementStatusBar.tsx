@@ -3,7 +3,7 @@ import CheckmarkIcon from '@forethread/ui-components/assets/icons/checkmark.svg?
 
 /**
  * Horizontal procurement-status timeline on Job Overview (Figma 2002:176 frame
- * 14:4 — "StatusBar"). Completed stages render filled (#DADADA chip, check
+ * 14:4 — "StatusBar"). Completed stages render filled (#D2D5DB chip, check
  * icon); the remaining stages render on a white chip with a hollow marker. The
  * row scrolls horizontally on narrow screens, matching the design annotation
  * "Horizontal scroll".
@@ -22,7 +22,7 @@ export function ProcurementStatusBar({ stages }: ProcurementStatusBarProps) {
   const { t } = useTranslation('materialRequests');
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-base text-[#171717]">{t('jobOverview.procurementStatus')}</p>
+      <p className="text-base text-[#1B1D22]">{t('jobOverview.procurementStatus')}</p>
       <div className="-mx-4 overflow-x-auto px-4 pb-1">
         <div className="flex w-max gap-1.5">
           {stages.map((stage) => (
@@ -30,14 +30,14 @@ export function ProcurementStatusBar({ stages }: ProcurementStatusBarProps) {
               key={stage.key}
               className={`flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-xs ${
                 stage.done
-                  ? 'bg-[#DADADA] text-[#222222]'
-                  : 'bg-white text-[#737373] ring-1 ring-inset ring-[#E5E5E5]'
+                  ? 'bg-[#D2D5DB] text-[#222222]'
+                  : 'bg-white text-[#6D7588] ring-1 ring-inset ring-[#E8EAED]'
               }`}
             >
               {stage.done ? (
                 <CheckmarkIcon className="h-3 w-3" />
               ) : (
-                <span className="h-2.5 w-2.5 rounded-full border border-[#A3A3A3]" />
+                <span className="h-2.5 w-2.5 rounded-full border border-[#999FAD]" />
               )}
               {stage.label}
             </span>

@@ -1,10 +1,11 @@
 import type { RfqAvailabilityResult } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Button, Spinner, cn } from '@forethread/ui-components';
+import { Spinner, cn } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import { useMemo } from 'react';
 
+import { TABLE_BODY_ROW, TABLE_HEADER_ROW, TABLE_TH } from './tableStyles';
 import type { WizardLineItem } from './wizard-types';
 
 /** One coverage allocation: a line item drawn from one vendor's bulk order. */
@@ -75,8 +76,8 @@ export function remainingQty(item: WizardLineItem, allocations: AllocationMap): 
  * Step 3 — "Check Availability" (Figma 5.05): requested vs bulk-order coverage.
  * The first five columns are read-only ("all cells till this are lock"); each
  * BO-vendor cell offers Cover / Cancel with an adjustable covered qty
- * ("Can change qty/or cover\ignore"), plus per-vendor cover-all checkboxes and
- * the global "Cover all" action.
+ * ("Can change qty/or cover\ignore"), plus a per-vendor (column) header
+ * checkbox that covers every line that vendor can serve.
  */
 export function StepAvailability({
   items,
@@ -156,30 +157,6 @@ export function StepAvailability({
     onAllocationsChange(next);
   };
 
-  /** "Cover all": greedily cover every line from the vendor columns, left to right. */
-  const coverAll = () => {
-    const next: AllocationMap = new Map();
-    items.forEach((item, itemIndex) => {
-      const byVendor = new Map<string, CoverageAllocation>();
-      let remaining = item.quantity;
-      for (const vendor of vendors) {
-        if (remaining <= 0) break;
-        const match = matchIndex.get(itemIndex)?.get(vendor.vendorId);
-        if (!match || match.qtyRemaining <= 0) continue;
-        const quantity = Math.min(match.qtyRemaining, remaining);
-        byVendor.set(vendor.vendorId, {
-          lineKey: item.key,
-          vendorId: vendor.vendorId,
-          bulkOrderLineItemId: match.bulkOrderLineItemId,
-          quantity,
-        });
-        remaining -= quantity;
-      }
-      if (byVendor.size > 0) next.set(item.key, byVendor);
-    });
-    onAllocationsChange(next);
-  };
-
   const vendorFullyCovers = (vendorId: string) =>
     items.length > 0 &&
     items.every((item, itemIndex) => {
@@ -188,9 +165,7 @@ export function StepAvailability({
       return Boolean(allocations.get(item.key)?.get(vendorId));
     });
 
-  const coveredLineCount = items.filter((item) => (allocations.get(item.key)?.size ?? 0) > 0).length;
   const totalQty = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
-  const anyCoverage = vendors.length > 0;
 
   if (isLoading) {
     return (
@@ -203,39 +178,29 @@ export function StepAvailability({
 
   return (
     <div className="space-y-3">
-      {anyCoverage && (
-        <div className="flex items-center justify-between">
-          <p className="text-base font-semibold text-foreground" data-testid="covered-count">
-            {coveredLineCount > 0
-              ? t('create.availability.lineItemsSelected', { count: coveredLineCount })
-              : ' '}
-          </p>
-          <Button type="button" size="md" onClick={coverAll} data-testid="cover-all">
-            {t('create.availability.coverAll')}
-          </Button>
-        </div>
-      )}
-
       <div className="rounded-lg border border-border overflow-x-auto bg-card">
         <table className="w-full text-sm min-w-[1000px]" data-testid="availability-table">
           <thead>
-            <tr className="text-left text-xs text-muted-foreground bg-muted/40">
-              <th className="font-medium py-2.5 px-3">{t('create.availability.colLineItemId')}</th>
-              <th className="font-medium py-2.5 px-3">{t('create.availability.colMaterialName')}</th>
-              <th className="font-medium py-2.5 px-3">{t('create.availability.colUom')}</th>
-              <th className="font-medium py-2.5 px-3">{t('create.availability.colRequestedQty')}</th>
-              <th className="font-medium py-2.5 px-3">{t('create.availability.colRemainingQty')}</th>
+            <tr className={TABLE_HEADER_ROW}>
+              <th className={TABLE_TH}>{t('create.availability.colLineItemId')}</th>
+              <th className={TABLE_TH}>{t('create.availability.colMaterialName')}</th>
+              <th className={TABLE_TH}>{t('create.availability.colUom')}</th>
+              <th className={TABLE_TH}>{t('create.availability.colRequestedQty')}</th>
+              <th className={TABLE_TH}>{t('create.availability.colRemainingQty')}</th>
               {vendors.map((vendor) => {
                 const expirations = items
-                  .map((_, itemIndex) => matchIndex.get(itemIndex)?.get(vendor.vendorId)?.expirationDate)
+                  .map(
+                    (_, itemIndex) =>
+                      matchIndex.get(itemIndex)?.get(vendor.vendorId)?.expirationDate,
+                  )
                   .filter(Boolean) as string[];
                 const earliest = expirations.sort()[0];
                 return (
-                  <th key={vendor.vendorId} className="font-medium py-2 px-3 min-w-[170px]">
+                  <th key={vendor.vendorId} className={cn(TABLE_TH, 'min-w-[170px]')}>
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="text-foreground">{vendor.vendorName}</div>
-                        <div className="font-normal">
+                        <div className="font-normal text-muted-foreground">
                           {earliest
                             ? formatDate(earliest)
                             : t('create.availability.expirationDate')}
@@ -256,7 +221,7 @@ export function StepAvailability({
                 );
               })}
               {vendors.length === 0 && (
-                <th className="font-medium py-2.5 px-3">{t('create.availability.colCoverage')}</th>
+                <th className={TABLE_TH}>{t('create.availability.colCoverage')}</th>
               )}
             </tr>
           </thead>
@@ -264,11 +229,15 @@ export function StepAvailability({
             {items.map((item, itemIndex) => {
               const remaining = remainingQty(item, allocations);
               return (
-                <tr key={item.key} className="border-t border-border" data-testid={`availability-row-${item.key}`}>
+                <tr
+                  key={item.key}
+                  className={TABLE_BODY_ROW}
+                  data-testid={`availability-row-${item.key}`}
+                >
                   <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">
                     {item.serverId ? item.serverId.slice(0, 8).toUpperCase() : '—'}
                   </td>
-                  <td className="py-2.5 px-3 font-medium text-foreground">{item.materialName}</td>
+                  <td className="py-2.5 px-3 text-foreground">{item.materialName}</td>
                   <td className="py-2.5 px-3 text-muted-foreground">{item.uom}</td>
                   <td className="py-2.5 px-3">{item.quantity}</td>
                   <td className="py-2.5 px-3" data-testid={`remaining-${item.key}`}>
@@ -326,9 +295,7 @@ export function StepAvailability({
                             disabled={remaining <= 0}
                             className={cn(
                               'flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-foreground border border-border rounded-full transition-colors',
-                              remaining <= 0
-                                ? 'opacity-40 cursor-not-allowed'
-                                : 'hover:bg-accent',
+                              remaining <= 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-accent',
                             )}
                             data-testid={`cover-${item.key}-${vendor.vendorId}`}
                           >

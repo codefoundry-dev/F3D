@@ -30,7 +30,7 @@ describe('BulkOrderDetailPage', () => {
     render(<BulkOrderDetailPage />);
     const el = screen.getByTestId('shared-detail');
     expect(el).toBeInTheDocument();
-    expect(el).toHaveAttribute('data-counterparty-label', 'detail.contractor');
+    expect(el).toHaveAttribute('data-counterparty-label', 'detail.contractorName');
   });
 
   it('hides drawdown for vendor', () => {

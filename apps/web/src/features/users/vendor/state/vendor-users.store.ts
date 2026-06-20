@@ -7,8 +7,6 @@ interface VendorUsersState {
   isSuccessModalOpen: boolean;
   invitedUserEmail: string | null;
   isUserExistsModalOpen: boolean;
-  isEditModalOpen: boolean;
-  editUserId: string | null;
   isStatusActionModalOpen: boolean;
   statusActionType: StatusAction | null;
   statusActionUserId: string | null;
@@ -19,8 +17,6 @@ interface VendorUsersState {
   closeSuccessModal: () => void;
   openUserExistsModal: () => void;
   closeUserExistsModal: () => void;
-  openEditModal: (userId: string) => void;
-  closeEditModal: () => void;
   openStatusActionModal: (type: StatusAction, userId: string, email: string) => void;
   closeStatusActionModal: () => void;
 }
@@ -30,8 +26,6 @@ export const useVendorUsersStore = create<VendorUsersState>((set) => ({
   isSuccessModalOpen: false,
   invitedUserEmail: null,
   isUserExistsModalOpen: false,
-  isEditModalOpen: false,
-  editUserId: null,
   isStatusActionModalOpen: false,
   statusActionType: null,
   statusActionUserId: null,
@@ -44,9 +38,6 @@ export const useVendorUsersStore = create<VendorUsersState>((set) => ({
 
   openUserExistsModal: () => set({ isUserExistsModalOpen: true }),
   closeUserExistsModal: () => set({ isUserExistsModalOpen: false }),
-
-  openEditModal: (userId) => set({ isEditModalOpen: true, editUserId: userId }),
-  closeEditModal: () => set({ isEditModalOpen: false, editUserId: null }),
 
   openStatusActionModal: (type, userId, email) =>
     set({

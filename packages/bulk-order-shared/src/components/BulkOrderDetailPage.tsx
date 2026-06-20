@@ -1,7 +1,6 @@
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { Button, Spinner, Alert, formatDate, notificationService } from '@forethread/ui-components';
-import CalendarIcon from '@forethread/ui-components/assets/icons/date.svg?react';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock-icon.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit-without-line.svg?react';
 import LetterIcon from '@forethread/ui-components/assets/icons/letter.svg?react';
@@ -16,11 +15,9 @@ import { useBulkOrder, useChangeRequests } from '../services/bulk-orders.service
 import { BulkOrderDetailTabs, type BulkOrderTab } from './BulkOrderDetailTabs';
 import { BulkOrderLineItemsTable } from './BulkOrderLineItemsTable';
 import { CancelBulkOrderModal } from './CancelBulkOrderModal';
-import { ChangeHistoryTab } from './ChangeHistoryTab';
 import { DetailField } from './DetailField';
 import { DrawdownHistoryTab } from './DrawdownHistoryTab';
 import { InlineExtensionReview } from './InlineExtensionReview';
-import { ProposeExtensionModal } from './ProposeExtensionModal';
 
 /** True when the only thing a change request changes is the bulk order end date (an extension). */
 function isEndDateOnlyChange(changes: Record<string, unknown>): boolean {
@@ -52,12 +49,12 @@ export function BulkOrderDetailPage({
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data, isLoading, isError } = useBulkOrder(id ?? '');
-  const { data: changeRequests, isLoading: crLoading } = useChangeRequests(id ?? '');
+  const { data: changeRequests } = useChangeRequests(id ?? '');
   const setTitle = usePageTitleStore((s) => s.setTitle);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') as BulkOrderTab | null;
-  const VALID_TABS: BulkOrderTab[] = ['lineItems', 'drawdownHistory', 'changeHistory'];
+  const VALID_TABS: BulkOrderTab[] = ['lineItems', 'drawdownHistory'];
   const activeTab: BulkOrderTab =
     tabParam && VALID_TABS.includes(tabParam) ? tabParam : 'lineItems';
 
@@ -69,10 +66,9 @@ export function BulkOrderDetailPage({
   );
 
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [showExtensionModal, setShowExtensionModal] = useState(false);
 
   useEffect(() => {
-    if (data) setTitle(data.bulkId, t('list.subtitle') as string);
+    if (data) setTitle(data.bulkId, t('list.subtitle') as string, BULK_ORDER_ROUTES.bulkOrders);
     return () => setTitle(null);
   }, [data, setTitle, t]);
 
@@ -166,24 +162,14 @@ export function BulkOrderDetailPage({
           </Button>
         )}
         {showChangeActions && isActive && !hasPendingChange && (
-          <>
-            <Button
-              variant="outline"
-              size="lg"
-              leftIcon={<EditIcon style={{ width: '18.75px', height: '18.75px' }} />}
-              onClick={() => navigate(BULK_ORDER_ROUTES.bulkOrderChange.replace(':id', id!))}
-            >
-              {t('detail.change')}
-            </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              leftIcon={<CalendarIcon className="w-5 h-5" />}
-              onClick={() => setShowExtensionModal(true)}
-            >
-              {t('detail.proposeExtension')}
-            </Button>
-          </>
+          <Button
+            variant="outline"
+            size="lg"
+            leftIcon={<EditIcon style={{ width: '18.75px', height: '18.75px' }} />}
+            onClick={() => navigate(BULK_ORDER_ROUTES.bulkOrderChange.replace(':id', id!))}
+          >
+            {t('detail.change')}
+          </Button>
         )}
       </div>
 
@@ -216,16 +202,6 @@ export function BulkOrderDetailPage({
         {activeTab === 'drawdownHistory' && (
           <DrawdownHistoryTab drawdowns={data.drawdowns ?? []} isLoading={isLoading} />
         )}
-        {activeTab === 'changeHistory' && (
-          <ChangeHistoryTab
-            changeRequests={changeRequests ?? []}
-            isLoading={crLoading}
-            rfqReference={data.rfqReference}
-            isVendorView={isVendorView}
-            currentEndDate={data.endDate}
-            lineItems={data.lineItems}
-          />
-        )}
       </div>
 
       {/* Modals */}
@@ -234,14 +210,6 @@ export function BulkOrderDetailPage({
           bulkOrderId={id!}
           onClose={() => setShowCancelModal(false)}
           onSuccess={() => notificationService.success(t('cancel.success'))}
-        />
-      )}
-      {showExtensionModal && (
-        <ProposeExtensionModal
-          bulkOrderId={id!}
-          bulkNumber={data.bulkId}
-          currentValidUntil={data.endDate}
-          onClose={() => setShowExtensionModal(false)}
         />
       )}
     </div>

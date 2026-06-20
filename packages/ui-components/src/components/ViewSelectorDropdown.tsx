@@ -13,8 +13,10 @@ export interface ViewSelectorDropdownProps {
   savedViews: SavedView[];
   /** Called to apply a view (null = reset to default) */
   onApplyView: (viewId: string | null) => void;
-  /** Label for the default view */
+  /** Label for the default view (shown on the trigger button) */
   defaultViewLabel: string;
+  /** Label for the default view's row inside the dropdown (defaults to defaultViewLabel) */
+  defaultViewItemLabel?: string;
   /** Message when no saved views exist */
   noSavedViewsHint?: string;
   /** Whether the dropdown is open */
@@ -30,6 +32,7 @@ export function ViewSelectorDropdown({
   savedViews,
   onApplyView,
   defaultViewLabel,
+  defaultViewItemLabel,
   noSavedViewsHint,
   isOpen,
   onOpenChange,
@@ -40,14 +43,14 @@ export function ViewSelectorDropdown({
       <button
         type="button"
         onClick={() => onOpenChange((p: boolean) => !p)}
-        className="flex items-center gap-2.5 h-12 px-4 border border-foreground/20 rounded-xl text-foreground hover:bg-accent transition-colors"
+        className="flex items-center gap-2 h-9 px-4 border border-foreground/20 rounded-xl text-foreground hover:bg-accent transition-colors"
       >
-        <EyeIcon className="w-5 h-5" />
-        <span className="text-base font-medium">
+        <EyeIcon className="w-4 h-4" />
+        <span className="text-sm font-medium">
           {activeView ? activeView.name : defaultViewLabel}
         </span>
         {savedViews.length > 0 && (
-          <ChevronDownIcon className={cn('w-5 h-5 transition-transform', isOpen && 'rotate-180')} />
+          <ChevronDownIcon className={cn('w-4 h-4 transition-transform', isOpen && 'rotate-180')} />
         )}
       </button>
       {isOpen && savedViews.length > 0 && (
@@ -63,7 +66,7 @@ export function ViewSelectorDropdown({
               onOpenChange(false);
             }}
           >
-            {defaultViewLabel}
+            {defaultViewItemLabel ?? defaultViewLabel}
           </button>
           {savedViews.map((view) => (
             <button

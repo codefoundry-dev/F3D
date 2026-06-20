@@ -219,15 +219,21 @@ describe('VendorProfilePage', () => {
     expect(screen.getByText('https://acme.com')).toBeInTheDocument();
   });
 
-  it('renders the representatives section (CRUD deferred — placeholder in view mode)', () => {
+  it('renders the representatives section with the rep details in view mode', () => {
     render(<VendorProfilePage vendorId="vendor-1" />);
 
     expect(screen.getByText("Representatives' details")).toBeInTheDocument();
-    // RepresentativesSection shows a "coming soon" placeholder in view mode
-    // (representatives CRUD backend is not yet available).
-    expect(
-      screen.getByText('Representatives management is not yet available.'),
-    ).toBeInTheDocument();
+    // View mode lists the existing representatives (US 3.07).
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+    expect(screen.getByText('john@acme.com')).toBeInTheDocument();
+    expect(screen.getByText('Sales Manager')).toBeInTheDocument();
+  });
+
+  it('renders the Add user and Invite user actions', () => {
+    render(<VendorProfilePage vendorId="vendor-1" />);
+
+    expect(screen.getByText('Add user')).toBeInTheDocument();
+    expect(screen.getByText('Invite user')).toBeInTheDocument();
   });
 
   it('renders warehouse locations', () => {

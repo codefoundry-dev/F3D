@@ -25,6 +25,15 @@ export interface CreateBomInput {
   items: CreateBomItemInput[];
 }
 
+export interface UpdateBomInput {
+  /**
+   * Replacement line items for the BOM. The full set is replaced IN PLACE
+   * (existing lines deleted, these recreated) — editing a BOM does NOT create a
+   * new version / does not supersede. An empty array clears all lines.
+   */
+  items: CreateBomItemInput[];
+}
+
 // ── Response interfaces (mirror apps/backend boms.mapper.ts) ─────────────────
 
 export type BomStatusValue = 'ACTIVE' | 'SUPERSEDED';
@@ -87,5 +96,23 @@ export async function getBoms(
 
 export async function getBom(id: string, config?: AxiosRequestConfig): Promise<BomDetailDto> {
   const { data } = await getApiClient().get<{ data: BomDetailDto }>(BOMS_PATHS.byId(id), config);
+  return data.data;
+}
+
+/**
+ * Edit an existing BOM's line items in place (US 4.04). Replaces the whole
+ * line-item set; does NOT create a new BOM version. Returns the updated BOM in
+ * the same shape as {@link getBom}.
+ */
+export async function updateBom(
+  id: string,
+  input: UpdateBomInput,
+  config?: AxiosRequestConfig,
+): Promise<BomDetailDto> {
+  const { data } = await getApiClient().patch<{ data: BomDetailDto }>(
+    BOMS_PATHS.byId(id),
+    input,
+    config,
+  );
   return data.data;
 }

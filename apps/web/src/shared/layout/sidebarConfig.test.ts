@@ -4,11 +4,14 @@ import { describe, expect, it } from 'vitest';
 import { getSidebarItemsForRole } from './sidebarConfig';
 
 const LABELS = {
+  adminPanel: 'Admin panel',
+  usersManagement: 'Users management',
   projects: 'Projects',
   materialRequests: 'Material Requests',
   rfqs: 'RFQs',
   purchaseOrders: 'POs',
   bulkOrders: 'Bulk',
+  deliveries: 'Deliveries',
   invoices: 'Invoices',
   vendors: 'Vendors',
   materialCatalogue: 'Materials',
@@ -28,6 +31,7 @@ describe('getSidebarItemsForRole', () => {
       'RFQs',
       'POs',
       'Bulk',
+      'Deliveries',
       'Invoices',
       'Vendors',
       'Materials',
@@ -44,27 +48,36 @@ describe('getSidebarItemsForRole', () => {
     expect(labels).toContain('Invoices');
   });
 
-  it('shows only invoices + settings to FINANCIAL_OFFICER', () => {
+  it('shows deliveries + invoices + settings to FINANCIAL_OFFICER', () => {
+    // The Financial officer reviews deliveries (Epic 6) alongside invoices.
     const labels = getSidebarItemsForRole(UserRole.FINANCIAL_OFFICER, '/', LABELS).map(
       (i) => i.label,
     );
-    expect(labels).toEqual(['Invoices', 'Settings']);
+    expect(labels).toEqual(['Deliveries', 'Invoices', 'Settings']);
   });
 
-  it('shows material requests + settings to WAREHOUSE_OFFICER', () => {
-    // The Warehouse officer holds materialRequest.list, so the Material Requests
-    // item is visible alongside Settings.
+  it('shows material requests + deliveries + settings to WAREHOUSE_OFFICER', () => {
+    // The Warehouse officer holds materialRequest.list and reviews deliveries
+    // (Epic 6), so both are visible alongside Settings.
     const labels = getSidebarItemsForRole(UserRole.WAREHOUSE_OFFICER, '/', LABELS).map(
       (i) => i.label,
     );
-    expect(labels).toEqual(['Material Requests', 'Settings']);
+    expect(labels).toEqual(['Material Requests', 'Deliveries', 'Settings']);
   });
 
-  it('shows materials + settings to SUPER_ADMIN (owns the catalogue; admin panel reached separately)', () => {
-    // SUPER_ADMIN owns the public material catalogue + approval queue (US 4.01),
-    // so the Materials item is visible alongside Settings.
+  it('shows admin panel, users management, materials + settings to SUPER_ADMIN', () => {
+    // SUPER_ADMIN gets the platform-admin items (Admin panel + Users management) plus
+    // the public material catalogue / approval queue (US 4.01) and Settings, in the
+    // order shown on the super-admin dashboard frame.
     const labels = getSidebarItemsForRole(UserRole.SUPER_ADMIN, '/', LABELS).map((i) => i.label);
-    expect(labels).toEqual(['Materials', 'Settings']);
+    expect(labels).toEqual(['Admin panel', 'Users management', 'Materials', 'Settings']);
+  });
+
+  it('marks the Users management item active on /users and its sub-routes for SUPER_ADMIN', () => {
+    const onList = getSidebarItemsForRole(UserRole.SUPER_ADMIN, '/users', LABELS);
+    expect(onList.find((i) => i.label === 'Users management')?.isActive).toBe(true);
+    const onDetail = getSidebarItemsForRole(UserRole.SUPER_ADMIN, '/users/u-123', LABELS);
+    expect(onDetail.find((i) => i.label === 'Users management')?.isActive).toBe(true);
   });
 
   it('marks the RFQs item active when pathname starts with /rfqs', () => {

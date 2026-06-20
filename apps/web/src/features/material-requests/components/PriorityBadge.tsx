@@ -4,7 +4,7 @@ import { type MrPriority } from '../wizard/wizard-types';
 
 /**
  * Priority chip on the Review step (Figma 2002:176 frame 14:426). The design
- * uses one neutral pill (#F5F5F5 / #262626) and conveys priority through the
+ * uses one neutral pill (#F4F4F6 / #2D3139) and conveys priority through the
  * label only. We keep a subtle accent tint for HIGH/URGENT so the foreman can
  * scan urgent lines at a glance without departing from the design palette.
  */
@@ -25,7 +25,7 @@ export function PriorityBadge({ priority }: PriorityBadgeProps) {
   return (
     <span
       className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-normal ${
-        accent ? 'bg-[#FEF2F2] text-[#B91C1C]' : 'bg-[#F5F5F5] text-[#262626]'
+        accent ? 'bg-[#FEF2F2] text-[#B91C1C]' : 'bg-[#F4F4F6] text-[#2D3139]'
       }`}
     >
       {t(LABEL_KEY[priority] as never)}

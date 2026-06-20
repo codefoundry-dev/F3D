@@ -45,7 +45,7 @@ export default function PurchaseOrderDetailPage() {
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
 
   useEffect(() => {
-    if (po) setPageTitle(po.poNumber);
+    if (po) setPageTitle(po.poNumber, null, ROUTES.purchaseOrders);
     return () => setPageTitle(null);
   }, [po, setPageTitle]);
 

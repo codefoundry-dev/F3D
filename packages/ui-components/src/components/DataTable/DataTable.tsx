@@ -4,6 +4,13 @@ import { cn } from '../../utils/cn';
 import { Checkbox } from '../Checkbox';
 import { EmptyState } from '../EmptyState';
 import { SortIcon } from '../SortIcon';
+import {
+  TABLE_CELL,
+  TABLE_HEADER_CELL,
+  TABLE_HEADER_ROW,
+  TABLE_ROW,
+  TABLE_ROW_SELECTED,
+} from '../tableStyles';
 
 import { DataTableActions, type RowAction } from './DataTableActions';
 import { DataTablePagination } from './DataTablePagination';
@@ -67,10 +74,10 @@ function getCellValue<T>(row: T, column: ColumnDef<T>): ReactNode {
 
 function SkeletonRow({ colCount }: { colCount: number }) {
   return (
-    <tr className="border-b border-border">
+    <tr className="border-b border-gray-100">
       {Array.from({ length: colCount }, (_, i) => (
-        <td key={i} className="px-4 py-3">
-          <div className="h-4 rounded bg-muted animate-pulse" />
+        <td key={i} className="px-3 py-3">
+          <div className="h-4 animate-pulse rounded bg-gray-100" />
         </td>
       ))}
     </tr>
@@ -137,7 +144,7 @@ export function DataTable<T>({
   };
 
   return (
-    <div className={cn('flex flex-col rounded-xl border border-border bg-card', className)}>
+    <div className={cn('flex flex-col rounded-[12px] border border-gray-100 bg-white', className)}>
       {/* Toolbar: search + quick filters */}
       {hasToolbar && (
         <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-border">
@@ -171,9 +178,9 @@ export function DataTable<T>({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border bg-muted/50">
+              <tr className={TABLE_HEADER_ROW}>
                 {selectable && (
-                  <th className="w-12 px-4 py-3">
+                  <th className="w-12 px-3 py-2.5">
                     <Checkbox
                       checked={allSelected === true}
                       onChange={handleSelectAll}
@@ -187,7 +194,7 @@ export function DataTable<T>({
                     <th
                       key={column.id}
                       className={cn(
-                        'px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground',
+                        TABLE_HEADER_CELL,
                         column.sortable && 'cursor-pointer select-none',
                       )}
                       style={column.width ? { width: column.width } : undefined}
@@ -206,9 +213,7 @@ export function DataTable<T>({
                   );
                 })}
                 {rowActions && rowActions.length > 0 && (
-                  <th className="w-24 px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    Actions
-                  </th>
+                  <th className={cn(TABLE_HEADER_CELL, 'w-24 text-right')}>Actions</th>
                 )}
               </tr>
             </thead>
@@ -223,15 +228,9 @@ export function DataTable<T>({
                   const rowId = getRowId ? getRowId(row) : String(rowIndex);
                   const isSelected = selectable && selectedIds.includes(rowId);
                   return (
-                    <tr
-                      key={rowId}
-                      className={cn(
-                        'border-b border-border transition-colors hover:bg-muted/30',
-                        isSelected && 'bg-accent/50',
-                      )}
-                    >
+                    <tr key={rowId} className={cn(TABLE_ROW, isSelected && TABLE_ROW_SELECTED)}>
                       {selectable && (
-                        <td className="w-12 px-4 py-3">
+                        <td className="w-12 px-3 py-3">
                           <Checkbox
                             checked={isSelected === true}
                             onChange={() => handleSelectRow(rowId)}
@@ -239,12 +238,12 @@ export function DataTable<T>({
                         </td>
                       )}
                       {columns.map((column) => (
-                        <td key={column.id} className="px-4 py-3 text-foreground">
+                        <td key={column.id} className={TABLE_CELL}>
                           {getCellValue(row, column)}
                         </td>
                       ))}
                       {rowActions && rowActions.length > 0 && (
-                        <td className="px-4 py-3 text-right">
+                        <td className={cn(TABLE_CELL, 'text-right')}>
                           <DataTableActions
                             row={row}
                             actions={rowActions}

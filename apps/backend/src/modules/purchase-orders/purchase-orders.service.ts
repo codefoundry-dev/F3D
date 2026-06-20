@@ -93,6 +93,9 @@ export class PurchaseOrdersService {
       case 'projectName':
         orderBy.project = { name: sortDir };
         break;
+      case 'projectCode':
+        orderBy.project = { code: sortDir };
+        break;
       case 'status':
         orderBy.status = sortDir;
         break;
@@ -110,7 +113,7 @@ export class PurchaseOrdersService {
         take: query.take,
         orderBy,
         include: {
-          project: { select: { name: true } },
+          project: { select: { name: true, code: true } },
           vendor: { select: { legalName: true } },
           company: { select: { legalName: true } },
           deliveryLocation: { select: { label: true, address: true } },
@@ -152,6 +155,8 @@ export class PurchaseOrdersService {
           poNumber: po.poNumber,
           projectName: po.project.name,
           projectId: po.projectId,
+          /** Human-readable project code (PRJ-YYYY-NNN) — matches the Projects table. */
+          projectCode: po.project.code,
           status: po.status,
           poType: po.poType,
           revision: po.revision,

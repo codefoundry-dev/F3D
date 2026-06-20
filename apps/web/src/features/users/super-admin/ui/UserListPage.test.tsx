@@ -185,6 +185,14 @@ vi.mock('@forethread/ui-components', () => ({
       </button>
     </div>
   ),
+  DatePicker: ({ value, onChange, placeholder }: any) => (
+    <input
+      data-testid={`date-picker-${placeholder}`}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  ),
   SortIcon: () => <span data-testid="sort-icon" />,
   SearchInput: (p: any) => <input data-testid="search-input" {...p} />,
   StatusActionModal: ({ onConfirm, onClose, infoText }: any) => (
@@ -231,6 +239,9 @@ vi.mock('@forethread/ui-components/assets/icons/eye-opened.svg?react', () => ({
 }));
 vi.mock('@forethread/ui-components/assets/icons/new-user.svg?react', () => ({
   default: (p: any) => <svg data-testid="icon-new-user" {...p} />,
+}));
+vi.mock('@forethread/ui-components/assets/icons/chevron-down.svg?react', () => ({
+  default: (p: any) => <svg data-testid="icon-chevron-down" {...p} />,
 }));
 
 // Mock child components rendered conditionally
@@ -455,10 +466,10 @@ describe('UserListPage', () => {
     expect(mockOpenStatusActionModal).toHaveBeenCalledWith('deactivate', 'u1', 'alice@example.com');
   });
 
-  it('row actions for Active user include editUser and resetPassword', () => {
+  it('row actions for Active user include resetPassword but NOT editUser (edit is the pencil icon)', () => {
     render(<UserListPage />);
-    expect(screen.getByTestId('action-editUser')).toBeInTheDocument();
     expect(screen.getByTestId('action-resetPassword')).toBeInTheDocument();
+    expect(screen.queryByTestId('action-editUser')).not.toBeInTheDocument();
   });
 
   it('row actions for Invited user include resend and cancel', () => {
@@ -637,17 +648,46 @@ describe('UserListPage', () => {
     mockUseUsers.mockRestore();
   });
 
-  it('company actions include deactivateAll for active users', () => {
+  it('company actions include viewCompany, editCompany, and deactivateAll for active users', () => {
     render(<UserListPage />);
-    // The company section dot-actions should contain editCompany and deactivateAll
+    // The company section dot-actions should contain view/edit company + deactivateAll
+    expect(screen.getByTestId('action-viewCompany')).toBeInTheDocument();
     expect(screen.getByTestId('action-editCompany')).toBeInTheDocument();
     expect(screen.getByTestId('action-deactivateAll')).toBeInTheDocument();
+  });
+
+  it('clicking viewCompany navigates to company detail', () => {
+    render(<UserListPage />);
+    fireEvent.click(screen.getByTestId('action-viewCompany'));
+    expect(mockNavigate).toHaveBeenCalledWith('/companies/c1');
   });
 
   it('clicking editCompany calls openEditCompanyModal', () => {
     render(<UserListPage />);
     fireEvent.click(screen.getByTestId('action-editCompany'));
     expect(mockOpenEditCompanyModal).toHaveBeenCalledWith('c1', 'Acme');
+  });
+
+  it('clicking the company-row edit (pencil) icon calls openEditCompanyModal', () => {
+    render(<UserListPage />);
+    const editCompanyBtn = screen.getByLabelText('Edit company');
+    fireEvent.click(editCompanyBtn);
+    expect(mockOpenEditCompanyModal).toHaveBeenCalledWith('c1', 'Acme');
+  });
+
+  it('renders the Date range filter trigger and reveals From/To inputs when opened', () => {
+    render(<UserListPage />);
+    // The popover is closed by default — the From/To inputs are not mounted yet.
+    expect(screen.queryByTestId('date-picker-filters.from')).not.toBeInTheDocument();
+    // Open the Date filter via its trigger pill (label = filters.date key).
+    const dateTriggers = screen.getAllByText('filters.date');
+    fireEvent.click(dateTriggers[0]);
+    const fromInput = screen.getByTestId('date-picker-filters.from');
+    const toInput = screen.getByTestId('date-picker-filters.to');
+    expect(fromInput).toBeInTheDocument();
+    expect(toInput).toBeInTheDocument();
+    fireEvent.change(fromInput, { target: { value: '2025-01-01' } });
+    expect(fromInput).toHaveValue('2025-01-01');
   });
 
   it('clicking deactivateAll calls openBulkActionModal', () => {

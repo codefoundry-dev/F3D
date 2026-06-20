@@ -27,6 +27,8 @@ const CreateProjectPage = lazy(() => import('@/features/projects/pages/CreatePro
 const ProjectDetailPage = lazy(() => import('@/features/projects/pages/ProjectDetailPage'));
 const EditProjectPage = lazy(() => import('@/features/projects/pages/EditProjectPage'));
 const CreateBomPage = lazy(() => import('@/features/boms/pages/CreateBomPage'));
+const BomDetailPage = lazy(() => import('@/features/boms/pages/BomDetailPage'));
+const EditBomPage = lazy(() => import('@/features/boms/pages/EditBomPage'));
 const RfqListRoleSwitch = lazy(() => import('@/features/rfqs/RfqListRoleSwitch'));
 const RfqDetailRoleSwitch = lazy(() => import('@/features/rfqs/RfqDetailRoleSwitch'));
 const MaterialDetailRoleSwitch = lazy(() => import('@/features/rfqs/MaterialDetailRoleSwitch'));
@@ -79,6 +81,14 @@ const BulkOrderDrawdownPage = lazy(
 const BulkOrderEditPage = lazy(
   () => import('@/features/bulk-orders/buyer/pages/BulkOrderEditPage'),
 );
+const DeliveriesListPage = lazy(() => import('@/features/deliveries/pages/DeliveriesListPage'));
+const CreateDeliveryReportPage = lazy(
+  () => import('@/features/deliveries/pages/CreateDeliveryReportPage'),
+);
+const DeliveryReportDetailPage = lazy(
+  () => import('@/features/deliveries/pages/DeliveryReportDetailPage'),
+);
+const PublicDeliveryPage = lazy(() => import('@/features/deliveries/public/PublicDeliveryPage'));
 const MaterialRequestListRoleSwitch = lazy(
   () => import('@/features/material-requests/MaterialRequestListRoleSwitch'),
 );
@@ -128,6 +138,9 @@ const CompanyProfileRoleSwitch = lazy(
   () => import('@/features/company-profile/CompanyProfileRoleSwitch'),
 );
 
+// DEV-only design-system playground (mounted at /__ds below; never in prod).
+const DesignSystemPlayground = lazy(() => import('@/shared/dev/DesignSystemPlayground'));
+
 // ── Allowed-role sets, derived from each role's app today ───────────
 // (Source of truth for the migration; see apps/web/MIGRATION.md.)
 const ALL_INTERNAL = [
@@ -165,6 +178,14 @@ const INVOICE_DETAIL_VIEWERS = [
   UserRole.FINANCIAL_OFFICER,
   UserRole.VENDOR,
 ] as const;
+// Deliveries (Epic 6): buyer roles review reports; Warehouse + Finance also see
+// the list. The route additionally enforces the backend delivery.* permissions.
+const DELIVERY_VIEWERS = [
+  UserRole.COMPANY_ADMIN,
+  UserRole.PROCUREMENT_OFFICER,
+  UserRole.WAREHOUSE_OFFICER,
+  UserRole.FINANCIAL_OFFICER,
+] as const;
 const USERS_VIEWERS = [UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.VENDOR] as const;
 const COMPANY_PROFILE_VIEWERS = [
   UserRole.COMPANY_ADMIN,
@@ -192,11 +213,17 @@ export const routes: RouteObject[] = [
         ],
       },
 
+      // ── DEV-only design-system playground (stripped from prod builds) ──
+      ...(import.meta.env.DEV
+        ? [{ path: '/__ds', element: withSuspense(<DesignSystemPlayground />) }]
+        : []),
+
       // ── Always-public ─────────────────────────────────────────────
       { path: ROUTES.activate, element: withSuspense(<ActivateAccountPage />) },
       { path: ROUTES.resetPassword, element: withSuspense(<ResetPasswordPage />) },
       { path: ROUTES.guestInvitation, element: withSuspense(<GuestInvitationPage />) },
       { path: ROUTES.guestPurchaseOrder, element: withSuspense(<GuestPurchaseOrderPage />) },
+      { path: ROUTES.guestDelivery, element: withSuspense(<PublicDeliveryPage />) },
 
       // ── Authenticated ─────────────────────────────────────────────
       {
@@ -347,6 +374,40 @@ export const routes: RouteObject[] = [
                 ],
               },
 
+              // Deliveries (Epic 6). Gated by role (buyer + warehouse + finance)
+              // AND the backend delivery.* permission keys. The static
+              // "/deliveries/new" create route precedes the "/:id" detail route
+              // so it is not swallowed by it.
+              {
+                element: <RoleRoute allow={DELIVERY_VIEWERS} />,
+                children: [
+                  {
+                    element: <PermissionRoute require={['delivery.create']} />,
+                    children: [
+                      {
+                        path: ROUTES.deliveryNew,
+                        element: withSuspense(<CreateDeliveryReportPage />),
+                      },
+                    ],
+                  },
+                  {
+                    element: <PermissionRoute require={['delivery.list']} />,
+                    children: [
+                      { path: ROUTES.deliveries, element: withSuspense(<DeliveriesListPage />) },
+                    ],
+                  },
+                  {
+                    element: <PermissionRoute require={['delivery.read']} />,
+                    children: [
+                      {
+                        path: ROUTES.deliveryDetail,
+                        element: withSuspense(<DeliveryReportDetailPage />),
+                      },
+                    ],
+                  },
+                ],
+              },
+
               // Bulk orders. The static "/bulk-orders/new" create route is
               // registered before the "/:id" detail route so it is not
               // swallowed by it (US 5.08), and is gated to buyer roles that
@@ -406,6 +467,8 @@ export const routes: RouteObject[] = [
                   { path: ROUTES.projectDetail, element: withSuspense(<ProjectDetailPage />) },
                   { path: ROUTES.projectEdit, element: withSuspense(<EditProjectPage />) },
                   { path: ROUTES.projectBomCreate, element: withSuspense(<CreateBomPage />) },
+                  { path: ROUTES.projectBomDetail, element: withSuspense(<BomDetailPage />) },
+                  { path: ROUTES.projectBomEdit, element: withSuspense(<EditBomPage />) },
                 ],
               },
 

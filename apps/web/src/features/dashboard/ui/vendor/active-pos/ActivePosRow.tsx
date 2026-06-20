@@ -53,7 +53,7 @@ export function ActivePosRow({ row, columns }: ActivePosRowProps) {
         </td>
       ))}
       <td className="px-4 py-3" style={{ width: 120, maxWidth: 120 }}>
-        <div className="flex items-center gap-2 justify-end">
+        <div className="flex items-center gap-2 justify-center">
           <button
             type="button"
             title="Messages"

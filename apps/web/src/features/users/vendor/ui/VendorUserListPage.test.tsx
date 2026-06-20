@@ -41,15 +41,12 @@ const mockUsers: UserResponse[] = [
 ];
 
 const mockUseVendorUsers = vi.hoisted(() => vi.fn());
-const mockDeactivateMutate = vi.hoisted(() => vi.fn());
-const mockReactivateMutate = vi.hoisted(() => vi.fn());
 const mockResendMutate = vi.hoisted(() => vi.fn());
 const mockCancelInvMutate = vi.hoisted(() => vi.fn());
 
+// Vendors can only manage invitations — no deactivate/reactivate from the list. (US 3.10)
 vi.mock('../services/vendor-users.service', () => ({
   useVendorUsers: mockUseVendorUsers,
-  useDeactivateVendorUser: () => ({ mutate: mockDeactivateMutate, isPending: false }),
-  useReactivateVendorUser: () => ({ mutate: mockReactivateMutate, isPending: false }),
   useResendVendorUserInvitation: () => ({ mutate: mockResendMutate, isPending: false }),
   useCancelVendorUserInvitation: () => ({ mutate: mockCancelInvMutate, isPending: false }),
 }));
@@ -61,9 +58,6 @@ const mockStoreState = vi.hoisted(() => ({
   isSuccessModalOpen: false,
   invitedUserEmail: null as string | null,
   closeSuccessModal: vi.fn(),
-  isEditModalOpen: false,
-  openEditModal: vi.fn(),
-  closeEditModal: vi.fn(),
   isStatusActionModalOpen: false,
   statusActionType: null as string | null,
   statusActionUserId: null as string | null,
@@ -84,14 +78,19 @@ vi.mock('./InviteVendorUserModal', () => ({
   InviteVendorUserModal: () => <div data-testid="invite-modal" />,
 }));
 
-vi.mock('./EditVendorUserModal', () => ({
-  EditVendorUserModal: () => <div data-testid="edit-modal" />,
-}));
-
 const mockNavigate = vi.hoisted(() => vi.fn());
+const mockSetPageTitle = vi.hoisted(() => vi.fn());
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
+}));
+
+vi.mock('@forethread/rfq-shared', () => ({
+  usePageTitleStore: (sel: any) => sel({ setTitle: mockSetPageTitle }),
+}));
+
+vi.mock('@/app/route-config', () => ({
+  ROUTES: { settings: '/settings', users: '/users' },
 }));
 
 vi.mock('@forethread/i18n', () => ({
@@ -105,6 +104,12 @@ vi.mock('@forethread/i18n', () => ({
 
 vi.mock('@forethread/ui-components', () => ({
   cn: (...args: any[]) => args.filter(Boolean).join(' '),
+  Badge: ({ children, className }: any) => (
+    <span data-testid="status-badge" className={className}>
+      {children}
+    </span>
+  ),
+  NEUTRAL_STATUS_COLOR: 'neutral-status',
   Button: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>,
   Spinner: () => <div data-testid="spinner" />,
   TablePagination: ({ onPageChange, onPageSizeChange, showingLabel }: any) => (
@@ -174,7 +179,6 @@ const SvgStub = vi.hoisted(() => () => null);
 vi.mock('@forethread/ui-components/assets/icons/cross-in-circle.svg?react', () => ({
   default: SvgStub,
 }));
-vi.mock('@forethread/ui-components/assets/icons/edit.svg?react', () => ({ default: SvgStub }));
 vi.mock('@forethread/ui-components/assets/icons/eye-opened.svg?react', () => ({
   default: SvgStub,
 }));
@@ -196,7 +200,6 @@ describe('VendorUserListPage', () => {
       isInviteModalOpen: false,
       isSuccessModalOpen: false,
       invitedUserEmail: null,
-      isEditModalOpen: false,
       isStatusActionModalOpen: false,
       statusActionType: null,
       statusActionUserId: null,
@@ -240,6 +243,16 @@ describe('VendorUserListPage', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
   });
 
+  it('renders status as a neutral badge pill', () => {
+    render(<VendorUserListPage />);
+    const badges = screen.getAllByTestId('status-badge');
+    expect(badges).toHaveLength(3);
+    expect(badges.some((b) => b.textContent === 'statuses.ACTIVE')).toBe(true);
+    expect(badges.some((b) => b.textContent === 'statuses.INVITED')).toBe(true);
+    expect(badges.some((b) => b.textContent === 'statuses.INACTIVE')).toBe(true);
+    expect(badges.every((b) => b.className.includes('neutral-status'))).toBe(true);
+  });
+
   it('renders pagination', () => {
     render(<VendorUserListPage />);
     expect(screen.getByTestId('pagination')).toBeInTheDocument();
@@ -257,42 +270,36 @@ describe('VendorUserListPage', () => {
     expect(mockStoreState.openInviteModal).toHaveBeenCalled();
   });
 
-  it('shows resend/cancel actions for INVITED users', () => {
+  it('shows a dot-menu only for INVITED users', () => {
     render(<VendorUserListPage />);
-    const dotMenus = screen.getAllByTestId('dot-menu');
-    expect(dotMenus[1].querySelector('[data-testid="action-resendInvitation"]')).toBeTruthy();
-    expect(dotMenus[1].querySelector('[data-testid="action-cancelInvitation"]')).toBeTruthy();
+    // Active (Alice) + Inactive (Charlie) get view-only; only Invited (Bob) gets a menu.
+    expect(screen.getAllByTestId('dot-menu')).toHaveLength(1);
   });
 
-  it('shows deactivate action for ACTIVE users', () => {
+  it('shows resend/cancel actions for the INVITED user', () => {
     render(<VendorUserListPage />);
-    const dotMenus = screen.getAllByTestId('dot-menu');
-    expect(dotMenus[0].querySelector('[data-testid="action-deactivate"]')).toBeTruthy();
+    const dotMenu = screen.getByTestId('dot-menu');
+    expect(dotMenu.querySelector('[data-testid="action-resendInvitation"]')).toBeTruthy();
+    expect(dotMenu.querySelector('[data-testid="action-cancelInvitation"]')).toBeTruthy();
   });
 
-  it('shows activate action for INACTIVE users', () => {
-    render(<VendorUserListPage />);
-    const dotMenus = screen.getAllByTestId('dot-menu');
-    expect(dotMenus[2].querySelector('[data-testid="action-activate"]')).toBeTruthy();
-  });
-
-  it('calls openStatusActionModal for deactivate', () => {
+  it('calls openStatusActionModal for resend action', () => {
     render(<VendorUserListPage />);
     const btn = screen
-      .getAllByTestId('dot-menu')[0]
-      .querySelector('[data-testid="action-deactivate"]')!;
+      .getByTestId('dot-menu')
+      .querySelector('[data-testid="action-resendInvitation"]')!;
     fireEvent.click(btn);
     expect(mockStoreState.openStatusActionModal).toHaveBeenCalledWith(
-      'deactivate',
-      'u1',
-      'alice@test.com',
+      'resendInvitation',
+      'u2',
+      'bob@test.com',
     );
   });
 
   it('calls openStatusActionModal for cancel invitation', () => {
     render(<VendorUserListPage />);
     const btn = screen
-      .getAllByTestId('dot-menu')[1]
+      .getByTestId('dot-menu')
       .querySelector('[data-testid="action-cancelInvitation"]')!;
     fireEvent.click(btn);
     expect(mockStoreState.openStatusActionModal).toHaveBeenCalledWith(
@@ -315,11 +322,11 @@ describe('VendorUserListPage', () => {
     expect(screen.getByTestId('success-modal')).toBeInTheDocument();
   });
 
-  it('renders status action modal for deactivate', () => {
+  it('renders status action modal for resend invitation', () => {
     mockStoreState.isStatusActionModalOpen = true;
-    mockStoreState.statusActionType = 'deactivate';
-    mockStoreState.statusActionUserId = 'u1';
-    mockStoreState.statusActionUserEmail = 'alice@test.com';
+    mockStoreState.statusActionType = 'resendInvitation';
+    mockStoreState.statusActionUserId = 'u2';
+    mockStoreState.statusActionUserEmail = 'bob@test.com';
     render(<VendorUserListPage />);
     expect(screen.getByTestId('status-action-modal')).toBeInTheDocument();
   });
@@ -333,28 +340,15 @@ describe('VendorUserListPage', () => {
     expect(screen.getByTestId('status-action-modal')).toBeInTheDocument();
   });
 
-  it('calls deactivate mutation on confirm', () => {
+  it('calls resendMutation on resend modal confirm', () => {
     mockStoreState.isStatusActionModalOpen = true;
-    mockStoreState.statusActionType = 'deactivate';
-    mockStoreState.statusActionUserId = 'u1';
-    mockStoreState.statusActionUserEmail = 'alice@test.com';
+    mockStoreState.statusActionType = 'resendInvitation';
+    mockStoreState.statusActionUserId = 'u2';
+    mockStoreState.statusActionUserEmail = 'bob@test.com';
     render(<VendorUserListPage />);
     fireEvent.click(screen.getByTestId('confirm-action'));
-    expect(mockDeactivateMutate).toHaveBeenCalledWith(
-      'u1',
-      expect.objectContaining({ onSuccess: expect.any(Function) }),
-    );
-  });
-
-  it('calls reactivate mutation when action type is activate', () => {
-    mockStoreState.isStatusActionModalOpen = true;
-    mockStoreState.statusActionType = 'activate';
-    mockStoreState.statusActionUserId = 'u3';
-    mockStoreState.statusActionUserEmail = 'charlie@test.com';
-    render(<VendorUserListPage />);
-    fireEvent.click(screen.getByTestId('confirm-action'));
-    expect(mockReactivateMutate).toHaveBeenCalledWith(
-      'u3',
+    expect(mockResendMutate).toHaveBeenCalledWith(
+      'u2',
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
   });
@@ -395,6 +389,21 @@ describe('VendorUserListPage', () => {
     expect(mockCancelInvMutate).not.toHaveBeenCalled();
   });
 
+  it('does nothing on status action when userId/email is null', () => {
+    mockStoreState.isStatusActionModalOpen = true;
+    mockStoreState.statusActionType = 'resendInvitation';
+    mockStoreState.statusActionUserId = null;
+    mockStoreState.statusActionUserEmail = null;
+    render(<VendorUserListPage />);
+    fireEvent.click(screen.getByTestId('confirm-action'));
+    expect(mockResendMutate).not.toHaveBeenCalled();
+  });
+
+  it('sets the User Management page title in the app header', () => {
+    render(<VendorUserListPage />);
+    expect(mockSetPageTitle).toHaveBeenCalledWith('title', null, '/settings');
+  });
+
   it('renders table column headers', () => {
     render(<VendorUserListPage />);
     expect(screen.getByText('columns.fullName')).toBeInTheDocument();
@@ -405,50 +414,11 @@ describe('VendorUserListPage', () => {
     expect(screen.getByText('columns.actions')).toBeInTheDocument();
   });
 
-  it('calls openStatusActionModal for resend action', () => {
-    render(<VendorUserListPage />);
-    const btn = screen
-      .getAllByTestId('dot-menu')[1]
-      .querySelector('[data-testid="action-resendInvitation"]')!;
-    fireEvent.click(btn);
-    expect(mockStoreState.openStatusActionModal).toHaveBeenCalledWith(
-      'resendInvitation',
-      'u2',
-      'bob@test.com',
-    );
-  });
-
-  it('calls resendMutation on resend modal confirm', () => {
-    mockStoreState.isStatusActionModalOpen = true;
-    mockStoreState.statusActionType = 'resendInvitation';
-    mockStoreState.statusActionUserId = 'u2';
-    mockStoreState.statusActionUserEmail = 'bob@test.com';
-    render(<VendorUserListPage />);
-    fireEvent.click(screen.getByTestId('confirm-action'));
-    expect(mockResendMutate).toHaveBeenCalledWith(
-      'u2',
-      expect.objectContaining({ onSuccess: expect.any(Function) }),
-    );
-  });
-
   it('navigates to user detail on view click', () => {
     render(<VendorUserListPage />);
     const viewBtns = screen.getAllByLabelText('View');
     fireEvent.click(viewBtns[0]);
     expect(mockNavigate).toHaveBeenCalledWith('/users/u1');
-  });
-
-  it('opens edit modal on edit click', () => {
-    render(<VendorUserListPage />);
-    const editBtns = screen.getAllByLabelText('Edit');
-    fireEvent.click(editBtns[0]);
-    expect(mockStoreState.openEditModal).toHaveBeenCalledWith('u1');
-  });
-
-  it('renders edit modal when open', () => {
-    mockStoreState.isEditModalOpen = true;
-    render(<VendorUserListPage />);
-    expect(screen.getByTestId('edit-modal')).toBeInTheDocument();
   });
 
   it('calls filter dropdown onChange', () => {
@@ -485,28 +455,5 @@ describe('VendorUserListPage', () => {
   it('renders showing label in pagination', () => {
     render(<VendorUserListPage />);
     expect(screen.getByTestId('showing-label')).toBeInTheDocument();
-  });
-
-  it('does nothing on status action when userId/type/email is null', () => {
-    mockStoreState.isStatusActionModalOpen = true;
-    mockStoreState.statusActionType = 'deactivate';
-    mockStoreState.statusActionUserId = null;
-    mockStoreState.statusActionUserEmail = null;
-    render(<VendorUserListPage />);
-    fireEvent.click(screen.getByTestId('confirm-action'));
-    expect(mockDeactivateMutate).not.toHaveBeenCalled();
-  });
-
-  it('calls openStatusActionModal for activate on INACTIVE user', () => {
-    render(<VendorUserListPage />);
-    const btn = screen
-      .getAllByTestId('dot-menu')[2]
-      .querySelector('[data-testid="action-activate"]')!;
-    fireEvent.click(btn);
-    expect(mockStoreState.openStatusActionModal).toHaveBeenCalledWith(
-      'activate',
-      'u3',
-      'charlie@test.com',
-    );
   });
 });
