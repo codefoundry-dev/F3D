@@ -7,6 +7,7 @@
  * isolation, without needing seeded entities or feature pages. Never ships to prod.
  */
 import {
+  Alert,
   AvatarStack,
   Badge,
   Breadcrumbs,
@@ -39,6 +40,13 @@ const PEOPLE = [
 const HeartIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="size-full">
     <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" />
+  </svg>
+);
+
+const CheckIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="size-full">
+    <circle cx="12" cy="12" r="9" />
+    <path d="m8.5 12 2.5 2.5 4.5-5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -211,6 +219,42 @@ export default function DesignSystemPlayground() {
           <Divider className="my-3" />
           <Divider label="OR" className="my-1" />
         </Card>
+      </Section>
+
+      <Section title="Alerts">
+        <div className="flex max-w-xl flex-col gap-3">
+          <Alert
+            variant="success"
+            icon={CheckIcon}
+            title="Payment received"
+            onClose={() => undefined}
+          >
+            The vendor invoice has been marked as paid.
+          </Alert>
+          <Alert variant="warning" icon={CheckIcon}>
+            This RFQ closes in 2 days — responses are still pending.
+          </Alert>
+          <Alert
+            variant="destructive"
+            icon={CheckIcon}
+            title="Upload failed"
+            actions={
+              <>
+                <Button size="sm" variant="primary">
+                  Retry
+                </Button>
+                <Button size="sm" variant="secondary">
+                  Dismiss
+                </Button>
+              </>
+            }
+          >
+            The file exceeded the 25&nbsp;MB limit.
+          </Alert>
+          <Alert variant="info" icon={CheckIcon}>
+            A new catalogue version is available.
+          </Alert>
+        </div>
       </Section>
 
       <Section title="Buttons">

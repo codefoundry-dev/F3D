@@ -1,5 +1,7 @@
 import { toast, type ExternalToast } from 'sonner';
 
+import CheckCircleIcon from '../assets/icons/checkcircle-icon.svg?react';
+import CrossInCircleIcon from '../assets/icons/cross-in-circle.svg?react';
 import CrossIcon from '../assets/icons/cross.svg?react';
 import InfoIcon from '../assets/icons/info.svg?react';
 import { cn } from '../utils/cn';
@@ -12,22 +14,24 @@ interface CustomToastProps {
   onClose?: () => void;
 }
 
-const typeStyles: Record<ToastType, { icon: string; text: string }> = {
-  success: { icon: 'text-foreground', text: 'text-foreground' },
-  error: { icon: 'text-destructive', text: 'text-foreground' },
-  info: { icon: 'text-foreground', text: 'text-foreground' },
+/** Per-type DS status icon + colour (Figma Toast 3719-72068). */
+const typeStyles: Record<ToastType, { Icon: typeof InfoIcon; icon: string }> = {
+  success: { Icon: CheckCircleIcon, icon: 'text-green-600' },
+  error: { Icon: CrossInCircleIcon, icon: 'text-destructive-600' },
+  info: { Icon: InfoIcon, icon: 'text-blue-600' },
 };
 
 function CustomToast({ type, message, onClose }: CustomToastProps) {
   const styles = typeStyles[type];
+  const Icon = styles.Icon;
 
   return (
-    <div className="flex items-center justify-between w-full gap-3 py-2 px-3">
+    <div className="flex w-full items-center justify-between gap-3 px-3 py-2">
       <div className="flex items-center gap-3">
-        <div className={cn('w-4 h-4 flex-shrink-0 flex items-center justify-center', styles.icon)}>
-          <InfoIcon className="w-4 h-4" />
+        <div className={cn('flex h-4 w-4 flex-shrink-0 items-center justify-center', styles.icon)}>
+          <Icon className="h-4 w-4" />
         </div>
-        <span className={cn('text-sm font-normal leading-[140%]', styles.text)}>{message}</span>
+        <span className="text-sm font-medium leading-[140%] text-gray-900">{message}</span>
       </div>
       {onClose && (
         <div className="flex items-center gap-3">
