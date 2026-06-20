@@ -111,7 +111,13 @@ export { Text } from './components/Text';
 export type { TextProps, TextVariant } from './components/Text';
 
 export { IconBadge } from './components/IconBadge';
-export type { IconBadgeProps } from './components/IconBadge';
+export type { IconBadgeProps, IconBadgeColor, IconBadgeSize } from './components/IconBadge';
+
+export { Card } from './components/Card';
+export type { CardProps } from './components/Card';
+
+export { Divider } from './components/Divider';
+export type { DividerProps } from './components/Divider';
 
 export { StepCircle } from './components/StepCircle';
 export type { StepCircleProps } from './components/StepCircle';
@@ -219,6 +225,9 @@ export type { AvatarUploadProps } from './components/AvatarUpload';
 
 export { AvatarWithStatus } from './components/AvatarWithStatus';
 export type { AvatarWithStatusProps, WorkStatusType } from './components/AvatarWithStatus';
+
+export { AvatarStack } from './components/AvatarStack';
+export type { AvatarStackProps, AvatarStackPerson } from './components/AvatarStack';
 
 export { ContactSupportLink } from './components/ContactSupportLink';
 export type { ContactSupportLinkProps } from './components/ContactSupportLink';

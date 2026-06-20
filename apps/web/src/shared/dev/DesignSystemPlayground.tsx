@@ -7,9 +7,13 @@
  * isolation, without needing seeded entities or feature pages. Never ships to prod.
  */
 import {
+  AvatarStack,
   Badge,
   Breadcrumbs,
   Button,
+  Card,
+  Divider,
+  IconBadge,
   SegmentedControl,
   TABLE_CELL,
   TABLE_CONTAINER,
@@ -20,6 +24,22 @@ import {
   type TabItem,
 } from '@forethread/ui-components';
 import { useState } from 'react';
+
+const PEOPLE = [
+  { name: 'Liam Johnson' },
+  { name: 'Sophia Martinez' },
+  { name: 'Emma Wilson' },
+  { name: 'Noah Brown' },
+  { name: 'Olivia Davis' },
+  { name: 'Mason Clark' },
+  { name: 'Ava Lewis' },
+];
+
+const HeartIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="size-full">
+    <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" />
+  </svg>
+);
 
 const TABLE_ROWS = [
   {
@@ -145,6 +165,35 @@ export default function DesignSystemPlayground() {
             </tbody>
           </table>
         </div>
+      </Section>
+
+      <Section title="Avatars">
+        <div className="flex flex-wrap items-center gap-8">
+          <AvatarStack people={PEOPLE} />
+          <AvatarStack people={PEOPLE.slice(0, 3)} size={28} onAdd={() => undefined} />
+        </div>
+      </Section>
+
+      <Section title="Activity icons (IconBadge)">
+        <div className="flex flex-wrap items-center gap-3">
+          <IconBadge color="brand" icon={HeartIcon} />
+          <IconBadge color="blue" icon={HeartIcon} />
+          <IconBadge color="green" icon={HeartIcon} />
+          <IconBadge color="purple" icon={HeartIcon} />
+          <IconBadge color="red" icon={HeartIcon} size="md" />
+          <IconBadge color="gray" icon={HeartIcon} size="sm" />
+        </div>
+      </Section>
+
+      <Section title="Card + Divider">
+        <Card className="max-w-sm">
+          <h3 className="text-[15px] font-semibold text-gray-900">Card title</h3>
+          <p className="mt-1 text-[13px] text-gray-500">
+            A white DS surface with a hairline border and shadow-xs.
+          </p>
+          <Divider className="my-3" />
+          <Divider label="OR" className="my-1" />
+        </Card>
       </Section>
 
       <Section title="Buttons">
