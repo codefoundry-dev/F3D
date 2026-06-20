@@ -2,9 +2,7 @@ import type { ReactNode } from 'react';
 
 import { Alert } from './Alert';
 import { AuthLayout } from './AuthLayout';
-import { AUTH_OUTLINE_BTN_CLASS } from './authStyles';
 import { Button } from './Button';
-import { IconBadge } from './IconBadge';
 import { Text } from './Text';
 
 export interface CheckEmailCardProps {
@@ -46,7 +44,7 @@ export function CheckEmailCard({
   onResend,
 }: CheckEmailCardProps) {
   return (
-    <AuthLayout icon={<IconBadge icon={icon} />} title={title} description={subtitle}>
+    <AuthLayout icon={icon} title={title} description={subtitle}>
       <div className="space-y-10">
         <Alert variant="success">{alertContent}</Alert>
 
@@ -63,15 +61,15 @@ export function CheckEmailCard({
           </ul>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-2">
           <Button size="lg" className="w-full" onClick={onBackToLogin}>
             {backLabel}
           </Button>
 
           <Button
-            variant="outline"
+            variant="secondary"
             size="lg"
-            className={AUTH_OUTLINE_BTN_CLASS}
+            className="w-full"
             onClick={onResend}
             isLoading={isResending}
           >

@@ -8,8 +8,6 @@ import { cn } from '../utils/cn';
 
 import { Alert } from './Alert';
 import { AuthLayout } from './AuthLayout';
-import { AUTH_OUTLINE_BTN_CLASS } from './authStyles';
-import { Badge } from './Badge';
 import { Button } from './Button';
 import { Text } from './Text';
 
@@ -47,13 +45,7 @@ function formatTime(s: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-function ShieldBadge() {
-  return (
-    <Badge className="flex items-center justify-center w-12 h-12 rounded-[12px] bg-foreground/10 p-0">
-      <ShieldIcon className="w-6 h-6 text-muted-foreground" />
-    </Badge>
-  );
-}
+const shieldIcon = <ShieldIcon className="w-6 h-6 text-muted-foreground" />;
 
 function EmailBadge({ email }: { email: string }) {
   return (
@@ -183,7 +175,7 @@ export function TwoFactorCard({
 
   if (isLocked) {
     return (
-      <AuthLayout icon={<ShieldBadge />} title={title} description={description}>
+      <AuthLayout icon={shieldIcon} title={title} description={description}>
         <div className="space-y-10">
           {lockedMessage && (
             <Alert variant="destructive" icon={<InfoIcon className="w-[18px] h-[18px]" />}>
@@ -207,7 +199,7 @@ export function TwoFactorCard({
 
   if (isExpired) {
     return (
-      <AuthLayout icon={<ShieldBadge />} title={title} description={description}>
+      <AuthLayout icon={shieldIcon} title={title} description={description}>
         <div className="flex flex-col gap-[72px]">
           <div className="flex flex-col items-center gap-8">
             <EmailBadge email={email} />
@@ -225,12 +217,7 @@ export function TwoFactorCard({
               {resendLabel}
             </Button>
 
-            <Button
-              variant="outline"
-              size="lg"
-              className={AUTH_OUTLINE_BTN_CLASS}
-              onClick={onBackToLogin}
-            >
+            <Button variant="secondary" size="lg" className="w-full" onClick={onBackToLogin}>
               {backLabel}
             </Button>
           </div>
@@ -240,7 +227,7 @@ export function TwoFactorCard({
   }
 
   return (
-    <AuthLayout icon={<ShieldBadge />} title={title} description={description}>
+    <AuthLayout icon={shieldIcon} title={title} description={description}>
       <div className="flex flex-col gap-[72px]">
         <div className="flex flex-col items-center gap-8">
           <EmailBadge email={email} />
@@ -318,12 +305,7 @@ export function TwoFactorCard({
             </Text>
           </div>
 
-          <Button
-            variant="outline"
-            size="lg"
-            className={AUTH_OUTLINE_BTN_CLASS}
-            onClick={onBackToLogin}
-          >
+          <Button variant="secondary" size="lg" className="w-full" onClick={onBackToLogin}>
             {backLabel}
           </Button>
         </div>

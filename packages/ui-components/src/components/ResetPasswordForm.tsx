@@ -1,11 +1,11 @@
 import { type ReactNode, useState, useEffect, useCallback } from 'react';
 
+import { cn } from '../utils/cn';
+
 import { Alert } from './Alert';
 import { AuthLayout } from './AuthLayout';
-import { AUTH_INPUT_CLASS } from './authStyles';
-import { Button } from './Button';
+import { Button, buttonVariants } from './Button';
 import { FormField } from './FormField';
-import { IconBadge } from './IconBadge';
 import { PasswordInput } from './PasswordInput';
 import { Text } from './Text';
 
@@ -15,7 +15,7 @@ export interface PasswordRule {
 }
 
 export interface ResetPasswordFormProps {
-  /** Icon inside the badge (e.g. KeyIcon) */
+  /** Icon inside the header badge (e.g. KeyIcon) */
   icon: ReactNode;
   /** Icon for password inputs (e.g. LockSimpleIcon) */
   passwordIcon: ReactNode;
@@ -140,12 +140,8 @@ export function ResetPasswordForm({
 
   if (isSuccess && successTitle) {
     return (
-      <AuthLayout
-        icon={<IconBadge icon={checkIcon} />}
-        title={successTitle}
-        description={successSubtitle}
-      >
-        <div className="space-y-6">
+      <AuthLayout icon={checkIcon} title={successTitle} description={successSubtitle}>
+        <div className="space-y-10">
           {successAlertContent && <Alert variant="success">{successAlertContent}</Alert>}
 
           <Button type="button" size="lg" className="w-full" onClick={handleRedirect}>
@@ -163,81 +159,88 @@ export function ResetPasswordForm({
   }
 
   return (
-    <AuthLayout icon={<IconBadge icon={icon} />} title={title} description={description}>
-      <form onSubmit={onSubmit} className="space-y-10" noValidate>
-        {(Boolean(errorContent) || Boolean(successContent)) && (
-          <div className="space-y-4">
-            {errorContent && (
-              <Alert variant="destructive" icon={errorIcon}>
-                {errorContent}
-              </Alert>
-            )}
-            {successContent && (
-              <Alert variant="success" icon={checkIcon}>
-                {successContent}
-              </Alert>
-            )}
+    <AuthLayout icon={icon} title={title} description={description}>
+      <form onSubmit={onSubmit} className="flex w-full flex-col gap-10" noValidate>
+        <div className="flex w-full flex-col gap-4">
+          {(Boolean(errorContent) || Boolean(successContent)) && (
+            <div className="space-y-2">
+              {errorContent && (
+                <Alert variant="destructive" icon={errorIcon}>
+                  {errorContent}
+                </Alert>
+              )}
+              {successContent && (
+                <Alert variant="success" icon={checkIcon}>
+                  {successContent}
+                </Alert>
+              )}
+            </div>
+          )}
+
+          <div className="flex w-full flex-col gap-6">
+            <FormField label={newPasswordLabel} htmlFor="newPassword" labelSize="lg">
+              <PasswordInput
+                id="newPassword"
+                inputSize="lg"
+                autoComplete="new-password"
+                placeholder={newPasswordPlaceholder}
+                disabled={isPending || isSuccess}
+                leftIcon={passwordIcon}
+                showIcon={eyeOpenIcon}
+                hideIcon={eyeClosedIcon}
+                {...newPasswordInputProps}
+              />
+            </FormField>
+
+            <FormField label={confirmPasswordLabel} htmlFor="confirmPassword" labelSize="lg">
+              <PasswordInput
+                id="confirmPassword"
+                inputSize="lg"
+                autoComplete="new-password"
+                placeholder={confirmPasswordPlaceholder}
+                disabled={isPending || isSuccess}
+                leftIcon={passwordIcon}
+                showIcon={eyeOpenIcon}
+                hideIcon={eyeClosedIcon}
+                {...confirmPasswordInputProps}
+              />
+            </FormField>
           </div>
-        )}
 
-        <div className="space-y-6">
-          <FormField label={newPasswordLabel} htmlFor="newPassword">
-            <PasswordInput
-              id="newPassword"
-              autoComplete="new-password"
-              placeholder={newPasswordPlaceholder}
-              disabled={isPending || isSuccess}
-              leftIcon={passwordIcon}
-              showIcon={eyeOpenIcon}
-              hideIcon={eyeClosedIcon}
-              className={AUTH_INPUT_CLASS}
-              {...newPasswordInputProps}
-            />
-          </FormField>
+          <div className="h-px w-full bg-gray-100" />
 
-          <FormField label={confirmPasswordLabel} htmlFor="confirmPassword">
-            <PasswordInput
-              id="confirmPassword"
-              autoComplete="new-password"
-              placeholder={confirmPasswordPlaceholder}
-              disabled={isPending || isSuccess}
-              leftIcon={passwordIcon}
-              showIcon={eyeOpenIcon}
-              hideIcon={eyeClosedIcon}
-              className={AUTH_INPUT_CLASS}
-              {...confirmPasswordInputProps}
-            />
-          </FormField>
+          <div className="flex flex-col gap-3">
+            <Text variant="body-14" as="p" className="text-gray-800">
+              {requirementsLabel}
+            </Text>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+              {rules.map((rule) => (
+                <div key={rule.label} className="flex items-center gap-2">
+                  {rule.passed ? (
+                    <span className="flex size-[18px] shrink-0 items-center justify-center text-success">
+                      {checkIcon}
+                    </span>
+                  ) : (
+                    <span className="size-[18px] shrink-0 rounded-full border border-gray-300" />
+                  )}
+                  <Text
+                    variant="body-14"
+                    as="span"
+                    className={rule.passed ? 'text-success' : 'text-gray-800'}
+                  >
+                    {rule.label}
+                  </Text>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <div>
-          <Text variant="body-14" as="p" className="mb-2 text-secondary-foreground">
-            {requirementsLabel}
-          </Text>
-          <div className="grid grid-cols-2 grid-rows-3 grid-flow-col gap-y-2 gap-x-14 rounded-xl border border-[#efefef] bg-[#fbfbfb] px-4 pt-3 pb-4 shadow-sm">
-            {rules.map((rule) => (
-              <div key={rule.label} className="flex items-center gap-2">
-                {rule.passed ? (
-                  <span className="w-4 h-4 text-success flex-shrink-0">{checkIcon}</span>
-                ) : (
-                  <span className="w-4 h-4 rounded-full border border-muted-foreground/40 flex-shrink-0" />
-                )}
-                <Text
-                  variant="body-14"
-                  as="span"
-                  className={rule.passed ? 'text-success' : 'text-secondary-foreground'}
-                >
-                  {rule.label}
-                </Text>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-4">
+        <div className="flex flex-col gap-2">
           <Button
             type="submit"
             size="lg"
+            variant="primary"
             isLoading={isPending}
             disabled={isSuccess || !isValid}
             className="w-full"
@@ -245,13 +248,12 @@ export function ResetPasswordForm({
             {submitLabel}
           </Button>
 
-          <div className="text-center">
-            <a href={backPath} className="text-foreground hover:underline">
-              <Text variant="body-18" as="span" className="font-medium text-foreground">
-                {backLabel}
-              </Text>
-            </a>
-          </div>
+          <a
+            href={backPath}
+            className={cn(buttonVariants({ variant: 'secondary', size: 'lg' }), 'w-full')}
+          >
+            {backLabel}
+          </a>
         </div>
       </form>
     </AuthLayout>

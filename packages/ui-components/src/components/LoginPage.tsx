@@ -8,7 +8,6 @@ import { z } from 'zod';
 import EnvelopeSimpleIcon from '../assets/icons/envelope-simple.svg?react';
 import EyeClosedIcon from '../assets/icons/eye-closed.svg?react';
 import EyeOpenedIcon from '../assets/icons/eye-opened.svg?react';
-import HandWavingIcon from '../assets/icons/handwaving-icon.svg?react';
 import InfoIcon from '../assets/icons/info.svg?react';
 import LockSimpleIcon from '../assets/icons/lock-simple.svg?react';
 
@@ -60,7 +59,6 @@ export function LoginPage({ loginMutation }: LoginPageProps) {
 
   return (
     <LoginForm
-      icon={<HandWavingIcon className="w-6 h-6 text-muted-foreground" />}
       emailIcon={<EnvelopeSimpleIcon className="w-5 h-5" />}
       passwordIcon={<LockSimpleIcon className="w-5 h-5" />}
       eyeOpenIcon={<EyeOpenedIcon className="w-5 h-5" />}

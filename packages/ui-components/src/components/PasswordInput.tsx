@@ -1,12 +1,11 @@
-import { forwardRef, useState, type InputHTMLAttributes, type ReactNode } from 'react';
+import { forwardRef, useState, type ReactNode } from 'react';
 
 import EyeClosedIcon from '../assets/icons/eye-closed.svg?react';
 import EyeOpenedIcon from '../assets/icons/eye-opened.svg?react';
 
-import { Input } from './Input';
+import { Input, type InputProps } from './Input';
 
-export interface PasswordInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
-  leftIcon?: ReactNode;
+export interface PasswordInputProps extends Omit<InputProps, 'type' | 'rightIcon'> {
   showIcon?: ReactNode;
   hideIcon?: ReactNode;
 }

@@ -4,7 +4,6 @@ import {
   AuthLayout,
   Button,
   ContactSupportLink,
-  IconBadge,
   PageLoader,
   ResetPasswordForm,
   Text,
@@ -69,7 +68,7 @@ export default function ActivateAccountPage() {
 
     return (
       <AuthLayout
-        icon={<IconBadge icon={<ClockIcon className="w-6 h-6 text-muted-foreground" />} />}
+        icon={<ClockIcon className="w-6 h-6 text-muted-foreground" />}
         title={t('invitationExpiredTitle')}
         description={t('invitationExpiredSubtitle')}
       >
