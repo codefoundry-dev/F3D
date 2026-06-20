@@ -56,7 +56,7 @@ export function Tabs<T extends string = string>({
     <div
       className={cn('flex items-center justify-between gap-3 border-b border-gray-200', className)}
     >
-      <nav
+      <div
         role="tablist"
         aria-label={ariaLabel}
         className={cn(
@@ -99,7 +99,7 @@ export function Tabs<T extends string = string>({
                   </span>
                 )}
                 {item.label}
-                {item.count != null && (
+                {item.count !== null && item.count !== undefined && (
                   <span
                     className={cn(
                       'inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] leading-none',
@@ -113,7 +113,7 @@ export function Tabs<T extends string = string>({
             </button>
           );
         })}
-      </nav>
+      </div>
       {rightSlot && <div className="shrink-0 pb-2">{rightSlot}</div>}
     </div>
   );

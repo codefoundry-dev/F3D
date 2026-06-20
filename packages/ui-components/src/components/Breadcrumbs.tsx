@@ -39,7 +39,7 @@ export function Breadcrumbs({
       <ol className="flex items-center">
         {items.map((item, index) => {
           const isLast = index === items.length - 1;
-          const interactive = !isLast && (item.href || item.onClick);
+          const interactive = !isLast && (item.href !== undefined || item.onClick !== undefined);
 
           const inner = (
             <span

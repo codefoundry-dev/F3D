@@ -36,5 +36,5 @@ export function Divider({ orientation = 'horizontal', label, className }: Divide
     );
   }
 
-  return <hr className={cn('h-px border-0 bg-gray-100', className)} role="separator" />;
+  return <hr className={cn('h-px border-0 bg-gray-100', className)} />;
 }

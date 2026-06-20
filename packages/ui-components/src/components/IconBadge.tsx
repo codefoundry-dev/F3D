@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { cn } from '../utils/cn';
+
 import type { BadgeColor } from './Badge';
 
 /**
