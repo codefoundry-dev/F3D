@@ -172,6 +172,8 @@ export interface PoDetail {
   documentName: string | null;
   projectName: string;
   projectId: string;
+  /** Human-readable project code (PRJ-YYYY-NNN); shown wherever a "Project ID" is labelled. */
+  projectCode: string;
   status: string;
   poType: string;
   approvalStatus: string | null;

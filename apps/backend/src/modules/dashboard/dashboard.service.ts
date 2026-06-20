@@ -342,7 +342,7 @@ export class DashboardService {
       take: 10,
       orderBy: { createdAt: 'desc' },
       include: {
-        project: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true, code: true } },
         company: { select: { legalName: true } },
       },
     });
@@ -383,6 +383,7 @@ export class DashboardService {
         poNumber: po.poNumber,
         projectName: po.project.name,
         projectId: po.project.id,
+        projectCode: po.project.code,
         contractorName: po.company.legalName,
         poStatus: po.status,
         revision: po.revision,

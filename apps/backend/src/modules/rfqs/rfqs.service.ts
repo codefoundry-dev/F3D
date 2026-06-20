@@ -71,8 +71,8 @@ const RFQ_LIST_INCLUDE = {
 } satisfies Prisma.RfqInclude;
 
 const RFQ_DETAIL_INCLUDE = {
-  project: { select: { id: true, name: true } },
-  projects: { include: { project: { select: { id: true, name: true } } } },
+  project: { select: { id: true, name: true, code: true } },
+  projects: { include: { project: { select: { id: true, name: true, code: true } } } },
   deliveryLocation: { select: { id: true, label: true, address: true } },
   createdBy: { select: { id: true, name: true } },
   approvedBy: { select: { id: true, name: true } },
@@ -325,9 +325,11 @@ export class RfqsService {
     const rfqAny = rfq as Record<string, unknown>;
 
     // All projects this RFQ spans (US 5.05), primary first.
-    const rfqProjects = (rfqAny.projects ?? []) as { project: { id: string; name: string } }[];
+    const rfqProjects = (rfqAny.projects ?? []) as {
+      project: { id: string; name: string; code: string };
+    }[];
     const projects = [
-      { id: rfq.projectId, name: rfq.project.name },
+      { id: rfq.projectId, name: rfq.project.name, code: rfq.project.code },
       ...rfqProjects.map((rp) => rp.project).filter((p) => p.id !== rfq.projectId),
     ];
     const rfqDeliveryLocation = rfqAny.deliveryLocation as {
@@ -343,6 +345,9 @@ export class RfqsService {
       name: (rfqAny.name as string | null) ?? rfq.project.name,
       projectName: rfq.project.name,
       projectId: rfq.projectId,
+      // Human-readable project code (PRJ-YYYY-NNN) shown wherever the UI labels a
+      // "Project ID", mirroring the RFQ dashboard list.
+      projectCode: rfq.project.code,
       projects,
       projectIds: projects.map((p) => p.id),
       status: vendorStatus ?? rfq.status,

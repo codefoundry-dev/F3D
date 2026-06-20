@@ -17,7 +17,9 @@ export function useActivePosColumns(): ColumnConfig[] {
     () => [
       { key: 'poNumber', field: 'poNumber', label: t('vendor.activePOs.poNumber') },
       { key: 'projectName', field: 'projectName', label: t('vendor.activePOs.projectName') },
-      { key: 'projectId', field: 'projectId', label: t('vendor.activePOs.projectId') },
+      // "Project ID" column shows the human-readable code (PRJ-YYYY-NNN); the
+      // key stays `projectId` so the column label is unchanged.
+      { key: 'projectId', field: 'projectCode', label: t('vendor.activePOs.projectId') },
       {
         key: 'contractorName',
         field: 'contractorName',

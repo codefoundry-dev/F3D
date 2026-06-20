@@ -215,7 +215,7 @@ export class PurchaseOrdersService {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id },
       include: {
-        project: { select: { name: true } },
+        project: { select: { name: true, code: true } },
         vendor: { select: { id: true, legalName: true } },
         company: { select: { id: true, legalName: true } },
         createdBy: { select: { id: true, name: true } },
@@ -244,6 +244,9 @@ export class PurchaseOrdersService {
       documentName: po.documentName,
       projectName: po.project.name,
       projectId: po.projectId,
+      // Human-readable project code (PRJ-YYYY-NNN) shown wherever the UI labels a
+      // "Project ID", mirroring the PO list table.
+      projectCode: po.project.code,
       status: po.status,
       poType: po.poType,
       approvalStatus: po.approvalStatus,
