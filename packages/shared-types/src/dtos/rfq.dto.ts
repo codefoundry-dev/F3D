@@ -463,6 +463,9 @@ export class RfqListItemDto {
   @ApiProperty()
   projectId!: string;
 
+  @ApiProperty({ description: 'Human-readable project code (PRJ-YYYY-NNN)' })
+  projectCode!: string;
+
   @ApiProperty({ description: 'RfqStatus for admins, VendorRfqStatus for vendors' })
   status!: string;
 

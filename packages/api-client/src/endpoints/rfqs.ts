@@ -43,6 +43,8 @@ export interface RfqListItem {
   rfqNumber: string | null;
   projectName: string;
   projectId: string;
+  /** Human-readable project code (PRJ-YYYY-NNN) — matches the Projects table. */
+  projectCode: string;
   status: string;
   reqQuantities: number;
   pickUp: boolean;

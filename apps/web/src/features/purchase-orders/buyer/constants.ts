@@ -22,7 +22,9 @@ export const GROUP_OPTIONS = ['groupByProject', 'groupByStatus'] as const;
 export const PO_COLUMNS: Array<{ field: SortableField; key: string }> = [
   { field: 'poNumber', key: 'poNumber' },
   { field: 'projectName', key: 'projectName' },
-  { field: 'projectId', key: 'projectId' },
+  // "Project ID" column shows the human-readable code (PRJ-YYYY-NNN) to match
+  // the Projects table; the key stays `projectId` (label/visibility/export).
+  { field: 'projectCode', key: 'projectId' },
   { field: 'contractorName', key: 'vendorName' },
   { field: 'status', key: 'poStatus' },
   { field: 'revision', key: 'revision' },

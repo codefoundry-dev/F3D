@@ -377,6 +377,9 @@ export class PoListItemDto {
   @ApiProperty()
   projectId!: string;
 
+  @ApiProperty({ description: 'Human-readable project code (PRJ-YYYY-NNN)' })
+  projectCode!: string;
+
   @ApiProperty({ enum: PoStatus })
   status!: PoStatus;
 

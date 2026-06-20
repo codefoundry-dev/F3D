@@ -53,7 +53,7 @@ import { VENDOR_STATUS_MAP, VENDOR_STATUS_TO_RFQ } from './vendor-status.constan
 
 /** Prisma includes shared by list & detail queries */
 const RFQ_LIST_INCLUDE = {
-  project: { select: { id: true, name: true } },
+  project: { select: { id: true, name: true, code: true } },
   deliveryLocation: { select: { id: true, label: true, address: true } },
   createdBy: { select: { id: true, name: true } },
   approvedBy: { select: { id: true, name: true } },
@@ -223,6 +223,8 @@ export class RfqsService {
           rfqNumber: rfqAny.rfqNumber ?? null,
           projectName: rfq.project.name,
           projectId: rfq.projectId,
+          /** Human-readable project code (PRJ-YYYY-NNN) — matches the Projects table. */
+          projectCode: rfq.project.code,
           /** Primary project (US 5.05 — RFQs may span several projects). */
           project: { id: rfq.projectId, name: rfq.project.name },
           status: isVendor ? this.computeVendorStatus(rfq, user.id) : rfq.status,
@@ -1575,6 +1577,8 @@ export class RfqsService {
         return { project: { name: sortDir } };
       case 'projectId':
         return { projectId: sortDir };
+      case 'projectCode':
+        return { project: { code: sortDir } };
       case 'status':
         return { status: sortDir };
       case 'totalRequestedQty':

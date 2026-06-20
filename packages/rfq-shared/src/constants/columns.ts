@@ -17,7 +17,9 @@ export interface ColumnDef {
 export const PO_CA_COLUMNS: ColumnDef[] = [
   { field: 'rfqNumber', key: 'rfqId' },
   { field: 'projectName', key: 'projectName' },
-  { field: 'projectId', key: 'projectId' },
+  // "Project ID" column shows the human-readable code (PRJ-YYYY-NNN) to match
+  // the Projects table; the key stays `projectId` (label/visibility/export).
+  { field: 'projectCode', key: 'projectId' },
   { field: 'status', key: 'rfqStatus' },
   { field: 'deadlineRange', key: 'resDeadline' },
   { field: 'pickUp', key: 'pickUp' },

@@ -89,6 +89,8 @@ export interface PoListItem {
   poNumber: string | null;
   projectName: string;
   projectId: string;
+  /** Human-readable project code (PRJ-YYYY-NNN) — matches the Projects table. */
+  projectCode: string;
   status: string;
   poType: string | null;
   revision: number | null;
