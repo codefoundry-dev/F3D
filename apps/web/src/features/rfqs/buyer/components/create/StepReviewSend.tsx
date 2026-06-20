@@ -11,6 +11,7 @@ import PaperclipIcon from '@forethread/ui-components/assets/icons/paperclip.svg?
 import { useMemo, useRef, useState } from 'react';
 
 import type { DeliveryLocationOption } from './StepBasicInfo';
+import { TABLE_BODY_ROW, TABLE_HEADER_ROW, TABLE_TH } from './tableStyles';
 import type { WizardBasicInfo, WizardLineItem } from './wizard-types';
 
 export interface PendingAttachment {
@@ -61,7 +62,14 @@ function ReviewCard({
       <div className="flex items-center justify-between px-5 py-4 border-b border-border">
         <h3 className="text-base font-semibold text-foreground">{title}</h3>
         {onEdit && (
-          <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onEdit}
+            leftIcon={<EditIcon className="w-3.5 h-3.5" />}
+            className="text-muted-foreground hover:text-foreground -mr-2"
+          >
             {editLabel}
           </Button>
         )}
@@ -139,48 +147,57 @@ export function StepReviewSend({
         onEdit={() => onEditStep(0)}
         editLabel={t('create.review.edit')}
       >
-        <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-3 text-sm">
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground shrink-0">{t('create.review.documentName')}</dt>
-            <dd className="text-foreground text-right">{basicInfo.documentName || '—'}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground shrink-0">{t('create.review.responseDeadline')}</dt>
-            <dd className="text-foreground text-right">{formatDate(basicInfo.responseDeadline)}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground shrink-0">{t('create.review.project')}</dt>
-            <dd className="text-foreground text-right">
-              {selectedProjects.map((project) => project.name).join(', ') || '—'}
-            </dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground shrink-0">{t('create.review.needByDate')}</dt>
-            <dd className="text-foreground text-right">{formatDate(basicInfo.needByDate)}</dd>
-          </div>
-          {basicInfo.holdForRelease && (
-            <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground shrink-0">
+        <dl className="text-sm">
+          {/* Top row — four fields (Figma: label above value). */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-10 gap-y-5">
+            <div>
+              <dt className="text-xs text-muted-foreground">{t('create.review.documentName')}</dt>
+              <dd className="text-foreground mt-1">{basicInfo.documentName || '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">
+                {t('create.review.responseDeadline')}
+              </dt>
+              <dd className="text-foreground mt-1">{formatDate(basicInfo.responseDeadline)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">{t('create.review.needByDate')}</dt>
+              <dd className="text-foreground mt-1">{formatDate(basicInfo.needByDate)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">
                 {t('create.review.earliestDeliveryDate')}
               </dt>
-              <dd className="text-foreground text-right">
-                {formatDate(basicInfo.earliestDeliveryDate)}
+              <dd className="text-foreground mt-1">{formatDate(basicInfo.earliestDeliveryDate)}</dd>
+            </div>
+          </div>
+          {/* Second row — project list and delivery/pick-up location. */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-5 mt-5">
+            <div>
+              <dt className="text-xs text-muted-foreground">{t('create.review.project')}</dt>
+              <dd className="text-foreground mt-1 space-y-0.5">
+                {selectedProjects.length > 0
+                  ? selectedProjects.map((project) => <div key={project.id}>{project.name}</div>)
+                  : '—'}
               </dd>
             </div>
-          )}
-          {basicInfo.isPickUp ? (
-            <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground shrink-0">{t('create.review.pickUpLocation')}</dt>
-              <dd className="text-foreground text-right">{basicInfo.pickUpLocation || '—'}</dd>
-            </div>
-          ) : (
-            <div className="flex justify-between gap-4 md:col-span-2">
-              <dt className="text-muted-foreground shrink-0">{t('create.review.deliveryLocation')}</dt>
-              <dd className="text-foreground text-right">
-                {basicInfo.deliveryLocationIds.map((id) => locationLabel(id)).join('; ') || '—'}
+            <div>
+              <dt className="text-xs text-muted-foreground">
+                {basicInfo.isPickUp
+                  ? t('create.review.pickUpLocation')
+                  : t('create.review.deliveryLocation')}
+              </dt>
+              <dd className="text-foreground mt-1 space-y-0.5">
+                {basicInfo.isPickUp
+                  ? basicInfo.pickUpLocation || '—'
+                  : basicInfo.deliveryLocationIds.length > 0
+                    ? basicInfo.deliveryLocationIds.map((id) => (
+                        <div key={id}>{locationLabel(id)}</div>
+                      ))
+                    : '—'}
               </dd>
             </div>
-          )}
+          </div>
         </dl>
       </ReviewCard>
 
@@ -193,15 +210,15 @@ export function StepReviewSend({
         <div className="rounded-lg border border-border overflow-x-auto">
           <table className="w-full text-sm min-w-[900px]" data-testid="review-line-items">
             <thead>
-              <tr className="text-left text-xs text-muted-foreground bg-muted/40">
-                <th className="font-medium py-2.5 px-3">{t('create.review.colLineItemId')}</th>
-                <th className="font-medium py-2.5 px-3">{t('create.review.colItemMaterial')}</th>
-                <th className="font-medium py-2.5 px-3">{t('create.review.colDescription')}</th>
-                <th className="font-medium py-2.5 px-3">{t('create.review.colUnit')}</th>
-                <th className="font-medium py-2.5 px-3">{t('create.review.colQuantity')}</th>
-                <th className="font-medium py-2.5 px-3">{t('create.review.colExpDelivery')}</th>
-                <th className="font-medium py-2.5 px-3">{t('create.review.colDeliveryLocation')}</th>
-                <th className="font-medium py-2.5 px-3 w-[110px]">{t('create.review.colActions')}</th>
+              <tr className={TABLE_HEADER_ROW}>
+                <th className={TABLE_TH}>{t('create.review.colLineItemId')}</th>
+                <th className={TABLE_TH}>{t('create.review.colItemMaterial')}</th>
+                <th className={TABLE_TH}>{t('create.review.colDescription')}</th>
+                <th className={TABLE_TH}>{t('create.review.colUnit')}</th>
+                <th className={TABLE_TH}>{t('create.review.colQuantity')}</th>
+                <th className={TABLE_TH}>{t('create.review.colExpDelivery')}</th>
+                <th className={TABLE_TH}>{t('create.review.colDeliveryLocation')}</th>
+                <th className={cn(TABLE_TH, 'w-[110px]')}>{t('create.review.colActions')}</th>
               </tr>
             </thead>
             {grouped.map(([groupProjectId, groupItems]) => {
@@ -212,7 +229,7 @@ export function StepReviewSend({
                     <td colSpan={8} className="py-2 px-3">
                       <button
                         type="button"
-                        className="flex items-center gap-2 text-sm font-medium text-foreground"
+                        className="flex items-center gap-2 text-sm text-foreground"
                         onClick={() =>
                           setCollapsed((prev) => ({ ...prev, [groupProjectId]: !isCollapsed }))
                         }
@@ -228,13 +245,11 @@ export function StepReviewSend({
                   </tr>
                   {!isCollapsed &&
                     groupItems.map((item) => (
-                      <tr key={item.key} className="border-t border-border">
+                      <tr key={item.key} className={TABLE_BODY_ROW}>
                         <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">
                           {item.serverId ? item.serverId.slice(0, 8).toUpperCase() : '—'}
                         </td>
-                        <td className="py-2.5 px-3 font-medium text-foreground">
-                          {item.materialName}
-                        </td>
+                        <td className="py-2.5 px-3 text-foreground">{item.materialName}</td>
                         <td className="py-2.5 px-3 text-muted-foreground">
                           {item.description ?? '—'}
                         </td>
@@ -297,7 +312,7 @@ export function StepReviewSend({
         onEdit={() => onEditStep(0)}
         editLabel={t('create.review.edit')}
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="flex flex-col gap-2.5">
           {selectedVendors.map((vendor) => (
             <div
               key={vendor.id}
@@ -311,12 +326,14 @@ export function StepReviewSend({
                     .map((part) => part[0]?.toUpperCase() ?? '')
                     .join('')}
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{vendor.companyName}</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {vendor.specialisations[0] ?? (vendor.categories.join(', ') || '—')}
-                  </p>
-                </div>
+                <p className="text-sm text-foreground truncate">
+                  <span className="font-medium">{vendor.companyName}</span>
+                  {(vendor.specialisations[0] ?? (vendor.categories.join(', ') || '')) && (
+                    <span className="text-muted-foreground ml-2">
+                      {vendor.specialisations[0] ?? vendor.categories.join(', ')}
+                    </span>
+                  )}
+                </p>
               </div>
               <button
                 type="button"
@@ -351,7 +368,9 @@ export function StepReviewSend({
             >
               {t('create.review.addAttachment')}
             </Button>
-            <span className="text-xs text-muted-foreground">{t('create.review.attachmentHint')}</span>
+            <span className="text-xs text-muted-foreground">
+              {t('create.review.attachmentHint')}
+            </span>
           </div>
           <input
             ref={fileInputRef}

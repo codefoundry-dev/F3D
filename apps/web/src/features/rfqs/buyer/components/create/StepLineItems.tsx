@@ -16,6 +16,7 @@ import NoteIcon from '@forethread/ui-components/assets/icons/note.svg?react';
 import { useMemo, useState } from 'react';
 
 import type { DeliveryLocationOption } from './StepBasicInfo';
+import { TABLE_BODY_ROW, TABLE_HEADER_ROW, TABLE_TH } from './tableStyles';
 import { nextLineKey, type WizardLineItem } from './wizard-types';
 
 interface StepLineItemsProps {
@@ -151,7 +152,10 @@ export function StepLineItems({
     projectId: string,
     patch: Partial<{ name: string; description: string; quantity: string; uom: string }>,
   ) => {
-    setManualDrafts((prev) => ({ ...prev, [projectId]: { ...manualDraftFor(projectId), ...patch } }));
+    setManualDrafts((prev) => ({
+      ...prev,
+      [projectId]: { ...manualDraftFor(projectId), ...patch },
+    }));
   };
 
   /** Promote a complete manual draft into a real line item. */
@@ -173,7 +177,10 @@ export function StepLineItems({
         projectId,
       },
     ]);
-    setManualDrafts((prev) => ({ ...prev, [projectId]: { name: '', description: '', quantity: '', uom: '' } }));
+    setManualDrafts((prev) => ({
+      ...prev,
+      [projectId]: { name: '', description: '', quantity: '', uom: '' },
+    }));
   };
 
   const totalQty = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
@@ -184,7 +191,8 @@ export function StepLineItems({
     const groups = projects.map((project) => ({
       project,
       rows: items.filter(
-        (item) => item.projectId === project.id || (!item.projectId && project.id === defaultProjectId),
+        (item) =>
+          item.projectId === project.id || (!item.projectId && project.id === defaultProjectId),
       ),
     }));
     return groups;
@@ -245,20 +253,22 @@ export function StepLineItems({
       <div className="rounded-lg border border-border overflow-x-auto bg-card">
         <table className="w-full text-sm min-w-[1100px]" data-testid="line-items-table">
           <thead>
-            <tr className="text-left text-xs text-muted-foreground bg-muted/40">
-              <th className="font-medium py-2.5 px-3 w-[140px]">{t('create.lineItems.colProject')}</th>
-              <th className="font-medium py-2.5 px-3 w-[110px]">{t('create.lineItems.colLineItemId')}</th>
-              <th className="font-medium py-2.5 px-3">{t('create.lineItems.colMaterialName')}</th>
-              <th className="font-medium py-2.5 px-3">{t('create.lineItems.colDescription')}</th>
-              <th className="font-medium py-2.5 px-3 w-[120px]">
+            <tr className={TABLE_HEADER_ROW}>
+              <th className={cn(TABLE_TH, 'w-[140px]')}>{t('create.lineItems.colProject')}</th>
+              <th className={cn(TABLE_TH, 'w-[110px]')}>{t('create.lineItems.colLineItemId')}</th>
+              <th className={TABLE_TH}>{t('create.lineItems.colMaterialName')}</th>
+              <th className={TABLE_TH}>{t('create.lineItems.colDescription')}</th>
+              <th className={cn(TABLE_TH, 'w-[120px]')}>
                 {t('create.lineItems.colQty')} <span className="text-destructive">*</span>
               </th>
-              <th className="font-medium py-2.5 px-3 w-[140px]">
+              <th className={cn(TABLE_TH, 'w-[140px]')}>
                 {t('create.lineItems.colUom')} <span className="text-destructive">*</span>
               </th>
-              <th className="font-medium py-2.5 px-3 w-[150px]">{t('create.lineItems.colExpDelivery')}</th>
-              <th className="font-medium py-2.5 px-3 w-[160px]">{t('create.lineItems.colDeliveryLocation')}</th>
-              <th className="font-medium py-2.5 px-3 w-[90px]">{t('create.lineItems.colActions')}</th>
+              <th className={cn(TABLE_TH, 'w-[150px]')}>{t('create.lineItems.colExpDelivery')}</th>
+              <th className={cn(TABLE_TH, 'w-[160px]')}>
+                {t('create.lineItems.colDeliveryLocation')}
+              </th>
+              <th className={cn(TABLE_TH, 'w-[90px]')}>{t('create.lineItems.colActions')}</th>
             </tr>
           </thead>
 
@@ -272,7 +282,7 @@ export function StepLineItems({
                   <td colSpan={colCount} className="py-2 px-3">
                     <button
                       type="button"
-                      className="flex items-center gap-2 text-sm font-medium text-foreground"
+                      className="flex items-center gap-2 text-sm text-foreground"
                       onClick={() =>
                         setCollapsed((prev) => ({ ...prev, [project.id]: !isCollapsed }))
                       }
@@ -297,7 +307,10 @@ export function StepLineItems({
                       locationOptions={locationsForProject(item.projectId)}
                       notesOpen={notesOpen[item.key] ?? false}
                       onToggleNotes={() =>
-                        setNotesOpen((prev) => ({ ...prev, [item.key]: !(prev[item.key] ?? false) }))
+                        setNotesOpen((prev) => ({
+                          ...prev,
+                          [item.key]: !(prev[item.key] ?? false),
+                        }))
                       }
                       onChange={(patch) => updateItem(item.key, patch)}
                       onRemove={() => removeItem(item.key)}
@@ -310,7 +323,7 @@ export function StepLineItems({
 
                 {/* Inline manual entry row (design: empty editable row per group) */}
                 {!isCollapsed && (
-                  <tr className="border-t border-border" data-testid={`manual-row-${project.id}`}>
+                  <tr className={TABLE_BODY_ROW} data-testid={`manual-row-${project.id}`}>
                     <td className="py-1.5 px-3 text-muted-foreground">{project.name}</td>
                     <td className="py-1.5 px-3 text-muted-foreground">—</td>
                     <td className="py-1.5 px-1">
@@ -326,7 +339,9 @@ export function StepLineItems({
                     <td className="py-1.5 px-1">
                       <input
                         value={draft.description}
-                        onChange={(e) => patchManualDraft(project.id, { description: e.target.value })}
+                        onChange={(e) =>
+                          patchManualDraft(project.id, { description: e.target.value })
+                        }
                         onBlur={() => commitManualDraft(project.id)}
                         placeholder={t('create.lineItems.manualDescriptionPlaceholder')}
                         className="w-full h-9 px-2 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:bg-muted/40 rounded"
@@ -413,7 +428,7 @@ function LineItemRow({
 }: LineItemRowProps) {
   return (
     <>
-      <tr className="border-t border-border" data-testid={`line-item-${item.key}`}>
+      <tr className={TABLE_BODY_ROW} data-testid={`line-item-${item.key}`}>
         <td className="py-1.5 px-1">
           <CellSelect
             value={item.projectId}
@@ -424,7 +439,7 @@ function LineItemRow({
         </td>
         <td className="py-1.5 px-3 text-muted-foreground whitespace-nowrap">{displayId}</td>
         <td className="py-1.5 px-3">
-          <span className="text-foreground font-medium">{item.materialName}</span>
+          <span className="text-foreground">{item.materialName}</span>
         </td>
         <td className="py-1.5 px-1">
           <input

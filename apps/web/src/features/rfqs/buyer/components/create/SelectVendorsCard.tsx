@@ -1,11 +1,14 @@
 import type { VendorListItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { VendorContactPopover } from '@forethread/rfq-shared';
 import { Button, Spinner, cn } from '@forethread/ui-components';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import FilterIcon from '@forethread/ui-components/assets/icons/filter.svg?react';
 import InfoIcon from '@forethread/ui-components/assets/icons/info.svg?react';
 import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
 import { useMemo, useState } from 'react';
+
+import { TABLE_BODY_ROW, TABLE_HEADER_ROW, TABLE_TH } from './tableStyles';
 
 interface SelectVendorsCardProps {
   vendors: VendorListItem[];
@@ -30,6 +33,27 @@ function VendorAvatar({ name }: { name: string }) {
     <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground shrink-0">
       {vendorInitials(name)}
     </div>
+  );
+}
+
+/**
+ * Sales-reps indicator (Figma 6643:165739): a users-group icon shown beside a
+ * vendor that has representatives; clicking reveals their contact details.
+ * Renders nothing when the vendor has no reps.
+ */
+function VendorReps({ vendor }: { vendor: VendorListItem }) {
+  const reps = vendor.representatives ?? [];
+  if (reps.length === 0) return null;
+  return (
+    <VendorContactPopover
+      contacts={reps.map((rep) => ({
+        id: rep.id,
+        name: rep.name,
+        role: rep.position ?? '',
+        phone: rep.phone,
+        email: rep.email,
+      }))}
+    />
   );
 }
 
@@ -180,24 +204,27 @@ export function SelectVendorsCard({
             ) : (
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-muted/50">
-                  <tr className="text-left text-xs text-muted-foreground">
-                    <th className="font-medium py-2.5 px-3">{t('create.vendors.colName')}</th>
-                    <th className="font-medium py-2.5 px-3">{t('create.vendors.colLocation')}</th>
-                    <th className="font-medium py-2.5 px-3">{t('create.vendors.colCategory')}</th>
-                    <th className="font-medium py-2.5 px-3 w-20">{t('create.vendors.colAction')}</th>
+                  <tr className={TABLE_HEADER_ROW}>
+                    <th className={TABLE_TH}>{t('create.vendors.colName')}</th>
+                    <th className={TABLE_TH}>{t('create.vendors.colLocation')}</th>
+                    <th className={TABLE_TH}>{t('create.vendors.colCategory')}</th>
+                    <th className={cn(TABLE_TH, 'w-20')}>{t('create.vendors.colAction')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((vendor) => {
                     const selected = selectedIds.includes(vendor.companyId);
                     return (
-                      <tr key={vendor.id} className="border-t border-border">
+                      <tr key={vendor.id} className={TABLE_BODY_ROW}>
                         <td className="py-2.5 px-3">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <VendorAvatar name={vendor.companyName} />
-                            <span className="font-medium text-foreground truncate">
-                              {vendor.companyName}
-                            </span>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <VendorAvatar name={vendor.companyName} />
+                              <span className="font-medium text-foreground truncate">
+                                {vendor.companyName}
+                              </span>
+                            </div>
+                            <VendorReps vendor={vendor} />
                           </div>
                         </td>
                         <td className="py-2.5 px-3 text-muted-foreground">{locationOf(vendor)}</td>
@@ -277,14 +304,17 @@ export function SelectVendorsCard({
                       <p className="text-xs text-muted-foreground truncate">{locationOf(vendor)}</p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => onToggle(vendor.companyId, false)}
-                    className="p-1.5 text-muted-foreground hover:text-destructive transition-colors shrink-0"
-                    aria-label={t('create.vendors.remove', { name: vendor.companyName })}
-                  >
-                    <CrossIcon className="w-3 h-3" />
-                  </button>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <VendorReps vendor={vendor} />
+                    <button
+                      type="button"
+                      onClick={() => onToggle(vendor.companyId, false)}
+                      className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
+                      aria-label={t('create.vendors.remove', { name: vendor.companyName })}
+                    >
+                      <CrossIcon className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
               ))
             )}

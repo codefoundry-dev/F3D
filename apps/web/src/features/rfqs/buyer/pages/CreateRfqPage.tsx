@@ -25,7 +25,11 @@ import { bomLineToRfqDraftFields } from '../components/create/bom-draft';
 import { EditMaterialModal } from '../components/create/EditMaterialModal';
 import { SelectVendorsCard } from '../components/create/SelectVendorsCard';
 import { AddFromBomModal, AddFromMaterialListModal } from '../components/create/source-modals';
-import { StepAvailability, remainingQty, type AllocationMap } from '../components/create/StepAvailability';
+import {
+  StepAvailability,
+  remainingQty,
+  type AllocationMap,
+} from '../components/create/StepAvailability';
 import { StepBasicInfo, type DeliveryLocationOption } from '../components/create/StepBasicInfo';
 import { StepLineItems } from '../components/create/StepLineItems';
 import { StepReviewSend, type PendingAttachment } from '../components/create/StepReviewSend';
@@ -114,7 +118,10 @@ function buildPayload(
 function withServerIds(items: WizardLineItem[], detail: RfqDetail): WizardLineItem[] {
   const serverItems = detail.lineItems ?? [];
   if (serverItems.length !== items.length) return items;
-  return items.map((item, index) => ({ ...item, serverId: serverItems[index]?.id ?? item.serverId }));
+  return items.map((item, index) => ({
+    ...item,
+    serverId: serverItems[index]?.id ?? item.serverId,
+  }));
 }
 
 /**
@@ -164,7 +171,10 @@ export default function CreateRfqPage() {
   );
 
   const selectedProjects = useMemo(
-    () => basicInfo.projectIds.map((id) => projects.find((p) => p.id === id)).filter(Boolean) as typeof projects,
+    () =>
+      basicInfo.projectIds
+        .map((id) => projects.find((p) => p.id === id))
+        .filter(Boolean) as typeof projects,
     [basicInfo.projectIds, projects],
   );
 
@@ -208,8 +218,7 @@ export default function CreateRfqPage() {
 
   // ── Legacy seeding: "Convert a project BOM" upload flow (FOR-200) hands
   // over a confirmed doc-intelligence extraction id via router state. ───────
-  const bomExtractionId = (location.state as { bomExtractionId?: string } | null)
-    ?.bomExtractionId;
+  const bomExtractionId = (location.state as { bomExtractionId?: string } | null)?.bomExtractionId;
   const { data: confirmedBomsPage } = useConfirmedBoms();
   useEffect(() => {
     if (seededRef.current || !bomExtractionId) return;
@@ -225,8 +234,7 @@ export default function CreateRfqPage() {
           materialId: fields.materialId,
           materialName: fields.materialName,
           notes: fields.notes,
-          quantity:
-            typeof item.quantity === 'number' && item.quantity >= 0.01 ? item.quantity : 1,
+          quantity: typeof item.quantity === 'number' && item.quantity >= 0.01 ? item.quantity : 1,
           uom: unit && unit.length > 0 ? unit : 'unit',
         };
       })
@@ -400,9 +408,7 @@ export default function CreateRfqPage() {
       await sendRfq.mutateAsync({ id: detail.id });
       setSubmitState('success');
     } catch (error) {
-      setSubmitError(
-        error instanceof Error ? error.message : t('create.submit.genericError'),
-      );
+      setSubmitError(error instanceof Error ? error.message : t('create.submit.genericError'));
       setSubmitState('error');
     }
   };
@@ -426,7 +432,10 @@ export default function CreateRfqPage() {
     setBasicInfo((prev) => {
       const missing = seedItems
         .map((item) => item.projectId)
-        .filter((projectId): projectId is string => Boolean(projectId) && !prev.projectIds.includes(projectId as string));
+        .filter(
+          (projectId): projectId is string =>
+            Boolean(projectId) && !prev.projectIds.includes(projectId as string),
+        );
       if (missing.length === 0) return prev;
       return { ...prev, projectIds: [...prev.projectIds, ...new Set(missing)] };
     });
@@ -434,26 +443,52 @@ export default function CreateRfqPage() {
 
   const isSaveError = saveDraft.isError || updateDraft.isError;
 
+  // Shared page heading (back arrow + title), used by the wizard and the
+  // terminal "No RFQ Required" screen (Figma keeps the header on both).
+  const pageHeader = (
+    <div className="flex items-center gap-3 pb-4">
+      <button
+        type="button"
+        onClick={() => navigate(ROUTES.rfqs)}
+        className="p-1.5 rounded-lg text-foreground hover:bg-accent transition-colors"
+        aria-label={t('create.backToList')}
+      >
+        <BackArrowIcon className="w-5 h-5" />
+      </button>
+      <div>
+        <h1 className="text-xl font-bold text-foreground leading-6">{t('create.title')}</h1>
+        <p className="text-[13px] text-muted-foreground">{t('create.subtitle')}</p>
+      </div>
+    </div>
+  );
+
   // ── Terminal "No RFQ Required" state ──────────────────────────────────────
   if (phase === 'noRfqRequired') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center">
-        <div className="w-12 h-12 rounded-[12px] bg-muted flex items-center justify-center mb-6">
-          <NewUserIcon className="w-6 h-6 text-foreground" />
-        </div>
-        <h1 className="text-3xl font-semibold text-foreground">
-          {t('create.noRfqRequired.title')}
-        </h1>
-        <p className="text-base text-muted-foreground mt-4 max-w-3xl">
-          {t('create.noRfqRequired.description')}
-        </p>
-        <div className="flex flex-col gap-2 w-full max-w-xl mt-8">
-          <Button className="w-full h-12" onClick={() => navigate(ROUTES.purchaseOrders)} data-testid="no-rfq-create-po">
-            {t('create.noRfqRequired.createPo')}
-          </Button>
-          <Button variant="outline" className="w-full h-12" onClick={() => navigate(ROUTES.rfqs)}>
-            {t('create.noRfqRequired.mainPage')}
-          </Button>
+      <div className="p-4 sm:px-10 flex flex-col flex-1 min-h-full bg-secondary">
+        {pageHeader}
+        <div className="flex flex-col flex-1 items-center justify-center px-6 text-center">
+          <div className="w-12 h-12 rounded-[12px] bg-muted flex items-center justify-center mb-6">
+            <NewUserIcon className="w-6 h-6 text-foreground" />
+          </div>
+          <h1 className="text-3xl font-semibold text-foreground">
+            {t('create.noRfqRequired.title')}
+          </h1>
+          <p className="text-base text-muted-foreground mt-4 max-w-3xl">
+            {t('create.noRfqRequired.description')}
+          </p>
+          <div className="flex flex-col gap-2 w-full max-w-xl mt-8">
+            <Button
+              className="w-full h-12"
+              onClick={() => navigate(ROUTES.purchaseOrders)}
+              data-testid="no-rfq-create-po"
+            >
+              {t('create.noRfqRequired.createPo')}
+            </Button>
+            <Button variant="outline" className="w-full h-12" onClick={() => navigate(ROUTES.rfqs)}>
+              {t('create.noRfqRequired.mainPage')}
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -473,21 +508,7 @@ export default function CreateRfqPage() {
 
   return (
     <div className="p-4 sm:px-10 flex flex-col flex-1 min-h-full bg-secondary">
-      {/* Page heading */}
-      <div className="flex items-center gap-3 pb-4">
-        <button
-          type="button"
-          onClick={() => navigate(ROUTES.rfqs)}
-          className="p-1.5 rounded-lg text-foreground hover:bg-accent transition-colors"
-          aria-label={t('create.backToList')}
-        >
-          <BackArrowIcon className="w-5 h-5" />
-        </button>
-        <div>
-          <h1 className="text-xl font-bold text-foreground leading-6">{t('create.title')}</h1>
-          <p className="text-[13px] text-muted-foreground">{t('create.subtitle')}</p>
-        </div>
-      </div>
+      {pageHeader}
 
       <Stepper step={step + 1} labels={stepLabels} />
 
