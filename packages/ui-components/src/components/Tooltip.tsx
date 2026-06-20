@@ -109,7 +109,7 @@ export function Tooltip({
     ref: (node: HTMLElement | null) => {
       triggerRef.current = node;
       const r = (children as { ref?: unknown }).ref;
-      if (typeof r === 'function') r(node);
+      if (typeof r === 'function') (r as (n: HTMLElement | null) => void)(node);
       else if (r && typeof r === 'object') (r as { current: unknown }).current = node;
     },
     onMouseEnter: show,
