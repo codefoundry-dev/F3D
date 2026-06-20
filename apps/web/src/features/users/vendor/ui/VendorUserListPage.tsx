@@ -237,7 +237,7 @@ export default function VendorUserListPage() {
             <div className="border border-border rounded-lg overflow-x-auto">
               <table className="w-full text-sm table-fixed min-w-[800px]">
                 <thead>
-                  <tr className="border-b border-border bg-[hsl(var(--table-header))] font-['Inter'] text-[hsl(var(--table-header-foreground))]">
+                  <tr className="border-b border-border bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
                     {sortableColumns.map((col) => (
                       <th
                         key={col.field}

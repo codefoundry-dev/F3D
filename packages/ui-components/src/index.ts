@@ -198,6 +198,16 @@ export type { DateRangeFilterDropdownProps } from './components/DateRangeFilterD
 export { SortIcon } from './components/SortIcon';
 export type { SortIconProps, SortDirection } from './components/SortIcon';
 
+export {
+  TABLE_CONTAINER,
+  TABLE_HEADER_ROW,
+  TABLE_HEADER_CELL,
+  TABLE_ROW,
+  TABLE_ROW_SELECTED,
+  TABLE_CELL,
+  TABLE_CELL_CAPTION,
+} from './components/tableStyles';
+
 export { SearchInput } from './components/SearchInput';
 export type { SearchInputProps } from './components/SearchInput';
 

@@ -72,7 +72,7 @@ export function BulkOrderTable({
     <div className="rounded-lg border border-border overflow-x-auto">
       <table className="w-full min-w-[800px] text-sm">
         <thead>
-          <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] font-['Inter'] text-[hsl(var(--table-header-foreground))]">
+          <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
             {COLUMNS.map(({ field, key }) => (
               <th
                 key={key}

@@ -221,7 +221,7 @@ export function CompanyUsersTab({ companyId, companyName, companyType }: Company
         <div className="border border-border rounded-lg overflow-x-auto">
           <table className="w-full min-w-[800px] text-sm table-fixed">
             <thead>
-              <tr className="border-b border-border bg-[hsl(var(--table-header))] font-['Inter'] text-[hsl(var(--table-header-foreground))]">
+              <tr className="border-b border-border bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
                 {sortableColumns.map((col) => (
                   <th
                     key={col.field}

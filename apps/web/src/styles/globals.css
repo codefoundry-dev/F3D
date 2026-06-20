@@ -8,11 +8,11 @@
     /* White #FFFFFF / #171717 */
     --background: 0 0% 100%;
     --foreground: 0 0% 9%;
-    /* #2A2A2A */
-    --sort-icon: 0 0% 16.5%;
-    /* #F2F2F2 */
-    --table-header: 0 0% 94.9%;
-    --table-header-foreground: 0 0% 16.5%;
+    /* Sort affordance — Gray-500 #6D7588 (softer DS grey) */
+    --sort-icon: 222 11% 48%;
+    /* Table header — Gray-50 #F4F4F6 bg / Gray-700 #40454F text (Figma Table cell 4188-8547) */
+    --table-header: 240 10% 96.1%;
+    --table-header-foreground: 220 10.5% 28%;
 
     /* ───── Card / popover ───── */
     --card: 0 0% 100%;

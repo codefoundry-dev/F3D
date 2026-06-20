@@ -11,10 +11,39 @@ import {
   Breadcrumbs,
   Button,
   SegmentedControl,
+  TABLE_CELL,
+  TABLE_CONTAINER,
+  TABLE_HEADER_CELL,
+  TABLE_HEADER_ROW,
+  TABLE_ROW,
   Tabs,
   type TabItem,
 } from '@forethread/ui-components';
 import { useState } from 'react';
+
+const TABLE_ROWS = [
+  {
+    id: 'RFQ-2024-001',
+    vendor: 'Acme Steel Co.',
+    status: 'Open',
+    color: 'green' as const,
+    total: '$12,400',
+  },
+  {
+    id: 'RFQ-2024-002',
+    vendor: 'BuildRight Supply',
+    status: 'Pending',
+    color: 'orange' as const,
+    total: '$8,150',
+  },
+  {
+    id: 'RFQ-2024-003',
+    vendor: 'Nakamura Cement',
+    status: 'Closed',
+    color: 'gray' as const,
+    total: '$31,900',
+  },
+];
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -86,6 +115,35 @@ export default function DesignSystemPlayground() {
             value={view}
             onValueChange={setView}
           />
+        </div>
+      </Section>
+
+      <Section title="Table">
+        <div className={TABLE_CONTAINER}>
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className={TABLE_HEADER_ROW}>
+                <th className={TABLE_HEADER_CELL}>RFQ #</th>
+                <th className={TABLE_HEADER_CELL}>Vendor</th>
+                <th className={TABLE_HEADER_CELL}>Status</th>
+                <th className={`${TABLE_HEADER_CELL} text-right`}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {TABLE_ROWS.map((row) => (
+                <tr key={row.id} className={TABLE_ROW}>
+                  <td className={`${TABLE_CELL} font-semibold`}>{row.id}</td>
+                  <td className={TABLE_CELL}>{row.vendor}</td>
+                  <td className={TABLE_CELL}>
+                    <Badge color={row.color} dot>
+                      {row.status}
+                    </Badge>
+                  </td>
+                  <td className={`${TABLE_CELL} text-right tabular-nums`}>{row.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </Section>
 

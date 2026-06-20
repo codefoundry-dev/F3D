@@ -421,7 +421,7 @@ export default function PurchaseOrderListPage() {
                 style={{ tableLayout: Object.keys(columnWidths).length > 0 ? 'fixed' : undefined }}
               >
                 <thead>
-                  <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] font-['Inter'] text-[hsl(var(--table-header-foreground))]">
+                  <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
                     {visibleCols.map(({ field, key }) => {
                       const isDropTarget = dragOverColKey === key && dragColKey !== key;
                       const width = columnWidths[key];

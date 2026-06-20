@@ -462,7 +462,7 @@ export default function UserListPage() {
                 <table className="w-full min-w-[900px] text-sm table-fixed">
                   {/* Column headers */}
                   <thead>
-                    <tr className="border-b border-border bg-[hsl(var(--table-header))] font-['Inter'] text-[hsl(var(--table-header-foreground))]">
+                    <tr className="border-b border-border bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
                       {/* Expand/collapse spacer */}
                       <th className="w-10" />
                       {sortableColumns.map((col) => (

@@ -182,7 +182,7 @@ export default function ProjectListPage() {
             <div className="rounded-lg border border-border overflow-x-auto">
               <table className="w-full min-w-[1000px] text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-[hsl(var(--table-header))] font-['Inter']">
+                  <tr className="border-b border-border bg-[hsl(var(--table-header))]">
                     {COLUMNS.map((col) => (
                       <th
                         key={col.key}

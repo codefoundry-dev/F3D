@@ -460,7 +460,7 @@ export default function RfqListPage() {
             <div className="rounded-lg border border-border overflow-x-auto">
               <table ref={tableRef} className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] font-['Inter'] text-[hsl(var(--table-header-foreground))]">
+                  <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
                     {visibleCols.map(({ field, key }) => {
                       const isDropTarget = dragOverColKey === key && dragColKey !== key;
                       return (
