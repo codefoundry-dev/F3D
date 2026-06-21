@@ -33,6 +33,8 @@ export interface CustomDropdownProps {
   error?: boolean;
   disabled?: boolean;
   className?: string;
+  /** Extra classes merged onto the trigger button (e.g. to size it to a 48px DS field). */
+  triggerClassName?: string;
   actionItem?: DropdownActionItem;
   searchable?: boolean;
   searchPlaceholder?: string;
@@ -49,6 +51,7 @@ export function CustomDropdown({
   error,
   disabled,
   className,
+  triggerClassName,
   actionItem,
   searchable,
   searchPlaceholder = 'Search…',
@@ -179,6 +182,7 @@ export function CustomDropdown({
                 error ? 'border-destructive' : 'border-input',
                 isOpen && 'border-foreground/50 bg-muted',
               ),
+          triggerClassName,
         )}
         aria-expanded={isOpen}
         aria-haspopup="listbox"

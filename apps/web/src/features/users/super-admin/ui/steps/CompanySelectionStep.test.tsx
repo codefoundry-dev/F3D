@@ -19,6 +19,12 @@ vi.mock('@/features/companies/services/companies.service', () => ({
 vi.mock('@forethread/ui-components', () => ({
   Button: ({ children, ...p }: any) => <button {...p}>{children}</button>,
   IconBadge: () => <div data-testid="icon-badge" />,
+  ModalGridHeader: ({ title, subtitle }: any) => (
+    <div data-testid="modal-grid-header">
+      <div>{title}</div>
+      {subtitle ? <div>{subtitle}</div> : null}
+    </div>
+  ),
   CustomDropdown: ({ onChange, actionItem }: any) => {
     return (
       <div data-testid="dropdown">

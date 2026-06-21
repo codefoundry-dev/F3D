@@ -39,6 +39,10 @@ export class CreateUserDto {
 
   @IsOptional()
   @IsString()
+  department?: string;
+
+  @IsOptional()
+  @IsString()
   phone?: string;
 }
 
@@ -286,6 +290,7 @@ export class UsersService {
         role: dto.role,
         companyId: dto.companyId,
         position: dto.position,
+        department: dto.department,
         phone: dto.phone,
         status: UserStatus.INVITED,
         invitedByUserId: requestingUser.id,

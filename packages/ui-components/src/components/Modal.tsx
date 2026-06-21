@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
+import authCardGrid from '../assets/auth-card-bg.png';
 import CrossIcon from '../assets/icons/cross.svg?react';
 import { cn } from '../utils/cn';
 
@@ -25,9 +26,29 @@ export interface ModalProps {
    * modals are unaffected.
    */
   scrollBody?: boolean;
+  /**
+   * Optional absolutely-positioned card decoration, painted behind the content
+   * (e.g. `<ModalGridBackground />` — the auth-style angled orange grid). The
+   * card becomes a positioning context (`relative`) when provided, so the
+   * decoration anchors to the card edges and bleeds under the padding.
+   */
+  decoration?: ReactNode;
+  /**
+   * Extra classes merged onto the card. Lets a caller override the default card
+   * chrome (radius / width / padding) — e.g. the registration modals which use
+   * the 480px, 32px-radius, padded "auth card" treatment.
+   */
+  cardClassName?: string;
 }
 
-export function Modal({ onClose, maxWidth, children, scrollBody = false }: ModalProps) {
+export function Modal({
+  onClose,
+  maxWidth,
+  children,
+  scrollBody = false,
+  decoration,
+  cardClassName,
+}: ModalProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -58,9 +79,14 @@ export function Modal({ onClose, maxWidth, children, scrollBody = false }: Modal
           // the desktop overflow-y-auto via tailwind-merge) so the header/footer
           // stay put and the body becomes the scroll region.
           scrollBody && 'toolbar:overflow-hidden',
+          // A decoration needs the card to be its positioning context.
+          decoration && 'relative',
           maxWidth && toDesktopOnly(maxWidth),
+          // Caller overrides (radius / width / padding) win via tailwind-merge.
+          cardClassName,
         )}
       >
+        {decoration}
         {children}
       </div>
     </div>
@@ -164,5 +190,69 @@ export function ModalFooter({ children, className }: { children: ReactNode; clas
     <div className={cn('flex justify-end gap-3 px-6 py-4 border-t border-border', className)}>
       {children}
     </div>
+  );
+}
+
+/**
+ * ModalGridBackground — the registration-modal card decoration (Figma "Card
+ * Background" node 3758:4893): the same angled orange perspective-grid + glow
+ * used on the auth cards, bled to the card's top edge. Pass it to `Modal`'s
+ * `decoration` slot. Anchored `absolute top-0`; it must be the first card child
+ * so the (relatively-positioned) header/body paint above it.
+ */
+export function ModalGridBackground({ className }: { className?: string }) {
+  return (
+    <img
+      src={authCardGrid}
+      alt=""
+      aria-hidden
+      className={cn(
+        'pointer-events-none absolute inset-x-0 top-0 h-[180px] w-full select-none object-cover',
+        className,
+      )}
+    />
+  );
+}
+
+/**
+ * Card chrome for the registration "auth card" modals (Figma node 4347:83892):
+ * 480px wide, 32px radius, 40px padding/gap, content centred. Pass as `Modal`'s
+ * `cardClassName` alongside `decoration={<ModalGridBackground />}`.
+ */
+export const REGISTRATION_MODAL_CARD_CLASS =
+  'items-center gap-8 overflow-y-auto p-6 toolbar:min-w-[480px] toolbar:max-w-[480px] toolbar:gap-10 toolbar:rounded-[32px] toolbar:p-10';
+
+export interface ModalGridHeaderProps {
+  /** Raw header icon (~24px) rendered inside the DS white-gradient badge chip. */
+  icon: ReactNode;
+  title: ReactNode;
+  subtitle?: ReactNode;
+  className?: string;
+}
+
+/**
+ * ModalGridHeader — centred registration-modal header (Figma node 3758:4894):
+ * the gradient-white "featured icon" badge, a Headline/S (32px) title and a
+ * Body/M (14px) subtitle. Sits above `ModalGridBackground`, so it is `relative`.
+ */
+export function ModalGridHeader({ icon, title, subtitle, className }: ModalGridHeaderProps) {
+  return (
+    <header
+      className={cn('relative flex w-full flex-col items-center gap-4 text-center', className)}
+    >
+      <div className="flex size-12 items-center justify-center rounded-[14px] border border-[#E8EAED] bg-gradient-to-b from-[#F9F9FA] to-white text-gray-700 shadow-[0_1px_3px_0_rgba(10,13,18,0.06),0_1px_1px_0_rgba(10,13,18,0.02)]">
+        <span className="flex size-6 items-center justify-center">{icon}</span>
+      </div>
+      <div className="flex w-full flex-col gap-2">
+        <h2 className="text-[32px] font-medium leading-[1.4] tracking-[0.3px] text-gray-900">
+          {title}
+        </h2>
+        {subtitle && (
+          <p className="text-[14px] font-medium leading-[1.4] tracking-[0.3px] text-gray-700">
+            {subtitle}
+          </p>
+        )}
+      </div>
+    </header>
   );
 }

@@ -2,6 +2,9 @@ import { render, screen, fireEvent } from '@testing-library/react';
 
 vi.mock('@forethread/ui-components', () => ({
   Modal: ({ children }: any) => <div data-testid="modal">{children}</div>,
+  ModalGridBackground: () => <div data-testid="modal-grid-bg" />,
+  REGISTRATION_MODAL_CARD_CLASS: '',
+  UserAlreadyExistsModal: () => <div data-testid="user-exists-modal" />,
   onPhoneOnly: vi.fn(),
   onDigitsOnly: vi.fn(),
   onDecimalOnly: vi.fn(),

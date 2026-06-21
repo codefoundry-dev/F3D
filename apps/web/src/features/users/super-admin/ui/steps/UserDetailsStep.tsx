@@ -2,12 +2,13 @@ import { useTranslation } from '@forethread/i18n';
 import { CompanyType, UserRole } from '@forethread/shared-types/client';
 import {
   Button,
-  IconBadge,
+  ModalGridHeader,
   Input,
   FormField,
   CustomDropdown,
   Alert,
 } from '@forethread/ui-components';
+import BriefcaseIcon from '@forethread/ui-components/assets/icons/briefcase.svg?react';
 import DepartmentIcon from '@forethread/ui-components/assets/icons/department.svg?react';
 import EnvelopeIcon from '@forethread/ui-components/assets/icons/envelope-simple.svg?react';
 import IdBadgeIcon from '@forethread/ui-components/assets/icons/id-badge.svg?react';
@@ -20,6 +21,10 @@ import { z } from 'zod';
 
 import { CONTRACTOR_ROLE_OPTIONS } from '../../constants/roles';
 import { useCreateUser } from '../../services/users.service';
+
+/** DS field-sized (48px / Corner-m) trigger so the dropdowns match the lg inputs. */
+const DS_DROPDOWN_TRIGGER =
+  'h-12 rounded-[14px] border-[#E8EAED] bg-white py-0 text-[16px] text-gray-900';
 
 interface UserDetailsStepProps {
   companyType: CompanyType;
@@ -52,6 +57,7 @@ export function UserDetailsStep({
           ? z.string().min(1, t('validation:roleRequired'))
           : z.string().optional(),
         position: z.string().optional(),
+        department: z.string().optional(),
       }),
     [t, isContractor],
   );
@@ -88,7 +94,8 @@ export function UserDetailsStep({
         email: data.email,
         role: isContractor ? (data.role ?? '') : 'VENDOR',
         companyId,
-        position: data.position ?? undefined,
+        position: data.position?.trim() ?? undefined,
+        department: data.department?.trim() ?? undefined,
       },
       {
         onSuccess: () => onSuccess(data.email),
@@ -103,82 +110,107 @@ export function UserDetailsStep({
   };
 
   return (
-    <div className="flex flex-col items-center text-center">
-      <IconBadge icon={<NewUserIcon className="w-6 h-6 text-foreground" />} />
-
-      <h2 className="text-2xl font-semibold leading-[140%] text-foreground mt-4">
-        {t('createUserPage.title')}
-      </h2>
-      <p className="text-sm text-muted-foreground mt-1">{t('createUserPage.subtitle')}</p>
+    <>
+      <ModalGridHeader
+        icon={<NewUserIcon className="size-6 text-gray-700" />}
+        title={t('createUserPage.title')}
+        subtitle={t('createUserPage.subtitle')}
+      />
 
       <form
         onSubmit={(e) => void handleSubmit(onSubmit)(e)}
-        className="w-full mt-6 space-y-4 text-left"
+        className="relative flex w-full flex-col gap-10 text-left"
         noValidate
       >
-        <FormField label={t('createModal.representativeName')} error={errors.name?.message}>
-          <Input
-            type="text"
-            placeholder={t('createModal.namePlaceholder')}
-            leftIcon={<UserOutlineIcon className="w-5 h-5" />}
-            {...register('name')}
-          />
-        </FormField>
-
-        <FormField label={t('createModal.representativeEmail')} error={errors.email?.message}>
-          <Input
-            type="email"
-            placeholder={t('createModal.emailPlaceholder')}
-            leftIcon={<EnvelopeIcon className="w-5 h-5" />}
-            {...register('email')}
-          />
-        </FormField>
-
-        {isContractor && (
-          <FormField label={t('createModal.role')} error={errors.role?.message}>
-            <Controller
-              name="role"
-              control={control}
-              render={({ field }) => (
-                <CustomDropdown
-                  options={roleOptions}
-                  value={field.value}
-                  onChange={field.onChange}
-                  placeholder={t('createModal.selectRole')}
-                  leftIcon={<DepartmentIcon className="w-5 h-5" />}
-                  error={!!errors.role}
-                />
-              )}
+        <div className="flex w-full flex-col gap-6">
+          <FormField label={t('createModal.fullName')} error={errors.name?.message} labelSize="lg">
+            <Input
+              type="text"
+              inputSize="lg"
+              placeholder={t('createModal.namePlaceholder')}
+              leftIcon={<UserOutlineIcon className="size-5" />}
+              {...register('name')}
             />
           </FormField>
-        )}
 
-        {/* Position (optional) */}
-        <div>
-          <label className="block mb-1.5">
-            <span className="text-sm font-medium text-card-foreground">
-              {t('createModal.position')}&nbsp;
-              <span className="text-muted-foreground font-normal">({t('common:optional')})</span>
-            </span>
-          </label>
-          <Input
-            type="text"
-            placeholder={t('createModal.positionPlaceholder')}
-            leftIcon={<IdBadgeIcon className="w-5 h-5" />}
-            {...register('position')}
-          />
+          <FormField label={t('createModal.email')} error={errors.email?.message} labelSize="lg">
+            <Input
+              type="email"
+              inputSize="lg"
+              placeholder={t('createModal.emailPlaceholder')}
+              leftIcon={<EnvelopeIcon className="size-5" />}
+              {...register('email')}
+            />
+          </FormField>
+
+          {isContractor && (
+            <FormField label={t('createModal.role')} error={errors.role?.message} labelSize="lg">
+              <Controller
+                name="role"
+                control={control}
+                render={({ field }) => (
+                  <CustomDropdown
+                    options={roleOptions}
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder={t('createModal.selectRole')}
+                    leftIcon={<BriefcaseIcon className="size-5" />}
+                    triggerClassName={DS_DROPDOWN_TRIGGER}
+                    error={!!errors.role}
+                  />
+                )}
+              />
+            </FormField>
+          )}
+
+          <div>
+            <label className="mb-1.5 block px-2">
+              <span className="text-[16px] font-medium leading-[1.4] tracking-[0.3px] text-gray-800">
+                {t('createModal.position')}{' '}
+                <span className="text-[12px] font-normal text-gray-500">
+                  ({t('common:optional')})
+                </span>
+              </span>
+            </label>
+            <Input
+              type="text"
+              inputSize="lg"
+              placeholder={t('createModal.positionPlaceholder')}
+              leftIcon={<IdBadgeIcon className="size-5" />}
+              {...register('position')}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block px-2">
+              <span className="text-[16px] font-medium leading-[1.4] tracking-[0.3px] text-gray-800">
+                {t('createModal.department')}{' '}
+                <span className="text-[12px] font-normal text-gray-500">
+                  ({t('common:optional')})
+                </span>
+              </span>
+            </label>
+            <Input
+              type="text"
+              inputSize="lg"
+              placeholder={t('createModal.departmentPlaceholder')}
+              leftIcon={<DepartmentIcon className="size-5" />}
+              {...register('department')}
+            />
+          </div>
+
+          {createMutation.isError && (
+            <Alert variant="destructive">
+              {(createMutation.error as { response?: { data?: { error?: string } } })?.response
+                ?.data?.error ?? t('createModal.createError')}
+            </Alert>
+          )}
         </div>
 
-        {createMutation.isError && (
-          <Alert variant="destructive">
-            {(createMutation.error as { response?: { data?: { error?: string } } })?.response?.data
-              ?.error ?? t('createModal.createError')}
-          </Alert>
-        )}
-
-        <div className="flex flex-col gap-3 pt-2">
+        <div className="flex w-full flex-col gap-3">
           <Button
             type="submit"
+            size="lg"
             isLoading={createMutation.isPending}
             disabled={!isValid}
             className="w-full"
@@ -187,11 +219,11 @@ export function UserDetailsStep({
               ? t('createUserPage.sending')
               : t('createUserPage.sendInvitation')}
           </Button>
-          <Button variant="outline" type="button" onClick={onCancel} className="w-full">
+          <Button variant="outline" size="lg" type="button" onClick={onCancel} className="w-full">
             {t('createUserPage.cancel')}
           </Button>
         </div>
       </form>
-    </div>
+    </>
   );
 }

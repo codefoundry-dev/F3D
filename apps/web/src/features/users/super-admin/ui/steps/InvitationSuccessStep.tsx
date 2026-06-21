@@ -1,5 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
-import { Button, IconBadge } from '@forethread/ui-components';
+import { Button, ModalGridHeader } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import { useEffect, useState } from 'react';
 
@@ -8,7 +8,7 @@ interface InvitationSuccessStepProps {
   onClose: () => void;
 }
 
-const COUNTDOWN_SECONDS = 3;
+const COUNTDOWN_SECONDS = 5;
 
 export function InvitationSuccessStep({ email, onClose }: InvitationSuccessStepProps) {
   const { t } = useTranslation(['users', 'common']);
@@ -30,46 +30,44 @@ export function InvitationSuccessStep({ email, onClose }: InvitationSuccessStepP
   const parts = email ? sentText.split(email) : [sentText];
 
   return (
-    <div className="flex flex-col items-center text-center">
-      <IconBadge icon={<CheckCircleIcon className="w-6 h-6 text-foreground" />} />
+    <>
+      <ModalGridHeader
+        icon={<CheckCircleIcon className="size-6 text-gray-700" />}
+        title={t('invitationSuccess.title')}
+      />
 
-      <h2 className="text-2xl font-semibold leading-[140%] text-foreground mt-4">
-        {t('invitationSuccess.title')}
-      </h2>
-      <p className="text-sm text-muted-foreground mt-1">{t('invitationSuccess.subtitle')}</p>
+      <div className="relative flex w-full flex-col text-left">
+        {/* Green info box with bold email */}
+        <div className="w-full rounded-xl border border-success/20 bg-success/10 px-4 py-3">
+          <p className="text-sm leading-relaxed text-success">
+            {parts.length > 1
+              ? parts.flatMap((part, i) =>
+                  i < parts.length - 1
+                    ? [
+                        part,
+                        <strong key={i} className="font-bold">
+                          {email}
+                        </strong>,
+                      ]
+                    : [part],
+                )
+              : sentText}
+          </p>
+        </div>
 
-      {/* Green info box with bold email */}
-      <div className="w-full mt-5 rounded-xl bg-success/10 border border-success/20 px-4 py-3 text-left">
-        <p className="text-sm leading-relaxed text-success">
-          {parts.length > 1
-            ? parts.flatMap((part, i) =>
-                i < parts.length - 1
-                  ? [
-                      part,
-                      <strong key={i} className="font-bold">
-                        {email}
-                      </strong>,
-                    ]
-                  : [part],
-              )
-            : sentText}
+        {/* Expiry note */}
+        <p className="mt-4 w-full text-sm text-foreground">{t('invitationSuccess.linkExpiry')}</p>
+
+        {/* Back button */}
+        <Button onClick={onClose} size="lg" className="mt-5 w-full">
+          {t('invitationSuccess.backToUsers')}
+        </Button>
+
+        {/* Countdown */}
+        <p className="mt-3 text-center text-sm text-muted-foreground">
+          {t('invitationSuccess.redirecting', { seconds: countdown })}
         </p>
       </div>
-
-      {/* Expiry note */}
-      <p className="w-full mt-4 text-left text-sm text-foreground">
-        {t('invitationSuccess.linkExpiry')}
-      </p>
-
-      {/* Back button */}
-      <Button onClick={onClose} className="w-full mt-5">
-        {t('invitationSuccess.backToUsers')}
-      </Button>
-
-      {/* Countdown */}
-      <p className="text-sm text-muted-foreground mt-3">
-        {t('invitationSuccess.redirecting', { seconds: countdown })}
-      </p>
-    </div>
+    </>
   );
 }
