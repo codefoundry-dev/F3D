@@ -96,7 +96,7 @@ describe('EditMaterialCorePage', () => {
     mockedGet.mockResolvedValue(material());
     renderPage();
 
-    expect(await screen.findByText('Edit Core identification')).toBeInTheDocument();
+    expect(await screen.findByText('Edit Colorbond Roofing Sheet')).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByTestId('material-form-name')).toHaveValue('Colorbond Roofing Sheet'),
     );

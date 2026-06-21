@@ -1,4 +1,5 @@
 import * as apiClient from '@forethread/api-client';
+import { notificationService } from '@forethread/ui-components';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -73,6 +74,7 @@ describe('CreateMaterialPage', () => {
     // Default: an approver (SA) — create navigates straight to the detail page.
     permissionSet.current = new Set(['material.approve']);
     mockedCategories.mockResolvedValue(CATEGORIES);
+    vi.spyOn(notificationService, 'info').mockImplementation(() => 'id');
   });
 
   it('renders step 1 (Core Identification) first', async () => {
@@ -136,9 +138,12 @@ describe('CreateMaterialPage', () => {
     await screen.findByTestId('detail-page');
   });
 
-  it('shows the "added to private catalogue" success modal for a contributor (CA / PO)', async () => {
+  it('shows a success toast and returns to the catalogue for a contributor (CA / PO)', async () => {
     permissionSet.current = new Set(['material.create']);
-    mockedCreate.mockResolvedValue({ id: 'mat-99' } as apiClient.MaterialDetailDto);
+    mockedCreate.mockResolvedValue({
+      id: 'mat-99',
+      name: 'Colorbond Roofing Sheet',
+    } as apiClient.MaterialDetailDto);
     renderPage();
     await screen.findByRole('heading', { name: 'Core Identification' });
 
@@ -151,9 +156,10 @@ describe('CreateMaterialPage', () => {
     fireEvent.click(screen.getByTestId('create-material-submit'));
 
     await waitFor(() => expect(mockedCreate).toHaveBeenCalledTimes(1));
-    expect(await screen.findByTestId('catalogue-success-contribute')).toBeInTheDocument();
-    expect(screen.getByText('Material added to private catalogue')).toBeInTheDocument();
-    // The detail page is NOT shown; the modal owns the redirect to the catalogue.
+    // A toast (not a modal) confirms creation, and the contributor lands back on
+    // the catalogue list (the new material is private + pending approval).
+    await waitFor(() => expect(notificationService.info).toHaveBeenCalledTimes(1));
+    await screen.findByTestId('catalogue-page');
     expect(screen.queryByTestId('detail-page')).not.toBeInTheDocument();
   });
 

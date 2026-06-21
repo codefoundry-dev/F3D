@@ -1,28 +1,37 @@
 import { updateDocExtraction, type MaterialDuplicateMatch } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Stepper } from '@forethread/po-shared';
 import {
   type CatalogueExtractionResult,
   type CatalogueLineItem,
   isCatalogueExtractionResult,
 } from '@forethread/shared-types/client';
 import { Alert, Button, Input, notificationService, useDebounce } from '@forethread/ui-components';
-import BackArrowIcon from '@forethread/ui-components/assets/icons/back-arrow.svg?react';
 import CopyIcon from '@forethread/ui-components/assets/icons/copy.svg?react';
-import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
-import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
+import FileTextIcon from '@forethread/ui-components/assets/icons/file-text.svg?react';
 import WarningIcon from '@forethread/ui-components/assets/icons/info-in-triangle.svg?react';
 import InfoIcon from '@forethread/ui-components/assets/icons/info.svg?react';
-import UploadIcon from '@forethread/ui-components/assets/icons/upload.svg?react';
+import SpinnerIcon from '@forethread/ui-components/assets/icons/spinner.svg?react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 
 import { useCreateDocExtraction, useDocExtractionQuery } from '../../doc-intelligence';
+import { WizardStepper } from '../components/WizardStepper';
 import { useCatalogueImport } from '../hooks/useCatalogueImport';
 import { mapDuplicateResults, useDetectDuplicates } from '../hooks/useDetectDuplicates';
+import { FieldIcon } from '../icons/fieldIcons';
+import {
+  ArrowCircleRightIcon,
+  FolderIcon,
+  GitDiffIcon,
+  PencilSimpleIcon,
+  PlusCircleIcon,
+  SealCheckIcon,
+  TrashSimpleIcon,
+  UploadSimpleIcon,
+} from '../icons/phosphor';
 
 type Step = 1 | 2 | 3;
 
@@ -40,14 +49,14 @@ function extensionOf(filename: string): string {
 }
 
 /**
- * 3-step Super-Admin catalogue upload wizard (US 4.01 Phase 3). Reuses the
- * doc-intelligence upload + poll pipeline (`useCreateDocExtraction`,
+ * 3-step catalogue upload wizard (US 4.02 "Contribute to material catalogue").
+ * Reuses the doc-intelligence upload + poll pipeline (`useCreateDocExtraction`,
  * `useDocExtractionQuery`, `type: 'CATALOGUE'`) — the same flow the FOR-228
  * `CatalogueImportModal` runs — but as a full page with column mapping and
  * duplicate detection.
  *
- * Step transitions are driven by explicit onClick handlers, NOT an implicit
- * `<form>` submit, to avoid the button-morph foot-gun (see
+ * Step transitions are driven by explicit onClick handlers in the header, NOT an
+ * implicit `<form>` submit, to avoid the button-morph foot-gun (see
  * [[wizard-button-morph-implicit-submit]]).
  */
 export default function UploadMaterialFilePage() {
@@ -88,9 +97,6 @@ export default function UploadMaterialFilePage() {
   }, [job?.status, job?.editedResult, draft]);
 
   // ── Duplicate detection (debounced) ─────────────────────────────────────
-  // A stable signature of the candidate fields so we only re-check when a
-  // name / sku / upc actually changes (category / description edits don't move
-  // the duplicate needle).
   const candidateSignature = useMemo(
     () => items.map((i) => `${i.name}|${i.sku ?? ''}|${i.upc ?? ''}`).join('\n'),
     [items],
@@ -101,9 +107,6 @@ export default function UploadMaterialFilePage() {
   useEffect(() => {
     if (step === 1 || items.length === 0) return;
     detectMutate(items.map((i) => ({ name: i.name, sku: i.sku, upc: i.upc })));
-    // Re-run when the candidate signature settles (debounced) or we enter a
-    // review step. `items` is intentionally read at call time, not depended on,
-    // to avoid re-firing on unrelated edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSignature, step, detectMutate]);
 
@@ -224,31 +227,66 @@ export default function UploadMaterialFilePage() {
   const isFailed = job?.status === 'FAILED';
   const isImporting = persisting || importMutation.isPending;
 
-  const stepLabels = [
-    t('upload.stepper.upload'),
-    t('upload.stepper.map'),
-    t('upload.stepper.review'),
+  const steps = [
+    { label: t('upload.steps.upload'), icon: <UploadSimpleIcon className="size-[18px]" /> },
+    { label: t('upload.steps.map'), icon: <GitDiffIcon className="size-[18px]" /> },
+    { label: t('upload.steps.review'), icon: <SealCheckIcon className="size-[18px]" /> },
   ];
 
   return (
     <div className="p-8" data-testid="upload-material-page">
-      {/* ── Header ───────────────────────────────────────────────────── */}
-      <div className="flex items-start gap-3">
-        <button
-          type="button"
-          onClick={cancel}
-          className="mt-1 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent"
-          aria-label={t('upload.back')}
-          data-testid="upload-back"
-        >
-          <BackArrowIcon className="w-4 h-4" />
-        </button>
-        <h1 className="text-2xl font-semibold text-foreground">{t('upload.title')}</h1>
+      {/* ── Header ────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-2.5">
+          <FolderIcon className="size-5 text-muted-foreground" />
+          <h1 className="text-2xl font-semibold text-foreground">{t('upload.title')}</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={cancel} data-testid="upload-cancel">
+            {t('upload.cancel')}
+          </Button>
+          {step === 1 && (
+            <Button
+              rightIcon={<PlusCircleIcon className="size-[18px]" />}
+              disabled={!file || isProcessing}
+              isLoading={isProcessing}
+              onClick={onProceed}
+              data-testid="upload-proceed"
+            >
+              {isProcessing
+                ? isUploading
+                  ? t('upload.step1.uploading')
+                  : t('upload.step1.processing')
+                : t('upload.step1.proceed')}
+            </Button>
+          )}
+          {step === 2 && (
+            <Button
+              rightIcon={<ArrowCircleRightIcon className="size-[18px]" />}
+              disabled={items.length === 0}
+              onClick={() => setStep(3)}
+              data-testid="upload-continue"
+            >
+              {t('upload.step2.continue')}
+            </Button>
+          )}
+          {step === 3 && (
+            <Button
+              rightIcon={<PlusCircleIcon className="size-[18px]" />}
+              disabled={items.length === 0 || isImporting}
+              isLoading={isImporting}
+              onClick={() => void onAddMaterials()}
+              data-testid="upload-add"
+            >
+              {isImporting ? t('upload.step3.adding') : t('upload.step3.add')}
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* ── Stepper ──────────────────────────────────────────────────── */}
+      {/* ── Stepper ───────────────────────────────────────────────────── */}
       <div className="mt-6">
-        <Stepper step={step} labels={stepLabels} />
+        <WizardStepper steps={steps} current={step} />
       </div>
 
       <div className="mt-6 space-y-6">
@@ -285,53 +323,10 @@ export default function UploadMaterialFilePage() {
             editingCards={editingCards}
             onToggleEdit={toggleCardEdit}
             onUpdate={updateItem}
+            onRemove={removeItem}
             onViewMatch={onViewMatch}
           />
         )}
-
-        {/* ── Footer ─────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between pt-2">
-          <Button variant="outline" size="lg" onClick={cancel} data-testid="upload-cancel">
-            {t('upload.cancel')}
-          </Button>
-
-          {step === 1 && (
-            <Button
-              size="lg"
-              disabled={!file || isProcessing}
-              isLoading={isProcessing}
-              onClick={onProceed}
-              data-testid="upload-proceed"
-            >
-              {isProcessing
-                ? isUploading
-                  ? t('upload.step1.uploading')
-                  : t('upload.step1.processing')
-                : t('upload.step1.proceed')}
-            </Button>
-          )}
-          {step === 2 && (
-            <Button
-              size="lg"
-              disabled={items.length === 0}
-              onClick={() => setStep(3)}
-              data-testid="upload-continue"
-            >
-              {t('upload.step2.continue')}
-            </Button>
-          )}
-          {step === 3 && (
-            <Button
-              size="lg"
-              disabled={items.length === 0 || isImporting}
-              isLoading={isImporting}
-              onClick={() => void onAddMaterials()}
-              data-testid="upload-add"
-            >
-              {isImporting ? t('upload.step3.adding') : t('upload.step3.add')}
-            </Button>
-          )}
-        </div>
       </div>
     </div>
   );
@@ -372,22 +367,37 @@ function UploadStep({
 }: UploadStepProps) {
   const { t } = useTranslation(['materialCatalogue']);
 
+  // Extracting / uploading → a centred spinner replaces the dropzone.
+  if (isProcessing) {
+    return (
+      <section className="rounded-2xl border border-border bg-card p-6">
+        <h3 className="text-base font-semibold text-foreground">{t('upload.step1.cardTitle')}</h3>
+        <div
+          className="mt-4 flex flex-col items-center justify-center gap-3 rounded-xl border border-border px-6 py-20 text-center"
+          role="status"
+          data-testid="upload-processing"
+        >
+          <SpinnerIcon className="size-9 animate-spin text-muted-foreground" aria-hidden />
+          <p className="text-sm font-semibold text-foreground">
+            {isUploading ? t('upload.step1.uploading') : t('upload.step1.processingTitle')}
+          </p>
+          <p className="text-xs text-muted-foreground">{t('upload.step1.processingHint')}</p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <>
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">{t('upload.step1.heading')}</h2>
-      </div>
-
-      <section className="rounded-xl border border-border bg-card p-6">
+      <section className="rounded-2xl border border-border bg-card p-6">
         <h3 className="text-base font-semibold text-foreground">{t('upload.step1.cardTitle')}</h3>
 
         <div
           role="button"
           tabIndex={0}
-          aria-disabled={isProcessing}
-          onClick={() => !isProcessing && fileInputRef.current?.click()}
+          onClick={() => fileInputRef.current?.click()}
           onKeyDown={(e) => {
-            if (!isProcessing && (e.key === 'Enter' || e.key === ' ')) {
+            if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               fileInputRef.current?.click();
             }
@@ -395,27 +405,21 @@ function UploadStep({
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
-            if (!isProcessing) onFileSelected(e.dataTransfer.files?.[0]);
+            onFileSelected(e.dataTransfer.files?.[0]);
           }}
           data-testid="upload-dropzone"
-          className="mt-4 flex flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border px-6 py-16 text-center transition-colors hover:border-foreground/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="mt-4 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border px-6 py-14 text-center transition-colors hover:border-foreground/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          {isProcessing ? (
-            <p className="text-sm text-muted-foreground" role="status">
-              {isUploading ? t('upload.step1.uploading') : t('upload.step1.processing')}
-            </p>
-          ) : (
-            <>
-              <UploadIcon className="mb-2 h-6 w-6 text-muted-foreground" aria-hidden />
-              <p className="text-sm font-medium text-foreground">{t('upload.step1.dropTitle')}</p>
-              <p className="text-xs text-muted-foreground">{t('upload.step1.dropFormats')}</p>
-              {file ? (
-                <p className="mt-2 text-xs text-foreground" data-testid="upload-selected-file">
-                  {t('upload.step1.selectedFile', { name: file.name })}
-                </p>
-              ) : null}
-            </>
-          )}
+          <span className="mb-1 flex size-10 items-center justify-center rounded-[10px] border border-[#e8eaed] bg-[#f9f9fa] text-indigo-600 shadow-[0px_1px_2px_0px_rgba(10,13,18,0.05)]">
+            <FileTextIcon className="size-5" aria-hidden />
+          </span>
+          <p className="text-sm text-foreground">
+            {t('upload.step1.dropTitle')}{' '}
+            <span className="font-semibold text-foreground underline">
+              {t('upload.step1.browse')}
+            </span>
+          </p>
+          <p className="text-xs text-muted-foreground">{t('upload.step1.dropFormats')}</p>
           <input
             ref={fileInputRef}
             type="file"
@@ -426,6 +430,25 @@ function UploadStep({
             onChange={(e) => onFileSelected(e.target.files?.[0])}
           />
         </div>
+
+        {file ? (
+          <div
+            className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-[#e8eaed] bg-white px-3 py-2.5"
+            data-testid="upload-selected-file"
+          >
+            <div className="flex min-w-0 items-center gap-2.5">
+              <FileTextIcon className="size-7 shrink-0 text-[#d92d20]" aria-hidden />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-foreground">{file.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {extensionOf(file.name).replace('.', '').toUpperCase()} ·{' '}
+                  {t('upload.step1.complete')}
+                </p>
+              </div>
+            </div>
+            <SealCheckIcon className="size-5 shrink-0 text-success-600" aria-hidden />
+          </div>
+        ) : null}
 
         {fileError ? (
           <p className="mt-3 text-xs text-destructive" role="alert" data-testid="upload-file-error">
@@ -475,128 +498,132 @@ function MapStep({
 
   return (
     <>
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">{t('upload.step2.heading')}</h2>
-      </div>
-
       {hasDuplicates ? (
         <div data-testid="map-duplicate-banner">
           <Alert variant="destructive">{t('upload.step2.duplicateBanner')}</Alert>
         </div>
       ) : null}
 
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full text-sm" data-testid="map-table">
-          <thead className="bg-muted/50 text-xs uppercase">
-            <tr>
-              <th className="p-2 text-left">{t('upload.step2.columns.name')}*</th>
-              <th className="p-2 text-left">{t('upload.step2.columns.uom')}*</th>
-              <th className="p-2 text-left">{t('upload.step2.columns.category')}*</th>
-              <th className="p-2 text-left">{t('upload.step2.columns.materialType')}</th>
-              <th className="p-2 text-left">{t('upload.step2.columns.manufacturer')}</th>
-              <th className="p-2 text-left">{t('upload.step2.columns.upc')}</th>
-              <th className="p-2 text-left">{t('upload.step2.columns.description')}</th>
-              <th className="p-2 text-right">{t('upload.step2.columns.actions')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 ? (
+      <section className="rounded-2xl border border-border bg-card p-6">
+        <h3 className="mb-4 text-base font-semibold text-foreground">
+          {t('upload.step2.mappingTitle')}
+        </h3>
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full text-sm" data-testid="map-table">
+            <thead className="bg-[#f9f9fa] text-xs font-semibold text-muted-foreground">
               <tr>
-                <td colSpan={8} className="p-4 text-center text-muted-foreground">
-                  {t('upload.step2.emptyRows')}
-                </td>
+                <th className="p-3 text-left">{t('upload.step2.columns.name')}*</th>
+                <th className="p-3 text-left">{t('upload.step2.columns.uom')}*</th>
+                <th className="p-3 text-left">{t('upload.step2.columns.category')}*</th>
+                <th className="p-3 text-left">{t('upload.step2.columns.materialType')}</th>
+                <th className="p-3 text-left">{t('upload.step2.columns.manufacturer')}</th>
+                <th className="p-3 text-left">{t('upload.step2.columns.upc')}</th>
+                <th className="p-3 text-left">{t('upload.step2.columns.description')}</th>
+                <th className="p-3 text-right">{t('upload.step2.columns.actions')}</th>
               </tr>
-            ) : (
-              items.map((item, index) => {
-                const isDuplicate = duplicateIndexes.has(index);
-                return (
-                  <tr
-                    key={index}
-                    data-testid={`map-row-${index}`}
-                    data-duplicate={isDuplicate ? 'true' : undefined}
-                    className={isDuplicate ? 'bg-warning/10' : undefined}
-                  >
-                    <td className="p-1">
-                      <Input
-                        aria-label={t('upload.step2.columns.name')}
-                        value={item.name}
-                        onChange={(e) => onUpdate(index, { name: e.target.value })}
-                      />
-                    </td>
-                    <td className="p-1">
-                      <Input
-                        aria-label={t('upload.step2.columns.uom')}
-                        value={item.uom ?? ''}
-                        onChange={(e) => onUpdate(index, { uom: e.target.value || null })}
-                      />
-                    </td>
-                    <td className="p-1">
-                      <Input
-                        aria-label={t('upload.step2.columns.category')}
-                        value={item.mainCategory ?? ''}
-                        onChange={(e) => onUpdate(index, { mainCategory: e.target.value || null })}
-                      />
-                    </td>
-                    {/* Material type has no backing field on CatalogueLineItem,
-                        so it is read-only here ("—") until the extraction schema
-                        carries it. */}
-                    <td className="p-2 text-muted-foreground">—</td>
-                    <td className="p-1">
-                      <Input
-                        aria-label={t('upload.step2.columns.manufacturer')}
-                        value={item.brand ?? ''}
-                        onChange={(e) => onUpdate(index, { brand: e.target.value || null })}
-                      />
-                    </td>
-                    <td className="p-1">
-                      <Input
-                        aria-label={t('upload.step2.columns.upc')}
-                        value={item.upc ?? ''}
-                        onChange={(e) => onUpdate(index, { upc: e.target.value || null })}
-                      />
-                    </td>
-                    <td className="p-1">
-                      <Input
-                        aria-label={t('upload.step2.columns.description')}
-                        value={item.description ?? ''}
-                        onChange={(e) => onUpdate(index, { description: e.target.value || null })}
-                      />
-                    </td>
-                    <td className="p-1">
-                      <div className="flex items-center justify-end gap-1">
-                        {isDuplicate ? (
+            </thead>
+            <tbody>
+              {items.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="p-4 text-center text-muted-foreground">
+                    {t('upload.step2.emptyRows')}
+                  </td>
+                </tr>
+              ) : (
+                items.map((item, index) => {
+                  const isDuplicate = duplicateIndexes.has(index);
+                  return (
+                    <tr
+                      key={index}
+                      data-testid={`map-row-${index}`}
+                      data-duplicate={isDuplicate ? 'true' : undefined}
+                      className={`border-t border-border ${isDuplicate ? 'bg-destructive/[0.04]' : ''}`}
+                    >
+                      <td className="p-1.5">
+                        <Input
+                          aria-label={t('upload.step2.columns.name')}
+                          value={item.name}
+                          error={isDuplicate}
+                          onChange={(e) => onUpdate(index, { name: e.target.value })}
+                        />
+                      </td>
+                      <td className="p-1.5">
+                        <Input
+                          aria-label={t('upload.step2.columns.uom')}
+                          value={item.uom ?? ''}
+                          onChange={(e) => onUpdate(index, { uom: e.target.value || null })}
+                        />
+                      </td>
+                      <td className="p-1.5">
+                        <Input
+                          aria-label={t('upload.step2.columns.category')}
+                          value={item.mainCategory ?? ''}
+                          onChange={(e) =>
+                            onUpdate(index, { mainCategory: e.target.value || null })
+                          }
+                        />
+                      </td>
+                      {/* Material type has no backing field on CatalogueLineItem,
+                          so it is read-only here ("—") until the extraction schema
+                          carries it. */}
+                      <td className="p-3 text-muted-foreground">—</td>
+                      <td className="p-1.5">
+                        <Input
+                          aria-label={t('upload.step2.columns.manufacturer')}
+                          value={item.brand ?? ''}
+                          onChange={(e) => onUpdate(index, { brand: e.target.value || null })}
+                        />
+                      </td>
+                      <td className="p-1.5">
+                        <Input
+                          aria-label={t('upload.step2.columns.upc')}
+                          value={item.upc ?? ''}
+                          onChange={(e) => onUpdate(index, { upc: e.target.value || null })}
+                        />
+                      </td>
+                      <td className="p-1.5">
+                        <Input
+                          aria-label={t('upload.step2.columns.description')}
+                          value={item.description ?? ''}
+                          onChange={(e) => onUpdate(index, { description: e.target.value || null })}
+                        />
+                      </td>
+                      <td className="p-1.5">
+                        <div className="flex items-center justify-end gap-1">
+                          {isDuplicate ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              iconOnly
+                              aria-label={t('upload.step2.actions.duplicate')}
+                              data-testid={`map-duplicate-row-${index}`}
+                              onClick={() => onDuplicate(index)}
+                            >
+                              <CopyIcon className="h-4 w-4" />
+                            </Button>
+                          ) : null}
                           <Button
                             type="button"
-                            variant="ghost"
+                            variant="destructive"
                             size="sm"
                             iconOnly
-                            aria-label={t('upload.step2.actions.duplicate')}
-                            data-testid={`map-duplicate-row-${index}`}
-                            onClick={() => onDuplicate(index)}
+                            aria-label={t('upload.step2.actions.delete')}
+                            data-testid={`map-delete-row-${index}`}
+                            onClick={() => onRemove(index)}
                           >
-                            <CopyIcon className="h-4 w-4" />
+                            <TrashSimpleIcon className="size-4" />
                           </Button>
-                        ) : null}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          iconOnly
-                          aria-label={t('upload.step2.actions.delete')}
-                          data-testid={`map-delete-row-${index}`}
-                          onClick={() => onRemove(index)}
-                        >
-                          <DeleteIcon className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </>
   );
 }
@@ -611,6 +638,7 @@ interface ReviewStepProps {
   editingCards: ReadonlySet<number>;
   onToggleEdit: (index: number) => void;
   onUpdate: (index: number, patch: Partial<CatalogueLineItem>) => void;
+  onRemove: (index: number) => void;
   onViewMatch: (matches: MaterialDuplicateMatch[]) => void;
 }
 
@@ -622,16 +650,13 @@ function ReviewStep({
   editingCards,
   onToggleEdit,
   onUpdate,
+  onRemove,
   onViewMatch,
 }: ReviewStepProps) {
   const { t } = useTranslation(['materialCatalogue']);
 
   return (
     <>
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">{t('upload.step3.heading')}</h2>
-      </div>
-
       {hasDuplicates ? (
         <div data-testid="review-duplicate-banner">
           <Alert variant="destructive">{t('upload.step3.duplicateBanner')}</Alert>
@@ -649,7 +674,7 @@ function ReviewStep({
             <article
               key={index}
               data-testid={`review-card-${index}`}
-              className="rounded-xl border border-border bg-card p-5"
+              className="rounded-2xl border border-border bg-card p-5"
             >
               <div className="flex items-start justify-between gap-4">
                 {isEditing ? (
@@ -684,24 +709,29 @@ function ReviewStep({
                   <Button
                     variant="outline"
                     size="sm"
-                    leftIcon={<EditIcon className="h-3.5 w-3.5" />}
+                    leftIcon={<PencilSimpleIcon className="size-3.5" />}
                     data-testid={`review-edit-${index}`}
                     onClick={() => onToggleEdit(index)}
                   >
                     {isEditing ? t('upload.step3.done') : t('upload.step3.edit')}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    iconOnly
+                    aria-label={t('upload.step3.delete')}
+                    data-testid={`review-delete-${index}`}
+                    onClick={() => onRemove(index)}
+                  >
+                    <TrashSimpleIcon className="size-4" />
                   </Button>
                 </div>
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-border pt-4 sm:grid-cols-3 lg:grid-cols-5">
                 <ReviewField
-                  label={t('upload.step3.meta.uom')}
-                  value={item.uom}
-                  editing={isEditing}
-                  onChange={(v) => onUpdate(index, { uom: v || null })}
-                />
-                <ReviewField
                   label={t('upload.step3.meta.category')}
+                  field="category"
                   value={item.mainCategory}
                   editing={isEditing}
                   onChange={(v) => onUpdate(index, { mainCategory: v || null })}
@@ -709,18 +739,28 @@ function ReviewStep({
                 {/* Material type is not on CatalogueLineItem (read-only). */}
                 <ReviewField
                   label={t('upload.step3.meta.materialType')}
+                  field="materialType"
                   value={null}
                   editing={false}
                   onChange={() => {}}
                 />
                 <ReviewField
                   label={t('upload.step3.meta.manufacturer')}
+                  field="manufacturer"
                   value={item.brand}
                   editing={isEditing}
                   onChange={(v) => onUpdate(index, { brand: v || null })}
                 />
                 <ReviewField
+                  label={t('upload.step3.meta.uom')}
+                  field="uom"
+                  value={item.uom}
+                  editing={isEditing}
+                  onChange={(v) => onUpdate(index, { uom: v || null })}
+                />
+                <ReviewField
                   label={t('upload.step3.meta.upc')}
+                  field="upc"
                   value={item.upc}
                   editing={isEditing}
                   onChange={(v) => onUpdate(index, { upc: v || null })}
@@ -762,11 +802,13 @@ function ReviewStep({
 
 function ReviewField({
   label,
+  field,
   value,
   editing,
   onChange,
 }: {
   label: string;
+  field: string;
   value: string | null | undefined;
   editing: boolean;
   onChange: (next: string) => void;
@@ -782,7 +824,13 @@ function ReviewField({
           className="mt-1"
         />
       ) : (
-        <p className="truncate text-sm text-muted-foreground" title={value ?? ''}>
+        <p
+          className="mt-1 flex items-center gap-1.5 truncate text-sm text-muted-foreground"
+          title={value ?? ''}
+        >
+          <span className="shrink-0 text-gray-400">
+            <FieldIcon field={field} className="size-3.5" />
+          </span>
           {value && value.length > 0 ? value : '—'}
         </p>
       )}

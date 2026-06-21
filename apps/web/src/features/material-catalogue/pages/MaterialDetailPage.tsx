@@ -3,14 +3,19 @@ import { useTranslation } from '@forethread/i18n';
 import { Button } from '@forethread/ui-components';
 import BackArrowIcon from '@forethread/ui-components/assets/icons/back-arrow.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
-import { type ReactNode } from 'react';
+import ImageIcon from '@forethread/ui-components/assets/icons/image.svg?react';
+import { type ReactNode, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 import { usePermissions } from '@/shared/role';
 
+import { ConfirmMaterialModal } from '../components/ConfirmMaterialModal';
 import { MaterialStatusBadge } from '../components/MaterialStatusBadge';
 import { useMaterial } from '../hooks/useMaterial';
+import { useMaterialMutations } from '../hooks/useMaterialMutations';
+import { FieldIcon } from '../icons/fieldIcons';
+import { TrashSimpleIcon } from '../icons/phosphor';
 import { formatLongDate, formatPrice } from '../lib/format';
 import { specificDataLabel } from '../lib/specificDataSchema';
 
@@ -32,11 +37,18 @@ function dim(d: MaterialDimensions | null, key: keyof MaterialDimensions): strin
   return DASH;
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, field, children }: { label: string; field?: string; children: ReactNode }) {
   return (
     <div className="min-w-0">
       <p className="text-sm text-muted-foreground">{label}</p>
-      <div className="mt-1 text-sm text-foreground break-words">{children}</div>
+      <div className="mt-1 flex items-center gap-2 text-sm text-foreground">
+        {field && (
+          <span className="shrink-0 text-gray-500">
+            <FieldIcon field={field} />
+          </span>
+        )}
+        <span className="min-w-0 break-words">{children}</span>
+      </div>
     </div>
   );
 }
@@ -51,6 +63,8 @@ export default function MaterialDetailPage() {
   const navigate = useNavigate();
   const { has } = usePermissions();
   const { data, isLoading, isError } = useMaterial(id);
+  const { remove } = useMaterialMutations();
+  const [showDelete, setShowDelete] = useState(false);
 
   if (isLoading) {
     return (
@@ -85,6 +99,7 @@ export default function MaterialDetailPage() {
   const editCorePath = ROUTES.materialCatalogueEdit.replace(':id', material.id);
   const editAdditionalPath = ROUTES.materialCatalogueEditAdditional.replace(':id', material.id);
   const canEdit = has('material.update');
+  const canDelete = has('material.delete');
 
   const EditButton = ({ to }: { to: string }) =>
     canEdit ? (
@@ -107,24 +122,34 @@ export default function MaterialDetailPage() {
 
   return (
     <div className="p-8 space-y-6" data-testid="material-detail">
-      <div className="flex items-start gap-3">
-        <button
-          type="button"
-          onClick={() => navigate(ROUTES.materialCatalogue)}
-          className="mt-1 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent"
-          aria-label={t('detail.back')}
-          data-testid="material-detail-back"
-        >
-          <BackArrowIcon className="w-4 h-4" />
-        </button>
-        <div>
+      {/* ── Header ──────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate(ROUTES.materialCatalogue)}
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            aria-label={t('detail.back')}
+            data-testid="material-detail-back"
+          >
+            <BackArrowIcon className="h-4 w-4" />
+          </button>
           <h1 className="text-2xl font-semibold text-foreground">{material.name}</h1>
-          <p className="text-sm text-muted-foreground">{internalId}</p>
         </div>
+        {canDelete && (
+          <Button
+            variant="destructive"
+            leftIcon={<TrashSimpleIcon className="size-4" />}
+            onClick={() => setShowDelete(true)}
+            data-testid="material-detail-delete"
+          >
+            {t('detail.delete')}
+          </Button>
+        )}
       </div>
 
       {/* ── Core identification ─────────────────────────────────────── */}
-      <section className="rounded-xl border border-border bg-card p-6">
+      <section className="rounded-2xl border border-border bg-card p-6">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-foreground">
             {t('detail.coreIdentification')}
@@ -138,63 +163,91 @@ export default function MaterialDetailPage() {
               <img
                 src={material.imageUrl}
                 alt={material.name}
-                className="w-full aspect-[3/4] object-cover rounded-lg border border-border"
+                className="w-full aspect-[4/5] object-cover rounded-xl border border-[#e8eaed]"
               />
             ) : (
-              <div className="w-full aspect-[3/4] rounded-lg border border-border flex items-center justify-center text-sm text-muted-foreground">
-                {t('detail.imagePlaceholder')}
+              <div className="flex aspect-[4/5] w-full items-center justify-center rounded-xl border border-[#e8eaed] bg-[#f9f9fa] text-gray-300">
+                <ImageIcon className="size-14" />
               </div>
             )}
           </div>
 
           <div className="flex-1 grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-            <Field label={t('detail.fields.internalId')}>{val(internalId)}</Field>
+            <Field label={t('detail.fields.internalId')} field="internalId">
+              {val(internalId)}
+            </Field>
             {/* No dedicated "material code" column exists on the catalogue model;
                 the SKU is the material's code, so we surface it here too. */}
-            <Field label={t('detail.fields.materialCode')}>{val(material.sku)}</Field>
-            <Field label={t('detail.fields.materialName')}>{val(material.name)}</Field>
+            <Field label={t('detail.fields.materialCode')} field="materialCode">
+              {val(material.sku)}
+            </Field>
+            <Field label={t('detail.fields.materialName')} field="name">
+              {val(material.name)}
+            </Field>
             <Field label={t('detail.fields.status')}>
               <MaterialStatusBadge status={material.status} />
             </Field>
-            <Field label={t('detail.fields.categories')}>{val(material.categoryName)}</Field>
-            <Field label={t('detail.fields.materialType')}>{val(material.materialType)}</Field>
-            <Field label={t('detail.fields.unitOfMeasure')}>{val(material.uom)}</Field>
-            <Field label={t('detail.fields.itemType')}>{val(material.itemType)}</Field>
-            <Field label={t('detail.fields.countryOfOrigin')}>
+            <Field label={t('detail.fields.categories')} field="category">
+              {val(material.categoryName)}
+            </Field>
+            <Field label={t('detail.fields.materialType')} field="materialType">
+              {val(material.materialType)}
+            </Field>
+            <Field label={t('detail.fields.unitOfMeasure')} field="uom">
+              {val(material.uom)}
+            </Field>
+            <Field label={t('detail.fields.itemType')} field="itemType">
+              {val(material.itemType)}
+            </Field>
+            <Field label={t('detail.fields.countryOfOrigin')} field="countryOfOrigin">
               {val(material.countryOfOrigin)}
             </Field>
-            <Field label={t('detail.fields.manufacturer')}>
+            <Field label={t('detail.fields.manufacturer')} field="manufacturer">
               {val(material.manufacturer ?? material.brand)}
             </Field>
-            <Field label={t('detail.fields.mpn')}>{val(material.manufacturerPartNumber)}</Field>
-            <Field label={t('detail.fields.seriesModel')}>
+            <Field label={t('detail.fields.mpn')} field="mpn">
+              {val(material.manufacturerPartNumber)}
+            </Field>
+            <Field label={t('detail.fields.seriesModel')} field="seriesModel">
               {val(material.manufacturerSeriesModel)}
             </Field>
-            <Field label={t('detail.fields.upc')}>{val(material.upc)}</Field>
-            <Field label={t('detail.fields.sku')}>{val(material.sku)}</Field>
-            <Field label={t('detail.fields.gradeClass')}>{val(material.gradeClass)}</Field>
-            <Field label={t('detail.fields.colourFinish')}>{val(material.colourFinish)}</Field>
-            <Field label={t('detail.fields.size')}>{val(material.size)}</Field>
-            <Field label={t('detail.fields.pricePerUnit')}>
+            <Field label={t('detail.fields.upc')} field="upc">
+              {val(material.upc)}
+            </Field>
+            <Field label={t('detail.fields.sku')} field="sku">
+              {val(material.sku)}
+            </Field>
+            <Field label={t('detail.fields.gradeClass')} field="gradeClass">
+              {val(material.gradeClass)}
+            </Field>
+            <Field label={t('detail.fields.colourFinish')} field="colourFinish">
+              {val(material.colourFinish)}
+            </Field>
+            <Field label={t('detail.fields.size')} field="size">
+              {val(material.size)}
+            </Field>
+            <Field label={t('detail.fields.pricePerUnit')} field="pricePerUnit">
               {material.pricePerUnit
                 ? `${formatPrice(material.pricePerUnit, material.currency)}${
                     material.currency ? ` ${material.currency}` : ''
                   }`
                 : DASH}
             </Field>
-            <Field label={t('detail.fields.lastModified')}>
+            <Field label={t('detail.fields.lastModified')} field="lastModified">
               {formatLongDate(material.updatedAt)}
             </Field>
           </div>
         </div>
 
         <div className="mt-6 border-t border-border pt-4">
-          <Field label={t('detail.fields.description')}>{val(material.description)}</Field>
+          <Field label={t('detail.fields.description')} field="description">
+            {val(material.description)}
+          </Field>
         </div>
       </section>
 
       {/* ── Additional properties ───────────────────────────────────── */}
-      <section className="rounded-xl border border-border bg-card p-6 space-y-6">
+      <section className="rounded-2xl border border-border bg-card p-6 space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-foreground">
             {t('detail.additionalProperties')}
@@ -205,16 +258,22 @@ export default function MaterialDetailPage() {
         <div className="space-y-4">
           <SectionTitle>{t('detail.dimensions')}</SectionTitle>
           <div className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">
-            <Field label={t('detail.fields.length')}>{dim(material.dimensions, 'length')}</Field>
-            <Field label={t('detail.fields.width')}>{dim(material.dimensions, 'width')}</Field>
-            <Field label={t('detail.fields.height')}>{dim(material.dimensions, 'height')}</Field>
-            <Field label={t('detail.fields.diameter')}>
+            <Field label={t('detail.fields.length')} field="length">
+              {dim(material.dimensions, 'length')}
+            </Field>
+            <Field label={t('detail.fields.width')} field="width">
+              {dim(material.dimensions, 'width')}
+            </Field>
+            <Field label={t('detail.fields.height')} field="height">
+              {dim(material.dimensions, 'height')}
+            </Field>
+            <Field label={t('detail.fields.diameter')} field="diameter">
               {dim(material.dimensions, 'diameter')}
             </Field>
-            <Field label={t('detail.fields.thickness')}>
+            <Field label={t('detail.fields.thickness')} field="thickness">
               {dim(material.dimensions, 'thickness')}
             </Field>
-            <Field label={t('detail.fields.weightPerUnit')}>
+            <Field label={t('detail.fields.weightPerUnit')} field="weightPerUnit">
               {dim(material.dimensions, 'weightPerUnit')}
             </Field>
           </div>
@@ -223,13 +282,13 @@ export default function MaterialDetailPage() {
         <div className="space-y-4 border-t border-border pt-4">
           <SectionTitle>{t('detail.packaging')}</SectionTitle>
           <div className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3">
-            <Field label={t('detail.fields.unitsPerPackage')}>
+            <Field label={t('detail.fields.unitsPerPackage')} field="unitsPerPackage">
               {val(material.dimensions?.packaging?.unitsPerPackage)}
             </Field>
-            <Field label={t('detail.fields.packagingUnit')}>
+            <Field label={t('detail.fields.packagingUnit')} field="packagingUnit">
               {val(material.dimensions?.packaging?.packagingUnit)}
             </Field>
-            <Field label={t('detail.fields.weightPerPackage')}>
+            <Field label={t('detail.fields.weightPerPackage')} field="weightPerPackage">
               {val(material.dimensions?.packaging?.weightPerPackage)}
             </Field>
           </div>
@@ -240,7 +299,7 @@ export default function MaterialDetailPage() {
             <SectionTitle>{t('detail.specificData')}</SectionTitle>
             <div className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">
               {properties.map(([key, value]) => (
-                <Field key={key} label={specificDataLabel(key)}>
+                <Field key={key} label={specificDataLabel(key)} field={key}>
                   {val(value)}
                 </Field>
               ))}
@@ -248,6 +307,22 @@ export default function MaterialDetailPage() {
           </div>
         )}
       </section>
+
+      {showDelete && (
+        <ConfirmMaterialModal
+          action="delete"
+          isLoading={remove.isPending}
+          onClose={() => setShowDelete(false)}
+          onConfirm={() =>
+            remove.mutate(material.id, {
+              onSuccess: () => {
+                setShowDelete(false);
+                navigate(ROUTES.materialCatalogue);
+              },
+            })
+          }
+        />
+      )}
     </div>
   );
 }

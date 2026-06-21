@@ -158,6 +158,7 @@
     "notFound": "This material could not be found.",
     "back": "Back to catalogue",
     "edit": "Edit",
+    "delete": "Delete",
     "coreIdentification": "Core identification",
     "additionalProperties": "Additional Properties",
     "imagePlaceholder": "Image Placeholder",
@@ -201,6 +202,7 @@
     "photo": "Photo",
     "imagePlaceholder": "Image Placeholder",
     "uploadPhoto": "Upload photo",
+    "removePhoto": "Remove photo",
     "uploadHint": "JPG or PNG is allowed",
     "dimensions": "Dimensions",
     "packaging": "Packaging & Handling",
@@ -262,21 +264,14 @@
     }
   },
   "create": {
-    "title": "Add new material item",
-    "stepper": {
-      "core": "Core Identification",
-      "details": "Details",
-      "review": "Review"
+    "title": "Create new material",
+    "steps": {
+      "core": "Step 1/3: Enter mandatory information",
+      "details": "Step 2/3: Add material details",
+      "review": "Step 3/3: Review & Confirm"
     },
-    "step1": {
-      "heading": "Step 1 of 3: Enter mandatory information"
-    },
-    "step2": {
-      "heading": "Step 2 of 3: Add material details"
-    },
+    "backToStep": "Back to step",
     "step3": {
-      "heading": "Step 3 of 3: Review & Confirm",
-      "subtitle": "Review all details before submitting",
       "coreIdentification": "Core identification",
       "additionalProperties": "Additional Properties",
       "edit": "Edit"
@@ -285,11 +280,13 @@
     "submit": "Add material",
     "submitting": "Adding material…",
     "back": "Back",
+    "toastCreated": "{{name}} has been created and added to the catalogue",
+    "toastView": "View",
     "toastSuccess": "Material added.",
     "toastError": "Could not add the material. Please try again."
   },
   "editCore": {
-    "title": "Edit Core identification",
+    "title": "Edit {{name}}",
     "submit": "Submit",
     "submitting": "Saving…",
     "back": "Back",
@@ -351,20 +348,29 @@
     }
   },
   "upload": {
-    "title": "Upload material file",
+    "title": "Upload new material",
     "back": "Back",
     "stepper": {
       "upload": "Upload File",
       "map": "Map Columns",
       "review": "Review & Add"
     },
+    "steps": {
+      "upload": "Step 1/3: Upload your material file",
+      "map": "Step 2/3: Map and validate columns",
+      "review": "Step 3/3: Review and import materials"
+    },
     "cancel": "Cancel",
     "step1": {
       "heading": "Step 1 of 3: Upload your material file",
-      "cardTitle": "Upload File",
-      "dropTitle": "Drag and drop a file here, or click to browse",
-      "dropFormats": "Supported formats: XLSX, PDF, or image (PNG, JPG, WEBP)",
+      "cardTitle": "Upload file",
+      "dropTitle": "Drag & Drop Files or",
+      "browse": "browse file",
+      "dropFormats": "Available format: XLSX, PDF, PNG, JPG, WEBP",
       "selectedFile": "Selected file: {{name}}",
+      "complete": "Complete",
+      "processingTitle": "Processing file…",
+      "processingHint": "Please wait while we prepare your data for mapping",
       "requiredColumnsTitle": "Required columns:",
       "requiredColumns": {
         "name": "Material name",
@@ -382,6 +388,7 @@
     },
     "step2": {
       "heading": "Step 2 of 3: Map and validate columns",
+      "mappingTitle": "Column mapping",
       "duplicateBanner": "Duplicate materials detected. Some entries match existing records, please review before continuing.",
       "emptyRows": "No rows to review. Go back and upload a different file.",
       "columns": {
@@ -412,10 +419,11 @@
       },
       "view": "View",
       "edit": "Edit",
+      "delete": "Delete",
       "done": "Done",
       "duplicateStrip": "Possible duplicate detected — {{code}} \"{{name}}\" already exists in the public catalogue.",
       "viewMatch": "View ({{code}})",
-      "add": "Add materials",
+      "add": "Add material",
       "adding": "Adding materials…"
     },
     "errors": {
