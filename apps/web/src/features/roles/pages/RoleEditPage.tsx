@@ -1,7 +1,15 @@
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { UserRole } from '@forethread/shared-types/client';
-import { Alert, Button, Checkbox, Spinner, notificationService } from '@forethread/ui-components';
-import ArrowRightIcon from '@forethread/ui-components/assets/icons/arrow-right.svg?react';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Input,
+  Spinner,
+  notificationService,
+} from '@forethread/ui-components';
+import ShieldIcon from '@forethread/ui-components/assets/icons/shield-icon.svg?react';
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 
@@ -47,6 +55,16 @@ function RoleEditor({ role }: RoleEditorProps) {
   const detailQuery = useRoleDetail(role);
   const catalogQuery = usePermissionCatalog();
   const updateMutation = useUpdateRolePermissions(role);
+
+  // Surface the role name in the app-bar breadcrumb (Roles › {role}).
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(t(`roleNames.${role}`), null, ROUTES.roles, [
+      { label: t('title'), to: ROUTES.roles },
+      { label: t(`roleNames.${role}`) },
+    ]);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t, role]);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [thresholdInputs, setThresholdInputs] = useState<Record<string, string>>({});
@@ -163,33 +181,30 @@ function RoleEditor({ role }: RoleEditorProps) {
   };
 
   return (
-    <div className="p-8 max-w-4xl">
-      <button
-        type="button"
-        onClick={() => navigate(ROUTES.roles)}
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
-      >
-        <ArrowRightIcon className="w-4 h-4 rotate-180" />
-        {t('back')}
-      </button>
+    <div className="flex flex-1 flex-col gap-4 px-6 py-4">
+      {/* ── Page header ── */}
+      <div className="flex items-center gap-3">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-[8px] border border-gray-100 bg-gradient-to-b from-[#F9F9FA] to-white p-px text-gray-700 shadow-[0_1px_3px_0_rgba(10,13,18,0.06),0_1px_1px_0_rgba(10,13,18,0.02)]">
+          <ShieldIcon className="size-[15px]" />
+        </span>
+        <div className="min-w-0">
+          <h1 className="text-[20px] font-medium leading-[1.4] tracking-[0.3px] text-gray-900">
+            {t(`roleNames.${role}`)}
+          </h1>
+          <p className="text-sm leading-tight text-gray-500">{t('subtitle')}</p>
+        </div>
+      </div>
 
-      <h1 className="text-xl font-semibold text-foreground">{t(`roleNames.${role}`)}</h1>
-      <p className="text-sm text-muted-foreground mt-1 mb-6">{t('subtitle')}</p>
+      {isSuperAdmin && <Alert variant="info">{t('superAdminLocked')}</Alert>}
 
-      {isSuperAdmin && (
-        <Alert variant="info" className="mb-6">
-          {t('superAdminLocked')}
-        </Alert>
-      )}
-
-      <div className="space-y-6">
+      <div className="space-y-4">
         {grouped.map((group) => (
           <section
             key={group.domain}
-            className="rounded-xl border border-border bg-card p-5"
+            className="rounded-[12px] border border-gray-100 bg-white p-5 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]"
             data-testid={`group-${group.domain}`}
           >
-            <h2 className="text-sm font-semibold text-foreground mb-3">
+            <h2 className="mb-3 text-sm font-semibold text-gray-900">
               {t(`domains.${group.domain}`)}
             </h2>
             <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
@@ -204,31 +219,29 @@ function RoleEditor({ role }: RoleEditorProps) {
                       disabled={isSuperAdmin}
                       label={entry.description}
                     />
-                    <p className="text-xs text-muted-foreground ml-7 font-mono">{entry.key}</p>
+                    <p className="ml-7 font-mono text-xs text-gray-500">{entry.key}</p>
                     {showThreshold && (
-                      <div className="ml-7 mt-2">
+                      <div className="ml-7 mt-2 w-40">
                         <label
                           htmlFor={`threshold-${entry.key}`}
-                          className="block text-xs font-medium text-foreground mb-1"
+                          className="mb-1 block text-xs font-medium text-gray-900"
                         >
                           {t('thresholdLabel')}
                         </label>
-                        <input
+                        <Input
                           id={`threshold-${entry.key}`}
                           type="number"
                           inputMode="decimal"
                           min="0"
                           step="any"
+                          inputSize="sm"
                           value={thresholdInputs[entry.key] ?? ''}
                           placeholder={t('thresholdPlaceholder')}
                           onChange={(e) => setThresholdInput(entry.key, e.target.value)}
                           disabled={isSuperAdmin}
                           data-testid={`threshold-${entry.key}`}
-                          className="w-40 rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                         />
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {t('thresholdHint')}
-                        </p>
+                        <p className="mt-1 text-xs text-gray-500">{t('thresholdHint')}</p>
                       </div>
                     )}
                   </li>
@@ -239,7 +252,7 @@ function RoleEditor({ role }: RoleEditorProps) {
         ))}
       </div>
 
-      <div className="flex items-center justify-end gap-3 mt-6">
+      <div className="flex items-center justify-end gap-3 pt-2">
         <Button variant="secondary" onClick={() => navigate(ROUTES.roles)}>
           {t('cancel')}
         </Button>

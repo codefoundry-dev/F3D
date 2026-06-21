@@ -5,6 +5,10 @@ vi.mock('@forethread/i18n', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
+vi.mock('@forethread/rfq-shared', () => ({
+  usePageTitleStore: (selector: any) => selector({ setTitle: vi.fn() }),
+}));
+
 vi.mock('@forethread/ui-components/assets/icons/arrow-right.svg?react', () => ({
   default: () => <div />,
 }));

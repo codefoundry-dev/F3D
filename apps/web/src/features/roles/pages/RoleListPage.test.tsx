@@ -19,13 +19,14 @@ vi.mock('@forethread/shared-types/client', () => ({
   },
 }));
 
+vi.mock('@forethread/rfq-shared', () => ({
+  usePageTitleStore: (selector: any) => selector({ setTitle: vi.fn() }),
+}));
+
 vi.mock('@forethread/ui-components', () => ({
   Spinner: () => <div data-testid="spinner" />,
   EmptyState: ({ title }: { title: string }) => <div data-testid="empty-state">{title}</div>,
-}));
-
-vi.mock('@forethread/ui-components/assets/icons/arrow-right.svg?react', () => ({
-  default: () => <div />,
+  EmptyBoxIllustration: () => <div data-testid="empty-box" />,
 }));
 
 const mockNavigate = vi.hoisted(() => vi.fn());

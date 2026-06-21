@@ -23,10 +23,17 @@ const mockSuccess = vi.hoisted(() => vi.fn());
 const mockError = vi.hoisted(() => vi.fn());
 const mockInfo = vi.hoisted(() => vi.fn());
 
+vi.mock('@forethread/rfq-shared', () => ({
+  usePageTitleStore: (selector: any) => selector({ setTitle: vi.fn() }),
+}));
+
 vi.mock('@forethread/ui-components', () => ({
   Spinner: () => <div data-testid="spinner" />,
   Alert: ({ children, variant }: { children: React.ReactNode; variant: string }) => (
     <div data-testid={`alert-${variant}`}>{children}</div>
+  ),
+  Input: ({ inputSize: _s, leftIcon: _l, rightIcon: _r, error: _e, ...props }: any) => (
+    <input {...props} />
   ),
   Button: ({ children, onClick, disabled }: any) => (
     <button onClick={onClick} disabled={disabled}>
