@@ -1,24 +1,32 @@
 import type { InvoiceListItem, InvoiceListParams } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import {
   Badge,
   Button,
   Checkbox,
-  DatePicker,
+  DateRangeFilterDropdown,
   DotActionsMenu,
+  EmptyState,
+  EmptyBoxIllustration,
+  SearchEmptyIllustration,
   FilterPanel,
+  FilterPopover,
+  FilterTag,
   Input,
   getStatusColor,
   INVOICE_STATUS_COLORS,
   PageLoader,
   SearchInput,
-  SelectDropdown,
   SortIcon,
+  Spinner,
   TablePagination,
 } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
+import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
+import InvoiceIcon from '@forethread/ui-components/assets/icons/invoice.svg?react';
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -79,7 +87,7 @@ export interface InvoiceListPageProps {
 }
 
 export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
-  const { t } = useTranslation('invoices');
+  const { t } = useTranslation(['invoices', 'common']);
   const navigate = useNavigate();
   const approveMutation = useApproveInvoice(extraInvalidateKeys);
   const bulkApproveMutation = useBulkApproveInvoices(extraInvalidateKeys);
@@ -99,6 +107,13 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
   const [amountMin, setAmountMin] = useState('');
   const [amountMax, setAmountMax] = useState('');
   const searchTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // App-bar breadcrumb / page title
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(t('list.title'), null, null, [{ label: t('list.title') }]);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
 
   // Debounce search
   useEffect(() => {
@@ -207,15 +222,23 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
     [exportSingleMutation],
   );
 
-  const hasActiveFilters =
-    statusFilter.length > 0 || dueDateFrom || dueDateTo || amountMin || amountMax;
+  const hasActiveFilters = Boolean(
+    statusFilter.length || dueDateFrom || dueDateTo || amountMin || amountMax,
+  );
 
-  const clearFilters = useCallback(() => {
+  const clearAmount = useCallback(() => {
+    setAmountMin('');
+    setAmountMax('');
+    setPage(1);
+  }, []);
+
+  const handleClearAllFilters = useCallback(() => {
     setStatusFilter([]);
     setDueDateFrom('');
     setDueDateTo('');
     setAmountMin('');
     setAmountMax('');
+    setSearch('');
     setPage(1);
   }, []);
 
@@ -224,36 +247,108 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
     label: t(`status.${s}` as never),
   }));
 
+  // ── Active-filter chips ──
+  const formatChipDate = (value: string) =>
+    new Date(value).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  const dateChipLabel =
+    dueDateFrom && dueDateTo
+      ? `${formatChipDate(dueDateFrom)} - ${formatChipDate(dueDateTo)}`
+      : dueDateFrom
+        ? `${t('filters.from')}: ${formatChipDate(dueDateFrom)}`
+        : dueDateTo
+          ? `${t('filters.to')}: ${formatChipDate(dueDateTo)}`
+          : '';
+  const amountChipLabel =
+    amountMin && amountMax
+      ? `$${amountMin} - $${amountMax}`
+      : amountMin
+        ? `${t('filters.amountMin')}: $${amountMin}`
+        : amountMax
+          ? `${t('filters.amountMax')}: $${amountMax}`
+          : '';
+
+  const activeFilterChips: { key: string; label: string; onRemove: () => void }[] = [
+    ...statusFilter.map((value) => ({
+      key: `status-${value}`,
+      label: statusOptions.find((o) => o.value === value)?.label ?? value,
+      onRemove: () => {
+        setStatusFilter((prev) => prev.filter((v) => v !== value));
+        setPage(1);
+      },
+    })),
+    ...(dueDateFrom || dueDateTo
+      ? [
+          {
+            key: 'date-range',
+            label: dateChipLabel,
+            onRemove: () => {
+              setDueDateFrom('');
+              setDueDateTo('');
+              setPage(1);
+            },
+          },
+        ]
+      : []),
+    ...(amountMin || amountMax
+      ? [{ key: 'amount-range', label: amountChipLabel, onRemove: clearAmount }]
+      : []),
+  ];
+
+  const countLabel = debouncedSearch
+    ? t('list.searchingLabel', { total: totalItems })
+    : hasActiveFilters
+      ? t('list.showingLabel', { total: totalItems })
+      : t('list.totalLabel', { total: totalItems });
+
   if (isLoading && !data) {
     return <PageLoader />;
   }
 
   return (
-    <div className="px-8 pt-6 pb-8">
-      <div className="flex flex-col rounded-lg border border-border bg-background pb-4">
-        <div className="mt-4 px-8">
-          <div className="border-b border-border" />
+    <div className="flex flex-1 flex-col gap-3 px-6 py-4">
+      {/* ── Page header ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-[8px] border border-gray-100 bg-gradient-to-b from-[#F9F9FA] to-white p-px text-gray-700 shadow-[0_1px_3px_0_rgba(10,13,18,0.06),0_1px_1px_0_rgba(10,13,18,0.02)]">
+            <InvoiceIcon className="size-[15px]" />
+          </span>
+          <h1 className="text-[20px] font-medium leading-[1.4] tracking-[0.3px] text-gray-900">
+            {t('list.title')}
+          </h1>
         </div>
-        <div className="px-8 pt-2 pb-4">
-          {hasSelection ? (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm text-foreground">
-                <CheckCircleIcon className="text-muted-foreground" />
-                <span>{t('list.itemsSelected', { count: selectedIds.size })}</span>
-              </div>
-              <div className="flex items-center gap-3">
+        <Button variant="primary" onClick={() => navigate(INVOICE_ROUTES.invoiceCreate)}>
+          {t('list.createNew')}
+        </Button>
+      </div>
+
+      {/* ── Card: toolbar + table ── */}
+      <div className="flex flex-1 flex-col gap-4 rounded-[18px] border border-gray-100 bg-[#F9F9FA] p-3 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-2">
+          {/* Left: selection actions OR result count + chips */}
+          <div className="flex min-h-[34px] min-w-0 flex-1 flex-wrap items-center gap-2 px-2">
+            {hasSelection ? (
+              <>
+                <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                  <CheckCircleIcon className="size-4 text-gray-500" />
+                  {t('list.itemsSelected', { count: selectedIds.size })}
+                </span>
                 <Button
                   variant="primary"
-                  size="md"
+                  size="sm"
                   isLoading={bulkApproveMutation.isPending}
                   disabled={bulkApproveMutation.isPending}
-                  onClick={() => {
+                  leftIcon={<CheckCircleIcon className="size-4" />}
+                  onClick={() =>
                     bulkApproveMutation.mutate([...selectedIds], {
                       onSuccess: () => setSelectedIds(new Set()),
-                    });
-                  }}
+                    })
+                  }
                 >
-                  <CheckCircleIcon className="mr-2" />
                   {t('list.approveAll')}
                 </Button>
                 <ExportAsButton
@@ -261,128 +356,152 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
                   isLoading={exportMutation.isPending}
                   onExport={handleBulkExport}
                 />
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3">
-              <SearchInput
-                className="flex-1 max-w-lg"
-                iconClassName="text-foreground"
-                placeholder={t('list.searchPlaceholder')}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              <FilterPanel
-                label={t('list.filters')}
-                title={t('list.filters')}
-                onClearAll={hasActiveFilters ? clearFilters : undefined}
-                clearAllLabel={t('list.clearFilters')}
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                      {t('filters.status')}
-                    </label>
-                    <SelectDropdown
-                      placeholder={t('filters.allStatuses')}
-                      options={statusOptions}
-                      selected={statusFilter}
-                      onSelectedChange={(v: string[]) => {
-                        setStatusFilter(v);
-                        setPage(1);
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                      {t('filters.dueDateFrom')}
-                    </label>
-                    <DatePicker
-                      placeholder="From"
-                      value={dueDateFrom}
-                      maxDate={dueDateTo || undefined}
-                      onChange={(v: string) => {
-                        setDueDateFrom(v);
-                        setPage(1);
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                      {t('filters.dueDateTo')}
-                    </label>
-                    <DatePicker
-                      placeholder="To"
-                      value={dueDateTo}
-                      minDate={dueDateFrom || undefined}
-                      onChange={(v: string) => {
-                        setDueDateTo(v);
-                        setPage(1);
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                      {t('filters.amountMin')}
-                    </label>
-                    <Input
-                      className="bg-background"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                      value={amountMin}
-                      onKeyDown={blockNonNumericKey}
-                      onPaste={sanitizeNumericPaste}
-                      onChange={(e) => {
-                        setAmountMin(e.target.value);
-                        setPage(1);
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                      {t('filters.amountMax')}
-                    </label>
-                    <Input
-                      className="bg-background"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                      value={amountMax}
-                      onKeyDown={blockNonNumericKey}
-                      onPaste={sanitizeNumericPaste}
-                      onChange={(e) => {
-                        setAmountMax(e.target.value);
-                        setPage(1);
-                      }}
-                    />
-                  </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium leading-[1.4] tracking-[0.3px] text-gray-700">
+                  {countLabel}
+                </p>
+                {(hasActiveFilters || debouncedSearch) && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    rightIcon={<CrossIcon className="size-3.5" />}
+                    onClick={handleClearAllFilters}
+                  >
+                    {t('filters.clearAll')}
+                  </Button>
+                )}
+                {activeFilterChips.map((chip) => (
+                  <FilterTag
+                    key={chip.key}
+                    label={chip.label}
+                    onRemove={chip.onRemove}
+                    removeLabel={t('filters.removeFilter', { label: chip.label })}
+                  />
+                ))}
+              </>
+            )}
+          </div>
+
+          {/* Right: filter dropdowns + search */}
+          <div className="flex min-h-[34px] flex-wrap items-center justify-end gap-2">
+            <FilterPopover
+              label={t('filters.status')}
+              popoverTitle={t('filters.status')}
+              clearLabel={t('filters.clear')}
+              options={statusOptions}
+              selected={statusFilter}
+              onChange={(v) => {
+                setStatusFilter(v);
+                setPage(1);
+              }}
+            />
+            <DateRangeFilterDropdown
+              label={t('filters.date')}
+              clearLabel={t('filters.clear')}
+              dateFrom={dueDateFrom}
+              dateTo={dueDateTo}
+              fromPlaceholder={t('filters.from')}
+              toPlaceholder={t('filters.to')}
+              onChangeFrom={(d) => {
+                setDueDateFrom(d);
+                setPage(1);
+              }}
+              onChangeTo={(d) => {
+                setDueDateTo(d);
+                setPage(1);
+              }}
+              onClear={() => {
+                setDueDateFrom('');
+                setDueDateTo('');
+                setPage(1);
+              }}
+            />
+            <FilterPanel
+              label={t('filters.amount')}
+              title={t('filters.amount')}
+              onClearAll={amountMin || amountMax ? clearAmount : undefined}
+              clearAllLabel={t('filters.clear')}
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-gray-500">
+                    {t('filters.amountMin')}
+                  </label>
+                  <Input
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={amountMin}
+                    onKeyDown={blockNonNumericKey}
+                    onPaste={sanitizeNumericPaste}
+                    onChange={(e) => {
+                      setAmountMin(e.target.value);
+                      setPage(1);
+                    }}
+                  />
                 </div>
-              </FilterPanel>
-              <div className="flex-1" />
-              <Button
-                variant="primary"
-                size="md"
-                onClick={() => navigate(INVOICE_ROUTES.invoiceCreate)}
-              >
-                {t('list.createNew')}
-              </Button>
-            </div>
-          )}
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-gray-500">
+                    {t('filters.amountMax')}
+                  </label>
+                  <Input
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={amountMax}
+                    onKeyDown={blockNonNumericKey}
+                    onPaste={sanitizeNumericPaste}
+                    onChange={(e) => {
+                      setAmountMax(e.target.value);
+                      setPage(1);
+                    }}
+                  />
+                </div>
+              </div>
+            </FilterPanel>
+            <SearchInput
+              className="w-[220px]"
+              placeholder={t('list.searchPlaceholder')}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
 
-        <div className="px-8">
-          {isError ? (
-            <div className="py-12 px-8 text-center text-destructive">{t('list.failedToLoad')}</div>
-          ) : filtered.length === 0 ? (
-            <div className="py-12 px-8 text-center text-muted-foreground">
-              {t('list.noInvoicesFound')}
-            </div>
-          ) : (
-            <>
-              <div className="rounded-lg border border-border overflow-x-auto">
-                <table className="w-full min-w-[800px] text-sm">
+        {/* Content */}
+        {isLoading ? (
+          <div className="flex h-48 items-center justify-center">
+            <Spinner size="md" />
+          </div>
+        ) : isError ? (
+          <div className="flex h-48 items-center justify-center text-sm text-destructive">
+            {t('list.failedToLoad')}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center rounded-[10px] border border-gray-100 bg-white shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
+            {hasActiveFilters || debouncedSearch ? (
+              <EmptyState
+                illustration={<SearchEmptyIllustration />}
+                titleClassName="text-[24px]"
+                title={t('list.noResultsTitle')}
+                description={t('list.adjustFilters')}
+              />
+            ) : (
+              <EmptyState
+                illustration={<EmptyBoxIllustration />}
+                title={t('list.noInvoicesFound')}
+                description={t('list.createFirstInvoice')}
+              />
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-1 flex-col gap-1.5">
+            <div className="overflow-hidden rounded-[10px] border border-gray-100 bg-white shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[860px] border-collapse text-sm">
                   <thead>
-                    <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
-                      <th className="py-3 px-3 w-10">
+                    <tr className="border-b border-gray-100 bg-[#F9F9FA]">
+                      <th className="h-9 w-10 px-3 text-left align-middle">
                         <Checkbox checked={allSelected} onChange={toggleAll} />
                       </th>
                       {(
@@ -397,22 +516,24 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
                           ['dueDate', t('columns.dueDate')],
                         ] as const
                       ).map(([field, label]) => (
-                        <th
-                          key={field}
-                          className="py-3 px-3 text-xs font-bold leading-4 tracking-[0.6px] whitespace-nowrap cursor-pointer select-none"
-                          onClick={() => handleSort(field)}
-                        >
-                          <span className="flex items-center justify-between gap-2">
+                        <th key={field} className="h-9 px-2 text-left align-middle">
+                          <button
+                            type="button"
+                            onClick={() => handleSort(field)}
+                            className="inline-flex items-center gap-1 px-1 font-semibold text-gray-500 transition-colors hover:text-gray-700"
+                          >
                             {label}
                             <SortIcon
                               active={sortField === field}
                               direction={sortField === field ? sortDir : null}
                             />
-                          </span>
+                          </button>
                         </th>
                       ))}
-                      <th className="py-3 px-3 text-xs font-bold leading-4 tracking-[0.6px] whitespace-nowrap text-center">
-                        {t('columns.actions')}
+                      <th className="h-9 px-2 text-center align-middle">
+                        <span className="px-1 font-semibold text-gray-500">
+                          {t('columns.actions')}
+                        </span>
                       </th>
                     </tr>
                   </thead>
@@ -420,68 +541,87 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
                     {filtered.map((invoice) => (
                       <tr
                         key={invoice.id}
-                        className="border-b border-border last:border-b-0 hover:bg-accent/50 transition-colors"
+                        className="border-b border-gray-50 transition-colors last:border-0 hover:bg-gray-25"
                       >
-                        <td className="py-3 px-3">
+                        <td className="px-3 align-middle">
                           <Checkbox
                             checked={selectedIds.has(invoice.id)}
                             onChange={() => toggleOne(invoice.id)}
                           />
                         </td>
-                        <td className="py-3 px-3 text-foreground">{invoice.id.slice(0, 8)}</td>
-                        <td className="py-3 px-3 text-foreground truncate max-w-[180px]">
-                          {invoice.projectName}
+                        <td className="h-[46px] px-2 align-middle">
+                          <span className="block px-1 font-medium text-gray-800">
+                            {invoice.id.slice(0, 8)}
+                          </span>
                         </td>
-                        <td className="py-3 px-3 text-foreground">{invoice.projectCode}</td>
-                        <td className="py-3 px-3 text-foreground truncate max-w-[180px]">
-                          {invoice.vendorName}
+                        <td className="max-w-[180px] px-2 align-middle">
+                          <span className="block truncate px-1 font-medium text-gray-800">
+                            {invoice.projectName}
+                          </span>
                         </td>
-                        <td className="py-3 px-3">
+                        <td className="px-2 align-middle">
+                          <span className="block px-1 font-medium text-gray-800">
+                            {invoice.projectCode}
+                          </span>
+                        </td>
+                        <td className="max-w-[180px] px-2 align-middle">
+                          <span className="block truncate px-1 font-medium text-gray-800">
+                            {invoice.vendorName}
+                          </span>
+                        </td>
+                        <td className="px-2 align-middle">
                           <Badge className={getStatusColor(INVOICE_STATUS_COLORS, invoice.status)}>
                             {t(`status.${invoice.status}` as never)}
                           </Badge>
                         </td>
-                        <td className="py-3 px-3 text-foreground">
-                          {invoice.relatedPo ? invoice.relatedPo.slice(0, 8) : '—'}
+                        <td className="px-2 align-middle">
+                          <span className="block px-1 font-medium text-gray-800">
+                            {invoice.relatedPo ? invoice.relatedPo.slice(0, 8) : '—'}
+                          </span>
                         </td>
-                        <td className="py-3 px-3 text-foreground">
-                          $
-                          {invoice.totalAmount.toLocaleString('en-US', {
-                            minimumFractionDigits: 2,
-                          })}
+                        <td className="px-2 align-middle">
+                          <span className="block px-1 font-medium text-gray-800">
+                            $
+                            {invoice.totalAmount.toLocaleString('en-US', {
+                              minimumFractionDigits: 2,
+                            })}
+                          </span>
                         </td>
-                        <td className="py-3 px-3 text-foreground">
-                          {invoice.dueDate
-                            ? new Date(invoice.dueDate).toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric',
-                              })
-                            : '—'}
+                        <td className="px-2 align-middle">
+                          <span className="block px-1 font-medium text-gray-800">
+                            {invoice.dueDate
+                              ? new Date(invoice.dueDate).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                })
+                              : '—'}
+                          </span>
                         </td>
-                        <td className="py-3 px-3">
+                        <td className="px-2 align-middle">
                           <div className="flex items-center justify-end gap-1">
                             <button
                               type="button"
-                              className="inline-flex items-center justify-center size-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                              className="flex size-7 shrink-0 items-center justify-center rounded-[8px] border border-gray-100 bg-gradient-to-b from-[#F9F9FA] to-white text-gray-600 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)] transition-colors hover:bg-none hover:bg-gray-50 hover:text-gray-900"
                               title={t('actions.view')}
                               onClick={() =>
                                 navigate(INVOICE_ROUTES.invoiceDetail.replace(':id', invoice.id))
                               }
                             >
-                              <EyeIcon />
+                              <EyeIcon className="size-3.5" />
                             </button>
                             <button
                               type="button"
-                              className="inline-flex items-center justify-center size-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                              className="flex size-7 shrink-0 items-center justify-center rounded-[8px] border border-gray-100 bg-gradient-to-b from-[#F9F9FA] to-white text-gray-600 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)] transition-colors hover:bg-none hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50"
                               title={t('actions.approve')}
                               disabled={approveMutation.isPending || invoice.status !== 'PENDING'}
                               onClick={() => approveMutation.mutate(invoice.id)}
                             >
-                              <CheckCircleIcon />
+                              <CheckCircleIcon className="size-3.5" />
                             </button>
                             <DotActionsMenu
                               bordered={false}
+                              triggerClassName="flex size-7 shrink-0 items-center justify-center rounded-[8px] border border-gray-100 bg-gradient-to-b from-[#F9F9FA] to-white text-gray-600 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)] transition-colors hover:bg-none hover:bg-gray-50 hover:text-gray-900"
                               actions={[
                                 ...(invoice.status === 'PENDING'
                                   ? [
@@ -506,7 +646,9 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
                   </tbody>
                 </table>
               </div>
-              {totalItems > 0 && (
+            </div>
+            {totalItems > 0 && (
+              <div className="pt-1">
                 <TablePagination
                   page={page}
                   totalItems={totalItems}
@@ -522,10 +664,10 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
                   backLabel={t('pagination.back')}
                   nextLabel={t('pagination.next')}
                 />
-              )}
-            </>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -551,7 +693,7 @@ function ExportAsButton({
       ]}
       trigger={
         <span className="flex items-center gap-2">
-          <DownloadIcon className="w-4 h-4" />
+          <DownloadIcon className="h-4 w-4" />
           {label}
         </span>
       }

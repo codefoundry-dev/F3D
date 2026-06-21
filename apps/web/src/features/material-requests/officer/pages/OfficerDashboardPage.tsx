@@ -1,5 +1,6 @@
 import type { MrListItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import {
   Button,
   FilterChip,
@@ -8,7 +9,7 @@ import {
   TablePagination,
 } from '@forethread/ui-components';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -34,6 +35,13 @@ const PAGE_SIZE_OPTIONS = [10, 25, 50];
 export default function OfficerDashboardPage() {
   const { t } = useTranslation('materialRequests');
   const navigate = useNavigate();
+
+  // App-bar breadcrumb / page title (top-level list page → single leaf crumb).
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(t('officer.title'), null, null, [{ label: t('officer.title') }]);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
 
   const [quickFilter, setQuickFilter] = useState<MrQuickFilter | ''>('');
   const [page, setPage] = useState(1);

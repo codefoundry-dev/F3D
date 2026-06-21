@@ -1,8 +1,9 @@
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { materialFormSchema, type MaterialFormValues } from '@forethread/shared-types/client';
 import { Button, buttonVariants, notificationService } from '@forethread/ui-components';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -35,6 +36,16 @@ export default function CreateMaterialPage() {
   const { has } = usePermissions();
   const { data: categories = [] } = useMaterialCategories();
   const createMutation = useCreateMaterial();
+
+  // App-bar breadcrumb: Material Catalogue › Create new material.
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(t('create.title'), null, ROUTES.materialCatalogue, [
+      { label: t('page.title'), to: ROUTES.materialCatalogue },
+      { label: t('create.title') },
+    ]);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   // CA / PO (non-approvers) contribute to the PRIVATE catalogue and land back on

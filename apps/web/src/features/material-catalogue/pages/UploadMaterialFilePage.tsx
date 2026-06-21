@@ -1,5 +1,6 @@
 import { updateDocExtraction, type MaterialDuplicateMatch } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import {
   type CatalogueExtractionResult,
   type CatalogueLineItem,
@@ -63,6 +64,16 @@ export default function UploadMaterialFilePage() {
   const { t } = useTranslation(['materialCatalogue']);
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // App-bar breadcrumb: Material Catalogue › Upload new material.
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(t('upload.title'), null, ROUTES.materialCatalogue, [
+      { label: t('page.title'), to: ROUTES.materialCatalogue },
+      { label: t('upload.title') },
+    ]);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
 
   const [step, setStep] = useState<Step>(1);
   const [file, setFile] = useState<File | null>(null);

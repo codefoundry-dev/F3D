@@ -1,17 +1,22 @@
+import { Button, cn } from '@forethread/ui-components';
 import ArrowRightIcon from '@forethread/ui-components/assets/icons/arrow-right.svg?react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 /**
- * Full-width primary action (#1B1D22, white label) used in the wizard footers
- * (Figma 2002:176 — "Next", "Submit Request", "Done"). Always `type="button"`:
- * the wizard never uses a native form submit, which avoids the
- * step→final button-morph submit bug.
+ * Primary action used by the Material Request pages — the page CTAs ("Request
+ * Materials", "New Request") and wizard navigation ("Next", "Submit Request").
+ * A thin wrapper over the DS Button so the flow shares the app-wide styling.
+ * Auto-width by default (it sits in the header/card action bars); pass
+ * `className="w-full sm:w-auto"` where a full-width mobile target is wanted.
+ *
+ * Always `type="button"`: the wizard never uses a native form submit, which
+ * avoids the step→final button-morph submit bug.
  */
 interface PrimaryButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
   /** Trailing arrow icon (the "Next" affordance). */
   withArrow?: boolean;
-  /** Leading icon slot (e.g. the check on Submit/Done). */
+  /** Leading icon slot (e.g. the plus on "New Request"). */
   leading?: ReactNode;
 }
 
@@ -24,20 +29,22 @@ export function PrimaryButton({
   ...rest
 }: PrimaryButtonProps) {
   return (
-    <button
+    <Button
       type="button"
+      variant="primary"
+      size="md"
       disabled={disabled}
-      className={`flex h-[51px] w-full items-center justify-center gap-3 rounded-lg bg-[#1B1D22] px-4 text-base font-normal text-white transition-colors hover:bg-[#2D3139] disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ''}`}
+      leftIcon={leading}
+      rightIcon={withArrow ? <ArrowRightIcon className="size-4" /> : undefined}
+      className={cn('justify-center', className)}
       {...rest}
     >
-      {leading}
       {children}
-      {withArrow && <ArrowRightIcon className="h-4 w-4" />}
-    </button>
+    </Button>
   );
 }
 
-/** Full-width secondary action (white surface, dark label) — the "Back"/"Raise PO" buttons. */
+/** Secondary action — the "View My Requests"/"Raise PO" buttons. */
 export function SecondaryButton({
   children,
   className,
@@ -45,13 +52,15 @@ export function SecondaryButton({
   ...rest
 }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
+      size="md"
       disabled={disabled}
-      className={`flex h-[51px] w-full items-center justify-center gap-2 rounded-lg border border-[#E8EAED] bg-white px-4 text-base font-normal text-[#1B1D22] transition-colors hover:bg-[#F4F4F6] disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ''}`}
+      className={cn('justify-center', className)}
       {...rest}
     >
       {children}
-    </button>
+    </Button>
   );
 }

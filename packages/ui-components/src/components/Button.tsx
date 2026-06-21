@@ -12,11 +12,11 @@ import { cn } from '../utils/cn';
  */
 const variantStyles = {
   primary:
-    'border bg-gradient-to-b from-[#090A0B] to-[#2D3139] border-[#40454F] text-white shadow-[0_2px_12px_0_rgba(10,13,18,0.12),0_1px_2px_0_rgba(10,13,18,0.06)] hover:bg-none hover:bg-[#40454F] hover:border-[#2D3139] active:bg-none active:bg-[#090A0B] active:border-[#2D3139] disabled:bg-none disabled:bg-[#D2D5DB] disabled:border-transparent disabled:text-[#6D7588] disabled:shadow-none',
+    'border bg-[#1B1E22] bg-gradient-to-b from-[#090A0B] to-[#2D3139] border-[#40454F] text-white shadow-[0_2px_12px_0_rgba(10,13,18,0.12),0_1px_2px_0_rgba(10,13,18,0.06)] hover:bg-none hover:bg-[#40454F] hover:border-[#2D3139] active:bg-none active:bg-[#090A0B] active:border-[#2D3139] disabled:bg-none disabled:bg-[#D2D5DB] disabled:border-transparent disabled:text-[#6D7588] disabled:shadow-none',
   accent:
-    'border bg-gradient-to-b from-[#E04F16] to-[#F77E3C] border-[#E04F16] text-white shadow-accent-glow hover:bg-none hover:bg-[#E04F16] hover:border-[#B93815] active:bg-none active:bg-[#B93815] active:border-[#772917] disabled:bg-none disabled:bg-[#FDEAD7] disabled:border-transparent disabled:text-[#6D7588] disabled:shadow-none',
+    'border bg-[#EC6629] bg-gradient-to-b from-[#E04F16] to-[#F77E3C] border-[#E04F16] text-white shadow-accent-glow hover:bg-none hover:bg-[#E04F16] hover:border-[#B93815] active:bg-none active:bg-[#B93815] active:border-[#772917] disabled:bg-none disabled:bg-[#FDEAD7] disabled:border-transparent disabled:text-[#6D7588] disabled:shadow-none',
   secondary:
-    'border bg-gradient-to-b from-[#F9F9FA] to-white border-[#E8EAED] text-[#2D3139] shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)] hover:bg-none hover:bg-[#F9F9FA] hover:border-[#D2D5DB] active:bg-none active:bg-[#F4F4F6] active:border-[#E8EAED] disabled:bg-none disabled:bg-[#F4F4F6] disabled:border-[#E8EAED] disabled:text-[#6D7588] disabled:shadow-none',
+    'border bg-[#FCFCFD] bg-gradient-to-b from-[#F9F9FA] to-white border-[#E8EAED] text-[#2D3139] shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)] hover:bg-none hover:bg-[#F9F9FA] hover:border-[#D2D5DB] active:bg-none active:bg-[#F4F4F6] active:border-[#E8EAED] disabled:bg-none disabled:bg-[#F4F4F6] disabled:border-[#E8EAED] disabled:text-[#6D7588] disabled:shadow-none',
   tertiary:
     'border border-transparent bg-transparent text-[#1B1D22] hover:bg-[#F4F4F6] active:bg-[#E8EAED] disabled:bg-transparent disabled:text-[#6D7588]',
   destructive:
@@ -24,7 +24,7 @@ const variantStyles = {
   link: 'border-0 bg-transparent p-0 text-[#1B1D22] underline-offset-4 hover:text-[#175CD3] hover:underline active:text-[#102A56] disabled:text-[#6D7588] disabled:no-underline',
   /* ── Legacy aliases (kept so existing call-sites compile & stay on-design) ── */
   outline:
-    'border bg-gradient-to-b from-[#F9F9FA] to-white border-[#E8EAED] text-[#2D3139] shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)] hover:bg-none hover:bg-[#F9F9FA] hover:border-[#D2D5DB] active:bg-none active:bg-[#F4F4F6] disabled:bg-none disabled:bg-[#F4F4F6] disabled:border-[#E8EAED] disabled:text-[#6D7588] disabled:shadow-none',
+    'border bg-[#FCFCFD] bg-gradient-to-b from-[#F9F9FA] to-white border-[#E8EAED] text-[#2D3139] shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)] hover:bg-none hover:bg-[#F9F9FA] hover:border-[#D2D5DB] active:bg-none active:bg-[#F4F4F6] disabled:bg-none disabled:bg-[#F4F4F6] disabled:border-[#E8EAED] disabled:text-[#6D7588] disabled:shadow-none',
   ghost:
     'border border-transparent bg-transparent text-[#1B1D22] hover:bg-[#F4F4F6] active:bg-[#E8EAED] disabled:bg-transparent disabled:text-[#6D7588]',
   info: 'border border-transparent bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 disabled:opacity-60',

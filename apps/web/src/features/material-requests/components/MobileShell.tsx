@@ -1,33 +1,32 @@
+import { cn } from '@forethread/ui-components';
 import type { ReactNode } from 'react';
 
 /**
- * Centered mobile column for the Material Request flow (Figma 2002:176 — 375px
- * frames). The flow is designed mobile-first; this shell constrains the content
- * to a phone-width column that also reads correctly on desktop. A sticky footer
- * region is supported via the `footer` slot so the primary CTA stays pinned.
+ * Page shell for the Material Request flow. Renders the standard design-system
+ * page chrome shared across the app — the common page padding
+ * (`px-4 … sm:px-8`), a header region and an optional footer action bar — so the
+ * flow reads like the rest of the desktop application instead of a centred phone
+ * letterbox. It still collapses to a comfortable single column on phones.
+ *
+ * (Historically the flow was a fixed phone-width "mobile" shell; the name is
+ * kept for continuity but the layout is now responsive desktop-first.)
  */
 export interface MobileShellProps {
-  /** Dark sticky header (typically <MobileHeader />). */
+  /** In-content page header (typically <MobileHeader />). */
   header?: ReactNode;
-  /** Pinned bottom action bar (white surface, top border). */
+  /** Optional action region rendered under the body. */
   footer?: ReactNode;
   children: ReactNode;
-  /** Background of the scrollable body. Defaults to white. */
+  /** Extra classes for the scrollable body region. */
   bodyClassName?: string;
 }
 
 export function MobileShell({ header, footer, children, bodyClassName }: MobileShellProps) {
   return (
-    <div className="flex justify-center bg-neutral-100 min-h-full">
-      <div className="relative flex w-full max-w-[420px] flex-col bg-white shadow-sm min-h-[100dvh]">
-        {header}
-        <div className={`flex-1 overflow-y-auto ${bodyClassName ?? ''}`}>{children}</div>
-        {footer && (
-          <div className="sticky bottom-0 border-t border-[#E8EAED] bg-white px-4 py-4">
-            {footer}
-          </div>
-        )}
-      </div>
+    <div className="flex min-h-full flex-col px-4 pb-8 pt-4 sm:px-8 sm:pt-6">
+      {header}
+      <div className={cn('flex-1', bodyClassName)}>{children}</div>
+      {footer && <div className="mt-6">{footer}</div>}
     </div>
   );
 }

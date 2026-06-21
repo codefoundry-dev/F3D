@@ -2,6 +2,10 @@
   "title": "Vendors",
   "inviteVendor": "Invite vendor",
   "createVendorCompany": "Create vendor company",
+  "createVendor": {
+    "title": "Create vendor company",
+    "comingSoon": "This page is under development. Vendor creation will be available soon."
+  },
   "searchPlaceholder": "Search by name or email",
   "noVendorsFound": "No vendors found",
   "addFirstVendor": "Invite your first vendor to get started",

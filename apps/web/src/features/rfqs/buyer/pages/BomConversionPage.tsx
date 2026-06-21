@@ -1,7 +1,8 @@
 import type { DocExtractionResponse } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { Button, notificationService } from '@forethread/ui-components';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -22,8 +23,19 @@ const ACCEPTED_FILE_TYPES =
  */
 export default function BomConversionPage() {
   const { t } = useTranslation(['docExtractions']);
+  const { t: tRfqs } = useTranslation('rfqs');
   const navigate = useNavigate();
   const createExtraction = useCreateDocExtraction();
+
+  // App-bar breadcrumb: RFQ Management › Convert a project BOM.
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(t('upload.bomHeading'), null, ROUTES.rfqs, [
+      { label: tRfqs('list.title'), to: ROUTES.rfqs },
+      { label: t('upload.bomHeading') },
+    ]);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t, tRfqs]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);

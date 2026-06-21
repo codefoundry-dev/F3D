@@ -9,8 +9,14 @@ import {
   TablePagination,
   EmptyState,
   EmptyBoxIllustration,
+  SearchEmptyIllustration,
   DotActionsMenu,
+  FilterPopover,
+  FilterTag,
+  DateRangeFilterDropdown,
+  SearchInput,
   SortIcon,
+  useDebounce,
   StatusActionModal,
   StatusSuccessModal,
   ResetPasswordSuccessModal,
@@ -19,6 +25,7 @@ import {
   type TabItem,
 } from '@forethread/ui-components';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
+import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import NewUserIcon from '@forethread/ui-components/assets/icons/new-user.svg?react';
@@ -31,7 +38,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ROUTES } from '@/app/route-config';
 
 import { RoleBadge, StatusBadge } from '../../shared/userBadges';
-import { TABS, PAGE_SIZE_OPTIONS, type SortField } from '../constants';
+import {
+  TABS,
+  PAGE_SIZE_OPTIONS,
+  COMPANY_ROLE_OPTIONS,
+  STATUS_OPTIONS,
+  type SortField,
+} from '../constants';
 import { useUserSort } from '../hooks/useUserSort';
 import {
   useUsers,
@@ -71,6 +84,19 @@ export default function UserListPage() {
   const [projectAccessUser, setProjectAccessUser] = useState<{ id: string; name: string } | null>(
     null,
   );
+
+  // ── Toolbar filter state (mirrors the super-admin users list) ──
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  // Reset to the first page whenever the debounced search changes.
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
   const {
     isCreateModalOpen,
     openCreateModal,
@@ -119,14 +145,97 @@ export default function UserListPage() {
   const { data, isLoading, isError } = useUsers({
     page,
     limit: pageSize,
+    search: debouncedSearch || undefined,
+    role: selectedRoles.length ? selectedRoles.join(',') : undefined,
+    status: selectedStatuses.length ? selectedStatuses.join(',') : undefined,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
     sortBy: sortField ?? undefined,
     sortDir: sortDir ?? undefined,
   });
+
+  const total = data?.meta.total ?? 0;
+  const hasActiveFilters = Boolean(
+    debouncedSearch || selectedStatuses.length || selectedRoles.length || dateFrom || dateTo,
+  );
 
   const handleSort = (field: SortField) => {
     onSort(field);
     setPage(1);
   };
+
+  // ── Filter options ──
+  const statusOptions = STATUS_OPTIONS.map((s) => ({
+    value: s,
+    label: t(`statuses.${s}` as 'statuses.ACTIVE'),
+  }));
+  const roleOptions = COMPANY_ROLE_OPTIONS.map((r) => ({
+    value: r,
+    label: String(t(`roles.${r}` as 'roles.COMPANY_ADMIN')),
+  }));
+
+  // ── Active-filter chips ──
+  const formatChipDate = (value: string) =>
+    new Date(value).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  const dateChipLabel =
+    dateFrom && dateTo
+      ? `${formatChipDate(dateFrom)} - ${formatChipDate(dateTo)}`
+      : dateFrom
+        ? `${t('filters.from')}: ${formatChipDate(dateFrom)}`
+        : dateTo
+          ? `${t('filters.to')}: ${formatChipDate(dateTo)}`
+          : '';
+
+  const activeFilterChips: { key: string; label: string; onRemove: () => void }[] = [
+    ...selectedStatuses.map((value) => ({
+      key: `status-${value}`,
+      label: statusOptions.find((o) => (o.value as string) === value)?.label ?? value,
+      onRemove: () => {
+        setSelectedStatuses((prev) => prev.filter((v) => v !== value));
+        setPage(1);
+      },
+    })),
+    ...selectedRoles.map((value) => ({
+      key: `role-${value}`,
+      label: roleOptions.find((o) => (o.value as string) === value)?.label ?? value,
+      onRemove: () => {
+        setSelectedRoles((prev) => prev.filter((v) => v !== value));
+        setPage(1);
+      },
+    })),
+    ...(dateFrom || dateTo
+      ? [
+          {
+            key: 'date-range',
+            label: dateChipLabel,
+            onRemove: () => {
+              setDateFrom('');
+              setDateTo('');
+              setPage(1);
+            },
+          },
+        ]
+      : []),
+  ];
+
+  const handleClearAllFilters = () => {
+    setSelectedStatuses([]);
+    setSelectedRoles([]);
+    setDateFrom('');
+    setDateTo('');
+    setSearch('');
+    setPage(1);
+  };
+
+  const countLabel = debouncedSearch
+    ? t('searchingResultLabel', { total })
+    : hasActiveFilters
+      ? t('showingUsersLabel', { total })
+      : t('totalUsersLabel', { total });
 
   const handleStatusAction = () => {
     if (!statusActionUserId || !statusActionType || !statusActionUserEmail) return;
@@ -271,6 +380,86 @@ export default function UserListPage() {
       {/* ── Company users tab ── */}
       {activeTab === 'companyUsers' && (
         <div className="flex flex-1 flex-col gap-4 rounded-[18px] border border-gray-100 bg-[#F9F9FA] p-3 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
+          {/* Toolbar */}
+          <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-2">
+            {/* Left: result count, Clear all, and active-filter chips */}
+            <div className="flex min-h-[34px] min-w-0 flex-1 flex-wrap items-center gap-2 px-2">
+              <p className="text-sm font-medium leading-[1.4] tracking-[0.3px] text-gray-700">
+                {countLabel}
+              </p>
+              {hasActiveFilters && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  rightIcon={<CrossIcon className="size-3.5" />}
+                  onClick={handleClearAllFilters}
+                >
+                  {t('filters.clearAll')}
+                </Button>
+              )}
+              {activeFilterChips.map((chip) => (
+                <FilterTag
+                  key={chip.key}
+                  label={chip.label}
+                  onRemove={chip.onRemove}
+                  removeLabel={t('filters.removeFilter', { label: chip.label })}
+                />
+              ))}
+            </div>
+            {/* Right: filter dropdowns + search */}
+            <div className="flex min-h-[34px] flex-wrap items-center justify-end gap-2">
+              <FilterPopover
+                label={t('filters.status')}
+                popoverTitle={t('filters.status')}
+                clearLabel={t('filters.clear')}
+                options={statusOptions}
+                selected={selectedStatuses}
+                onChange={(v) => {
+                  setSelectedStatuses(v);
+                  setPage(1);
+                }}
+              />
+              <FilterPopover
+                label={t('filters.role')}
+                popoverTitle={t('filters.role')}
+                clearLabel={t('filters.clear')}
+                options={roleOptions}
+                selected={selectedRoles}
+                onChange={(v) => {
+                  setSelectedRoles(v);
+                  setPage(1);
+                }}
+              />
+              <DateRangeFilterDropdown
+                label={t('filters.date')}
+                clearLabel={t('filters.clear')}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                fromPlaceholder={t('filters.from')}
+                toPlaceholder={t('filters.to')}
+                onChangeFrom={(d) => {
+                  setDateFrom(d);
+                  setPage(1);
+                }}
+                onChangeTo={(d) => {
+                  setDateTo(d);
+                  setPage(1);
+                }}
+                onClear={() => {
+                  setDateFrom('');
+                  setDateTo('');
+                  setPage(1);
+                }}
+              />
+              <SearchInput
+                className="w-[220px]"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t('searchPlaceholder')}
+              />
+            </div>
+          </div>
+
           {isLoading ? (
             <div className="flex h-48 items-center justify-center">
               <Spinner size="md" />
@@ -281,11 +470,24 @@ export default function UserListPage() {
             </div>
           ) : !data?.items.length ? (
             <div className="flex flex-1 items-center justify-center rounded-[10px] border border-gray-100 bg-white shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
-              <EmptyState
-                illustration={<EmptyBoxIllustration />}
-                title={t('noUsersFound')}
-                description={t('createFirstUser')}
-              />
+              {hasActiveFilters ? (
+                <EmptyState
+                  illustration={<SearchEmptyIllustration />}
+                  titleClassName="text-[24px]"
+                  title={t('noResultsTitle')}
+                  description={
+                    debouncedSearch
+                      ? t('noResultsDescriptionQuery', { query: debouncedSearch })
+                      : t('noResultsDescription')
+                  }
+                />
+              ) : (
+                <EmptyState
+                  illustration={<EmptyBoxIllustration />}
+                  title={t('noUsersFound')}
+                  description={t('createFirstUser')}
+                />
+              )}
             </div>
           ) : (
             <>

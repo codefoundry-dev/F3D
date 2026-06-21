@@ -8,9 +8,12 @@ import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import {
   Badge,
+  Button,
+  Tabs,
   getStatusColor,
   INVOICE_STATUS_COLORS,
   PageLoader,
+  type TabItem,
 } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
@@ -19,6 +22,7 @@ import EyeOpenedIcon from '@forethread/ui-components/assets/icons/eye-opened.svg
 import { useCallback, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 
+import { INVOICE_ROUTES } from '../constants/routes';
 import { useInvoice, useApproveInvoice, useRejectInvoice } from '../hooks/useInvoices';
 
 export interface InvoiceDetailPageProps {
@@ -41,25 +45,33 @@ export function InvoiceDetailPage({ canApprove = false }: InvoiceDetailPageProps
   const rejectMutation = useRejectInvoice();
   const setTitle = usePageTitleStore((s) => s.setTitle);
 
+  // Surface the title + Invoices breadcrumb in the app bar (back → list).
   useEffect(() => {
-    if (invoice?.vendorName) {
-      setTitle(invoice.vendorName);
-    }
+    setTitle(invoice?.vendorName ?? t('list.title'), null, INVOICE_ROUTES.invoices, [
+      { label: t('list.title'), to: INVOICE_ROUTES.invoices },
+      { label: invoice?.vendorName ?? t('list.title') },
+    ]);
     return () => setTitle(null);
-  }, [invoice?.vendorName, setTitle]);
+  }, [invoice?.vendorName, setTitle, t]);
 
   const handleTabChange = (tab: Tab) => {
     setSearchParams({ tab }, { replace: true });
   };
 
   const docCount = invoice?.documents?.length ?? 0;
-  const tabLabels: Record<Tab, string> = {
-    details: t('invoiceDetail.tabs.details', { defaultValue: 'Invoice Details' }),
-    attachments: t('invoiceDetail.tabs.attachments', {
-      defaultValue: `Attachments (${docCount})`,
-      count: docCount,
-    }),
-  };
+  const tabItems: TabItem<Tab>[] = [
+    {
+      value: 'details',
+      label: t('invoiceDetail.tabs.details', { defaultValue: 'Invoice Details' }),
+    },
+    {
+      value: 'attachments',
+      label: t('invoiceDetail.tabs.attachments', {
+        defaultValue: `Attachments (${docCount})`,
+        count: docCount,
+      }),
+    },
+  ];
 
   const isPending = invoice?.status === 'PENDING';
   const showActions = canApprove && isPending;
@@ -70,52 +82,35 @@ export function InvoiceDetailPage({ canApprove = false }: InvoiceDetailPageProps
   }
 
   return (
-    <div className="p-6 space-y-4 h-full flex flex-col">
+    <div className="flex h-full flex-1 flex-col gap-3 px-6 py-4">
       {/* Tab bar + actions */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {TABS.map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => handleTabChange(tab)}
-              className={`px-4 py-2 text-sm font-medium rounded-full border transition-colors ${
-                activeTab === tab
-                  ? 'bg-foreground text-background border-foreground'
-                  : 'bg-background text-foreground border-border hover:border-border-hover'
-              }`}
-            >
-              {tabLabels[tab]}
-            </button>
-          ))}
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Tabs items={tabItems} value={activeTab} onValueChange={handleTabChange} />
 
         {showActions && (
           <div className="flex items-center gap-2">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               disabled={isActioning}
+              leftIcon={<CrossInCircleIcon className="size-4" />}
               onClick={() => id && rejectMutation.mutate(id)}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full border border-border text-foreground hover:bg-accent transition-colors disabled:opacity-50"
             >
-              <CrossInCircleIcon className="w-4 h-4" />
               {t('invoiceDetail.decline', { defaultValue: 'Decline' })}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="primary"
               disabled={isActioning}
+              leftIcon={<CheckCircleIcon className="size-4" />}
               onClick={() => id && approveMutation.mutate(id)}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
             >
-              <CheckCircleIcon className="w-4 h-4" />
               {t('invoiceDetail.approve', { defaultValue: 'Approve' })}
-            </button>
+            </Button>
           </div>
         )}
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 rounded-[14px] border border-border bg-white overflow-auto">
+      <div className="flex-1 overflow-auto rounded-[14px] border border-gray-100 bg-white shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
         {activeTab === 'details' && <InvoiceDetailsTab invoice={invoice} />}
         {activeTab === 'attachments' && <AttachmentsTab documents={invoice?.documents ?? []} />}
       </div>

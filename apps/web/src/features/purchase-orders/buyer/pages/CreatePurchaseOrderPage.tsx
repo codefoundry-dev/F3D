@@ -1,7 +1,9 @@
 import { type CreatePurchaseOrderInput } from '@forethread/api-client';
+import { useTranslation } from '@forethread/i18n';
 import { CreatePoWizard } from '@forethread/po-shared';
 import type { PoCreationMode } from '@forethread/po-shared';
-import { useCallback, useMemo, useState } from 'react';
+import { usePageTitleStore } from '@forethread/rfq-shared';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -20,9 +22,20 @@ interface RouteState {
 }
 
 export default function CreatePurchaseOrderPage() {
+  const { t } = useTranslation('purchaseOrders');
   const navigate = useNavigate();
   const location = useLocation();
   const routeState = (location.state as RouteState) ?? {};
+
+  // App-bar breadcrumb: PO Management › Create Purchase Order.
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(t('create.title'), null, ROUTES.purchaseOrders, [
+      { label: t('list.title'), to: ROUTES.purchaseOrders },
+      { label: t('create.title') },
+    ]);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
 
   const { data: projectsData } = useProjectsList();
   const { data: vendorsData } = useCompanyVendors();

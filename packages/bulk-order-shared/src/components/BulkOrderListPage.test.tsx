@@ -9,6 +9,10 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
 }));
 
+vi.mock('@forethread/rfq-shared', () => ({
+  usePageTitleStore: (selector: any) => selector({ setTitle: vi.fn() }),
+}));
+
 vi.mock('../hooks/useFilterOptions', () => ({
   useProjectFilterOptions: () => [],
   useVendorFilterOptions: () => [],

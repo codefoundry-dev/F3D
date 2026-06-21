@@ -9,6 +9,7 @@ import {
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { Stepper } from '@forethread/po-shared';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { isBomExtractionResult, type SaveRfqDraftValues } from '@forethread/shared-types/client';
 import { Button, StatusErrorModal, StatusSuccessModal } from '@forethread/ui-components';
 import ArrowRightIcon from '@forethread/ui-components/assets/icons/arrow-right.svg?react';
@@ -135,6 +136,16 @@ export default function CreateRfqPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const seededRef = useRef(false);
+
+  // App-bar breadcrumb: RFQ Management › Create New RFQ.
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(t('create.title'), t('create.subtitle'), ROUTES.rfqs, [
+      { label: t('list.title'), to: ROUTES.rfqs },
+      { label: t('create.title') },
+    ]);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
 
   const seed = (location.state as { seed?: WizardSeed } | null)?.seed;
 

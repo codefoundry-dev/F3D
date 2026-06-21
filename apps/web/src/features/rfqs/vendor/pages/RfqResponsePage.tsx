@@ -5,7 +5,7 @@ import {
   getQuoteDetail,
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { useRfq } from '@forethread/rfq-shared';
+import { useRfq, usePageTitleStore } from '@forethread/rfq-shared';
 import {
   Alert,
   Button,
@@ -39,6 +39,20 @@ export default function RfqResponsePage() {
   const { id } = useParams<{ id: string }>();
   const companyId = useAuthStore((s) => s.currentUser?.companyId) ?? '';
   const { data: rfq, isLoading, isError } = useRfq(id ?? '');
+
+  // App-bar breadcrumb: RFQ Management › <RFQ number> › Response.
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    if (rfq) {
+      const rfqLabel = rfq.rfqNumber ?? rfq.id;
+      setPageTitle(t('actions.response'), null, ROUTES.rfqDetail.replace(':id', rfq.id), [
+        { label: t('list.title'), to: ROUTES.rfqs },
+        { label: rfqLabel, to: ROUTES.rfqDetail.replace(':id', rfq.id) },
+        { label: t('actions.response') },
+      ]);
+    }
+    return () => setPageTitle(null);
+  }, [rfq, setPageTitle, t]);
 
   if (isLoading) {
     return (

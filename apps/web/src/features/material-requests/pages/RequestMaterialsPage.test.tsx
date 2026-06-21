@@ -23,9 +23,15 @@ vi.mock('@forethread/i18n', () => ({
   }),
 }));
 
+vi.mock('@forethread/rfq-shared', () => ({
+  usePageTitleStore: (selector: (s: { setTitle: () => void }) => unknown) =>
+    selector({ setTitle: vi.fn() }),
+}));
+
 vi.mock('@/app/route-config', () => ({
   ROUTES: {
     materialRequestJobs: '/material-requests/jobs',
+    materialRequestJobOverview: '/material-requests/jobs/:projectId',
     materialRequestConfirmation: '/material-requests/confirmation/:id',
   },
 }));
@@ -54,7 +60,15 @@ vi.mock('../components/MobileShell', () => ({
   ),
 }));
 vi.mock('../components/MobileHeader', () => ({
-  MobileHeader: ({ title, onBack }: { title: string; onBack?: () => void }) => (
+  MobileHeader: ({
+    title,
+    onBack,
+    trailing,
+  }: {
+    title: string;
+    onBack?: () => void;
+    trailing?: ReactNode;
+  }) => (
     <div>
       <span>{title}</span>
       {onBack && (
@@ -62,6 +76,7 @@ vi.mock('../components/MobileHeader', () => ({
           back
         </button>
       )}
+      {trailing}
     </div>
   ),
 }));

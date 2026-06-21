@@ -1,7 +1,11 @@
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { PageLoader } from '@forethread/ui-components';
 import ChevronRightIcon from '@forethread/ui-components/assets/icons/chevron-right.svg?react';
+import LocationIcon from '@forethread/ui-components/assets/icons/location.svg?react';
 import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
+import RequestIcon from '@forethread/ui-components/assets/icons/request.svg?react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -11,60 +15,78 @@ import { MobileShell } from '../components/MobileShell';
 import { useMrProjects } from '../services/material-requests.service';
 
 /**
- * Job picker (Figma 2002:176 frames 2155:493 / 2155:924 — "My Jobs"). The
- * Foreman's landing for the Material Request flow: choose the job to raise
- * materials for, which opens its Job Overview.
+ * Job picker (Figma 2002:176 — "My Jobs"). The Foreman's landing for the
+ * Material Request flow: choose the job to raise materials for, which opens its
+ * Job Overview. Rebuilt as a responsive design-system card grid.
  */
 export default function JobPickerPage() {
   const { t } = useTranslation('materialRequests');
   const navigate = useNavigate();
   const { data: projects, isLoading } = useMrProjects();
 
+  // App-bar breadcrumb / page title.
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(t('jobOverview.selectJob'), null, ROUTES.materialRequests, [
+      { label: t('jobOverview.selectJob') },
+    ]);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
+
   if (isLoading) return <PageLoader />;
 
   const jobs = projects ?? [];
 
   return (
-    <MobileShell header={<MobileHeader title={t('jobOverview.selectJob')} />}>
-      <div className="flex flex-col gap-1 px-4 py-6">
-        <p className="text-sm text-[#525866]">{t('jobOverview.selectJobHint')}</p>
-
-        {jobs.length === 0 ? (
-          <div className="flex flex-col items-center gap-1 py-16 text-center">
-            <span className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[#F4F4F6] text-[#999FAD]">
-              <PackageIcon className="h-6 w-6" />
-            </span>
-            <p className="text-sm font-medium text-[#1B1D22]">{t('jobOverview.noJobs')}</p>
-            <p className="text-xs text-[#6D7588]">{t('jobOverview.noJobsHint')}</p>
-          </div>
-        ) : (
-          <ul className="mt-3 flex flex-col gap-2" data-testid="mr-job-list">
-            {jobs.map((job) => (
-              <li key={job.id}>
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate(ROUTES.materialRequestJobOverview.replace(':projectId', job.id))
-                  }
-                  className="flex w-full items-center gap-3 rounded-lg border border-[#E8EAED] px-4 py-4 text-left hover:bg-[#FDFDFD]"
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-[#1B1D22]">
-                      {job.name}
-                    </span>
-                    {job.defaultDeliveryLocation && (
-                      <span className="block truncate text-xs text-[#6D7588]">
-                        {job.defaultDeliveryLocation}
-                      </span>
-                    )}
+    <MobileShell
+      header={
+        <MobileHeader
+          title={t('jobOverview.selectJob')}
+          subline={t('jobOverview.selectJobHint')}
+          onBack={() => navigate(ROUTES.materialRequests)}
+          icon={<RequestIcon />}
+        />
+      }
+    >
+      {jobs.length === 0 ? (
+        <div className="flex flex-col items-center gap-1 rounded-xl border border-border bg-card py-16 text-center">
+          <span className="mb-2 flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <PackageIcon className="size-6" />
+          </span>
+          <p className="text-sm font-medium text-foreground">{t('jobOverview.noJobs')}</p>
+          <p className="max-w-sm text-xs text-muted-foreground">{t('jobOverview.noJobsHint')}</p>
+        </div>
+      ) : (
+        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="mr-job-list">
+          {jobs.map((job) => (
+            <li key={job.id}>
+              <button
+                type="button"
+                onClick={() =>
+                  navigate(ROUTES.materialRequestJobOverview.replace(':projectId', job.id))
+                }
+                className="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-4 py-4 text-left shadow-[0_1px_3px_0_rgba(10,13,18,0.06),0_1px_1px_0_rgba(10,13,18,0.02)] transition-colors hover:border-gray-200 hover:bg-accent/50"
+              >
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                  <PackageIcon className="size-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-foreground">
+                    {job.name}
                   </span>
-                  <ChevronRightIcon className="h-4 w-4 shrink-0 text-[#999FAD]" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+                  {job.defaultDeliveryLocation && (
+                    <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+                      <LocationIcon className="size-3.5 shrink-0" />
+                      {job.defaultDeliveryLocation}
+                    </span>
+                  )}
+                </span>
+                <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </MobileShell>
   );
 }

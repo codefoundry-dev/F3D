@@ -65,6 +65,8 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('@forethread/rfq-shared', () => ({
   useRfq: () => mockRfq.value,
+  usePageTitleStore: (selector: (s: { setTitle: () => void }) => unknown) =>
+    selector({ setTitle: vi.fn() }),
 }));
 
 vi.mock('@forethread/api-client', () => ({
@@ -152,7 +154,7 @@ vi.mock('@forethread/ui-components/assets/icons/paper-plane.svg?react', () => ({
 }));
 
 vi.mock('@/app/route-config', () => ({
-  ROUTES: { rfqDetail: '/rfqs/:id', home: '/' },
+  ROUTES: { rfqs: '/rfqs', rfqDetail: '/rfqs/:id', home: '/' },
 }));
 
 vi.mock('@/features/auth/state/auth.store', () => ({

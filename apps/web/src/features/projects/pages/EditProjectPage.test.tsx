@@ -21,6 +21,11 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
 }));
 
+vi.mock('@forethread/rfq-shared', () => ({
+  usePageTitleStore: (selector: (s: { setTitle: () => void }) => unknown) =>
+    selector({ setTitle: vi.fn() }),
+}));
+
 vi.mock('@forethread/api-client', () => ({
   searchAddresses: vi.fn(),
 }));

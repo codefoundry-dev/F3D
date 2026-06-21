@@ -80,8 +80,10 @@ export function AppLayout() {
       </div>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="sticky top-0 z-10 h-16 bg-card border-b border-gray-100 flex items-center justify-between px-6">
-          <Breadcrumbs items={breadcrumbItems} className="min-w-0" />
+        <header className="sticky top-0 z-10 h-16 bg-card border-b border-gray-100 flex items-center justify-between gap-2 px-4 sm:px-6">
+          {/* Breadcrumb is hidden on phones (the page content carries its own
+              header/title there) so it never collides with the bell + user menu. */}
+          <Breadcrumbs items={breadcrumbItems} className="hidden min-w-0 sm:flex" />
           <div className="flex items-center gap-2">
             <NotificationBell aria-label={t('nav:notifications')} hasNotifications />
 

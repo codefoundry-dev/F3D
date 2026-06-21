@@ -8,6 +8,15 @@ vi.mock('@forethread/i18n', () => ({
 
 vi.mock('@forethread/shared-types/client', () => ({
   UserStatus: { ACTIVE: 'ACTIVE', INACTIVE: 'INACTIVE', INVITED: 'INVITED' },
+  UserRole: {
+    SUPER_ADMIN: 'SUPER_ADMIN',
+    COMPANY_ADMIN: 'COMPANY_ADMIN',
+    PROCUREMENT_OFFICER: 'PROCUREMENT_OFFICER',
+    FINANCIAL_OFFICER: 'FINANCIAL_OFFICER',
+    WAREHOUSE_OFFICER: 'WAREHOUSE_OFFICER',
+    FOREMAN: 'FOREMAN',
+    VENDOR: 'VENDOR',
+  },
 }));
 
 vi.mock('@forethread/rfq-shared', () => ({
@@ -22,10 +31,20 @@ vi.mock('../../shared/userBadges', () => ({
 
 vi.mock('@forethread/ui-components', () => ({
   cn: (...args: any[]) => args.filter(Boolean).join(' '),
+  useDebounce: (value: any) => value,
   Button: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>,
   Spinner: () => <div data-testid="spinner" />,
   Badge: ({ children }: any) => <span data-testid="badge">{children}</span>,
   EmptyBoxIllustration: () => <div data-testid="empty-box" />,
+  SearchEmptyIllustration: () => <div data-testid="search-empty" />,
+  SearchInput: (props: any) => <input data-testid="search-input" {...props} />,
+  FilterPopover: ({ label }: any) => <div data-testid="filter-popover">{label}</div>,
+  FilterTag: ({ label, onRemove }: any) => (
+    <button data-testid="filter-tag" onClick={onRemove}>
+      {label}
+    </button>
+  ),
+  DateRangeFilterDropdown: ({ label }: any) => <div data-testid="date-filter">{label}</div>,
   Tabs: ({ items, onValueChange }: any) => (
     <div data-testid="tabs">
       {items?.map((it: any) => (

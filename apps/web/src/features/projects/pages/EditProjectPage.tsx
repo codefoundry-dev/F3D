@@ -1,5 +1,6 @@
 import { searchAddresses } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import {
   updateProjectSchema,
   type UpdateProjectFormValues,
@@ -54,6 +55,16 @@ export default function EditProjectPage() {
   const navigate = useNavigate();
   const { data: project, isLoading } = useProject(id ?? '');
   const updateMutation = useUpdateProject(id ?? '');
+
+  // App-bar breadcrumb: Projects › Edit Project.
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(t('edit.title'), null, ROUTES.projects, [
+      { label: t('list.title'), to: ROUTES.projects },
+      { label: t('edit.title') },
+    ]);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
 
   const {
     register,

@@ -18,6 +18,7 @@
   "dependencies": {
     "@forethread/api-client": "workspace:*",
     "@forethread/i18n": "workspace:*",
+    "@forethread/rfq-shared": "workspace:*",
     "@forethread/shared-types": "workspace:*",
     "@forethread/ui-components": "workspace:*",
     "@hookform/resolvers": "^3.9.0",

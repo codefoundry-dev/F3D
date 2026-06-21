@@ -1,10 +1,11 @@
 import { type MaterialDetailDto, type MaterialDimensions } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { Button } from '@forethread/ui-components';
 import BackArrowIcon from '@forethread/ui-components/assets/icons/back-arrow.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import ImageIcon from '@forethread/ui-components/assets/icons/image.svg?react';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -65,6 +66,18 @@ export default function MaterialDetailPage() {
   const { data, isLoading, isError } = useMaterial(id);
   const { remove } = useMaterialMutations();
   const [showDelete, setShowDelete] = useState(false);
+
+  // App-bar breadcrumb: Material Catalogue › <material name> (set once loaded).
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    if (data) {
+      setPageTitle(data.name, null, ROUTES.materialCatalogue, [
+        { label: t('page.title'), to: ROUTES.materialCatalogue },
+        { label: data.name },
+      ]);
+    }
+    return () => setPageTitle(null);
+  }, [data, setPageTitle, t]);
 
   if (isLoading) {
     return (
