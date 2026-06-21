@@ -95,7 +95,7 @@ export function DocumentsTab({ companyId }: DocumentsTabProps) {
   };
 
   const handleDownloadAll = () => {
-    documents?.forEach((doc) => downloadFile(doc.file.id, doc.file.filename));
+    documents?.forEach((doc) => void downloadFile(doc.file.id, doc.file.filename));
   };
 
   const confirmDelete = () => {
@@ -167,7 +167,9 @@ export function DocumentsTab({ companyId }: DocumentsTabProps) {
                 key={doc.id}
                 className="flex items-center gap-3 rounded-[12px] border border-[#e8eaed] bg-white px-[9px] py-[7px] shadow-[0_1px_3px_0_rgba(10,13,18,0.06),0_1px_1px_0_rgba(10,13,18,0.02)]"
               >
-                <span className={`flex size-10 shrink-0 items-center justify-center ${meta.colorClass}`}>
+                <span
+                  className={`flex size-10 shrink-0 items-center justify-center ${meta.colorClass}`}
+                >
                   <FileTextIcon className="size-8" />
                 </span>
                 <div className="flex min-w-0 flex-1 flex-col gap-1">

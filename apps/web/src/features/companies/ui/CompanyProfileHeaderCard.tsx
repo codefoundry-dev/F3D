@@ -1,8 +1,8 @@
 import type { CompanyResponse } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { cn, Spinner } from '@forethread/ui-components';
-import CameraIcon from '@forethread/ui-components/assets/icons/image.svg?react';
 import EnvelopeIcon from '@forethread/ui-components/assets/icons/envelope-simple.svg?react';
+import CameraIcon from '@forethread/ui-components/assets/icons/image.svg?react';
 import type { ReactNode } from 'react';
 
 interface CompanyProfileHeaderCardProps {

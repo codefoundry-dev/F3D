@@ -2,33 +2,39 @@ import {
   deactivateUser as deactivateUserApi,
   reactivateUser as reactivateUserApi,
   getUsers,
-  updateCompany,
-  type UpdateCompanyDto,
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { CompanyType, UserStatus } from '@forethread/shared-types/client';
 import {
-  cn,
   Spinner,
   Button,
+  Tabs,
   DotActionsMenu,
   StatusActionModal,
-  Alert,
   notificationService,
   type DotAction,
+  type TabItem,
 } from '@forethread/ui-components';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
-import EnvelopeIcon from '@forethread/ui-components/assets/icons/envelope-simple.svg?react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import DepartmentIcon from '@forethread/ui-components/assets/icons/department.svg?react';
+import FileTextIcon from '@forethread/ui-components/assets/icons/file-text.svg?react';
+import InfoIcon from '@forethread/ui-components/assets/icons/info.svg?react';
+import NewUserIcon from '@forethread/ui-components/assets/icons/new-user.svg?react';
+import UsersGroupIcon from '@forethread/ui-components/assets/icons/users-group.svg?react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { useUsersStore } from '@/features/users/super-admin/state/users.store';
 
+import { CreateUserModal } from '../../users/super-admin/ui/CreateUserModal';
 import { useCompany } from '../services/companies.service';
+import { CompanyProfileHeaderCard } from '../ui/CompanyProfileHeaderCard';
 import { CompanyUsersTab } from '../ui/CompanyUsersTab';
 import { DocumentsTab } from '../ui/DocumentsTab';
+import { EditCompanyDetailsModal } from '../ui/EditCompanyDetailsModal';
 import { OverviewTab } from '../ui/OverviewTab';
 
 type Tab = 'overview' | 'companyUsers' | 'documents';
@@ -38,15 +44,8 @@ export default function CompanyDetailPage() {
   const { t } = useTranslation(['company', 'common', 'users']);
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
   const { data: company, isLoading } = useCompany(id ?? '');
+  const queryClient = useQueryClient();
 
-  // App-bar breadcrumb trail: Home › Companies › <company name>.
-  useEffect(() => {
-    setPageTitle(t('detailPageTitle'), null, null, [
-      { label: t('breadcrumbCompanies', { defaultValue: 'Companies' }), to: ROUTES.companies },
-      { label: company?.legalName ?? t('detailPageTitle') },
-    ]);
-    return () => setPageTitle(null);
-  }, [setPageTitle, t, company?.legalName]);
   const [searchParams, setSearchParams] = useSearchParams();
   const validTabs: Tab[] = ['overview', 'companyUsers', 'documents'];
   const tabParam = searchParams.get('tab') as Tab | null;
@@ -55,12 +54,22 @@ export default function CompanyDetailPage() {
     (tab: Tab) => setSearchParams({ tab }, { replace: true }),
     [setSearchParams],
   );
+
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState<Record<string, string>>({});
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [bulkType, setBulkType] = useState<'deactivate' | 'activate'>('deactivate');
   const [isBulkLoading, setIsBulkLoading] = useState(false);
-  const queryClient = useQueryClient();
+
+  const { isCreateModalOpen, openCreateModal, closeCreateModal } = useUsersStore();
+
+  // App-bar breadcrumb: Home › Users management › <company name>.
+  useEffect(() => {
+    setPageTitle(t('companyDetails'), null, null, [
+      { label: t('breadcrumbUsersManagement'), to: ROUTES.users },
+      { label: company?.legalName ?? t('companyDetails') },
+    ]);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t, company?.legalName]);
 
   const { data: companyUsers } = useQuery({
     queryKey: ['users', { companyId: id }],
@@ -69,57 +78,9 @@ export default function CompanyDetailPage() {
     select: (d) => d.items,
   });
 
-  const updateMutation = useMutation({
-    mutationFn: (dto: UpdateCompanyDto) => {
-      if (!company) throw new Error('Company not loaded');
-      return updateCompany(company.id, dto);
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['companies'] });
-      setIsEditing(false);
-    },
-  });
-
   const activeUsers = companyUsers?.filter((u) => u.status === UserStatus.ACTIVE) ?? [];
   const inactiveUsers = companyUsers?.filter((u) => u.status === UserStatus.INACTIVE) ?? [];
   const allActive = activeUsers.length > 0 && inactiveUsers.length === 0;
-
-  const handleEdit = () => {
-    if (!company) return;
-    setFormData({
-      legalName: company.legalName || '',
-      tradeName: company.tradeName ?? '',
-      abn: company.abn ?? '',
-      taxCode: company.taxCode ?? '',
-      legalAddress: company.legalAddress ?? '',
-      contactEmail: company.contactEmail ?? '',
-      contactPhone: company.contactPhone ?? '',
-      website: company.website ?? '',
-    });
-    setIsEditing(true);
-  };
-
-  const handleCancel = () => {
-    setIsEditing(false);
-    updateMutation.reset();
-  };
-
-  const handleSubmit = () => {
-    const emptyToUndefined = (v: string | undefined) =>
-      v === '' || v === null || v === undefined ? undefined : v;
-    updateMutation.mutate({
-      legalName: formData.legalName,
-      tradeName: emptyToUndefined(formData.tradeName),
-      legalAddress: emptyToUndefined(formData.legalAddress),
-      contactEmail: emptyToUndefined(formData.contactEmail),
-      contactPhone: emptyToUndefined(formData.contactPhone),
-      website: emptyToUndefined(formData.website),
-    });
-  };
-
-  const updateField = (key: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [key]: value }));
-  };
 
   const handleBulkAction = async () => {
     const userIds =
@@ -156,28 +117,26 @@ export default function CompanyDetailPage() {
 
   if (!company) return null;
 
-  const initials = company.legalName
-    .split(' ')
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? '')
-    .join('');
-
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'overview', label: t('tabs.overview') },
-    { key: 'companyUsers', label: t('tabs.companyUsers') },
-    { key: 'documents', label: t('tabs.documents') },
+  const tabs: TabItem<Tab>[] = [
+    {
+      value: 'overview',
+      label: t('tabs.companyOverview'),
+      icon: <InfoIcon className="size-[18px]" />,
+    },
+    {
+      value: 'companyUsers',
+      label: t('tabs.companyUsers'),
+      icon: <UsersGroupIcon className="size-[18px]" />,
+    },
+    {
+      value: 'documents',
+      label: t('tabs.documents'),
+      icon: <FileTextIcon className="size-[18px]" />,
+    },
   ];
 
   const dotActions: DotAction[] = [
-    ...(isEditing
-      ? []
-      : [
-          {
-            key: 'edit',
-            label: t('editCompanyDetails'),
-            onClick: handleEdit,
-          },
-        ]),
+    { key: 'edit', label: t('editCompanyDetails'), onClick: () => setIsEditing(true) },
     {
       key: 'bulkAction',
       label: allActive ? t('deactivateAllUsers') : t('activateAllUsers'),
@@ -189,102 +148,58 @@ export default function CompanyDetailPage() {
   ];
 
   return (
-    <div className="p-6">
-      {/* Tabs (underline pattern, matches the user-management boards) */}
-      <div className="flex items-start border-b border-gray-200">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => setActiveTab(tab.key)}
-            className={cn(
-              '-mb-px border-b-2 px-3 py-2.5 text-sm font-medium leading-5 transition-colors',
-              activeTab === tab.key
-                ? 'border-gray-900 text-gray-900'
-                : 'border-transparent text-gray-500 hover:text-gray-900',
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
+    <div className="flex flex-1 flex-col gap-4 px-6 py-4">
+      {/* Section header */}
+      <div className="flex items-center gap-3">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-[8px] border border-gray-100 bg-gradient-to-b from-[#F9F9FA] to-white p-px text-gray-700 shadow-[0_1px_3px_0_rgba(10,13,18,0.06),0_1px_1px_0_rgba(10,13,18,0.02)]">
+          <DepartmentIcon className="size-[15px]" />
+        </span>
+        <h1 className="text-[20px] font-medium leading-[1.4] tracking-[0.3px] text-gray-900">
+          {t('companyDetails')}
+        </h1>
       </div>
 
-      {/* Card with company header + tab content */}
-      <div className="mt-6 rounded-[18px] border border-gray-100 bg-white shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
-        {/* Company header */}
-        <div className="px-8 py-6">
-          <div className="flex items-center gap-5">
-            {company.logoUrl ? (
-              <img
-                src={company.logoUrl}
-                alt={company.legalName}
-                className="size-20 rounded-full object-cover"
-              />
-            ) : (
-              <div className="flex size-20 items-center justify-center rounded-full border border-white bg-gray-100 text-2xl font-semibold text-gray-600 shadow-[0_1px_2px_0_rgba(10,13,18,0.06)]">
-                {initials}
-              </div>
-            )}
+      {/* Company header card */}
+      <CompanyProfileHeaderCard
+        company={company}
+        activeCount={activeUsers.length}
+        inactiveCount={inactiveUsers.length}
+        actions={
+          <>
+            <Button onClick={openCreateModal} leftIcon={<NewUserIcon className="size-5" />}>
+              {t('users:inviteUser')}
+            </Button>
+            <DotActionsMenu actions={dotActions} />
+          </>
+        }
+      />
 
-            <div className="min-w-0 flex-1">
-              <h2 className="text-2xl font-semibold text-gray-900">{company.legalName}</h2>
-              {company.contactEmail && (
-                <div className="mt-1 flex items-center gap-1.5 text-sm text-gray-500">
-                  <EnvelopeIcon className="size-4" />
-                  <span>{company.contactEmail}</span>
-                </div>
-              )}
-            </div>
+      {/* Tabs */}
+      <Tabs items={tabs} value={activeTab} onValueChange={setActiveTab} />
 
-            <div className="flex items-center gap-2">
-              {isEditing && activeTab === 'overview' && (
-                <>
-                  <Button
-                    variant="primary"
-                    onClick={handleSubmit}
-                    isLoading={updateMutation.isPending}
-                  >
-                    {t('editModal.submit')}
-                  </Button>
-                  <Button variant="outline" onClick={handleCancel}>
-                    {t('common:cancel')}
-                  </Button>
-                </>
-              )}
-              <DotActionsMenu actions={dotActions} />
-            </div>
-          </div>
-        </div>
-
-        <hr className="border-gray-100" />
-
-        {/* Error alert */}
-        {updateMutation.isError && (
-          <div className="px-6 pt-4">
-            <Alert variant="destructive">{t('editModal.updateError')}</Alert>
-          </div>
-        )}
-
-        {/* Tab content */}
-        <div className="p-6">
-          {activeTab === 'overview' && (
-            <OverviewTab
-              company={company}
-              isEditing={isEditing}
-              formData={formData}
-              onFieldChange={updateField}
-            />
-          )}
-          {activeTab === 'companyUsers' && (
-            <CompanyUsersTab
-              companyId={company.id}
-              companyName={company.legalName}
-              companyType={company.type as CompanyType}
-            />
-          )}
-          {activeTab === 'documents' && <DocumentsTab companyId={company.id} />}
-        </div>
+      {/* Tab content */}
+      <div>
+        {activeTab === 'overview' && <OverviewTab company={company} />}
+        {activeTab === 'companyUsers' && <CompanyUsersTab companyId={company.id} />}
+        {activeTab === 'documents' && <DocumentsTab companyId={company.id} />}
       </div>
+
+      {/* Edit company details modal */}
+      {isEditing && (
+        <EditCompanyDetailsModal company={company} onClose={() => setIsEditing(false)} />
+      )}
+
+      {/* Invite user modal (opened from the header) */}
+      {isCreateModalOpen && (
+        <CreateUserModal
+          onClose={closeCreateModal}
+          preselectedCompany={{
+            id: company.id,
+            name: company.legalName,
+            type: company.type as CompanyType,
+          }}
+        />
+      )}
 
       {/* Bulk deactivate/activate modal */}
       {isBulkModalOpen && (

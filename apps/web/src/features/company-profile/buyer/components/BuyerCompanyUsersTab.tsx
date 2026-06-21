@@ -1,11 +1,12 @@
 import type { UserResponse } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { UserStatus } from '@forethread/shared-types/client';
+import { UserRole, UserStatus } from '@forethread/shared-types/client';
 import {
   StatusActionModal,
   StatusSuccessModal,
   ResetPasswordSuccessModal,
   useDebounce,
+  notificationService,
   type DotAction,
 } from '@forethread/ui-components';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
@@ -13,28 +14,37 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
-import { CompanyUsersTableView } from '@/features/users/shared/CompanyUsersTableView';
-import { ALL_ROLE_OPTIONS } from '@/features/users/super-admin/constants/roles';
-import { useUserSort } from '@/features/users/super-admin/hooks/useUserSort';
+import { useUserSort } from '@/features/users/company-admin/hooks/useUserSort';
 import {
   useUsers,
   useDeactivateUser,
   useReactivateUser,
   useResendInvitation,
   useCancelInvitation,
-  useInitiateResetPassword,
-} from '@/features/users/super-admin/services/users.service';
-import { useUsersStore } from '@/features/users/super-admin/state/users.store';
-
-import { EditUserModal } from '../../users/super-admin/ui/EditUserModal';
+  useResetUserPassword,
+} from '@/features/users/company-admin/services/users.service';
+import { useUsersStore } from '@/features/users/company-admin/state/users.store';
+import { EditUserModal } from '@/features/users/company-admin/ui/EditUserModal';
+import { ProjectAccessModal } from '@/features/users/company-admin/ui/ProjectAccessModal';
+import { CompanyUsersTableView } from '@/features/users/shared/CompanyUsersTableView';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
-interface CompanyUsersTabProps {
-  companyId: string;
-}
+/** Roles a contractor company can assign (excludes Super Admin + Vendor). */
+const CONTRACTOR_ROLES: UserRole[] = [
+  UserRole.COMPANY_ADMIN,
+  UserRole.PROCUREMENT_OFFICER,
+  UserRole.FINANCIAL_OFFICER,
+  UserRole.WAREHOUSE_OFFICER,
+  UserRole.FOREMAN,
+];
 
-export function CompanyUsersTab({ companyId }: CompanyUsersTabProps) {
+/**
+ * Buyer "Company users" tab (US 1.09) — the company-admin user list scoped to
+ * the logged-in admin's own company, rendered with the shared table view. The
+ * Invite-user action lives in the page header.
+ */
+export function BuyerCompanyUsersTab() {
   const { t } = useTranslation(['users', 'common']);
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
@@ -46,6 +56,11 @@ export function CompanyUsersTab({ companyId }: CompanyUsersTabProps) {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const { sortField, sortDir, handleSort } = useUserSort();
+  const [projectAccessUser, setProjectAccessUser] = useState<{
+    id: string;
+    name: string;
+    projectIds: string[];
+  } | null>(null);
 
   useEffect(() => {
     setPage(1);
@@ -82,12 +97,11 @@ export function CompanyUsersTab({ companyId }: CompanyUsersTabProps) {
   const reactivateMutation = useReactivateUser();
   const resendMutation = useResendInvitation();
   const cancelInvitationMutation = useCancelInvitation();
-  const resetPasswordMutation = useInitiateResetPassword();
+  const resetPasswordMutation = useResetUserPassword();
 
   const { data, isLoading, isError } = useUsers({
     page,
     limit: pageSize,
-    companyId,
     search: debouncedSearch || undefined,
     status: selectedStatuses.length ? selectedStatuses.join(',') : undefined,
     role: selectedRoles.length ? selectedRoles.join(',') : undefined,
@@ -107,7 +121,7 @@ export function CompanyUsersTab({ companyId }: CompanyUsersTabProps) {
     { value: UserStatus.INACTIVE, label: t('statuses.INACTIVE') },
     { value: UserStatus.INVITED, label: t('statuses.INVITED') },
   ];
-  const roleOptions = ALL_ROLE_OPTIONS.map((role) => ({
+  const roleOptions = CONTRACTOR_ROLES.map((role) => ({
     value: role,
     label: String(t(`roles.${role}` as 'roles.COMPANY_ADMIN')),
   }));
@@ -126,7 +140,10 @@ export function CompanyUsersTab({ companyId }: CompanyUsersTabProps) {
   const handleCancelInvitation = () => {
     if (!cancelInvitationUserId) return;
     cancelInvitationMutation.mutate(cancelInvitationUserId, {
-      onSuccess: () => closeCancelInvitationModal(),
+      onSuccess: () => {
+        closeCancelInvitationModal();
+        notificationService.success(t('cancelInvitationSuccess'));
+      },
     });
   };
 
@@ -136,7 +153,10 @@ export function CompanyUsersTab({ companyId }: CompanyUsersTabProps) {
         {
           key: 'resendInvitation',
           label: t('actions.resendInvitation'),
-          onClick: () => resendMutation.mutate(user.id),
+          onClick: () =>
+            resendMutation.mutate(user.id, {
+              onSuccess: () => notificationService.success(t('resendInvitationSuccess')),
+            }),
         },
         {
           key: 'cancelInvitation',
@@ -148,6 +168,19 @@ export function CompanyUsersTab({ companyId }: CompanyUsersTabProps) {
 
     const actions: DotAction[] = [
       {
+        key: 'projectAccess',
+        label: t('actions.projectAccess'),
+        onClick: () =>
+          setProjectAccessUser({
+            id: user.id,
+            name: user.name,
+            projectIds: user.projects?.map((p) => p.id) ?? [],
+          }),
+      },
+    ];
+
+    if (user.status !== UserStatus.INACTIVE) {
+      actions.push({
         key: 'resetPassword',
         label: t('actions.resetPassword'),
         onClick: () => {
@@ -155,8 +188,8 @@ export function CompanyUsersTab({ companyId }: CompanyUsersTabProps) {
             onSuccess: () => openResetPasswordSuccessModal(user.email),
           });
         },
-      },
-    ];
+      });
+    }
 
     if (user.status === UserStatus.INACTIVE) {
       actions.push({
@@ -228,8 +261,17 @@ export function CompanyUsersTab({ companyId }: CompanyUsersTabProps) {
         onEdit={(id) => openEditModal(id)}
       />
 
-      {/* Modals (Invite/Create is rendered by the page header) */}
+      {/* Row-triggered modals (Invite/Create is rendered by the page header) */}
       {isEditModalOpen && <EditUserModal onClose={closeEditModal} />}
+
+      {projectAccessUser && (
+        <ProjectAccessModal
+          userId={projectAccessUser.id}
+          userName={projectAccessUser.name}
+          currentProjectIds={projectAccessUser.projectIds}
+          onClose={() => setProjectAccessUser(null)}
+        />
+      )}
 
       {isStatusActionModalOpen && statusActionType && (
         <StatusActionModal
@@ -257,7 +299,7 @@ export function CompanyUsersTab({ companyId }: CompanyUsersTabProps) {
           variant={statusActionType === 'deactivate' ? 'danger' : 'default'}
           icon={
             statusActionType === 'deactivate' ? (
-              <CrossInCircleIcon className="w-6 h-6 text-foreground" />
+              <CrossInCircleIcon className="h-6 w-6 text-foreground" />
             ) : undefined
           }
         />
@@ -335,7 +377,7 @@ export function CompanyUsersTab({ companyId }: CompanyUsersTabProps) {
           confirmLabel={t('cancelInvitationModal.confirm')}
           cancelLabel={t('common:cancel')}
           variant="danger"
-          icon={<CrossInCircleIcon className="w-6 h-6 text-foreground" />}
+          icon={<CrossInCircleIcon className="h-6 w-6 text-foreground" />}
         />
       )}
     </>

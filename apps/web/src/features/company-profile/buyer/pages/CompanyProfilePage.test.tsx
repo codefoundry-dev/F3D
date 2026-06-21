@@ -1,393 +1,267 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+
+vi.mock('@forethread/ui-components/assets/icons/cross-in-circle.svg?react', () => ({
+  default: () => <div />,
+}));
+vi.mock('@forethread/ui-components/assets/icons/department.svg?react', () => ({
+  default: () => <div />,
+}));
+vi.mock('@forethread/ui-components/assets/icons/file-text.svg?react', () => ({
+  default: () => <div />,
+}));
+vi.mock('@forethread/ui-components/assets/icons/info.svg?react', () => ({
+  default: () => <div />,
+}));
+vi.mock('@forethread/ui-components/assets/icons/new-user.svg?react', () => ({
+  default: () => <div />,
+}));
+vi.mock('@forethread/ui-components/assets/icons/users-group.svg?react', () => ({
+  default: () => <div />,
+}));
 
 vi.mock('@forethread/i18n', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@forethread/ui-components/assets/icons/clock.svg?react', () => ({
-  default: () => <div />,
-}));
-vi.mock('@forethread/ui-components/assets/icons/download.svg?react', () => ({
-  default: () => <div />,
-}));
-vi.mock('@forethread/ui-components/assets/icons/edit-without-line.svg?react', () => ({
-  default: () => <div />,
-}));
-vi.mock('@forethread/ui-components/assets/icons/envelope-simple.svg?react', () => ({
-  default: () => <div />,
-}));
-vi.mock('@forethread/ui-components/assets/icons/eye-opened.svg?react', () => ({
-  default: () => <div />,
-}));
-vi.mock('@forethread/ui-components/assets/icons/legal-name.svg?react', () => ({
-  default: () => <div />,
-}));
-vi.mock('@forethread/ui-components/assets/icons/location.svg?react', () => ({
-  default: () => <div />,
-}));
-vi.mock('@forethread/ui-components/assets/icons/my-abn.svg?react', () => ({
-  default: () => <div />,
-}));
-vi.mock('@forethread/ui-components/assets/icons/phone.svg?react', () => ({
-  default: () => <div />,
-}));
-vi.mock('@forethread/ui-components/assets/icons/tax.svg?react', () => ({ default: () => <div /> }));
-vi.mock('@forethread/ui-components/assets/icons/trade-name.svg?react', () => ({
-  default: () => <div />,
-}));
-vi.mock('@forethread/ui-components/assets/icons/web.svg?react', () => ({ default: () => <div /> }));
-
 vi.mock('@forethread/ui-components', () => ({
-  Button: ({ children, onClick, ...props }: any) => (
-    <button data-testid="button" onClick={onClick} {...props}>
+  cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
+  Spinner: () => <div data-testid="spinner" />,
+  Button: ({ children, onClick, leftIcon: _l, isLoading: _il, ...props }: any) => (
+    <button onClick={onClick} {...props}>
       {children}
     </button>
   ),
-  Spinner: ({ size }: any) => <div data-testid="spinner" data-size={size} />,
-  Input: ({ leftIcon: _leftIcon, ...props }: any) => <input data-testid="input" {...props} />,
-  AddressInput: ({ value, onChange, ...props }: any) => (
-    <input
-      data-testid="address-input"
-      value={value}
-      onChange={(e: any) => onChange(e.target.value)}
-      {...props}
-    />
-  ),
-  FormField: ({ children, label }: any) => (
-    <div data-testid="form-field" data-label={label}>
-      {children}
+  Tabs: ({ items, onValueChange }: any) => (
+    <div data-testid="tabs">
+      {items.map((it: any) => (
+        <button key={it.value} onClick={() => onValueChange(it.value)}>
+          {it.label}
+        </button>
+      ))}
     </div>
   ),
-  Alert: ({ children }: any) => <div data-testid="alert">{children}</div>,
-  onPhoneOnly: vi.fn(),
-  // Edit Company Details modal primitives
-  Modal: ({ children }: any) => <div data-testid="modal">{children}</div>,
-  ModalBody: ({ children }: any) => <div data-testid="modal-body">{children}</div>,
-  ModalIconHeader: ({ title, subtitle }: any) => (
-    <div data-testid="modal-icon-header">
-      <span>{title}</span>
-      {subtitle && <span>{subtitle}</span>}
+  DotActionsMenu: ({ actions }: any) => (
+    <div data-testid="dot-actions">
+      {actions.map((a: any) => (
+        <button key={a.key} data-testid={`dot-action-${a.key}`} onClick={a.onClick}>
+          {a.label}
+        </button>
+      ))}
+    </div>
+  ),
+  StatusActionModal: ({ onConfirm, onClose }: any) => (
+    <div data-testid="status-action-modal">
+      <button data-testid="modal-confirm" onClick={onConfirm}>
+        confirm
+      </button>
+      <button data-testid="modal-close" onClick={onClose}>
+        close
+      </button>
+    </div>
+  ),
+  notificationService: { success: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock('@/features/companies/ui/CompanyProfileHeaderCard', () => ({
+  CompanyProfileHeaderCard: ({ company, actions, onAvatarClick }: any) => (
+    <div data-testid="header-card">
+      <span>{company.legalName}</span>
+      <button data-testid="avatar-btn" onClick={onAvatarClick}>
+        avatar
+      </button>
+      {actions}
     </div>
   ),
 }));
+vi.mock('@/features/companies/ui/DocumentsTab', () => ({
+  DocumentsTab: () => <div data-testid="documents-tab" />,
+}));
+vi.mock('@/features/companies/ui/OverviewTab', () => ({
+  OverviewTab: () => <div data-testid="overview-tab" />,
+}));
+vi.mock('@/features/companies/ui/EditCompanyDetailsModal', () => ({
+  EditCompanyDetailsModal: () => <div data-testid="edit-company-modal" />,
+}));
+vi.mock('@/features/users/company-admin/ui/CreateUserModal', () => ({
+  CreateUserModal: () => <div data-testid="create-user-modal" />,
+}));
+vi.mock('@/features/users/company-admin/ui/InvitationSuccessModal', () => ({
+  InvitationSuccessModal: () => <div data-testid="invitation-success-modal" />,
+}));
+vi.mock('../components/BuyerCompanyUsersTab', () => ({
+  BuyerCompanyUsersTab: () => <div data-testid="buyer-company-users-tab" />,
+}));
 
-const mockUseAuthStore = vi.hoisted(() => vi.fn());
+const mockOpenCreateModal = vi.fn();
+const store: Record<string, unknown> = {};
+vi.mock('@/features/users/company-admin/state/users.store', () => ({
+  useUsersStore: () => store,
+}));
+
+const mockHandleLogoChange = vi.fn();
+const mockOpenFilePicker = vi.fn();
+const logoState = {
+  logoUrl: null as string | null,
+  inputRef: { current: null },
+  isPending: false,
+  handleLogoChange: mockHandleLogoChange,
+  openFilePicker: mockOpenFilePicker,
+};
+vi.mock('../hooks/useCompanyLogo', () => ({
+  useCompanyLogo: () => logoState,
+}));
+
+const mockUseAuthStore = vi.fn();
 vi.mock('@/features/auth/state/auth.store', () => ({
   useAuthStore: (selector: any) => mockUseAuthStore(selector),
 }));
 
-const mockUseCompanyLogo = vi.hoisted(() => vi.fn());
-vi.mock('../hooks/useCompanyLogo', () => ({
-  useCompanyLogo: (...args: unknown[]) => mockUseCompanyLogo(...args),
+let currentSearchParams = new URLSearchParams();
+const mockSetSearchParams = vi.fn((params: Record<string, string>) => {
+  currentSearchParams = new URLSearchParams(params);
+});
+vi.mock('react-router-dom', () => ({
+  useSearchParams: () => [currentSearchParams, mockSetSearchParams],
 }));
 
-const mockGetCompany = vi.hoisted(() => vi.fn());
-const mockGetCompanyDocuments = vi.hoisted(() => vi.fn());
-const mockGetFileUrl = vi.hoisted(() => vi.fn());
-const mockUpdateCompany = vi.hoisted(() => vi.fn());
-const mockSearchAddresses = vi.hoisted(() => vi.fn());
-vi.mock('@forethread/api-client', () => ({
-  getCompany: (...args: unknown[]) => mockGetCompany(...args),
-  getCompanyDocuments: (...args: unknown[]) => mockGetCompanyDocuments(...args),
-  getFileUrl: (...args: unknown[]) => mockGetFileUrl(...args),
-  updateCompany: (...args: unknown[]) => mockUpdateCompany(...args),
-  searchAddresses: (...args: unknown[]) => mockSearchAddresses(...args),
-}));
-
-const mockUseQueryResults = vi.hoisted(() => ({
-  companyResult: { data: undefined as any, isLoading: false },
-  docsResult: { data: undefined as any },
-}));
-
-const mockMutate = vi.hoisted(() => vi.fn());
-const mockMutationReset = vi.hoisted(() => vi.fn());
-const mockInvalidateQueries = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const companyResult = { data: undefined as any, isLoading: false };
+const usersResult = { data: undefined as any };
+const mockInvalidateQueries = vi.fn().mockResolvedValue(undefined);
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: (opts: { queryKey: string[] }) => {
-    if (opts.queryKey[0] === 'company-profile') {
-      return mockUseQueryResults.companyResult;
-    }
-    if (opts.queryKey[0] === 'company-documents') {
-      return mockUseQueryResults.docsResult;
-    }
-    return { data: undefined };
-  },
-  useMutation: () => ({
-    mutate: mockMutate,
-    isPending: false,
-    isError: false,
-    reset: mockMutationReset,
-  }),
+  useQuery: ({ queryKey }: { queryKey: any[] }) =>
+    queryKey[0] === 'company-profile'
+      ? companyResult
+      : queryKey[0] === 'users'
+        ? usersResult
+        : { data: undefined },
   useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
+}));
+
+const mockDeactivateUser = vi.fn().mockResolvedValue({});
+const mockReactivateUser = vi.fn().mockResolvedValue({});
+vi.mock('@forethread/api-client', () => ({
+  getCompany: vi.fn(),
+  getUsers: vi.fn(),
+  deactivateUser: (...a: any[]) => mockDeactivateUser(...a),
+  reactivateUser: (...a: any[]) => mockReactivateUser(...a),
+}));
+
+vi.mock('@forethread/shared-types/client', () => ({
+  UserStatus: { ACTIVE: 'ACTIVE', INACTIVE: 'INACTIVE', INVITED: 'INVITED' },
 }));
 
 import CompanyProfilePage from './CompanyProfilePage';
 
-const mockCompany = {
+const company = {
   id: 'c1',
   legalName: 'Acme Corp',
-  tradeName: 'Acme',
-  abn: '12345678901',
-  taxCode: '999',
-  legalAddress: '123 Main St',
   contactEmail: 'info@acme.com',
-  contactPhone: '+61400000000',
-  website: 'https://acme.com',
-  specialisations: ['Electrical', 'Plumbing'],
-  type: 'CONTRACTOR' as const,
-  createdAt: '2026-01-01',
-  updatedAt: '2026-01-01',
+  type: 'CONTRACTOR',
 };
-
-const mockDocuments = [
-  {
-    id: 'doc1',
-    createdAt: '2026-02-15',
-    file: {
-      id: 'f1',
-      filename: 'insurance.pdf',
-      uploadedBy: { email: 'admin@acme.com' },
-    },
-  },
-];
 
 describe('CompanyProfilePage (buyer)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    currentSearchParams = new URLSearchParams();
+    Object.assign(store, {
+      isCreateModalOpen: false,
+      openCreateModal: mockOpenCreateModal,
+      closeCreateModal: vi.fn(),
+      isSuccessModalOpen: false,
+      closeSuccessModal: vi.fn(),
+    });
+    logoState.logoUrl = null;
+    logoState.isPending = false;
+    companyResult.data = company;
+    companyResult.isLoading = false;
+    usersResult.data = undefined;
     mockUseAuthStore.mockImplementation((selector: any) =>
       selector({ currentUser: { companyId: 'c1' } }),
     );
-    mockUseCompanyLogo.mockReturnValue({
-      logoUrl: null,
-      inputRef: { current: null },
-      isPending: false,
-      handleLogoChange: vi.fn(),
-      openFilePicker: vi.fn(),
-    });
-    mockUseQueryResults.companyResult = { data: undefined, isLoading: false };
-    mockUseQueryResults.docsResult = { data: undefined };
   });
 
   it('shows spinner when loading', () => {
-    mockUseQueryResults.companyResult = { data: undefined, isLoading: true };
+    companyResult.data = undefined;
+    companyResult.isLoading = true;
     render(<CompanyProfilePage />);
     expect(screen.getByTestId('spinner')).toBeInTheDocument();
   });
 
-  it('renders nothing when company is null and not loading', () => {
-    mockUseQueryResults.companyResult = { data: undefined, isLoading: false };
+  it('renders nothing when company is null', () => {
+    companyResult.data = undefined;
+    companyResult.isLoading = false;
     const { container } = render(<CompanyProfilePage />);
     expect(container.innerHTML).toBe('');
   });
 
-  it('renders company legal name when data loaded', () => {
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
+  it('renders company name + section title + tabs', () => {
     render(<CompanyProfilePage />);
-    const matches = screen.getAllByText('Acme Corp');
-    expect(matches.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+    expect(screen.getByText('companyDetails')).toBeInTheDocument();
+    expect(screen.getByText('tabs.companyOverview')).toBeInTheDocument();
+    expect(screen.getByText('tabs.companyUsers')).toBeInTheDocument();
+    expect(screen.getByText('tabs.documents')).toBeInTheDocument();
   });
 
-  it('renders contact email in header', () => {
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
+  it('renders overview tab by default and switches via setSearchParams', () => {
     render(<CompanyProfilePage />);
-    const matches = screen.getAllByText('info@acme.com');
-    expect(matches.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByTestId('overview-tab')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('tabs.companyUsers'));
+    expect(mockSetSearchParams).toHaveBeenCalledWith({ tab: 'companyUsers' }, { replace: true });
   });
 
-  it('renders legal info section', () => {
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
+  it('renders the buyer company-users tab when URL has tab=companyUsers', () => {
+    currentSearchParams = new URLSearchParams({ tab: 'companyUsers' });
     render(<CompanyProfilePage />);
-    expect(screen.getByText('legalInfo')).toBeInTheDocument();
+    expect(screen.getByTestId('buyer-company-users-tab')).toBeInTheDocument();
   });
 
-  it('renders contact info section', () => {
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
+  it('invite button calls openCreateModal', () => {
     render(<CompanyProfilePage />);
-    expect(screen.getByText('contactInfo')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('users:inviteUser'));
+    expect(mockOpenCreateModal).toHaveBeenCalled();
   });
 
-  it('renders specialisations', () => {
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
+  it('renders create + invitation-success modals from store flags', () => {
+    store.isCreateModalOpen = true;
+    store.isSuccessModalOpen = true;
     render(<CompanyProfilePage />);
-    expect(screen.getByText('specialisations')).toBeInTheDocument();
-    expect(screen.getByText('Electrical')).toBeInTheDocument();
-    expect(screen.getByText('Plumbing')).toBeInTheDocument();
+    expect(screen.getByTestId('create-user-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('invitation-success-modal')).toBeInTheDocument();
   });
 
-  it('does not render specialisations section when empty', () => {
-    mockUseQueryResults.companyResult = {
-      data: { ...mockCompany, specialisations: [] },
-      isLoading: false,
-    };
+  it('edit dot action opens the edit-company modal', () => {
     render(<CompanyProfilePage />);
-    expect(screen.queryByText('specialisations')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('dot-action-edit'));
+    expect(screen.getByTestId('edit-company-modal')).toBeInTheDocument();
   });
 
-  it('renders compliance documents section heading', () => {
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
+  it('avatar click triggers the logo file picker', () => {
     render(<CompanyProfilePage />);
-    expect(screen.getByText('complianceDocuments')).toBeInTheDocument();
-  });
-
-  it('shows no documents message when documents empty', () => {
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
-    mockUseQueryResults.docsResult = { data: [] };
-    render(<CompanyProfilePage />);
-    expect(screen.getByText('noDocuments')).toBeInTheDocument();
-  });
-
-  it('renders documents when present', () => {
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
-    mockUseQueryResults.docsResult = { data: mockDocuments };
-    render(<CompanyProfilePage />);
-    expect(screen.getByText('insurance.pdf')).toBeInTheDocument();
-    expect(screen.getByText('admin@acme.com')).toBeInTheDocument();
-  });
-
-  it('renders initials when no logo', () => {
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
-    render(<CompanyProfilePage />);
-    // "Acme Corp" -> "AC"
-    expect(screen.getByText('AC')).toBeInTheDocument();
-  });
-
-  it('renders logo image when logoUrl is present', () => {
-    mockUseCompanyLogo.mockReturnValue({
-      logoUrl: 'https://example.com/logo.png',
-      inputRef: { current: null },
-      isPending: false,
-      handleLogoChange: vi.fn(),
-      openFilePicker: vi.fn(),
-    });
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
-    render(<CompanyProfilePage />);
-    const img = screen.getByAltText('Acme Corp');
-    expect(img).toBeInTheDocument();
-    expect(img).toHaveAttribute('src', 'https://example.com/logo.png');
-  });
-
-  it('opens the Edit Company Details modal when edit button is clicked', () => {
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
-    render(<CompanyProfilePage />);
-    expect(screen.queryByTestId('modal')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText('editProfile'));
-    // The modal opens, showing its header + stacked submit/cancel footer.
-    expect(screen.getByTestId('modal')).toBeInTheDocument();
-    expect(screen.getByText('editModal.title')).toBeInTheDocument();
-    expect(screen.getByText('editModal.submit')).toBeInTheDocument();
-    expect(screen.getByText('common:cancel')).toBeInTheDocument();
-  });
-
-  it('closes the edit modal when cancel is clicked', () => {
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
-    render(<CompanyProfilePage />);
-    fireEvent.click(screen.getByText('editProfile'));
-    expect(screen.getByTestId('modal')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('common:cancel'));
-    expect(screen.queryByTestId('modal')).not.toBeInTheDocument();
-  });
-
-  it('calls mutate when submit is clicked in the edit modal', () => {
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
-    render(<CompanyProfilePage />);
-    fireEvent.click(screen.getByText('editProfile'));
-    fireEvent.click(screen.getByText('editModal.submit'));
-    expect(mockMutate).toHaveBeenCalled();
-  });
-
-  it('renders change avatar button', () => {
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
-    render(<CompanyProfilePage />);
-    expect(screen.getByLabelText('Change avatar')).toBeInTheDocument();
-  });
-
-  it('renders dash for null contact email in header', () => {
-    mockUseQueryResults.companyResult = {
-      data: { ...mockCompany, contactEmail: null },
-      isLoading: false,
-    };
-    render(<CompanyProfilePage />);
-    // The header should not render the email div if contactEmail is falsy
-    // But the InfoItem for contactEmail should show dash
-    const dashes = screen.getAllByText('—');
-    expect(dashes.length).toBeGreaterThan(0);
-  });
-
-  it('shows spinner on avatar button when upload is pending', () => {
-    mockUseCompanyLogo.mockReturnValue({
-      logoUrl: null,
-      inputRef: { current: null },
-      isPending: true,
-      handleLogoChange: vi.fn(),
-      openFilePicker: vi.fn(),
-    });
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
-    render(<CompanyProfilePage />);
-    const avatarBtn = screen.getByLabelText('Change avatar');
-    expect(avatarBtn).toBeDisabled();
-  });
-
-  it('calls openFilePicker when change avatar button is clicked', () => {
-    const mockOpenFilePicker = vi.fn();
-    mockUseCompanyLogo.mockReturnValue({
-      logoUrl: null,
-      inputRef: { current: null },
-      isPending: false,
-      handleLogoChange: vi.fn(),
-      openFilePicker: mockOpenFilePicker,
-    });
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
-    render(<CompanyProfilePage />);
-    fireEvent.click(screen.getByLabelText('Change avatar'));
+    fireEvent.click(screen.getByTestId('avatar-btn'));
     expect(mockOpenFilePicker).toHaveBeenCalled();
   });
 
-  it('calls handleLogoChange when file input changes', () => {
-    const mockHandleLogoChange = vi.fn();
-    mockUseCompanyLogo.mockReturnValue({
-      logoUrl: null,
-      inputRef: { current: null },
-      isPending: false,
-      handleLogoChange: mockHandleLogoChange,
-      openFilePicker: vi.fn(),
-    });
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
+  it('file input change triggers handleLogoChange', () => {
     render(<CompanyProfilePage />);
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-    fireEvent.change(fileInput, {
-      target: { files: [new File([''], 'logo.png', { type: 'image/png' })] },
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, {
+      target: { files: [new File([''], 'l.png', { type: 'image/png' })] },
     });
     expect(mockHandleLogoChange).toHaveBeenCalled();
   });
 
-  it('formats document dates correctly', () => {
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
-    mockUseQueryResults.docsResult = { data: mockDocuments };
+  it('bulk deactivate confirm calls deactivateUser for active users', async () => {
+    usersResult.data = [
+      { id: 'u1', status: 'ACTIVE' },
+      { id: 'u2', status: 'ACTIVE' },
+    ];
     render(<CompanyProfilePage />);
-    // The formatDate function should render the date from mockDocuments[0].createdAt = '2026-02-15'
-    // in en-AU locale: 15/02/2026
-    expect(screen.getByText('15/02/2026')).toBeInTheDocument();
-  });
-
-  it('calls handleView when view button is clicked on a document', () => {
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
-    mockUseQueryResults.docsResult = { data: mockDocuments };
-    mockGetFileUrl.mockResolvedValue({ url: 'https://example.com/file' });
-    const mockOpen = vi.fn(() => ({ location: { href: '' } }));
-    vi.stubGlobal('open', mockOpen);
-    render(<CompanyProfilePage />);
-    const viewBtn = screen.getByLabelText('View');
-    fireEvent.click(viewBtn);
-    expect(mockOpen).toHaveBeenCalledWith('', '_blank');
-  });
-
-  it('calls handleDownload when download button is clicked on a document', () => {
-    mockUseQueryResults.companyResult = { data: mockCompany, isLoading: false };
-    mockUseQueryResults.docsResult = { data: mockDocuments };
-    mockGetFileUrl.mockResolvedValue({ url: 'https://example.com/file' });
-    render(<CompanyProfilePage />);
-    const downloadBtn = screen.getByLabelText('Download');
-    fireEvent.click(downloadBtn);
-    expect(mockGetFileUrl).toHaveBeenCalledWith('f1');
+    fireEvent.click(screen.getByTestId('dot-action-bulkAction'));
+    fireEvent.click(screen.getByTestId('modal-confirm'));
+    await waitFor(() => {
+      expect(mockDeactivateUser).toHaveBeenCalledWith('u1');
+      expect(mockDeactivateUser).toHaveBeenCalledWith('u2');
+    });
   });
 });

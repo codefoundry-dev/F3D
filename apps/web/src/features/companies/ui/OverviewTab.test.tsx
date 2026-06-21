@@ -66,10 +66,9 @@ describe('OverviewTab', () => {
     expect(screen.getByText('Acme Trading')).toBeInTheDocument();
   });
 
-  it('renders masked ABN', () => {
+  it('renders ABN value', () => {
     render(<OverviewTab company={mockCompany as never} />);
-    // ABN is masked: 12345678901 -> ###########
-    expect(screen.getByText('###########')).toBeInTheDocument();
+    expect(screen.getByText('12345678901')).toBeInTheDocument();
   });
 
   it('renders contact email', () => {

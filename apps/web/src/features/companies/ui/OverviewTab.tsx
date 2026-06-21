@@ -38,7 +38,7 @@ function InfoCard({
       <div className="flex h-7 items-center gap-2">
         <span className="shrink-0 text-gray-900">{icon}</span>
         <span className="min-w-0 flex-1 truncate text-sm font-semibold leading-[1.4] tracking-[0.3px] text-gray-900">
-          {value || '—'}
+          {value?.trim() ? value : '—'}
         </span>
       </div>
     </div>
