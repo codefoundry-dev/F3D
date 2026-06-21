@@ -60,6 +60,12 @@ vi.mock('../../services/users.service', () => ({
 vi.mock('@forethread/ui-components', () => ({
   Button: ({ children, ...p }: any) => <button {...p}>{children}</button>,
   IconBadge: () => <div data-testid="icon-badge" />,
+  ModalGridHeader: ({ title, subtitle }: any) => (
+    <div data-testid="modal-grid-header">
+      <div>{title}</div>
+      {subtitle ? <div>{subtitle}</div> : null}
+    </div>
+  ),
   Input: (props: any) => <input data-testid={`input-${props.type ?? 'text'}`} {...props} />,
   FormField: ({ children, label }: any) => (
     <div>
@@ -110,9 +116,10 @@ describe('UserDetailsStep', () => {
 
   it('renders form fields', () => {
     render(<UserDetailsStep {...defaultProps} />);
-    expect(screen.getByText('createModal.representativeName')).toBeInTheDocument();
-    expect(screen.getByText('createModal.representativeEmail')).toBeInTheDocument();
+    expect(screen.getByText('createModal.fullName')).toBeInTheDocument();
+    expect(screen.getByText('createModal.email')).toBeInTheDocument();
     expect(screen.getByText('createModal.position')).toBeInTheDocument();
+    expect(screen.getByText('createModal.department')).toBeInTheDocument();
   });
 
   it('renders the position field with a lowercase optional label', () => {

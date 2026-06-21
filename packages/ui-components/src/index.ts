@@ -65,8 +65,11 @@ export {
   ModalFooter,
   ModalCloseButton,
   ModalIconHeader,
+  ModalGridBackground,
+  ModalGridHeader,
+  REGISTRATION_MODAL_CARD_CLASS,
 } from './components/Modal';
-export type { ModalProps, ModalIconHeaderProps } from './components/Modal';
+export type { ModalProps, ModalIconHeaderProps, ModalGridHeaderProps } from './components/Modal';
 
 export { ConfirmDialog } from './components/ConfirmDialog';
 export type { ConfirmDialogProps } from './components/ConfirmDialog';

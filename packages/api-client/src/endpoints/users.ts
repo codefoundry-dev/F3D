@@ -11,6 +11,7 @@ export interface CreateUserDto {
   role: string;
   companyId: string;
   position?: string;
+  department?: string;
   phone?: string;
 }
 

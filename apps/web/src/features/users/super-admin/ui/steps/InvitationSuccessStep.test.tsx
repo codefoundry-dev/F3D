@@ -7,6 +7,12 @@ vi.mock('@forethread/i18n', () => ({
 vi.mock('@forethread/ui-components', () => ({
   Button: ({ children, ...p }: any) => <button {...p}>{children}</button>,
   IconBadge: () => <div data-testid="icon-badge" />,
+  ModalGridHeader: ({ title, subtitle }: any) => (
+    <div data-testid="modal-grid-header">
+      <div>{title}</div>
+      {subtitle ? <div>{subtitle}</div> : null}
+    </div>
+  ),
   onPhoneOnly: vi.fn(),
   onDigitsOnly: vi.fn(),
   onDecimalOnly: vi.fn(),
@@ -30,7 +36,6 @@ describe('InvitationSuccessStep', () => {
   it('renders the success title', () => {
     render(<InvitationSuccessStep email="alice@example.com" onClose={vi.fn()} />);
     expect(screen.getByText('invitationSuccess.title')).toBeInTheDocument();
-    expect(screen.getByText('invitationSuccess.subtitle')).toBeInTheDocument();
   });
 
   it('renders the email sent message', () => {
@@ -56,19 +61,12 @@ describe('InvitationSuccessStep', () => {
   it('calls onClose when countdown reaches zero', () => {
     const onClose = vi.fn();
     render(<InvitationSuccessStep email="alice@example.com" onClose={onClose} />);
-    // Each tick decrements by 1: 3→2, 2→1, 1→0, then 0 triggers onClose
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    }); // 3→2
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    }); // 2→1
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    }); // 1→0
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    }); // 0 → onClose
+    // Countdown starts at 5; each tick decrements by 1, then 0 triggers onClose.
+    for (let i = 0; i < 6; i++) {
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+    }
     expect(onClose).toHaveBeenCalled();
   });
 

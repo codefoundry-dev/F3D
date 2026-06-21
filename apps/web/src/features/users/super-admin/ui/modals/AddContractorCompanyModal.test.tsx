@@ -18,10 +18,15 @@ vi.mock('@/features/companies/services/companies.service', () => ({
 
 vi.mock('@forethread/ui-components', () => ({
   Modal: ({ children }: any) => <div data-testid="modal">{children}</div>,
-  ModalBody: ({ children }: any) => <div>{children}</div>,
-  ModalCloseButton: ({ onClose }: any) => <button data-testid="close-btn" onClick={onClose} />,
+  ModalGridBackground: () => <div data-testid="modal-grid-bg" />,
+  ModalGridHeader: ({ title, subtitle }: any) => (
+    <div data-testid="modal-grid-header">
+      <div>{title}</div>
+      {subtitle ? <div>{subtitle}</div> : null}
+    </div>
+  ),
+  REGISTRATION_MODAL_CARD_CLASS: '',
   Button: ({ children, ...p }: any) => <button {...p}>{children}</button>,
-  IconBadge: () => <div data-testid="icon-badge" />,
   Input: (props: any) => <input data-testid="input" {...props} />,
   FormField: ({ children, label }: any) => (
     <div>
@@ -75,12 +80,6 @@ describe('AddContractorCompanyModal', () => {
   it('calls onClose when cancel button is clicked', () => {
     render(<AddContractorCompanyModal onClose={onClose} onSuccess={onSuccess} />);
     fireEvent.click(screen.getByText('common:cancel'));
-    expect(onClose).toHaveBeenCalled();
-  });
-
-  it('calls onClose when close button is clicked', () => {
-    render(<AddContractorCompanyModal onClose={onClose} onSuccess={onSuccess} />);
-    fireEvent.click(screen.getByTestId('close-btn'));
     expect(onClose).toHaveBeenCalled();
   });
 

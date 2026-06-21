@@ -1,6 +1,11 @@
 import { useTranslation } from '@forethread/i18n';
 import { CompanyType } from '@forethread/shared-types/client';
-import { Modal, UserAlreadyExistsModal } from '@forethread/ui-components';
+import {
+  Modal,
+  ModalGridBackground,
+  REGISTRATION_MODAL_CARD_CLASS,
+  UserAlreadyExistsModal,
+} from '@forethread/ui-components';
 import { useState } from 'react';
 
 import { AddContractorCompanyModal } from './modals/AddContractorCompanyModal';
@@ -54,36 +59,36 @@ export function CreateUserModal({ onClose, preselectedCompany }: CreateUserModal
 
   return (
     <>
-      <Modal onClose={onClose} maxWidth="max-w-[560px]">
-        <div className="p-8">
-          {step === 'companySelection' && (
-            <CompanySelectionStep
-              companyType={companyType}
-              companyId={companyId}
-              onCompanyTypeChange={handleCompanyTypeChange}
-              onCompanyChange={handleCompanyChange}
-              onContinue={() => setStep('userDetails')}
-              onCancel={onClose}
-              onAddCompany={() => setShowAddCompanyModal(true)}
-            />
-          )}
+      <Modal
+        onClose={onClose}
+        decoration={<ModalGridBackground />}
+        cardClassName={REGISTRATION_MODAL_CARD_CLASS}
+      >
+        {step === 'companySelection' && (
+          <CompanySelectionStep
+            companyType={companyType}
+            companyId={companyId}
+            onCompanyTypeChange={handleCompanyTypeChange}
+            onCompanyChange={handleCompanyChange}
+            onContinue={() => setStep('userDetails')}
+            onCancel={onClose}
+            onAddCompany={() => setShowAddCompanyModal(true)}
+          />
+        )}
 
-          {step === 'userDetails' && companyType && companyId && companyName && (
-            <UserDetailsStep
-              companyType={companyType}
-              companyId={companyId}
-              companyName={companyName}
-              isNewlyCreatedCompany={isNewlyCreatedCompany}
-              onSuccess={handleInvitationSuccess}
-              onCancel={onClose}
-              onUserExists={() => setIsUserExistsOpen(true)}
-            />
-          )}
+        {step === 'userDetails' && companyType && companyId && companyName && (
+          <UserDetailsStep
+            companyType={companyType}
+            companyId={companyId}
+            companyName={companyName}
+            isNewlyCreatedCompany={isNewlyCreatedCompany}
+            onSuccess={handleInvitationSuccess}
+            onCancel={onClose}
+            onUserExists={() => setIsUserExistsOpen(true)}
+          />
+        )}
 
-          {step === 'success' && (
-            <InvitationSuccessStep email={createdUserEmail} onClose={onClose} />
-          )}
-        </div>
+        {step === 'success' && <InvitationSuccessStep email={createdUserEmail} onClose={onClose} />}
       </Modal>
 
       {isUserExistsOpen && (
