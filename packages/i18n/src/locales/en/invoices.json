@@ -16,7 +16,11 @@
     "exportAs": "Export as",
     "exportCsv": "Export CSV",
     "exportXlsx": "Export XLSX",
-    "clearFilters": "Clear Filters"
+    "clearFilters": "Clear Filters",
+    "totalLabel": "Total invoices: {{total}}",
+    "showingLabel": "Showing {{total}} invoices",
+    "searchingLabel": "Searching result: {{total}}",
+    "noResultsTitle": "No results found"
   },
   "columns": {
     "invoiceId": "Invoice ID",
@@ -52,7 +56,14 @@
     "dueDateFrom": "Due Date From",
     "dueDateTo": "Due Date To",
     "amountMin": "Min Amount",
-    "amountMax": "Max Amount"
+    "amountMax": "Max Amount",
+    "date": "Date",
+    "amount": "Amount",
+    "from": "From",
+    "to": "To",
+    "clear": "Clear",
+    "clearAll": "Clear all",
+    "removeFilter": "Remove {{label}} filter"
   },
   "pagination": {
     "back": "Back",
