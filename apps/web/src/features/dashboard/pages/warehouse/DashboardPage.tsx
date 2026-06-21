@@ -1,14 +1,26 @@
 import type { WarehouseBulkOrderItem, WarehousePoItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Badge, PageLoader } from '@forethread/ui-components';
+import { usePageTitleStore } from '@forethread/rfq-shared';
+import { Badge, DashboardSection, PageLoader } from '@forethread/ui-components';
 import LocationIcon from '@forethread/ui-components/assets/icons/location.svg?react';
 import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
+import { useEffect } from 'react';
 
 import { useDashboardData } from '../../hooks/warehouse/useDashboardData';
 
 export default function DashboardPage() {
   const { t } = useTranslation('dashboard');
   const { data, isLoading } = useDashboardData();
+
+  // Warehouse lands on `/`, so this dashboard owns the global header copy.
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(
+      t('warehouse.title', { defaultValue: 'Warehouse dashboard' }),
+      t('warehouse.subtitle', { defaultValue: 'Track deliveries and bulk-order fulfilment' }),
+    );
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
 
   if (isLoading) return <PageLoader />;
 
@@ -21,7 +33,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-4 space-y-6 overflow-auto">
+    <div className="p-4 space-y-4 overflow-auto">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           title={t('warehouse.kpi.pendingDeliveries', { defaultValue: 'Pending Deliveries' })}
@@ -68,9 +80,11 @@ export default function DashboardPage() {
 
 function KpiCard({ title, value, accent }: { title: string; value: number; accent?: boolean }) {
   return (
-    <div className="bg-card rounded-lg border border-border p-4">
-      <p className="text-xs text-muted-foreground">{title}</p>
-      <p className={`text-2xl font-bold mt-1 ${accent ? 'text-destructive' : 'text-foreground'}`}>
+    <div className="rounded-[14px] border-[0.8px] border-black/20 bg-white px-[16.8px] py-[12.8px]">
+      <p className="text-sm font-medium leading-5 text-[#525866]">{title}</p>
+      <p
+        className={`mt-1 text-2xl font-normal leading-8 ${accent ? 'text-destructive' : 'text-foreground'}`}
+      >
         {value}
       </p>
     </div>
@@ -89,18 +103,13 @@ function DeliverySection({
   showDeadline?: boolean;
 }) {
   return (
-    <div className="bg-card rounded-lg border border-border p-4">
-      <h2 className="text-base font-semibold text-foreground mb-3">{title}</h2>
+    <DashboardSection title={title} maxHeight={400}>
       {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-6">{emptyText}</p>
+        <p className="py-6 text-center text-sm text-muted-foreground">{emptyText}</p>
       ) : (
-        <div className="space-y-3 max-h-[400px] overflow-y-auto">
-          {items.map((po) => (
-            <DeliveryCard key={po.id} item={po} showDeadline={showDeadline} />
-          ))}
-        </div>
+        items.map((po) => <DeliveryCard key={po.id} item={po} showDeadline={showDeadline} />)
       )}
-    </div>
+    </DashboardSection>
   );
 }
 
@@ -108,7 +117,7 @@ function DeliveryCard({ item, showDeadline }: { item: WarehousePoItem; showDeadl
   const isOverdue = showDeadline && item.deadlineEnd && new Date(item.deadlineEnd) < new Date();
 
   return (
-    <div className="rounded-lg border border-border p-3 hover:bg-accent/50 transition-colors">
+    <div className="rounded-xl border border-black/10 bg-white p-3 transition-colors hover:bg-accent/50">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-foreground">{item.poNumber}</span>
         <Badge
@@ -158,53 +167,50 @@ function BulkOrdersSection({
   emptyText: string;
 }) {
   return (
-    <div className="bg-card rounded-lg border border-border p-4">
-      <h2 className="text-base font-semibold text-foreground mb-3">{title}</h2>
+    <DashboardSection title={title}>
       {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-6">{emptyText}</p>
+        <p className="py-6 text-center text-sm text-muted-foreground">{emptyText}</p>
       ) : (
-        <div className="space-y-3">
-          {items.map((bo) => (
-            <div key={bo.id} className="rounded-lg border border-border p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-foreground">{bo.projectName}</span>
-                <Badge className="text-xs bg-muted text-muted-foreground">{bo.status}</Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">{bo.vendorName}</p>
-              {bo.totalAmount !== null && (
-                <p className="text-sm font-medium text-foreground mt-1">
-                  ${bo.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                </p>
-              )}
-              {bo.lineItems.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  {bo.lineItems.map((li, idx) => {
-                    const pct = Math.round(li.deliveriesPercent);
-                    return (
-                      <div key={idx} className="text-xs">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-muted-foreground truncate mr-2">
-                            {li.description}
-                          </span>
-                          <span className="text-foreground font-medium shrink-0">
-                            {li.qty - li.qtyRemaining}/{li.qty} ({pct}%)
-                          </span>
-                        </div>
-                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-foreground rounded-full transition-all"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+        items.map((bo) => (
+          <div key={bo.id} className="rounded-xl border border-black/10 bg-white p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-foreground">{bo.projectName}</span>
+              <Badge className="text-xs bg-muted text-muted-foreground">{bo.status}</Badge>
             </div>
-          ))}
-        </div>
+            <p className="text-xs text-muted-foreground">{bo.vendorName}</p>
+            {bo.totalAmount !== null && (
+              <p className="text-sm font-medium text-foreground mt-1">
+                ${bo.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </p>
+            )}
+            {bo.lineItems.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {bo.lineItems.map((li, idx) => {
+                  const pct = Math.round(li.deliveriesPercent);
+                  return (
+                    <div key={idx} className="text-xs">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-muted-foreground truncate mr-2">
+                          {li.description}
+                        </span>
+                        <span className="text-foreground font-medium shrink-0">
+                          {li.qty - li.qtyRemaining}/{li.qty} ({pct}%)
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-foreground rounded-full transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ))
       )}
-    </div>
+    </DashboardSection>
   );
 }
