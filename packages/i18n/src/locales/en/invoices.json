@@ -69,6 +69,10 @@
     "back": "Back",
     "next": "Next"
   },
+  "upload": {
+    "title": "Upload Invoice",
+    "comingSoon": "This page is under development. Invoice upload will be available soon."
+  },
   "invoiceDetail": {
     "tabs": {
       "details": "Invoice Details",

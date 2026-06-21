@@ -612,6 +612,9 @@ importers:
       '@forethread/i18n':
         specifier: workspace:*
         version: link:../i18n
+      '@forethread/rfq-shared':
+        specifier: workspace:*
+        version: link:../rfq-shared
       '@forethread/ui-components':
         specifier: workspace:*
         version: link:../ui-components
@@ -778,6 +781,9 @@ importers:
       '@forethread/i18n':
         specifier: workspace:*
         version: link:../i18n
+      '@forethread/rfq-shared':
+        specifier: workspace:*
+        version: link:../rfq-shared
       '@forethread/shared-types':
         specifier: workspace:*
         version: link:../shared-types

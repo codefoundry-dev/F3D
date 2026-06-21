@@ -1,4 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { Spinner, Button, AvatarUpload, ChangePasswordModal } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit-without-line.svg?react';
@@ -6,7 +7,7 @@ import EnvelopeIcon from '@forethread/ui-components/assets/icons/envelope-simple
 import EyeClosedIcon from '@forethread/ui-components/assets/icons/eye-closed.svg?react';
 import EyeOpenedIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import LockSimpleIcon from '@forethread/ui-components/assets/icons/lock-simple.svg?react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import {
   useProfile,
@@ -37,6 +38,14 @@ export default function UserProfilePage({
   onProjectAccess,
 }: UserProfilePageProps = {}) {
   const { t } = useTranslation(['profile', 'users', 'common', 'auth']);
+
+  // App-bar breadcrumb / page title (top-level /me page → single leaf crumb).
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(t('title'), null, null, [{ label: t('title') }]);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
+
   const { data: profile, isLoading } = useProfile();
   const { data: avatarUrl } = useAvatarUrl();
   const uploadAvatarMutation = useUploadAvatar();

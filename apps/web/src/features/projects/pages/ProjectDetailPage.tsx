@@ -108,7 +108,7 @@ export default function ProjectDetailPage() {
               key={tab}
               type="button"
               onClick={() => setActiveTab(tab)}
-              className={`pb-3 text-[18px] leading-6 font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`pb-3 text-sm font-semibold leading-none tracking-[0.3px] border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === tab
                   ? 'border-foreground text-foreground'
                   : 'border-transparent text-muted-foreground hover:text-foreground'

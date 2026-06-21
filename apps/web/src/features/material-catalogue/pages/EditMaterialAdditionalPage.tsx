@@ -1,4 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { materialFormSchema, type MaterialFormValues } from '@forethread/shared-types/client';
 import { Button, buttonVariants } from '@forethread/ui-components';
 import BackArrowIcon from '@forethread/ui-components/assets/icons/back-arrow.svg?react';
@@ -43,6 +44,19 @@ export default function EditMaterialAdditionalPage() {
   const detailPath = id
     ? ROUTES.materialCatalogueDetail.replace(':id', id)
     : ROUTES.materialCatalogue;
+
+  // App-bar breadcrumb: Material Catalogue › <material> › Edit Additional Properties.
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    if (material) {
+      setPageTitle(t('editAdditional.title'), null, detailPath, [
+        { label: t('page.title'), to: ROUTES.materialCatalogue },
+        { label: material.name, to: detailPath },
+        { label: t('editAdditional.title') },
+      ]);
+    }
+    return () => setPageTitle(null);
+  }, [material, setPageTitle, t, detailPath]);
 
   // A CA / PO editing a PUBLIC material creates a change request (not a direct
   // edit), so we show the "Changes submitted for review" modal + redirect.

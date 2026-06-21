@@ -1,5 +1,7 @@
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { TablePagination, type FilterDropdownOption } from '@forethread/ui-components';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { BULK_ORDER_ROUTES } from '../constants/routes';
@@ -48,6 +50,15 @@ export function BulkOrderListPage({
 }: BulkOrderListPageProps) {
   const { t } = useTranslation('bulkOrders');
   const navigate = useNavigate();
+
+  // App-bar breadcrumb / page title (top-level list page → single leaf crumb).
+  const setTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setTitle(t('list.title') as string, t('list.subtitle') as string, null, [
+      { label: t('list.title') as string },
+    ]);
+    return () => setTitle(null);
+  }, [setTitle, t]);
 
   // Fetch filter options automatically if not provided
   const fetchedProjectOptions = useProjectFilterOptions();

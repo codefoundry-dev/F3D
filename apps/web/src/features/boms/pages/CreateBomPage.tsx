@@ -1,6 +1,7 @@
 import { confirmDocExtraction, listSpreadsheetSheets } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { Stepper } from '@forethread/po-shared';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { isBomExtractionResult, type BomExtractionResult } from '@forethread/shared-types/client';
 import {
   Button,
@@ -99,6 +100,7 @@ export default function CreateBomPage() {
   const { id: routeProjectId } = useParams<{ id: string }>();
   const { t: tRaw } = useTranslation('boms');
   const t = tRaw as (key: string, options?: Record<string, unknown>) => string;
+  const { t: tProjects } = useTranslation('projects');
   const navigate = useNavigate();
 
   const [step, setStep] = useState<WizardStep>(1);
@@ -127,6 +129,16 @@ export default function CreateBomPage() {
     () => navigate(`${ROUTES.projectDetail.replace(':id', routeProjectId ?? '')}?tab=bom`),
     [navigate, routeProjectId],
   );
+
+  // App-bar breadcrumb: Bill of Materials (BOM) › Create BOM.
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(t('create.createBom'), null, projectBomTabUrl, [
+      { label: tProjects('detail.tabs.bom'), to: projectBomTabUrl },
+      { label: t('create.createBom') },
+    ]);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t, tProjects, projectBomTabUrl]);
 
   // Drive the upload phase from the extraction poll.
   const extractionStatus = extractionQuery.data?.status;

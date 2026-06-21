@@ -1,7 +1,17 @@
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
+import { useEffect } from 'react';
 
 export default function AdminPanelPage() {
   const { t } = useTranslation('dashboard');
+  const { t: tNav } = useTranslation('nav');
+
+  // App-bar breadcrumb / page title (top-level list page → single leaf crumb).
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(tNav('adminPanel'), null, null, [{ label: tNav('adminPanel') }]);
+    return () => setPageTitle(null);
+  }, [setPageTitle, tNav]);
 
   return (
     <div className="p-6 space-y-6">

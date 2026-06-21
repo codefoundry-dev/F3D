@@ -1,7 +1,8 @@
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { Button, formatDate, formatDateTime, Spinner } from '@forethread/ui-components';
 import ChevronRightIcon from '@forethread/ui-components/assets/icons/chevron-right.svg?react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -40,6 +41,18 @@ export default function MaterialRequestDetailPage() {
 
   const [showDecline, setShowDecline] = useState(false);
   const [showConvertPo, setShowConvertPo] = useState(false);
+
+  // App-bar breadcrumb: Material requests › MR-XXXX (set once the MR loads).
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    if (mr) {
+      setPageTitle(mr.mrNumber, null, ROUTES.materialRequests, [
+        { label: t('officer.title'), to: ROUTES.materialRequests },
+        { label: mr.mrNumber },
+      ]);
+    }
+    return () => setPageTitle(null);
+  }, [mr, setPageTitle, t]);
 
   if (isLoading) {
     return (

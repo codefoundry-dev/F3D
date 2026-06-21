@@ -1,8 +1,9 @@
 import type { VendorListItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { VendorCategory } from '@forethread/shared-types/client';
 import { Spinner, EmptyState, TablePagination, type DotAction } from '@forethread/ui-components';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS, type SortField, type SortDir } from '../constants';
@@ -22,6 +23,13 @@ import { VendorTableHeader } from './VendorTableHeader';
 export default function VendorListPage() {
   const { t } = useTranslation(['vendors', 'common']);
   const navigate = useNavigate();
+
+  // App-bar breadcrumb / page title (top-level list page → single leaf crumb).
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(t('title'), null, null, [{ label: t('title') }]);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
 
   // Pagination & filters
   const [page, setPage] = useState(1);
