@@ -10,6 +10,7 @@ import {
 import { useEffect } from 'react';
 import { Controller, type Path, useFormContext, useWatch } from 'react-hook-form';
 
+import { FieldIcon } from '../../icons/fieldIcons';
 import {
   lengthUomOptions,
   packagingUnitOptions,
@@ -50,21 +51,24 @@ function DimensionRow({
   return (
     <FormField label={label}>
       <div className="flex gap-2">
-        <Input
-          inputMode="decimal"
-          pattern="[0-9]*\.?[0-9]*"
-          onKeyDown={onDecimalOnly}
-          {...register(valuePath)}
-          placeholder={t('form.enterNumber')}
-          className="flex-1"
-          data-testid={`material-form-dim-${axis}`}
-        />
-        <div className="w-32 flex-shrink-0">
+        <div className="min-w-0 flex-1">
+          <Input
+            leftIcon={<FieldIcon field={axis} />}
+            inputMode="decimal"
+            pattern="[0-9]*\.?[0-9]*"
+            onKeyDown={onDecimalOnly}
+            {...register(valuePath)}
+            placeholder={t('form.enterNumber')}
+            data-testid={`material-form-dim-${axis}`}
+          />
+        </div>
+        <div className="w-28 flex-shrink-0">
           <Controller
             name={uomPath}
             control={control}
             render={({ field }) => (
               <CustomDropdown
+                leftIcon={<FieldIcon field="uom" />}
                 options={withValue(uomOptions, field.value as string | undefined)}
                 value={(field.value as string | undefined) ?? ''}
                 onChange={field.onChange}
@@ -103,6 +107,7 @@ function SpecificDataField({ field }: { field: SpecificField }) {
           control={control}
           render={({ field: ctrl }) => (
             <CustomDropdown
+              leftIcon={<FieldIcon field={field.key} />}
               options={withValue(options, ctrl.value as string | undefined)}
               value={(ctrl.value as string | undefined) ?? ''}
               onChange={ctrl.onChange}
@@ -139,7 +144,12 @@ function SpecificDataField({ field }: { field: SpecificField }) {
 
   return (
     <FormField label={field.label}>
-      <Input {...register(path)} placeholder={t('form.enter')} data-testid={testId} />
+      <Input
+        leftIcon={<FieldIcon field={field.key} />}
+        {...register(path)}
+        placeholder={t('form.enter')}
+        data-testid={testId}
+      />
     </FormField>
   );
 }
@@ -220,6 +230,7 @@ export function AdditionalPropertiesFields({ categories = [] }: AdditionalProper
                 control={control}
                 render={({ field }) => (
                   <CustomDropdown
+                    leftIcon={<FieldIcon field="packagingUnit" />}
                     options={withValue(packagingUnitOptions, field.value)}
                     value={field.value ?? ''}
                     onChange={field.onChange}
@@ -230,6 +241,7 @@ export function AdditionalPropertiesFields({ categories = [] }: AdditionalProper
             </FormField>
             <FormField label={f('unitsPerPackage')}>
               <Input
+                leftIcon={<FieldIcon field="unitsPerPackage" />}
                 inputMode="numeric"
                 pattern="[0-9]*"
                 {...register('dimensions.packaging.unitsPerPackage')}
@@ -239,6 +251,7 @@ export function AdditionalPropertiesFields({ categories = [] }: AdditionalProper
             </FormField>
             <FormField label={f('weightPerPackage')}>
               <Input
+                leftIcon={<FieldIcon field="weightPerPackage" />}
                 inputMode="decimal"
                 pattern="[0-9]*\.?[0-9]*"
                 onKeyDown={onDecimalOnly}

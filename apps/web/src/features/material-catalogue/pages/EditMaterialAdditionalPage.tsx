@@ -14,6 +14,7 @@ import { AdditionalPropertiesFields } from '../components/form/AdditionalPropert
 import { MaterialCatalogueSuccessModal } from '../components/MaterialCatalogueSuccessModal';
 import { useMaterial } from '../hooks/useMaterial';
 import { useUpdateMaterial } from '../hooks/useMaterialFormMutations';
+import { CheckCircleIcon } from '../icons/phosphor';
 import { detailToForm, emptyMaterialForm, formToUpdateAdditional } from '../lib/materialForm';
 
 export default function EditMaterialAdditionalPage() {
@@ -90,25 +91,41 @@ export default function EditMaterialAdditionalPage() {
 
   return (
     <div className="p-8" data-testid="edit-material-additional-page">
-      <div className="flex items-start gap-3">
-        <button
-          type="button"
-          onClick={() => navigate(detailPath)}
-          className="mt-1 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent"
-          aria-label={t('editAdditional.back')}
-          data-testid="edit-material-additional-back"
-        >
-          <BackArrowIcon className="w-4 h-4" />
-        </button>
-        <h1 className="text-2xl font-semibold text-foreground">{t('editAdditional.title')}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate(detailPath)}
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            aria-label={t('editAdditional.back')}
+            data-testid="edit-material-additional-back"
+          >
+            <BackArrowIcon className="h-4 w-4" />
+          </button>
+          <h1 className="text-2xl font-semibold text-foreground">{t('editAdditional.title')}</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <Link
+            to={detailPath}
+            className={buttonVariants({ variant: 'outline' })}
+            data-testid="edit-material-additional-cancel"
+          >
+            {t('form.cancel')}
+          </Link>
+          <Button
+            type="button"
+            rightIcon={<CheckCircleIcon className="size-[18px]" />}
+            isLoading={updateMutation.isPending}
+            onClick={() => void methods.handleSubmit(onSubmit)()}
+            data-testid="edit-material-additional-submit"
+          >
+            {updateMutation.isPending ? t('editAdditional.submitting') : t('editAdditional.submit')}
+          </Button>
+        </div>
       </div>
 
       <FormProvider {...methods}>
-        <form
-          onSubmit={(e) => void methods.handleSubmit(onSubmit)(e)}
-          className="mt-6 space-y-6"
-          noValidate
-        >
+        <form onSubmit={(e) => e.preventDefault()} className="mt-6 space-y-6" noValidate>
           <AdditionalPropertiesFields
             categories={
               material.categoryName
@@ -116,26 +133,6 @@ export default function EditMaterialAdditionalPage() {
                 : []
             }
           />
-
-          <div className="flex items-center justify-between pt-2">
-            <Link
-              to={detailPath}
-              className={buttonVariants({ variant: 'outline', size: 'lg' })}
-              data-testid="edit-material-additional-cancel"
-            >
-              {t('form.cancel')}
-            </Link>
-            <Button
-              type="submit"
-              size="lg"
-              isLoading={updateMutation.isPending}
-              data-testid="edit-material-additional-submit"
-            >
-              {updateMutation.isPending
-                ? t('editAdditional.submitting')
-                : t('editAdditional.submit')}
-            </Button>
-          </div>
         </form>
       </FormProvider>
 

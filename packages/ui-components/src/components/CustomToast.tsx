@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react';
 import { toast, type ExternalToast } from 'sonner';
 
 import CheckCircleIcon from '../assets/icons/checkcircle-icon.svg?react';
@@ -8,10 +9,20 @@ import { cn } from '../utils/cn';
 
 type ToastType = 'success' | 'error' | 'info';
 
+/** Optional inline action rendered as a white pill before the close button. */
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface CustomToastProps {
   type: ToastType;
   message: string;
   onClose?: () => void;
+  /** Optional call-to-action button (e.g. "View"). */
+  action?: ToastAction;
+  /** Override the default per-type icon (e.g. a check on an info-tinted toast). */
+  icon?: ReactNode;
 }
 
 /**
@@ -40,8 +51,8 @@ const typeStyles: Record<ToastType, { Icon: typeof InfoIcon; surface: string; ic
   },
 };
 
-function CustomToast({ type, message, onClose }: CustomToastProps) {
-  const { Icon, surface, icon } = typeStyles[type];
+function CustomToast({ type, message, onClose, action, icon }: CustomToastProps) {
+  const { Icon, surface, icon: iconColor } = typeStyles[type];
 
   return (
     <div
@@ -52,23 +63,34 @@ function CustomToast({ type, message, onClose }: CustomToastProps) {
       )}
     >
       <div className="flex min-w-0 items-center gap-2">
-        <span className={cn('flex size-[18px] shrink-0 items-center justify-center', icon)}>
-          <Icon className="size-[18px]" />
+        <span className={cn('flex size-[18px] shrink-0 items-center justify-center', iconColor)}>
+          {icon ?? <Icon className="size-[18px]" />}
         </span>
         <span className="text-[14px] font-medium leading-[1.4] tracking-[0.3px] text-gray-900">
           {message}
         </span>
       </div>
-      {onClose && (
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          className="flex size-7 shrink-0 items-center justify-center rounded-[8px] text-gray-500 transition-colors hover:bg-gray-900/[0.06] hover:text-gray-700"
-        >
-          <CrossIcon className="size-3.5" />
-        </button>
-      )}
+      <div className="flex shrink-0 items-center gap-1.5">
+        {action && (
+          <button
+            type="button"
+            onClick={action.onClick}
+            className="inline-flex h-7 items-center rounded-[8px] border border-[#e8eaed] bg-white px-2.5 text-[13px] font-semibold tracking-[0.3px] text-[#2d3139] shadow-[0px_1px_2px_0px_rgba(10,13,18,0.05)] transition-colors hover:bg-gray-50"
+          >
+            {action.label}
+          </button>
+        )}
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex size-7 shrink-0 items-center justify-center rounded-[8px] text-gray-500 transition-colors hover:bg-gray-900/[0.06] hover:text-gray-700"
+          >
+            <CrossIcon className="size-3.5" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -87,26 +109,46 @@ const DEFAULT_OPTIONS: ExternalToast = {
   },
 };
 
+/** Options accepted by the notification helpers — sonner options plus our extras. */
+export type NotifyOptions = ExternalToast & { action?: ToastAction; icon?: ReactNode };
+
+function show(type: ToastType, message: string, options?: NotifyOptions) {
+  const { action, icon, ...rest } = options ?? {};
+  return toast.custom(
+    (id) => (
+      <CustomToast
+        type={type}
+        message={message}
+        icon={icon}
+        action={
+          action
+            ? {
+                label: action.label,
+                onClick: () => {
+                  action.onClick();
+                  toast.dismiss(id);
+                },
+              }
+            : undefined
+        }
+        onClose={() => toast.dismiss(id)}
+      />
+    ),
+    { ...DEFAULT_OPTIONS, ...rest },
+  );
+}
+
 export const notificationService = {
-  success(message: string, options?: ExternalToast) {
-    return toast.custom(
-      (id) => <CustomToast type="success" message={message} onClose={() => toast.dismiss(id)} />,
-      { ...DEFAULT_OPTIONS, ...options },
-    );
+  success(message: string, options?: NotifyOptions) {
+    return show('success', message, options);
   },
 
-  error(message: string, options?: ExternalToast) {
-    return toast.custom(
-      (id) => <CustomToast type="error" message={message} onClose={() => toast.dismiss(id)} />,
-      { ...DEFAULT_OPTIONS, ...options },
-    );
+  error(message: string, options?: NotifyOptions) {
+    return show('error', message, options);
   },
 
-  info(message: string, options?: ExternalToast) {
-    return toast.custom(
-      (id) => <CustomToast type="info" message={message} onClose={() => toast.dismiss(id)} />,
-      { ...DEFAULT_OPTIONS, ...options },
-    );
+  info(message: string, options?: NotifyOptions) {
+    return show('info', message, options);
   },
 };
 

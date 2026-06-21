@@ -3,8 +3,10 @@ import { useTranslation } from '@forethread/i18n';
 import { type MaterialFormValues } from '@forethread/shared-types/client';
 import { Button } from '@forethread/ui-components';
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
+import ImageIcon from '@forethread/ui-components/assets/icons/image.svg?react';
 import { type ReactNode } from 'react';
 
+import { FieldIcon } from '../../icons/fieldIcons';
 import { formatPrice } from '../../lib/format';
 import { specificDataLabel } from '../../lib/specificDataSchema';
 
@@ -23,11 +25,18 @@ function dim(entry: { value?: string; uom?: string } | undefined): string {
   return uom ? `${value} ${uom}` : value;
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, field, children }: { label: string; field?: string; children: ReactNode }) {
   return (
     <div className="min-w-0">
       <p className="text-sm text-muted-foreground">{label}</p>
-      <div className="mt-1 text-sm text-foreground break-words">{children}</div>
+      <div className="mt-1 flex items-center gap-2 text-sm text-foreground">
+        {field && (
+          <span className="shrink-0 text-gray-500">
+            <FieldIcon field={field} />
+          </span>
+        )}
+        <span className="min-w-0 break-words">{children}</span>
+      </div>
     </div>
   );
 }
@@ -45,8 +54,10 @@ export interface MaterialReviewSummaryProps {
 
 /**
  * Read-only review of the entered values (create wizard Step 3). Mirrors the
- * label/value style of the material detail page. Each card's "Edit" link jumps
- * back to the relevant wizard step.
+ * material detail page — image on the left, an iconified label/value grid on the
+ * right. Each card's "Edit" link jumps back to the relevant wizard step.
+ * System-assigned fields (Internal ID, Status, Last modified) are omitted here
+ * since the material does not exist yet.
  */
 export function MaterialReviewSummary({
   values,
@@ -73,7 +84,7 @@ export function MaterialReviewSummary({
     <div className="space-y-6">
       {/* ── Core identification ───────────────────────────────────────── */}
       <section
-        className="rounded-xl border border-border bg-card p-6"
+        className="rounded-2xl border border-border bg-card p-6"
         data-testid="material-review-core"
       >
         <div className="flex items-center justify-between">
@@ -84,7 +95,7 @@ export function MaterialReviewSummary({
             type="button"
             variant="ghost"
             size="sm"
-            leftIcon={<EditIcon className="w-4 h-4" />}
+            leftIcon={<EditIcon className="h-4 w-4" />}
             onClick={onEditCore}
             data-testid="material-review-edit-core"
           >
@@ -92,33 +103,73 @@ export function MaterialReviewSummary({
           </Button>
         </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label={f('materialName')}>{val(values.name)}</Field>
-          <Field label={f('category')}>{val(categoryName)}</Field>
-          <Field label={f('materialType')}>{val(values.materialType)}</Field>
-          <Field label={f('unitOfMeasure')}>{val(values.uom)}</Field>
-          <Field label={f('itemType')}>{val(values.itemType)}</Field>
-          <Field label={f('countryOfOrigin')}>{val(values.countryOfOrigin)}</Field>
-          <Field label={f('manufacturer')}>{val(values.manufacturer)}</Field>
-          <Field label={f('mpn')}>{val(values.manufacturerPartNumber)}</Field>
-          <Field label={f('seriesModel')}>{val(values.manufacturerSeriesModel)}</Field>
-          <Field label={f('upc')}>{val(values.upc)}</Field>
-          <Field label={f('sku')}>{val(values.sku)}</Field>
-          <Field label={f('gradeClass')}>{val(values.gradeClass)}</Field>
-          <Field label={f('standardNorm')}>{val(values.standardNorm)}</Field>
-          <Field label={f('colourFinish')}>{val(values.colourFinish)}</Field>
-          <Field label={f('size')}>{val(values.size)}</Field>
-          <Field label={f('pricePerUnit')}>{price}</Field>
+        <div className="mt-5 flex flex-col gap-6 lg:flex-row">
+          <div className="flex aspect-[4/5] items-center justify-center rounded-xl border border-[#e8eaed] bg-[#f9f9fa] text-gray-300 lg:w-72 lg:flex-shrink-0">
+            <ImageIcon className="size-14" />
+          </div>
+
+          <div className="grid flex-1 grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+            <Field label={f('materialName')} field="name">
+              {val(values.name)}
+            </Field>
+            <Field label={f('category')} field="category">
+              {val(categoryName)}
+            </Field>
+            <Field label={f('materialType')} field="materialType">
+              {val(values.materialType)}
+            </Field>
+            <Field label={f('unitOfMeasure')} field="uom">
+              {val(values.uom)}
+            </Field>
+            <Field label={f('itemType')} field="itemType">
+              {val(values.itemType)}
+            </Field>
+            <Field label={f('countryOfOrigin')} field="countryOfOrigin">
+              {val(values.countryOfOrigin)}
+            </Field>
+            <Field label={f('manufacturer')} field="manufacturer">
+              {val(values.manufacturer)}
+            </Field>
+            <Field label={f('seriesModel')} field="seriesModel">
+              {val(values.manufacturerSeriesModel)}
+            </Field>
+            <Field label={f('mpn')} field="mpn">
+              {val(values.manufacturerPartNumber)}
+            </Field>
+            <Field label={f('upc')} field="upc">
+              {val(values.upc)}
+            </Field>
+            <Field label={f('sku')} field="sku">
+              {val(values.sku)}
+            </Field>
+            <Field label={f('gradeClass')} field="gradeClass">
+              {val(values.gradeClass)}
+            </Field>
+            <Field label={f('standardNorm')} field="standardNorm">
+              {val(values.standardNorm)}
+            </Field>
+            <Field label={f('colourFinish')} field="colourFinish">
+              {val(values.colourFinish)}
+            </Field>
+            <Field label={f('size')} field="size">
+              {val(values.size)}
+            </Field>
+            <Field label={f('pricePerUnit')} field="pricePerUnit">
+              {price}
+            </Field>
+          </div>
         </div>
 
         <div className="mt-6 border-t border-border pt-4">
-          <Field label={f('description')}>{val(values.description)}</Field>
+          <Field label={f('description')} field="description">
+            {val(values.description)}
+          </Field>
         </div>
       </section>
 
       {/* ── Additional properties ─────────────────────────────────────── */}
       <section
-        className="rounded-xl border border-border bg-card p-6 space-y-6"
+        className="space-y-6 rounded-2xl border border-border bg-card p-6"
         data-testid="material-review-additional"
       >
         <div className="flex items-center justify-between">
@@ -129,7 +180,7 @@ export function MaterialReviewSummary({
             type="button"
             variant="ghost"
             size="sm"
-            leftIcon={<EditIcon className="w-4 h-4" />}
+            leftIcon={<EditIcon className="h-4 w-4" />}
             onClick={onEditAdditional}
             data-testid="material-review-edit-additional"
           >
@@ -140,22 +191,42 @@ export function MaterialReviewSummary({
         <div className="space-y-4">
           <SectionTitle>{t('form.dimensions')}</SectionTitle>
           <div className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">
-            <Field label={f('length')}>{dim(dims?.length)}</Field>
-            <Field label={f('width')}>{dim(dims?.width)}</Field>
-            <Field label={f('height')}>{dim(dims?.height)}</Field>
-            <Field label={f('diameter')}>{dim(dims?.diameter)}</Field>
-            <Field label={f('thickness')}>{dim(dims?.thickness)}</Field>
-            <Field label={f('volume')}>{dim(dims?.volume)}</Field>
-            <Field label={f('weightPerUnit')}>{dim(dims?.weightPerUnit)}</Field>
+            <Field label={f('length')} field="length">
+              {dim(dims?.length)}
+            </Field>
+            <Field label={f('width')} field="width">
+              {dim(dims?.width)}
+            </Field>
+            <Field label={f('height')} field="height">
+              {dim(dims?.height)}
+            </Field>
+            <Field label={f('diameter')} field="diameter">
+              {dim(dims?.diameter)}
+            </Field>
+            <Field label={f('thickness')} field="thickness">
+              {dim(dims?.thickness)}
+            </Field>
+            <Field label={f('volume')} field="volume">
+              {dim(dims?.volume)}
+            </Field>
+            <Field label={f('weightPerUnit')} field="weightPerUnit">
+              {dim(dims?.weightPerUnit)}
+            </Field>
           </div>
         </div>
 
         <div className="space-y-4 border-t border-border pt-4">
           <SectionTitle>{t('form.packaging')}</SectionTitle>
           <div className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3">
-            <Field label={f('unitsPerPackage')}>{val(packaging?.unitsPerPackage)}</Field>
-            <Field label={f('packagingUnit')}>{val(packaging?.packagingUnit)}</Field>
-            <Field label={f('weightPerPackage')}>{val(packaging?.weightPerPackage)}</Field>
+            <Field label={f('unitsPerPackage')} field="unitsPerPackage">
+              {val(packaging?.unitsPerPackage)}
+            </Field>
+            <Field label={f('packagingUnit')} field="packagingUnit">
+              {val(packaging?.packagingUnit)}
+            </Field>
+            <Field label={f('weightPerPackage')} field="weightPerPackage">
+              {val(packaging?.weightPerPackage)}
+            </Field>
           </div>
         </div>
 
@@ -164,7 +235,7 @@ export function MaterialReviewSummary({
             <SectionTitle>{t('form.specificData')}</SectionTitle>
             <div className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">
               {properties.map(([key, value]) => (
-                <Field key={key} label={specificDataLabel(key)}>
+                <Field key={key} label={specificDataLabel(key)} field={key}>
                   {val(value)}
                 </Field>
               ))}
