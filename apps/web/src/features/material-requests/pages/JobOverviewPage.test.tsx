@@ -15,9 +15,14 @@ vi.mock('@forethread/i18n', () => ({
       opts && 'code' in opts ? `${key}:${String(opts.code)}` : key,
   }),
 }));
+vi.mock('@forethread/rfq-shared', () => ({
+  usePageTitleStore: (selector: (s: { setTitle: () => void }) => unknown) =>
+    selector({ setTitle: vi.fn() }),
+}));
 vi.mock('@forethread/ui-components', () => ({
   PageLoader: () => <div data-testid="loader" />,
   formatDate: (d: string) => d,
+  Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
 }));
 vi.mock('@forethread/ui-components/assets/icons/date.svg?react', () => ({
   default: () => <svg />,
@@ -63,6 +68,22 @@ vi.mock('../components/MobileHeader', () => ({
       <h1>{title}</h1>
       {subline}
     </div>
+  ),
+}));
+vi.mock('../components/MobileButtons', () => ({
+  PrimaryButton: ({
+    children,
+    onClick,
+    'data-testid': testId,
+  }: {
+    children: ReactNode;
+    onClick?: () => void;
+    leading?: ReactNode;
+    'data-testid'?: string;
+  }) => (
+    <button type="button" data-testid={testId} onClick={onClick}>
+      {children}
+    </button>
   ),
 }));
 vi.mock('../components/ProcurementStatusBar', () => ({

@@ -1,33 +1,35 @@
+import { cn } from '@forethread/ui-components';
 import type { ReactNode } from 'react';
 
 /**
- * Centered mobile column for the Material Request flow (Figma 2002:176 — 375px
- * frames). The flow is designed mobile-first; this shell constrains the content
- * to a phone-width column that also reads correctly on desktop. A sticky footer
- * region is supported via the `footer` slot so the primary CTA stays pinned.
+ * Responsive content shell for the Material Request flow. The flow is designed
+ * mobile-first (Figma 2002:176) but renders inside the desktop app frame, so the
+ * content is a comfortable centred column that scales from phone to desktop
+ * rather than a fixed phone-width letterbox. A sticky footer region keeps the
+ * primary CTA pinned on small screens.
  */
 export interface MobileShellProps {
-  /** Dark sticky header (typically <MobileHeader />). */
+  /** Sticky page header (typically <MobileHeader />). */
   header?: ReactNode;
-  /** Pinned bottom action bar (white surface, top border). */
+  /** Pinned bottom action bar. */
   footer?: ReactNode;
   children: ReactNode;
-  /** Background of the scrollable body. Defaults to white. */
+  /** Extra classes for the scrollable body column. */
   bodyClassName?: string;
 }
 
 export function MobileShell({ header, footer, children, bodyClassName }: MobileShellProps) {
   return (
-    <div className="flex justify-center bg-neutral-100 min-h-full">
-      <div className="relative flex w-full max-w-[420px] flex-col bg-white shadow-sm min-h-[100dvh]">
-        {header}
-        <div className={`flex-1 overflow-y-auto ${bodyClassName ?? ''}`}>{children}</div>
-        {footer && (
-          <div className="sticky bottom-0 border-t border-[#E8EAED] bg-white px-4 py-4">
-            {footer}
-          </div>
-        )}
+    <div className="flex min-h-full flex-col bg-background">
+      {header}
+      <div className={cn('mx-auto w-full max-w-2xl flex-1 px-4 py-4 md:px-6', bodyClassName)}>
+        {children}
       </div>
+      {footer && (
+        <div className="sticky bottom-0 border-t border-gray-100 bg-card px-4 py-3 md:px-6">
+          <div className="mx-auto w-full max-w-2xl">{footer}</div>
+        </div>
+      )}
     </div>
   );
 }

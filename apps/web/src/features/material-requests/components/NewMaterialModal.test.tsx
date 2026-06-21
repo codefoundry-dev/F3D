@@ -76,6 +76,24 @@ vi.mock('@forethread/ui-components', () => ({
   ),
 }));
 
+vi.mock('./MobileButtons', () => ({
+  PrimaryButton: ({
+    children,
+    onClick,
+    disabled,
+    'data-testid': testId,
+  }: {
+    children: ReactNode;
+    onClick?: () => void;
+    disabled?: boolean;
+    'data-testid'?: string;
+  }) => (
+    <button type="button" data-testid={testId} onClick={onClick} disabled={disabled}>
+      {children}
+    </button>
+  ),
+}));
+
 import { NewMaterialModal } from './NewMaterialModal';
 
 describe('NewMaterialModal', () => {

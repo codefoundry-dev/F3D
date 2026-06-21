@@ -12,6 +12,10 @@ vi.mock('@forethread/i18n', () => ({
       opts && 'count' in opts ? `${key}:${String(opts.count)}` : key,
   }),
 }));
+vi.mock('@forethread/rfq-shared', () => ({
+  usePageTitleStore: (selector: (s: { setTitle: () => void }) => unknown) =>
+    selector({ setTitle: vi.fn() }),
+}));
 vi.mock('@forethread/ui-components', () => ({
   PageLoader: () => <div data-testid="loader" />,
   formatDate: (d: string) => d,
@@ -48,8 +52,26 @@ vi.mock('../components/MobileShell', () => ({
 vi.mock('../components/MobileHeader', () => ({
   MobileHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }));
-vi.mock('../components/PriorityBadge', () => ({
-  PriorityBadge: () => <span data-testid="badge" />,
+vi.mock('../components/MobileButtons', () => ({
+  PrimaryButton: ({
+    children,
+    onClick,
+    'data-testid': testId,
+  }: {
+    children: ReactNode;
+    onClick?: () => void;
+    'data-testid'?: string;
+  }) => (
+    <button type="button" data-testid={testId} onClick={onClick}>
+      {children}
+    </button>
+  ),
+}));
+vi.mock('../officer/components/MrStatusBadge', () => ({
+  MrStatusBadge: ({ status }: { status: string }) => <span>status.{status}</span>,
+  MrPriorityBadge: ({ priority }: { priority: string }) => (
+    <span data-testid="priority-badge">priority.{priority}</span>
+  ),
 }));
 vi.mock('../services/material-requests.service', () => ({
   useMaterialRequests: () => mockUseRequests(),

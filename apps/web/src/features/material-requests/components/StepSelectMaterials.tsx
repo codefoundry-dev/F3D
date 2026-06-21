@@ -55,8 +55,8 @@ function TabButton({
       onClick={onClick}
       className={`flex-1 border-b-2 px-3 py-3 text-sm transition-colors ${
         active
-          ? 'border-[#1B1D22] font-medium text-[#1B1D22]'
-          : 'border-transparent text-[#6D7588] hover:text-[#1B1D22]'
+          ? 'border-gray-900 font-medium text-gray-900'
+          : 'border-transparent text-gray-500 hover:text-gray-900'
       }`}
       aria-pressed={active}
     >
@@ -80,26 +80,26 @@ function PickableRow({
       type="button"
       onClick={onToggle}
       aria-pressed={selected}
-      className="flex w-full items-center gap-3 border-b border-[#F4F4F6] px-4 py-3 text-left hover:bg-[#FDFDFD]"
+      className="flex w-full items-center gap-3 border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-25"
     >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[#F4F4F6] text-[#40454F]">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gray-50 text-gray-700">
         <PackageIcon className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium text-[#1B1D22]">{row.name}</span>
+        <span className="block truncate text-sm font-medium text-gray-900">{row.name}</span>
         {row.sku ? (
-          <span className="block truncate text-xs text-[#6D7588]">
+          <span className="block truncate text-xs text-gray-500">
             {t('requestMaterials.skuLabel', { sku: row.sku })}
           </span>
         ) : (
-          <span className="block truncate text-xs text-[#6D7588]">
+          <span className="block truncate text-xs text-gray-500">
             {t('requestMaterials.unitLabel', { unit: row.unit })}
           </span>
         )}
       </span>
       <span
         className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
-          selected ? 'border-[#1B1D22] bg-[#1B1D22] text-white' : 'border-[#D2D5DB] bg-white'
+          selected ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 bg-white'
         }`}
       >
         {selected && <CheckmarkIcon className="h-3 w-3" />}
@@ -201,7 +201,7 @@ export function StepSelectMaterials({
   return (
     <div className="flex flex-col">
       {/* Tabs */}
-      <div className="flex border-b border-[#E8EAED] bg-white px-2">
+      <div className="flex border-b border-gray-200 bg-white px-2">
         <TabButton
           active={tab === 'BOM'}
           label={t('requestMaterials.tabBom')}
@@ -225,8 +225,8 @@ export function StepSelectMaterials({
           <label className="sr-only" htmlFor="mr-search">
             {t('requestMaterials.searchLabel')}
           </label>
-          <div className="flex items-center gap-2 rounded-md border border-[#E8EAED] px-3 py-2.5">
-            <SearchIcon className="h-4 w-4 text-[#787881]" />
+          <div className="flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2.5">
+            <SearchIcon className="h-4 w-4 text-gray-500" />
             <input
               id="mr-search"
               value={search}
@@ -236,7 +236,7 @@ export function StepSelectMaterials({
                   ? t('requestMaterials.searchBomPlaceholder')
                   : t('requestMaterials.searchCatalogPlaceholder')
               }
-              className="w-full bg-transparent text-sm text-[#1B1D22] outline-none placeholder:text-[#787881]"
+              className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-500"
             />
           </div>
         </div>
@@ -361,7 +361,7 @@ function ManualList({
       <button
         type="button"
         onClick={onAdd}
-        className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#1B1D22] py-3 text-sm font-medium text-[#1B1D22] hover:bg-[#F4F4F6]"
+        className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-900 py-3 text-sm font-medium text-gray-900 hover:bg-gray-50"
         data-testid="mr-manual-add"
       >
         <PlusIcon className="h-4 w-4" />
@@ -370,29 +370,29 @@ function ManualList({
 
       {lines.length === 0 ? (
         <div className="flex flex-col items-center gap-1 py-12 text-center">
-          <span className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[#F4F4F6] text-[#999FAD]">
+          <span className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-gray-50 text-gray-400">
             <PackageIcon className="h-6 w-6" />
           </span>
-          <p className="text-sm font-medium text-[#1B1D22]">
+          <p className="text-sm font-medium text-gray-900">
             {t('requestMaterials.manualEmptyTitle')}
           </p>
-          <p className="text-xs text-[#6D7588]">{t('requestMaterials.manualEmptyHint')}</p>
+          <p className="text-xs text-gray-500">{t('requestMaterials.manualEmptyHint')}</p>
         </div>
       ) : (
         <ul className="flex flex-col gap-2" data-testid="mr-manual-list">
           {lines.map((line) => (
             <li
               key={line.key}
-              className="flex items-center gap-3 rounded-lg border border-[#E8EAED] px-3 py-3"
+              className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-3"
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#F4F4F6] text-[#40454F]">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-gray-50 text-gray-700">
                 <PackageIcon className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-[#1B1D22]">
+                <span className="block truncate text-sm font-medium text-gray-900">
                   {line.materialName}
                 </span>
-                <span className="block truncate text-xs text-[#6D7588]">
+                <span className="block truncate text-xs text-gray-500">
                   {t('requestMaterials.unitLabel', { unit: line.unit })}
                 </span>
               </span>
@@ -400,7 +400,7 @@ function ManualList({
                 type="button"
                 onClick={() => onRemove(line.key)}
                 aria-label={t('requestMaterials.removeItem', { name: line.materialName })}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-[#6D7588] hover:bg-[#F4F4F6]"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-50"
               >
                 ×
               </button>
@@ -415,8 +415,8 @@ function ManualList({
 function EmptyHint({ title, hint }: { title: string; hint: string }) {
   return (
     <div className="flex flex-col items-center gap-1 py-12 text-center">
-      <p className="text-sm font-medium text-[#1B1D22]">{title}</p>
-      <p className="text-xs text-[#6D7588]">{hint}</p>
+      <p className="text-sm font-medium text-gray-900">{title}</p>
+      <p className="text-xs text-gray-500">{hint}</p>
     </div>
   );
 }

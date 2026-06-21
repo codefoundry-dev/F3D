@@ -1,11 +1,12 @@
 import { useTranslation } from '@forethread/i18n';
-import { formatDate, PageLoader } from '@forethread/ui-components';
+import { usePageTitleStore } from '@forethread/rfq-shared';
+import { Badge, formatDate, PageLoader } from '@forethread/ui-components';
 import CalendarIcon from '@forethread/ui-components/assets/icons/date.svg?react';
 import LocationIcon from '@forethread/ui-components/assets/icons/location.svg?react';
 import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
 import UserIcon from '@forethread/ui-components/assets/icons/user-outline.svg?react';
 import UsersIcon from '@forethread/ui-components/assets/icons/users-group.svg?react';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -27,12 +28,12 @@ function DetailRow({
 }) {
   return (
     <div className="flex items-center gap-4 py-3">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[#E8EAED] text-[#40454F]">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-700">
         {icon}
       </span>
       <div className="min-w-0">
-        <p className="text-xs text-[#525866]">{label}</p>
-        <div className="text-sm text-[#1B1D22]">{children}</div>
+        <p className="text-xs text-gray-600">{label}</p>
+        <div className="text-sm text-gray-900">{children}</div>
       </div>
     </div>
   );
@@ -40,9 +41,9 @@ function DetailRow({
 
 function StatTile({ value, label }: { value: string; label: string }) {
   return (
-    <div className="flex flex-1 flex-col gap-2 rounded-lg bg-[#F4F4F6] px-3 py-2">
-      <span className="text-2xl text-[#1B1D22]">{value}</span>
-      <span className="text-xs text-[#525866]">{label}</span>
+    <div className="flex flex-1 flex-col gap-2 rounded-lg bg-gray-50 px-3 py-2">
+      <span className="text-2xl text-gray-900">{value}</span>
+      <span className="text-xs text-gray-600">{label}</span>
     </div>
   );
 }
@@ -59,6 +60,16 @@ export default function JobOverviewPage() {
   const navigate = useNavigate();
   const { projectId = '' } = useParams<{ projectId: string }>();
   const { data: project, isLoading, isError } = useMrProjectDetail(projectId);
+
+  // App-bar breadcrumb / page title (back → job picker).
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(t('jobOverview.title'), null, ROUTES.materialRequestJobs, [
+      { label: t('jobOverview.selectJob'), to: ROUTES.materialRequestJobs },
+      { label: t('jobOverview.title') },
+    ]);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t]);
 
   const deliveryLocation = useMemo(
     () =>
@@ -96,9 +107,7 @@ export default function JobOverviewPage() {
           />
         }
       >
-        <div className="px-4 py-12 text-center text-sm text-[#6D7588]">
-          {t('jobOverview.loadFailed')}
-        </div>
+        <div className="py-12 text-center text-sm text-gray-500">{t('jobOverview.loadFailed')}</div>
       </MobileShell>
     );
   }
@@ -112,7 +121,7 @@ export default function JobOverviewPage() {
           title={t('jobOverview.title')}
           onBack={() => navigate(ROUTES.materialRequestJobs)}
           subline={
-            <span className="text-sm text-white/90">
+            <span className="text-sm text-gray-500">
               {t('jobOverview.projectLabel', { code: project.name })}
             </span>
           }
@@ -127,33 +136,33 @@ export default function JobOverviewPage() {
           >
             {t('jobOverview.requestMaterials')}
           </PrimaryButton>
-          <p className="text-center text-xs text-[#6D7588]">
+          <p className="text-center text-xs text-gray-500">
             {t('jobOverview.requestMaterialsHint')}
           </p>
         </div>
       }
     >
-      <div className="flex flex-col gap-7 px-4 py-6">
+      <div className="flex flex-col gap-7">
         {/* Job header card */}
-        <div className="flex flex-col gap-3 rounded-lg bg-[#F4F4F6] p-4">
+        <div className="flex flex-col gap-3 rounded-lg bg-gray-50 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs text-[#525866]">{t('jobOverview.jobId')}</p>
-              <p className="truncate text-2xl text-[#1B1D22]">{project.name}</p>
+              <p className="text-xs text-gray-600">{t('jobOverview.jobId')}</p>
+              <p className="truncate text-2xl text-gray-900">{project.name}</p>
             </div>
-            <span className="shrink-0 rounded-md bg-[#1B1D22] px-2.5 py-1 text-xs text-white">
+            <Badge color="green" className="shrink-0">
               {t('jobOverview.statusActive')}
-            </span>
+            </Badge>
           </div>
-          {project.description && <p className="text-xs text-[#525866]">{project.description}</p>}
+          {project.description && <p className="text-xs text-gray-600">{project.description}</p>}
         </div>
 
         <ProcurementStatusBar stages={stages} />
 
         {/* Job details */}
         <div className="flex flex-col gap-2">
-          <p className="text-sm text-[#1B1D22]">{t('jobOverview.jobDetails')}</p>
-          <div className="divide-y divide-[#F4F4F6]">
+          <p className="text-sm text-gray-900">{t('jobOverview.jobDetails')}</p>
+          <div className="divide-y divide-gray-100">
             <DetailRow
               icon={<LocationIcon className="h-4 w-4" />}
               label={t('jobOverview.location')}

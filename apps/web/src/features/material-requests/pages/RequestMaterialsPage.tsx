@@ -1,6 +1,7 @@
 import { useTranslation } from '@forethread/i18n';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { StatusErrorModal } from '@forethread/ui-components';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -160,6 +161,17 @@ export default function RequestMaterialsPage() {
 
   const progressLabel = headerTitle;
 
+  // App-bar breadcrumb / page title reflects the current wizard step.
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    const overviewPath = ROUTES.materialRequestJobOverview.replace(':projectId', projectId);
+    setPageTitle(headerTitle, null, overviewPath, [
+      { label: t('jobOverview.title'), to: overviewPath },
+      { label: headerTitle },
+    ]);
+    return () => setPageTitle(null);
+  }, [setPageTitle, headerTitle, projectId, t]);
+
   return (
     <MobileShell
       header={<MobileHeader title={headerTitle} onBack={goBack} />}
@@ -217,14 +229,14 @@ export default function RequestMaterialsPage() {
       return (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-[#525866]" data-testid="mr-selected-count">
+            <span className="text-sm text-gray-600" data-testid="mr-selected-count">
               {t('requestMaterials.itemsSelected', { count: selectedCount })}
             </span>
             {selectedCount > 0 && (
               <button
                 type="button"
                 onClick={() => setLines([])}
-                className="text-sm text-[#6D7588] underline"
+                className="text-sm text-gray-500 underline"
               >
                 {t('requestMaterials.clearAll')}
               </button>
@@ -265,7 +277,7 @@ export default function RequestMaterialsPage() {
         <SecondaryButton disabled title={t('review.raisePoUnavailable')} data-testid="mr-raise-po">
           {t('review.raisePo')}
         </SecondaryButton>
-        <p className="text-center text-xs text-[#6D7588]">{t('review.footerHint')}</p>
+        <p className="text-center text-xs text-gray-500">{t('review.footerHint')}</p>
       </div>
     );
   }

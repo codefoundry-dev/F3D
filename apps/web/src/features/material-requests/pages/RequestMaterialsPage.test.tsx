@@ -23,9 +23,15 @@ vi.mock('@forethread/i18n', () => ({
   }),
 }));
 
+vi.mock('@forethread/rfq-shared', () => ({
+  usePageTitleStore: (selector: (s: { setTitle: () => void }) => unknown) =>
+    selector({ setTitle: vi.fn() }),
+}));
+
 vi.mock('@/app/route-config', () => ({
   ROUTES: {
     materialRequestJobs: '/material-requests/jobs',
+    materialRequestJobOverview: '/material-requests/jobs/:projectId',
     materialRequestConfirmation: '/material-requests/confirmation/:id',
   },
 }));
