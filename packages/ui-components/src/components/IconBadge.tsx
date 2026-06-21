@@ -8,8 +8,10 @@ import type { BadgeColor } from './Badge';
  * IconBadge — Forethread design system "Activity icon" (Figma node 3671-5183).
  *
  * A rounded-square icon chip. With a `color` it renders the DS tonal scale
- * (hue-50 tint + hue-600 icon); without one it keeps the original neutral
- * `foreground/10` chip so existing call-sites render unchanged.
+ * (hue-50 tint + hue-600 icon); without one it renders the fleshed-out DS
+ * "neutral" chip — a gradient-white surface with a hairline border + layered
+ * drop-shadow (the same signature used by the page-header chip, filter pills
+ * and icon buttons), so every modal "featured icon" matches the refreshed DS.
  */
 export type IconBadgeColor = Extract<
   BadgeColor,
@@ -63,8 +65,15 @@ const colorStyles: Record<IconBadgeColor, string> = {
 const sizeStyles: Record<IconBadgeSize, { box: string; icon: string }> = {
   sm: { box: 'size-8 rounded-[8px]', icon: 'flex size-4 items-center justify-center' },
   md: { box: 'size-10 rounded-[10px]', icon: 'flex size-5 items-center justify-center' },
-  lg: { box: 'size-12 rounded-[12px]', icon: 'flex size-6 items-center justify-center' },
+  lg: { box: 'size-12 rounded-[14px]', icon: 'flex size-6 items-center justify-center' },
 };
+
+/**
+ * Fleshed-out DS neutral chip — the "Modal/ featured icon" surface (Figma node
+ * 3758:4895): gradient-white fill (#F9F9FA→#FFF), #E8EAED hairline, layered shadow.
+ */
+const neutralStyle =
+  'border border-[#E8EAED] bg-gradient-to-b from-[#F9F9FA] to-white text-gray-700 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]';
 
 export function IconBadge({ icon, color, size = 'lg', className }: IconBadgeProps) {
   const sz = sizeStyles[size];
@@ -73,7 +82,7 @@ export function IconBadge({ icon, color, size = 'lg', className }: IconBadgeProp
       className={cn(
         'flex items-center justify-center',
         sz.box,
-        color ? colorStyles[color] : 'bg-foreground/10',
+        color ? colorStyles[color] : neutralStyle,
         className,
       )}
     >

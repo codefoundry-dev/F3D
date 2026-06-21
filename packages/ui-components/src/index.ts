@@ -98,6 +98,12 @@ export type { TablePaginationProps } from './components/TablePagination';
 export { EmptyState } from './components/EmptyState';
 export type { EmptyStateProps } from './components/EmptyState';
 
+export { EmptyBoxIllustration } from './components/EmptyBoxIllustration';
+export type { EmptyBoxIllustrationProps } from './components/EmptyBoxIllustration';
+
+export { SearchEmptyIllustration } from './components/SearchEmptyIllustration';
+export type { SearchEmptyIllustrationProps } from './components/SearchEmptyIllustration';
+
 export { QueryContainer } from './components/QueryContainer';
 export type { QueryContainerProps } from './components/QueryContainer';
 
@@ -148,6 +154,8 @@ export type { ResetPasswordFormProps, PasswordRule } from './components/ResetPas
 
 export { AuthLayout } from './components/AuthLayout';
 export type { AuthLayoutProps } from './components/AuthLayout';
+export { AuthBackground } from './components/AuthBackground';
+export { AuthPageLoader } from './components/AuthPageLoader';
 
 export { ThemeProvider, useTheme } from './components/ThemeProvider';
 export type { Theme, ThemeProviderProps } from './components/ThemeProvider';
@@ -188,6 +196,9 @@ export type { RadioGroupProps, RadioGroupOption } from './components/RadioGroup'
 
 export { FilterChip } from './components/FilterChip';
 export type { FilterChipProps } from './components/FilterChip';
+
+export { FilterTag } from './components/FilterTag';
+export type { FilterTagProps } from './components/FilterTag';
 
 export { FilterPopover } from './components/FilterPopover';
 export type { FilterPopoverProps, FilterOption } from './components/FilterPopover';

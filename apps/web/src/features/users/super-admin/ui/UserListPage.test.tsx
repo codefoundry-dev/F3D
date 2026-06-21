@@ -27,6 +27,26 @@ vi.mock('@forethread/api-client', () => ({
 
 vi.mock('@forethread/shared-types/client', () => ({
   UserStatus: { ACTIVE: 'ACTIVE', INACTIVE: 'INACTIVE', INVITED: 'INVITED' },
+  CompanyType: { CONTRACTOR: 'CONTRACTOR', VENDOR: 'VENDOR' },
+  UserRole: {
+    SUPER_ADMIN: 'SUPER_ADMIN',
+    COMPANY_ADMIN: 'COMPANY_ADMIN',
+    PROCUREMENT_OFFICER: 'PROCUREMENT_OFFICER',
+    FINANCIAL_OFFICER: 'FINANCIAL_OFFICER',
+    FOREMAN: 'FOREMAN',
+    WAREHOUSE_OFFICER: 'WAREHOUSE_OFFICER',
+    VENDOR: 'VENDOR',
+  },
+}));
+
+vi.mock('@forethread/rfq-shared', () => ({
+  usePageTitleStore: (selector: any) =>
+    selector({ title: null, subtitle: null, backTo: null, breadcrumbs: null, setTitle: vi.fn() }),
+}));
+
+vi.mock('../../shared/userBadges', () => ({
+  RoleBadge: ({ label }: any) => <span data-testid="role-badge">{label}</span>,
+  StatusBadge: ({ label }: any) => <span data-testid="status-badge">{label}</span>,
 }));
 
 const mockDeactivateMutate = vi.fn();
@@ -149,9 +169,29 @@ vi.mock('../constants/roles', () => ({
 // Stub UI components
 vi.mock('@forethread/ui-components', () => ({
   cn: (...args: string[]) => args.filter(Boolean).join(' '),
+  buttonVariants: () => 'btn',
   Button: ({ children, ...p }: any) => <button {...p}>{children}</button>,
   Spinner: () => <div data-testid="spinner">Loading...</div>,
   Badge: ({ children, ...p }: any) => <span {...p}>{children}</span>,
+  EmptyBoxIllustration: () => <div data-testid="empty-box" />,
+  SearchEmptyIllustration: () => <div data-testid="search-empty" />,
+  FilterTag: ({ label, onRemove, removeLabel }: any) => (
+    <span data-testid="filter-tag">
+      {label}
+      {onRemove && (
+        <button data-testid="filter-tag-remove" aria-label={removeLabel} onClick={onRemove} />
+      )}
+    </span>
+  ),
+  Tabs: ({ items, onValueChange }: any) => (
+    <div data-testid="tabs">
+      {items?.map((it: any) => (
+        <button key={it.value} onClick={() => onValueChange(it.value)}>
+          {it.label}
+        </button>
+      ))}
+    </div>
+  ),
   TablePagination: ({ onPageChange, onPageSizeChange, showingLabel }: any) => (
     <div data-testid="table-pagination">
       <button data-testid="next-page" onClick={() => onPageChange(2)}>
@@ -243,6 +283,24 @@ vi.mock('@forethread/ui-components/assets/icons/new-user.svg?react', () => ({
 vi.mock('@forethread/ui-components/assets/icons/chevron-down.svg?react', () => ({
   default: (p: any) => <svg data-testid="icon-chevron-down" {...p} />,
 }));
+vi.mock('@forethread/ui-components/assets/icons/cross.svg?react', () => ({
+  default: (p: any) => <svg data-testid="icon-cross-plain" {...p} />,
+}));
+vi.mock('@forethread/ui-components/assets/icons/chevron-right.svg?react', () => ({
+  default: (p: any) => <svg data-testid="icon-chevron-right" {...p} />,
+}));
+vi.mock('@forethread/ui-components/assets/icons/clock.svg?react', () => ({
+  default: (p: any) => <svg data-testid="icon-clock" {...p} />,
+}));
+vi.mock('@forethread/ui-components/assets/icons/department.svg?react', () => ({
+  default: (p: any) => <svg data-testid="icon-department" {...p} />,
+}));
+vi.mock('@forethread/ui-components/assets/icons/suppliers.svg?react', () => ({
+  default: (p: any) => <svg data-testid="icon-suppliers" {...p} />,
+}));
+vi.mock('@forethread/ui-components/assets/icons/users-group.svg?react', () => ({
+  default: (p: any) => <svg data-testid="icon-users-group" {...p} />,
+}));
 
 // Mock child components rendered conditionally
 vi.mock('./ActionLogTab', () => ({
@@ -256,6 +314,20 @@ vi.mock('./EditUserModal', () => ({
 }));
 vi.mock('./modals/EditCompanyModal', () => ({
   EditCompanyModal: () => <div data-testid="edit-company-modal" />,
+}));
+vi.mock('./modals/AddContractorCompanyModal', () => ({
+  AddContractorCompanyModal: () => <div data-testid="add-contractor-modal" />,
+}));
+vi.mock('./modals/AddVendorCompanyModal', () => ({
+  AddVendorCompanyModal: () => <div data-testid="add-vendor-modal" />,
+}));
+vi.mock('./modals/CreateCompanyChooserModal', () => ({
+  CreateCompanyChooserModal: ({ onSelect }: any) => (
+    <div data-testid="create-company-chooser">
+      <button data-testid="choose-contractor" onClick={() => onSelect('CONTRACTOR')} />
+      <button data-testid="choose-vendor" onClick={() => onSelect('VENDOR')} />
+    </div>
+  ),
 }));
 
 import UserListPage from './UserListPage';
@@ -370,11 +442,10 @@ describe('UserListPage', () => {
     expect(mockOpenEditModal).toHaveBeenCalledWith('u1');
   });
 
-  it('clicking company row toggle calls toggleCompany', () => {
+  it('clicking company header toggles the company group', () => {
     render(<UserListPage />);
-    // The company header row contains the company name
-    const acmeRow = screen.getByText('Acme').closest('tr')!;
-    fireEvent.click(acmeRow);
+    // The clickable company-card header contains the company name.
+    fireEvent.click(screen.getByText('Acme'));
     expect(mockToggleCompany).toHaveBeenCalledWith('c1');
   });
 
@@ -436,8 +507,8 @@ describe('UserListPage', () => {
     render(<UserListPage />);
     // Click a filter to activate it — this triggers a re-render
     fireEvent.click(screen.getByTestId('filter-btn-filters.status'));
-    // The filter state is now active, empty state should show adjustFilters
-    expect(screen.getByText('adjustFilters')).toBeInTheDocument();
+    // The filter state is now active, so the no-results state should show.
+    expect(screen.getByText('noResultsTitle')).toBeInTheDocument();
   });
 
   it('search input triggers search change', () => {
@@ -445,6 +516,32 @@ describe('UserListPage', () => {
     const input = screen.getByTestId('search-input');
     fireEvent.change(input, { target: { value: 'test' } });
     expect(input).toHaveValue('test');
+  });
+
+  it('shows active-filter chips and a Clear all button when a filter is selected', () => {
+    render(<UserListPage />);
+    // No chips at rest.
+    expect(screen.queryByTestId('filter-tag')).not.toBeInTheDocument();
+    expect(screen.queryByText('filters.clearAll')).not.toBeInTheDocument();
+    // Selecting a status filter surfaces a chip + Clear all.
+    fireEvent.click(screen.getByTestId('filter-btn-filters.status'));
+    expect(screen.getAllByTestId('filter-tag').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('filters.clearAll')).toBeInTheDocument();
+  });
+
+  it('removing a filter chip clears that single filter', () => {
+    render(<UserListPage />);
+    fireEvent.click(screen.getByTestId('filter-btn-filters.status'));
+    fireEvent.click(screen.getAllByTestId('filter-tag-remove')[0]);
+    expect(screen.queryByTestId('filter-tag')).not.toBeInTheDocument();
+  });
+
+  it('Clear all removes every active filter', () => {
+    render(<UserListPage />);
+    fireEvent.click(screen.getByTestId('filter-btn-filters.status'));
+    fireEvent.click(screen.getByText('filters.clearAll'));
+    expect(screen.queryByTestId('filter-tag')).not.toBeInTheDocument();
+    expect(screen.queryByText('filters.clearAll')).not.toBeInTheDocument();
   });
 
   it('filter popover triggers filter change', () => {
@@ -665,13 +762,6 @@ describe('UserListPage', () => {
   it('clicking editCompany calls openEditCompanyModal', () => {
     render(<UserListPage />);
     fireEvent.click(screen.getByTestId('action-editCompany'));
-    expect(mockOpenEditCompanyModal).toHaveBeenCalledWith('c1', 'Acme');
-  });
-
-  it('clicking the company-row edit (pencil) icon calls openEditCompanyModal', () => {
-    render(<UserListPage />);
-    const editCompanyBtn = screen.getByLabelText('Edit company');
-    fireEvent.click(editCompanyBtn);
     expect(mockOpenEditCompanyModal).toHaveBeenCalledWith('c1', 'Acme');
   });
 
@@ -1057,5 +1147,24 @@ describe('UserListPage', () => {
     fireEvent.click(emailHeader);
     // No crash, sorting cycles through
     expect(emailHeader).toBeInTheDocument();
+  });
+
+  it('Create company opens the chooser, then the matching add-company modal', () => {
+    render(<UserListPage />);
+    // Chooser is not shown until "Create company" is clicked
+    expect(screen.queryByTestId('create-company-chooser')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('createCompany'));
+    expect(screen.getByTestId('create-company-chooser')).toBeInTheDocument();
+    // Choosing Contractor opens the contractor modal and closes the chooser
+    fireEvent.click(screen.getByTestId('choose-contractor'));
+    expect(screen.queryByTestId('create-company-chooser')).not.toBeInTheDocument();
+    expect(screen.getByTestId('add-contractor-modal')).toBeInTheDocument();
+  });
+
+  it('Create company → Vendor opens the vendor add-company modal', () => {
+    render(<UserListPage />);
+    fireEvent.click(screen.getByText('createCompany'));
+    fireEvent.click(screen.getByTestId('choose-vendor'));
+    expect(screen.getByTestId('add-vendor-modal')).toBeInTheDocument();
   });
 });

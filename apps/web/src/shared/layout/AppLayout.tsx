@@ -3,12 +3,14 @@ import { useAvatarUrl, useProfile } from '@forethread/profile-shared';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import {
   AvatarWithStatus,
+  Breadcrumbs,
   NotificationBell,
-  PageHeader,
   Sidebar,
+  type BreadcrumbItem,
   type WorkStatusType,
 } from '@forethread/ui-components';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
+import HomeIcon from '@forethread/ui-components/assets/icons/home.svg?react';
 import LogoIcon from '@forethread/ui-components/assets/icons/logo.svg?react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
@@ -29,8 +31,7 @@ export function AppLayout() {
   const { data: avatarUrl } = useAvatarUrl();
   const { data: profile } = useProfile();
   const pageTitle = usePageTitleStore((s) => s.title);
-  const pageSubtitle = usePageTitleStore((s) => s.subtitle);
-  const pageBackTo = usePageTitleStore((s) => s.backTo);
+  const pageBreadcrumbs = usePageTitleStore((s) => s.breadcrumbs);
 
   const sidebarItems = getSidebarItemsForRole(role, location.pathname, {
     adminPanel: t('nav:adminPanelNav', { defaultValue: 'Admin panel' }),
@@ -47,6 +48,25 @@ export function AppLayout() {
     settings: t('nav:settings', { defaultValue: 'Settings' }),
   });
 
+  // App-bar breadcrumb trail: a Home root (role landing page) + either the
+  // explicit trail a page provided, or a `Home › {title}` fallback.
+  const homePath = homePathForRole(role);
+  const breadcrumbItems: BreadcrumbItem[] = [
+    {
+      label: t('nav:home', { defaultValue: 'Home' }),
+      icon: <HomeIcon className="size-4 text-gray-700" />,
+      onClick: () => navigate(homePath),
+    },
+    ...(pageBreadcrumbs && pageBreadcrumbs.length > 0
+      ? pageBreadcrumbs.map((c) => ({
+          label: c.label,
+          onClick: c.to ? () => navigate(c.to as string) : undefined,
+        }))
+      : pageTitle
+        ? [{ label: pageTitle }]
+        : []),
+  ];
+
   return (
     <div className="flex min-h-screen bg-background">
       <div className="sticky top-0 h-screen">
@@ -60,19 +80,15 @@ export function AppLayout() {
       </div>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="sticky top-0 z-10 h-16 bg-card border-b border-border flex items-center justify-between px-6">
-          <PageHeader
-            title={pageTitle ?? ''}
-            subtitle={pageSubtitle ?? undefined}
-            onBack={pageBackTo ? () => navigate(pageBackTo) : undefined}
-          />
+        <header className="sticky top-0 z-10 h-16 bg-card border-b border-gray-100 flex items-center justify-between px-6">
+          <Breadcrumbs items={breadcrumbItems} className="min-w-0" />
           <div className="flex items-center gap-2">
             <NotificationBell aria-label={t('nav:notifications')} hasNotifications />
 
             <div className="relative group">
               <button
                 type="button"
-                className="flex h-10 w-[180px] items-center gap-1.5 rounded-xl border border-[rgba(19,19,19,0.2)] px-1 py-0.5 text-sm text-card-foreground transition-colors hover:bg-accent"
+                className="flex h-10 w-[180px] items-center gap-1.5 rounded-xl border border-gray-200 px-1 py-0.5 text-sm text-card-foreground transition-colors hover:bg-gray-50"
               >
                 <span className="flex min-w-0 flex-1 items-center gap-2">
                   <AvatarWithStatus
@@ -85,19 +101,19 @@ export function AppLayout() {
                     {currentUser?.name ?? ''}
                   </span>
                 </span>
-                <ChevronDownIcon className="mr-1.5 h-[18px] w-[18px] shrink-0 text-muted-foreground" />
+                <ChevronDownIcon className="mr-1.5 h-[18px] w-[18px] shrink-0 text-gray-500" />
               </button>
 
               <div className="absolute right-0 pt-1 w-48 hidden group-hover:block z-10">
-                <div className="bg-card border border-border rounded-md shadow-lg">
+                <div className="bg-white border border-gray-100 rounded-[12px] shadow-lg overflow-hidden">
                   <button
                     type="button"
-                    className="w-full text-left px-4 py-2 text-sm text-card-foreground hover:bg-accent"
+                    className="w-full text-left px-4 py-2 text-sm text-card-foreground hover:bg-gray-50"
                     onClick={() => navigate(ROUTES.me)}
                   >
                     {t('auth:myProfile', { defaultValue: 'My profile' })}
                   </button>
-                  <hr className="border-border" />
+                  <hr className="border-gray-100" />
                   <button
                     type="button"
                     className="w-full text-left px-4 py-2 text-sm text-destructive hover:bg-destructive/10"

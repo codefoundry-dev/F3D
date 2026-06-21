@@ -1,5 +1,7 @@
 import { cn } from '../utils/cn';
 
+import { buttonVariants } from './Button';
+
 export interface FilterChipProps {
   label: string;
   active?: boolean;
@@ -13,10 +15,8 @@ export function FilterChip({ label, active, onClick, className }: FilterChipProp
       type="button"
       onClick={onClick}
       className={cn(
-        'h-9 px-3.5 text-sm rounded-xl border whitespace-nowrap transition-colors',
-        active
-          ? 'bg-filter-chip text-filter-chip-foreground border-filter-chip'
-          : 'border-foreground/20 text-foreground hover:bg-accent',
+        buttonVariants({ variant: active ? 'primary' : 'secondary', size: 'md' }),
+        'whitespace-nowrap',
         className,
       )}
     >

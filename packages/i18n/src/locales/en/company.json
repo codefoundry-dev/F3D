@@ -29,9 +29,15 @@
 
   "detailPageTitle": "Company detail page",
   "detailPageSubtitle": "View and manage company information",
+  "companyDetails": "Company details",
+  "breadcrumbUsersManagement": "Users management",
+
+  "usersCount_one": "{{count}} user",
+  "usersCount_other": "{{count}} users",
 
   "tabs": {
     "overview": "Overview",
+    "companyOverview": "Company overview",
     "companyUsers": "Company users",
     "documents": "Documents"
   },
@@ -56,11 +62,15 @@
   "complianceDocuments": "Compliance documents",
   "documentsTitle": "Documents",
   "documentsSubtitle": "Business licenses, certificates, and other documentation",
+  "documentsCountLabel_one": "Total file: {{count}}",
+  "documentsCountLabel_other": "Total file: {{count}}",
+  "downloadAll": "Download all",
   "addDocument": "Add",
   "uploading": "Uploading...",
   "deleteConfirm": "Are you sure you want to delete this document?",
   "noDocuments": "No documents uploaded yet",
   "documentDeleted": "Document deleted successfully",
+  "viewDocument": "View",
   "downloadDocument": "Download",
 
   "logoInvalidFormat": "Invalid file format. Please upload a JPG, PNG, WebP, or SVG image.",

@@ -4,15 +4,20 @@ import {
   reactivateUser as reactivateUserApi,
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { UserStatus } from '@forethread/shared-types/client';
+import { usePageTitleStore } from '@forethread/rfq-shared';
+import { CompanyType, UserRole, UserStatus } from '@forethread/shared-types/client';
 import {
   cn,
   Button,
   Spinner,
+  Tabs,
   TablePagination,
   EmptyState,
+  EmptyBoxIllustration,
+  SearchEmptyIllustration,
   DotActionsMenu,
   FilterPopover,
+  FilterTag,
   SortIcon,
   SearchInput,
   useDebounce,
@@ -21,12 +26,18 @@ import {
   ResetPasswordSuccessModal,
   notificationService,
   type DotAction,
+  type TabItem,
 } from '@forethread/ui-components';
 import ChevronRightIcon from '@forethread/ui-components/assets/icons/chevron-right.svg?react';
+import ClockIcon from '@forethread/ui-components/assets/icons/clock.svg?react';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
+import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
+import DepartmentIcon from '@forethread/ui-components/assets/icons/department.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import NewUserIcon from '@forethread/ui-components/assets/icons/new-user.svg?react';
+import SuppliersIcon from '@forethread/ui-components/assets/icons/suppliers.svg?react';
+import UsersGroupIcon from '@forethread/ui-components/assets/icons/users-group.svg?react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -34,6 +45,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ROUTES } from '@/app/route-config';
 import { useCompanies } from '@/features/companies/services/companies.service';
 
+import { RoleBadge, StatusBadge } from '../../shared/userBadges';
 import { TABS, PAGE_SIZE_OPTIONS, type SortField } from '../constants';
 import { ALL_ROLE_OPTIONS } from '../constants/roles';
 import { useGroupedUsers } from '../hooks/useGroupedUsers';
@@ -52,7 +64,21 @@ import { ActionLogTab } from './ActionLogTab';
 import { CreateUserModal } from './CreateUserModal';
 import { DateRangeFilterPopover } from './DateRangeFilterPopover';
 import { EditUserModal } from './EditUserModal';
+import { AddContractorCompanyModal } from './modals/AddContractorCompanyModal';
+import { AddVendorCompanyModal } from './modals/AddVendorCompanyModal';
+import { CreateCompanyChooserModal } from './modals/CreateCompanyChooserModal';
 import { EditCompanyModal } from './modals/EditCompanyModal';
+
+/* ── Shared design-system control styles ── */
+/** 28px gradient-white bordered icon button (row-level actions). */
+const ICON_BTN_28 =
+  'flex size-7 shrink-0 items-center justify-center rounded-[8px] border border-gray-100 bg-gradient-to-b from-[#F9F9FA] to-white text-gray-600 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)] transition-colors hover:bg-none hover:bg-gray-50 hover:text-gray-900';
+/** 34px ghost icon button (company-card header actions). */
+const ICON_BTN_34 =
+  'flex size-[34px] shrink-0 items-center justify-center rounded-[12px] text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900';
+/** Gradient-white count pill (e.g. "N users"). */
+const COUNT_PILL =
+  'inline-flex h-6 items-center rounded-[8px] border border-gray-100 bg-gradient-to-b from-[#F9F9FA] to-white px-[7px] text-xs font-medium text-gray-700 shadow-[0_1px_3px_0_rgba(10,13,18,0.06),0_1px_1px_0_rgba(10,13,18,0.02)]';
 
 export default function UserListPage() {
   const { t } = useTranslation(['users', 'common']);
@@ -61,16 +87,23 @@ export default function UserListPage() {
   const tabParam = searchParams.get('tab') as (typeof TABS)[number] | null;
   const activeTab =
     tabParam && (TABS as readonly string[]).includes(tabParam) ? tabParam : 'platformUsers';
-  const setActiveTab = useCallback(
-    (tab: (typeof TABS)[number]) => setSearchParams({ tab }, { replace: true }),
-    [setSearchParams],
-  );
+
   // ── Local state ──
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search);
   const { sortField, sortDir, handleSort: onSort } = useUserSort();
+  const [isCreateCompanyOpen, setIsCreateCompanyOpen] = useState(false);
+  const [createCompanyType, setCreateCompanyType] = useState<CompanyType | null>(null);
+
+  const setActiveTab = useCallback(
+    (tab: (typeof TABS)[number]) => {
+      setSearchParams({ tab }, { replace: true });
+      setPage(1);
+    },
+    [setSearchParams],
+  );
 
   // Filter state
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
@@ -83,6 +116,12 @@ export default function UserListPage() {
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch]);
+
+  // App-bar breadcrumb / page title
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(t('userManagement'), null, null, [{ label: t('userManagement') }]);
+  }, [setPageTitle, t]);
 
   // ── Store ──
   const {
@@ -132,12 +171,20 @@ export default function UserListPage() {
   const cancelInvitationMutation = useCancelInvitation();
   const resetPasswordMutation = useInitiateResetPassword();
 
+  // The Vendors tab is the platform-users view scoped to the VENDOR role.
+  const isVendorsTab = activeTab === 'vendors';
+  const isTableTab = activeTab === 'platformUsers' || activeTab === 'vendors';
+
   // ── Queries ──
   const { data, isLoading, isError } = useUsers({
     page,
     limit: pageSize,
     search: debouncedSearch || undefined,
-    role: selectedRoles.length ? selectedRoles.join(',') : undefined,
+    role: isVendorsTab
+      ? UserRole.VENDOR
+      : selectedRoles.length
+        ? selectedRoles.join(',')
+        : undefined,
     status: selectedStatuses.length ? selectedStatuses.join(',') : undefined,
     companyId: selectedCompanies.length ? selectedCompanies.join(',') : undefined,
     dateFrom: dateFrom || undefined,
@@ -149,6 +196,16 @@ export default function UserListPage() {
   const { data: companiesData } = useCompanies({ limit: 100 });
 
   const groups = useGroupedUsers(data?.items, companiesData?.items);
+
+  const total = data?.meta.total ?? 0;
+  const hasActiveFilters = Boolean(
+    debouncedSearch ||
+      selectedCompanies.length ||
+      selectedStatuses.length ||
+      (!isVendorsTab && selectedRoles.length) ||
+      dateFrom ||
+      dateTo,
+  );
 
   // ── Handlers ──
   const handleSort = (field: SortField) => {
@@ -318,213 +375,288 @@ export default function UserListPage() {
     label: String(t(`roles.${role}` as 'roles.COMPANY_ADMIN')),
   }));
 
-  const sortableColumns: { field: SortField; label: string }[] = [
-    { field: 'name', label: t('columns.fullName') },
-    { field: 'email', label: t('columns.email') },
-    { field: 'phone', label: t('columns.phone') },
-    { field: 'role', label: t('columns.role') },
-    { field: 'status', label: t('columns.status') },
-    { field: 'dateJoined', label: t('columns.dateJoined') },
+  // ── Active-filter chips + toolbar summary (shown when filters are applied) ──
+  const formatChipDate = (value: string) =>
+    new Date(value).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
+  const dateChipLabel =
+    dateFrom && dateTo
+      ? `${formatChipDate(dateFrom)} - ${formatChipDate(dateTo)}`
+      : dateFrom
+        ? `${t('filters.from')}: ${formatChipDate(dateFrom)}`
+        : dateTo
+          ? `${t('filters.to')}: ${formatChipDate(dateTo)}`
+          : '';
+
+  const activeFilterChips: { key: string; label: string; onRemove: () => void }[] = [
+    ...selectedStatuses.map((value) => ({
+      key: `status-${value}`,
+      label: statusOptions.find((o) => (o.value as string) === value)?.label ?? value,
+      onRemove: () => {
+        setSelectedStatuses((prev) => prev.filter((v) => v !== value));
+        setPage(1);
+      },
+    })),
+    ...(isVendorsTab
+      ? []
+      : selectedRoles.map((value) => ({
+          key: `role-${value}`,
+          label: roleOptions.find((o) => (o.value as string) === value)?.label ?? value,
+          onRemove: () => {
+            setSelectedRoles((prev) => prev.filter((v) => v !== value));
+            setPage(1);
+          },
+        }))),
+    ...selectedCompanies.map((value) => ({
+      key: `company-${value}`,
+      label: companyOptions.find((o) => o.value === value)?.label ?? value,
+      onRemove: () => {
+        setSelectedCompanies((prev) => prev.filter((v) => v !== value));
+        setPage(1);
+      },
+    })),
+    ...(dateFrom || dateTo
+      ? [
+          {
+            key: 'date-range',
+            label: dateChipLabel,
+            onRemove: () => {
+              setDateFrom('');
+              setDateTo('');
+              setPage(1);
+            },
+          },
+        ]
+      : []),
+  ];
+
+  const handleClearAllFilters = () => {
+    setSelectedStatuses([]);
+    setSelectedRoles([]);
+    setSelectedCompanies([]);
+    setDateFrom('');
+    setDateTo('');
+    setSearch('');
+    setPage(1);
+  };
+
+  // Toolbar summary text: search query → "Searching result: N"; other filters →
+  // "Showing N users"; otherwise the resting "Total users: N".
+  const countLabel = debouncedSearch
+    ? t('searchingResultLabel', { total })
+    : hasActiveFilters
+      ? t('showingUsersLabel', { total })
+      : t('totalUsersLabel', { total });
+
+  const tabItems: TabItem<(typeof TABS)[number]>[] = [
+    {
+      value: 'platformUsers',
+      label: t('tabs.platformUsers'),
+      icon: <UsersGroupIcon className="size-[18px]" />,
+    },
+    { value: 'vendors', label: t('tabs.vendors'), icon: <SuppliersIcon className="size-[18px]" /> },
+    { value: 'actionLog', label: t('tabs.actionLog'), icon: <ClockIcon className="size-[18px]" /> },
   ];
 
   return (
-    <div className="flex flex-col gap-6 p-4">
-      {/* ── Tabs ── */}
-      <div className="flex items-start border-b border-[#D2D5DB]">
-        {TABS.map((tab) => {
-          const isActive = activeTab === tab;
-          return (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={cn(
-                '-mb-px border-b-2 p-3 text-lg font-medium leading-4 transition-colors',
-                isActive
-                  ? 'border-foreground text-foreground'
-                  : 'border-transparent text-[#6D7588] hover:text-foreground',
-              )}
-            >
-              {t(`tabs.${tab}` as 'tabs.platformUsers')}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── Platform users tab ── */}
-      {activeTab === 'platformUsers' && (
-        <div className="bg-card rounded-lg border border-border">
-          {/* Toolbar: search + filters + invite */}
-          <div className="flex items-center gap-3 px-4 pt-4 pb-4 flex-wrap">
-            {/* Search */}
-            <SearchInput
-              className="flex-1 min-w-48 max-w-[450px]"
-              iconClassName="text-foreground"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t('searchPlaceholder')}
-            />
-
-            {/* Filters */}
-            <FilterPopover
-              label={t('filters.company')}
-              popoverTitle={t('filters.company')}
-              searchable
-              searchPlaceholder={t('filters.searchCompany')}
-              clearLabel={t('filters.clear')}
-              options={companyOptions}
-              selected={selectedCompanies}
-              onChange={(v) => {
-                setSelectedCompanies(v);
-                setPage(1);
-              }}
-            />
-            <FilterPopover
-              label={t('filters.status')}
-              popoverTitle={t('filters.status')}
-              clearLabel={t('filters.clear')}
-              options={statusOptions}
-              selected={selectedStatuses}
-              onChange={(v) => {
-                setSelectedStatuses(v);
-                setPage(1);
-              }}
-            />
-            <FilterPopover
-              label={t('filters.role')}
-              popoverTitle={t('filters.role')}
-              clearLabel={t('filters.clear')}
-              options={roleOptions}
-              selected={selectedRoles}
-              onChange={(v) => {
-                setSelectedRoles(v);
-                setPage(1);
-              }}
-            />
-            <DateRangeFilterPopover
-              label={t('filters.date')}
-              popoverTitle={t('filters.date')}
-              clearLabel={t('filters.clear')}
-              dateFrom={dateFrom}
-              dateTo={dateTo}
-              fromPlaceholder={t('filters.from')}
-              toPlaceholder={t('filters.to')}
-              onChangeFrom={(d) => {
-                setDateFrom(d);
-                setPage(1);
-              }}
-              onChangeTo={(d) => {
-                setDateTo(d);
-                setPage(1);
-              }}
-              onClear={() => {
-                setDateFrom('');
-                setDateTo('');
-                setPage(1);
-              }}
-            />
-
-            {/* Invite button */}
-            <Button onClick={openCreateModal} className="gap-2 ml-auto">
-              <NewUserIcon className="w-4 h-4" />
+    <div className="flex flex-1 flex-col gap-3 px-6 py-4">
+      {/* ── Page header + tabs ── */}
+      <div className="flex flex-col gap-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-[8px] border border-gray-100 bg-gradient-to-b from-[#F9F9FA] to-white p-px text-gray-700 shadow-[0_1px_3px_0_rgba(10,13,18,0.06),0_1px_1px_0_rgba(10,13,18,0.02)]">
+              <UsersGroupIcon className="size-[15px]" />
+            </span>
+            <h1 className="text-[20px] font-medium leading-[1.4] tracking-[0.3px] text-gray-900">
+              {t('userManagement')}
+            </h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={openCreateModal} leftIcon={<NewUserIcon className="size-4" />}>
               {t('inviteUser')}
             </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setIsCreateCompanyOpen(true)}
+              leftIcon={<DepartmentIcon className="size-4" />}
+            >
+              {t('createCompany')}
+            </Button>
+          </div>
+        </div>
+
+        <Tabs items={tabItems} value={activeTab} onValueChange={setActiveTab} />
+      </div>
+
+      {/* ── Action Log tab ── */}
+      {activeTab === 'actionLog' && <ActionLogTab />}
+
+      {/* ── Platform users / Vendors tab ── */}
+      {isTableTab && (
+        <div className="flex flex-1 flex-col gap-4 rounded-[18px] border border-gray-100 bg-[#F9F9FA] p-3 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
+          {/* Toolbar */}
+          <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-2">
+            {/* Left: result count, Clear all, and active-filter chips */}
+            <div className="flex min-h-[34px] min-w-0 flex-1 flex-wrap items-center gap-2 px-2">
+              <p className="text-sm font-medium leading-[1.4] tracking-[0.3px] text-gray-700">
+                {countLabel}
+              </p>
+              {hasActiveFilters && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  rightIcon={<CrossIcon className="size-3.5" />}
+                  onClick={handleClearAllFilters}
+                >
+                  {t('filters.clearAll')}
+                </Button>
+              )}
+              {activeFilterChips.map((chip) => (
+                <FilterTag
+                  key={chip.key}
+                  label={chip.label}
+                  onRemove={chip.onRemove}
+                  removeLabel={t('filters.removeFilter', { label: chip.label })}
+                />
+              ))}
+            </div>
+            {/* Right: filter dropdowns + search */}
+            <div className="flex min-h-[34px] flex-wrap items-center justify-end gap-2">
+              <FilterPopover
+                label={t('filters.status')}
+                popoverTitle={t('filters.status')}
+                clearLabel={t('filters.clear')}
+                options={statusOptions}
+                selected={selectedStatuses}
+                onChange={(v) => {
+                  setSelectedStatuses(v);
+                  setPage(1);
+                }}
+              />
+              {!isVendorsTab && (
+                <FilterPopover
+                  label={t('filters.role')}
+                  popoverTitle={t('filters.role')}
+                  clearLabel={t('filters.clear')}
+                  options={roleOptions}
+                  selected={selectedRoles}
+                  onChange={(v) => {
+                    setSelectedRoles(v);
+                    setPage(1);
+                  }}
+                />
+              )}
+              <FilterPopover
+                label={t('filters.company')}
+                popoverTitle={t('filters.company')}
+                searchable
+                searchPlaceholder={t('filters.searchCompany')}
+                clearLabel={t('filters.clear')}
+                options={companyOptions}
+                selected={selectedCompanies}
+                onChange={(v) => {
+                  setSelectedCompanies(v);
+                  setPage(1);
+                }}
+              />
+              <DateRangeFilterPopover
+                label={t('filters.date')}
+                popoverTitle={t('filters.date')}
+                clearLabel={t('filters.clear')}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                fromPlaceholder={t('filters.from')}
+                toPlaceholder={t('filters.to')}
+                onChangeFrom={(d) => {
+                  setDateFrom(d);
+                  setPage(1);
+                }}
+                onChangeTo={(d) => {
+                  setDateTo(d);
+                  setPage(1);
+                }}
+                onClear={() => {
+                  setDateFrom('');
+                  setDateTo('');
+                  setPage(1);
+                }}
+              />
+              <SearchInput
+                className="w-[220px]"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t('searchPlaceholder')}
+              />
+            </div>
           </div>
 
-          {/* ── Table ── */}
+          {/* Content */}
           {isLoading ? (
-            <div className="flex items-center justify-center h-48">
+            <div className="flex h-48 items-center justify-center">
               <Spinner size="md" />
             </div>
           ) : isError ? (
-            <div className="flex items-center justify-center h-48 text-destructive text-sm">
+            <div className="flex h-48 items-center justify-center text-sm text-destructive">
               {t('failedToLoad')}
             </div>
-          ) : !data?.items.length ? (
-            <div className="py-12">
-              <EmptyState
-                title={t('noUsersFound')}
-                description={
-                  debouncedSearch ||
-                  selectedCompanies.length ||
-                  selectedStatuses.length ||
-                  selectedRoles.length ||
-                  dateFrom ||
-                  dateTo
-                    ? t('adjustFilters')
-                    : t('createFirstUser')
-                }
-              />
+          ) : total === 0 ? (
+            <div className="flex flex-1 items-center justify-center rounded-[10px] border border-gray-100 bg-white shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
+              {hasActiveFilters ? (
+                <EmptyState
+                  illustration={<SearchEmptyIllustration />}
+                  titleClassName="text-[24px]"
+                  title={t('noResultsTitle')}
+                  description={
+                    debouncedSearch
+                      ? t('noResultsDescriptionQuery', { query: debouncedSearch })
+                      : t('noResultsDescription')
+                  }
+                />
+              ) : (
+                <EmptyState
+                  illustration={<EmptyBoxIllustration />}
+                  title={t('noUsersFound')}
+                  description={t('emptyDescription')}
+                />
+              )}
             </div>
           ) : (
-            <>
-              <div className="mx-4 mb-4 border border-border rounded-lg overflow-x-auto">
-                <table className="w-full min-w-[900px] text-sm table-fixed">
-                  {/* Column headers */}
-                  <thead>
-                    <tr className="border-b border-border bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
-                      {/* Expand/collapse spacer */}
-                      <th className="w-10" />
-                      {sortableColumns.map((col) => (
-                        <th
-                          key={col.field}
-                          className="px-4 py-3 text-left text-xs font-bold leading-4 tracking-[0.6px] cursor-pointer select-none transition-colors"
-                          onClick={() => handleSort(col.field)}
-                        >
-                          <span className="flex items-center justify-between w-full">
-                            {col.label}
-                            <SortIcon
-                              active={sortField === col.field}
-                              direction={sortField === col.field ? sortDir : null}
-                            />
-                          </span>
-                        </th>
-                      ))}
-                      <th className="w-[120px] px-4 py-3 text-right text-xs font-bold leading-4 tracking-[0.6px]">
-                        {t('columns.actions')}
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {groups.map((group) => {
-                      const isExpanded = expandedCompanyIds.includes(group.companyId);
-                      return (
-                        <CompanySection
-                          key={group.companyId}
-                          companyId={group.companyId}
-                          companyName={group.companyName}
-                          userCount={group.users.length}
-                          isExpanded={isExpanded}
-                          onToggle={() => toggleCompany(group.companyId)}
-                          onEditCompany={() =>
-                            openEditCompanyModal(group.companyId, group.companyName)
-                          }
-                          companyActions={getCompanyActions(
-                            group.companyId,
-                            group.companyName,
-                            group.users,
-                          )}
-                        >
-                          {isExpanded &&
-                            group.users.map((user) => (
-                              <UserRow
-                                key={user.id}
-                                user={user}
-                                actions={getRowActions(user)}
-                                onView={() => navigate(ROUTES.userDetail.replace(':id', user.id))}
-                                onEdit={() => openEditModal(user.id)}
-                              />
-                            ))}
-                        </CompanySection>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+            <div className="flex flex-1 flex-col gap-1.5">
+              {groups.map((group) => (
+                <CompanyCard
+                  key={group.companyId}
+                  companyId={group.companyId}
+                  companyName={group.companyName}
+                  userCount={group.users.length}
+                  isExpanded={expandedCompanyIds.includes(group.companyId)}
+                  onToggle={() => toggleCompany(group.companyId)}
+                  onViewCompany={() =>
+                    navigate(ROUTES.companyDetail.replace(':id', group.companyId))
+                  }
+                  companyActions={getCompanyActions(
+                    group.companyId,
+                    group.companyName,
+                    group.users,
+                  )}
+                >
+                  <UserTable
+                    users={group.users}
+                    sortField={sortField}
+                    sortDir={sortDir}
+                    onSort={handleSort}
+                    getRowActions={getRowActions}
+                    onView={(id) => navigate(ROUTES.userDetail.replace(':id', id))}
+                    onEdit={(id) => openEditModal(id)}
+                  />
+                </CompanyCard>
+              ))}
 
               {data && data.meta.total > 10 && (
-                <div className="px-4">
+                <div className="pt-1">
                   <TablePagination
                     page={data.meta.page}
                     totalItems={data.meta.total}
@@ -533,26 +665,57 @@ export default function UserListPage() {
                     onPageChange={setPage}
                     onPageSizeChange={setPageSize}
                     rowsPerPageLabel={t('common:rowsPerPage')}
-                    showingLabel={({ from, to, total }) =>
-                      t('common:showingItems', { from, to, total })
+                    showingLabel={({ from, to, total: tot }) =>
+                      t('common:showingItems', { from, to, total: tot })
                     }
                     backLabel={t('common:back')}
                     nextLabel={t('common:next')}
                   />
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
       )}
-
-      {/* ── Action Log ── */}
-      {activeTab === 'actionLog' && <ActionLogTab />}
 
       {/* ── Modals ── */}
       {isCreateModalOpen && <CreateUserModal onClose={closeCreateModal} />}
       {isEditModalOpen && <EditUserModal onClose={closeEditModal} />}
       {isEditCompanyModalOpen && <EditCompanyModal />}
+      {/* Create company: pick a company type, then open the matching Add modal */}
+      {isCreateCompanyOpen && (
+        <CreateCompanyChooserModal
+          onClose={() => setIsCreateCompanyOpen(false)}
+          onSelect={(type) => {
+            setIsCreateCompanyOpen(false);
+            setCreateCompanyType(type);
+          }}
+        />
+      )}
+      {createCompanyType === CompanyType.CONTRACTOR && (
+        <AddContractorCompanyModal
+          onClose={() => setCreateCompanyType(null)}
+          onSuccess={() => {
+            setCreateCompanyType(null);
+            void queryClient.invalidateQueries({ queryKey: ['companies'] });
+            notificationService.success(
+              t('addCompanyModal.createSuccess', 'Company created successfully'),
+            );
+          }}
+        />
+      )}
+      {createCompanyType === CompanyType.VENDOR && (
+        <AddVendorCompanyModal
+          onClose={() => setCreateCompanyType(null)}
+          onSuccess={() => {
+            setCreateCompanyType(null);
+            void queryClient.invalidateQueries({ queryKey: ['companies'] });
+            notificationService.success(
+              t('addCompanyModal.createSuccess', 'Company created successfully'),
+            );
+          }}
+        />
+      )}
 
       {/* Status Action Modal (activate/deactivate) */}
       {isStatusActionModalOpen && statusActionType && (
@@ -581,7 +744,7 @@ export default function UserListPage() {
           variant={statusActionType === 'deactivate' ? 'danger' : 'default'}
           icon={
             statusActionType === 'deactivate' ? (
-              <CrossInCircleIcon className="w-6 h-6 text-foreground" />
+              <CrossInCircleIcon className="h-6 w-6 text-foreground" />
             ) : undefined
           }
         />
@@ -672,7 +835,7 @@ export default function UserListPage() {
           variant={bulkActionType === 'deactivate' ? 'danger' : 'default'}
           icon={
             bulkActionType === 'deactivate' ? (
-              <CrossInCircleIcon className="w-6 h-6 text-foreground" />
+              <CrossInCircleIcon className="h-6 w-6 text-foreground" />
             ) : undefined
           }
         />
@@ -700,88 +863,171 @@ export default function UserListPage() {
           confirmLabel={t('cancelInvitationModal.confirm')}
           cancelLabel={t('common:cancel')}
           variant="danger"
-          icon={<CrossInCircleIcon className="w-6 h-6 text-foreground" />}
+          icon={<CrossInCircleIcon className="h-6 w-6 text-foreground" />}
         />
       )}
     </div>
   );
 }
 
-/* ── Company group header + children rows ── */
-interface CompanySectionProps {
+/* ── Company group card (header + expandable user table) ── */
+interface CompanyCardProps {
   companyId: string;
   companyName: string;
   userCount: number;
   isExpanded: boolean;
   onToggle: () => void;
-  onEditCompany: () => void;
+  onViewCompany: () => void;
   companyActions: DotAction[];
   children: React.ReactNode;
 }
 
-function CompanySection({
-  companyId,
+function CompanyCard({
   companyName,
   userCount,
   isExpanded,
   onToggle,
-  onEditCompany,
+  onViewCompany,
   companyActions,
   children,
-}: CompanySectionProps) {
+}: CompanyCardProps) {
   const { t } = useTranslation('users');
-  const navigate = useNavigate();
+  const initial = companyName.trim().charAt(0).toUpperCase() || '?';
 
   return (
-    <>
-      {/* Company header row */}
-      <tr
-        className="border-b border-border last:border-b-0 bg-muted/50 cursor-pointer hover:bg-muted transition-colors"
+    <div className="overflow-hidden rounded-[10px] border border-gray-100 bg-white shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
+      {/* Header (clickable to expand/collapse) */}
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+      <div
+        className="flex cursor-pointer items-center gap-4 p-1.5"
         onClick={onToggle}
+        aria-expanded={isExpanded}
       >
-        <td className="px-3 py-3">
+        <span className={ICON_BTN_34}>
           <ChevronRightIcon
-            className={cn(
-              'w-4 h-4 text-muted-foreground transition-transform',
-              isExpanded && 'rotate-90',
-            )}
+            className={cn('size-4 transition-transform', isExpanded && 'rotate-90')}
           />
-        </td>
-        <td colSpan={6} className="px-4 py-3">
-          <span className="font-['Arial'] font-normal text-sm leading-5 text-foreground">
-            {companyName}
-          </span>
-          <span className="ml-2 text-xs text-muted-foreground">
-            ({t('groupedTable.users', { count: userCount })})
-          </span>
-        </td>
-        <td className="px-4 py-3">
-          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
-          <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-              aria-label="View company"
-              onClick={() => navigate(ROUTES.companyDetail.replace(':id', companyId))}
-            >
-              <EyeIcon className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-              aria-label="Edit company"
-              onClick={onEditCompany}
-            >
-              <EditIcon className="w-4 h-4" />
-            </button>
-            <DotActionsMenu actions={companyActions} bordered={false} />
-          </div>
-        </td>
-      </tr>
+        </span>
 
-      {/* User rows */}
-      {children}
-    </>
+        <div className="flex flex-1 items-center gap-4">
+          <div className="flex items-center gap-2.5">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-white bg-gray-100 text-xs font-semibold text-gray-600 shadow-[0_1px_2px_0_rgba(10,13,18,0.06)]">
+              {initial}
+            </span>
+            <span className="text-sm font-semibold text-gray-900">{companyName}</span>
+          </div>
+          <span className={COUNT_PILL}>{t('groupedTable.users', { count: userCount })}</span>
+        </div>
+
+        {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+        <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={onViewCompany}
+            aria-label="View company"
+            className={ICON_BTN_34}
+          >
+            <EyeIcon className="size-4" />
+          </button>
+          <DotActionsMenu
+            actions={companyActions}
+            bordered={false}
+            triggerClassName={ICON_BTN_34}
+          />
+        </div>
+      </div>
+
+      {/* Expanded user table */}
+      {isExpanded && userCount > 0 && children}
+      {isExpanded && userCount === 0 && (
+        <p className="border-t border-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+          {t('groupedTable.noUsersInCompany', 'No users in this company yet.')}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ── User table (header + rows) inside a company card ── */
+interface UserTableProps {
+  users: UserResponse[];
+  sortField: SortField | null;
+  sortDir: 'asc' | 'desc' | null;
+  onSort: (field: SortField) => void;
+  getRowActions: (user: UserResponse) => DotAction[];
+  onView: (id: string) => void;
+  onEdit: (id: string) => void;
+}
+
+function UserTable({
+  users,
+  sortField,
+  sortDir,
+  onSort,
+  getRowActions,
+  onView,
+  onEdit,
+}: UserTableProps) {
+  const { t } = useTranslation('users');
+
+  const columns: { field: SortField; label: string }[] = [
+    { field: 'name', label: t('columns.fullName') },
+    { field: 'email', label: t('columns.email') },
+    { field: 'phone', label: t('columns.phone') },
+    { field: 'role', label: t('columns.role') },
+    { field: 'status', label: t('columns.status') },
+    { field: 'dateJoined', label: t('columns.dateJoined') },
+  ];
+
+  return (
+    <div className="border-t border-gray-50 p-2">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[860px] table-fixed border-collapse text-sm">
+          <colgroup>
+            <col />
+            <col className="w-[190px]" />
+            <col className="w-[150px]" />
+            <col className="w-[180px]" />
+            <col className="w-[128px]" />
+            <col className="w-[120px]" />
+            <col className="w-[104px]" />
+          </colgroup>
+          <thead>
+            <tr className="border-b border-gray-100 bg-[#F9F9FA]">
+              {columns.map((col) => (
+                <th key={col.field} className="h-9 px-2 text-left align-middle">
+                  <button
+                    type="button"
+                    onClick={() => onSort(col.field)}
+                    className="inline-flex items-center gap-1 px-1 font-semibold text-gray-500 transition-colors hover:text-gray-700"
+                  >
+                    {col.label}
+                    <SortIcon
+                      active={sortField === col.field}
+                      direction={sortField === col.field ? sortDir : null}
+                    />
+                  </button>
+                </th>
+              ))}
+              <th className="h-9 px-2 text-left align-middle">
+                <span className="px-1 font-semibold text-gray-500">{t('columns.actions')}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <UserRow
+                key={user.id}
+                user={user}
+                actions={getRowActions(user)}
+                onView={() => onView(user.id)}
+                onEdit={() => onEdit(user.id)}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -804,45 +1050,39 @@ function UserRow({ user, actions, onView, onEdit }: UserRowProps) {
     });
 
   return (
-    <tr className="border-b border-border last:border-b-0 hover:bg-accent/50 transition-colors">
-      {/* Spacer for indent */}
-      <td />
-      <td className="px-4 py-3 text-foreground">{user.name}</td>
-      <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
-      <td className="px-4 py-3 text-muted-foreground">{user.phone ?? '—'}</td>
-      <td className="px-4 py-3">
-        <span className="inline-flex items-center rounded-full bg-[hsl(var(--badge-neutral))] px-2 py-1 text-xs text-[hsl(var(--badge-neutral-text))]">
-          {t(`roles.${user.role}` as 'roles.COMPANY_ADMIN')}
+    <tr className="border-b border-gray-50 transition-colors last:border-0 hover:bg-gray-25">
+      <td className="h-[46px] px-2 align-middle">
+        <span className="block truncate px-1 font-medium text-gray-800">{user.name}</span>
+      </td>
+      <td className="px-2 align-middle">
+        <span className="block truncate px-1 font-medium text-gray-800">{user.email}</span>
+      </td>
+      <td className="px-2 align-middle">
+        <span className="block truncate px-1 font-medium text-gray-800">{user.phone ?? '—'}</span>
+      </td>
+      <td className="px-2 align-middle">
+        <RoleBadge role={user.role} label={t(`roles.${user.role}` as 'roles.COMPANY_ADMIN')} />
+      </td>
+      <td className="px-2 align-middle">
+        <StatusBadge
+          status={user.status}
+          label={t(`statuses.${user.status}` as 'statuses.ACTIVE')}
+        />
+      </td>
+      <td className="px-2 align-middle">
+        <span className="block truncate px-1 font-medium text-gray-800">
+          {formatDate(user.createdAt)}
         </span>
       </td>
-      <td className="px-4 py-3">
-        <span className="inline-flex items-center rounded-full border border-border bg-secondary px-2 py-1 text-xs text-[hsl(var(--badge-neutral-text))]">
-          {t(`statuses.${user.status}` as 'statuses.ACTIVE')}
-        </span>
-      </td>
-      <td className="px-4 py-3 text-muted-foreground text-sm">{formatDate(user.createdAt)}</td>
-      <td className="px-4 py-3">
-        <div className="flex items-center justify-end gap-1">
-          <button
-            type="button"
-            className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="View"
-            onClick={onView}
-          >
-            <EyeIcon className="w-4 h-4" />
+      <td className="px-2 align-middle">
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={onView} aria-label="View" className={ICON_BTN_28}>
+            <EyeIcon className="size-3.5" />
           </button>
-          <button
-            type="button"
-            className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Edit"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit();
-            }}
-          >
-            <EditIcon className="w-4 h-4" />
+          <button type="button" onClick={onEdit} aria-label="Edit" className={ICON_BTN_28}>
+            <EditIcon className="size-3.5" />
           </button>
-          <DotActionsMenu actions={actions} bordered={false} />
+          <DotActionsMenu actions={actions} bordered={false} triggerClassName={ICON_BTN_28} />
         </div>
       </td>
     </tr>

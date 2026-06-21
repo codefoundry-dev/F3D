@@ -2,11 +2,11 @@ import type { UserResponse } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { CompanyType, UserStatus } from '@forethread/shared-types/client';
 import {
-  cn,
   Button,
   Spinner,
   TablePagination,
   EmptyState,
+  EmptyBoxIllustration,
   DotActionsMenu,
   SortIcon,
   StatusActionModal,
@@ -22,6 +22,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { RoleBadge, StatusBadge } from '@/features/users/shared/userBadges';
 import {
   useUsers,
   useDeactivateUser,
@@ -37,6 +38,10 @@ import { EditUserModal } from '../../users/super-admin/ui/EditUserModal';
 
 type SortField = 'name' | 'email' | 'phone' | 'role' | 'status';
 type SortDir = 'asc' | 'desc';
+
+/** 28px gradient-white bordered icon button (row-level actions) — matches the anchor. */
+const ICON_BTN_28 =
+  'flex size-7 shrink-0 items-center justify-center rounded-[8px] border border-gray-100 bg-gradient-to-b from-[#F9F9FA] to-white text-gray-600 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)] transition-colors hover:bg-none hover:bg-gray-50 hover:text-gray-900';
 
 interface CompanyUsersTabProps {
   companyId: string;
@@ -195,101 +200,114 @@ export function CompanyUsersTab({ companyId, companyName, companyType }: Company
     <>
       {/* Heading + Invite user button */}
       <div className="flex items-center justify-between pb-4">
-        <h3 className="text-base font-semibold text-foreground">
-          {t('company:companyUsersTitle')}
-        </h3>
-        <Button onClick={openCreateModal} className="gap-2">
-          <NewUserIcon className="w-4 h-4" />
+        <h3 className="text-base font-semibold text-gray-900">{t('company:companyUsersTitle')}</h3>
+        <Button onClick={openCreateModal} leftIcon={<NewUserIcon className="size-4" />}>
           {t('inviteUser')}
         </Button>
       </div>
 
       {/* Table */}
       {isLoading ? (
-        <div className="flex items-center justify-center h-48">
+        <div className="flex h-48 items-center justify-center">
           <Spinner size="md" />
         </div>
       ) : isError ? (
-        <div className="flex items-center justify-center h-48 text-destructive text-sm">
+        <div className="flex h-48 items-center justify-center text-sm text-destructive">
           {t('failedToLoad')}
         </div>
       ) : !data?.items.length ? (
-        <div className="py-12">
-          <EmptyState title={t('noUsersFound')} description={t('createFirstUser')} />
+        <div className="flex items-center justify-center rounded-[10px] border border-gray-100 bg-white py-6 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
+          <EmptyState
+            illustration={<EmptyBoxIllustration />}
+            title={t('noUsersFound')}
+            description={t('createFirstUser')}
+          />
         </div>
       ) : (
-        <div className="border border-border rounded-lg overflow-x-auto">
-          <table className="w-full min-w-[800px] text-sm table-fixed">
+        <div className="overflow-x-auto rounded-[12px] border border-gray-100">
+          <table className="w-full min-w-[800px] table-fixed border-collapse text-sm">
             <thead>
-              <tr className="border-b border-border bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
+              <tr className="border-b border-gray-100 bg-[#F9F9FA]">
                 {sortableColumns.map((col) => (
-                  <th
-                    key={col.field}
-                    className={cn(
-                      'px-4 py-3 text-left text-xs font-bold leading-4 tracking-[0.6px] cursor-pointer select-none transition-colors',
-                      col.className,
-                    )}
-                    onClick={() => handleSort(col.field)}
-                  >
-                    <span className="flex items-center justify-between w-full">
+                  <th key={col.field} className="h-9 px-3 text-left align-middle">
+                    <button
+                      type="button"
+                      onClick={() => handleSort(col.field)}
+                      className="inline-flex items-center gap-1 font-semibold text-gray-500 transition-colors hover:text-gray-700"
+                    >
                       {col.label}
                       <SortIcon
                         active={sortField === col.field}
                         direction={sortField === col.field ? sortDir : null}
                       />
-                    </span>
+                    </button>
                   </th>
                 ))}
-                <th className="px-4 py-3 text-left text-xs font-bold leading-4 tracking-[0.6px]">
-                  <span className="flex items-center justify-between w-full">
+                <th className="h-9 px-3 text-left align-middle">
+                  <span className="inline-flex items-center gap-1 font-semibold text-gray-500">
                     {t('columns.dateJoined')}
                     <SortIcon />
                   </span>
                 </th>
-                <th className="w-[100px] px-4 py-3 text-right text-xs font-bold leading-4 tracking-[0.6px]">
-                  {t('columns.actions')}
+                <th className="h-9 w-[120px] px-3 text-left align-middle">
+                  <span className="font-semibold text-gray-500">{t('columns.actions')}</span>
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody>
               {data.items.map((user) => (
-                <tr key={user.id} className="hover:bg-accent/50 transition-colors">
-                  <td className="px-6 py-4 text-foreground">{user.name}</td>
-                  <td className="px-4 py-4 text-muted-foreground">{user.email}</td>
-                  <td className="px-4 py-4 text-muted-foreground">{user.phone ?? '—'}</td>
-                  <td className="px-4 py-4">
-                    <span className="inline-flex items-center rounded-full bg-[hsl(var(--badge-neutral))] px-2 py-1 text-xs text-[hsl(var(--badge-neutral-text))]">
-                      {t(`roles.${user.role}` as 'roles.COMPANY_ADMIN')}
-                    </span>
+                <tr
+                  key={user.id}
+                  className="border-b border-gray-50 transition-colors last:border-0 hover:bg-gray-25"
+                >
+                  <td className="px-3 py-2.5 align-middle font-medium text-gray-800">{user.name}</td>
+                  <td className="px-3 py-2.5 align-middle font-medium text-gray-800">
+                    {user.email}
                   </td>
-                  <td className="px-4 py-4">
-                    <span className="inline-flex items-center rounded-full border border-border bg-secondary px-2 py-1 text-xs text-[hsl(var(--badge-neutral-text))]">
-                      {t(`statuses.${user.status}` as 'statuses.ACTIVE')}
-                    </span>
+                  <td className="px-3 py-2.5 align-middle font-medium text-gray-800">
+                    {user.phone ?? '—'}
                   </td>
-                  <td className="px-4 py-4 text-muted-foreground">{formatDate(user.createdAt)}</td>
-                  <td className="px-4 py-4">
-                    <div className="flex items-center justify-end gap-1">
+                  <td className="px-3 py-2.5 align-middle">
+                    <RoleBadge
+                      role={user.role}
+                      label={t(`roles.${user.role}` as 'roles.COMPANY_ADMIN')}
+                    />
+                  </td>
+                  <td className="px-3 py-2.5 align-middle">
+                    <StatusBadge
+                      status={user.status}
+                      label={t(`statuses.${user.status}` as 'statuses.ACTIVE')}
+                    />
+                  </td>
+                  <td className="px-3 py-2.5 align-middle font-medium text-gray-800">
+                    {formatDate(user.createdAt)}
+                  </td>
+                  <td className="px-3 py-2.5 align-middle">
+                    <div className="flex items-center gap-1">
                       <button
                         type="button"
-                        className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                        className={ICON_BTN_28}
                         aria-label="View"
                         onClick={() => navigate(ROUTES.userDetail.replace(':id', user.id))}
                       >
-                        <EyeIcon className="w-4 h-4" />
+                        <EyeIcon className="size-3.5" />
                       </button>
                       <button
                         type="button"
-                        className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                        className={ICON_BTN_28}
                         aria-label="Edit"
                         onClick={(e) => {
                           e.stopPropagation();
                           openEditModal(user.id);
                         }}
                       >
-                        <EditIcon className="w-4 h-4" />
+                        <EditIcon className="size-3.5" />
                       </button>
-                      <DotActionsMenu actions={getRowActions(user)} bordered={false} />
+                      <DotActionsMenu
+                        actions={getRowActions(user)}
+                        bordered={false}
+                        triggerClassName={ICON_BTN_28}
+                      />
                     </div>
                   </td>
                 </tr>

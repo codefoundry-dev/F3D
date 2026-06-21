@@ -78,6 +78,12 @@ vi.mock('./InviteVendorUserModal', () => ({
   InviteVendorUserModal: () => <div data-testid="invite-modal" />,
 }));
 
+// DS tonal badges — render the label so existing status assertions keep working.
+vi.mock('@/features/users/shared/userBadges', () => ({
+  StatusBadge: ({ label }: any) => <span data-testid="status-badge">{label}</span>,
+  RoleBadge: ({ label }: any) => <span data-testid="role-badge">{label}</span>,
+}));
+
 const mockNavigate = vi.hoisted(() => vi.fn());
 const mockSetPageTitle = vi.hoisted(() => vi.fn());
 
@@ -104,12 +110,6 @@ vi.mock('@forethread/i18n', () => ({
 
 vi.mock('@forethread/ui-components', () => ({
   cn: (...args: any[]) => args.filter(Boolean).join(' '),
-  Badge: ({ children, className }: any) => (
-    <span data-testid="status-badge" className={className}>
-      {children}
-    </span>
-  ),
-  NEUTRAL_STATUS_COLOR: 'neutral-status',
   Button: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>,
   Spinner: () => <div data-testid="spinner" />,
   TablePagination: ({ onPageChange, onPageSizeChange, showingLabel }: any) => (
@@ -124,6 +124,7 @@ vi.mock('@forethread/ui-components', () => ({
     </div>
   ),
   EmptyState: ({ title }: any) => <div data-testid="empty-state">{title}</div>,
+  EmptyBoxIllustration: () => <div data-testid="empty-illustration" />,
   DotActionsMenu: ({ actions }: any) => (
     <div data-testid="dot-menu">
       {actions.map((a: any) => (
@@ -148,7 +149,7 @@ vi.mock('@forethread/ui-components', () => ({
   SearchInput: ({ value, onChange }: any) => (
     <input data-testid="search" value={value} onChange={onChange} />
   ),
-  FilterDropdownButton: ({ onChange }: any) => (
+  FilterPopover: ({ onChange }: any) => (
     <div data-testid="filter">
       <button data-testid="filter-change" onClick={() => onChange(['ACTIVE'])}>
         Set Filter
@@ -183,6 +184,9 @@ vi.mock('@forethread/ui-components/assets/icons/eye-opened.svg?react', () => ({
   default: SvgStub,
 }));
 vi.mock('@forethread/ui-components/assets/icons/new-user.svg?react', () => ({ default: SvgStub }));
+vi.mock('@forethread/ui-components/assets/icons/users-group.svg?react', () => ({
+  default: SvgStub,
+}));
 
 import { render, screen, fireEvent } from '@testing-library/react';
 
@@ -243,14 +247,13 @@ describe('VendorUserListPage', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
   });
 
-  it('renders status as a neutral badge pill', () => {
+  it('renders status as a tonal DS badge pill', () => {
     render(<VendorUserListPage />);
     const badges = screen.getAllByTestId('status-badge');
     expect(badges).toHaveLength(3);
     expect(badges.some((b) => b.textContent === 'statuses.ACTIVE')).toBe(true);
     expect(badges.some((b) => b.textContent === 'statuses.INVITED')).toBe(true);
     expect(badges.some((b) => b.textContent === 'statuses.INACTIVE')).toBe(true);
-    expect(badges.every((b) => b.className.includes('neutral-status'))).toBe(true);
   });
 
   it('renders pagination', () => {
@@ -399,9 +402,9 @@ describe('VendorUserListPage', () => {
     expect(mockResendMutate).not.toHaveBeenCalled();
   });
 
-  it('sets the User Management page title in the app header', () => {
+  it('sets the User Management page title + breadcrumb in the app header', () => {
     render(<VendorUserListPage />);
-    expect(mockSetPageTitle).toHaveBeenCalledWith('title', null, '/settings');
+    expect(mockSetPageTitle).toHaveBeenCalledWith('title', null, null, [{ label: 'title' }]);
   });
 
   it('renders table column headers', () => {

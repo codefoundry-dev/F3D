@@ -1,6 +1,8 @@
 import FilterIcon from '../assets/icons/filter.svg?react';
 import { cn } from '../utils/cn';
 
+import { buttonVariants } from './Button';
+
 export interface FiltersButtonProps {
   active?: boolean;
   onClick: () => void;
@@ -19,8 +21,9 @@ export function FiltersButton({
       type="button"
       onClick={onClick}
       className={cn(
-        'flex items-center gap-1.5 h-10 px-3 rounded-[12px] border text-sm font-medium transition-colors text-foreground',
-        active ? 'border-foreground' : 'border-foreground/20 hover:border-foreground/40',
+        buttonVariants({ variant: 'secondary', size: 'md' }),
+        'gap-2',
+        active && 'border-gray-300 bg-gray-50 bg-none',
         className,
       )}
     >

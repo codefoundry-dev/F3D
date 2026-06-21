@@ -2,6 +2,13 @@
 
 ## Feature Notes
 
+- [User Mgmt DS-fidelity company-admin list](usermgmt-ds-fidelity-company-admin-list.md) — rebuilt
+  company-admin UserListPage mirroring the super-admin anchor (gradient icon-chip header + DS `<Tabs>`
+  + `#F9F9FA rounded-[18px]` table container + `ICON_BTN_28` row actions + shared `RoleBadge`/`StatusBadge`);
+  breadcrumb via `setPageTitle(t,null,null,[{label}])`; GOTCHA: don't import `cn` unless used (TS6133);
+  keeps the Projects column + ProjectAccessModal + InvitationSuccessModal (not the anchor's CompanyCard
+  grouping); test mirrors anchor (mock userBadges + rfq-shared + Tabs/EmptyBoxIllustration stubs); 55 green.
+
 - [Delivery public QR portal (Epic 6 Part C)](delivery-public-qr-portal-epic6c.md) — public mobile
   `/delivery/:token` PublicDeliveryPage (no auth, no shell): identify→code→form→submitted step
   machine; portalLines.ts pure helpers (resolveOutcome DERIVES partial/delivered/not-delivered from

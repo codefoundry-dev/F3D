@@ -1,5 +1,5 @@
 import { UserRole } from '@forethread/shared-types/client';
-import { PageLoader } from '@forethread/ui-components';
+import { AuthPageLoader, PageLoader } from '@forethread/ui-components';
 import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router-dom';
 
@@ -199,6 +199,13 @@ function withSuspense(element: React.ReactNode) {
   return <Suspense fallback={<PageLoader />}>{element}</Suspense>;
 }
 
+// Auth-card routes (login / verify-otp / forgot-password / activate /
+// reset-password) load behind the full-bleed construction background + white
+// spinner so transitions between them stay on one consistent backdrop.
+function withAuthSuspense(element: React.ReactNode) {
+  return <Suspense fallback={<AuthPageLoader />}>{element}</Suspense>;
+}
+
 export const routes: RouteObject[] = [
   {
     errorElement: <ErrorPage />,
@@ -207,9 +214,9 @@ export const routes: RouteObject[] = [
       {
         element: <GuestRoute />,
         children: [
-          { path: ROUTES.login, element: withSuspense(<LoginPage />) },
-          { path: ROUTES.verifyOtp, element: withSuspense(<VerifyOtpPage />) },
-          { path: ROUTES.forgotPassword, element: withSuspense(<ForgotPasswordPage />) },
+          { path: ROUTES.login, element: withAuthSuspense(<LoginPage />) },
+          { path: ROUTES.verifyOtp, element: withAuthSuspense(<VerifyOtpPage />) },
+          { path: ROUTES.forgotPassword, element: withAuthSuspense(<ForgotPasswordPage />) },
         ],
       },
 
@@ -219,8 +226,8 @@ export const routes: RouteObject[] = [
         : []),
 
       // ── Always-public ─────────────────────────────────────────────
-      { path: ROUTES.activate, element: withSuspense(<ActivateAccountPage />) },
-      { path: ROUTES.resetPassword, element: withSuspense(<ResetPasswordPage />) },
+      { path: ROUTES.activate, element: withAuthSuspense(<ActivateAccountPage />) },
+      { path: ROUTES.resetPassword, element: withAuthSuspense(<ResetPasswordPage />) },
       { path: ROUTES.guestInvitation, element: withSuspense(<GuestInvitationPage />) },
       { path: ROUTES.guestPurchaseOrder, element: withSuspense(<GuestPurchaseOrderPage />) },
       { path: ROUTES.guestDelivery, element: withSuspense(<PublicDeliveryPage />) },

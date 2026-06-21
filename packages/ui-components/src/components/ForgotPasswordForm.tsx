@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 
 import { cn } from '../utils/cn';
 
@@ -82,12 +83,12 @@ export function ForgotPasswordForm({
             {submitLabel}
           </Button>
 
-          <a
-            href={backPath}
+          <Link
+            to={backPath}
             className={cn(buttonVariants({ variant: 'secondary', size: 'lg' }), 'w-full')}
           >
             {backLabel}
-          </a>
+          </Link>
         </div>
       </form>
     </AuthLayout>

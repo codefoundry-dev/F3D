@@ -52,7 +52,7 @@ export function Modal({ onClose, maxWidth, children, scrollBody = false }: Modal
       <div
         className={cn(
           'bg-card shadow-xl flex flex-col rounded-none overflow-hidden w-full h-full',
-          'toolbar:w-auto toolbar:h-auto toolbar:max-h-[90vh] toolbar:rounded-[14px] toolbar:overflow-y-auto',
+          'toolbar:w-auto toolbar:h-auto toolbar:max-h-[90vh] toolbar:rounded-[20px] toolbar:overflow-y-auto',
           'toolbar:min-w-[560px] toolbar:max-w-[560px]',
           // Pinned layout: card itself stops scrolling (overflow-hidden wins over
           // the desktop overflow-y-auto via tailwind-merge) so the header/footer
@@ -125,14 +125,15 @@ export interface ModalIconHeaderProps {
   icon: ReactNode;
   title: ReactNode;
   subtitle?: ReactNode;
-  onClose: () => void;
-  /** Gap below header, default mb-10 */
+  /** Renders the top-right close button when provided. Omit for wizard steps. */
+  onClose?: () => void;
   className?: string;
 }
 
 /**
- * Centered modal header with icon badge, title, subtitle, and close button.
- * Reuses IconBadge for the icon container.
+ * Centered modal header — fleshed-out DS: a gradient-white "featured icon" chip
+ * (hairline border + layered drop-shadow), Title/M, and a muted subtitle, with
+ * an optional top-right close button.
  */
 export function ModalIconHeader({
   icon,
@@ -143,17 +144,17 @@ export function ModalIconHeader({
 }: ModalIconHeaderProps) {
   return (
     <div className={cn('flex flex-col items-center text-center', className)}>
-      <div className="w-full flex justify-between items-start">
+      <div className="flex w-full items-start justify-between">
         <div className="flex-1" />
-        <div className="flex items-center justify-center w-12 h-12 rounded-[12px] bg-foreground/10">
-          <span className="flex items-center justify-center w-6 h-6">{icon}</span>
+        <div className="flex size-12 items-center justify-center rounded-[14px] border border-[#E8EAED] bg-gradient-to-b from-[#F9F9FA] to-white text-gray-700 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
+          <span className="flex size-6 items-center justify-center">{icon}</span>
         </div>
-        <div className="flex-1 flex justify-end">
-          <ModalCloseButton onClose={onClose} />
+        <div className="flex flex-1 justify-end">
+          {onClose && <ModalCloseButton onClose={onClose} />}
         </div>
       </div>
-      <h2 className="text-2xl text-foreground mt-3">{title}</h2>
-      {subtitle && <p className="text-lg text-muted-foreground mt-2">{subtitle}</p>}
+      <h2 className="mt-4 text-2xl font-semibold leading-[1.4] text-gray-900">{title}</h2>
+      {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
     </div>
   );
 }

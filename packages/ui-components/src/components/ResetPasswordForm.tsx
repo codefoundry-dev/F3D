@@ -1,4 +1,5 @@
 import { type ReactNode, useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 
 import { cn } from '../utils/cn';
 
@@ -248,12 +249,12 @@ export function ResetPasswordForm({
             {submitLabel}
           </Button>
 
-          <a
-            href={backPath}
+          <Link
+            to={backPath}
             className={cn(buttonVariants({ variant: 'secondary', size: 'lg' }), 'w-full')}
           >
             {backLabel}
-          </a>
+          </Link>
         </div>
       </form>
     </AuthLayout>

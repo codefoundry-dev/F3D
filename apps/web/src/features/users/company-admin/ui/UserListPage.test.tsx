@@ -10,11 +10,31 @@ vi.mock('@forethread/shared-types/client', () => ({
   UserStatus: { ACTIVE: 'ACTIVE', INACTIVE: 'INACTIVE', INVITED: 'INVITED' },
 }));
 
+vi.mock('@forethread/rfq-shared', () => ({
+  usePageTitleStore: (selector: any) =>
+    selector({ title: null, subtitle: null, backTo: null, breadcrumbs: null, setTitle: vi.fn() }),
+}));
+
+vi.mock('../../shared/userBadges', () => ({
+  RoleBadge: ({ label }: any) => <span data-testid="role-badge">{label}</span>,
+  StatusBadge: ({ label }: any) => <span data-testid="status-badge">{label}</span>,
+}));
+
 vi.mock('@forethread/ui-components', () => ({
   cn: (...args: any[]) => args.filter(Boolean).join(' '),
   Button: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>,
   Spinner: () => <div data-testid="spinner" />,
   Badge: ({ children }: any) => <span data-testid="badge">{children}</span>,
+  EmptyBoxIllustration: () => <div data-testid="empty-box" />,
+  Tabs: ({ items, onValueChange }: any) => (
+    <div data-testid="tabs">
+      {items?.map((it: any) => (
+        <button key={it.value} onClick={() => onValueChange(it.value)}>
+          {it.label}
+        </button>
+      ))}
+    </div>
+  ),
   TablePagination: ({ showingLabel }: any) => (
     <div data-testid="table-pagination">
       {showingLabel && (
@@ -65,7 +85,15 @@ vi.mock('@forethread/ui-components', () => ({
   notificationService: { success: vi.fn() },
 }));
 
-const svgIcons = ['cross-in-circle', 'edit', 'eye-opened', 'new-user'];
+const svgIcons = [
+  'cross-in-circle',
+  'edit',
+  'eye-opened',
+  'new-user',
+  'settings',
+  'shield-icon',
+  'users-group',
+];
 svgIcons.forEach((name) => {
   vi.mock(`@forethread/ui-components/assets/icons/${name}.svg?react`, () => ({
     default: () => <div />,

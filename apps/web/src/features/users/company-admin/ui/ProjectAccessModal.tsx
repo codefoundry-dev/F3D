@@ -94,20 +94,18 @@ export function ProjectAccessModal({
     <Modal onClose={onClose} maxWidth="max-w-[560px]">
       <ModalBody>
         <div className="flex flex-col items-center text-center">
-          <div className="w-full flex justify-between items-start">
+          <div className="flex w-full items-start justify-between">
             <div className="flex-1" />
-            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-              <ProjectsIcon className="w-6 h-6 text-foreground" />
+            <div className="flex size-12 items-center justify-center rounded-[14px] border border-[#E8EAED] bg-gradient-to-b from-[#F9F9FA] to-white text-gray-700 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
+              <ProjectsIcon className="size-6" />
             </div>
-            <div className="flex-1 flex justify-end">
+            <div className="flex flex-1 justify-end">
               <ModalCloseButton onClose={onClose} />
             </div>
           </div>
 
-          <h2 className="text-lg font-semibold text-foreground mt-4">
-            {t('detail.projectAccess')}
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h2 className="mt-4 text-xl font-semibold text-gray-900">{t('detail.projectAccess')}</h2>
+          <p className="mt-1 text-sm text-gray-500">
             {t('detail.projectAccessSubtitle', { name: userName })}
           </p>
 
@@ -117,13 +115,13 @@ export function ProjectAccessModal({
                 <Spinner size="sm" />
               </div>
             ) : (
-              <div className="space-y-1 max-h-64 overflow-auto rounded-lg border border-border p-2">
+              <div className="max-h-64 space-y-1 overflow-auto rounded-[12px] border border-gray-100 p-2">
                 {data?.items.map((project: ProjectListItem) => (
                   <div
                     key={project.id}
                     role="button"
                     tabIndex={0}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent cursor-pointer"
+                    className="flex cursor-pointer items-center gap-3 rounded-[10px] px-3 py-2.5 hover:bg-gray-25"
                     onClick={() => toggle(project.id)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
@@ -136,17 +134,15 @@ export function ProjectAccessModal({
                       checked={selectedIds.has(project.id)}
                       onChange={() => toggle(project.id)}
                     />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{project.name}</p>
-                      <p className="text-xs text-muted-foreground">{project.status}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-gray-900">{project.name}</p>
+                      <p className="text-xs text-gray-500">{project.status}</p>
                     </div>
                   </div>
                 ))}
 
                 {data?.items.length === 0 && (
-                  <p className="text-sm text-muted-foreground px-3 py-2">
-                    {t('detail.noProjects')}
-                  </p>
+                  <p className="px-3 py-2 text-sm text-gray-500">{t('detail.noProjects')}</p>
                 )}
               </div>
             )}

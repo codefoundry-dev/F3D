@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import ChevronDownIcon from '../assets/icons/chevron-down.svg?react';
 import { cn } from '../utils/cn';
 
+import { buttonVariants } from './Button';
 import { DatePicker } from './DatePicker';
 
 export interface DateRangeFilterDropdownProps {
@@ -115,13 +116,13 @@ export function DateRangeFilterDropdown({
     <>
       <div className="px-4 pt-3 pb-2 flex-shrink-0">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-foreground leading-[140%] truncate">
+          <span className="text-sm font-semibold text-gray-900 leading-[140%] truncate">
             {label}
           </span>
           <button
             type="button"
             onClick={onClear}
-            className="text-xs font-medium text-muted-foreground leading-[140%] hover:text-foreground transition-colors flex-shrink-0 ml-2"
+            className="text-xs font-medium text-gray-500 leading-[140%] hover:text-gray-900 transition-colors flex-shrink-0 ml-2"
           >
             {clearLabel}
           </button>
@@ -135,7 +136,7 @@ export function DateRangeFilterDropdown({
           maxDate={dateTo || undefined}
           className="flex-1"
         />
-        <span className="text-muted-foreground text-sm flex-shrink-0">-</span>
+        <span className="text-gray-400 text-sm flex-shrink-0">-</span>
         <DatePicker
           value={dateTo}
           onChange={onChangeTo}
@@ -155,19 +156,17 @@ export function DateRangeFilterDropdown({
         disabled={disabled}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
         className={cn(
-          'w-full flex items-center border bg-background rounded-lg py-2.5 px-3 text-sm transition-colors',
-          'focus:outline-none focus:border-foreground/50 focus:bg-muted',
-          'disabled:opacity-50 disabled:cursor-not-allowed',
-          hasValue ? 'border-foreground/50' : 'border-input',
-          isOpen && 'border-foreground/50',
+          buttonVariants({ variant: 'secondary', size: 'md' }),
+          'w-full justify-between gap-2',
+          (hasValue || isOpen) && 'border-gray-300',
           buttonClassName,
         )}
         aria-expanded={isOpen}
       >
-        <span className="flex-1 text-left truncate text-foreground">{displayLabel}</span>
+        <span className="flex-1 text-left truncate">{displayLabel}</span>
         <ChevronDownIcon
           className={cn(
-            'w-4 h-4 ml-2 text-muted-foreground transition-transform flex-shrink-0',
+            'w-4 h-4 text-gray-500 transition-transform flex-shrink-0',
             isOpen && 'rotate-180',
           )}
         />
@@ -180,7 +179,7 @@ export function DateRangeFilterDropdown({
           <div
             ref={popoverRef}
             style={popoverStyle}
-            className="bg-card border border-border rounded-xl shadow-lg z-[9999]"
+            className="bg-white border border-gray-100 rounded-[12px] shadow-lg z-[9999]"
           >
             {content}
           </div>,
@@ -201,8 +200,8 @@ export function DateRangeFilterDropdown({
             }}
             role="presentation"
           />
-          <div className="fixed bottom-0 left-0 right-0 bg-card rounded-t-2xl z-50 pb-safe">
-            <div className="w-10 h-1 bg-border rounded-full mx-auto mt-3 mb-2" />
+          <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl z-50 pb-safe">
+            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-2" />
             {content}
             <div className="px-4 pb-4 pt-2">
               <button
@@ -211,7 +210,7 @@ export function DateRangeFilterDropdown({
                   e.stopPropagation();
                   close();
                 }}
-                className="w-full py-2.5 text-sm font-medium text-muted-foreground bg-muted rounded-xl"
+                className="w-full py-2.5 text-sm font-semibold text-gray-700 bg-gray-50 border border-gray-100 rounded-xl"
               >
                 Done
               </button>

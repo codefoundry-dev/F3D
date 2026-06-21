@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 // Stub the shared UI primitives the component depends on.
 vi.mock('@forethread/ui-components', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
+  buttonVariants: () => 'btn',
   DatePicker: ({ value, onChange, placeholder }: any) => (
     <input
       data-testid={`date-picker-${placeholder}`}

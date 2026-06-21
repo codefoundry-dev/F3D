@@ -1,5 +1,6 @@
 import { cn } from '../utils/cn';
 
+import { Button } from './Button';
 import { Modal } from './Modal';
 
 export interface ConfirmDialogProps {
@@ -22,28 +23,21 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   return (
-    <Modal onClose={onCancel} maxWidth="max-w-[560px]">
+    <Modal onClose={onCancel} maxWidth="max-w-[440px]">
       <div className="p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-2">{title}</h3>
-        <p className="text-sm text-muted-foreground mb-6">{message}</p>
+        <h3 className="mb-1.5 text-lg font-semibold text-gray-900">{title}</h3>
+        <p className="mb-6 text-sm text-gray-500">{message}</p>
         <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex-1 py-2 px-4 border border-input text-card-foreground text-sm font-medium rounded-md hover:bg-accent"
-          >
+          <Button variant="outline" type="button" onClick={onCancel} className="flex-1">
             {cancelLabel}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={onConfirm}
-            className={cn(
-              'flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors',
-              confirmVariant ?? 'bg-primary text-primary-foreground hover:bg-primary/90',
-            )}
+            className={cn('flex-1', confirmVariant)}
           >
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>

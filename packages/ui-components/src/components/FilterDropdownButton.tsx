@@ -5,6 +5,7 @@ import ChevronDownIcon from '../assets/icons/chevron-down.svg?react';
 import SearchIcon from '../assets/icons/search.svg?react';
 import { cn } from '../utils/cn';
 
+import { buttonVariants } from './Button';
 import { Checkbox } from './Checkbox';
 
 export interface FilterDropdownOption {
@@ -149,14 +150,14 @@ export function FilterDropdownButton({
 
   const searchInput = (
     <div className="relative">
-      <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+      <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
       <input
         ref={isMobile ? undefined : searchInputRef}
         type="text"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         placeholder={searchPlaceholder}
-        className="w-full h-9 rounded-lg border border-border bg-card pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground/50 focus:bg-muted"
+        className="w-full h-9 rounded-[10px] border border-gray-100 bg-white pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 shadow-[0_1px_2px_0_rgba(10,13,18,0.04)] focus:outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-100"
       />
     </div>
   );
@@ -173,33 +174,31 @@ export function FilterDropdownButton({
         </div>
       ))}
       {filteredOptions.length === 0 && (
-        <div className="px-4 py-2 text-sm text-muted-foreground">No results found</div>
+        <div className="px-4 py-2 text-sm text-gray-500">No results found</div>
       )}
     </>
   );
 
   return (
     <div ref={containerRef} className={cn('relative', className)}>
-      {/* Trigger */}
+      {/* Trigger — DS secondary pill (gradient white + border + shadow), select-like layout */}
       <button
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
         className={cn(
-          'w-full flex items-center border bg-background rounded-lg py-2.5 px-3 text-sm transition-colors',
-          'focus:outline-none focus:border-foreground/50 focus:bg-muted',
-          'disabled:opacity-50 disabled:cursor-not-allowed',
-          activeCount > 0 ? 'border-foreground/50' : 'border-input',
-          isOpen && 'border-foreground/50',
+          buttonVariants({ variant: 'secondary', size: 'md' }),
+          'w-full justify-between gap-2',
+          (activeCount > 0 || isOpen) && 'border-gray-300',
           buttonClassName,
         )}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
       >
-        <span className="flex-1 text-left truncate text-foreground">{displayLabel}</span>
+        <span className="flex-1 text-left truncate">{displayLabel}</span>
         <ChevronDownIcon
           className={cn(
-            'w-4 h-4 ml-2 text-muted-foreground transition-transform flex-shrink-0',
+            'w-4 h-4 text-gray-500 transition-transform flex-shrink-0',
             isOpen && 'rotate-180',
           )}
         />
@@ -214,19 +213,19 @@ export function FilterDropdownButton({
             role="listbox"
             style={popoverStyle}
             className={cn(
-              'bg-card border border-border rounded-xl shadow-lg z-[9999] overflow-hidden',
+              'bg-white border border-gray-100 rounded-[12px] shadow-lg z-[9999] overflow-hidden',
               'max-h-[308px] flex flex-col',
             )}
           >
             <div className="px-4 pt-3 pb-2 flex-shrink-0">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-foreground leading-[140%] truncate">
+                <span className="text-sm font-semibold text-gray-900 leading-[140%] truncate">
                   {popoverTitle}
                 </span>
                 <button
                   type="button"
                   onClick={handleClear}
-                  className="text-xs font-medium text-muted-foreground leading-[140%] hover:text-foreground transition-colors flex-shrink-0 ml-2"
+                  className="text-xs font-medium text-gray-500 leading-[140%] hover:text-gray-900 transition-colors flex-shrink-0 ml-2"
                 >
                   {clearLabel}
                 </button>
@@ -253,17 +252,17 @@ export function FilterDropdownButton({
             }}
             role="presentation"
           />
-          <div className="fixed bottom-0 left-0 right-0 bg-card rounded-t-2xl z-50 pb-safe">
+          <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl z-50 pb-safe">
             {/* Drag handle */}
-            <div className="w-10 h-1 bg-border rounded-full mx-auto mt-3 mb-2" />
+            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-2" />
 
             {/* Header */}
-            <div className="px-4 py-2 border-b border-border flex items-center justify-between">
-              <span className="text-sm font-medium text-foreground">{popoverTitle}</span>
+            <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-900">{popoverTitle}</span>
               <button
                 type="button"
                 onClick={handleClear}
-                className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors"
               >
                 {clearLabel}
               </button>
@@ -283,7 +282,7 @@ export function FilterDropdownButton({
                   e.stopPropagation();
                   close();
                 }}
-                className="w-full py-2.5 text-sm font-medium text-muted-foreground bg-muted rounded-xl"
+                className="w-full py-2.5 text-sm font-semibold text-gray-700 bg-gray-50 border border-gray-100 rounded-xl"
               >
                 {doneLabel}
               </button>

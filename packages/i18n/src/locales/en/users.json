@@ -4,8 +4,20 @@
   "userManagementSubtitle": "Manage user accounts, roles, and permissions across the platform",
   "placeholderDescription": "User management — implemented in Phase 3 (T059–T067)",
   "totalUsers": "{{total}} total users",
+  "totalUsersLabel": "Total users: {{total}}",
+  "showingUsersLabel": "Showing {{total}} users",
+  "searchingResultLabel": "Searching result: {{total}}",
   "createUser": "+ Create User",
   "inviteUser": "Invite user",
+  "createCompany": "Create company",
+  "createCompanyChooser": {
+    "title": "Create company",
+    "subtitle": "Choose the type of company you want to add to the platform.",
+    "contractor": "Contractor company",
+    "contractorHint": "A company that manages projects and procurement.",
+    "vendor": "Vendor company",
+    "vendorHint": "A supplier that responds to RFQs and fulfils orders."
+  },
   "searchPlaceholder": "Search by name or email…",
   "allRoles": "All roles",
   "allStatuses": "All statuses",
@@ -18,19 +30,25 @@
     "to": "To",
     "searchCompany": "Search",
     "clear": "Clear",
-    "clearAll": "Clear all"
+    "clearAll": "Clear all",
+    "removeFilter": "Remove {{label}} filter"
   },
   "groupedTable": {
     "users_one": "{{count}} user",
     "users_other": "{{count}} users"
   },
   "noUsersFound": "No users found",
+  "emptyDescription": "Invite users or create a company to start managing platform access.",
+  "noResultsTitle": "No results found",
+  "noResultsDescription": "We couldn't find any results matching your search. Try adjusting your search or filters to find what you're looking for.",
+  "noResultsDescriptionQuery": "We couldn't find any results matching “{{query}}”. Try adjusting your search or filters to find what you're looking for.",
   "adjustFilters": "Try adjusting your filters",
   "createFirstUser": "Create your first user to get started",
   "failedToLoad": "Failed to load users. Please refresh.",
   "tabs": {
     "companyUsers": "Company users",
     "platformUsers": "Platform users",
+    "vendors": "Vendors",
     "actionLog": "Action Log",
     "activityLogTitle": "Activity Log",
     "actionLogPlaceholder": "Action log will be available soon.",

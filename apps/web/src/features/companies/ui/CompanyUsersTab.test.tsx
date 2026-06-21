@@ -40,6 +40,7 @@ vi.mock('@forethread/ui-components', () => ({
     </div>
   ),
   EmptyState: ({ title }: { title: string }) => <div data-testid="empty-state">{title}</div>,
+  EmptyBoxIllustration: () => <div data-testid="empty-box" />,
   DotActionsMenu: ({ actions }: any) => (
     <div data-testid="dot-actions">
       {actions?.map((a: any) => (
@@ -75,6 +76,12 @@ vi.mock('@forethread/ui-components', () => ({
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
+}));
+
+// Mock the shared role/status badges (the DS pills)
+vi.mock('@/features/users/shared/userBadges', () => ({
+  RoleBadge: ({ label }: { label: string }) => <span data-testid="role-badge">{label}</span>,
+  StatusBadge: ({ label }: { label: string }) => <span data-testid="status-badge">{label}</span>,
 }));
 
 // Mock shared-types

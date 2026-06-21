@@ -33,7 +33,7 @@ export {
 
 // Stores
 export { createRfqTableStore, EMPTY_FILTERS, usePageTitleStore } from './stores';
-export type { RfqTableState, AdvancedFilters } from './stores';
+export type { RfqTableState, AdvancedFilters, PageBreadcrumb } from './stores';
 
 // Components
 export {

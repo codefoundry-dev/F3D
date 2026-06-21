@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 
 import LogoFull from '../assets/logo-full.svg?react';
 
@@ -131,12 +132,12 @@ export function LoginForm({
             </FormField>
           </div>
 
-          <a
-            href={forgotPasswordPath}
+          <Link
+            to={forgotPasswordPath}
             className="self-end text-[14px] font-semibold leading-none tracking-[0.3px] text-gray-800 underline underline-offset-[3px] hover:no-underline"
           >
             {forgotPasswordLabel}
-          </a>
+          </Link>
         </div>
 
         <Button

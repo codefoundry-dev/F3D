@@ -39,12 +39,14 @@ export default function CompanyDetailPage() {
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
   const { data: company, isLoading } = useCompany(id ?? '');
 
-  // Surface the page title + subtitle in the global app header; the back-arrow
-  // returns to the companies list (matches Figma — every screen titles itself).
+  // App-bar breadcrumb trail: Home › Companies › <company name>.
   useEffect(() => {
-    setPageTitle(t('detailPageTitle'), t('detailPageSubtitle'), ROUTES.companies);
+    setPageTitle(t('detailPageTitle'), null, null, [
+      { label: t('breadcrumbCompanies', { defaultValue: 'Companies' }), to: ROUTES.companies },
+      { label: company?.legalName ?? t('detailPageTitle') },
+    ]);
     return () => setPageTitle(null);
-  }, [setPageTitle, t]);
+  }, [setPageTitle, t, company?.legalName]);
   const [searchParams, setSearchParams] = useSearchParams();
   const validTabs: Tab[] = ['overview', 'companyUsers', 'documents'];
   const tabParam = searchParams.get('tab') as Tab | null;
@@ -188,18 +190,18 @@ export default function CompanyDetailPage() {
 
   return (
     <div className="p-6">
-      {/* Tabs (18px pattern, matches the user-management boards) */}
-      <div className="flex items-start border-b border-[#D2D5DB]">
+      {/* Tabs (underline pattern, matches the user-management boards) */}
+      <div className="flex items-start border-b border-gray-200">
         {tabs.map((tab) => (
           <button
             key={tab.key}
             type="button"
             onClick={() => setActiveTab(tab.key)}
             className={cn(
-              '-mb-px border-b-2 p-3 text-lg font-medium leading-4 transition-colors',
+              '-mb-px border-b-2 px-3 py-2.5 text-sm font-medium leading-5 transition-colors',
               activeTab === tab.key
-                ? 'border-foreground text-foreground'
-                : 'border-transparent text-[#6D7588] hover:text-foreground',
+                ? 'border-gray-900 text-gray-900'
+                : 'border-transparent text-gray-500 hover:text-gray-900',
             )}
           >
             {tab.label}
@@ -208,7 +210,7 @@ export default function CompanyDetailPage() {
       </div>
 
       {/* Card with company header + tab content */}
-      <div className="rounded-xl border border-border bg-card mt-6">
+      <div className="mt-6 rounded-[18px] border border-gray-100 bg-white shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
         {/* Company header */}
         <div className="px-8 py-6">
           <div className="flex items-center gap-5">
@@ -216,19 +218,19 @@ export default function CompanyDetailPage() {
               <img
                 src={company.logoUrl}
                 alt={company.legalName}
-                className="w-20 h-20 rounded-full object-cover"
+                className="size-20 rounded-full object-cover"
               />
             ) : (
-              <div className="w-20 h-20 rounded-full bg-muted text-foreground flex items-center justify-center font-semibold text-2xl">
+              <div className="flex size-20 items-center justify-center rounded-full border border-white bg-gray-100 text-2xl font-semibold text-gray-600 shadow-[0_1px_2px_0_rgba(10,13,18,0.06)]">
                 {initials}
               </div>
             )}
 
-            <div className="flex-1 min-w-0">
-              <h2 className="text-2xl font-semibold text-foreground">{company.legalName}</h2>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-2xl font-semibold text-gray-900">{company.legalName}</h2>
               {company.contactEmail && (
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
-                  <EnvelopeIcon className="w-4 h-4" />
+                <div className="mt-1 flex items-center gap-1.5 text-sm text-gray-500">
+                  <EnvelopeIcon className="size-4" />
                   <span>{company.contactEmail}</span>
                 </div>
               )}
@@ -254,7 +256,7 @@ export default function CompanyDetailPage() {
           </div>
         </div>
 
-        <hr className="border-border" />
+        <hr className="border-gray-100" />
 
         {/* Error alert */}
         {updateMutation.isError && (
