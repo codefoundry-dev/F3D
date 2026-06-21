@@ -153,7 +153,12 @@ export function NewMaterialModal({ onClose, onAdd }: NewMaterialModalProps) {
           />
         </div>
 
-        <PrimaryButton onClick={handleAdd} disabled={!canAdd} data-testid="mr-new-material-add">
+        <PrimaryButton
+          onClick={handleAdd}
+          disabled={!canAdd}
+          className="w-full"
+          data-testid="mr-new-material-add"
+        >
           {t('newMaterial.add')}
         </PrimaryButton>
       </ModalBody>

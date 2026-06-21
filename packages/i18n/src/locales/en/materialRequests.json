@@ -40,6 +40,11 @@
   "requestMaterials": {
     "title": "Request Materials",
     "stepOf": "Step {{current}} of {{total}}",
+    "steps": {
+      "select": "Select materials",
+      "details": "Add details",
+      "review": "Review & submit"
+    },
     "tabBom": "BOM",
     "tabCatalog": "Catalog",
     "tabManual": "Manual",
@@ -168,7 +173,15 @@
     "empty": "No requests yet",
     "emptyHint": "Raise your first material request to see it here.",
     "loadFailed": "Failed to load your requests. Please refresh.",
-    "back": "Back"
+    "back": "Back",
+    "columns": {
+      "mrNumber": "Request ID",
+      "project": "Project",
+      "items": "Items",
+      "neededBy": "Needed by",
+      "priority": "Priority",
+      "status": "Status"
+    }
   },
   "priority": {
     "LOW": "Low",

@@ -3,10 +3,9 @@ import CheckmarkIcon from '@forethread/ui-components/assets/icons/checkmark.svg?
 
 /**
  * Horizontal procurement-status timeline on Job Overview (Figma 2002:176 frame
- * 14:4 — "StatusBar"). Completed stages render filled (#D2D5DB chip, check
- * icon); the remaining stages render on a white chip with a hollow marker. The
- * row scrolls horizontally on narrow screens, matching the design annotation
- * "Horizontal scroll".
+ * 14:4 — "StatusBar"). Completed stages render filled with a check; the
+ * remaining stages render on a hairline chip with a hollow marker. The row
+ * scrolls horizontally on narrow screens.
  */
 export interface ProcurementStage {
   key: string;
@@ -21,23 +20,25 @@ export interface ProcurementStatusBarProps {
 export function ProcurementStatusBar({ stages }: ProcurementStatusBarProps) {
   const { t } = useTranslation('materialRequests');
   return (
-    <div className="flex flex-col gap-2">
-      <p className="text-base text-gray-900">{t('jobOverview.procurementStatus')}</p>
-      <div className="-mx-4 overflow-x-auto px-4 pb-1">
-        <div className="flex w-max gap-1.5">
+    <div className="flex flex-col gap-3">
+      <p className="text-base font-semibold text-foreground">
+        {t('jobOverview.procurementStatus')}
+      </p>
+      <div className="overflow-x-auto pb-1">
+        <div className="flex w-max items-center gap-1.5">
           {stages.map((stage) => (
             <span
               key={stage.key}
               className={`flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-xs ${
                 stage.done
-                  ? 'bg-gray-200 text-gray-900'
-                  : 'bg-white text-gray-500 ring-1 ring-inset ring-gray-200'
+                  ? 'bg-muted font-medium text-foreground'
+                  : 'bg-background text-muted-foreground ring-1 ring-inset ring-border'
               }`}
             >
               {stage.done ? (
-                <CheckmarkIcon className="h-3 w-3" />
+                <CheckmarkIcon className="size-3 text-muted-foreground" />
               ) : (
-                <span className="h-2.5 w-2.5 rounded-full border border-gray-400" />
+                <span className="size-2.5 rounded-full border border-muted-foreground/50" />
               )}
               {stage.label}
             </span>

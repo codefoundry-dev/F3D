@@ -50,7 +50,12 @@ vi.mock('../components/MobileShell', () => ({
   ),
 }));
 vi.mock('../components/MobileHeader', () => ({
-  MobileHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
+  MobileHeader: ({ title, trailing }: { title: string; trailing?: ReactNode }) => (
+    <div>
+      <h1>{title}</h1>
+      {trailing}
+    </div>
+  ),
 }));
 vi.mock('../components/MobileButtons', () => ({
   PrimaryButton: ({

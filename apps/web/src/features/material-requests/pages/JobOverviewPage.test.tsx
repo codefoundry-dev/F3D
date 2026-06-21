@@ -63,10 +63,19 @@ vi.mock('../components/MobileShell', () => ({
   ),
 }));
 vi.mock('../components/MobileHeader', () => ({
-  MobileHeader: ({ title, subline }: { title: string; subline?: ReactNode }) => (
+  MobileHeader: ({
+    title,
+    subline,
+    trailing,
+  }: {
+    title: string;
+    subline?: ReactNode;
+    trailing?: ReactNode;
+  }) => (
     <div>
       <h1>{title}</h1>
       {subline}
+      {trailing}
     </div>
   ),
 }));

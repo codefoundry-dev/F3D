@@ -1,6 +1,7 @@
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { StatusErrorModal } from '@forethread/ui-components';
+import RequestIcon from '@forethread/ui-components/assets/icons/request.svg?react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -33,14 +34,16 @@ import {
 
 type WizardStep = 0 | 1 | 2;
 
-const STEP_COUNT = 3;
-
 /**
- * Host for the 3-step "Raise a Material Request" wizard (Figma 2002:176). Owns
- * the wizard line state; renders the per-step component plus the dark header,
- * progress bar and pinned footer. The footer uses separate button nodes per
- * step (never a native form submit) to avoid the step→final button-morph submit
- * bug documented in prior sessions.
+ * Host for the 3-step "Raise a Material Request" wizard (Figma 2002:176),
+ * rebuilt on the desktop design system so it reads like the material-catalogue
+ * create wizard: a page header with the step navigation top-right, a horizontal
+ * stepper, and the active step inside a DS card. Owns the wizard line state and
+ * renders the per-step component.
+ *
+ * The navigation uses separate button nodes per step (never a native form
+ * submit) to avoid the step→final button-morph submit bug documented in prior
+ * sessions.
  */
 export default function RequestMaterialsPage() {
   const { t } = useTranslation('materialRequests');
@@ -152,14 +155,18 @@ export default function RequestMaterialsPage() {
 
   const selectedCount = lines.length;
 
+  const stepLabels = [
+    t('requestMaterials.steps.select'),
+    t('requestMaterials.steps.details'),
+    t('requestMaterials.steps.review'),
+  ];
+
   const headerTitle =
     step === 0
       ? t('requestMaterials.title')
       : step === 1
         ? t('materialDetails.title')
         : t('review.title');
-
-  const progressLabel = headerTitle;
 
   // App-bar breadcrumb / page title reflects the current wizard step.
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
@@ -174,37 +181,66 @@ export default function RequestMaterialsPage() {
 
   return (
     <MobileShell
-      header={<MobileHeader title={headerTitle} onBack={goBack} />}
-      footer={renderFooter()}
+      header={
+        <MobileHeader
+          title={headerTitle}
+          onBack={goBack}
+          icon={<RequestIcon />}
+          trailing={renderActions()}
+        />
+      }
     >
-      <StepProgress current={step + 1} total={STEP_COUNT} label={progressLabel} />
+      <StepProgress steps={stepLabels} current={step + 1} />
 
-      {step === 0 && (
-        <StepSelectMaterials
-          projectId={projectId}
-          lines={lines}
-          onToggleLine={toggleLine}
-          onAddManual={addManual}
-          onRemoveLine={removeLine}
-        />
+      <div className="rounded-xl border border-border bg-card">
+        {step === 0 && (
+          <StepSelectMaterials
+            projectId={projectId}
+            lines={lines}
+            onToggleLine={toggleLine}
+            onAddManual={addManual}
+            onRemoveLine={removeLine}
+          />
+        )}
+        {step === 1 && (
+          <StepMaterialDetails
+            lines={lines}
+            errors={detailErrors}
+            locationOptions={locationOptions}
+            onPatchLine={patchLine}
+          />
+        )}
+        {step === 2 && (
+          <StepReview
+            jobCode={jobCode}
+            projectName={projectName}
+            lines={lines}
+            onEditLine={() => setStep(1)}
+            onDeleteLine={removeLine}
+            onAddMore={() => setStep(0)}
+          />
+        )}
+      </div>
+
+      {step === 0 && selectedCount > 0 && (
+        <div className="mt-4 flex items-center justify-between">
+          <span className="text-sm text-muted-foreground" data-testid="mr-selected-count">
+            {t('requestMaterials.itemsSelected', { count: selectedCount })}
+          </span>
+          <button
+            type="button"
+            onClick={() => setLines([])}
+            className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          >
+            {t('requestMaterials.clearAll')}
+          </button>
+        </div>
       )}
-      {step === 1 && (
-        <StepMaterialDetails
-          lines={lines}
-          errors={detailErrors}
-          locationOptions={locationOptions}
-          onPatchLine={patchLine}
-        />
-      )}
+
       {step === 2 && (
-        <StepReview
-          jobCode={jobCode}
-          projectName={projectName}
-          lines={lines}
-          onEditLine={() => setStep(1)}
-          onDeleteLine={removeLine}
-          onAddMore={() => setStep(0)}
-        />
+        <p className="mt-4 text-center text-xs text-muted-foreground sm:text-left">
+          {t('review.footerHint')}
+        </p>
       )}
 
       {submitError && (
@@ -224,61 +260,54 @@ export default function RequestMaterialsPage() {
     </MobileShell>
   );
 
-  function renderFooter() {
+  /** Step-specific navigation, rendered in the page-header actions slot. */
+  function renderActions() {
     if (step === 0) {
       return (
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600" data-testid="mr-selected-count">
-              {t('requestMaterials.itemsSelected', { count: selectedCount })}
-            </span>
-            {selectedCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setLines([])}
-                className="text-sm text-gray-500 underline"
-              >
-                {t('requestMaterials.clearAll')}
-              </button>
-            )}
-          </div>
-          <PrimaryButton
-            withArrow
-            onClick={handleContinueFromSelect}
-            disabled={selectedCount === 0}
-            data-testid="mr-step1-next"
-          >
-            {t('requestMaterials.next')}
-          </PrimaryButton>
-        </div>
+        <PrimaryButton
+          withArrow
+          onClick={handleContinueFromSelect}
+          disabled={selectedCount === 0}
+          className="w-full sm:w-auto"
+          data-testid="mr-step1-next"
+        >
+          {t('requestMaterials.next')}
+        </PrimaryButton>
       );
     }
     if (step === 1) {
       return (
-        <div className="flex flex-col gap-3">
-          <PrimaryButton withArrow onClick={handleContinueFromDetails} data-testid="mr-step2-next">
-            {t('materialDetails.next')}
-          </PrimaryButton>
-          <SecondaryButton onClick={goBack}>{t('materialDetails.back')}</SecondaryButton>
-        </div>
+        <PrimaryButton
+          withArrow
+          onClick={handleContinueFromDetails}
+          className="w-full sm:w-auto"
+          data-testid="mr-step2-next"
+        >
+          {t('materialDetails.next')}
+        </PrimaryButton>
       );
     }
     // step 2 — Review
     return (
-      <div className="flex flex-col gap-3">
+      <>
+        <SecondaryButton
+          disabled
+          title={t('review.raisePoUnavailable')}
+          className="w-full sm:w-auto"
+          data-testid="mr-raise-po"
+        >
+          {t('review.raisePo')}
+        </SecondaryButton>
         <PrimaryButton
           onClick={handleSubmit}
           disabled={createMutation.isPending || lines.length === 0}
+          className="w-full sm:w-auto"
           data-testid="mr-submit"
           leading={<CheckIcon />}
         >
           {t('review.submit')}
         </PrimaryButton>
-        <SecondaryButton disabled title={t('review.raisePoUnavailable')} data-testid="mr-raise-po">
-          {t('review.raisePo')}
-        </SecondaryButton>
-        <p className="text-center text-xs text-gray-500">{t('review.footerHint')}</p>
-      </div>
+      </>
     );
   }
 }

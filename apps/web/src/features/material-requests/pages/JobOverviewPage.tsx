@@ -1,11 +1,8 @@
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { Badge, formatDate, PageLoader } from '@forethread/ui-components';
-import CalendarIcon from '@forethread/ui-components/assets/icons/date.svg?react';
-import LocationIcon from '@forethread/ui-components/assets/icons/location.svg?react';
 import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
-import UserIcon from '@forethread/ui-components/assets/icons/user-outline.svg?react';
-import UsersIcon from '@forethread/ui-components/assets/icons/users-group.svg?react';
+import RequestIcon from '@forethread/ui-components/assets/icons/request.svg?react';
 import { useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -17,43 +14,32 @@ import { MobileShell } from '../components/MobileShell';
 import { ProcurementStatusBar, type ProcurementStage } from '../components/ProcurementStatusBar';
 import { useMrProjectDetail } from '../services/material-requests.service';
 
-function DetailRow({
-  icon,
-  label,
-  children,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  children: React.ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-4 py-3">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-700">
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <p className="text-xs text-gray-600">{label}</p>
-        <div className="text-sm text-gray-900">{children}</div>
-      </div>
+    <div>
+      <dt className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="text-sm text-foreground">{children}</dd>
     </div>
   );
 }
 
 function StatTile({ value, label }: { value: string; label: string }) {
   return (
-    <div className="flex flex-1 flex-col gap-2 rounded-lg bg-gray-50 px-3 py-2">
-      <span className="text-2xl text-gray-900">{value}</span>
-      <span className="text-xs text-gray-600">{label}</span>
+    <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted/40 px-4 py-3">
+      <span className="text-2xl font-semibold text-foreground">{value}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
     </div>
   );
 }
 
 /**
- * Job Overview (Figma 2002:176 frame 14:4). Shows the selected job's header,
- * a procurement-status timeline, the job details card and three stat tiles, with
- * the primary "Request Materials" CTA. Fields not exposed by the projects API
- * (PM email, crew size, % complete, days-left, pending) fall back to derived or
- * placeholder values — see the build notes.
+ * Job Overview (Figma 2002:176 frame 14:4), rebuilt on the desktop design
+ * system to read like the officer Material Request detail page: a header card
+ * with the job meta grid + stat tiles, a procurement-status timeline card, and
+ * the "Request Materials" CTA in the page header. Fields not exposed by the
+ * projects API (% complete, days-left) fall back to placeholders.
  */
 export default function JobOverviewPage() {
   const { t } = useTranslation('materialRequests');
@@ -104,10 +90,13 @@ export default function JobOverviewPage() {
           <MobileHeader
             title={t('jobOverview.title')}
             onBack={() => navigate(ROUTES.materialRequestJobs)}
+            icon={<RequestIcon />}
           />
         }
       >
-        <div className="py-12 text-center text-sm text-gray-500">{t('jobOverview.loadFailed')}</div>
+        <div className="rounded-xl border border-border bg-card py-12 text-center text-sm text-muted-foreground">
+          {t('jobOverview.loadFailed')}
+        </div>
       </MobileShell>
     );
   }
@@ -120,84 +109,68 @@ export default function JobOverviewPage() {
         <MobileHeader
           title={t('jobOverview.title')}
           onBack={() => navigate(ROUTES.materialRequestJobs)}
-          subline={
-            <span className="text-sm text-gray-500">
-              {t('jobOverview.projectLabel', { code: project.name })}
-            </span>
+          icon={<RequestIcon />}
+          subline={t('jobOverview.projectLabel', { code: project.name })}
+          trailing={
+            <PrimaryButton
+              leading={<PlusIcon className="size-4" />}
+              onClick={() => navigate(ROUTES.materialRequestNew.replace(':projectId', projectId))}
+              className="w-full sm:w-auto"
+              data-testid="mr-request-materials"
+            >
+              {t('jobOverview.requestMaterials')}
+            </PrimaryButton>
           }
         />
       }
-      footer={
-        <div className="flex flex-col gap-2">
-          <PrimaryButton
-            leading={<PlusIcon className="h-4 w-4" />}
-            onClick={() => navigate(ROUTES.materialRequestNew.replace(':projectId', projectId))}
-            data-testid="mr-request-materials"
-          >
-            {t('jobOverview.requestMaterials')}
-          </PrimaryButton>
-          <p className="text-center text-xs text-gray-500">
-            {t('jobOverview.requestMaterialsHint')}
-          </p>
-        </div>
-      }
     >
-      <div className="flex flex-col gap-7">
-        {/* Job header card */}
-        <div className="flex flex-col gap-3 rounded-lg bg-gray-50 p-4">
-          <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-6">
+        {/* Job header + details */}
+        <div className="rounded-xl border border-border bg-card p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs text-gray-600">{t('jobOverview.jobId')}</p>
-              <p className="truncate text-2xl text-gray-900">{project.name}</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {t('jobOverview.jobId')}
+              </p>
+              <p className="truncate text-2xl font-semibold text-foreground">{project.name}</p>
+              {project.description && (
+                <p className="mt-1 text-sm text-muted-foreground">{project.description}</p>
+              )}
             </div>
             <Badge color="green" className="shrink-0">
               {t('jobOverview.statusActive')}
             </Badge>
           </div>
-          {project.description && <p className="text-xs text-gray-600">{project.description}</p>}
-        </div>
 
-        <ProcurementStatusBar stages={stages} />
-
-        {/* Job details */}
-        <div className="flex flex-col gap-2">
-          <p className="text-sm text-gray-900">{t('jobOverview.jobDetails')}</p>
-          <div className="divide-y divide-gray-100">
-            <DetailRow
-              icon={<LocationIcon className="h-4 w-4" />}
-              label={t('jobOverview.location')}
-            >
+          <dl className="mt-6 grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Field label={t('jobOverview.location')}>
               {deliveryLocation ? deliveryLocation.address : notProvided}
-            </DetailRow>
-            <DetailRow
-              icon={<UserIcon className="h-4 w-4" />}
-              label={t('jobOverview.projectManager')}
-            >
+            </Field>
+            <Field label={t('jobOverview.projectManager')}>
               {project.pointOfContact ? project.pointOfContact.name : notProvided}
-            </DetailRow>
-            <DetailRow
-              icon={<CalendarIcon className="h-4 w-4" />}
-              label={t('jobOverview.startDate')}
-            >
+            </Field>
+            <Field label={t('jobOverview.startDate')}>
               {project.startDate ? formatDate(project.startDate) : notProvided}
-            </DetailRow>
-            <DetailRow
-              icon={<CalendarIcon className="h-4 w-4" />}
-              label={t('jobOverview.estCompletion')}
-            >
+            </Field>
+            <Field label={t('jobOverview.estCompletion')}>
               {project.expectedEndDate ? formatDate(project.expectedEndDate) : notProvided}
-            </DetailRow>
-            <DetailRow icon={<UsersIcon className="h-4 w-4" />} label={t('jobOverview.crewSize')}>
+            </Field>
+            <Field label={t('jobOverview.crewSize')}>
               {t('jobOverview.crewSizeValue', { count: project.assignedUsers?.length ?? 0 })}
-            </DetailRow>
+            </Field>
+          </dl>
+
+          {/* Stat tiles. Only PO count is API-backed; the others are placeholders. */}
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <StatTile value="—" label={t('jobOverview.statComplete')} />
+            <StatTile value="—" label={t('jobOverview.statDaysLeft')} />
+            <StatTile value={String(project.poCount ?? 0)} label={t('jobOverview.statPending')} />
           </div>
         </div>
 
-        {/* Stat tiles. Only PO count is API-backed; the others are placeholders. */}
-        <div className="flex gap-3">
-          <StatTile value="—" label={t('jobOverview.statComplete')} />
-          <StatTile value="—" label={t('jobOverview.statDaysLeft')} />
-          <StatTile value={String(project.poCount ?? 0)} label={t('jobOverview.statPending')} />
+        {/* Procurement status timeline */}
+        <div className="rounded-xl border border-border bg-card p-5 sm:p-6">
+          <ProcurementStatusBar stages={stages} />
         </div>
       </div>
     </MobileShell>

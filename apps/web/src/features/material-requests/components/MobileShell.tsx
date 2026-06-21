@@ -2,34 +2,31 @@ import { cn } from '@forethread/ui-components';
 import type { ReactNode } from 'react';
 
 /**
- * Responsive content shell for the Material Request flow. The flow is designed
- * mobile-first (Figma 2002:176) but renders inside the desktop app frame, so the
- * content is a comfortable centred column that scales from phone to desktop
- * rather than a fixed phone-width letterbox. A sticky footer region keeps the
- * primary CTA pinned on small screens.
+ * Page shell for the Material Request flow. Renders the standard design-system
+ * page chrome shared across the app — the common page padding
+ * (`px-4 … sm:px-8`), a header region and an optional footer action bar — so the
+ * flow reads like the rest of the desktop application instead of a centred phone
+ * letterbox. It still collapses to a comfortable single column on phones.
+ *
+ * (Historically the flow was a fixed phone-width "mobile" shell; the name is
+ * kept for continuity but the layout is now responsive desktop-first.)
  */
 export interface MobileShellProps {
-  /** Sticky page header (typically <MobileHeader />). */
+  /** In-content page header (typically <MobileHeader />). */
   header?: ReactNode;
-  /** Pinned bottom action bar. */
+  /** Optional action region rendered under the body. */
   footer?: ReactNode;
   children: ReactNode;
-  /** Extra classes for the scrollable body column. */
+  /** Extra classes for the scrollable body region. */
   bodyClassName?: string;
 }
 
 export function MobileShell({ header, footer, children, bodyClassName }: MobileShellProps) {
   return (
-    <div className="flex min-h-full flex-col bg-background">
+    <div className="flex min-h-full flex-col px-4 pb-8 pt-4 sm:px-8 sm:pt-6">
       {header}
-      <div className={cn('mx-auto w-full max-w-2xl flex-1 px-4 py-4 md:px-6', bodyClassName)}>
-        {children}
-      </div>
-      {footer && (
-        <div className="sticky bottom-0 border-t border-gray-100 bg-card px-4 py-3 md:px-6">
-          <div className="mx-auto w-full max-w-2xl">{footer}</div>
-        </div>
-      )}
+      <div className={cn('flex-1', bodyClassName)}>{children}</div>
+      {footer && <div className="mt-6">{footer}</div>}
     </div>
   );
 }

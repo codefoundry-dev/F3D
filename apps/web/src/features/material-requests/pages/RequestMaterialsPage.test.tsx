@@ -60,7 +60,15 @@ vi.mock('../components/MobileShell', () => ({
   ),
 }));
 vi.mock('../components/MobileHeader', () => ({
-  MobileHeader: ({ title, onBack }: { title: string; onBack?: () => void }) => (
+  MobileHeader: ({
+    title,
+    onBack,
+    trailing,
+  }: {
+    title: string;
+    onBack?: () => void;
+    trailing?: ReactNode;
+  }) => (
     <div>
       <span>{title}</span>
       {onBack && (
@@ -68,6 +76,7 @@ vi.mock('../components/MobileHeader', () => ({
           back
         </button>
       )}
+      {trailing}
     </div>
   ),
 }));

@@ -3,17 +3,20 @@ import ArrowRightIcon from '@forethread/ui-components/assets/icons/arrow-right.s
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 /**
- * Full-width primary action used in the wizard footers (Figma 2002:176 —
- * "Next", "Submit Request", "Done"). Thin wrapper over the DS Button so the
- * Material Request flow shares the app-wide button styling. Always
- * `type="button"`: the wizard never uses a native form submit, which avoids the
- * step→final button-morph submit bug.
+ * Primary action used by the Material Request pages — the page CTAs ("Request
+ * Materials", "New Request") and wizard navigation ("Next", "Submit Request").
+ * A thin wrapper over the DS Button so the flow shares the app-wide styling.
+ * Auto-width by default (it sits in the header/card action bars); pass
+ * `className="w-full sm:w-auto"` where a full-width mobile target is wanted.
+ *
+ * Always `type="button"`: the wizard never uses a native form submit, which
+ * avoids the step→final button-morph submit bug.
  */
 interface PrimaryButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
   /** Trailing arrow icon (the "Next" affordance). */
   withArrow?: boolean;
-  /** Leading icon slot (e.g. the check on Submit/Done). */
+  /** Leading icon slot (e.g. the plus on "New Request"). */
   leading?: ReactNode;
 }
 
@@ -29,11 +32,11 @@ export function PrimaryButton({
     <Button
       type="button"
       variant="primary"
-      size="lg"
+      size="md"
       disabled={disabled}
       leftIcon={leading}
       rightIcon={withArrow ? <ArrowRightIcon className="size-4" /> : undefined}
-      className={cn('w-full justify-center', className)}
+      className={cn('justify-center', className)}
       {...rest}
     >
       {children}
@@ -41,7 +44,7 @@ export function PrimaryButton({
   );
 }
 
-/** Full-width secondary action — the "Back"/"Raise PO" buttons. */
+/** Secondary action — the "View My Requests"/"Raise PO" buttons. */
 export function SecondaryButton({
   children,
   className,
@@ -51,10 +54,10 @@ export function SecondaryButton({
   return (
     <Button
       type="button"
-      variant="secondary"
-      size="lg"
+      variant="outline"
+      size="md"
       disabled={disabled}
-      className={cn('w-full justify-center', className)}
+      className={cn('justify-center', className)}
       {...rest}
     >
       {children}
