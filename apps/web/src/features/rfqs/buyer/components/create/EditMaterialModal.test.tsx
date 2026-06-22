@@ -15,12 +15,12 @@ vi.mock('@forethread/ui-components', () => ({
       {p.children}
     </button>
   ),
-  Modal: (p: any) => <div data-testid="modal">{p.children}</div>,
-  ModalIconHeader: (p: any) => (
-    <div>
+  GridModal: (p: any) => (
+    <div data-testid="modal">
       <span>{p.title}</span>
-      <span>{p.subtitle}</span>
-      <button type="button" aria-label="close" onClick={p.onClose} />
+      <span>{p.description}</span>
+      {p.children}
+      {p.actions}
     </div>
   ),
   Input: (p: any) => <input value={p.value} onChange={p.onChange} data-testid={p['data-testid']} />,
@@ -122,12 +122,6 @@ describe('EditMaterialModal', () => {
     renderModal({ projectId: undefined });
     expect(screen.getByText('Site A (P1)')).toBeInTheDocument();
     expect(screen.getByText('Site C (P2)')).toBeInTheDocument();
-  });
-
-  it('calls onClose from the header close button', () => {
-    const { onClose } = renderModal();
-    fireEvent.click(screen.getByLabelText('close'));
-    expect(onClose).toHaveBeenCalled();
   });
 
   it('calls onClose from the cancel button', () => {

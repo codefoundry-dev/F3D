@@ -37,6 +37,24 @@ vi.mock('../hooks/useRoleOptions', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  GridModal: ({ icon, title, description, children, actions, onSubmit }: any) =>
+    onSubmit ? (
+      <form data-testid="modal" onSubmit={onSubmit}>
+        {icon}
+        <h2>{title}</h2>
+        <p>{description}</p>
+        {children}
+        {actions}
+      </form>
+    ) : (
+      <div data-testid="modal">
+        {icon}
+        <h2>{title}</h2>
+        <p>{description}</p>
+        {children}
+        {actions}
+      </div>
+    ),
   Modal: ({ children }: any) => <div data-testid="modal">{children}</div>,
   ModalBody: ({ children }: any) => <div>{children}</div>,
   ModalCloseButton: ({ onClose }: any) => <button data-testid="close-btn" onClick={onClose} />,
@@ -112,12 +130,6 @@ describe('EditUserModal', () => {
   it('calls onClose when cancel button is clicked', () => {
     render(<EditUserModal onClose={onClose} />);
     fireEvent.click(screen.getByText('common:cancel'));
-    expect(onClose).toHaveBeenCalled();
-  });
-
-  it('calls onClose when close button is clicked', () => {
-    render(<EditUserModal onClose={onClose} />);
-    fireEvent.click(screen.getByTestId('close-btn'));
     expect(onClose).toHaveBeenCalled();
   });
 

@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, fireEvent } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 
 vi.mock('@forethread/i18n', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -11,12 +11,27 @@ vi.mock('@forethread/api-client', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
-  Modal: ({ children }: { children: ReactNode }) => <div data-testid="modal">{children}</div>,
-  ModalBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  ModalCloseButton: ({ onClose }: { onClose: () => void }) => (
-    <button data-testid="close-btn" onClick={onClose}>
-      X
-    </button>
+  GridModal: ({
+    title,
+    description,
+    children,
+    actions,
+    onSubmit,
+  }: {
+    title: ReactNode;
+    description?: ReactNode;
+    children?: ReactNode;
+    actions?: ReactNode;
+    onSubmit?: (e: FormEvent<HTMLFormElement>) => void;
+  }) => (
+    <div data-testid="modal">
+      <span>{title}</span>
+      <span>{description}</span>
+      <form onSubmit={onSubmit} noValidate>
+        {children}
+        {actions}
+      </form>
+    </div>
   ),
   Input: vi
     .fn()
@@ -43,13 +58,12 @@ vi.mock('@forethread/ui-components', () => ({
     </button>
   ),
   Alert: ({ children }: { children: ReactNode }) => <div data-testid="alert">{children}</div>,
-  IconBadge: () => <span />,
   onPhoneOnly: vi.fn(),
   onDigitsOnly: vi.fn(),
   onDecimalOnly: vi.fn(),
 }));
 
-vi.mock('@forethread/ui-components/assets/icons/edit-without-line.svg?react', () => ({
+vi.mock('@forethread/ui-components/assets/icons/edit.svg?react', () => ({
   default: () => <span />,
 }));
 
@@ -105,14 +119,6 @@ describe('EditLineItemModal', () => {
       wrapper,
     });
     fireEvent.click(screen.getByText('common:cancel'));
-    expect(onClose).toHaveBeenCalled();
-  });
-
-  it('calls onClose when close button clicked', () => {
-    render(<EditLineItemModal rfqId="rfq-1" lineItem={lineItem as never} onClose={onClose} />, {
-      wrapper,
-    });
-    fireEvent.click(screen.getByTestId('close-btn'));
     expect(onClose).toHaveBeenCalled();
   });
 

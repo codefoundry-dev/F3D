@@ -71,6 +71,9 @@ export {
 } from './components/Modal';
 export type { ModalProps, ModalIconHeaderProps, ModalGridHeaderProps } from './components/Modal';
 
+export { GridModal } from './components/GridModal';
+export type { GridModalProps, GridModalSize } from './components/GridModal';
+
 export { ConfirmDialog } from './components/ConfirmDialog';
 export type { ConfirmDialogProps } from './components/ConfirmDialog';
 

@@ -1,7 +1,7 @@
 import { type MaterialListSummaryDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Button, Input, Modal, ModalBody, ModalIconHeader } from '@forethread/ui-components';
-import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
+import { Button, GridModal, Input } from '@forethread/ui-components';
+import MaterialCatalogueIcon from '@forethread/ui-components/assets/icons/material-catalogue.svg?react';
 import { type FormEvent, useState } from 'react';
 
 export interface CreateEditMaterialListModalProps {
@@ -41,86 +41,70 @@ export function CreateEditMaterialListModal({
   };
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-md">
-      <ModalBody>
-        <ModalIconHeader
-          icon={<PackageIcon className="w-6 h-6 text-foreground" />}
-          title={
-            <span className="text-lg font-semibold">
-              {isEdit ? t('createListModal.editTitle') : t('createListModal.createTitle')}
-            </span>
-          }
-          subtitle={
-            <span className="text-sm text-muted-foreground">{t('createListModal.subtitle')}</span>
-          }
-          onClose={onClose}
-          className="mb-6"
-        />
+    <GridModal
+      onClose={onClose}
+      icon={<MaterialCatalogueIcon className="size-6 text-gray-700" />}
+      title={isEdit ? t('createListModal.editTitle') : t('createListModal.createTitle')}
+      description={t('createListModal.subtitle')}
+    >
+      <form onSubmit={handleSubmit} className="space-y-4" data-testid="create-list-form" noValidate>
+        <div className="space-y-1.5">
+          <label htmlFor="material-list-name" className="text-sm font-medium text-foreground">
+            {t('createListModal.nameLabel')}
+          </label>
+          <Input
+            id="material-list-name"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (error) setError(null);
+            }}
+            placeholder={t('createListModal.namePlaceholder')}
+            data-testid="create-list-name"
+          />
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+        </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-4"
-          data-testid="create-list-form"
-          noValidate
-        >
-          <div className="space-y-1.5">
-            <label htmlFor="material-list-name" className="text-sm font-medium text-foreground">
-              {t('createListModal.nameLabel')}
-            </label>
-            <Input
-              id="material-list-name"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                if (error) setError(null);
-              }}
-              placeholder={t('createListModal.namePlaceholder')}
-              data-testid="create-list-name"
-            />
-            {error && (
-              <p role="alert" className="text-sm text-destructive">
-                {error}
-              </p>
-            )}
-          </div>
+        <div className="space-y-1.5">
+          <label
+            htmlFor="material-list-description"
+            className="text-sm font-medium text-foreground"
+          >
+            {t('createListModal.descriptionLabel')}
+          </label>
+          <Input
+            id="material-list-description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder={t('createListModal.descriptionPlaceholder')}
+            data-testid="create-list-description"
+          />
+        </div>
 
-          <div className="space-y-1.5">
-            <label
-              htmlFor="material-list-description"
-              className="text-sm font-medium text-foreground"
-            >
-              {t('createListModal.descriptionLabel')}
-            </label>
-            <Input
-              id="material-list-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={t('createListModal.descriptionPlaceholder')}
-              data-testid="create-list-description"
-            />
-          </div>
-
-          <div className="space-y-2 pt-2">
-            <Button
-              type="submit"
-              className="w-full"
-              isLoading={isSubmitting}
-              data-testid="create-list-submit"
-            >
-              {isEdit ? t('createListModal.save') : t('createListModal.create')}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={onClose}
-              data-testid="create-list-cancel"
-            >
-              {t('createListModal.cancel')}
-            </Button>
-          </div>
-        </form>
-      </ModalBody>
-    </Modal>
+        <div className="space-y-2 pt-2">
+          <Button
+            type="submit"
+            className="w-full"
+            isLoading={isSubmitting}
+            data-testid="create-list-submit"
+          >
+            {isEdit ? t('createListModal.save') : t('createListModal.create')}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={onClose}
+            data-testid="create-list-cancel"
+          >
+            {t('createListModal.cancel')}
+          </Button>
+        </div>
+      </form>
+    </GridModal>
   );
 }

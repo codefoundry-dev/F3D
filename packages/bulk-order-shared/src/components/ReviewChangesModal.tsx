@@ -1,14 +1,11 @@
 import type { BulkOrderChangeRequest } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
-  Modal,
-  ModalBody,
-  ModalCloseButton,
+  GridModal,
   Input,
   FormField,
   Button,
   Alert,
-  IconBadge,
   formatDate,
   formatCurrency,
 } from '@forethread/ui-components';
@@ -93,117 +90,105 @@ export function ReviewChangesModal({
   };
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-[560px]">
-      <ModalBody>
-        <div className="space-y-5">
-          <div className="flex flex-col items-center text-center mb-2">
-            <div className="w-full flex justify-between items-start">
-              <div className="flex-1" />
-              <IconBadge icon={<EditIcon className="w-6 h-6 text-foreground" />} />
-              <div className="flex-1 flex justify-end">
-                <ModalCloseButton onClose={onClose} />
-              </div>
-            </div>
-            <h2 className="text-lg font-semibold text-foreground mt-4">
-              {t('changeRequests.reviewModal.title')}
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              {t('changeRequests.reviewModal.subtitle')}
-            </p>
-          </div>
+    <GridModal
+      onClose={onClose}
+      icon={<EditIcon className="size-6 text-gray-700" />}
+      title={t('changeRequests.reviewModal.title')}
+      description={t('changeRequests.reviewModal.subtitle')}
+      actions={
+        !showRejectForm ? (
+          <>
+            <Button
+              isLoading={approveMutation.isPending}
+              size="lg"
+              disabled={isPending}
+              onClick={handleApprove}
+              className="w-full"
+            >
+              {t('changeRequests.actions.approve')}
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              disabled={isPending}
+              onClick={() => setShowRejectForm(true)}
+              className="w-full"
+            >
+              {t('changeRequests.actions.reject')}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              variant="destructive"
+              size="lg"
+              isLoading={rejectMutation.isPending}
+              disabled={isPending}
+              onClick={handleReject}
+              className="w-full"
+            >
+              {t('changeRequests.rejectModal.confirm')}
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              disabled={isPending}
+              onClick={() => setShowRejectForm(false)}
+              className="w-full"
+            >
+              {t('modals.cancel')}
+            </Button>
+          </>
+        )
+      }
+    >
+      {/* Proposed by info */}
+      <p className="text-sm text-muted-foreground">
+        {t('changeRequests.proposedBy', {
+          name: changeRequest.requestedBy.name,
+          date: formatDate(changeRequest.createdAt),
+        })}
+      </p>
 
-          {/* Proposed by info */}
-          <p className="text-sm text-muted-foreground">
-            {t('changeRequests.proposedBy', {
-              name: changeRequest.requestedBy.name,
-              date: formatDate(changeRequest.createdAt),
-            })}
-          </p>
+      {changeRequest.message && (
+        <p className="text-sm text-foreground italic">&ldquo;{changeRequest.message}&rdquo;</p>
+      )}
 
-          {changeRequest.message && (
-            <p className="text-sm text-foreground italic">&ldquo;{changeRequest.message}&rdquo;</p>
-          )}
-
-          {/* Changes summary */}
-          <div className="rounded-lg bg-muted p-3">
-            <h3 className="text-sm font-semibold text-foreground mb-2">
-              {t('changeRequests.reviewModal.proposedChanges')}
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {changeSummary.map((s, i) => (
-                <span
-                  key={i}
-                  className="inline-flex items-center rounded-full bg-foreground/15 px-2 py-0.5 text-sm text-foreground"
-                >
-                  {s}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {(approveMutation.isError || rejectMutation.isError) && (
-            <Alert variant="destructive">
-              {approveMutation.isError
-                ? t('changeRequests.approveError')
-                : t('changeRequests.rejectError')}
-            </Alert>
-          )}
-
-          {showRejectForm && (
-            <FormField label={t('changeRequests.reviewModal.rejectReason')}>
-              <Input
-                type="text"
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder={t('changeRequests.reviewModal.rejectReasonPlaceholder')}
-              />
-            </FormField>
-          )}
-
-          <div className="flex flex-col gap-3 pt-2">
-            {!showRejectForm ? (
-              <>
-                <Button
-                  isLoading={approveMutation.isPending}
-                  disabled={isPending}
-                  onClick={handleApprove}
-                  className="w-full"
-                >
-                  {t('changeRequests.actions.approve')}
-                </Button>
-                <Button
-                  variant="outline"
-                  disabled={isPending}
-                  onClick={() => setShowRejectForm(true)}
-                  className="w-full"
-                >
-                  {t('changeRequests.actions.reject')}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  variant="destructive"
-                  isLoading={rejectMutation.isPending}
-                  disabled={isPending}
-                  onClick={handleReject}
-                  className="w-full"
-                >
-                  {t('changeRequests.rejectModal.confirm')}
-                </Button>
-                <Button
-                  variant="outline"
-                  disabled={isPending}
-                  onClick={() => setShowRejectForm(false)}
-                  className="w-full"
-                >
-                  {t('modals.cancel')}
-                </Button>
-              </>
-            )}
-          </div>
+      {/* Changes summary */}
+      <div className="rounded-lg bg-muted p-3">
+        <h3 className="text-sm font-semibold text-foreground mb-2">
+          {t('changeRequests.reviewModal.proposedChanges')}
+        </h3>
+        <div className="flex flex-wrap gap-2">
+          {changeSummary.map((s, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center rounded-full bg-foreground/15 px-2 py-0.5 text-sm text-foreground"
+            >
+              {s}
+            </span>
+          ))}
         </div>
-      </ModalBody>
-    </Modal>
+      </div>
+
+      {(approveMutation.isError || rejectMutation.isError) && (
+        <Alert variant="destructive">
+          {approveMutation.isError
+            ? t('changeRequests.approveError')
+            : t('changeRequests.rejectError')}
+        </Alert>
+      )}
+
+      {showRejectForm && (
+        <FormField label={t('changeRequests.reviewModal.rejectReason')}>
+          <Input
+            type="text"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder={t('changeRequests.reviewModal.rejectReasonPlaceholder')}
+          />
+        </FormField>
+      )}
+    </GridModal>
   );
 }

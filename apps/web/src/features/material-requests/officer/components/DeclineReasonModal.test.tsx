@@ -12,6 +12,24 @@ vi.mock('@forethread/i18n', () => ({
   }),
 }));
 vi.mock('@forethread/ui-components', () => ({
+  GridModal: ({ icon, title, description, children, actions, onSubmit }: any) =>
+    onSubmit ? (
+      <form data-testid="modal" onSubmit={onSubmit}>
+        {icon}
+        <h2>{title}</h2>
+        <p>{description}</p>
+        {children}
+        {actions}
+      </form>
+    ) : (
+      <div data-testid="modal">
+        {icon}
+        <h2>{title}</h2>
+        <p>{description}</p>
+        {children}
+        {actions}
+      </div>
+    ),
   Modal: ({ children }: { children: ReactNode }) => <div role="dialog">{children}</div>,
   ModalHeader: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
   ModalBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,

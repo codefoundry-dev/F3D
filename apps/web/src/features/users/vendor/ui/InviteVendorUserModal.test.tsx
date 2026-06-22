@@ -22,6 +22,24 @@ vi.mock('@forethread/i18n', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  GridModal: ({ icon, title, description, children, actions, onSubmit }: any) =>
+    onSubmit ? (
+      <form data-testid="modal" onSubmit={onSubmit}>
+        {icon}
+        <h2>{title}</h2>
+        <p>{description}</p>
+        {children}
+        {actions}
+      </form>
+    ) : (
+      <div data-testid="modal">
+        {icon}
+        <h2>{title}</h2>
+        <p>{description}</p>
+        {children}
+        {actions}
+      </div>
+    ),
   Modal: ({ children }: any) => <div data-testid="modal">{children}</div>,
   ModalBody: ({ children }: any) => <div>{children}</div>,
   ModalCloseButton: ({ onClose }: any) => <button data-testid="close-btn" onClick={onClose} />,
@@ -137,13 +155,6 @@ describe('InviteVendorUserModal', () => {
     const onClose = vi.fn();
     render(<InviteVendorUserModal onClose={onClose} />);
     fireEvent.click(screen.getByTestId('user-exists-back'));
-    expect(onClose).toHaveBeenCalled();
-  });
-
-  it('calls onClose when close button clicked', () => {
-    const onClose = vi.fn();
-    render(<InviteVendorUserModal onClose={onClose} />);
-    fireEvent.click(screen.getByTestId('close-btn'));
     expect(onClose).toHaveBeenCalled();
   });
 });

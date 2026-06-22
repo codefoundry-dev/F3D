@@ -1,8 +1,7 @@
 import CrossInCircleIcon from '../assets/icons/cross-in-circle.svg?react';
 
 import { Button } from './Button';
-import { IconBadge } from './IconBadge';
-import { Modal, ModalBody, ModalCloseButton } from './Modal';
+import { GridModal } from './GridModal';
 
 export interface StatusErrorModalProps {
   onClose: () => void;
@@ -26,40 +25,24 @@ export function StatusErrorModal({
   maxWidth,
 }: StatusErrorModalProps) {
   return (
-    <Modal onClose={onClose} maxWidth={maxWidth}>
-      <ModalBody>
-        <div className="flex flex-col items-center text-center">
-          {/* Header with close button */}
-          <div className="w-full flex justify-between items-start">
-            <div className="flex-1" />
-            <IconBadge
-              icon={<CrossInCircleIcon className="w-6 h-6 text-destructive" />}
-              className="bg-destructive/10"
-            />
-            <div className="flex-1 flex justify-end">
-              <ModalCloseButton onClose={onClose} />
-            </div>
-          </div>
-
-          {/* Title */}
-          <h2 className="text-lg font-semibold text-foreground mt-4">{title}</h2>
-
-          {/* Description */}
-          <p className="text-sm text-muted-foreground mt-2">{description}</p>
-
-          {/* Primary action */}
-          <Button onClick={onPrimaryClick} className="w-full mt-5">
+    <GridModal
+      onClose={onClose}
+      maxWidth={maxWidth}
+      icon={<CrossInCircleIcon className="size-6 text-destructive" />}
+      title={title}
+      description={description}
+      actions={
+        <>
+          <Button onClick={onPrimaryClick} size="lg" className="w-full">
             {primaryButtonLabel}
           </Button>
-
-          {/* Optional secondary action */}
           {secondaryButtonLabel && onSecondaryClick && (
-            <Button variant="outline" onClick={onSecondaryClick} className="w-full mt-3">
+            <Button variant="outline" size="lg" onClick={onSecondaryClick} className="w-full">
               {secondaryButtonLabel}
             </Button>
           )}
-        </div>
-      </ModalBody>
-    </Modal>
+        </>
+      }
+    />
   );
 }

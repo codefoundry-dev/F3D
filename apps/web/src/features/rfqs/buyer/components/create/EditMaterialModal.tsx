@@ -1,12 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
-import {
-  Button,
-  DatePicker,
-  Input,
-  Modal,
-  ModalIconHeader,
-  Textarea,
-} from '@forethread/ui-components';
+import { Button, DatePicker, GridModal, Input, Textarea } from '@forethread/ui-components';
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import { useState } from 'react';
 
@@ -65,91 +58,106 @@ export function EditMaterialModal({
   const requiredMark = <span className="text-destructive">*</span>;
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-[560px]">
-      <div className="p-8 flex flex-col gap-5">
-        <ModalIconHeader
-          icon={<EditIcon className="w-6 h-6 text-foreground" />}
-          title={t('create.editMaterial.title')}
-          subtitle={t('create.editMaterial.subtitle')}
-          onClose={onClose}
-          className="mb-0"
-        />
-
-        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-          <span>
-            {t('create.editMaterial.materialName')} {requiredMark}
-          </span>
-          <Input value={name} onChange={(e) => setName(e.target.value)} data-testid="edit-material-name" />
-        </label>
-
-        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-          <span>
-            {t('create.editMaterial.description')} {requiredMark}
-          </span>
-          <Input value={description} onChange={(e) => setDescription(e.target.value)} />
-        </label>
-
-        <div className="grid grid-cols-2 gap-4">
-          <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-            <span>
-              {t('create.editMaterial.unit')} {requiredMark}
-            </span>
-            <Input value={uom} onChange={(e) => setUom(e.target.value)} data-testid="edit-material-uom" />
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-            <span>
-              {t('create.editMaterial.quantity')} {requiredMark}
-            </span>
-            <Input
-              inputMode="numeric"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              data-testid="edit-material-qty"
-            />
-          </label>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-            <span>{t('create.editMaterial.expDeliveryDate')}</span>
-            <DatePicker value={expectedDate} onChange={setExpectedDate} editable placeholder="mm/dd/yyyy" />
-          </div>
-          <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-            <span>{t('create.editMaterial.deliveryLocation')}</span>
-            <select
-              value={locationId}
-              onChange={(e) => setLocationId(e.target.value)}
-              className="h-12 rounded-xl border border-foreground/20 bg-background px-3 text-sm text-foreground focus:outline-none focus:border-foreground/40"
-            >
-              <option value="">—</option>
-              {locations.map((location) => (
-                <option key={location.id} value={location.id}>
-                  {location.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-          <span>
-            {t('create.editMaterial.note')}{' '}
-            <span className="text-muted-foreground font-normal">({t('create.optional')})</span>
-          </span>
-          <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </label>
-
-        {error && <p className="text-xs text-destructive">{error}</p>}
-
-        <div className="flex flex-col gap-2 mt-2">
-          <Button type="button" className="w-full h-12" onClick={handleConfirm} data-testid="edit-material-confirm">
+    <GridModal
+      onClose={onClose}
+      size="lg"
+      icon={<EditIcon className="size-6 text-gray-700" />}
+      title={t('create.editMaterial.title')}
+      description={t('create.editMaterial.subtitle')}
+      actions={
+        <>
+          <Button
+            type="button"
+            className="w-full h-12"
+            onClick={handleConfirm}
+            data-testid="edit-material-confirm"
+          >
             {t('create.editMaterial.confirm')}
           </Button>
           <Button type="button" variant="ghost" className="w-full" onClick={onClose}>
             {t('create.editMaterial.cancel')}
           </Button>
-        </div>
+        </>
+      }
+    >
+      <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+        <span>
+          {t('create.editMaterial.materialName')} {requiredMark}
+        </span>
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          data-testid="edit-material-name"
+        />
+      </label>
+
+      <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+        <span>
+          {t('create.editMaterial.description')} {requiredMark}
+        </span>
+        <Input value={description} onChange={(e) => setDescription(e.target.value)} />
+      </label>
+
+      <div className="grid grid-cols-2 gap-4">
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+          <span>
+            {t('create.editMaterial.unit')} {requiredMark}
+          </span>
+          <Input
+            value={uom}
+            onChange={(e) => setUom(e.target.value)}
+            data-testid="edit-material-uom"
+          />
+        </label>
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+          <span>
+            {t('create.editMaterial.quantity')} {requiredMark}
+          </span>
+          <Input
+            inputMode="numeric"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            data-testid="edit-material-qty"
+          />
+        </label>
       </div>
-    </Modal>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+          <span>{t('create.editMaterial.expDeliveryDate')}</span>
+          <DatePicker
+            value={expectedDate}
+            onChange={setExpectedDate}
+            editable
+            placeholder="mm/dd/yyyy"
+          />
+        </div>
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+          <span>{t('create.editMaterial.deliveryLocation')}</span>
+          <select
+            value={locationId}
+            onChange={(e) => setLocationId(e.target.value)}
+            className="h-12 rounded-xl border border-foreground/20 bg-background px-3 text-sm text-foreground focus:outline-none focus:border-foreground/40"
+          >
+            <option value="">—</option>
+            {locations.map((location) => (
+              <option key={location.id} value={location.id}>
+                {location.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+        <span>
+          {t('create.editMaterial.note')}{' '}
+          <span className="text-muted-foreground font-normal">({t('create.optional')})</span>
+        </span>
+        <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </label>
+
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </GridModal>
   );
 }

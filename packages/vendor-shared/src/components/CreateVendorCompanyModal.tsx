@@ -1,14 +1,11 @@
 import { useTranslation } from '@forethread/i18n';
 import { CompanyType, VendorCategory } from '@forethread/shared-types/client';
 import {
-  Modal,
-  ModalBody,
-  ModalCloseButton,
+  GridModal,
   Input,
   FormField,
   Button,
   Alert,
-  IconBadge,
   CustomDropdown,
 } from '@forethread/ui-components';
 import EnvelopeIcon from '@forethread/ui-components/assets/icons/envelope-simple.svg?react';
@@ -84,91 +81,73 @@ export function CreateVendorCompanyModal({ onClose, onSuccess }: CreateVendorCom
   });
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-[560px]">
-      <ModalBody>
-        <form onSubmit={(e) => void onSubmit(e)} className="space-y-5" noValidate>
-          {/* Header */}
-          <div className="flex flex-col items-center text-center mb-2">
-            <div className="w-full flex justify-between items-start">
-              <div className="flex-1" />
-              <IconBadge icon={<VendorsIcon className="w-6 h-6 text-foreground" />} />
-              <div className="flex-1 flex justify-end">
-                <ModalCloseButton onClose={onClose} />
-              </div>
-            </div>
-            <h2 className="text-2xl font-normal leading-[140%] text-foreground mt-4">
-              {t('createCompanyModal.title')}
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">{t('createCompanyModal.subtitle')}</p>
-          </div>
+    <GridModal
+      onClose={onClose}
+      maxWidth="max-w-[560px]"
+      icon={<VendorsIcon className="size-6 text-gray-700" />}
+      title={t('createCompanyModal.title')}
+      description={t('createCompanyModal.subtitle')}
+      onSubmit={(e) => void onSubmit(e)}
+      actions={
+        <>
+          <Button type="submit" size="lg" isLoading={createMutation.isPending} className="w-full">
+            {createMutation.isPending
+              ? t('createCompanyModal.creating')
+              : t('createCompanyModal.createCompany')}
+          </Button>
+          <Button variant="outline" size="lg" type="button" onClick={onClose} className="w-full">
+            {t('common:cancel')}
+          </Button>
+        </>
+      }
+    >
+      {/* Error alert */}
+      {errorKey && (
+        <Alert variant="destructive" icon={<InfoIcon className="w-5 h-5" />}>
+          {t(`createCompanyModal.${errorKey}` as 'createCompanyModal.createError')}
+        </Alert>
+      )}
 
-          {/* Error alert */}
-          {errorKey && (
-            <Alert variant="destructive" icon={<InfoIcon className="w-5 h-5" />}>
-              {t(`createCompanyModal.${errorKey}` as 'createCompanyModal.createError')}
-            </Alert>
+      {/* Company Name */}
+      <FormField label={t('createCompanyModal.companyName')} error={errors.companyName?.message}>
+        <Input
+          type="text"
+          placeholder={t('createCompanyModal.companyNamePlaceholder')}
+          {...register('companyName')}
+        />
+      </FormField>
+
+      {/* Company Email */}
+      <FormField label={t('createCompanyModal.companyEmail')} error={errors.companyEmail?.message}>
+        <Input
+          type="email"
+          placeholder={t('createCompanyModal.companyEmailPlaceholder')}
+          leftIcon={<EnvelopeIcon className="w-5 h-5" />}
+          {...register('companyEmail')}
+        />
+      </FormField>
+
+      {/* Specialisation */}
+      <FormField
+        label={t('createCompanyModal.specialisation')}
+        error={errors.specialisation?.message}
+      >
+        <Controller
+          name="specialisation"
+          control={control}
+          render={({ field }) => (
+            <CustomDropdown
+              options={specialisationOptions}
+              value={field.value}
+              onChange={field.onChange}
+              placeholder={t('createCompanyModal.specialisationPlaceholder')}
+              leftIcon={<WrenchIcon className="w-5 h-5" />}
+              searchable
+              error={Boolean(errors.specialisation)}
+            />
           )}
-
-          {/* Company Name */}
-          <FormField
-            label={t('createCompanyModal.companyName')}
-            error={errors.companyName?.message}
-          >
-            <Input
-              type="text"
-              placeholder={t('createCompanyModal.companyNamePlaceholder')}
-              {...register('companyName')}
-            />
-          </FormField>
-
-          {/* Company Email */}
-          <FormField
-            label={t('createCompanyModal.companyEmail')}
-            error={errors.companyEmail?.message}
-          >
-            <Input
-              type="email"
-              placeholder={t('createCompanyModal.companyEmailPlaceholder')}
-              leftIcon={<EnvelopeIcon className="w-5 h-5" />}
-              {...register('companyEmail')}
-            />
-          </FormField>
-
-          {/* Specialisation */}
-          <FormField
-            label={t('createCompanyModal.specialisation')}
-            error={errors.specialisation?.message}
-          >
-            <Controller
-              name="specialisation"
-              control={control}
-              render={({ field }) => (
-                <CustomDropdown
-                  options={specialisationOptions}
-                  value={field.value}
-                  onChange={field.onChange}
-                  placeholder={t('createCompanyModal.specialisationPlaceholder')}
-                  leftIcon={<WrenchIcon className="w-5 h-5" />}
-                  searchable
-                  error={Boolean(errors.specialisation)}
-                />
-              )}
-            />
-          </FormField>
-
-          {/* Actions */}
-          <div className="flex flex-col gap-3 pt-2">
-            <Button type="submit" isLoading={createMutation.isPending} className="w-full">
-              {createMutation.isPending
-                ? t('createCompanyModal.creating')
-                : t('createCompanyModal.createCompany')}
-            </Button>
-            <Button variant="outline" type="button" onClick={onClose} className="w-full">
-              {t('common:cancel')}
-            </Button>
-          </div>
-        </form>
-      </ModalBody>
-    </Modal>
+        />
+      </FormField>
+    </GridModal>
   );
 }

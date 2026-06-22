@@ -49,8 +49,7 @@ export function VendorInviteSuccessModal({
       redirectLabel={
         labels?.redirecting ?? ((seconds) => t('inviteSuccess.redirecting', { seconds }))
       }
-      icon={<CheckCircleIcon className="w-6 h-6 text-success" />}
-      iconBadgeClassName="bg-success/10"
+      icon={<CheckCircleIcon className="h-6 w-6 text-success" />}
     />
   );
 }

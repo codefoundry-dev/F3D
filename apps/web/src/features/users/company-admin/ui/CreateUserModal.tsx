@@ -1,13 +1,10 @@
 import { useTranslation } from '@forethread/i18n';
 import {
-  Modal,
-  ModalBody,
-  ModalCloseButton,
+  GridModal,
   Input,
   FormField,
   Button,
   Alert,
-  IconBadge,
   CustomDropdown,
   UserAlreadyExistsModal,
 } from '@forethread/ui-components';
@@ -39,91 +36,88 @@ export function CreateUserModal({ onClose }: CreateUserModalProps) {
 
   return (
     <>
-      <Modal onClose={onClose} maxWidth="max-w-[560px]">
-        <ModalBody>
-          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5" noValidate>
-            {/* Header */}
-            <div className="flex flex-col items-center text-center mb-2">
-              <div className="w-full flex justify-between items-start">
-                <div className="flex-1" />
-                <IconBadge icon={<NewUserIcon className="w-6 h-6 text-foreground" />} />
-                <div className="flex-1 flex justify-end">
-                  <ModalCloseButton onClose={onClose} />
-                </div>
-              </div>
-              <h2 className="text-2xl font-semibold leading-[140%] text-foreground mt-4">
-                {t('createModal.title')}
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">{t('createModal.subtitle')}</p>
-            </div>
-            {/* Error alert */}
-            {createMutation.isError && (
-              <Alert variant="destructive" icon={<InfoIcon className="w-5 h-5" />}>
-                {isEmailInUseError ? t('createModal.emailInUse') : t('createModal.createError')}
-              </Alert>
+      <GridModal
+        onClose={onClose}
+        icon={<NewUserIcon className="size-6 text-gray-700" />}
+        title={t('createModal.title')}
+        description={t('createModal.subtitle')}
+        onSubmit={(e) => void handleSubmit(e)}
+        actions={
+          <>
+            <Button type="submit" size="lg" isLoading={createMutation.isPending} className="w-full">
+              {createMutation.isPending
+                ? t('createModal.creating')
+                : t('createModal.sendInvitation')}
+            </Button>
+            <Button variant="outline" size="lg" type="button" onClick={onClose} className="w-full">
+              {t('common:cancel')}
+            </Button>
+          </>
+        }
+      >
+        {/* Error alert */}
+        {createMutation.isError && (
+          <Alert variant="destructive" icon={<InfoIcon className="w-5 h-5" />}>
+            {isEmailInUseError ? t('createModal.emailInUse') : t('createModal.createError')}
+          </Alert>
+        )}
+
+        {/* Full Name */}
+        <FormField label={t('createModal.fullName')} error={errors.name?.message} labelSize="lg">
+          <Input
+            type="text"
+            inputSize="lg"
+            placeholder={t('createModal.namePlaceholder')}
+            leftIcon={<UserOutlineIcon className="w-5 h-5" />}
+            {...register('name')}
+          />
+        </FormField>
+
+        {/* Email */}
+        <FormField label={t('createModal.email')} error={errors.email?.message} labelSize="lg">
+          <Input
+            type="email"
+            inputSize="lg"
+            placeholder={t('createModal.emailPlaceholder')}
+            leftIcon={<EnvelopeIcon className="w-5 h-5" />}
+            {...register('email')}
+          />
+        </FormField>
+
+        {/* Role */}
+        <FormField label={t('createModal.role')} error={errors.role?.message} labelSize="lg">
+          <Controller
+            name="role"
+            control={control}
+            render={({ field }) => (
+              <CustomDropdown
+                options={roleOptions}
+                value={field.value}
+                onChange={field.onChange}
+                placeholder={t('createModal.selectRole')}
+                leftIcon={<BriefcaseIcon className="w-5 h-5" />}
+                error={Boolean(errors.role)}
+              />
             )}
+          />
+        </FormField>
 
-            {/* Full Name */}
-            <FormField label={t('createModal.fullName')} error={errors.name?.message}>
-              <Input
-                type="text"
-                placeholder={t('createModal.namePlaceholder')}
-                leftIcon={<UserOutlineIcon className="w-5 h-5" />}
-                {...register('name')}
-              />
-            </FormField>
-
-            {/* Email */}
-            <FormField label={t('createModal.email')} error={errors.email?.message}>
-              <Input
-                type="email"
-                placeholder={t('createModal.emailPlaceholder')}
-                leftIcon={<EnvelopeIcon className="w-5 h-5" />}
-                {...register('email')}
-              />
-            </FormField>
-
-            {/* Role */}
-            <FormField label={t('createModal.role')} error={errors.role?.message}>
-              <Controller
-                name="role"
-                control={control}
-                render={({ field }) => (
-                  <CustomDropdown
-                    options={roleOptions}
-                    value={field.value}
-                    onChange={field.onChange}
-                    placeholder={t('createModal.selectRole')}
-                    leftIcon={<BriefcaseIcon className="w-5 h-5" />}
-                    error={Boolean(errors.role)}
-                  />
-                )}
-              />
-            </FormField>
-
-            {/* Position */}
-            <FormField label={t('createModal.position')} optional error={errors.position?.message}>
-              <Input
-                type="text"
-                placeholder={t('createModal.positionPlaceholder')}
-                leftIcon={<IdBadgeIcon className="w-5 h-5" />}
-                {...register('position')}
-              />
-            </FormField>
-            {/* Actions */}
-            <div className="flex flex-col gap-3 pt-2">
-              <Button type="submit" isLoading={createMutation.isPending} className="w-full">
-                {createMutation.isPending
-                  ? t('createModal.creating')
-                  : t('createModal.sendInvitation')}
-              </Button>
-              <Button variant="outline" type="button" onClick={onClose} className="w-full">
-                {t('common:cancel')}
-              </Button>
-            </div>
-          </form>
-        </ModalBody>
-      </Modal>
+        {/* Position */}
+        <FormField
+          label={t('createModal.position')}
+          optional
+          error={errors.position?.message}
+          labelSize="lg"
+        >
+          <Input
+            type="text"
+            inputSize="lg"
+            placeholder={t('createModal.positionPlaceholder')}
+            leftIcon={<IdBadgeIcon className="w-5 h-5" />}
+            {...register('position')}
+          />
+        </FormField>
+      </GridModal>
 
       {showUserExists && (
         <UserAlreadyExistsModal

@@ -1,14 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
-import {
-  Modal,
-  ModalBody,
-  ModalCloseButton,
-  Button,
-  IconBadge,
-  Input,
-  FormField,
-  Alert,
-} from '@forethread/ui-components';
+import { GridModal, Button, Input, FormField, Alert } from '@forethread/ui-components';
 import DepartmentIcon from '@forethread/ui-components/assets/icons/department.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit-without-line.svg?react';
 import { useState } from 'react';
@@ -34,63 +25,54 @@ export function EditCompanyModal() {
   };
 
   return (
-    <Modal onClose={closeEditCompanyModal}>
-      <ModalBody>
-        <div className="flex flex-col items-center text-center">
-          <div className="w-full flex justify-between items-start">
-            <div className="flex-1" />
-            <IconBadge icon={<EditIcon className="w-6 h-6 text-foreground" />} />
-            <div className="flex-1 flex justify-end">
-              <ModalCloseButton onClose={closeEditCompanyModal} />
-            </div>
-          </div>
+    <GridModal
+      onClose={closeEditCompanyModal}
+      icon={<EditIcon className="size-6 text-gray-700" />}
+      title={t('editCompanyModal.title')}
+      description={t('editCompanyModal.subtitle')}
+      onSubmit={handleSubmit}
+      actions={
+        <>
+          <Button
+            type="submit"
+            size="lg"
+            isLoading={updateMutation.isPending}
+            disabled={!companyName.trim()}
+            className="w-full"
+          >
+            {updateMutation.isPending
+              ? t('editCompanyModal.submitting')
+              : t('editCompanyModal.submitChanges')}
+          </Button>
+          <Button
+            variant="outline"
+            size="lg"
+            type="button"
+            onClick={closeEditCompanyModal}
+            className="w-full"
+          >
+            {t('common:cancel')}
+          </Button>
+        </>
+      }
+    >
+      <FormField label={t('editCompanyModal.companyName')} labelSize="lg">
+        <Input
+          type="text"
+          inputSize="lg"
+          value={companyName}
+          onChange={(e) => setCompanyName(e.target.value)}
+          placeholder={t('editCompanyModal.companyNamePlaceholder')}
+          leftIcon={<DepartmentIcon className="w-5 h-5" />}
+        />
+      </FormField>
 
-          <h2 className="text-2xl font-semibold leading-[140%] text-foreground mt-4">
-            {t('editCompanyModal.title')}
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">{t('editCompanyModal.subtitle')}</p>
-
-          <form onSubmit={handleSubmit} className="w-full mt-5 space-y-4 text-left" noValidate>
-            <FormField label={t('editCompanyModal.companyName')}>
-              <Input
-                type="text"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                placeholder={t('editCompanyModal.companyNamePlaceholder')}
-                leftIcon={<DepartmentIcon className="w-5 h-5" />}
-              />
-            </FormField>
-
-            {updateMutation.isError && (
-              <Alert variant="destructive">
-                {(updateMutation.error as { response?: { data?: { error?: string } } })?.response
-                  ?.data?.error ?? t('editCompanyModal.updateError')}
-              </Alert>
-            )}
-
-            <div className="flex flex-col gap-3 pt-2">
-              <Button
-                type="submit"
-                isLoading={updateMutation.isPending}
-                disabled={!companyName.trim()}
-                className="w-full"
-              >
-                {updateMutation.isPending
-                  ? t('editCompanyModal.submitting')
-                  : t('editCompanyModal.submitChanges')}
-              </Button>
-              <Button
-                variant="outline"
-                type="button"
-                onClick={closeEditCompanyModal}
-                className="w-full"
-              >
-                {t('common:cancel')}
-              </Button>
-            </div>
-          </form>
-        </div>
-      </ModalBody>
-    </Modal>
+      {updateMutation.isError && (
+        <Alert variant="destructive">
+          {(updateMutation.error as { response?: { data?: { error?: string } } })?.response?.data
+            ?.error ?? t('editCompanyModal.updateError')}
+        </Alert>
+      )}
+    </GridModal>
   );
 }

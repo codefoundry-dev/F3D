@@ -34,10 +34,24 @@ vi.mock('@forethread/ui-components', () => ({
       {children}
     </label>
   ),
-  IconBadge: () => <span data-testid="icon-badge" />,
-  Modal: ({ children }: any) => <div data-testid="modal">{children}</div>,
-  ModalBody: ({ children }: any) => <div>{children}</div>,
-  ModalCloseButton: ({ onClose }: any) => <button data-testid="modal-close" onClick={onClose} />,
+  GridModal: ({ icon, title, description, children, actions, onSubmit }: any) => (
+    <div data-testid="modal">
+      <span data-testid="icon-badge">{icon}</span>
+      <h2>{title}</h2>
+      {description ? <p>{description}</p> : null}
+      {onSubmit ? (
+        <form onSubmit={onSubmit}>
+          {children}
+          {actions}
+        </form>
+      ) : (
+        <>
+          {children}
+          {actions}
+        </>
+      )}
+    </div>
+  ),
   Textarea: ({ value, onChange, placeholder }: any) => (
     <textarea
       data-testid="message"
@@ -50,8 +64,8 @@ vi.mock('@forethread/ui-components', () => ({
   notificationService: { success: mockSuccess, error: mockError },
 }));
 
-vi.mock('@forethread/ui-components/assets/icons/file-text.svg?react', () => ({
-  default: () => <span data-testid="file-icon" />,
+vi.mock('@forethread/ui-components/assets/icons/clock.svg?react', () => ({
+  default: () => <span data-testid="clock-icon" />,
 }));
 vi.mock('@forethread/ui-components/assets/icons/info-in-triangle.svg?react', () => ({
   default: () => <span data-testid="info-icon" />,

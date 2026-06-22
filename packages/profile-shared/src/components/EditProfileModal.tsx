@@ -1,13 +1,10 @@
 import { useTranslation } from '@forethread/i18n';
 import {
-  Modal,
-  ModalBody,
-  ModalCloseButton,
+  GridModal,
   Input,
   FormField,
   Button,
   Alert,
-  IconBadge,
   CustomDropdown,
   onPhoneOnly,
 } from '@forethread/ui-components';
@@ -95,112 +92,97 @@ export function EditProfileModal({ onClose }: EditProfileModalProps) {
   };
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-[560px]">
-      <ModalBody>
-        <form onSubmit={(e) => void handleSubmit(onSubmit)(e)} className="space-y-10" noValidate>
-          {/* Header */}
-          <div className="flex flex-col items-center text-center">
-            <div className="w-full flex justify-between items-start">
-              <div className="flex-1" />
-              <IconBadge icon={<EditIcon className="w-6 h-6 text-foreground" />} />
-              <div className="flex-1 flex justify-end">
-                <ModalCloseButton onClose={onClose} />
-              </div>
-            </div>
-            <h2 className="text-2xl font-normal text-foreground mt-2">{t('editModal.title')}</h2>
-            <p className="text-sm text-muted-foreground mt-2">{t('editModal.subtitle')}</p>
-          </div>
+    <GridModal
+      onClose={onClose}
+      maxWidth="max-w-[560px]"
+      icon={<EditIcon className="size-6 text-gray-700" />}
+      title={t('editModal.title')}
+      description={t('editModal.subtitle')}
+      onSubmit={(e) => void handleSubmit(onSubmit)(e)}
+      actionsClassName="gap-4"
+      actions={
+        <>
+          <Button type="submit" size="lg" isLoading={updateMutation.isPending} className="w-full">
+            {updateMutation.isPending ? t('editModal.submitting') : t('editModal.submitChanges')}
+          </Button>
+          <Button variant="outline" size="lg" type="button" onClick={onClose} className="w-full">
+            {t('common:cancel')}
+          </Button>
+        </>
+      }
+    >
+      {/* Full Name */}
+      <FormField label={t('editModal.fullName')} error={errors.name?.message} required>
+        <Input
+          type="text"
+          placeholder={t('editModal.namePlaceholder')}
+          leftIcon={<UserOutlineIcon className="w-5 h-5" />}
+          {...register('name')}
+        />
+      </FormField>
 
-          <div className="space-y-6">
-            {/* Full Name */}
-            <FormField label={t('editModal.fullName')} error={errors.name?.message} required>
-              <Input
-                type="text"
-                placeholder={t('editModal.namePlaceholder')}
-                leftIcon={<UserOutlineIcon className="w-5 h-5" />}
-                {...register('name')}
-              />
-            </FormField>
+      {/* Phone */}
+      <FormField label={t('editModal.phone')} error={errors.phone?.message}>
+        <Input
+          type="tel"
+          inputMode="tel"
+          onKeyDown={onPhoneOnly}
+          placeholder={t('editModal.phonePlaceholder')}
+          leftIcon={<PhoneIcon className="w-5 h-5" />}
+          {...register('phone')}
+        />
+      </FormField>
 
-            {/* Phone */}
-            <FormField label={t('editModal.phone')} error={errors.phone?.message}>
-              <Input
-                type="tel"
-                inputMode="tel"
-                onKeyDown={onPhoneOnly}
-                placeholder={t('editModal.phonePlaceholder')}
-                leftIcon={<PhoneIcon className="w-5 h-5" />}
-                {...register('phone')}
-              />
-            </FormField>
+      {/* Work Status */}
+      <FormField label={t('editModal.workStatus')}>
+        <Controller
+          name="workStatus"
+          control={control}
+          render={({ field }) => (
+            <CustomDropdown
+              options={workStatusOptions}
+              value={field.value ?? ''}
+              onChange={field.onChange}
+              placeholder={t('editModal.workStatusPlaceholder')}
+              leftIcon={<BriefcaseIcon className="w-5 h-5" />}
+            />
+          )}
+        />
+      </FormField>
 
-            {/* Work Status */}
-            <FormField label={t('editModal.workStatus')}>
-              <Controller
-                name="workStatus"
-                control={control}
-                render={({ field }) => (
-                  <CustomDropdown
-                    options={workStatusOptions}
-                    value={field.value ?? ''}
-                    onChange={field.onChange}
-                    placeholder={t('editModal.workStatusPlaceholder')}
-                    leftIcon={<BriefcaseIcon className="w-5 h-5" />}
-                  />
-                )}
-              />
-            </FormField>
+      {/* Position (optional) */}
+      <div>
+        <label className="block mb-1.5">
+          <span className="text-sm font-medium text-card-foreground">
+            {t('editModal.position')}&nbsp;
+            <span className="text-muted-foreground font-normal">({t('common:optional')})</span>
+          </span>
+        </label>
+        <Input
+          type="text"
+          placeholder={t('editModal.positionPlaceholder')}
+          leftIcon={<IdBadgeIcon className="w-5 h-5" />}
+          {...register('position')}
+        />
+      </div>
 
-            {/* Position (optional) */}
-            <div>
-              <label className="block mb-1.5">
-                <span className="text-sm font-medium text-card-foreground">
-                  {t('editModal.position')}&nbsp;
-                  <span className="text-muted-foreground font-normal">
-                    ({t('common:optional')})
-                  </span>
-                </span>
-              </label>
-              <Input
-                type="text"
-                placeholder={t('editModal.positionPlaceholder')}
-                leftIcon={<IdBadgeIcon className="w-5 h-5" />}
-                {...register('position')}
-              />
-            </div>
+      {/* Department */}
+      <div>
+        <label className="block mb-1.5">
+          <span className="text-sm font-medium text-card-foreground">
+            {t('editModal.department')}
+          </span>
+        </label>
+        <Input
+          type="text"
+          placeholder={t('editModal.departmentPlaceholder')}
+          leftIcon={<DepartmentIcon className="w-5 h-5" />}
+          {...register('department')}
+        />
+      </div>
 
-            {/* Department */}
-            <div>
-              <label className="block mb-1.5">
-                <span className="text-sm font-medium text-card-foreground">
-                  {t('editModal.department')}
-                </span>
-              </label>
-              <Input
-                type="text"
-                placeholder={t('editModal.departmentPlaceholder')}
-                leftIcon={<DepartmentIcon className="w-5 h-5" />}
-                {...register('department')}
-              />
-            </div>
-
-            {/* Error */}
-            {updateMutation.isError && (
-              <Alert variant="destructive">{t('editModal.updateError')}</Alert>
-            )}
-          </div>
-
-          {/* Actions */}
-          <div className="flex flex-col gap-4">
-            <Button type="submit" isLoading={updateMutation.isPending} className="w-full">
-              {updateMutation.isPending ? t('editModal.submitting') : t('editModal.submitChanges')}
-            </Button>
-            <Button variant="outline" type="button" onClick={onClose} className="w-full">
-              {t('common:cancel')}
-            </Button>
-          </div>
-        </form>
-      </ModalBody>
-    </Modal>
+      {/* Error */}
+      {updateMutation.isError && <Alert variant="destructive">{t('editModal.updateError')}</Alert>}
+    </GridModal>
   );
 }
