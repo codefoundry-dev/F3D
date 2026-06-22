@@ -55,7 +55,21 @@ interface PendingPurchaseOrdersProps {
   isLoadingApproval?: boolean;
 }
 
-type TabFilter = 'all' | 'pending' | 'acknowledged';
+type TabFilter = 'all' | 'pendingApproval' | 'sent';
+
+/**
+ * Filter tabs for the Purchase orders section, each mapped to the PO status it
+ * selects (compared against the card's raw enum status, lower-cased). `null` is
+ * the unfiltered "All" tab. The section only ever holds DRAFT/SENT POs (the
+ * dashboard's pending list) and PENDING_APPROVAL POs (the approver queue), so
+ * these are the buckets that actually yield rows — the previous
+ * `pending`/`acknowledged` tabs matched no status here and were always empty.
+ */
+const PO_TABS: { key: TabFilter; status: string | null }[] = [
+  { key: 'all', status: null },
+  { key: 'pendingApproval', status: 'pending_approval' },
+  { key: 'sent', status: 'sent' },
+];
 
 function fromPendingPoItem(item: PendingPoItem): PoCardData {
   return {
@@ -113,8 +127,11 @@ export function PendingPurchaseOrders({
     return [...approvalCards, ...pendingCards];
   }, [items, approvalItems, canApprove, pickUpLabel, deliveryLabel]);
 
+  const activeStatus = PO_TABS.find((tab) => tab.key === activeTab)?.status ?? null;
   const filteredItems =
-    activeTab === 'all' ? cards : cards.filter((item) => item.status.toLowerCase() === activeTab);
+    activeStatus === null
+      ? cards
+      : cards.filter((item) => item.status.toLowerCase() === activeStatus);
 
   if (isLoading || (canApprove && isLoadingApproval)) {
     return <DashboardSectionSkeleton title={t('purchaseOrders.title')} />;
@@ -125,18 +142,18 @@ export function PendingPurchaseOrders({
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <h2 className="text-base font-semibold text-foreground">{t('purchaseOrders.title')}</h2>
         <div className="flex gap-2">
-          {(['all', 'pending', 'acknowledged'] as const).map((tab) => (
+          {PO_TABS.map(({ key }) => (
             <button
-              key={tab}
+              key={key}
               type="button"
-              onClick={() => setActiveTab(tab)}
+              onClick={() => setActiveTab(key)}
               className={`rounded-full px-2.5 py-1 text-sm font-normal transition-colors ${
-                activeTab === tab
+                activeTab === key
                   ? 'bg-accent text-foreground'
                   : 'border border-border text-foreground hover:bg-accent/50'
               }`}
             >
-              {t(`purchaseOrders.${tab}`)}
+              {t(`purchaseOrders.${key}`)}
             </button>
           ))}
         </div>
