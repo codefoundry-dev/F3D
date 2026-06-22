@@ -48,21 +48,22 @@ describe('getSidebarItemsForRole', () => {
     expect(labels).toContain('Invoices');
   });
 
-  it('shows deliveries + invoices + settings to FINANCIAL_OFFICER', () => {
-    // The Financial officer reviews deliveries (Epic 6) alongside invoices.
+  it('shows deliveries + invoices to FINANCIAL_OFFICER (no Settings access)', () => {
+    // The Financial officer reviews deliveries (Epic 6) alongside invoices, but
+    // Settings is now limited to the roles that manage users/company/roles.
     const labels = getSidebarItemsForRole(UserRole.FINANCIAL_OFFICER, '/', LABELS).map(
       (i) => i.label,
     );
-    expect(labels).toEqual(['Deliveries', 'Invoices', 'Settings']);
+    expect(labels).toEqual(['Deliveries', 'Invoices']);
   });
 
-  it('shows material requests + deliveries + settings to WAREHOUSE_OFFICER', () => {
+  it('shows material requests + deliveries to WAREHOUSE_OFFICER (no Settings access)', () => {
     // The Warehouse officer holds materialRequest.list and reviews deliveries
-    // (Epic 6), so both are visible alongside Settings.
+    // (Epic 6); Settings is no longer shown to non-admin roles.
     const labels = getSidebarItemsForRole(UserRole.WAREHOUSE_OFFICER, '/', LABELS).map(
       (i) => i.label,
     );
-    expect(labels).toEqual(['Material Requests', 'Deliveries', 'Settings']);
+    expect(labels).toEqual(['Material Requests', 'Deliveries']);
   });
 
   it('shows admin panel, users management, materials + settings to SUPER_ADMIN', () => {

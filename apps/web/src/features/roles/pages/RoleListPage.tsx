@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { useUserRole } from '@/shared/role';
 
 import { useRoleList } from '../services/roles.service';
 
@@ -24,7 +25,13 @@ const ROLE_ORDER: readonly UserRole[] = [
 export default function RoleListPage() {
   const { t } = useTranslation('roles');
   const navigate = useNavigate();
+  const viewerRole = useUserRole();
   const { data, isLoading, isError } = useRoleList();
+
+  // Only a Super Admin may view/configure the Super Admin role.
+  const visibleRoles = ROLE_ORDER.filter(
+    (role) => role !== UserRole.SUPER_ADMIN || viewerRole === UserRole.SUPER_ADMIN,
+  );
 
   // Surface the page title in the global app bar (breadcrumb trail).
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
@@ -63,7 +70,7 @@ export default function RoleListPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-1.5 rounded-[18px] border border-gray-100 bg-[#F9F9FA] p-3 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
-          {ROLE_ORDER.map((role) => {
+          {visibleRoles.map((role) => {
             const count = new Map(data.map((r) => [r.role, r.permissionCount])).get(role) ?? 0;
             return (
               <button

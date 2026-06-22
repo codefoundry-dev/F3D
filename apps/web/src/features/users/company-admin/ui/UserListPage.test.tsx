@@ -247,6 +247,14 @@ vi.mock('./ProjectAccessModal', () => ({
   ),
 }));
 
+vi.mock('./ApprovalConfigurationTab', () => ({
+  default: () => <div data-testid="approval-configuration-tab" />,
+}));
+
+vi.mock('./RolePermissionsTab', () => ({
+  default: () => <div data-testid="role-permissions-tab" />,
+}));
+
 vi.mock('../constants/roles', () => ({
   ROLE_BADGE_COLORS: {},
   STATUS_TEXT_COLORS: {},
@@ -677,17 +685,17 @@ describe('UserListPage', () => {
     expect(mockStoreState.closeCancelInvitationModal).toHaveBeenCalled();
   });
 
-  it('renders approvalConfiguration placeholder when tab is active', () => {
+  it('renders approval configuration tab content when tab is active', () => {
     mockSearchParams.set('tab', 'approvalConfiguration');
     render(<UserListPage />);
-    expect(screen.getByText('tabs.approvalConfigurationPlaceholder')).toBeInTheDocument();
+    expect(screen.getByTestId('approval-configuration-tab')).toBeInTheDocument();
     mockSearchParams.delete('tab');
   });
 
-  it('renders rolePermissions placeholder when tab is active', () => {
+  it('renders role permissions tab content when tab is active', () => {
     mockSearchParams.set('tab', 'rolePermissions');
     render(<UserListPage />);
-    expect(screen.getByText('tabs.rolePermissionsPlaceholder')).toBeInTheDocument();
+    expect(screen.getByTestId('role-permissions-tab')).toBeInTheDocument();
     mockSearchParams.delete('tab');
   });
 

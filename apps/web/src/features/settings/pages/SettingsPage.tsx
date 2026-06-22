@@ -43,13 +43,14 @@ const USERS_ROLES: readonly UserRole[] = [
   UserRole.VENDOR,
 ];
 
-const COMPANY_PROFILE_ROLES: readonly UserRole[] = [
-  UserRole.COMPANY_ADMIN,
-  UserRole.PROCUREMENT_OFFICER,
-  UserRole.VENDOR,
-];
+// Company settings: Company Admin (buyer side) + Vendor (self-manages their own
+// company). Procurement Officer and other non-admin roles no longer have access.
+const COMPANY_PROFILE_ROLES: readonly UserRole[] = [UserRole.COMPANY_ADMIN, UserRole.VENDOR];
 
-const ROLES_ADMIN_ROLES: readonly UserRole[] = [UserRole.COMPANY_ADMIN, UserRole.SUPER_ADMIN];
+// Company Admins now manage roles + approval thresholds from the User
+// Management page (Approval configuration / Role permissions tabs), so the
+// standalone Settings entry is Super-Admin-only.
+const ROLES_ADMIN_ROLES: readonly UserRole[] = [UserRole.SUPER_ADMIN];
 
 export default function SettingsPage() {
   const { t } = useTranslation('nav');

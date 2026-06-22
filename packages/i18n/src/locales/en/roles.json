@@ -25,6 +25,11 @@
   "thresholdPlaceholder": "Unlimited",
   "thresholdHint": "Leave blank for no limit. Documents above this amount route to a higher-tier approver.",
   "invalidThreshold": "Threshold must be a non-negative number or blank.",
+  "approval": {
+    "listSubtitle": "Set approval spend limits",
+    "editorHint": "Set the maximum amount this role can approve before a document escalates to a higher-tier approver. Leave a field blank for no limit.",
+    "empty": "No approval-aware permissions are enabled for this role yet. Enable them under Role permissions first."
+  },
   "domains": {
     "dashboard": "Dashboards",
     "project": "Projects",

@@ -12,7 +12,6 @@ export default function CompanyProfileRoleSwitch() {
       <RoleSwitch
         byRole={{
           [UserRole.COMPANY_ADMIN]: <BuyerCompanyProfilePage />,
-          [UserRole.PROCUREMENT_OFFICER]: <BuyerCompanyProfilePage />,
           [UserRole.VENDOR]: <VendorCompanyProfilePage />,
         }}
       />

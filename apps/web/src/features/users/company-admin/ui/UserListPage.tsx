@@ -56,10 +56,12 @@ import {
 } from '../services/users.service';
 import { useUsersStore } from '../state/users.store';
 
+import ApprovalConfigurationTab from './ApprovalConfigurationTab';
 import { CreateUserModal } from './CreateUserModal';
 import { EditUserModal } from './EditUserModal';
 import { InvitationSuccessModal } from './InvitationSuccessModal';
 import { ProjectAccessModal } from './ProjectAccessModal';
+import RolePermissionsTab from './RolePermissionsTab';
 
 /* ── Shared design-system control styles ── */
 /** 28px gradient-white bordered icon button (row-level actions). */
@@ -615,17 +617,9 @@ export default function UserListPage() {
         </div>
       )}
 
-      {/* Placeholder tabs */}
-      {activeTab === 'approvalConfiguration' && (
-        <div className="rounded-[18px] border border-gray-100 bg-[#F9F9FA] p-12 text-center text-gray-500">
-          {t('tabs.approvalConfigurationPlaceholder')}
-        </div>
-      )}
-      {activeTab === 'rolePermissions' && (
-        <div className="rounded-[18px] border border-gray-100 bg-[#F9F9FA] p-12 text-center text-gray-500">
-          {t('tabs.rolePermissionsPlaceholder')}
-        </div>
-      )}
+      {/* ── Approval configuration + Role permissions tabs ── */}
+      {activeTab === 'approvalConfiguration' && <ApprovalConfigurationTab />}
+      {activeTab === 'rolePermissions' && <RolePermissionsTab />}
 
       {isCreateModalOpen && <CreateUserModal onClose={closeCreateModal} />}
       {isSuccessModalOpen && <InvitationSuccessModal onClose={closeSuccessModal} />}
