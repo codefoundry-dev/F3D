@@ -7,10 +7,16 @@ import { AddMaterialsToListModal } from './AddMaterialsToListModal';
 
 vi.mock('@forethread/api-client', async (importOriginal) => {
   const actual = await importOriginal<typeof apiClient>();
-  return { ...actual, getMaterials: vi.fn(), addMaterialListItems: vi.fn() };
+  return {
+    ...actual,
+    getMaterials: vi.fn(),
+    getMaterialFacets: vi.fn(),
+    addMaterialListItems: vi.fn(),
+  };
 });
 
 const mockedGetMaterials = apiClient.getMaterials as unknown as ReturnType<typeof vi.fn>;
+const mockedGetFacets = apiClient.getMaterialFacets as unknown as ReturnType<typeof vi.fn>;
 const mockedAddItems = apiClient.addMaterialListItems as unknown as ReturnType<typeof vi.fn>;
 
 function materialsPage(
@@ -53,6 +59,12 @@ function renderModal(over: { existing?: string[]; onClose?: () => void } = {}) {
 describe('AddMaterialsToListModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedGetFacets.mockResolvedValue({
+      manufacturers: [],
+      uoms: [],
+      materialTypes: [],
+      countriesOfOrigin: [],
+    });
   });
 
   it('lists catalogue rows to browse, excluding materials already in the list', async () => {

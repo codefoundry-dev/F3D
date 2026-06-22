@@ -489,6 +489,20 @@ export interface MaterialCategoryDto {
   name: string;
 }
 
+/**
+ * Distinct facet option lists for the catalogue filter dropdowns (US 4.04).
+ * Each array holds the sorted, de-duplicated values present across the user's
+ * visible catalogue, so the manufacturer / UoM / material-type / country filters
+ * offer the full set of choices — not just those that happen to appear on the
+ * first page of results.
+ */
+export interface MaterialFacetsDto {
+  manufacturers: string[];
+  uoms: string[];
+  materialTypes: string[];
+  countriesOfOrigin: string[];
+}
+
 /** Summary returned by the catalogue bulk-import endpoint (FOR-228). */
 export interface CatalogueImportSummaryDto {
   total: number;

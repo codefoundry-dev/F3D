@@ -116,6 +116,18 @@ export interface PaginatedMaterialsResponse {
   meta: PaginationMeta;
 }
 
+/**
+ * Distinct facet option lists for the catalogue filter dropdowns (US 4.04).
+ * Each array holds the sorted, de-duplicated values present across the user's
+ * visible catalogue.
+ */
+export interface MaterialFacetsDto {
+  manufacturers: string[];
+  uoms: string[];
+  materialTypes: string[];
+  countriesOfOrigin: string[];
+}
+
 // ── Detail / update shapes (US 4.01) ──────────────────────────────────────────
 
 export interface MaterialDimensionValue {
@@ -315,6 +327,19 @@ export async function getMaterialCategories(
 ): Promise<MaterialCategoryDto[]> {
   const { data } = await getApiClient().get<{ data: MaterialCategoryDto[] }>(
     MATERIALS_PATHS.CATEGORIES,
+    config,
+  );
+  return data.data;
+}
+
+/**
+ * Distinct filter facet values for the catalogue dropdowns (manufacturer / UoM /
+ * material type / country of origin), derived from the whole visible catalogue
+ * (GET /v1/materials/facets) — not a single page of results.
+ */
+export async function getMaterialFacets(config?: AxiosRequestConfig): Promise<MaterialFacetsDto> {
+  const { data } = await getApiClient().get<{ data: MaterialFacetsDto }>(
+    MATERIALS_PATHS.FACETS,
     config,
   );
   return data.data;

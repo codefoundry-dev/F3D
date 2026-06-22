@@ -3,6 +3,7 @@ import { MaterialsController } from '../materials.controller';
 const mockService = {
   listMaterials: jest.fn(),
   listCategories: jest.fn(),
+  getFacets: jest.fn(),
   suggestions: jest.fn(),
   createMaterial: jest.fn(),
   getMaterialById: jest.fn(),
@@ -49,6 +50,20 @@ describe('MaterialsController', () => {
 
     const result = await controller.listCategories();
     expect(result).toBe(expected);
+  });
+
+  it('facets delegates to service with the current user', async () => {
+    const expected = {
+      manufacturers: ['Nucor Steel'],
+      uoms: ['bag'],
+      materialTypes: [],
+      countriesOfOrigin: [],
+    };
+    mockService.getFacets.mockResolvedValue(expected);
+
+    const result = await controller.facets(user as never);
+    expect(result).toBe(expected);
+    expect(mockService.getFacets).toHaveBeenCalledWith(user);
   });
 
   it('suggestions delegates to service with the q term, limit, and the current user', async () => {

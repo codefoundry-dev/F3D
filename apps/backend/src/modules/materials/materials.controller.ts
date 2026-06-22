@@ -64,6 +64,16 @@ export class MaterialsController {
     return this.materialsService.listCategories();
   }
 
+  // ── GET /v1/materials/facets ────────────────────────────────────────────────
+
+  @Get('facets')
+  @RequirePermissions('material.list')
+  @ApiOperation({ summary: 'Distinct filter facet values (manufacturer / UoM / type / country)' })
+  @ApiResponse({ status: 200, description: 'Distinct facet option lists' })
+  async facets(@CurrentUser() user: AuthenticatedUser) {
+    return this.materialsService.getFacets(user);
+  }
+
   // ── GET /v1/materials/suggestions ───────────────────────────────────────────
 
   @Get('suggestions')

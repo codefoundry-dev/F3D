@@ -162,8 +162,7 @@ export const DELIVERY_PATHS = {
   reject: (id: string) => `/delivery-reports/${id}/reject`,
   attachments: (id: string) => `/delivery-reports/${id}/attachments`,
   attachment: (id: string, attId: string) => `/delivery-reports/${id}/attachments/${attId}`,
-  linePhotos: (id: string, lineId: string) =>
-    `/delivery-reports/${id}/lines/${lineId}/photos`,
+  linePhotos: (id: string, lineId: string) => `/delivery-reports/${id}/lines/${lineId}/photos`,
   linePhoto: (id: string, lineId: string, photoId: string) =>
     `/delivery-reports/${id}/lines/${lineId}/photos/${photoId}`,
   // PO → delivery link (QR code, screenshot 09).
@@ -230,6 +229,7 @@ export const VIEWS_PATHS = {
 export const MATERIALS_PATHS = {
   ROOT: '/materials',
   CATEGORIES: '/materials/categories',
+  FACETS: '/materials/facets',
   SUGGESTIONS: '/materials/suggestions',
   CATALOGUE_IMPORT: '/materials/catalogue-import',
   DETECT_DUPLICATES: '/materials/detect-duplicates',

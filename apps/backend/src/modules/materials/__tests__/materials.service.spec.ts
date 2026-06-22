@@ -285,6 +285,57 @@ describe('MaterialsService', () => {
     });
   });
 
+  // ── getFacets ─────────────────────────────────────────────────────────
+
+  describe('getFacets', () => {
+    it('returns sorted distinct facet lists, dropping null/blank values', async () => {
+      // One distinct query per facet column, in declared order:
+      // manufacturer, uom, materialType, countryOfOrigin.
+      mockPrisma.material.findMany
+        .mockResolvedValueOnce([
+          { manufacturer: 'Nucor Steel' },
+          { manufacturer: 'LafargeHolcim' },
+          { manufacturer: '   ' },
+        ])
+        .mockResolvedValueOnce([{ uom: 'bag' }, { uom: 'ton' }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+
+      const result = await service.getFacets(companyAdmin);
+
+      expect(result).toEqual({
+        manufacturers: ['LafargeHolcim', 'Nucor Steel'],
+        uoms: ['bag', 'ton'],
+        materialTypes: [],
+        countriesOfOrigin: [],
+      });
+    });
+
+    it('runs one DISTINCT query per facet, scoped to the user visibility envelope', async () => {
+      mockPrisma.material.findMany.mockResolvedValue([]);
+
+      await service.getFacets(companyAdmin);
+
+      expect(mockPrisma.material.findMany).toHaveBeenCalledTimes(4);
+      const manufacturerCall = mockPrisma.material.findMany.mock.calls[0][0];
+      expect(manufacturerCall.distinct).toEqual(['manufacturer']);
+      expect(manufacturerCall.orderBy).toEqual({ manufacturer: 'asc' });
+      // Non-SuperAdmin: PUBLIC shared rows + own company's private rows only.
+      expect(manufacturerCall.where).toEqual({
+        OR: [{ status: MaterialStatus.PUBLIC }, { companyId: companyAdmin.companyId }],
+      });
+    });
+
+    it('scopes a SuperAdmin to the whole catalogue (no status/company filter)', async () => {
+      mockPrisma.material.findMany.mockResolvedValue([]);
+
+      await service.getFacets(superAdmin);
+
+      const manufacturerCall = mockPrisma.material.findMany.mock.calls[0][0];
+      expect(manufacturerCall.where).toEqual({});
+    });
+  });
+
   // ── suggestions ───────────────────────────────────────────────────────
 
   describe('suggestions', () => {
