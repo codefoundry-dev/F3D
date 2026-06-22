@@ -34,6 +34,11 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
 }));
 
+const mockUseUserRole = vi.hoisted(() => vi.fn());
+vi.mock('@/shared/role', () => ({
+  useUserRole: () => mockUseUserRole(),
+}));
+
 const mockUseRoleList = vi.hoisted(() => vi.fn());
 vi.mock('../services/roles.service', () => ({
   useRoleList: () => mockUseRoleList(),
@@ -44,6 +49,8 @@ import RoleListPage from './RoleListPage';
 describe('RoleListPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default viewer is a Super Admin (the role that owns this standalone page).
+    mockUseUserRole.mockReturnValue('SUPER_ADMIN');
   });
 
   it('shows a spinner while loading', () => {
@@ -76,6 +83,23 @@ describe('RoleListPage', () => {
     const buttons = screen.getAllByRole('button');
     expect(buttons[0]).toHaveAttribute('data-testid', 'role-SUPER_ADMIN');
     expect(screen.getByText(/permissionCount.*42/)).toBeInTheDocument();
+  });
+
+  it('hides the SUPER_ADMIN role from a non-super-admin viewer', () => {
+    mockUseUserRole.mockReturnValue('COMPANY_ADMIN');
+    mockUseRoleList.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: [
+        { role: 'COMPANY_ADMIN', permissionCount: 42 },
+        { role: 'VENDOR', permissionCount: 30 },
+      ],
+    });
+
+    render(<RoleListPage />);
+
+    expect(screen.queryByTestId('role-SUPER_ADMIN')).not.toBeInTheDocument();
+    expect(screen.getByTestId('role-COMPANY_ADMIN')).toBeInTheDocument();
   });
 
   it('navigates to /settings/roles/:role when a row is clicked', () => {

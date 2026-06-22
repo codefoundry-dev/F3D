@@ -53,9 +53,7 @@
     "activityLogTitle": "Activity Log",
     "actionLogPlaceholder": "Action log will be available soon.",
     "approvalConfiguration": "Approval configuration",
-    "rolePermissions": "Role permissions",
-    "approvalConfigurationPlaceholder": "Approval configuration will be available soon.",
-    "rolePermissionsPlaceholder": "Role permissions will be available soon."
+    "rolePermissions": "Role permissions"
   },
   "columns": {
     "name": "Name",

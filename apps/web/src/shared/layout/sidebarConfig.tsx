@@ -25,15 +25,6 @@ export interface RoleAwareSidebarItem extends Omit<SidebarNavItem, 'isActive'> {
   matchPathname?: (pathname: string) => boolean;
 }
 
-const ALL_INTERNAL: readonly UserRole[] = [
-  UserRole.SUPER_ADMIN,
-  UserRole.COMPANY_ADMIN,
-  UserRole.PROCUREMENT_OFFICER,
-  UserRole.FINANCIAL_OFFICER,
-  UserRole.WAREHOUSE_OFFICER,
-  UserRole.FOREMAN,
-];
-
 const SUPER_ADMIN_ONLY: readonly UserRole[] = [UserRole.SUPER_ADMIN];
 
 const BUYER_SIDE: readonly UserRole[] = [UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER];
@@ -145,7 +136,10 @@ export function getSidebarItemsForRole(
       icon: <SettingsIcon className="w-6 h-6" />,
       label: labels.settings,
       href: ROUTES.settings,
-      roles: [...ALL_INTERNAL, UserRole.VENDOR],
+      // Settings only holds User Management, Company Settings and (Super Admin)
+      // Roles, so it's limited to the roles that actually have an entry there:
+      // Super Admin + Company Admin, plus Vendor (self-manages its own company).
+      roles: [UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.VENDOR],
       hasSubmenu: true,
       matchPathname: (p) => p === ROUTES.settings || p.startsWith(ROUTES.settings + '/'),
     },

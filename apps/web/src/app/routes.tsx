@@ -187,11 +187,10 @@ const DELIVERY_VIEWERS = [
   UserRole.FINANCIAL_OFFICER,
 ] as const;
 const USERS_VIEWERS = [UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.VENDOR] as const;
-const COMPANY_PROFILE_VIEWERS = [
-  UserRole.COMPANY_ADMIN,
-  UserRole.PROCUREMENT_OFFICER,
-  UserRole.VENDOR,
-] as const;
+// Company settings are admin-only on the buyer side (Company Admin), plus the
+// Vendor who self-manages their own vendor company profile. Other buyer roles
+// (e.g. Procurement Officer) do not get access.
+const COMPANY_PROFILE_VIEWERS = [UserRole.COMPANY_ADMIN, UserRole.VENDOR] as const;
 const SUPER_ONLY = [UserRole.SUPER_ADMIN] as const;
 const VENDOR_ONLY = [UserRole.VENDOR] as const;
 

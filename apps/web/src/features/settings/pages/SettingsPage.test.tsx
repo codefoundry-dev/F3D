@@ -53,11 +53,12 @@ describe('SettingsPage', () => {
     expect(screen.queryByText('company')).not.toBeInTheDocument();
   });
 
-  it('renders only Company for PROCUREMENT_OFFICER', () => {
+  it('renders empty settings for PROCUREMENT_OFFICER (no users or company access)', () => {
     mockUseUserRole.mockReturnValue(UserRole.PROCUREMENT_OFFICER);
     render(<SettingsPage />);
     expect(screen.queryByText('users')).not.toBeInTheDocument();
-    expect(screen.getByText('company')).toBeInTheDocument();
+    expect(screen.queryByText('company')).not.toBeInTheDocument();
+    expect(screen.getByText('settingsSubtitle')).toBeInTheDocument();
   });
 
   it('renders Users + Company for VENDOR', () => {
@@ -101,17 +102,18 @@ describe('SettingsPage', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/company');
   });
 
-  it('shows the roles link for COMPANY_ADMIN and navigates to /settings/roles', () => {
+  it('hides the standalone roles link for COMPANY_ADMIN (moved to User Management tabs)', () => {
     mockUseUserRole.mockReturnValue(UserRole.COMPANY_ADMIN);
+    render(<SettingsPage />);
+    // 'title' is the i18n key for the roles section heading.
+    expect(screen.queryByText('title')).not.toBeInTheDocument();
+  });
+
+  it('shows the roles link for SUPER_ADMIN and navigates to /settings/roles', () => {
+    mockUseUserRole.mockReturnValue(UserRole.SUPER_ADMIN);
     render(<SettingsPage />);
     fireEvent.click(screen.getByText('title'));
     expect(mockNavigate).toHaveBeenCalledWith('/settings/roles');
-  });
-
-  it('shows the roles link for SUPER_ADMIN', () => {
-    mockUseUserRole.mockReturnValue(UserRole.SUPER_ADMIN);
-    render(<SettingsPage />);
-    expect(screen.getByText('title')).toBeInTheDocument();
   });
 
   it('hides the roles link for PROCUREMENT_OFFICER', () => {
