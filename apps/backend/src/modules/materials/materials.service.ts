@@ -9,6 +9,7 @@ import {
   type MaterialChangeRequestDto,
   type MaterialDetailDto,
   type MaterialDimensions,
+  type MaterialFacetsDto,
   type MaterialFieldChange,
   type MaterialProperties,
   type MaterialSuggestionDto,
@@ -140,6 +141,59 @@ export class MaterialsService {
         updatedAt: m.updatedAt.toISOString(),
       })),
       meta: buildPaginationMeta(query.page ?? 1, query.take, total),
+    };
+  }
+
+  // ── Filter facets (US 4.04) ───────────────────────────────────────────────
+
+  /**
+   * Distinct facet option lists (manufacturer / UoM / material type / country of
+   * origin) for the catalogue filter dropdowns. Derived from the user's visible
+   * catalogue so the dropdowns offer the FULL set of choices — unlike sampling a
+   * single page, which only surfaces the values that happen to land on it. NULL
+   * / blank values are excluded; each list is returned sorted ascending.
+   */
+  async getFacets(user: AuthenticatedUser): Promise<MaterialFacetsDto> {
+    const where = this.buildVisibilityWhere(user);
+
+    // Trim, drop blanks/nulls, de-duplicate and sort a raw column value list.
+    const cleanSort = (values: (string | null)[]): string[] =>
+      Array.from(new Set(values.filter((v): v is string => Boolean(v?.trim())))).sort((a, b) =>
+        a.localeCompare(b),
+      );
+
+    const [manufacturers, uoms, materialTypes, countriesOfOrigin] = await Promise.all([
+      this.prisma.material.findMany({
+        where,
+        select: { manufacturer: true },
+        distinct: ['manufacturer'],
+        orderBy: { manufacturer: 'asc' },
+      }),
+      this.prisma.material.findMany({
+        where,
+        select: { uom: true },
+        distinct: ['uom'],
+        orderBy: { uom: 'asc' },
+      }),
+      this.prisma.material.findMany({
+        where,
+        select: { materialType: true },
+        distinct: ['materialType'],
+        orderBy: { materialType: 'asc' },
+      }),
+      this.prisma.material.findMany({
+        where,
+        select: { countryOfOrigin: true },
+        distinct: ['countryOfOrigin'],
+        orderBy: { countryOfOrigin: 'asc' },
+      }),
+    ]);
+
+    return {
+      manufacturers: cleanSort(manufacturers.map((m) => m.manufacturer)),
+      uoms: cleanSort(uoms.map((m) => m.uom)),
+      materialTypes: cleanSort(materialTypes.map((m) => m.materialType)),
+      countriesOfOrigin: cleanSort(countriesOfOrigin.map((m) => m.countryOfOrigin)),
     };
   }
 
@@ -700,32 +754,43 @@ export class MaterialsService {
 
   // ── Private helpers ─────────────────────────────────────────────────────────
 
+  /**
+   * Status + ownership visibility envelope shared by the list + facets queries.
+   * A SuperAdmin sees the whole catalogue. A non-SuperAdmin sees the PUBLIC
+   * shared catalogue PLUS their own company's private rows (any status, US 4.02)
+   * — never another company's private rows.
+   */
+  private buildVisibilityWhere(user: AuthenticatedUser): Prisma.MaterialWhereInput {
+    if (user.role === UserRole.SUPER_ADMIN) {
+      return {};
+    }
+    return {
+      OR: [
+        { status: MaterialStatus.PUBLIC },
+        // '__none__' is an unmatchable sentinel: a user with no company sees
+        // only PUBLIC rows (no companyId can equal it).
+        { companyId: user.companyId ?? '__none__' },
+      ],
+    };
+  }
+
   private buildListWhere(
     query: MaterialListQueryDto,
     user: AuthenticatedUser,
   ): Prisma.MaterialWhereInput {
     const where: Prisma.MaterialWhereInput = {};
 
-    // Status + ownership visibility. A SuperAdmin sees the whole catalogue and
-    // may request a specific status. A non-SuperAdmin sees the PUBLIC shared
-    // catalogue PLUS their own company's private rows (any status, US 4.02) —
-    // never another company's private rows. An explicit `status` query is
-    // AND-ed inside that envelope, so e.g. the PENDING/ARCHIVED tabs show only
-    // the company's own unpublished rows (public rows are always PUBLIC).
+    // Status + ownership visibility (see buildVisibilityWhere). An explicit
+    // `status` query is AND-ed inside that envelope, so e.g. the PENDING /
+    // ARCHIVED tabs show only the company's own unpublished rows (public rows
+    // are always PUBLIC).
     if (user.role === UserRole.SUPER_ADMIN) {
       if (query.status) {
         where.status = query.status as MaterialStatus;
       }
     } else {
       where.AND = [
-        {
-          OR: [
-            { status: MaterialStatus.PUBLIC },
-            // '__none__' is an unmatchable sentinel: a user with no company sees
-            // only PUBLIC rows (no companyId can equal it).
-            { companyId: user.companyId ?? '__none__' },
-          ],
-        },
+        this.buildVisibilityWhere(user),
         ...(query.status ? [{ status: query.status as MaterialStatus }] : []),
       ];
     }

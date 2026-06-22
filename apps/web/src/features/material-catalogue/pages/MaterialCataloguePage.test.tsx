@@ -13,6 +13,7 @@ vi.mock('@forethread/api-client', async (importOriginal) => {
     ...actual,
     getMaterials: vi.fn(),
     getMaterialCategories: vi.fn(),
+    getMaterialFacets: vi.fn(),
     getMaterialSuggestions: vi.fn(),
     approveMaterial: vi.fn(),
     rejectMaterial: vi.fn(),
@@ -40,6 +41,7 @@ vi.mock('@/shared/role', () => ({
 
 const mockedGetMaterials = apiClient.getMaterials as unknown as ReturnType<typeof vi.fn>;
 const mockedGetCategories = apiClient.getMaterialCategories as unknown as ReturnType<typeof vi.fn>;
+const mockedGetFacets = apiClient.getMaterialFacets as unknown as ReturnType<typeof vi.fn>;
 const mockedGetSuggestions = apiClient.getMaterialSuggestions as unknown as ReturnType<
   typeof vi.fn
 >;
@@ -111,6 +113,12 @@ describe('MaterialCataloguePage', () => {
     mockedGetCategories.mockResolvedValue([
       { id: 'c-1', name: 'Concrete & cement', parentId: null },
     ]);
+    mockedGetFacets.mockResolvedValue({
+      manufacturers: [],
+      uoms: [],
+      materialTypes: [],
+      countriesOfOrigin: [],
+    });
     mockedGetSuggestions.mockResolvedValue({
       results: [],
       frequentlyUsed: [],
@@ -205,13 +213,21 @@ describe('MaterialCataloguePage', () => {
     expect(screen.getByTestId('material-upload')).toBeInTheDocument();
   });
 
-  it('renders the facet filters as dropdowns sourced from the catalogue (US 4.04)', async () => {
+  it('renders the facet filters as dropdowns sourced from the facets endpoint (US 4.04)', async () => {
     mockedGetMaterials.mockResolvedValue(
       page([
         { id: 'm-1', name: 'Portland Cement', manufacturer: 'LafargeHolcim', uom: 'bag' },
         { id: 'm-2', name: 'Rebar', manufacturer: 'Nucor Steel', uom: 'ton' },
       ]),
     );
+    // Facets come from the dedicated endpoint — the full distinct set, not just
+    // the values on the current page of results.
+    mockedGetFacets.mockResolvedValue({
+      manufacturers: ['LafargeHolcim', 'Nucor Steel'],
+      uoms: ['bag', 'ton'],
+      materialTypes: [],
+      countriesOfOrigin: [],
+    });
 
     renderPage();
     await screen.findByText('Portland Cement');

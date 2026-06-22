@@ -82,6 +82,7 @@ export const queryKeys = {
     list: (params?: Record<string, unknown>) =>
       [...queryKeys.materials.all(), 'list', params] as const,
     detail: (id: string) => [...queryKeys.materials.all(), 'detail', id] as const,
+    facets: () => [...queryKeys.materials.all(), 'facets'] as const,
     suggestions: (query: string) => [...queryKeys.materials.all(), 'suggestions', query] as const,
     changeRequests: (params?: Record<string, unknown>) =>
       [...queryKeys.materials.all(), 'change-requests', params] as const,
