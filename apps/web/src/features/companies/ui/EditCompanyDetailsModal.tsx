@@ -6,9 +6,7 @@ import {
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
-  Modal,
-  ModalBody,
-  ModalIconHeader,
+  GridModal,
   Button,
   Input,
   AddressInput,
@@ -77,104 +75,96 @@ export function EditCompanyDetailsModal({ company, onClose }: EditCompanyDetails
   };
 
   return (
-    <Modal onClose={onClose}>
-      <ModalBody>
-        <ModalIconHeader
-          icon={<EditIcon className="w-6 h-6 text-foreground" />}
-          title={t('editModal.title')}
-          subtitle={t('editModal.subtitle')}
-          onClose={onClose}
-          className="mb-6"
+    <GridModal
+      onClose={onClose}
+      icon={<EditIcon className="size-6 text-gray-700" />}
+      title={t('editModal.title')}
+      description={t('editModal.subtitle')}
+      onSubmit={handleSubmit}
+      actions={
+        <>
+          <Button type="submit" size="lg" isLoading={updateMutation.isPending} className="w-full">
+            {updateMutation.isPending ? t('editModal.submitting') : t('editModal.submit')}
+          </Button>
+          <Button variant="outline" size="lg" type="button" onClick={onClose} className="w-full">
+            {t('common:cancel')}
+          </Button>
+        </>
+      }
+    >
+      {updateMutation.isError && <Alert variant="destructive">{t('editModal.updateError')}</Alert>}
+
+      {/* Company Name (full width) */}
+      <FormField label={t('companyName')}>
+        <Input
+          value={formData.legalName}
+          onChange={(e) => updateField('legalName', e.target.value)}
         />
+      </FormField>
 
-        <form onSubmit={handleSubmit} className="space-y-6 text-left" noValidate>
-          {updateMutation.isError && (
-            <Alert variant="destructive">{t('editModal.updateError')}</Alert>
-          )}
-
-          {/* Company Name (full width) */}
-          <FormField label={t('companyName')}>
+      {/* Legal Information */}
+      <div className="space-y-4">
+        <h3 className="text-base font-bold text-foreground">{t('legalInfo')}</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label={t('legalName')}>
             <Input
               value={formData.legalName}
               onChange={(e) => updateField('legalName', e.target.value)}
             />
           </FormField>
+          <FormField label={t('tradeName')}>
+            <Input
+              value={formData.tradeName}
+              onChange={(e) => updateField('tradeName', e.target.value)}
+            />
+          </FormField>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label={t('abn')}>
+            <Input value={formData.abn} readOnly />
+          </FormField>
+          <FormField label={t('taxCode')}>
+            <Input value={formData.taxCode} readOnly />
+          </FormField>
+        </div>
+        <FormField label={t('legalAddress')}>
+          <AddressInput
+            value={formData.legalAddress}
+            placeholder={t('legalAddress')}
+            searchFn={handleAddressSearch}
+            onChange={(val) => updateField('legalAddress', val)}
+          />
+        </FormField>
+      </div>
 
-          {/* Legal Information */}
-          <div className="space-y-4">
-            <h3 className="text-base font-bold text-foreground">{t('legalInfo')}</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label={t('legalName')}>
-                <Input
-                  value={formData.legalName}
-                  onChange={(e) => updateField('legalName', e.target.value)}
-                />
-              </FormField>
-              <FormField label={t('tradeName')}>
-                <Input
-                  value={formData.tradeName}
-                  onChange={(e) => updateField('tradeName', e.target.value)}
-                />
-              </FormField>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label={t('abn')}>
-                <Input value={formData.abn} readOnly />
-              </FormField>
-              <FormField label={t('taxCode')}>
-                <Input value={formData.taxCode} readOnly />
-              </FormField>
-            </div>
-            <FormField label={t('legalAddress')}>
-              <AddressInput
-                value={formData.legalAddress}
-                placeholder={t('legalAddress')}
-                searchFn={handleAddressSearch}
-                onChange={(val) => updateField('legalAddress', val)}
-              />
-            </FormField>
-          </div>
-
-          {/* Contact Information */}
-          <div className="space-y-4">
-            <h3 className="text-base font-bold text-foreground">{t('contactInfo')}</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label={t('contactEmail')}>
-                <Input
-                  type="email"
-                  value={formData.contactEmail}
-                  onChange={(e) => updateField('contactEmail', e.target.value)}
-                />
-              </FormField>
-              <FormField label={t('phoneNumber')}>
-                <Input
-                  type="tel"
-                  inputMode="tel"
-                  onKeyDown={onPhoneOnly}
-                  value={formData.contactPhone}
-                  onChange={(e) => updateField('contactPhone', e.target.value)}
-                />
-              </FormField>
-            </div>
-            <FormField label={t('website')}>
-              <Input
-                value={formData.website}
-                onChange={(e) => updateField('website', e.target.value)}
-              />
-            </FormField>
-          </div>
-
-          {/* Footer: stacked full-width primary + outline */}
-          <div className="flex flex-col gap-3 pt-2">
-            <Button type="submit" isLoading={updateMutation.isPending} className="w-full">
-              {updateMutation.isPending ? t('editModal.submitting') : t('editModal.submit')}
-            </Button>
-            <Button variant="outline" type="button" onClick={onClose} className="w-full">
-              {t('common:cancel')}
-            </Button>
-          </div>
-        </form>
-      </ModalBody>
-    </Modal>
+      {/* Contact Information */}
+      <div className="space-y-4">
+        <h3 className="text-base font-bold text-foreground">{t('contactInfo')}</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label={t('contactEmail')}>
+            <Input
+              type="email"
+              value={formData.contactEmail}
+              onChange={(e) => updateField('contactEmail', e.target.value)}
+            />
+          </FormField>
+          <FormField label={t('phoneNumber')}>
+            <Input
+              type="tel"
+              inputMode="tel"
+              onKeyDown={onPhoneOnly}
+              value={formData.contactPhone}
+              onChange={(e) => updateField('contactPhone', e.target.value)}
+            />
+          </FormField>
+        </div>
+        <FormField label={t('website')}>
+          <Input
+            value={formData.website}
+            onChange={(e) => updateField('website', e.target.value)}
+          />
+        </FormField>
+      </div>
+    </GridModal>
   );
 }

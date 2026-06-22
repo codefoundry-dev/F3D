@@ -1,7 +1,10 @@
+import type { ReactNode } from 'react';
+
+import WarningIcon from '../assets/icons/info-in-triangle.svg?react';
 import { cn } from '../utils/cn';
 
 import { Button } from './Button';
-import { Modal } from './Modal';
+import { GridModal } from './GridModal';
 
 export interface ConfirmDialogProps {
   title: string;
@@ -11,6 +14,8 @@ export interface ConfirmDialogProps {
   confirmVariant?: string;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Header icon (rendered in the DS badge). Defaults to a warning triangle. */
+  icon?: ReactNode;
 }
 
 export function ConfirmDialog({
@@ -21,25 +26,30 @@ export function ConfirmDialog({
   confirmVariant,
   onConfirm,
   onCancel,
+  icon,
 }: ConfirmDialogProps) {
   return (
-    <Modal onClose={onCancel} maxWidth="max-w-[440px]">
-      <div className="p-6">
-        <h3 className="mb-1.5 text-lg font-semibold text-gray-900">{title}</h3>
-        <p className="mb-6 text-sm text-gray-500">{message}</p>
-        <div className="flex gap-3">
-          <Button variant="outline" type="button" onClick={onCancel} className="flex-1">
+    <GridModal
+      onClose={onCancel}
+      icon={icon ?? <WarningIcon className="size-6 text-gray-700" />}
+      title={title}
+      description={message}
+      actionsClassName="flex-row"
+      actions={
+        <>
+          <Button variant="outline" type="button" size="lg" onClick={onCancel} className="flex-1">
             {cancelLabel}
           </Button>
           <Button
             type="button"
+            size="lg"
             onClick={onConfirm}
             className={cn('flex-1', confirmVariant)}
           >
             {confirmLabel}
           </Button>
-        </div>
-      </div>
-    </Modal>
+        </>
+      }
+    />
   );
 }

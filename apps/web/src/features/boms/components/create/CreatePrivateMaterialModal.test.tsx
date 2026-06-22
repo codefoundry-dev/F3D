@@ -40,7 +40,14 @@ vi.mock('@forethread/ui-components', () => ({
       data-testid={p['data-testid']}
     />
   ),
-  Modal: (p: any) => <div data-testid="modal">{p.children}</div>,
+  GridModal: (p: any) => (
+    <div data-testid="modal">
+      <span>{p.title}</span>
+      <span>{p.description}</span>
+      {p.children}
+      {p.actions}
+    </div>
+  ),
   FormField: (p: any) => (
     <label>
       {p.label}

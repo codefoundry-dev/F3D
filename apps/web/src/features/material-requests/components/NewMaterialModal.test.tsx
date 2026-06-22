@@ -6,10 +6,26 @@ vi.mock('@forethread/i18n', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
+vi.mock('@forethread/ui-components/assets/icons/package.svg?react', () => ({
+  default: () => <span />,
+}));
+
 vi.mock('@forethread/ui-components', () => ({
-  Modal: ({ children }: { children: ReactNode }) => <div data-testid="modal">{children}</div>,
-  ModalHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  ModalBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  GridModal: ({
+    title,
+    children,
+    actions,
+  }: {
+    title: ReactNode;
+    children?: ReactNode;
+    actions?: ReactNode;
+  }) => (
+    <div data-testid="modal">
+      <div>{title}</div>
+      <div>{children}</div>
+      <div>{actions}</div>
+    </div>
+  ),
   Input: ({
     value,
     onChange,

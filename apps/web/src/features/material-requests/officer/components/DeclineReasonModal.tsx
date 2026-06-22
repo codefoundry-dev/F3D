@@ -1,12 +1,6 @@
 import { useTranslation } from '@forethread/i18n';
-import {
-  Button,
-  Modal,
-  ModalBody,
-  ModalFooter,
-  ModalHeader,
-  Textarea,
-} from '@forethread/ui-components';
+import { Button, GridModal, Textarea } from '@forethread/ui-components';
+import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
 import { useState } from 'react';
 
 interface DeclineReasonModalProps {
@@ -33,12 +27,37 @@ export function DeclineReasonModal({
   const trimmed = reason.trim();
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-md">
-      <ModalHeader onClose={onClose}>{t('declineModal.title')}</ModalHeader>
-      <ModalBody>
-        <p className="mb-4 text-sm text-muted-foreground">
-          {t('declineModal.subtitle', { number: mrNumber })}
-        </p>
+    <GridModal
+      onClose={onClose}
+      icon={<CrossInCircleIcon className="size-6 text-destructive" />}
+      title={t('declineModal.title')}
+      description={t('declineModal.subtitle', { number: mrNumber })}
+      actions={
+        <>
+          <Button
+            variant="destructive"
+            size="lg"
+            data-testid="mr-decline-confirm"
+            disabled={!trimmed || isPending}
+            isLoading={isPending}
+            onClick={() => onConfirm(trimmed)}
+            className="w-full"
+          >
+            {t('declineModal.confirm')}
+          </Button>
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={onClose}
+            disabled={isPending}
+            className="w-full"
+          >
+            {t('declineModal.cancel')}
+          </Button>
+        </>
+      }
+    >
+      <div className="w-full">
         <label
           className="mb-1.5 block text-sm font-medium text-foreground"
           htmlFor="mr-decline-reason"
@@ -53,21 +72,7 @@ export function DeclineReasonModal({
           onChange={(e) => setReason(e.target.value)}
           placeholder={t('declineModal.reasonPlaceholder')}
         />
-      </ModalBody>
-      <ModalFooter>
-        <Button variant="outline" size="sm" onClick={onClose} disabled={isPending}>
-          {t('declineModal.cancel')}
-        </Button>
-        <Button
-          variant="destructive"
-          size="sm"
-          data-testid="mr-decline-confirm"
-          disabled={!trimmed || isPending}
-          onClick={() => onConfirm(trimmed)}
-        >
-          {t('declineModal.confirm')}
-        </Button>
-      </ModalFooter>
-    </Modal>
+      </div>
+    </GridModal>
   );
 }

@@ -54,25 +54,29 @@ vi.mock('@forethread/ui-components', () => ({
       disabled={disabled}
     />
   ),
-  Modal: ({ children }: { children: React.ReactNode }) => <div data-testid="modal">{children}</div>,
-  ModalBody: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  ModalIconHeader: ({
+  GridModal: ({
     title,
-    subtitle,
+    description,
+    children,
+    actions,
   }: {
-    title: string;
-    subtitle: string;
-    icon: React.ReactNode;
-    onClose: () => void;
+    title: React.ReactNode;
+    description?: React.ReactNode;
+    children?: React.ReactNode;
+    actions?: React.ReactNode;
+    icon?: React.ReactNode;
+    onClose?: () => void;
   }) => (
-    <div>
+    <div data-testid="modal">
       <span>{title}</span>
-      <span>{subtitle}</span>
+      <span>{description}</span>
+      {children}
+      {actions}
     </div>
   ),
 }));
 
-vi.mock('@forethread/ui-components/assets/icons/settings.svg?react', () => ({
+vi.mock('@forethread/ui-components/assets/icons/location.svg?react', () => ({
   default: () => <span />,
 }));
 

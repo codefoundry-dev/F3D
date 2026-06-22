@@ -10,6 +10,24 @@ vi.mock('@forethread/i18n', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  GridModal: ({ icon, title, description, children, actions, onSubmit }: any) =>
+    onSubmit ? (
+      <form data-testid="modal" onSubmit={onSubmit}>
+        {icon}
+        <h2>{title}</h2>
+        <p>{description}</p>
+        {children}
+        {actions}
+      </form>
+    ) : (
+      <div data-testid="modal">
+        {icon}
+        <h2>{title}</h2>
+        <p>{description}</p>
+        {children}
+        {actions}
+      </div>
+    ),
   Modal: ({ children, onClose: _onClose }: { children: React.ReactNode; onClose: () => void }) => (
     <div data-testid="modal">{children}</div>
   ),
@@ -114,11 +132,5 @@ describe('DeclinePoModal', () => {
     render(<DeclinePoModal poId="po-1" onClose={onClose} />);
     fireEvent.click(screen.getByText('decline.confirm'));
     expect(mockMutate).toHaveBeenCalled();
-  });
-
-  it('calls onClose via header close button', () => {
-    render(<DeclinePoModal poId="po-1" onClose={onClose} />);
-    fireEvent.click(screen.getByTestId('header-close'));
-    expect(onClose).toHaveBeenCalled();
   });
 });

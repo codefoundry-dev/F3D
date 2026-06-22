@@ -1,13 +1,6 @@
 import { useTranslation } from '@forethread/i18n';
-import {
-  Modal,
-  ModalBody,
-  ModalHeader,
-  Input,
-  Textarea,
-  Select,
-  FileDropzone,
-} from '@forethread/ui-components';
+import { GridModal, Input, Textarea, Select, FileDropzone } from '@forethread/ui-components';
+import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
 import { useState } from 'react';
 
 import { PrimaryButton } from './MobileButtons';
@@ -69,9 +62,23 @@ export function NewMaterialModal({ onClose, onAdd }: NewMaterialModalProps) {
   };
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-md" scrollBody>
-      <ModalHeader onClose={onClose}>{t('newMaterial.title')}</ModalHeader>
-      <ModalBody className="space-y-4">
+    <GridModal
+      onClose={onClose}
+      icon={<PackageIcon className="size-6 text-gray-700" />}
+      title={t('newMaterial.title')}
+      scrollBody
+      actions={
+        <PrimaryButton
+          onClick={handleAdd}
+          disabled={!canAdd}
+          className="w-full"
+          data-testid="mr-new-material-add"
+        >
+          {t('newMaterial.add')}
+        </PrimaryButton>
+      }
+    >
+      <div className="space-y-4">
         <div className="flex flex-col gap-1.5">
           <label className="flex items-center gap-1 text-sm font-medium text-foreground">
             {t('newMaterial.materialName')}
@@ -152,16 +159,7 @@ export function NewMaterialModal({ onClose, onAdd }: NewMaterialModalProps) {
             aria-label={t('newMaterial.description')}
           />
         </div>
-
-        <PrimaryButton
-          onClick={handleAdd}
-          disabled={!canAdd}
-          className="w-full"
-          data-testid="mr-new-material-add"
-        >
-          {t('newMaterial.add')}
-        </PrimaryButton>
-      </ModalBody>
-    </Modal>
+      </div>
+    </GridModal>
   );
 }

@@ -28,6 +28,24 @@ vi.mock('../../state/users.store', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  GridModal: ({ icon, title, description, children, actions, onSubmit }: any) =>
+    onSubmit ? (
+      <form data-testid="modal" onSubmit={onSubmit}>
+        {icon}
+        <h2>{title}</h2>
+        <p>{description}</p>
+        {children}
+        {actions}
+      </form>
+    ) : (
+      <div data-testid="modal">
+        {icon}
+        <h2>{title}</h2>
+        <p>{description}</p>
+        {children}
+        {actions}
+      </div>
+    ),
   Modal: ({ children }: any) => <div data-testid="modal">{children}</div>,
   ModalBody: ({ children }: any) => <div>{children}</div>,
   ModalCloseButton: ({ onClose }: any) => <button data-testid="close-btn" onClick={onClose} />,
@@ -91,12 +109,6 @@ describe('EditCompanyModal', () => {
   it('calls closeEditCompanyModal when cancel button is clicked', () => {
     render(<EditCompanyModal />);
     fireEvent.click(screen.getByText('common:cancel'));
-    expect(mockCloseEditCompanyModal).toHaveBeenCalled();
-  });
-
-  it('calls closeEditCompanyModal when close button is clicked', () => {
-    render(<EditCompanyModal />);
-    fireEvent.click(screen.getByTestId('close-btn'));
     expect(mockCloseEditCompanyModal).toHaveBeenCalled();
   });
 

@@ -1,13 +1,10 @@
 import { useTranslation } from '@forethread/i18n';
 import {
-  Modal,
-  ModalBody,
-  ModalCloseButton,
+  GridModal,
   Input,
   FormField,
   Button,
   Alert,
-  IconBadge,
   CustomDropdown,
   UserAlreadyExistsModal,
 } from '@forethread/ui-components';
@@ -62,103 +59,88 @@ export function InviteVendorModal({ onClose, onSuccess }: InviteVendorModalProps
 
   return (
     <>
-      <Modal onClose={onClose} maxWidth="max-w-[560px]">
-        <ModalBody>
-          <form onSubmit={(e) => void onSubmit(e)} className="space-y-5" noValidate>
-            {/* Header */}
-            <div className="flex flex-col items-center text-center mb-2">
-              <div className="w-full flex justify-between items-start">
-                <div className="flex-1" />
-                <IconBadge icon={<NewUserIcon className="w-6 h-6 text-foreground" />} />
-                <div className="flex-1 flex justify-end">
-                  <ModalCloseButton onClose={onClose} />
-                </div>
-              </div>
-              <h2 className="text-2xl font-normal leading-[140%] text-foreground mt-4">
-                {t('inviteModal.title')}
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">{t('inviteModal.subtitle')}</p>
-            </div>
+      <GridModal
+        onClose={onClose}
+        maxWidth="max-w-[560px]"
+        icon={<NewUserIcon className="size-6 text-gray-700" />}
+        title={t('inviteModal.title')}
+        description={t('inviteModal.subtitle')}
+        onSubmit={(e) => void onSubmit(e)}
+        actions={
+          <>
+            <Button type="submit" size="lg" isLoading={isPending} className="w-full">
+              {isPending ? t('inviteModal.sending') : t('inviteModal.sendInvitation')}
+            </Button>
+            <Button variant="outline" size="lg" type="button" onClick={onClose} className="w-full">
+              {t('common:cancel')}
+            </Button>
+          </>
+        }
+      >
+        {/* Error alert */}
+        {errorKey && (
+          <Alert variant="destructive" icon={<InfoIcon className="w-5 h-5" />}>
+            {t(`inviteModal.${errorKey}` as 'inviteModal.inviteError')}
+          </Alert>
+        )}
 
-            {/* Error alert */}
-            {errorKey && (
-              <Alert variant="destructive" icon={<InfoIcon className="w-5 h-5" />}>
-                {t(`inviteModal.${errorKey}` as 'inviteModal.inviteError')}
-              </Alert>
+        {/* Company */}
+        <FormField label={t('inviteModal.company')} error={errors.companyId?.message}>
+          <Controller
+            name="companyId"
+            control={control}
+            render={({ field }) => (
+              <CustomDropdown
+                options={companyOptions}
+                value={field.value}
+                onChange={field.onChange}
+                placeholder={t('inviteModal.companyPlaceholder')}
+                leftIcon={<VendorsIcon className="w-5 h-5" />}
+                searchable
+                error={Boolean(errors.companyId)}
+                actionItem={{
+                  label: t('inviteModal.addVendorCompany'),
+                  icon: <PlusInCircleIcon className="w-5 h-5" />,
+                  onClick: () => setIsCreateCompanyOpen(true),
+                }}
+              />
             )}
+          />
+        </FormField>
 
-            {/* Company */}
-            <FormField label={t('inviteModal.company')} error={errors.companyId?.message}>
-              <Controller
-                name="companyId"
-                control={control}
-                render={({ field }) => (
-                  <CustomDropdown
-                    options={companyOptions}
-                    value={field.value}
-                    onChange={field.onChange}
-                    placeholder={t('inviteModal.companyPlaceholder')}
-                    leftIcon={<VendorsIcon className="w-5 h-5" />}
-                    searchable
-                    error={Boolean(errors.companyId)}
-                    actionItem={{
-                      label: t('inviteModal.addVendorCompany'),
-                      icon: <PlusInCircleIcon className="w-5 h-5" />,
-                      onClick: () => setIsCreateCompanyOpen(true),
-                    }}
-                  />
-                )}
-              />
-            </FormField>
+        {/* Representative Name */}
+        <FormField label={t('inviteModal.representativeName')} error={errors.userName?.message}>
+          <Input
+            type="text"
+            placeholder={t('inviteModal.representativeNamePlaceholder')}
+            leftIcon={<UserOutlineIcon className="w-5 h-5" />}
+            {...register('userName')}
+          />
+        </FormField>
 
-            {/* Representative Name */}
-            <FormField label={t('inviteModal.representativeName')} error={errors.userName?.message}>
-              <Input
-                type="text"
-                placeholder={t('inviteModal.representativeNamePlaceholder')}
-                leftIcon={<UserOutlineIcon className="w-5 h-5" />}
-                {...register('userName')}
-              />
-            </FormField>
+        {/* Representative Email */}
+        <FormField label={t('inviteModal.representativeEmail')} error={errors.userEmail?.message}>
+          <Input
+            type="email"
+            placeholder={t('inviteModal.representativeEmailPlaceholder')}
+            leftIcon={<EnvelopeIcon className="w-5 h-5" />}
+            {...register('userEmail')}
+          />
+        </FormField>
 
-            {/* Representative Email */}
-            <FormField
-              label={t('inviteModal.representativeEmail')}
-              error={errors.userEmail?.message}
-            >
-              <Input
-                type="email"
-                placeholder={t('inviteModal.representativeEmailPlaceholder')}
-                leftIcon={<EnvelopeIcon className="w-5 h-5" />}
-                {...register('userEmail')}
-              />
-            </FormField>
-
-            {/* Position (optional) */}
-            <FormField
-              label={`${t('inviteModal.position')} ${t('inviteModal.positionOptional')}`}
-              error={errors.position?.message}
-            >
-              <Input
-                type="text"
-                placeholder={t('inviteModal.positionPlaceholder')}
-                leftIcon={<IdBadgeIcon className="w-5 h-5" />}
-                {...register('position')}
-              />
-            </FormField>
-
-            {/* Actions */}
-            <div className="flex flex-col gap-3 pt-2">
-              <Button type="submit" isLoading={isPending} className="w-full">
-                {isPending ? t('inviteModal.sending') : t('inviteModal.sendInvitation')}
-              </Button>
-              <Button variant="outline" type="button" onClick={onClose} className="w-full">
-                {t('common:cancel')}
-              </Button>
-            </div>
-          </form>
-        </ModalBody>
-      </Modal>
+        {/* Position (optional) */}
+        <FormField
+          label={`${t('inviteModal.position')} ${t('inviteModal.positionOptional')}`}
+          error={errors.position?.message}
+        >
+          <Input
+            type="text"
+            placeholder={t('inviteModal.positionPlaceholder')}
+            leftIcon={<IdBadgeIcon className="w-5 h-5" />}
+            {...register('position')}
+          />
+        </FormField>
+      </GridModal>
 
       {showUserExists && (
         <UserAlreadyExistsModal

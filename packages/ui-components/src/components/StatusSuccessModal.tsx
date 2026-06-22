@@ -3,8 +3,7 @@ import { type ReactNode, useEffect, useState } from 'react';
 import CheckCircleIcon from '../assets/icons/checkcircle-icon.svg?react';
 
 import { Button } from './Button';
-import { IconBadge } from './IconBadge';
-import { Modal, ModalBody, ModalCloseButton } from './Modal';
+import { GridModal } from './GridModal';
 
 export interface StatusSuccessModalProps {
   onClose: () => void;
@@ -16,10 +15,8 @@ export interface StatusSuccessModalProps {
   redirectLabel: (seconds: number) => string;
   countdownSeconds?: number;
   maxWidth?: string;
-  /** Custom icon to replace the default check circle */
+  /** Custom icon to replace the default check circle (rendered in the DS badge). */
   icon?: ReactNode;
-  /** Custom className for IconBadge wrapper */
-  iconBadgeClassName?: string;
 }
 
 export function StatusSuccessModal({
@@ -33,7 +30,6 @@ export function StatusSuccessModal({
   countdownSeconds = 3,
   maxWidth,
   icon,
-  iconBadgeClassName,
 }: StatusSuccessModalProps) {
   const [countdown, setCountdown] = useState(countdownSeconds);
 
@@ -47,42 +43,24 @@ export function StatusSuccessModal({
   }, [countdown, onClose]);
 
   return (
-    <Modal onClose={onClose} maxWidth={maxWidth}>
-      <ModalBody>
-        <div className="flex flex-col items-center text-center">
-          {/* Header with close button */}
-          <div className="w-full flex justify-between items-start">
-            <div className="flex-1" />
-            <IconBadge
-              icon={icon ?? <CheckCircleIcon className="w-6 h-6 text-foreground" />}
-              className={iconBadgeClassName}
-            />
-            <div className="flex-1 flex justify-end">
-              <ModalCloseButton onClose={onClose} />
-            </div>
-          </div>
-
-          {/* Title */}
-          <h2 className="text-2xl font-semibold leading-[140%] text-foreground mt-4">{title}</h2>
-
-          {/* Subtitle */}
-          {subtitle && <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>}
-
-          {/* Description */}
-          <div className="w-full mt-4 text-sm text-muted-foreground">{description}</div>
-
-          {/* Optional note */}
-          {note && <p className="text-sm text-muted-foreground mt-2">{note}</p>}
-
-          {/* Back button */}
-          <Button onClick={onClose} className="w-full mt-5">
+    <GridModal
+      onClose={onClose}
+      maxWidth={maxWidth}
+      icon={icon ?? <CheckCircleIcon className="size-6 text-gray-700" />}
+      title={title}
+      description={subtitle}
+      bodyClassName="gap-2 text-center text-sm text-muted-foreground"
+      actions={
+        <>
+          <Button onClick={onClose} size="lg" className="w-full">
             {buttonLabel}
           </Button>
-
-          {/* Countdown */}
-          <p className="text-xs text-muted-foreground mt-3">{redirectLabel(countdown)}</p>
-        </div>
-      </ModalBody>
-    </Modal>
+          <p className="text-center text-xs text-muted-foreground">{redirectLabel(countdown)}</p>
+        </>
+      }
+    >
+      <div className="w-full">{description}</div>
+      {note && <p>{note}</p>}
+    </GridModal>
   );
 }

@@ -5,6 +5,24 @@ vi.mock('@forethread/i18n', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  GridModal: ({ icon, title, description, children, actions, onSubmit }: any) =>
+    onSubmit ? (
+      <form data-testid="modal" onSubmit={onSubmit}>
+        {icon}
+        <h2>{title}</h2>
+        <p>{description}</p>
+        {children}
+        {actions}
+      </form>
+    ) : (
+      <div data-testid="modal">
+        {icon}
+        <h2>{title}</h2>
+        <p>{description}</p>
+        {children}
+        {actions}
+      </div>
+    ),
   Modal: ({ children }: any) => <div data-testid="modal">{children}</div>,
   ModalBody: ({ children }: any) => <div data-testid="modal-body">{children}</div>,
   ModalCloseButton: ({ onClose }: any) => <button data-testid="modal-close" onClick={onClose} />,

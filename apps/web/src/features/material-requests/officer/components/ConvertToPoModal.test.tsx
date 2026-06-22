@@ -12,11 +12,28 @@ vi.mock('@forethread/i18n', () => ({
       opts ? `${key}:${JSON.stringify(opts)}` : key,
   }),
 }));
+vi.mock('@forethread/ui-components/assets/icons/purchase-orders.svg?react', () => ({
+  default: () => <span />,
+}));
 vi.mock('@forethread/ui-components', () => ({
-  Modal: ({ children }: { children: ReactNode }) => <div role="dialog">{children}</div>,
-  ModalHeader: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
-  ModalBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  ModalFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  GridModal: ({
+    title,
+    description,
+    children,
+    actions,
+  }: {
+    title: ReactNode;
+    description?: ReactNode;
+    children?: ReactNode;
+    actions?: ReactNode;
+  }) => (
+    <div role="dialog">
+      <h2>{title}</h2>
+      <div>{description}</div>
+      <div>{children}</div>
+      <div>{actions}</div>
+    </div>
+  ),
   Button: ({
     children,
     onClick,

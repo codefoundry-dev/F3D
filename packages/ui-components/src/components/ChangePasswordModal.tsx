@@ -8,8 +8,7 @@ import CheckStrokeIcon from '../assets/icons/check-stroke.svg?react';
 import { Alert } from './Alert';
 import { Button } from './Button';
 import { FormField } from './FormField';
-import { IconBadge } from './IconBadge';
-import { Modal, ModalBody, ModalCloseButton } from './Modal';
+import { GridModal } from './GridModal';
 import { PasswordInput } from './PasswordInput';
 import { Text } from './Text';
 
@@ -155,132 +154,119 @@ export function ChangePasswordModal({
   };
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-[560px]">
-      <ModalBody>
-        <form
-          onSubmit={(e) => void handleSubmit(handleFormSubmit)(e)}
-          className="space-y-5"
-          noValidate
-        >
-          {/* Header */}
-          <div className="flex flex-col items-center text-center mb-2">
-            <div className="w-full flex justify-between items-start">
-              <div className="flex-1" />
-              <IconBadge icon={icon} />
-              <div className="flex-1 flex justify-end">
-                <ModalCloseButton onClose={onClose} />
-              </div>
+    <GridModal
+      onClose={onClose}
+      maxWidth="max-w-[560px]"
+      icon={icon}
+      title={labels.title}
+      description={labels.description}
+      onSubmit={(e) => void handleSubmit(handleFormSubmit)(e)}
+      actions={
+        <>
+          <Button
+            type="submit"
+            size="lg"
+            isLoading={isPending}
+            disabled={isSuccess || !allRulesPassed}
+            className="w-full"
+          >
+            {isPending ? labels.submittingLabel : labels.submitLabel}
+          </Button>
+          <Button variant="outline" size="lg" type="button" onClick={onClose} className="w-full">
+            {labels.cancelLabel}
+          </Button>
+        </>
+      }
+    >
+      {/* Error alert */}
+      {isError && errorMessage && <Alert variant="destructive">{errorMessage}</Alert>}
+
+      {/* Success alert */}
+      {isSuccess && <Alert variant="success">{labels.successMessage}</Alert>}
+
+      {/* Current Password */}
+      <FormField
+        label={labels.currentPassword}
+        error={errors.currentPassword?.message}
+        htmlFor="currentPassword"
+        required
+      >
+        <PasswordInput
+          id="currentPassword"
+          autoComplete="current-password"
+          placeholder={labels.currentPasswordPlaceholder}
+          disabled={isPending || isSuccess}
+          leftIcon={passwordIcon}
+          showIcon={eyeOpenIcon}
+          hideIcon={eyeClosedIcon}
+          {...register('currentPassword')}
+        />
+      </FormField>
+
+      {/* New Password */}
+      <FormField
+        label={labels.newPassword}
+        error={errors.newPassword?.message}
+        htmlFor="newPassword"
+        required
+      >
+        <PasswordInput
+          id="newPassword"
+          autoComplete="new-password"
+          placeholder={labels.newPasswordPlaceholder}
+          disabled={isPending || isSuccess}
+          leftIcon={passwordIcon}
+          showIcon={eyeOpenIcon}
+          hideIcon={eyeClosedIcon}
+          {...register('newPassword')}
+        />
+      </FormField>
+
+      {/* Confirm New Password */}
+      <FormField
+        label={labels.confirmNewPassword}
+        error={errors.confirmNewPassword?.message}
+        htmlFor="confirmNewPassword"
+        required
+      >
+        <PasswordInput
+          id="confirmNewPassword"
+          autoComplete="new-password"
+          placeholder={labels.confirmNewPasswordPlaceholder}
+          disabled={isPending || isSuccess}
+          leftIcon={passwordIcon}
+          showIcon={eyeOpenIcon}
+          hideIcon={eyeClosedIcon}
+          {...register('confirmNewPassword')}
+        />
+      </FormField>
+
+      {/* Password requirements checklist */}
+      <div>
+        <Text variant="label-m" as="p" className="mb-2">
+          {labels.requirementsLabel}
+        </Text>
+        <div className="rounded-xl border border-input bg-muted p-4 grid grid-cols-2 gap-y-2.5 gap-x-4">
+          {evaluatedRules.map((rule) => (
+            <div key={rule.key} className="flex items-center gap-2">
+              {rule.passed ? (
+                <span className="w-4 h-4 text-success flex-shrink-0">
+                  {checkIcon ?? <CheckStrokeIcon className="w-4 h-4" />}
+                </span>
+              ) : (
+                <span className="w-4 h-4 rounded-full border border-muted-foreground/40 flex-shrink-0" />
+              )}
+              <Text
+                variant="body-14"
+                as="span"
+                className={rule.passed ? 'text-success' : undefined}
+              >
+                {rule.label}
+              </Text>
             </div>
-            <h2 className="text-lg font-semibold text-foreground mt-4">{labels.title}</h2>
-            <p className="text-sm text-muted-foreground mt-1">{labels.description}</p>
-          </div>
-
-          {/* Error alert */}
-          {isError && errorMessage && <Alert variant="destructive">{errorMessage}</Alert>}
-
-          {/* Success alert */}
-          {isSuccess && <Alert variant="success">{labels.successMessage}</Alert>}
-
-          {/* Current Password */}
-          <FormField
-            label={labels.currentPassword}
-            error={errors.currentPassword?.message}
-            htmlFor="currentPassword"
-            required
-          >
-            <PasswordInput
-              id="currentPassword"
-              autoComplete="current-password"
-              placeholder={labels.currentPasswordPlaceholder}
-              disabled={isPending || isSuccess}
-              leftIcon={passwordIcon}
-              showIcon={eyeOpenIcon}
-              hideIcon={eyeClosedIcon}
-              {...register('currentPassword')}
-            />
-          </FormField>
-
-          {/* New Password */}
-          <FormField
-            label={labels.newPassword}
-            error={errors.newPassword?.message}
-            htmlFor="newPassword"
-            required
-          >
-            <PasswordInput
-              id="newPassword"
-              autoComplete="new-password"
-              placeholder={labels.newPasswordPlaceholder}
-              disabled={isPending || isSuccess}
-              leftIcon={passwordIcon}
-              showIcon={eyeOpenIcon}
-              hideIcon={eyeClosedIcon}
-              {...register('newPassword')}
-            />
-          </FormField>
-
-          {/* Confirm New Password */}
-          <FormField
-            label={labels.confirmNewPassword}
-            error={errors.confirmNewPassword?.message}
-            htmlFor="confirmNewPassword"
-            required
-          >
-            <PasswordInput
-              id="confirmNewPassword"
-              autoComplete="new-password"
-              placeholder={labels.confirmNewPasswordPlaceholder}
-              disabled={isPending || isSuccess}
-              leftIcon={passwordIcon}
-              showIcon={eyeOpenIcon}
-              hideIcon={eyeClosedIcon}
-              {...register('confirmNewPassword')}
-            />
-          </FormField>
-
-          {/* Password requirements checklist */}
-          <div>
-            <Text variant="label-m" as="p" className="mb-2">
-              {labels.requirementsLabel}
-            </Text>
-            <div className="rounded-xl border border-input bg-muted p-4 grid grid-cols-2 gap-y-2.5 gap-x-4">
-              {evaluatedRules.map((rule) => (
-                <div key={rule.key} className="flex items-center gap-2">
-                  {rule.passed ? (
-                    <span className="w-4 h-4 text-success flex-shrink-0">
-                      {checkIcon ?? <CheckStrokeIcon className="w-4 h-4" />}
-                    </span>
-                  ) : (
-                    <span className="w-4 h-4 rounded-full border border-muted-foreground/40 flex-shrink-0" />
-                  )}
-                  <Text
-                    variant="body-14"
-                    as="span"
-                    className={rule.passed ? 'text-success' : undefined}
-                  >
-                    {rule.label}
-                  </Text>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex flex-col gap-3 pt-2">
-            <Button
-              type="submit"
-              isLoading={isPending}
-              disabled={isSuccess || !allRulesPassed}
-              className="w-full"
-            >
-              {isPending ? labels.submittingLabel : labels.submitLabel}
-            </Button>
-            <Button variant="outline" type="button" onClick={onClose} className="w-full">
-              {labels.cancelLabel}
-            </Button>
-          </div>
-        </form>
-      </ModalBody>
-    </Modal>
+          ))}
+        </div>
+      </div>
+    </GridModal>
   );
 }
