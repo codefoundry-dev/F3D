@@ -602,6 +602,7 @@
     "successDescription": "Your quote has been sent to the contractor. You will be notified when they respond.",
     "successHint": "You can close this page. To manage your quotes, activate your account using the link in your invitation email.",
     "tryAgain": "Try Again",
+    "modeToggleLabel": "Quote entry mode",
     "modeManual": "Enter manually",
     "modeUpload": "Upload quote PDF",
     "modeManualHint": "Fill in your prices line by line.",

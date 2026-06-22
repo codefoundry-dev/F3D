@@ -6,6 +6,7 @@ import {
   Modal,
   ModalBody,
   ModalIconHeader,
+  SegmentedControl,
   Spinner,
   StatusErrorModal,
 } from '@forethread/ui-components';
@@ -215,22 +216,15 @@ function GuestResponseContent({ rfq, token }: { rfq: GuestRfqDetail; token: stri
       <div className="flex-1 px-6 py-4 max-w-[1400px] mx-auto w-full space-y-4">
         {/* Mode toggle: enter manually vs upload a quote PDF (FOR-206) */}
         {canRespond && (
-          <div className="inline-flex rounded-lg border border-border bg-card p-1">
-            {(['manual', 'upload'] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => form.setMode(m)}
-                className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
-                  form.mode === m
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {m === 'manual' ? t('guest.modeManual') : t('guest.modeUpload')}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            aria-label={t('guest.modeToggleLabel')}
+            value={form.mode}
+            onValueChange={form.setMode}
+            items={[
+              { value: 'manual', label: t('guest.modeManual') },
+              { value: 'upload', label: t('guest.modeUpload') },
+            ]}
+          />
         )}
 
         {form.mode === 'upload' && (

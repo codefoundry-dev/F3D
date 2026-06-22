@@ -37,7 +37,7 @@
     "all": "All",
     "received": "Received",
     "pending": "Pending",
-    "acknowledged": "Acknowledged",
+    "approved": "Approved",
     "noResponses": "No quote responses yet",
     "items": "{{covered}}/{{total}} items",
     "decline": "Decline",
@@ -50,8 +50,8 @@
   "purchaseOrders": {
     "title": "Purchase orders",
     "all": "All",
-    "pending": "Pending",
-    "acknowledged": "Acknowledged",
+    "pendingApproval": "Pending approval",
+    "sent": "Sent",
     "noPOs": "No pending purchase orders",
     "decline": "Decline",
     "approve": "Approve"

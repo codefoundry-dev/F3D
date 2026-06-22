@@ -30,7 +30,7 @@ interface QuoteResponsesSectionProps {
   canApprove?: boolean;
 }
 
-type TabFilter = 'all' | 'pending' | 'acknowledged';
+type TabFilter = 'all' | 'pending' | 'approved';
 
 /** "8% ($10000)"-style discount label; null when no discount is present. */
 function discountLabel(percent: number | null, amount: number | null): string | null {
@@ -78,7 +78,7 @@ export function QuoteResponsesSection({
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <h2 className="text-base font-semibold text-foreground">{t('quoteResponses.title')}</h2>
         <div className="flex gap-2">
-          {(['all', 'pending', 'acknowledged'] as const).map((tab) => (
+          {(['all', 'pending', 'approved'] as const).map((tab) => (
             <button
               key={tab}
               type="button"
