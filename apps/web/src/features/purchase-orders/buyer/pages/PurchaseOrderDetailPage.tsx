@@ -29,6 +29,7 @@ import { useAuthStore } from '@/features/auth/state/auth.store';
 import { DeliveryQrSection } from '@/features/deliveries/components/DeliveryQrSection';
 import { usePermissions } from '@/shared/role/usePermissions';
 
+import { PoApprovalActions } from '../components/PoApprovalActions';
 import { PoSendButton } from '../components/PoSendButton';
 import { ReceiveDeliveryModal } from '../components/ReceiveDeliveryModal';
 import { SplitPoSection } from '../components/SplitPoSection';
@@ -114,6 +115,9 @@ export default function PurchaseOrderDetailPage() {
     [setSearchParams],
   );
 
+  // An entitled approver opening a PENDING_APPROVAL PO directly (not via the
+  // dashboard "Awaiting approval" card) must still be able to action it here.
+  const canApprove = po ? po.status === 'PENDING_APPROVAL' && has('po.approve') : false;
   const canChange = po ? CHANGEABLE_STATUSES.includes(po.status) && has('po.proposeChange') : false;
   const canReceive = po ? RECEIVABLE_STATUSES.includes(po.status) && has('po.receive') : false;
   // Epic 6: a delivery report can be raised once the PO is in a deliverable state.
@@ -190,6 +194,7 @@ export default function PurchaseOrderDetailPage() {
                     {t('actions.deliveryReport', 'Delivery report')}
                   </Button>
                 )}
+                {canApprove && <PoApprovalActions po={po} size="sm" />}
                 <PoSendButton po={po} size="sm" />
               </div>
             ) : undefined
