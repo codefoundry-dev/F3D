@@ -26,8 +26,9 @@ export function PoSendButton({ po, size = 'md' }: PoSendButtonProps) {
   const { data: me } = useMe();
   const issue = useIssuePurchaseOrder();
 
-  // Only DRAFT POs can be sent.
-  if (po.status !== 'DRAFT') return null;
+  // Only DRAFT POs can be sent. A SPLIT parent is a vendorless container — its
+  // per-vendor child POs are issued individually, never the parent (US 5.19).
+  if (po.status !== 'DRAFT' || po.poType === 'SPLIT') return null;
 
   const needsApproval = requiresApproval(me?.poApprovalThreshold, po.totalAmount);
 

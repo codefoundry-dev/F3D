@@ -1,6 +1,7 @@
 import { DiscountType, QuoteLineItemStatus, QuoteSource } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  ArrayNotEmpty,
   IsArray,
   IsBoolean,
   IsDateString,
@@ -133,4 +134,33 @@ export class UpdateQuoteLineItemStatusDto {
 
   @IsEnum(QuoteLineItemStatus)
   status!: QuoteLineItemStatus;
+}
+
+/**
+ * One awarded vendor line in a split award (US 5.19): the quote line being
+ * awarded and the quantity granted to that vendor for it.
+ */
+export class AwardSplitAllocationDto {
+  @IsUUID('4')
+  quoteResponseId!: string;
+
+  @IsUUID('4')
+  quoteLineItemId!: string;
+
+  @IsInt()
+  @Min(1)
+  approvedQuantity!: number;
+}
+
+/**
+ * Split award (US 5.19 / PRD §4.5.4): approve line items across one or more
+ * vendor quotes and allocate per-vendor quantities. The service mints a SPLIT
+ * parent PO that owns one child PO per (vendor, project).
+ */
+export class AwardSplitDto {
+  @IsArray()
+  @ArrayNotEmpty()
+  @ValidateNested({ each: true })
+  @Type(() => AwardSplitAllocationDto)
+  allocations!: AwardSplitAllocationDto[];
 }

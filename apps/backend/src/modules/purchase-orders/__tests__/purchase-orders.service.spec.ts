@@ -419,6 +419,33 @@ describe('PurchaseOrdersService', () => {
       );
     });
 
+    // ── Split PO list scoping (US 5.19) ───────────────────────────────────────
+
+    it('hides split child POs from internal users by default (parentPoId null)', async () => {
+      await service.listPurchaseOrders(q(), companyAdmin);
+      const where = mockPrisma.purchaseOrder.findMany.mock.calls[0][0].where;
+      expect(where.parentPoId).toBeNull();
+    });
+
+    it('hides child POs for SuperAdmin too', async () => {
+      await service.listPurchaseOrders(q(), superAdmin);
+      const where = mockPrisma.purchaseOrder.findMany.mock.calls[0][0].where;
+      expect(where.parentPoId).toBeNull();
+    });
+
+    it('does NOT hide children when the splitedPos quick filter is active', async () => {
+      await service.listPurchaseOrders(q({ quickFilter: PoQuickFilter.SPLITED_POS }), companyAdmin);
+      const where = mockPrisma.purchaseOrder.findMany.mock.calls[0][0].where;
+      expect(where.parentPoId).toBeUndefined();
+    });
+
+    it('does NOT apply the child-hiding default to vendors (they see their own child)', async () => {
+      await service.listPurchaseOrders(q(), vendor);
+      const where = mockPrisma.purchaseOrder.findMany.mock.calls[0][0].where;
+      expect(where.parentPoId).toBeUndefined();
+      expect(where.vendorId).toBe('vendor-comp-1');
+    });
+
     it('combines search with quick filter that sets where.OR via AND array', async () => {
       // Spy on applyQuickFilter to simulate a quick filter that sets where.OR
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

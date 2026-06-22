@@ -106,6 +106,7 @@ export const RFQS_PATHS = {
     `/rfqs/${rfqId}/quotes/${quoteId}/line-items/status`,
   approveQuote: (rfqId: string, quoteId: string) => `/rfqs/${rfqId}/quotes/${quoteId}/approve`,
   awardQuote: (rfqId: string, quoteId: string) => `/rfqs/${rfqId}/quotes/${quoteId}/award`,
+  awardSplit: (rfqId: string) => `/rfqs/${rfqId}/award-split`,
   declineQuote: (rfqId: string, quoteId: string) => `/rfqs/${rfqId}/quotes/${quoteId}/decline`,
   lineItem: (rfqId: string, lineItemId: string) => `/rfqs/${rfqId}/line-items/${lineItemId}`,
   send: (id: string) => `/rfqs/${id}/send`,

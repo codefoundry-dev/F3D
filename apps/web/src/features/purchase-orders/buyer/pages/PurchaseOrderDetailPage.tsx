@@ -31,6 +31,7 @@ import { usePermissions } from '@/shared/role/usePermissions';
 
 import { PoSendButton } from '../components/PoSendButton';
 import { ReceiveDeliveryModal } from '../components/ReceiveDeliveryModal';
+import { SplitPoSection } from '../components/SplitPoSection';
 import { useProjectDetail } from '../services/purchase-orders.service';
 
 /** Statuses for which the backend accepts a change proposal (po-change.service). */
@@ -199,7 +200,14 @@ export default function PurchaseOrderDetailPage() {
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-6 md:pb-8">
         {activeTab === 'details' && (
-          <PoDetailsTab po={po} layout="page" deliveryQrSlot={<DeliveryQrSection poId={po.id} />} />
+          <>
+            <SplitPoSection po={po} />
+            <PoDetailsTab
+              po={po}
+              layout="page"
+              deliveryQrSlot={<DeliveryQrSection poId={po.id} />}
+            />
+          </>
         )}
         {activeTab === 'changeRequest' &&
           (isLoadingCrs ? (

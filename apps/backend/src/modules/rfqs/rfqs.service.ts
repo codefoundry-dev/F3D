@@ -28,6 +28,7 @@ import {
   Prisma,
   QuoteAuditAction,
   QuoteLineItemAvailability,
+  QuoteLineItemStatus,
   QuoteResponseStatus,
   RfqStatus,
   UserRole,
@@ -42,6 +43,7 @@ import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { EmailAttachment, EmailService } from '../notifications/email.service';
 import { StorageService } from '../storage/storage.service';
 
+import { AwardSplitDto } from './quote-response.dto';
 import { normalizeCcEmails } from './rfq-cc.util';
 import {
   catalogMaterialIds,
@@ -1232,6 +1234,328 @@ export class RfqsService {
       purchaseOrderId: purchaseOrder.id,
       poNumber: purchaseOrder.poNumber,
     };
+  }
+
+  // ── Award Split (US 5.19 / PRD §4.5.4) ───────────────────────────────────────
+
+  /**
+   * Map awarded vendor lines to PurchaseOrder line-item create inputs. Mirrors
+   * the quote→PO mapping in {@link awardQuote} but uses the per-vendor approved
+   * quantity (not the quoted quantity) as the ordered quantity.
+   */
+  private buildPoLineItemsFromAwards(
+    awards: {
+      unitPrice: Prisma.Decimal;
+      quantity: number;
+      deliveryDate: Date;
+      notes: string | null;
+      rfqLineItem: {
+        materialId: string | null;
+        materialName: string | null;
+        description: string | null;
+        unit: string;
+        costCode: string | null;
+        pickUp: boolean;
+        deliveryLocationId: string | null;
+      };
+    }[],
+  ) {
+    return awards.map((a, idx) => {
+      const unitPrice = Number(a.unitPrice);
+      return {
+        lineNumber: idx + 1,
+        materialId: a.rfqLineItem.materialId,
+        description: a.rfqLineItem.description ?? a.rfqLineItem.materialName,
+        quantityOrdered: a.quantity,
+        unitOfMeasure: a.rfqLineItem.unit,
+        unitPrice,
+        lineTotal: a.quantity * unitPrice,
+        costCode: a.rfqLineItem.costCode,
+        expectedDeliveryDate: a.deliveryDate,
+        deliveryLocationId: a.rfqLineItem.deliveryLocationId,
+        notes: a.notes,
+        pickUp: a.rfqLineItem.pickUp,
+      };
+    });
+  }
+
+  /**
+   * Award line items across one or more vendor quotes for an RFQ, allocating a
+   * per-vendor approved quantity to each (US 5.19 / PRD §4.5.4). Mints a
+   * consolidated **SPLIT parent PO** (vendorless — never sent) that owns one
+   * **child STANDARD PO per (vendor, project)**; a vendor only ever sees its own
+   * child. Children are left DRAFT for the contractor to review and issue —
+   * issuing a child notifies that vendor (US 5.19 AC 12). Approved quantities are
+   * persisted on the quote lines so the award is durable and auditable. The whole
+   * thing runs in one transaction (all-or-nothing).
+   */
+  async awardSplit(rfqId: string, dto: AwardSplitDto, user: AuthenticatedUser) {
+    if (dto.allocations.length === 0) {
+      throw new BadRequestException(ERR.rfqs.awardSplitEmpty);
+    }
+
+    // No quote line may be allocated more than once.
+    const seenLines = new Set<string>();
+    for (const a of dto.allocations) {
+      if (seenLines.has(a.quoteLineItemId)) {
+        throw new BadRequestException(ERR.rfqs.awardSplitDuplicateLine);
+      }
+      seenLines.add(a.quoteLineItemId);
+    }
+
+    const rfq = await this.prisma.rfq.findUnique({
+      where: { id: rfqId },
+      select: {
+        id: true,
+        companyId: true,
+        projectId: true,
+        currency: true,
+        deliveryLocationId: true,
+        holdForRelease: true,
+        deadlineStart: true,
+        deadlineEnd: true,
+      },
+    });
+    if (!rfq) throw new NotFoundException(ERR.rfqs.notFound);
+    this.assertCompanyAccess(user, rfq.companyId);
+
+    const quoteLines = await this.prisma.quoteResponseLineItem.findMany({
+      where: { id: { in: dto.allocations.map((a) => a.quoteLineItemId) } },
+      include: {
+        quoteResponse: {
+          select: {
+            id: true,
+            rfqId: true,
+            vendorId: true,
+            status: true,
+            source: true,
+            message: true,
+          },
+        },
+        rfqLineItem: {
+          select: {
+            id: true,
+            rfqId: true,
+            quantity: true,
+            materialId: true,
+            materialName: true,
+            description: true,
+            unit: true,
+            costCode: true,
+            pickUp: true,
+            projectId: true,
+            deliveryLocationId: true,
+          },
+        },
+      },
+    });
+    const byLineId = new Map(quoteLines.map((ql) => [ql.id, ql]));
+
+    // Each allocation must reference a known quote line of this RFQ, the vendor
+    // must have actually quoted it, and the approved qty must fit the quote.
+    for (const a of dto.allocations) {
+      const ql = byLineId.get(a.quoteLineItemId);
+      if (
+        !ql ||
+        ql.quoteResponse.rfqId !== rfqId ||
+        ql.rfqLineItem.rfqId !== rfqId ||
+        ql.quoteResponse.id !== a.quoteResponseId
+      ) {
+        throw new BadRequestException(ERR.rfqs.awardSplitLineNotInRfq);
+      }
+      if (ql.availability === QuoteLineItemAvailability.NO_QUOTE) {
+        throw new BadRequestException(ERR.rfqs.awardSplitLineNotQuoted);
+      }
+      if (a.approvedQuantity > ql.quotedQuantity) {
+        throw new BadRequestException(ERR.rfqs.awardSplitQuantityExceedsQuoted);
+      }
+    }
+
+    // The total approved across vendors for a single RFQ line must stay within
+    // the requested quantity (US 5.19 AC 4).
+    const perRfqLine = new Map<string, { requested: number; allocated: number; name: string }>();
+    for (const a of dto.allocations) {
+      const ql = byLineId.get(a.quoteLineItemId);
+      if (!ql) continue;
+      const key = ql.rfqLineItem.id;
+      const entry = perRfqLine.get(key) ?? {
+        requested: ql.rfqLineItem.quantity,
+        allocated: 0,
+        name: ql.rfqLineItem.description ?? ql.rfqLineItem.materialName ?? 'line item',
+      };
+      entry.allocated += a.approvedQuantity;
+      perRfqLine.set(key, entry);
+    }
+    for (const entry of perRfqLine.values()) {
+      if (entry.allocated > entry.requested) {
+        throw new BadRequestException(ERR.rfqs.awardSplitTotalExceedsRequested(entry.name));
+      }
+    }
+
+    // Every awarded quote must still be awardable.
+    const awardedQuotes = new Map<string, (typeof quoteLines)[number]['quoteResponse']>();
+    for (const ql of quoteLines) awardedQuotes.set(ql.quoteResponse.id, ql.quoteResponse);
+    for (const q of awardedQuotes.values()) this.assertQuoteAwardable(q.status);
+
+    // Parent PO number minted before the transaction (mirrors awardQuote). Each
+    // child takes a readable suffix (PO-NNNNN-1, PO-NNNNN-2, …).
+    const parentPoNumber = await nextSequentialNumber(
+      this.prisma,
+      'purchaseOrder',
+      'PO',
+      rfq.companyId,
+    );
+
+    // Group allocations into one child per (vendor, project); a line's project
+    // falls back to the RFQ's primary project.
+    type ChildGroup = {
+      vendorId: string;
+      projectId: string;
+      message: string | null;
+      awards: {
+        unitPrice: Prisma.Decimal;
+        quantity: number;
+        deliveryDate: Date;
+        notes: string | null;
+        rfqLineItem: (typeof quoteLines)[number]['rfqLineItem'];
+      }[];
+    };
+    const groups = new Map<string, ChildGroup>();
+    for (const a of dto.allocations) {
+      const ql = byLineId.get(a.quoteLineItemId);
+      if (!ql) continue;
+      const projectId = ql.rfqLineItem.projectId ?? rfq.projectId;
+      const groupKey = `${ql.quoteResponse.vendorId}:${projectId}`;
+      const group = groups.get(groupKey) ?? {
+        vendorId: ql.quoteResponse.vendorId,
+        projectId,
+        message: ql.quoteResponse.message,
+        awards: [],
+      };
+      group.awards.push({
+        unitPrice: ql.unitPrice,
+        quantity: a.approvedQuantity,
+        deliveryDate: ql.deliveryDate,
+        notes: ql.notes,
+        rfqLineItem: ql.rfqLineItem,
+      });
+      groups.set(groupKey, group);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Persist per-vendor approved qty + APPROVED status on awarded lines.
+      for (const a of dto.allocations) {
+        await tx.quoteResponseLineItem.update({
+          where: { id: a.quoteLineItemId },
+          data: { status: QuoteLineItemStatus.APPROVED, approvedQuantity: a.approvedQuantity },
+        });
+      }
+
+      // 2. Mark each awarded quote APPROVED + record it on the audit trail.
+      for (const q of awardedQuotes.values()) {
+        await tx.quoteResponse.update({
+          where: { id: q.id },
+          data: { status: QuoteResponseStatus.APPROVED },
+        });
+        await tx.quoteAudit.create({
+          data: {
+            quoteResponseId: q.id,
+            rfqId,
+            vendorId: q.vendorId,
+            action: QuoteAuditAction.APPROVED,
+            source: q.source,
+            performedById: user.id,
+          },
+        });
+      }
+
+      // 3. The RFQ is now awarded.
+      await tx.rfq.update({ where: { id: rfqId }, data: { status: RfqStatus.AWARDED } });
+
+      // 4. Consolidated SPLIT parent PO (vendorless — never issued to a vendor).
+      const parent = await tx.purchaseOrder.create({
+        data: {
+          poNumber: parentPoNumber,
+          companyId: rfq.companyId,
+          projectId: rfq.projectId,
+          vendorId: null,
+          rfqId,
+          createdByUserId: user.id,
+          status: PoStatus.DRAFT,
+          poType: PoType.SPLIT,
+          sourceOfCreation: PoSourceOfCreation.RFQ,
+          currency: rfq.currency,
+          deliveryLocationId: rfq.deliveryLocationId,
+          holdForRelease: rfq.holdForRelease,
+          deadlineStart: rfq.deadlineStart,
+          deadlineEnd: rfq.deadlineEnd,
+        },
+        select: { id: true, poNumber: true },
+      });
+
+      // 5. One child STANDARD PO per (vendor, project), linked to the parent.
+      const childGroups = [...groups.values()];
+      const children: { id: string; poNumber: string; vendorId: string; vendorName: string }[] = [];
+      let aggSubtotal = 0;
+      let aggQty = 0;
+      let aggLineCount = 0;
+
+      for (let i = 0; i < childGroups.length; i++) {
+        const group = childGroups[i];
+        const poLineItems = this.buildPoLineItemsFromAwards(group.awards);
+        const subtotal = poLineItems.reduce((s, li) => s + li.lineTotal, 0);
+        const totalQty = poLineItems.reduce((s, li) => s + li.quantityOrdered, 0);
+        aggSubtotal += subtotal;
+        aggQty += totalQty;
+        aggLineCount += poLineItems.length;
+
+        const child = await tx.purchaseOrder.create({
+          data: {
+            poNumber: `${parentPoNumber}-${i + 1}`,
+            companyId: rfq.companyId,
+            projectId: group.projectId,
+            vendorId: group.vendorId,
+            rfqId,
+            parentPoId: parent.id,
+            createdByUserId: user.id,
+            status: PoStatus.DRAFT,
+            poType: PoType.STANDARD,
+            sourceOfCreation: PoSourceOfCreation.RFQ,
+            currency: rfq.currency,
+            deliveryLocationId: rfq.deliveryLocationId,
+            holdForRelease: rfq.holdForRelease,
+            deadlineStart: rfq.deadlineStart,
+            deadlineEnd: rfq.deadlineEnd,
+            message: group.message,
+            subtotal,
+            totalAmount: subtotal,
+            lineItemCount: poLineItems.length,
+            totalRequestedQty: totalQty,
+            lineItems: { create: poLineItems },
+          },
+          select: { id: true, poNumber: true, vendor: { select: { legalName: true } } },
+        });
+        children.push({
+          id: child.id,
+          poNumber: child.poNumber,
+          vendorId: group.vendorId,
+          vendorName: child.vendor?.legalName ?? '',
+        });
+      }
+
+      // Roll aggregate totals onto the parent for summary display.
+      await tx.purchaseOrder.update({
+        where: { id: parent.id },
+        data: {
+          subtotal: aggSubtotal,
+          totalAmount: aggSubtotal,
+          lineItemCount: aggLineCount,
+          totalRequestedQty: aggQty,
+        },
+      });
+
+      return { parentPoId: parent.id, parentPoNumber: parent.poNumber, children };
+    });
   }
 
   // ── Decline Quote ──────────────────────────────────────────────────────────

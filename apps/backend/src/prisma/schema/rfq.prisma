@@ -271,6 +271,10 @@ model QuoteResponseLineItem {
   notes             String?
   lineTotal         Decimal                   @default(0) @map("line_total") @db.Decimal(18, 4)
   status            QuoteLineItemStatus       @default(PENDING)
+  // Per-vendor approved quantity captured at split award (US 5.19). Null until
+  // the line is awarded; on award it is set (1..quotedQuantity) and the sum
+  // across vendors for one RFQ line stays ≤ the RFQ requested quantity.
+  approvedQuantity  Int?                      @map("approved_quantity")
 
   quoteResponse  QuoteResponse @relation(fields: [quoteResponseId], references: [id], onDelete: Cascade)
   rfqLineItem    RfqLineItem   @relation(fields: [rfqLineItemId], references: [id])

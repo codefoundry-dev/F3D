@@ -74,3 +74,7 @@ export type {
   StartOrderKind,
   ComparisonColumnVisibility,
 } from './components';
+
+// Utils
+export { buildSplitAllocations, findOverAllocatedLineIds } from './utils/splitAward';
+export type { SplitAllocation } from './utils/splitAward';

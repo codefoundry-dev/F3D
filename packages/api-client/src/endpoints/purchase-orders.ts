@@ -206,11 +206,16 @@ export interface PoDetail {
   deliveryNotes: string | null;
   issuedAt: string | null;
   parentPoId: string | null;
+  /** PO number of the SPLIT parent when this PO is a split child (US 5.19). */
+  parentPoNumber: string | null;
+  /** Per-vendor child POs when this PO is a SPLIT parent (US 5.19). */
+  childPos: PoChildSummary[];
   rfqId: string | null;
   approvedBy: { id: string; name: string } | null;
   createdBy: { id: string; name: string };
   lastModifiedBy: { id: string; name: string } | null;
-  vendor: { id: string; name: string };
+  /** Null for a SPLIT parent (vendorless consolidated award). */
+  vendor: { id: string; name: string } | null;
   company: { id: string; name: string };
   lineItems: PoLineItemDetail[];
   documents: PoDocumentDetail[];
@@ -219,6 +224,16 @@ export interface PoDetail {
   invoices: Array<{ id: string; status: string; totalAmount: number }>;
   createdAt: string;
   updatedAt: string;
+}
+
+/** One per-vendor child PO summarised on its SPLIT parent's detail (US 5.19). */
+export interface PoChildSummary {
+  id: string;
+  poNumber: string;
+  status: string;
+  totalAmount: number | null;
+  lineItemCount: number;
+  vendor: { id: string; name: string } | null;
 }
 
 export interface PaginatedPosResponse {

@@ -1,5 +1,6 @@
 import {
   approveQuote,
+  awardSplit,
   createBulkOrder,
   createPurchaseOrder,
   declineQuote,
@@ -41,6 +42,7 @@ import {
   useRfqQuoteComparison,
   useUpdateQuoteLineItemStatuses,
 } from '../hooks/useRfqs';
+import { buildSplitAllocations, findOverAllocatedLineIds } from '../utils/splitAward';
 
 import { SortingDropdown, type QuoteSortOrder } from './SortingDropdown';
 import { StartOrderModal, type StartOrderKind } from './StartOrderModal';
@@ -448,6 +450,52 @@ export function QuoteComparisonTable({
     return Array.from(targets.values());
   }, [selection]);
 
+  // ── Split award (US 5.19) ────────────────────────────────────────────────────
+
+  /** Approved lines in the current selection mapped to award allocations. */
+  const splitAllocations = useMemo(
+    () => buildSplitAllocations(selection.keys(), visibleRows, orderQuantities),
+    [selection, visibleRows, orderQuantities],
+  );
+
+  /**
+   * RFQ lines whose total approved quantity across the selected vendors exceeds
+   * the requested quantity (US 5.19 AC 4) — these block the split award.
+   */
+  const overAllocatedRows = useMemo(
+    () => findOverAllocatedLineIds(splitAllocations, visibleRows),
+    [splitAllocations, visibleRows],
+  );
+
+  /**
+   * Award the selected approved lines across vendors: the backend mints a SPLIT
+   * parent PO with one child per vendor (US 5.19 / PRD §4.5.4).
+   */
+  const awardSplitMutation = useMutation({
+    mutationFn: () =>
+      awardSplit(rfqId, {
+        allocations: splitAllocations.map(
+          ({ quoteResponseId, quoteLineItemId, approvedQuantity }) => ({
+            quoteResponseId,
+            quoteLineItemId,
+            approvedQuantity,
+          }),
+        ),
+      }),
+    onSuccess: (result) => {
+      toast.success(
+        t('reviewTable.awardSplitSuccess', {
+          parent: result.parentPoNumber,
+          count: result.children.length,
+        }),
+      );
+      setSelection(new Map());
+      void queryClient.invalidateQueries({ queryKey: ['rfqs', rfqId] });
+      void queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+    },
+    onError: () => toast.error(t('reviewTable.awardSplitError')),
+  });
+
   const createDraftMutation = useMutation({
     mutationFn: async (kind: StartOrderKind) => {
       if (!data) return;
@@ -721,15 +769,27 @@ export function QuoteComparisonTable({
         )}
         {statusFilter === 'approved' && (
           <>
+            {overAllocatedRows.size > 0 && (
+              <span className="flex items-center gap-1.5 text-sm text-destructive">
+                <WarningCircleIcon className="w-4 h-4" />
+                {t('reviewTable.overAllocatedWarning')}
+              </span>
+            )}
             <Button
               size="sm"
               leftIcon={<PlusInCircleIcon className="w-4 h-4" />}
-              onClick={() => setStartOrder('po')}
+              disabled={
+                splitAllocations.length === 0 ||
+                overAllocatedRows.size > 0 ||
+                awardSplitMutation.isPending
+              }
+              onClick={() => awardSplitMutation.mutate()}
             >
-              {t('reviewTable.createPo')}
+              {t('reviewTable.awardSplit')}
             </Button>
             <Button
               size="sm"
+              variant="outline"
               leftIcon={<PlusInCircleIcon className="w-4 h-4" />}
               onClick={() => setStartOrder('bulk')}
             >
@@ -924,6 +984,9 @@ export function QuoteComparisonTable({
           : undefined;
 
     const { value: orderValue, invalid: orderInvalid } = orderQtyOf(cell);
+    // Flag the cell when its own qty is out of range, or when the row's total
+    // approved across vendors exceeds the requested quantity (US 5.19 AC 4).
+    const orderFlagged = orderInvalid || overAllocatedRows.has(row.rfqLineItemId);
 
     return subColumns.map((col, idx) => {
       const base = cn(
@@ -954,7 +1017,7 @@ export function QuoteComparisonTable({
           return (
             <td key={col} className={base}>
               <span className="inline-flex items-center gap-1">
-                {orderInvalid && (
+                {orderFlagged && (
                   <WarningCircleIcon className="w-[18px] h-[18px] text-destructive" />
                 )}
                 <input
@@ -962,7 +1025,13 @@ export function QuoteComparisonTable({
                   inputMode="numeric"
                   value={orderValue}
                   placeholder="0"
-                  title={orderInvalid ? t('reviewTable.orderExceedsAvailable') : undefined}
+                  title={
+                    orderInvalid
+                      ? t('reviewTable.orderExceedsAvailable')
+                      : orderFlagged
+                        ? t('reviewTable.overAllocatedWarning')
+                        : undefined
+                  }
                   onChange={(e) => {
                     const v = e.target.value.replace(/[^\d]/g, '');
                     setOrderQuantities((prev) => {
@@ -973,7 +1042,7 @@ export function QuoteComparisonTable({
                   }}
                   className={cn(
                     'w-14 bg-transparent text-sm focus:outline-none placeholder:text-muted-foreground/60',
-                    orderInvalid ? 'text-destructive' : 'text-foreground',
+                    orderFlagged ? 'text-destructive' : 'text-foreground',
                   )}
                 />
               </span>

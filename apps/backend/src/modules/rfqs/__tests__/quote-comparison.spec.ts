@@ -48,6 +48,7 @@ function line(
     discountType: null,
     lineTotal: 0,
     status: 'PENDING',
+    approvedQuantity: null,
     notes: null,
     substituteItemId: null,
     substituteItemName: null,

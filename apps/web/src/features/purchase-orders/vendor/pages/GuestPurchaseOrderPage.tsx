@@ -108,7 +108,7 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
               </Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              {t('guest.subtitle', { contractor: po.company.name, vendor: po.vendor.name })}
+              {t('guest.subtitle', { contractor: po.company.name, vendor: po.vendor?.name ?? '' })}
             </p>
           </div>
           <Button

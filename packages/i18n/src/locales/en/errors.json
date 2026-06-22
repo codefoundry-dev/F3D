@@ -89,7 +89,13 @@
     "invalidProjectIds": "Some project IDs are invalid or do not belong to your company",
     "lineItemProjectNotInRfq": "A line item references a project that is not one of the RFQ's projects",
     "coverageOnlyDraft": "Bulk-order coverage can only be confirmed on a DRAFT RFQ",
-    "coverageExceedsLineQuantity": "Allocated quantity exceeds the RFQ line item's remaining quantity"
+    "coverageExceedsLineQuantity": "Allocated quantity exceeds the RFQ line item's remaining quantity",
+    "awardSplitEmpty": "Provide at least one approved line to award",
+    "awardSplitDuplicateLine": "A quote line was allocated more than once",
+    "awardSplitLineNotInRfq": "An allocated quote line does not belong to this RFQ",
+    "awardSplitLineNotQuoted": "Cannot award a line the vendor did not quote",
+    "awardSplitQuantityExceedsQuoted": "Approved quantity exceeds the quantity quoted by the vendor",
+    "awardSplitTotalExceedsRequested": "Total approved quantity across vendors exceeds the RFQ requested quantity for \"{{item}}\""
   },
   "purchaseOrders": {
     "notFound": "Purchase Order not found",
@@ -101,6 +107,7 @@
     "cannotDecline": "Cannot decline PO with status \"{{status}}\".",
     "cannotEditNonDraft": "Only Draft purchase orders can be edited. Use change request flow for issued POs.",
     "cannotIssue": "Cannot issue PO with status \"{{status}}\". Only Draft POs can be issued.",
+    "cannotIssueSplitParent": "A split parent PO cannot be issued. Issue its per-vendor child POs instead.",
     "holdForReleaseRequiresDeadline": "Hold-for-release orders require an earliest delivery date (deadlineStart).",
     "cannotConfirm": "Cannot confirm PO with status \"{{status}}\". Only Sent POs can be confirmed by the vendor.",
     "cannotAccept": "Cannot accept PO with status \"{{status}}\". Only Acknowledged POs can be accepted by the vendor.",

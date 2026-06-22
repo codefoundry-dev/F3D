@@ -86,11 +86,16 @@ const mockPrisma = {
     findMany: jest.fn(),
     update: jest.fn(),
   },
+  quoteResponseLineItem: {
+    findMany: jest.fn(),
+    update: jest.fn(),
+  },
   quoteAudit: {
     create: jest.fn(),
   },
   purchaseOrder: {
     create: jest.fn(),
+    update: jest.fn(),
     count: jest.fn(),
   },
   rfqLineItem: {
@@ -1345,6 +1350,254 @@ describe('RfqsService', () => {
           costCode: 'CC-1',
         }),
       );
+    });
+  });
+
+  // ── awardSplit (US 5.19 — split parent/child POs) ─────────────────────────
+
+  describe('awardSplit', () => {
+    const rfqRow = {
+      id: 'rfq-1',
+      companyId: 'comp-1',
+      projectId: 'proj-1',
+      currency: 'AUD',
+      deliveryLocationId: 'loc-1',
+      holdForRelease: false,
+      deadlineStart: null,
+      deadlineEnd: null,
+    };
+
+    // Two vendors quote the SAME RFQ line (requested 10): Vendor A 6, Vendor B 6.
+    const sharedRfqLine = {
+      id: 'rfqline-1',
+      rfqId: 'rfq-1',
+      quantity: 10,
+      materialId: 'mat-1',
+      materialName: 'Copper wire',
+      description: null,
+      unit: 'm',
+      costCode: 'CC-1',
+      pickUp: false,
+      projectId: null,
+      deliveryLocationId: null,
+    };
+    const quoteLineA = {
+      id: 'ql-a',
+      quotedQuantity: 6,
+      unitPrice: 10,
+      availability: QuoteLineItemAvailability.AVAILABLE,
+      deliveryDate: new Date('2026-07-01'),
+      notes: null,
+      quoteResponse: {
+        id: 'quote-a',
+        rfqId: 'rfq-1',
+        vendorId: 'vendor-a',
+        status: QuoteResponseStatus.SUBMITTED,
+        source: 'FORM',
+        message: 'A msg',
+      },
+      rfqLineItem: sharedRfqLine,
+    };
+    const quoteLineB = {
+      id: 'ql-b',
+      quotedQuantity: 6,
+      unitPrice: 12,
+      availability: QuoteLineItemAvailability.AVAILABLE,
+      deliveryDate: new Date('2026-07-02'),
+      notes: null,
+      quoteResponse: {
+        id: 'quote-b',
+        rfqId: 'rfq-1',
+        vendorId: 'vendor-b',
+        status: QuoteResponseStatus.SUBMITTED,
+        source: 'FORM',
+        message: 'B msg',
+      },
+      rfqLineItem: sharedRfqLine,
+    };
+
+    // Award 6 → Vendor A, 4 → Vendor B (sum 10 = requested).
+    const allocations = [
+      { quoteResponseId: 'quote-a', quoteLineItemId: 'ql-a', approvedQuantity: 6 },
+      { quoteResponseId: 'quote-b', quoteLineItemId: 'ql-b', approvedQuantity: 4 },
+    ];
+
+    function primeSplit(lines: unknown[] = [quoteLineA, quoteLineB]) {
+      mockPrisma.rfq.findUnique.mockResolvedValue(rfqRow);
+      mockPrisma.quoteResponseLineItem.findMany.mockResolvedValue(lines);
+      mockPrisma.quoteResponseLineItem.update.mockResolvedValue({});
+      mockPrisma.quoteResponse.update.mockResolvedValue({});
+      mockPrisma.quoteAudit.create.mockResolvedValue({});
+      mockPrisma.rfq.update.mockResolvedValue({});
+      mockPrisma.purchaseOrder.count.mockResolvedValue(9); // next = PO-00010
+      mockPrisma.purchaseOrder.create
+        .mockResolvedValueOnce({ id: 'parent-1', poNumber: 'PO-00010' })
+        .mockResolvedValueOnce({
+          id: 'child-1',
+          poNumber: 'PO-00010-1',
+          vendor: { legalName: 'Vendor A' },
+        })
+        .mockResolvedValueOnce({
+          id: 'child-2',
+          poNumber: 'PO-00010-2',
+          vendor: { legalName: 'Vendor B' },
+        });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({});
+      mockPrisma.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) =>
+        cb(mockPrisma),
+      );
+    }
+
+    it('rejects an empty allocation list', async () => {
+      await expect(service.awardSplit('rfq-1', { allocations: [] }, companyAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('rejects a quote line allocated more than once', async () => {
+      await expect(
+        service.awardSplit(
+          'rfq-1',
+          {
+            allocations: [
+              { quoteResponseId: 'quote-a', quoteLineItemId: 'ql-a', approvedQuantity: 3 },
+              { quoteResponseId: 'quote-a', quoteLineItemId: 'ql-a', approvedQuantity: 2 },
+            ],
+          },
+          companyAdmin,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws NotFoundException when the RFQ does not exist', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue(null);
+      await expect(service.awardSplit('rfq-1', { allocations }, companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws ForbiddenException for a different-company user', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue(rfqRow);
+      await expect(service.awardSplit('rfq-1', { allocations }, otherCompanyUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('rejects when approved qty exceeds the quantity the vendor quoted (AC 7)', async () => {
+      primeSplit();
+      await expect(
+        service.awardSplit(
+          'rfq-1',
+          { allocations: [{ quoteResponseId: 'quote-a', quoteLineItemId: 'ql-a', approvedQuantity: 8 }] },
+          companyAdmin,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects awarding a line the vendor did not quote (AC 7)', async () => {
+      primeSplit([{ ...quoteLineA, availability: QuoteLineItemAvailability.NO_QUOTE }]);
+      await expect(
+        service.awardSplit(
+          'rfq-1',
+          { allocations: [{ quoteResponseId: 'quote-a', quoteLineItemId: 'ql-a', approvedQuantity: 1 }] },
+          companyAdmin,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects when total approved across vendors exceeds the RFQ requested qty (AC 4)', async () => {
+      primeSplit();
+      await expect(
+        service.awardSplit(
+          'rfq-1',
+          {
+            allocations: [
+              { quoteResponseId: 'quote-a', quoteLineItemId: 'ql-a', approvedQuantity: 6 },
+              { quoteResponseId: 'quote-b', quoteLineItemId: 'ql-b', approvedQuantity: 6 },
+            ],
+          },
+          companyAdmin,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('creates a SPLIT parent + one child PO per vendor, persisting approved quantities', async () => {
+      primeSplit();
+
+      const result = await service.awardSplit('rfq-1', { allocations }, companyAdmin);
+
+      expect(result).toEqual({
+        parentPoId: 'parent-1',
+        parentPoNumber: 'PO-00010',
+        children: [
+          { id: 'child-1', poNumber: 'PO-00010-1', vendorId: 'vendor-a', vendorName: 'Vendor A' },
+          { id: 'child-2', poNumber: 'PO-00010-2', vendorId: 'vendor-b', vendorName: 'Vendor B' },
+        ],
+      });
+
+      // Approved quantities are persisted per vendor line.
+      expect(mockPrisma.quoteResponseLineItem.update).toHaveBeenCalledWith({
+        where: { id: 'ql-a' },
+        data: { status: 'APPROVED', approvedQuantity: 6 },
+      });
+      expect(mockPrisma.quoteResponseLineItem.update).toHaveBeenCalledWith({
+        where: { id: 'ql-b' },
+        data: { status: 'APPROVED', approvedQuantity: 4 },
+      });
+
+      // RFQ awarded; both quotes audited.
+      expect(mockPrisma.rfq.update).toHaveBeenCalledWith({
+        where: { id: 'rfq-1' },
+        data: { status: RfqStatus.AWARDED },
+      });
+      expect(mockPrisma.quoteAudit.create).toHaveBeenCalledTimes(2);
+
+      // Parent is a vendorless SPLIT PO; children are STANDARD + linked to it.
+      const parentData = mockPrisma.purchaseOrder.create.mock.calls[0][0].data;
+      expect(parentData).toEqual(
+        expect.objectContaining({
+          poNumber: 'PO-00010',
+          poType: 'SPLIT',
+          vendorId: null,
+          status: 'DRAFT',
+          companyId: 'comp-1',
+        }),
+      );
+      expect(parentData.lineItems).toBeUndefined();
+
+      const childAData = mockPrisma.purchaseOrder.create.mock.calls[1][0].data;
+      expect(childAData).toEqual(
+        expect.objectContaining({
+          poNumber: 'PO-00010-1',
+          poType: 'STANDARD',
+          vendorId: 'vendor-a',
+          parentPoId: 'parent-1',
+          status: 'DRAFT',
+          subtotal: 60, // 6 × 10
+          totalRequestedQty: 6,
+          lineItemCount: 1,
+        }),
+      );
+      expect(childAData.lineItems.create[0]).toEqual(
+        expect.objectContaining({ materialId: 'mat-1', quantityOrdered: 6, unitPrice: 10, lineTotal: 60 }),
+      );
+
+      const childBData = mockPrisma.purchaseOrder.create.mock.calls[2][0].data;
+      expect(childBData).toEqual(
+        expect.objectContaining({
+          poNumber: 'PO-00010-2',
+          vendorId: 'vendor-b',
+          parentPoId: 'parent-1',
+          subtotal: 48, // 4 × 12
+          totalRequestedQty: 4,
+        }),
+      );
+
+      // Aggregate totals rolled onto the parent.
+      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith({
+        where: { id: 'parent-1' },
+        data: { subtotal: 108, totalAmount: 108, lineItemCount: 2, totalRequestedQty: 10 },
+      });
     });
   });
 

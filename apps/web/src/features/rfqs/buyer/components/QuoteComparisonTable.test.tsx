@@ -11,6 +11,7 @@ const mockApproveQuote = vi.hoisted(() => vi.fn());
 const mockDeclineQuote = vi.hoisted(() => vi.fn());
 const mockCreatePo = vi.hoisted(() => vi.fn());
 const mockCreateBulk = vi.hoisted(() => vi.fn());
+const mockAwardSplit = vi.hoisted(() => vi.fn());
 
 vi.mock('@forethread/api-client', () => ({
   getRfqQuoteComparison: mockGetComparison,
@@ -19,6 +20,7 @@ vi.mock('@forethread/api-client', () => ({
   declineQuote: mockDeclineQuote,
   createPurchaseOrder: mockCreatePo,
   createBulkOrder: mockCreateBulk,
+  awardSplit: mockAwardSplit,
   awardQuote: vi.fn(),
   getQuoteDetail: vi.fn(),
   getRfqs: vi.fn(),
@@ -270,7 +272,7 @@ describe('QuoteComparisonTable', () => {
     expect(screen.getByText('reviewTable.restoreAll')).toBeInTheDocument();
   });
 
-  it('approved filter shows the Order column and Create PO / Create Bulk on selection', async () => {
+  it('approved filter shows the Order column and Award & split / Create Bulk on selection', async () => {
     const approvedComparison = {
       ...comparison,
       vendors: [{ ...comparison.vendors[0], status: 'APPROVED' }],
@@ -288,22 +290,54 @@ describe('QuoteComparisonTable', () => {
     expect(screen.getAllByText('reviewTable.order').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getAllByTitle('reviewTable.selectLine')[0]);
-    expect(screen.getByText('reviewTable.createPo')).toBeInTheDocument();
+    expect(screen.getByText('reviewTable.awardSplit')).toBeInTheDocument();
     expect(screen.getByText('reviewTable.createBulk')).toBeInTheDocument();
 
-    // Create PO → confirmation modal → Create draft creates the PO draft.
-    mockCreatePo.mockResolvedValue({ id: 'po-1' });
-    fireEvent.click(screen.getByText('reviewTable.createPo'));
-    expect(screen.getByText('startOrder.poTitle')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText('startOrder.createDraft'));
-    await waitFor(() => expect(mockCreatePo).toHaveBeenCalled());
-    expect(mockCreatePo.mock.calls[0][0]).toMatchObject({
-      projectId: 'p-1',
-      vendorId: 'v-1',
-      rfqId: 'rfq-1',
-      sourceOfCreation: 'RFQ',
+    // Award & split → calls awardSplit with the selected line's allocation
+    // (US 5.19); the order qty defaults to the full quoted quantity.
+    mockAwardSplit.mockResolvedValue({ parentPoId: 'po-p', parentPoNumber: 'PO-1', children: [] });
+    fireEvent.click(screen.getByText('reviewTable.awardSplit'));
+    await waitFor(() => expect(mockAwardSplit).toHaveBeenCalled());
+    expect(mockAwardSplit.mock.calls[0][0]).toBe('rfq-1');
+    expect(mockAwardSplit.mock.calls[0][1]).toMatchObject({
+      allocations: [{ quoteResponseId: 'q-1', quoteLineItemId: 'ql-1', approvedQuantity: 500 }],
     });
+  });
+
+  it('blocks the split award when the cross-vendor approved qty exceeds the requested qty (AC 4)', async () => {
+    // Two vendors both quote the same RFQ line (requested 500); the row carries
+    // both approved cells so selecting both over-allocates the line.
+    const overComparison = {
+      ...comparison,
+      vendors: [
+        { ...comparison.vendors[0], status: 'APPROVED' },
+        { ...comparison.vendors[1], status: 'APPROVED' },
+      ],
+      rows: [
+        {
+          ...comparison.rows[0],
+          cells: [
+            cell({ quoteLineItemId: 'ql-1', status: 'APPROVED' }),
+            cell({
+              vendorId: 'v-2',
+              quoteResponseId: 'q-2',
+              quoteLineItemId: 'ql-21',
+              status: 'APPROVED',
+            }),
+          ],
+        },
+      ],
+    };
+    mockGetComparison.mockResolvedValue(overComparison);
+    renderTable({ statusFilter: 'approved' });
+
+    await screen.findByText('Vendor One');
+    // Select both vendors' approved cells for the same line (500 + 500 > 500).
+    screen.getAllByTitle('reviewTable.selectLine').forEach((el) => fireEvent.click(el));
+
+    expect(screen.getByText('reviewTable.overAllocatedWarning')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('reviewTable.awardSplit'));
+    expect(mockAwardSplit).not.toHaveBeenCalled();
   });
 
   it('opens the table management modal from the gear button', async () => {
