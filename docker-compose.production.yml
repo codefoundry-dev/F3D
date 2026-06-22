@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -8,13 +6,17 @@ services:
     ports:
       - '5433:5432'
     environment:
-      POSTGRES_USER: forethread
-      POSTGRES_PASSWORD: forethread
-      POSTGRES_DB: forethread_dev
+      POSTGRES_USER: ${POSTGRES_USER:-forethread}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set a strong POSTGRES_PASSWORD for production}
+      POSTGRES_DB: ${POSTGRES_DB:-forethread}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U forethread -d forethread_dev']
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-forethread} -d ${POSTGRES_DB:-forethread}',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -58,15 +60,18 @@ services:
     ports:
       - '3000:3000'
     environment:
-      NODE_ENV: development
+      NODE_ENV: production
       PORT: 3000
-      APP_URL: http://localhost:3000
-      WEB_APP_URL: http://localhost:5179
-      DATABASE_URL: postgresql://forethread:forethread@postgres:5432/forethread_dev
+      # Public base URL of this backend (matches Caddyfile.production). Override per host.
+      APP_URL: ${APP_URL:-https://api.forethread.com}
+      # Deployed frontend origin — used to build email/portal links.
+      WEB_APP_URL: ${WEB_APP_URL:-https://forethread-main.vercel.app}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-forethread}:${POSTGRES_PASSWORD:?set a strong POSTGRES_PASSWORD for production}@postgres:5432/${POSTGRES_DB:-forethread}
       REDIS_URL: redis://redis:6379
-      JWT_ACCESS_SECRET: dev-jwt-access-secret-change-me
-      JWT_REFRESH_SECRET: dev-jwt-refresh-secret-change-me
-      JWT_ACCESS_EXPIRES_IN: 15m
+      # Auth secrets — no insecure defaults; generate with `openssl rand -hex 32`.
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET (>=32 chars)}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET (>=32 chars)}
+      JWT_ACCESS_EXPIRES_IN: 4h
       JWT_REFRESH_EXPIRES_IN: 7d
       SMTP_HOST: mailhog
       SMTP_PORT: 1025
@@ -79,8 +84,8 @@ services:
       # Leave unset to fall back to Mailhog. Provide via shell env or root .env.
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM: ${RESEND_FROM:-noreply@forethread.local}
-      CORS_ORIGINS: http://localhost:5179
-      LOG_LEVEL: debug
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://forethread-main.vercel.app}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       # --- Object storage: AWS S3 (replaces the former local MinIO container) ---
       # The backend talks to a real AWS S3 bucket via @aws-sdk/client-s3. On the
       # EC2 host the instance IAM role supplies credentials automatically, so
