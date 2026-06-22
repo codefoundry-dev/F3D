@@ -14,6 +14,7 @@ import {
   AuditAction,
   ApprovalStatus,
   PoStatus as PrismaPoStatus,
+  PoType as PrismaPoType,
   Prisma,
   UserRole,
 } from '@prisma/client';
@@ -164,13 +165,26 @@ export class PoStatusService {
   async issuePurchaseOrder(id: string, user: AuthenticatedUser) {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id },
-      select: { id: true, status: true, companyId: true, totalAmount: true, currency: true },
+      select: {
+        id: true,
+        status: true,
+        poType: true,
+        companyId: true,
+        totalAmount: true,
+        currency: true,
+      },
     });
 
     if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
 
     if (user.role !== UserRole.SUPER_ADMIN && user.companyId !== po.companyId) {
       throw new ForbiddenException(ERR.general.accessDenied);
+    }
+
+    // A SPLIT parent is a vendorless consolidated container — issue its
+    // per-vendor child POs individually, never the parent (US 5.19).
+    if (po.poType === PrismaPoType.SPLIT) {
+      throw new BadRequestException(ERR.purchaseOrders.cannotIssueSplitParent);
     }
 
     if (po.status !== PrismaPoStatus.DRAFT) {

@@ -121,6 +121,13 @@ export const ERR = {
     lineItemProjectNotInRfq: errors.rfqs.lineItemProjectNotInRfq,
     coverageOnlyDraft: errors.rfqs.coverageOnlyDraft,
     coverageExceedsLineQuantity: errors.rfqs.coverageExceedsLineQuantity,
+    awardSplitEmpty: errors.rfqs.awardSplitEmpty,
+    awardSplitDuplicateLine: errors.rfqs.awardSplitDuplicateLine,
+    awardSplitLineNotInRfq: errors.rfqs.awardSplitLineNotInRfq,
+    awardSplitLineNotQuoted: errors.rfqs.awardSplitLineNotQuoted,
+    awardSplitQuantityExceedsQuoted: errors.rfqs.awardSplitQuantityExceedsQuoted,
+    awardSplitTotalExceedsRequested: (item: string) =>
+      t(errors.rfqs.awardSplitTotalExceedsRequested, { item }),
   },
 
   // ── Purchase Orders ──────────────────────────────────────
@@ -134,6 +141,7 @@ export const ERR = {
     cannotDecline: (status: string) => t(errors.purchaseOrders.cannotDecline, { status }),
     cannotEditNonDraft: errors.purchaseOrders.cannotEditNonDraft,
     cannotIssue: (status: string) => t(errors.purchaseOrders.cannotIssue, { status }),
+    cannotIssueSplitParent: errors.purchaseOrders.cannotIssueSplitParent,
     holdForReleaseRequiresDeadline: errors.purchaseOrders.holdForReleaseRequiresDeadline,
     cannotConfirm: (status: string) => t(errors.purchaseOrders.cannotConfirm, { status }),
     cannotAccept: (status: string) => t(errors.purchaseOrders.cannotAccept, { status }),

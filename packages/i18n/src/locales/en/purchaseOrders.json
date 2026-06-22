@@ -138,6 +138,19 @@
     "DRAWDOWN": "Drawdown",
     "SPLIT": "Split"
   },
+  "split": {
+    "childrenTitle": "Child purchase orders",
+    "childrenSubtitle": "This consolidated PO was split into one PO per vendor.",
+    "issueAll": "Issue all",
+    "issuedAll": "All draft child POs were issued to their vendors",
+    "issueError": "Could not issue all child POs",
+    "partOfTitle": "Part of a split purchase order",
+    "partOfLink": "View parent {{poNumber}}",
+    "poColumn": "PO",
+    "vendorColumn": "Vendor",
+    "statusColumn": "Status",
+    "totalColumn": "Total"
+  },
   "status": {
     "DRAFT": "Draft",
     "PENDING_APPROVAL": "Pending approval",

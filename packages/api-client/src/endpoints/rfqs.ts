@@ -229,6 +229,43 @@ export async function declineQuote(
   await getApiClient().patch(RFQS_PATHS.declineQuote(rfqId, quoteId), undefined, config);
 }
 
+/** One awarded vendor line in a split award (US 5.19). */
+export interface AwardSplitAllocation {
+  quoteResponseId: string;
+  quoteLineItemId: string;
+  /** Quantity granted to this vendor for the line (1..quoted; sum across vendors ≤ requested). */
+  approvedQuantity: number;
+}
+
+export interface AwardSplitRequest {
+  allocations: AwardSplitAllocation[];
+}
+
+/** Result of a split award: the SPLIT parent PO plus its per-vendor child POs. */
+export interface AwardSplitResult {
+  parentPoId: string;
+  parentPoNumber: string;
+  children: { id: string; poNumber: string; vendorId: string; vendorName: string }[];
+}
+
+/**
+ * Award line items across vendors for an RFQ and split into per-vendor child POs
+ * under a consolidated SPLIT parent (US 5.19 / PRD §4.5.4). Each child is a DRAFT
+ * the contractor can review and issue.
+ */
+export async function awardSplit(
+  rfqId: string,
+  body: AwardSplitRequest,
+  config?: AxiosRequestConfig,
+): Promise<AwardSplitResult> {
+  const { data } = await getApiClient().post<{ data: AwardSplitResult }>(
+    RFQS_PATHS.awardSplit(rfqId),
+    body,
+    config,
+  );
+  return data.data;
+}
+
 export async function copyRfq(id: string, config?: AxiosRequestConfig): Promise<{ id: string }> {
   const { data } = await getApiClient().post<{ data: { id: string } }>(
     RFQS_PATHS.copy(id),
@@ -741,6 +778,8 @@ export interface QuoteComparisonCell {
   deliveryDate: string | null;
   /** Per-line review status: PENDING | APPROVED | DECLINED. */
   status: string | null;
+  /** Per-vendor approved quantity once the line is awarded (US 5.19); null otherwise. */
+  approvedQuantity: number | null;
   /** Vendor note on the line (drives the note indicator). */
   notes: string | null;
   /** Set when the vendor quoted a substitute material for this line. */

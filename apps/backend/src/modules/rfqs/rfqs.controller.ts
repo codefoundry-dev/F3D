@@ -30,7 +30,12 @@ import { Public } from '../../common/decorators/public.decorator';
 import { RequirePermissions } from '../../common/permissions';
 import { toExtractionResponse } from '../doc-intelligence/doc-intelligence.mapper';
 
-import { SubmitQuoteDto, UpdateQuoteDto, UpdateQuoteLineItemStatusDto } from './quote-response.dto';
+import {
+  AwardSplitDto,
+  SubmitQuoteDto,
+  UpdateQuoteDto,
+  UpdateQuoteLineItemStatusDto,
+} from './quote-response.dto';
 import { QuoteResponseService } from './quote-response.service';
 import { RfqAvailabilityService } from './rfq-availability.service';
 import { RfqExportService } from './rfq-export.service';
@@ -269,6 +274,26 @@ export class RfqsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.rfqsService.awardQuote(rfqId, quoteId, user);
+  }
+
+  // ── POST /v1/rfqs/:rfqId/award-split ────────────────────────────────────
+
+  @Post(':rfqId/award-split')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('rfq.approveQuote')
+  @ApiOperation({
+    summary:
+      'Award line items across vendors and split into per-vendor child POs (US 5.19)',
+  })
+  @ApiResponse({ status: 201, description: 'Split award created: SPLIT parent + child POs' })
+  @ApiResponse({ status: 400, description: 'Invalid allocation (quantity / quote state)' })
+  @ApiResponse({ status: 404, description: 'RFQ not found' })
+  async awardSplit(
+    @Param('rfqId') rfqId: string,
+    @Body() dto: AwardSplitDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.rfqsService.awardSplit(rfqId, dto, user);
   }
 
   // ── PATCH /v1/rfqs/:rfqId/quotes/:quoteId/decline ───────────────────────

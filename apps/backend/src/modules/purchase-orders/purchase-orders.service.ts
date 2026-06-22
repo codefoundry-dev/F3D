@@ -54,6 +54,14 @@ export class PurchaseOrdersService {
       this.applyQuickFilter(where, query.quickFilter);
     }
 
+    // Split POs: a SPLIT parent represents its group on the flat internal list,
+    // so per-vendor child POs (parentPoId set) are hidden by default and only
+    // surfaced via the "split POs" quick filter (US 5.19). Vendors are untouched
+    // — they only ever match their own child through vendorId scoping above.
+    if (user.role !== UserRole.VENDOR && query.quickFilter !== PoQuickFilter.SPLITED_POS) {
+      where.parentPoId = null;
+    }
+
     // Status filter
     if (query.status) {
       where.status = query.status as PrismaPoStatus;
@@ -233,6 +241,20 @@ export class PurchaseOrdersService {
           },
         },
         invoices: { select: { id: true, status: true, totalAmount: true } },
+        // Split award (US 5.19): a SPLIT parent surfaces its per-vendor children;
+        // a child surfaces a link back to its parent.
+        parentPo: { select: { id: true, poNumber: true } },
+        childPos: {
+          orderBy: { poNumber: 'asc' },
+          select: {
+            id: true,
+            poNumber: true,
+            status: true,
+            totalAmount: true,
+            lineItemCount: true,
+            vendor: { select: { id: true, legalName: true } },
+          },
+        },
       },
     });
 
@@ -279,6 +301,15 @@ export class PurchaseOrdersService {
       deliveryResponsibleEmail: po.deliveryResponsibleEmail,
       issuedAt: po.issuedAt?.toISOString() ?? null,
       parentPoId: po.parentPoId,
+      parentPoNumber: po.parentPo?.poNumber ?? null,
+      childPos: (po.childPos ?? []).map((c) => ({
+        id: c.id,
+        poNumber: c.poNumber,
+        status: c.status,
+        totalAmount: c.totalAmount ? Number(c.totalAmount) : null,
+        lineItemCount: c.lineItemCount,
+        vendor: c.vendor ? { id: c.vendor.id, name: c.vendor.legalName } : null,
+      })),
       rfqId: po.rfqId,
       approvedBy: po.approvedBy ? { id: po.approvedBy.id, name: po.approvedBy.name } : null,
       createdBy: { id: po.createdBy.id, name: po.createdBy.name },

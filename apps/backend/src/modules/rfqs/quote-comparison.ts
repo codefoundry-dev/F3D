@@ -39,6 +39,8 @@ export interface ComparisonQuoteLineItemInput {
   discountType: string | null;
   lineTotal: number;
   status: string;
+  /** Per-vendor approved quantity once the line is awarded (US 5.19); null otherwise. */
+  approvedQuantity: number | null;
   notes: string | null;
   substituteItemId: string | null;
   substituteItemName: string | null;
@@ -113,6 +115,8 @@ export interface QuoteComparisonCell {
   deliveryDate: string | null;
   /** Per-line review status: PENDING | APPROVED | DECLINED. */
   status: string | null;
+  /** Per-vendor approved quantity once the line is awarded (US 5.19); null otherwise. */
+  approvedQuantity: number | null;
   /** Vendor note on the line (drives the note indicator). */
   notes: string | null;
   /** Set when the vendor quoted a substitute material for this line. */
@@ -210,6 +214,7 @@ export function buildQuoteComparison(
         availability: line !== null ? String(line.availability) : null,
         deliveryDate: line !== null ? toIso(line.deliveryDate) : null,
         status: line !== null ? line.status : null,
+        approvedQuantity: line !== null ? line.approvedQuantity : null,
         notes: line !== null ? line.notes : null,
         substituteItemId: line !== null ? line.substituteItemId : null,
         substituteItemName: line !== null ? line.substituteItemName : null,

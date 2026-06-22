@@ -81,8 +81,10 @@ Create a purchase order. **Roles**: ProcurementOfficer, CompanyAdmin.
 > **FRD US 5.05 AC 2**: Materials must come from the Material Catalogue. Users can manually enter a
 > name and create a new catalogue entry on the fly (AC 2.2).
 
-> **Release 1 constraint**: A PO has exactly one vendor (`vendorId`) and one project (`projectId`).
-> Multi-vendor PO splitting (US 5.11) is deferred to post-Release 1.
+> **Constraint**: A directly-created PO (this endpoint) has exactly one vendor (`vendorId`) and one
+> project (`projectId`). Multi-vendor awards are produced from the RFQ quote-review flow via
+> `POST /v1/rfqs/:rfqId/award-split` (US 5.19), which mints a `SPLIT` parent PO owning one child PO
+> per vendor — see below.
 
 **Response 201**: Created PO with `status: Draft` and system-generated PO number.
 
@@ -189,18 +191,48 @@ Reject a change request with optional comment.
 
 ---
 
-## POST /v1/purchase-orders/:id/split
+## POST /v1/rfqs/:rfqId/award-split  (split parent/child POs — US 5.19)
 
-> **Deferred to post-Release 1 (US 5.11).** This endpoint will not be implemented in Release 1. In
-> Release 1, every PO has a single vendor and a single project.
+Award line items across one or more vendor quotes for an RFQ and split into per-vendor child POs.
+**Roles**: ProcurementOfficer, CompanyAdmin.
 
-Split a multi-vendor PO into separate POs per vendor. **Roles**: ProcurementOfficer, CompanyAdmin.
+> Implemented for US 5.19 / PRD §4.5.4 (reverses the earlier "US 5.11" deferral). The split is
+> produced from the quote-review flow, not by splitting a pre-existing PO. See the RFQ contract for
+> the canonical endpoint definition.
+
+**Request body**:
+
+```json
+{
+  "allocations": [
+    { "quoteResponseId": "uuid", "quoteLineItemId": "uuid", "approvedQuantity": 6 }
+  ]
+}
+```
+
+**Validation** (US 5.19): `approvedQuantity > 0` and `≤` the vendor's quoted quantity; the sum of
+`approvedQuantity` across vendors for one RFQ line must be `≤` the RFQ requested quantity; the line
+must have been quoted (not `NO_QUOTE`); each awarded quote must still be awardable.
+
+**Response 201**:
+
+```json
+{
+  "parentPoId": "uuid",
+  "parentPoNumber": "PO-00010",
+  "children": [{ "id": "uuid", "poNumber": "PO-00010-1", "vendorId": "uuid", "vendorName": "..." }]
+}
+```
 
 **Business rules**:
 
-- Automatically triggered on issuance if PO has multiple vendors.
-- Each resulting PO contains only the line items for that vendor.
-- Original PO status changes to `Superseded`; child POs created as `Draft`.
+- Persists `approvedQuantity` + `APPROVED` status on each awarded `QuoteResponseLineItem`; marks the
+  awarded quotes `APPROVED` and the RFQ `AWARDED`.
+- Creates a consolidated **`SPLIT` parent PO** (`vendorId = null`, never issued) and one **child
+  `STANDARD` PO per `(vendor, project)`** linked via `parentPoId` (numbered `PO-NNNNN-1`, `-2`, …).
+- Children are created as `DRAFT`; the contractor issues each via `POST /:id/issue`, which notifies
+  that vendor. A vendor only ever sees its own child PO; the parent is internal-only. Issuing the
+  parent itself is rejected.
 
 ---
 

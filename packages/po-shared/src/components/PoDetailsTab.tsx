@@ -184,7 +184,7 @@ export function PoDetailsTab({
                         ? `${t('detailFields.contractor')}:`
                         : `${t('detailFields.vendors')}:`
                     }
-                    value={isVendorView ? po.company.name : po.vendor.name}
+                    value={isVendorView ? po.company.name : (po.vendor?.name ?? '-')}
                   />
                   <DetailField label={`${t('detailFields.abn')}:`} value={'-'} />
                   <DetailField label={`${t('detailFields.legalAddress')}:`} value={'-'} />

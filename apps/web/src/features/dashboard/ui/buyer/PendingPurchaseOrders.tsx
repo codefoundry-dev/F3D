@@ -76,7 +76,7 @@ function fromPendingPoItem(item: PendingPoItem): PoCardData {
 function fromPoDetail(po: PoDetail, pickUpLabel: string, deliveryLabel: string): PoCardData {
   return {
     id: po.id,
-    vendorName: po.vendor.name,
+    vendorName: po.vendor?.name ?? '-',
     poNumber: po.poNumber,
     projectName: po.projectName,
     date: formatDate(po.createdAt),
