@@ -476,7 +476,9 @@
     "submitForApproval": "Submit for Approval",
     "sent": "Purchase order sent",
     "submittedForApproval": "Purchase order submitted for approval",
-    "failed": "Failed to send purchase order. Please try again."
+    "failed": "Failed to send purchase order. Please try again.",
+    "approved": "Purchase order approved",
+    "approveFailed": "Failed to approve purchase order. Please try again."
   },
   "approvedQuotes": {
     "title": "Add from Approved quotes",
