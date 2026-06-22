@@ -52,7 +52,11 @@ async function bootstrap(): Promise<void> {
     origin: nodeEnv === 'production' ? corsOrigins : true,
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-request-id', 'X-App-Id'],
+    // `X-Access-Token` carries the tokenised vendor-portal credential (FOR-246/247
+    // PO portal, Epic 6 delivery portal). It is a custom header, so cross-origin
+    // browsers send a CORS preflight; it must be allow-listed or the real request
+    // is blocked and the portal page misreads the failure as an invalid link.
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-request-id', 'X-App-Id', 'X-Access-Token'],
   });
 
   // ── API versioning ─────────────────────────────────────────────────────────
