@@ -62,12 +62,15 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      FORETHREAD_ENV: staging
       # Public base URL of this backend (matches Caddyfile.staging). Override per host.
       APP_URL: ${APP_URL:-https://api-stage.forethread.com}
       # Deployed frontend origin — used to build email/portal links. No safe
       # default for staging, so it must be supplied.
       WEB_APP_URL: ${WEB_APP_URL:?set the deployed staging frontend URL}
       DATABASE_URL: postgresql://${POSTGRES_USER:-forethread}:${POSTGRES_PASSWORD:?set a strong POSTGRES_PASSWORD for staging}@postgres:5432/${POSTGRES_DB:-forethread}
+      DATABASE_CONNECTION_LIMIT: ${DATABASE_CONNECTION_LIMIT:-10}
+      DATABASE_POOL_TIMEOUT: ${DATABASE_POOL_TIMEOUT:-10}
       REDIS_URL: redis://redis:6379
       # Auth secrets — no insecure defaults; generate with `openssl rand -hex 32`.
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET (>=32 chars)}
@@ -84,9 +87,27 @@ services:
       # email sends via Resend and the SMTP/Mailhog settings above are ignored.
       # Leave unset to fall back to Mailhog. Provide via shell env or root .env.
       RESEND_API_KEY: ${RESEND_API_KEY:-}
-      RESEND_FROM: ${RESEND_FROM:-noreply@forethread.local}
+      RESEND_FROM: ${RESEND_FROM:-notifications@updates.forethread.com}
+      # Resend delivery-event webhook signing secret (whsec_…). Leave unset to
+      # accept unsigned webhook calls; set it to enforce Svix signature checks.
+      RESEND_WEBHOOK_SECRET: ${RESEND_WEBHOOK_SECRET:-}
+      # Retry tuning for transient Resend failures (rate limits / upstream blips).
+      RESEND_MAX_RETRIES: ${RESEND_MAX_RETRIES:-3}
+      RESEND_RETRY_BASE_MS: ${RESEND_RETRY_BASE_MS:-500}
       CORS_ORIGINS: ${CORS_ORIGINS:?set allowed staging frontend origin(s)}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      # --- Observability ---
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      # --- Rate limiting ---
+      THROTTLE_TTL_MS: ${THROTTLE_TTL_MS:-60000}
+      THROTTLE_LIMIT: ${THROTTLE_LIMIT:-100}
+      # --- Google Places (address autocomplete) + Gemini (document intelligence) ---
+      # API keys are optional at boot; the dependent features fail at call time if unset.
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GEMINI_TIMEOUT_MS: ${GEMINI_TIMEOUT_MS:-180000}
+      GEMINI_THINKING_BUDGET: ${GEMINI_THINKING_BUDGET:-0}
       # --- Object storage: AWS S3 (replaces the former local MinIO container) ---
       # The backend talks to a real AWS S3 bucket via @aws-sdk/client-s3. On the
       # EC2 host the instance IAM role supplies credentials automatically, so
