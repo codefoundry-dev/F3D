@@ -106,6 +106,61 @@ export class PurchaseOrdersController {
     return this.poExportService.exportPublicPoPdf(token.subjectId);
   }
 
+  // ── Tokenised vendor PO response actions (FOR-247) ─────────────────────────
+  // Acknowledge / accept / decline a PO from the public portal link, no login.
+  // Same token policy as the portal reads above: PO resolved from the token's
+  // subject (never a path param), validated but never consumed, so one link
+  // drives the whole SENT → ACKNOWLEDGED → ACCEPTED lifecycle. Status guards in
+  // the service make stale or forwarded links safe (a second action 400s).
+
+  @Post('portal/acknowledge')
+  @Public()
+  @RequireAccessToken({
+    expectedPurpose: AccessTokenPurpose.PO_VIEW,
+    expectedSubjectType: AccessTokenSubject.PURCHASE_ORDER,
+  })
+  @ApiOperation({ summary: 'Vendor acknowledges a PO via a tokenised link (no login)' })
+  @ApiResponse({ status: 200, description: 'PO acknowledged (SENT → ACKNOWLEDGED)' })
+  @ApiResponse({ status: 400, description: 'PO is not in SENT status' })
+  @ApiResponse({ status: 403, description: 'Token missing, expired, revoked, or invalid' })
+  async acknowledgePublicPurchaseOrder(@CurrentAccessToken() token: AccessToken) {
+    return this.poStatusService.confirmPurchaseOrderViaToken(token.subjectId);
+  }
+
+  @Patch('portal/accept')
+  @Public()
+  @RequireAccessToken({
+    expectedPurpose: AccessTokenPurpose.PO_VIEW,
+    expectedSubjectType: AccessTokenSubject.PURCHASE_ORDER,
+  })
+  @ApiOperation({ summary: 'Vendor accepts a PO via a tokenised link (no login)' })
+  @ApiResponse({ status: 200, description: 'PO accepted (ACKNOWLEDGED → ACCEPTED)' })
+  @ApiResponse({ status: 400, description: 'PO is not in ACKNOWLEDGED status' })
+  @ApiResponse({ status: 403, description: 'Token missing, expired, revoked, or invalid' })
+  async acceptPublicPurchaseOrder(
+    @CurrentAccessToken() token: AccessToken,
+    @Body() dto: VendorAcceptPoDto,
+  ) {
+    return this.poStatusService.acceptPurchaseOrderViaToken(token.subjectId, dto);
+  }
+
+  @Patch('portal/decline')
+  @Public()
+  @RequireAccessToken({
+    expectedPurpose: AccessTokenPurpose.PO_VIEW,
+    expectedSubjectType: AccessTokenSubject.PURCHASE_ORDER,
+  })
+  @ApiOperation({ summary: 'Vendor declines a PO via a tokenised link (no login)' })
+  @ApiResponse({ status: 200, description: 'PO declined (→ CANCELLED_BY_VENDOR)' })
+  @ApiResponse({ status: 400, description: 'PO cannot be declined in its current status' })
+  @ApiResponse({ status: 403, description: 'Token missing, expired, revoked, or invalid' })
+  async declinePublicPurchaseOrder(
+    @CurrentAccessToken() token: AccessToken,
+    @Body() dto: VendorDeclinePoDto,
+  ) {
+    return this.poStatusService.vendorDeclinePurchaseOrderViaToken(token.subjectId, dto);
+  }
+
   // ── POST /v1/purchase-orders ──────────────────────────────────────────────
 
   @Post()

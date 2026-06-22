@@ -36,6 +36,9 @@ const mockStatusService = {
   archivePurchaseOrder: jest.fn(),
   acceptPurchaseOrder: jest.fn(),
   vendorDeclinePurchaseOrder: jest.fn(),
+  confirmPurchaseOrderViaToken: jest.fn(),
+  acceptPurchaseOrderViaToken: jest.fn(),
+  vendorDeclinePurchaseOrderViaToken: jest.fn(),
   receivePurchaseOrder: jest.fn(),
   listPendingApproval: jest.fn(),
   getAuditTrail: jest.fn(),
@@ -102,6 +105,46 @@ describe('PurchaseOrdersController', () => {
 
       expect(mockExportService.exportPublicPoPdf).toHaveBeenCalledWith('po-99');
       expect(result).toEqual({ url: 'https://files/po-99.pdf' });
+    });
+  });
+
+  describe('tokenised vendor PO actions (FOR-247)', () => {
+    // The action endpoints resolve the PO from the token's subject too — never a
+    // path param — so a token can only ever act on its own PO.
+    const token = { id: 'tok-1', subjectId: 'po-99' };
+
+    it('acknowledgePublicPurchaseOrder confirms the token subject', async () => {
+      mockStatusService.confirmPurchaseOrderViaToken.mockResolvedValue({ status: 'ACKNOWLEDGED' });
+
+      const result = await controller.acknowledgePublicPurchaseOrder(token as never);
+
+      expect(mockStatusService.confirmPurchaseOrderViaToken).toHaveBeenCalledWith('po-99');
+      expect(result).toEqual({ status: 'ACKNOWLEDGED' });
+    });
+
+    it('acceptPublicPurchaseOrder forwards the body for the token subject', async () => {
+      mockStatusService.acceptPurchaseOrderViaToken.mockResolvedValue({ status: 'ACCEPTED' });
+      const dto = { paymentTermsDays: 30 };
+
+      const result = await controller.acceptPublicPurchaseOrder(token as never, dto as never);
+
+      expect(mockStatusService.acceptPurchaseOrderViaToken).toHaveBeenCalledWith('po-99', dto);
+      expect(result).toEqual({ status: 'ACCEPTED' });
+    });
+
+    it('declinePublicPurchaseOrder forwards the reason for the token subject', async () => {
+      mockStatusService.vendorDeclinePurchaseOrderViaToken.mockResolvedValue({
+        status: 'CANCELLED_BY_VENDOR',
+      });
+      const dto = { reason: 'Out of stock' };
+
+      const result = await controller.declinePublicPurchaseOrder(token as never, dto as never);
+
+      expect(mockStatusService.vendorDeclinePurchaseOrderViaToken).toHaveBeenCalledWith(
+        'po-99',
+        dto,
+      );
+      expect(result).toEqual({ status: 'CANCELLED_BY_VENDOR' });
     });
   });
 

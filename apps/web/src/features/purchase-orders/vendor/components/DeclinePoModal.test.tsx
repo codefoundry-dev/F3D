@@ -3,6 +3,7 @@ const mockMutationState = vi.hoisted(() => ({ isPending: false }));
 
 vi.mock('@forethread/api-client', () => ({
   vendorDeclinePurchaseOrder: vi.fn(),
+  declinePublicPurchaseOrder: vi.fn(),
 }));
 
 vi.mock('@forethread/i18n', () => ({

@@ -39,7 +39,10 @@ export class AuditLogQueryDto {
 
 interface LogInput {
   action: AuditAction;
-  performedById: string;
+  /** Null for guest (tokenised) actions — pair with `performedByLabel`. */
+  performedById: string | null;
+  /** Human label for a guest action when there is no `performedById` (FOR-247). */
+  performedByLabel?: string;
   targetType: string;
   targetId: string;
   targetLabel?: string;
@@ -56,6 +59,7 @@ export class AuditService {
       data: {
         action: input.action,
         performedById: input.performedById,
+        performedByLabel: input.performedByLabel,
         targetType: input.targetType,
         targetId: input.targetId,
         targetLabel: input.targetLabel,

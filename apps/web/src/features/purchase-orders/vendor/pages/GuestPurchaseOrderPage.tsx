@@ -21,14 +21,20 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 
+import { PoVendorActions } from '../components/PoVendorActions';
+
 /** The tokenised vendor PO portal only exposes the read-only content tabs. */
 const GUEST_TABS: PoTab[] = ['details', 'lineItems'];
 
+/** Statuses where the vendor can still act on the PO from the portal link. */
+const ACTIONABLE_STATUSES = ['SENT', 'ACKNOWLEDGED'];
+
 /**
- * Public, read-only view of a Purchase Order reached from a tokenised email link
- * (FOR-246). Mirrors the guest RFQ portal (`GuestInvitationPage`): no login, no
- * app shell — the access token (in the URL) authorises the read. The vendor can
- * view the full PO and download its PDF; response actions land in FOR-247.
+ * Public view of a Purchase Order reached from a tokenised email link (FOR-246).
+ * Mirrors the guest RFQ portal (`GuestInvitationPage`): no login, no app shell —
+ * the access token (in the URL) authorises the read. The vendor can view the
+ * full PO, download its PDF, and — while the PO is still actionable —
+ * acknowledge / accept / decline it via the same token (FOR-247).
  */
 export default function GuestPurchaseOrderPage() {
   const { t } = useTranslation('purchaseOrders');
@@ -81,6 +87,7 @@ export default function GuestPurchaseOrderPage() {
 function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
   const { t } = useTranslation('purchaseOrders');
   const [activeTab, setActiveTab] = useState<PoTab>('details');
+  const isActionable = ACTIONABLE_STATUSES.includes(po.status);
 
   const handleDownload = () => {
     void exportPublicPurchaseOrder(token).then(({ url }) => window.open(url, '_blank'));
@@ -115,12 +122,19 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
         </div>
       </header>
 
-      {/* ═══ Read-only info banner ═══ */}
-      <div className="px-6 pt-4 max-w-[1400px] mx-auto w-full">
-        <Alert variant="info" icon={<InfoIcon className="w-4 h-4" />}>
-          {t('guest.infoBanner')}
-        </Alert>
-      </div>
+      {/* ═══ Action band (FOR-247) — acknowledge / accept / decline via the token ═══ */}
+      {isActionable ? (
+        <div className="px-6 pt-4 max-w-[1400px] mx-auto w-full">
+          <PoVendorActions po={po} token={token} />
+        </div>
+      ) : (
+        /* ═══ Read-only info banner (terminal / non-actionable statuses) ═══ */
+        <div className="px-6 pt-4 max-w-[1400px] mx-auto w-full">
+          <Alert variant="info" icon={<InfoIcon className="w-4 h-4" />}>
+            {t('guest.infoBanner')}
+          </Alert>
+        </div>
+      )}
 
       {/* ═══ PO content ═══ */}
       <div className="flex-1 px-6 py-4 max-w-[1400px] mx-auto w-full space-y-4">

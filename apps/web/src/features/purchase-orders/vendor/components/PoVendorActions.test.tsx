@@ -13,6 +13,8 @@ let mutationCallCount = 0;
 vi.mock('@forethread/api-client', () => ({
   confirmPurchaseOrder: vi.fn(),
   acceptPurchaseOrder: vi.fn(),
+  confirmPublicPurchaseOrder: vi.fn(),
+  acceptPublicPurchaseOrder: vi.fn(),
 }));
 
 vi.mock('@forethread/i18n', () => ({
@@ -51,8 +53,16 @@ vi.mock('@forethread/ui-components/assets/icons/mark-with-cyrcle.svg?react', () 
 }));
 
 vi.mock('./DeclinePoModal', () => ({
-  DeclinePoModal: ({ poId, onClose }: { poId: string; onClose: () => void }) => (
-    <div data-testid="decline-modal" data-po-id={poId}>
+  DeclinePoModal: ({
+    poId,
+    token,
+    onClose,
+  }: {
+    poId: string;
+    token?: string;
+    onClose: () => void;
+  }) => (
+    <div data-testid="decline-modal" data-po-id={poId} data-token={token ?? ''}>
       <button onClick={onClose}>close-modal</button>
     </div>
   ),
@@ -168,5 +178,11 @@ describe('PoVendorActions', () => {
   it('applies compact layout when compact prop is true', () => {
     render(<PoVendorActions po={makePo({ status: 'SENT' })} compact />);
     expect(screen.getByText('actions.acknowledge')).toBeInTheDocument();
+  });
+
+  it('forwards the guest portal token to the decline modal (FOR-247)', () => {
+    render(<PoVendorActions po={makePo({ status: 'SENT' })} token="po-token-123" />);
+    fireEvent.click(screen.getByText('actions.decline'));
+    expect(screen.getByTestId('decline-modal')).toHaveAttribute('data-token', 'po-token-123');
   });
 });

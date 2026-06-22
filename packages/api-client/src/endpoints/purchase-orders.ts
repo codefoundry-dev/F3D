@@ -281,6 +281,53 @@ export async function exportPublicPurchaseOrder(
   return data.data;
 }
 
+/**
+ * Acknowledge a PO from the tokenised vendor portal (FOR-247). Public — the
+ * access token (sent in `X-Access-Token`) is the authorization and resolves the
+ * PO server-side, so no id is passed. Returns the refreshed PO so the portal can
+ * reflect the new status. Opts out of the global error toast; the portal renders
+ * its own action feedback.
+ */
+export async function confirmPublicPurchaseOrder(
+  token: string,
+  config?: AxiosRequestConfig,
+): Promise<PoDetail> {
+  const { data } = await getApiClient().post<{ data: PoDetail }>(
+    PURCHASE_ORDERS_PATHS.portalAcknowledge,
+    undefined,
+    { headers: { [ACCESS_TOKEN_HEADER]: token }, skipErrorHandler: true, ...config },
+  );
+  return data.data;
+}
+
+/** Accept a PO from the tokenised vendor portal (FOR-247). See {@link confirmPublicPurchaseOrder}. */
+export async function acceptPublicPurchaseOrder(
+  token: string,
+  input?: VendorAcceptPoInput,
+  config?: AxiosRequestConfig,
+): Promise<PoDetail> {
+  const { data } = await getApiClient().patch<{ data: PoDetail }>(
+    PURCHASE_ORDERS_PATHS.portalAccept,
+    input ?? {},
+    { headers: { [ACCESS_TOKEN_HEADER]: token }, skipErrorHandler: true, ...config },
+  );
+  return data.data;
+}
+
+/** Decline a PO from the tokenised vendor portal (FOR-247). See {@link confirmPublicPurchaseOrder}. */
+export async function declinePublicPurchaseOrder(
+  token: string,
+  input?: VendorDeclinePoInput,
+  config?: AxiosRequestConfig,
+): Promise<PoDetail> {
+  const { data } = await getApiClient().patch<{ data: PoDetail }>(
+    PURCHASE_ORDERS_PATHS.portalDecline,
+    input ?? {},
+    { headers: { [ACCESS_TOKEN_HEADER]: token }, skipErrorHandler: true, ...config },
+  );
+  return data.data;
+}
+
 /** Fetch the outbound email delivery log for a PO (newest event first). FOR-213. */
 export async function getPurchaseOrderEmailLog(
   poId: string,
@@ -304,6 +351,8 @@ export interface PoAuditEntry {
   action: string;
   metadata: Record<string, unknown> | null;
   performedBy: { id: string; name: string; email: string } | null;
+  /** Names a guest (tokenised) actor when `performedBy` is null (FOR-247). */
+  performedByLabel?: string | null;
   createdAt: string;
 }
 

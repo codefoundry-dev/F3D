@@ -74,17 +74,17 @@ export function humanizeAuditAction(
 
   const action = t(label.key, label.fallback);
 
+  // Guest (tokenised) actions have no user — fall back to the actor label, then
+  // a generic "System" (FOR-247).
+  const performerName = entry.performedBy?.name ?? entry.performedByLabel ?? null;
   const performedBy = entry.performedBy
     ? { id: entry.performedBy.id, name: entry.performedBy.name }
-    : { id: '', name: t('actionLog.system', 'System') };
+    : { id: '', name: performerName ?? t('actionLog.system', 'System') };
 
   const parts: string[] = [];
-  if (entry.performedBy?.name) {
+  if (performerName) {
     parts.push(
-      t('actionLog.performedBy', 'Performed by {{name}}').replace(
-        '{{name}}',
-        entry.performedBy.name,
-      ),
+      t('actionLog.performedBy', 'Performed by {{name}}').replace('{{name}}', performerName),
     );
   }
   const reason = readString(entry.metadata, 'reason');

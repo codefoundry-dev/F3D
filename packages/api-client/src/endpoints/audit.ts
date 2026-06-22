@@ -16,18 +16,22 @@ export interface AuditLogParams {
 export interface AuditLogResponse {
   id: string;
   action: string;
-  performedById: string;
+  /** Null for guest (tokenised) actions — see `performedByLabel` (FOR-247). */
+  performedById: string | null;
+  /** Human label for a guest action when there is no `performedBy`. */
+  performedByLabel: string | null;
   targetType: string;
   targetId: string;
   targetLabel: string | null;
   metadata: Record<string, unknown> | null;
   ipAddress: string | null;
   createdAt: string;
+  /** Null for guest (tokenised) actions; fall back to `performedByLabel`. */
   performedBy: {
     id: string;
     name: string;
     email: string;
-  };
+  } | null;
 }
 
 export interface PaginatedAuditLogsResponse {

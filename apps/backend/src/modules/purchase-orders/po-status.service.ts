@@ -50,6 +50,13 @@ const PO_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
  */
 const DELIVERY_LINK_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
+/**
+ * Audit-trail label for a PO action taken by a vendor through a tokenised portal
+ * link (FOR-247). The actor has no user account, so this human label stands in
+ * for `performedById` on the audit row (mirrors the guest RFQ-submit pattern).
+ */
+const GUEST_VENDOR_ACTOR_LABEL = 'Vendor (portal link)';
+
 /** Minimal PO shape the delivery-delta applier needs (close-out leg). */
 export interface DeliveryDeltaPo {
   id: string;
@@ -116,6 +123,36 @@ export class PoStatusService {
     } catch (err) {
       this.logger.debug(
         `Failed to audit PO transition ${from}→${to}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+
+  /**
+   * Best-effort audit of a PO transition performed by a guest (tokenised) vendor
+   * with no user account (FOR-247): `performedById` is null and the actor is
+   * captured via `performedByLabel`. Never throws, matching {@link auditTransition}.
+   */
+  private async auditGuestTransition(
+    action: AuditAction,
+    poId: string,
+    from: PrismaPoStatus,
+    to: PrismaPoStatus,
+    extra?: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.auditService.log({
+        action,
+        performedById: null,
+        performedByLabel: GUEST_VENDOR_ACTOR_LABEL,
+        targetType: 'PurchaseOrder',
+        targetId: poId,
+        metadata: { from, to, ...(extra ?? {}) },
+      });
+    } catch (err) {
+      this.logger.debug(
+        `Failed to audit guest PO transition ${from}→${to}: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
@@ -261,6 +298,43 @@ export class PoStatusService {
     );
 
     return this.purchaseOrdersService.getPurchaseOrder(id, user);
+  }
+
+  // ── Confirm Purchase Order via tokenised portal link (FOR-247) ───────────
+
+  /**
+   * Vendor acknowledges a PO from the tokenised portal link (FOR-247). The
+   * validated PO_VIEW access token already binds the request to this exact PO
+   * (the caller never names an id), so the token IS the authorization — there is
+   * no user / ownership check. Otherwise mirrors {@link confirmPurchaseOrder}:
+   * SENT → ACKNOWLEDGED, attributed to the guest vendor in the audit trail.
+   */
+  async confirmPurchaseOrderViaToken(poId: string) {
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id: poId },
+      select: { id: true, status: true },
+    });
+
+    if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
+
+    if (po.status !== PrismaPoStatus.SENT) {
+      throw new BadRequestException(ERR.purchaseOrders.cannotConfirm(po.status));
+    }
+
+    assertTransition(po.status, PrismaPoStatus.ACKNOWLEDGED);
+    await this.prisma.purchaseOrder.update({
+      where: { id: poId },
+      data: { status: PrismaPoStatus.ACKNOWLEDGED, lastModifiedById: null },
+    });
+
+    await this.auditGuestTransition(
+      AuditAction.PO_ACKNOWLEDGED,
+      poId,
+      po.status,
+      PrismaPoStatus.ACKNOWLEDGED,
+    );
+
+    return this.purchaseOrdersService.getPurchaseOrderById(poId);
   }
 
   // ── Approve Purchase Order ───────────────────────────────────────────────
@@ -481,6 +555,46 @@ export class PoStatusService {
     return this.purchaseOrdersService.getPurchaseOrder(id, user);
   }
 
+  // ── Accept Purchase Order via tokenised portal link (FOR-247) ────────────
+
+  /**
+   * Vendor accepts a PO from the tokenised portal link (FOR-247). Token-authorised
+   * and user-less (see {@link confirmPurchaseOrderViaToken}); otherwise mirrors
+   * {@link acceptPurchaseOrder}: ACKNOWLEDGED → ACCEPTED with optional
+   * payment-terms / warehouse overrides.
+   */
+  async acceptPurchaseOrderViaToken(poId: string, dto: VendorAcceptPoDto | undefined) {
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id: poId },
+      select: { id: true, status: true },
+    });
+
+    if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
+
+    if (po.status !== PrismaPoStatus.ACKNOWLEDGED) {
+      throw new BadRequestException(ERR.purchaseOrders.cannotAccept(po.status));
+    }
+
+    assertTransition(po.status, PrismaPoStatus.ACCEPTED);
+    const updateData: Record<string, unknown> = {
+      status: PrismaPoStatus.ACCEPTED,
+      lastModifiedById: null,
+    };
+    if (dto?.paymentTermsDays !== undefined) updateData.paymentTermsDays = dto.paymentTermsDays;
+    if (dto?.warehouseLocationId) updateData.warehouseLocationId = dto.warehouseLocationId;
+
+    await this.prisma.purchaseOrder.update({ where: { id: poId }, data: updateData });
+
+    await this.auditGuestTransition(
+      AuditAction.PO_ACCEPTED,
+      poId,
+      po.status,
+      PrismaPoStatus.ACCEPTED,
+    );
+
+    return this.purchaseOrdersService.getPurchaseOrderById(poId);
+  }
+
   // ── Vendor Decline Purchase Order ─────────────────────────────────────────
 
   async vendorDeclinePurchaseOrder(
@@ -553,6 +667,67 @@ export class PoStatusService {
     ).catch(() => {});
 
     return this.purchaseOrdersService.getPurchaseOrder(id, user);
+  }
+
+  // ── Vendor Decline Purchase Order via tokenised portal link (FOR-247) ────
+
+  /**
+   * Vendor declines a PO from the tokenised portal link (FOR-247). Token-authorised
+   * and user-less (see {@link confirmPurchaseOrderViaToken}); otherwise mirrors
+   * {@link vendorDeclinePurchaseOrder}: SENT | ACKNOWLEDGED → CANCELLED_BY_VENDOR,
+   * stores the reason, and notifies the contractor.
+   */
+  async vendorDeclinePurchaseOrderViaToken(poId: string, dto: VendorDeclinePoDto | undefined) {
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id: poId },
+      select: {
+        id: true,
+        status: true,
+        poNumber: true,
+        vendor: { select: { legalName: true } },
+        company: {
+          select: {
+            users: { where: { role: UserRole.COMPANY_ADMIN }, select: { email: true } },
+          },
+        },
+      },
+    });
+
+    if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
+
+    if (po.status !== PrismaPoStatus.SENT && po.status !== PrismaPoStatus.ACKNOWLEDGED) {
+      throw new BadRequestException(ERR.purchaseOrders.cannotVendorDecline(po.status));
+    }
+
+    assertTransition(po.status, PrismaPoStatus.CANCELLED_BY_VENDOR);
+    await this.prisma.purchaseOrder.update({
+      where: { id: poId },
+      data: {
+        status: PrismaPoStatus.CANCELLED_BY_VENDOR,
+        lastModifiedById: null,
+        // cancellationReason is canonical; deliveryNotes kept in sync for readers
+        // that predate the column (matches the authed vendor-decline path).
+        ...(dto?.reason && { cancellationReason: dto.reason, deliveryNotes: dto.reason }),
+      },
+    });
+
+    await this.auditGuestTransition(
+      AuditAction.PO_DECLINED_BY_VENDOR,
+      poId,
+      po.status,
+      PrismaPoStatus.CANCELLED_BY_VENDOR,
+      { reason: dto?.reason ?? null },
+    );
+
+    this.notifyContractorOfDecline(
+      poId,
+      po.poNumber,
+      po.vendor?.legalName ?? 'Vendor',
+      po.company?.users ?? [],
+      dto?.reason,
+    ).catch(() => {});
+
+    return this.purchaseOrdersService.getPurchaseOrderById(poId);
   }
 
   // ── Archive Purchase Order ─────────────────────────────────────────────
@@ -965,6 +1140,8 @@ export class PoStatusService {
       performedBy: log.performedBy
         ? { id: log.performedBy.id, name: log.performedBy.name, email: log.performedBy.email }
         : null,
+      // Guest (tokenised) actions have no user — the label names the actor (FOR-247).
+      performedByLabel: log.performedByLabel,
       createdAt: log.createdAt.toISOString(),
     }));
   }
