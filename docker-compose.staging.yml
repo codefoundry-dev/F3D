@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -8,13 +6,17 @@ services:
     ports:
       - '5433:5432'
     environment:
-      POSTGRES_USER: forethread
-      POSTGRES_PASSWORD: forethread
-      POSTGRES_DB: forethread_dev
+      POSTGRES_USER: ${POSTGRES_USER:-forethread}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set a strong POSTGRES_PASSWORD for staging}
+      POSTGRES_DB: ${POSTGRES_DB:-forethread}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U forethread -d forethread_dev']
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-forethread} -d ${POSTGRES_DB:-forethread}',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -48,26 +50,6 @@ services:
       timeout: 10s
       retries: 3
 
-  minio:
-    image: minio/minio:latest
-    container_name: forethread-minio
-    restart: unless-stopped
-    ports:
-      - '9000:9000' # API
-      - '9001:9001' # Console
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    volumes:
-      - minio_data:/data
-    command: server /data --console-address ":9001"
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
   # Backend API (build once, runs migrations + seed + app)
   backend:
     build:
@@ -78,15 +60,19 @@ services:
     ports:
       - '3000:3000'
     environment:
-      NODE_ENV: development
+      NODE_ENV: production
       PORT: 3000
-      APP_URL: http://localhost:3000
-      WEB_APP_URL: http://localhost:5179
-      DATABASE_URL: postgresql://forethread:forethread@postgres:5432/forethread_dev
+      # Public base URL of this backend (matches Caddyfile.staging). Override per host.
+      APP_URL: ${APP_URL:-https://api-stage.forethread.com}
+      # Deployed frontend origin — used to build email/portal links. No safe
+      # default for staging, so it must be supplied.
+      WEB_APP_URL: ${WEB_APP_URL:?set the deployed staging frontend URL}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-forethread}:${POSTGRES_PASSWORD:?set a strong POSTGRES_PASSWORD for staging}@postgres:5432/${POSTGRES_DB:-forethread}
       REDIS_URL: redis://redis:6379
-      JWT_ACCESS_SECRET: dev-jwt-access-secret-change-me
-      JWT_REFRESH_SECRET: dev-jwt-refresh-secret-change-me
-      JWT_ACCESS_EXPIRES_IN: 15m
+      # Auth secrets — no insecure defaults; generate with `openssl rand -hex 32`.
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET (>=32 chars)}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET (>=32 chars)}
+      JWT_ACCESS_EXPIRES_IN: 4h
       JWT_REFRESH_EXPIRES_IN: 7d
       SMTP_HOST: mailhog
       SMTP_PORT: 1025
@@ -99,30 +85,30 @@ services:
       # Leave unset to fall back to Mailhog. Provide via shell env or root .env.
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM: ${RESEND_FROM:-noreply@forethread.local}
-      CORS_ORIGINS: http://localhost:5179
-      LOG_LEVEL: debug
+      CORS_ORIGINS: ${CORS_ORIGINS:?set allowed staging frontend origin(s)}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # --- Object storage: AWS S3 (replaces the former local MinIO container) ---
+      # The backend talks to a real AWS S3 bucket via @aws-sdk/client-s3. On the
+      # EC2 host the instance IAM role supplies credentials automatically, so
+      # S3_ENDPOINT and S3_ACCESS_KEY/S3_SECRET_KEY are intentionally left UNSET
+      # (see apps/backend/src/modules/storage/storage.service.ts). The bucket is
+      # provisioned by infrastructure/modules/storage-s3 as forethread-<env>-uploads.
+      # Running this compose off-EC2? Export AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
+      # (and AWS_SESSION_TOKEN for temporary creds) in your shell; they are passed
+      # through below for the AWS SDK default credential chain.
+      S3_BUCKET: ${S3_BUCKET:-forethread-staging-uploads}
+      S3_REGION: ${S3_REGION:-eu-north-1}
+      S3_FORCE_PATH_STYLE: 'false'
+      AWS_REGION: ${AWS_REGION:-eu-north-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     command: ['full']
-
-  # MinIO bucket initialization (runs once)
-  minio-init:
-    image: minio/mc:latest
-    container_name: forethread-minio-init
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set local http://minio:9000 minioadmin minioadmin &&
-      mc mb --ignore-existing local/forethread-dev &&
-      mc anonymous set public local/forethread-dev &&
-      echo 'MinIO bucket forethread-dev created successfully'
-      "
-    restart: 'no'
 
   caddy:
     image: caddy:2-alpine
@@ -138,7 +124,5 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
-    driver: local
-  minio_data:
     driver: local
   caddy_data:
