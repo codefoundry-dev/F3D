@@ -58,6 +58,12 @@ vi.mock('@forethread/ui-components/assets/icons/info.svg?react', () => ({
   default: () => <span />,
 }));
 
+vi.mock('../components/PoVendorActions', () => ({
+  PoVendorActions: ({ po, token }: { po: { status: string }; token?: string }) => (
+    <div data-testid="po-vendor-actions" data-status={po.status} data-token={token ?? ''} />
+  ),
+}));
+
 import GuestPurchaseOrderPage from './GuestPurchaseOrderPage';
 
 const samplePo = {
@@ -122,5 +128,27 @@ describe('GuestPurchaseOrderPage', () => {
     render(<GuestPurchaseOrderPage />);
     fireEvent.click(screen.getByText('guest.download'));
     expect(mockExportPublicPo.value).toHaveBeenCalledWith('po-token-123');
+  });
+
+  it('renders the token-driven action band for an actionable (SENT) PO (FOR-247)', () => {
+    mockQueryResult.value = { data: samplePo, isLoading: false, isError: false, error: null };
+    render(<GuestPurchaseOrderPage />);
+    const actions = screen.getByTestId('po-vendor-actions');
+    expect(actions).toHaveAttribute('data-token', 'po-token-123');
+    expect(actions).toHaveAttribute('data-status', 'SENT');
+    // The read-only banner is replaced by the action band while actionable.
+    expect(screen.queryByText('guest.infoBanner')).not.toBeInTheDocument();
+  });
+
+  it('shows the read-only banner (no actions) for a terminal PO status', () => {
+    mockQueryResult.value = {
+      data: { ...samplePo, status: 'ACCEPTED' },
+      isLoading: false,
+      isError: false,
+      error: null,
+    };
+    render(<GuestPurchaseOrderPage />);
+    expect(screen.queryByTestId('po-vendor-actions')).not.toBeInTheDocument();
+    expect(screen.getByText('guest.infoBanner')).toBeInTheDocument();
   });
 });

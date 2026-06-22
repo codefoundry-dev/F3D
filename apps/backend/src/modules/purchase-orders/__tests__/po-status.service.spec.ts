@@ -113,6 +113,7 @@ const fullPoDetail = {
 
 const mockPurchaseOrdersService = {
   getPurchaseOrder: jest.fn(),
+  getPurchaseOrderById: jest.fn(),
 };
 
 const mockEmailService = {
@@ -162,8 +163,9 @@ describe('PoStatusService', () => {
       mockAccessTokensService as never,
       mockConfig as never,
     );
-    // Default: getPurchaseOrder returns fullPoDetail-shaped response
+    // Default: getPurchaseOrder / getPurchaseOrderById return fullPoDetail-shaped response
     mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue(fullPoDetail);
+    mockPurchaseOrdersService.getPurchaseOrderById.mockResolvedValue(fullPoDetail);
     // Default: approval authorization grants the action (null threshold = unlimited).
     mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
     // Run interactive transactions against the same mock client so existing
@@ -1018,6 +1020,166 @@ describe('PoStatusService', () => {
         vendorUser,
       );
       expect(result.status).toBe('CANCELLED_BY_VENDOR');
+    });
+  });
+
+  // ── Tokenised vendor PO portal actions (FOR-247) ───────────────────────────
+  // No user / ownership check: the validated access token already binds the
+  // request to this exact PO, so the guard is the authorization. Audit rows are
+  // attributed to the guest vendor via performedByLabel (performedById = null).
+
+  describe('confirmPurchaseOrderViaToken', () => {
+    it('throws NotFoundException when PO not found', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(null);
+      await expect(service.confirmPurchaseOrderViaToken('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws BadRequestException when PO is not SENT', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ id: 'po-1', status: 'DRAFT' });
+      await expect(service.confirmPurchaseOrderViaToken('po-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('acknowledges the PO and attributes the audit to the guest vendor', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ id: 'po-1', status: 'SENT' });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({});
+      mockPurchaseOrdersService.getPurchaseOrderById.mockResolvedValue({
+        id: 'po-1',
+        status: 'ACKNOWLEDGED',
+      });
+
+      const result = await service.confirmPurchaseOrderViaToken('po-1');
+
+      expect(result.status).toBe('ACKNOWLEDGED');
+      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'ACKNOWLEDGED', lastModifiedById: null }),
+        }),
+      );
+      expect(mockAuditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PO_ACKNOWLEDGED',
+          performedById: null,
+          performedByLabel: expect.any(String),
+        }),
+      );
+    });
+
+    it('does not throw when the guest audit write fails', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ id: 'po-1', status: 'SENT' });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({});
+      mockAuditService.log.mockRejectedValueOnce(new Error('audit down'));
+      mockPurchaseOrdersService.getPurchaseOrderById.mockResolvedValue({
+        id: 'po-1',
+        status: 'ACKNOWLEDGED',
+      });
+
+      const result = await service.confirmPurchaseOrderViaToken('po-1');
+      expect(result.status).toBe('ACKNOWLEDGED');
+    });
+  });
+
+  describe('acceptPurchaseOrderViaToken', () => {
+    it('throws NotFoundException when PO not found', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(null);
+      await expect(service.acceptPurchaseOrderViaToken('missing', undefined)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws BadRequestException when PO is not ACKNOWLEDGED', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ id: 'po-1', status: 'SENT' });
+      await expect(service.acceptPurchaseOrderViaToken('po-1', undefined)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('accepts the PO and applies optional payment terms', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ id: 'po-1', status: 'ACKNOWLEDGED' });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({});
+      mockPurchaseOrdersService.getPurchaseOrderById.mockResolvedValue({
+        id: 'po-1',
+        status: 'ACCEPTED',
+      });
+
+      const result = await service.acceptPurchaseOrderViaToken('po-1', { paymentTermsDays: 45 });
+
+      expect(result.status).toBe('ACCEPTED');
+      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'ACCEPTED',
+            lastModifiedById: null,
+            paymentTermsDays: 45,
+          }),
+        }),
+      );
+      expect(mockAuditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PO_ACCEPTED', performedById: null }),
+      );
+    });
+  });
+
+  describe('vendorDeclinePurchaseOrderViaToken', () => {
+    const declinePoBase = {
+      id: 'po-1',
+      status: 'SENT',
+      poNumber: 'PO-0001',
+      vendor: { legalName: 'VendorCo' },
+      company: { users: [{ email: 'admin@contractor.com' }] },
+    };
+
+    it('throws NotFoundException when PO not found', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(null);
+      await expect(
+        service.vendorDeclinePurchaseOrderViaToken('missing', undefined),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BadRequestException when PO is not SENT or ACKNOWLEDGED', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ ...declinePoBase, status: 'DRAFT' });
+      await expect(
+        service.vendorDeclinePurchaseOrderViaToken('po-1', undefined),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('declines the PO, stores the reason, and notifies the contractor', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(declinePoBase);
+      mockPrisma.purchaseOrder.update.mockResolvedValue({});
+      mockPurchaseOrdersService.getPurchaseOrderById.mockResolvedValue({
+        id: 'po-1',
+        status: 'CANCELLED_BY_VENDOR',
+      });
+      mockEmailService.sendPoDeclinedByVendorEmail.mockResolvedValue(undefined);
+
+      const result = await service.vendorDeclinePurchaseOrderViaToken('po-1', {
+        reason: 'Out of stock',
+      });
+
+      expect(result.status).toBe('CANCELLED_BY_VENDOR');
+      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'CANCELLED_BY_VENDOR',
+            lastModifiedById: null,
+            cancellationReason: 'Out of stock',
+          }),
+        }),
+      );
+
+      // Wait for the fire-and-forget contractor notification.
+      await new Promise((r) => setTimeout(r, 10));
+      expect(mockEmailService.sendPoDeclinedByVendorEmail).toHaveBeenCalledWith(
+        'admin@contractor.com',
+        'PO-0001',
+        'VendorCo',
+        expect.any(String),
+        'Out of stock',
+        expect.objectContaining({ purchaseOrderId: 'po-1' }),
+      );
     });
   });
 

@@ -55,7 +55,13 @@ enum AuditAction {
 model AuditLog {
   id            String      @id @default(uuid())
   action        AuditAction
-  performedById String      @map("performed_by_id")
+  // performedById is null for guest (tokenised) actions — e.g. an Unactivated
+  // Vendor acknowledging / accepting / declining a PO from an emailed link
+  // (FOR-247), where the validated access token is the authorization and there
+  // is no user account. performedByLabel then carries a human label for the
+  // trail (mirrors rfq_activity_logs).
+  performedById    String?  @map("performed_by_id")
+  performedByLabel String?  @map("performed_by_label") @db.VarChar(255)
   targetType    String      @map("target_type") @db.VarChar(50)
   targetId      String      @map("target_id")
   targetLabel   String?     @map("target_label") @db.VarChar(255)
@@ -63,7 +69,7 @@ model AuditLog {
   ipAddress     String?     @map("ip_address") @db.VarChar(45)
   createdAt     DateTime    @default(now()) @map("created_at")
 
-  performedBy User @relation(fields: [performedById], references: [id])
+  performedBy User? @relation(fields: [performedById], references: [id])
 
   @@index([action], map: "idx_audit_log_action")
   @@index([performedById], map: "idx_audit_log_performer")

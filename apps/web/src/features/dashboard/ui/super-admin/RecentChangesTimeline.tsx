@@ -27,7 +27,11 @@ export function RecentChangesTimeline({ logs, isLoading }: RecentChangesTimeline
         <p className="text-sm text-muted-foreground">{t('recentChanges.noChanges')}</p>
       ) : (
         <div className="space-y-0 overflow-y-auto pr-2 flex-1">
-          {logs.map((log, index) => (
+          {logs.map((log, index) => {
+            // performedBy is null for guest (tokenised) actions — fall back to the
+            // human label, then a generic "System" (FOR-247).
+            const performerName = log.performedBy?.name ?? log.performedByLabel ?? 'System';
+            return (
             <div key={log.id} className="flex gap-4">
               <div className="flex flex-col items-center">
                 <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center shrink-0">
@@ -43,9 +47,9 @@ export function RecentChangesTimeline({ logs, isLoading }: RecentChangesTimeline
                 </div>
                 <div className="flex items-center gap-2 mt-1">
                   <div className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-medium">
-                    {log.performedBy.name.charAt(0).toUpperCase()}
+                    {performerName.charAt(0).toUpperCase()}
                   </div>
-                  <span className="text-xs text-muted-foreground">{log.performedBy.name}</span>
+                  <span className="text-xs text-muted-foreground">{performerName}</span>
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     <ClockIcon className="w-3.5 h-3.5" />
                     {formatDateTime(log.createdAt)}
@@ -58,7 +62,8 @@ export function RecentChangesTimeline({ logs, isLoading }: RecentChangesTimeline
                 </p>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

@@ -1,5 +1,7 @@
 import {
+  acceptPublicPurchaseOrder,
   acceptPurchaseOrder,
+  confirmPublicPurchaseOrder,
   confirmPurchaseOrder,
   type PoDetail,
   type VendorAcceptPoInput,
@@ -23,24 +25,41 @@ interface PoVendorActionsProps {
   acceptInput?: VendorAcceptPoInput;
   /** Force column layout (for slide-over panels where viewport breakpoints don't apply) */
   compact?: boolean;
+  /**
+   * Tokenised guest portal token (FOR-247). When set, the actions go through the
+   * public token-authorised endpoints (no login) instead of the authenticated
+   * id-based ones — the same component drives both the activated-vendor PO detail
+   * page and the Unactivated-Vendor portal link.
+   */
+  token?: string;
 }
 
-export function PoVendorActions({ po, acceptInput, compact }: PoVendorActionsProps) {
+export function PoVendorActions({ po, acceptInput, compact, token }: PoVendorActionsProps) {
   const { t } = useTranslation('purchaseOrders');
   const queryClient = useQueryClient();
   const [showDeclineModal, setShowDeclineModal] = useState(false);
 
   const invalidatePo = () => {
-    void queryClient.invalidateQueries({ queryKey: ['purchase-orders', po.id] });
+    // The guest portal keys its PO query on the token; the authenticated detail
+    // page keys it on the PO id. Invalidate whichever is in play.
+    void queryClient.invalidateQueries({
+      queryKey: token ? ['guest-po', token] : ['purchase-orders', po.id],
+    });
   };
 
   const acknowledgeMutation = useMutation({
-    mutationFn: () => confirmPurchaseOrder(po.id),
+    mutationFn: async () => {
+      if (token) await confirmPublicPurchaseOrder(token);
+      else await confirmPurchaseOrder(po.id);
+    },
     onSuccess: invalidatePo,
   });
 
   const acceptMutation = useMutation({
-    mutationFn: () => acceptPurchaseOrder(po.id, acceptInput),
+    mutationFn: async () => {
+      if (token) await acceptPublicPurchaseOrder(token, acceptInput);
+      else await acceptPurchaseOrder(po.id, acceptInput);
+    },
     onSuccess: invalidatePo,
   });
 
@@ -105,7 +124,7 @@ export function PoVendorActions({ po, acceptInput, compact }: PoVendorActionsPro
       </div>
 
       {showDeclineModal && (
-        <DeclinePoModal poId={po.id} onClose={() => setShowDeclineModal(false)} />
+        <DeclinePoModal poId={po.id} token={token} onClose={() => setShowDeclineModal(false)} />
       )}
     </>
   );

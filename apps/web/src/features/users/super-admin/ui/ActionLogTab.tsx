@@ -85,7 +85,7 @@ export function ActionLogTab() {
                     {log.targetLabel
                       ? `${log.targetType}: ${log.targetLabel}`
                       : `${log.targetType} ${log.targetId.slice(0, 8)}`}
-                    &nbsp; by {log.performedBy.name}
+                    &nbsp; by {log.performedBy?.name ?? log.performedByLabel ?? 'System'}
                   </p>
                 </div>
               </div>
