@@ -6,8 +6,8 @@ import { isBomExtractionResult, type BomExtractionResult } from '@forethread/sha
 import {
   Button,
   Checkbox,
+  GridModal,
   Input,
-  Modal,
   RadioButton,
   Spinner,
   notificationService,
@@ -497,18 +497,15 @@ export default function CreateBomPage() {
       </div>
 
       {createdProjectName !== null && (
-        <Modal onClose={exitToProject} maxWidth="max-w-[560px]">
-          <div className="p-8 flex flex-col items-center text-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-foreground flex items-center justify-center">
-              <CheckCircleIcon className="w-6 h-6 text-background" />
-            </div>
-            <h2 className="text-2xl text-foreground mt-2">{t('create.successTitle')}</h2>
-            <p className="text-base text-foreground/80">
-              {t('create.successDescription', { project: createdProjectName })}
-            </p>
-            <div className="flex flex-col gap-2 w-full mt-6">
+        <GridModal
+          onClose={exitToProject}
+          icon={<CheckCircleIcon className="size-6 text-gray-700" />}
+          title={t('create.successTitle')}
+          description={t('create.successDescription', { project: createdProjectName })}
+          actions={
+            <>
               <Button
-                className="w-full h-12"
+                className="w-full"
                 onClick={() => navigate(projectBomTabUrl)}
                 data-testid="bom-success-view"
               >
@@ -516,14 +513,14 @@ export default function CreateBomPage() {
               </Button>
               <Button
                 variant="outline"
-                className="w-full h-12"
+                className="w-full"
                 onClick={() => navigate(ROUTES.projectDetail.replace(':id', targetProjectId))}
               >
                 {t('create.backToProject')}
               </Button>
-            </div>
-          </div>
-        </Modal>
+            </>
+          }
+        />
       )}
     </div>
   );

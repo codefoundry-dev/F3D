@@ -150,12 +150,12 @@ export function BulkOrderDetailPage({
       )}
 
       {/* Action bar */}
-      <div className="flex items-center gap-6 justify-start">
+      <div className="flex items-center gap-3 justify-start">
         {showDrawdown && (
           <Button
             variant="primary"
-            size="lg"
-            leftIcon={<PlusIcon className="w-6 h-6" />}
+            size="md"
+            leftIcon={<PlusIcon className="w-5 h-5" />}
             onClick={() => navigate(BULK_ORDER_ROUTES.bulkOrderDrawdown.replace(':id', id!))}
           >
             {t('detail.createDrawdown')}
@@ -164,8 +164,8 @@ export function BulkOrderDetailPage({
         {showChangeActions && isActive && !hasPendingChange && (
           <Button
             variant="outline"
-            size="lg"
-            leftIcon={<EditIcon style={{ width: '18.75px', height: '18.75px' }} />}
+            size="md"
+            leftIcon={<EditIcon className="w-4 h-4" />}
             onClick={() => navigate(BULK_ORDER_ROUTES.bulkOrderChange.replace(':id', id!))}
           >
             {t('detail.change')}

@@ -2,10 +2,7 @@ import { approvePoChange, rejectPoChange, type PoChangeRequest } from '@forethre
 import { useTranslation } from '@forethread/i18n';
 import {
   Button,
-  Modal,
-  ModalBody,
-  ModalFooter,
-  ModalIconHeader,
+  GridModal,
   Spinner,
   Textarea,
   formatDateTime,
@@ -146,39 +143,40 @@ export function PoChangeRequestTab({
 
       {/* Reject reason modal */}
       {showReject && (
-        <Modal onClose={() => setShowReject(false)} maxWidth="min-w-[480px] max-w-[480px]">
-          <ModalBody>
-            <ModalIconHeader
-              icon={<CrossIcon className="w-6 h-6 text-destructive" />}
-              title={t('changeRequestTab.rejectTitle')}
-              subtitle={t('changeRequestTab.rejectDescription')}
-              onClose={() => setShowReject(false)}
-              className="mb-4"
-            />
-            <Textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder={t('changeRequestTab.rejectReasonPlaceholder')}
-              rows={4}
-            />
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowReject(false)}
-              disabled={rejectMutation.isPending}
-            >
-              {t('changeRequestTab.rejectCancel')}
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => rejectMutation.mutate()}
-              isLoading={rejectMutation.isPending}
-            >
-              {t('changeRequestTab.rejectConfirm')}
-            </Button>
-          </ModalFooter>
-        </Modal>
+        <GridModal
+          onClose={() => setShowReject(false)}
+          icon={<CrossIcon className="size-6 text-destructive" />}
+          title={t('changeRequestTab.rejectTitle')}
+          description={t('changeRequestTab.rejectDescription')}
+          actionsClassName="flex-row"
+          actions={
+            <>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowReject(false)}
+                disabled={rejectMutation.isPending}
+              >
+                {t('changeRequestTab.rejectCancel')}
+              </Button>
+              <Button
+                variant="primary"
+                className="flex-1"
+                onClick={() => rejectMutation.mutate()}
+                isLoading={rejectMutation.isPending}
+              >
+                {t('changeRequestTab.rejectConfirm')}
+              </Button>
+            </>
+          }
+        >
+          <Textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={t('changeRequestTab.rejectReasonPlaceholder')}
+            rows={4}
+          />
+        </GridModal>
       )}
     </div>
   );

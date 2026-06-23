@@ -82,6 +82,8 @@ export interface BulkOrderListItem {
   bulkOrderNumber?: string;
   projectName: string;
   projectId: string;
+  /** Human-readable project code, e.g. "PRJ-2026-001" (display column). */
+  projectCode: string;
   companyId: string;
   contractorName: string;
   vendorId: string;

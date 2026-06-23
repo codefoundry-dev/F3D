@@ -4,6 +4,7 @@ import { useTranslation } from '@forethread/i18n';
 import {
   Button,
   Modal,
+  ModalGridBackground,
   ModalIconHeader,
   CustomDropdown,
   QueryContainer,
@@ -121,8 +122,8 @@ export function SelectBulkOrderModal({ open, onClose, onSelect }: SelectBulkOrde
   if (!open) return null;
 
   return (
-    <Modal onClose={handleClose} maxWidth="max-w-[1024px]">
-      <div className="p-8 max-h-[80vh] flex flex-col">
+    <Modal onClose={handleClose} maxWidth="max-w-[1024px]" decoration={<ModalGridBackground />}>
+      <div className="relative p-8 max-h-[80vh] flex flex-col">
         <ModalIconHeader
           icon={<CheckCircleIcon className="w-6 h-6 text-foreground" />}
           title={t('selectBoModal.title')}

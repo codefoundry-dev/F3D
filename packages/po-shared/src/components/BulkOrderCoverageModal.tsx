@@ -4,6 +4,7 @@ import { useTranslation } from '@forethread/i18n';
 import {
   Button,
   Modal,
+  ModalGridBackground,
   ModalIconHeader,
   QueryContainer,
   ItemMeta,
@@ -121,8 +122,8 @@ export function BulkOrderCoverageModal({
 
   return (
     <>
-      <Modal onClose={handleClose} maxWidth="max-w-3xl">
-        <div className="p-6 max-h-[80vh] flex flex-col">
+      <Modal onClose={handleClose} maxWidth="max-w-3xl" decoration={<ModalGridBackground />}>
+        <div className="relative p-6 max-h-[80vh] flex flex-col">
           <ModalIconHeader
             icon={<PackageIcon className="w-6 h-6 text-foreground" />}
             title={t('coverageModal.bulkTitle', { material: materialName })}
@@ -296,8 +297,8 @@ function CoverConfirmModal({ onContinue, onCreateNewPo, onClose }: CoverConfirmM
   const { t } = useTranslation('purchaseOrders');
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-[560px]">
-      <div className="p-8 flex flex-col">
+    <Modal onClose={onClose} maxWidth="max-w-[560px]" decoration={<ModalGridBackground />}>
+      <div className="relative p-8 flex flex-col">
         <ModalIconHeader
           icon={<PackageIcon className="w-6 h-6 text-foreground" />}
           title={t('coverageModal.confirmTitle')}

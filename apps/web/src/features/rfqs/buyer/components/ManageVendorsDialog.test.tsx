@@ -12,6 +12,7 @@ vi.mock('../services/rfqs.service', () => ({
 
 vi.mock('@forethread/ui-components', () => ({
   Modal: ({ children }: any) => <div role="dialog">{children}</div>,
+  ModalGridBackground: () => <div data-testid="modal-grid-bg" />,
   ModalHeader: ({ children }: any) => <div>{children}</div>,
   ModalBody: ({ children }: any) => <div>{children}</div>,
   ModalFooter: ({ children }: any) => <div>{children}</div>,

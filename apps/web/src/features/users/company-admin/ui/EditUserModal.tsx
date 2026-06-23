@@ -2,6 +2,7 @@ import { useTranslation } from '@forethread/i18n';
 import {
   GridModal,
   Modal,
+  ModalGridBackground,
   Input,
   FormField,
   Button,
@@ -38,8 +39,8 @@ export function EditUserModal({ onClose }: EditUserModalProps) {
 
   if (isLoadingUser) {
     return (
-      <Modal onClose={onClose}>
-        <div className="flex items-center justify-center py-12">
+      <Modal onClose={onClose} decoration={<ModalGridBackground />}>
+        <div className="relative flex items-center justify-center py-12">
           <Spinner size="md" />
         </div>
       </Modal>

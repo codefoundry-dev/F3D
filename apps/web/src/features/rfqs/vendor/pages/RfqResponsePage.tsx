@@ -6,15 +6,7 @@ import {
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { useRfq, usePageTitleStore } from '@forethread/rfq-shared';
-import {
-  Alert,
-  Button,
-  Modal,
-  ModalBody,
-  ModalIconHeader,
-  Spinner,
-  StatusErrorModal,
-} from '@forethread/ui-components';
+import { Alert, Button, GridModal, Spinner, StatusErrorModal } from '@forethread/ui-components';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock-icon.svg?react';
 import FileTextIcon from '@forethread/ui-components/assets/icons/file-text.svg?react';
 import PaperPlaneIcon from '@forethread/ui-components/assets/icons/paper-plane.svg?react';
@@ -335,23 +327,19 @@ function RfqResponseForm({
 
       {/* ═══ Success Modal ═══ */}
       {showSuccessModal && (
-        <Modal onClose={() => setShowSuccessModal(false)}>
-          <ModalBody>
-            <ModalIconHeader
-              icon={<FileTextIcon className="w-6 h-6 text-foreground" />}
-              title={t(form.isEditMode ? 'response.updateSuccessTitle' : 'response.successTitle')}
-              subtitle={t(
-                form.isEditMode
-                  ? 'response.updateSuccessDescription'
-                  : 'response.successDescription',
-                {
-                  rfqId: rfq.rfqNumber ?? rfq.id,
-                  contractorName: rfq.createdBy.name,
-                },
-              )}
-              onClose={() => setShowSuccessModal(false)}
-            />
-            <div className="flex flex-col gap-3 mt-5">
+        <GridModal
+          onClose={() => setShowSuccessModal(false)}
+          icon={<FileTextIcon className="size-6 text-gray-700" />}
+          title={t(form.isEditMode ? 'response.updateSuccessTitle' : 'response.successTitle')}
+          description={t(
+            form.isEditMode ? 'response.updateSuccessDescription' : 'response.successDescription',
+            {
+              rfqId: rfq.rfqNumber ?? rfq.id,
+              contractorName: rfq.createdBy.name,
+            },
+          )}
+          actions={
+            <>
               <Button
                 className="w-full"
                 onClick={() => {
@@ -373,9 +361,9 @@ function RfqResponseForm({
               >
                 {t('response.goToDashboard')}
               </Button>
-            </div>
-          </ModalBody>
-        </Modal>
+            </>
+          }
+        />
       )}
 
       {/* ═══ Error Modal ═══ */}

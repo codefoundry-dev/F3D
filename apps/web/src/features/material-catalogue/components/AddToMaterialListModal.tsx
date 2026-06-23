@@ -1,6 +1,13 @@
 import { type MaterialListSummaryDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Input, Modal, ModalBody, ModalIconHeader, toast } from '@forethread/ui-components';
+import {
+  Input,
+  Modal,
+  ModalBody,
+  ModalGridBackground,
+  ModalIconHeader,
+  toast,
+} from '@forethread/ui-components';
 import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
 import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
 import { useState } from 'react';
@@ -43,8 +50,8 @@ export function AddToMaterialListModal({ material, onClose }: AddToMaterialListM
   };
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-2xl" scrollBody>
-      <ModalBody>
+    <Modal onClose={onClose} maxWidth="max-w-2xl" scrollBody decoration={<ModalGridBackground />}>
+      <ModalBody className="relative">
         <ModalIconHeader
           icon={<PackageIcon className="w-6 h-6 text-foreground" />}
           title={<span className="text-lg font-semibold">{t('addToMaterialListModal.title')}</span>}

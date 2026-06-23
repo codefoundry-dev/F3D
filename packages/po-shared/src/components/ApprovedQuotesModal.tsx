@@ -4,6 +4,7 @@ import { useTranslation } from '@forethread/i18n';
 import {
   Button,
   Modal,
+  ModalGridBackground,
   ModalIconHeader,
   CustomDropdown,
   FiltersButton,
@@ -205,8 +206,8 @@ export function ApprovedQuotesModal({
   if (!open) return null;
 
   return (
-    <Modal onClose={handleClose} maxWidth="max-w-2xl">
-      <div className="p-6 max-h-[80vh] flex flex-col">
+    <Modal onClose={handleClose} maxWidth="max-w-2xl" decoration={<ModalGridBackground />}>
+      <div className="relative p-6 max-h-[80vh] flex flex-col">
         <ModalIconHeader
           icon={<PackageIcon className="w-6 h-6 text-foreground" />}
           title={t('approvedQuotes.title')}

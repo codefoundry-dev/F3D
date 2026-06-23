@@ -73,7 +73,15 @@ vi.mock('@forethread/ui-components', () => ({
       data-testid={p['data-testid']}
     />
   ),
-  Modal: (p: any) => <div data-testid="modal">{p.children}</div>,
+  GridModal: (p: any) => (
+    <div data-testid="modal">
+      {p.icon}
+      <h2>{p.title}</h2>
+      <p>{p.description}</p>
+      {p.children}
+      {p.actions}
+    </div>
+  ),
   RadioButton: (p: any) => <input type="radio" checked={p.checked} onChange={p.onChange} />,
   Checkbox: (p: any) => (
     <input

@@ -330,13 +330,17 @@ export function QuoteComparisonTable({
     const cols: string[] = [];
     if (columnVisibility.priceUnit) cols.push('priceUnit');
     if (columnVisibility.quantityAvailable) cols.push('quantityAvailable');
-    if (statusFilter === 'approved') cols.push('order');
+    // The Order column carries the per-vendor award quantity. It is always on
+    // for the Approved tab (bulk orders), and appears on the All tab once the
+    // buyer starts selecting lines for a split award (US 5.19).
+    if (statusFilter === 'approved' || (statusFilter === 'all' && selection.size > 0))
+      cols.push('order');
     if (columnVisibility.lineDiscount) cols.push('lineDiscount');
     if (columnVisibility.lineTotal) cols.push('lineTotal');
     if (columnVisibility.deliveryDate) cols.push('deliveryDate');
     cols.push('actions');
     return cols;
-  }, [columnVisibility, statusFilter]);
+  }, [columnVisibility, statusFilter, selection]);
 
   // ── Selection / order helpers ────────────────────────────────────────────────
 
@@ -366,6 +370,8 @@ export function QuoteComparisonTable({
         if (!cell?.quoteLineItemId || !cell.hasQuote) continue;
         if (statusFilter === 'declined' && cell.status !== 'DECLINED') continue;
         if (statusFilter === 'approved' && cell.status !== 'APPROVED') continue;
+        // On the All tab a split awards still-open lines, so skip declined ones.
+        if (statusFilter === 'all' && cell.status === 'DECLINED') continue;
         next.set(cell.quoteLineItemId, {
           quoteLineItemId: cell.quoteLineItemId,
           quoteResponseId,
@@ -767,7 +773,10 @@ export function QuoteComparisonTable({
             {t('reviewTable.restoreAll')}
           </button>
         )}
-        {statusFilter === 'approved' && (
+        {/* Split award lives on the All tab: it approves the selected lines and
+            mints the SPLIT parent + per-vendor child POs (US 5.19), so the
+            quotes must still be open (SUBMITTED) when it runs. */}
+        {statusFilter === 'all' && (
           <>
             {overAllocatedRows.size > 0 && (
               <span className="flex items-center gap-1.5 text-sm text-destructive">
@@ -787,15 +796,17 @@ export function QuoteComparisonTable({
             >
               {t('reviewTable.awardSplit')}
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              leftIcon={<PlusInCircleIcon className="w-4 h-4" />}
-              onClick={() => setStartOrder('bulk')}
-            >
-              {t('reviewTable.createBulk')}
-            </Button>
           </>
+        )}
+        {(statusFilter === 'all' || statusFilter === 'approved') && (
+          <Button
+            size="sm"
+            variant="outline"
+            leftIcon={<PlusInCircleIcon className="w-4 h-4" />}
+            onClick={() => setStartOrder('bulk')}
+          >
+            {t('reviewTable.createBulk')}
+          </Button>
         )}
       </div>
     </div>
@@ -813,8 +824,18 @@ export function QuoteComparisonTable({
     actions: 'min-w-[92px]',
   };
 
-  function renderActions(cell: QuoteComparisonCell, row: QuoteComparisonRow) {
+  function renderActions(cell: QuoteComparisonCell, row: QuoteComparisonRow, awardable: boolean) {
     const selected = !!cell.quoteLineItemId && selection.has(cell.quoteLineItemId);
+    const selectLineButton = (
+      <button
+        type="button"
+        title={t('reviewTable.selectLine')}
+        onClick={() => toggleSelect(cell, row)}
+        className="text-foreground/70 hover:text-foreground transition-colors"
+      >
+        <PlusInCircleIcon className="w-4 h-4" />
+      </button>
+    );
     const noteButton = (
       <span className="relative inline-flex">
         <button
@@ -903,6 +924,8 @@ export function QuoteComparisonTable({
     }
 
     // All tab: pending lines get approve/decline, reviewed lines get restore.
+    // Open lines on an awardable (still-SUBMITTED) quote can also be selected
+    // for a split award (US 5.19); declined lines cannot.
     if (cell.status === 'APPROVED' || cell.status === 'DECLINED') {
       return (
         <div className="flex items-center gap-2.5">
@@ -915,6 +938,7 @@ export function QuoteComparisonTable({
           >
             <RestoreIcon className="w-4 h-4" />
           </button>
+          {awardable && cell.status === 'APPROVED' && selectLineButton}
         </div>
       );
     }
@@ -938,6 +962,7 @@ export function QuoteComparisonTable({
         >
           <CrossInCircleIcon className="w-4 h-4" />
         </button>
+        {awardable && selectLineButton}
       </div>
     );
   }
@@ -1069,7 +1094,7 @@ export function QuoteComparisonTable({
         case 'actions':
           return (
             <td key={col} className={base}>
-              {renderActions(cell, row)}
+              {renderActions(cell, row, quoteIsPending(vendor.status))}
             </td>
           );
         default:
@@ -1192,7 +1217,9 @@ export function QuoteComparisonTable({
                         {vendor.vendorName}
                       </span>
                       <span className="flex-1" />
-                      {(statusFilter === 'declined' || statusFilter === 'approved') && (
+                      {(statusFilter === 'declined' ||
+                        statusFilter === 'approved' ||
+                        (statusFilter === 'all' && quoteIsPending(vendor.status))) && (
                         <button
                           type="button"
                           onClick={() => selectAllForVendor(vendor.quoteResponseId)}

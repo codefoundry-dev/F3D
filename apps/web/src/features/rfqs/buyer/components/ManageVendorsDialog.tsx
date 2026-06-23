@@ -5,6 +5,7 @@ import {
   Modal,
   ModalBody,
   ModalFooter,
+  ModalGridBackground,
   ModalHeader,
 } from '@forethread/ui-components';
 import { useState } from 'react';
@@ -47,9 +48,11 @@ export function ManageVendorsDialog({
     );
 
   return (
-    <Modal onClose={onCancel} maxWidth="max-w-4xl" scrollBody>
-      <ModalHeader onClose={onCancel}>{t('manageVendors.title')}</ModalHeader>
-      <ModalBody>
+    <Modal onClose={onCancel} maxWidth="max-w-4xl" scrollBody decoration={<ModalGridBackground />}>
+      <ModalHeader onClose={onCancel} className="relative">
+        {t('manageVendors.title')}
+      </ModalHeader>
+      <ModalBody className="relative toolbar:flex-1 toolbar:min-h-0 toolbar:overflow-y-auto">
         <p className="mb-4 text-sm text-muted-foreground">{t('manageVendors.subtitle')}</p>
 
         <SelectVendorsCard

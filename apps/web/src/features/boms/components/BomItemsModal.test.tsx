@@ -18,6 +18,7 @@ vi.mock('@forethread/ui-components', () => ({
     </button>
   ),
   Modal: (p: any) => <div data-testid="modal">{p.children}</div>,
+  ModalGridBackground: () => <div data-testid="modal-grid-bg" />,
   Spinner: () => <div data-testid="spinner" />,
 }));
 

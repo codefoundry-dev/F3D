@@ -1,5 +1,5 @@
 import type { RfqVendor } from '@forethread/api-client';
-import { Badge, cn } from '@forethread/ui-components';
+import { Badge, cn, formatEnum } from '@forethread/ui-components';
 import UsersGroupIcon from '@forethread/ui-components/assets/icons/users-group.svg?react';
 import { Fragment, useState } from 'react';
 
@@ -84,7 +84,7 @@ export function VendorList({ vendors, compact = false }: VendorListProps) {
                     compact ? 'truncate max-w-[80px]' : 'whitespace-nowrap',
                   )}
                 >
-                  {vendor.category ?? '-'}
+                  {vendor.category ? formatEnum(vendor.category) : '-'}
                 </td>
                 <td
                   className={cn(

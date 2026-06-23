@@ -7,6 +7,7 @@ import {
   Modal,
   ModalBody,
   ModalFooter,
+  ModalGridBackground,
   ModalIconHeader,
   Select,
   useDebounce,
@@ -148,8 +149,8 @@ export function AddMaterialsToListModal({
   };
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-2xl" scrollBody>
-      <ModalBody>
+    <Modal onClose={onClose} maxWidth="max-w-2xl" scrollBody decoration={<ModalGridBackground />}>
+      <ModalBody className="relative">
         <ModalIconHeader
           icon={<PackageIcon className="w-6 h-6 text-foreground" />}
           title={

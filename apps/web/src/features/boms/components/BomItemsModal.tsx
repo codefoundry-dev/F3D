@@ -1,5 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
-import { Button, Modal, Spinner } from '@forethread/ui-components';
+import { Button, Modal, ModalGridBackground, Spinner } from '@forethread/ui-components';
 
 import { useBom } from '../hooks/useBoms';
 
@@ -12,8 +12,8 @@ export function BomItemsModal({ bomId, onClose }: { bomId: string; onClose: () =
   const { data: bom, isLoading } = useBom(bomId);
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-6xl" scrollBody>
-      <div className="p-6 flex flex-col min-h-0">
+    <Modal onClose={onClose} maxWidth="max-w-6xl" scrollBody decoration={<ModalGridBackground />}>
+      <div className="relative p-6 flex flex-col min-h-0">
         <h3 className="text-lg font-semibold text-foreground mb-4">
           {t('viewModal.title', { bomNumber: bom?.bomNumber ?? '' })}
         </h3>

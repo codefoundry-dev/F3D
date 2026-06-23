@@ -29,10 +29,15 @@ vi.mock('@forethread/ui-components', () => ({
       {children}
     </button>
   ),
-  Modal: ({ children }: any) => <div data-testid="modal">{children}</div>,
-  ModalBody: ({ children }: any) => <div>{children}</div>,
-  ModalFooter: ({ children }: any) => <div>{children}</div>,
-  ModalIconHeader: ({ title }: any) => <div>{title}</div>,
+  GridModal: ({ icon, title, description, children, actions }: any) => (
+    <div data-testid="modal">
+      {icon}
+      <div>{title}</div>
+      <div>{description}</div>
+      {children}
+      {actions}
+    </div>
+  ),
   Spinner: () => <div data-testid="spinner" />,
   Textarea: (props: any) => <textarea {...props} />,
   formatDateTime: (v: string) => `dt(${v})`,

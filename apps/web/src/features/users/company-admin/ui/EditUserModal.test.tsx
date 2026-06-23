@@ -24,6 +24,7 @@ vi.mock('@forethread/ui-components', () => ({
       </div>
     ),
   Modal: ({ children }: any) => <div data-testid="modal">{children}</div>,
+  ModalGridBackground: () => <div data-testid="modal-grid-bg" />,
   ModalBody: ({ children }: any) => <div data-testid="modal-body">{children}</div>,
   ModalCloseButton: ({ onClose }: any) => <button data-testid="modal-close" onClick={onClose} />,
   Input: (props: any) => <input data-testid={`input-${props.type ?? 'text'}`} {...props} />,

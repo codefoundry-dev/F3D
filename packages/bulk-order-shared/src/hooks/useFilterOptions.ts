@@ -11,7 +11,9 @@ import { useMemo } from 'react';
 export function useProjectFilterOptions() {
   const { data } = useQuery({
     queryKey: ['projects-filter'],
-    queryFn: () => getProjects({ limit: 200 } as ProjectListParams, { skipErrorHandler: true }),
+    // The projects endpoint caps `limit` at 100; requesting more 400s and (with
+    // skipErrorHandler) silently yields an empty filter. Stay at the cap.
+    queryFn: () => getProjects({ limit: 100 } as ProjectListParams, { skipErrorHandler: true }),
   });
 
   const options: FilterDropdownOption[] = useMemo(

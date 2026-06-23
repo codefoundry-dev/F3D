@@ -54,10 +54,10 @@ function fullBo(overrides: Record<string, unknown> = {}) {
     status: BulkOrderStatus.ACTIVE,
     createdAt: new Date('2026-03-01'),
     endDate: new Date('2026-12-31'),
-    project: { name: 'Alpha' },
+    project: { name: 'Alpha', code: 'PRJ-2026-001' },
     company: { legalName: 'TestCo' },
     vendor: { legalName: 'VendorCo' },
-    rfq: { id: 'rfq-1' },
+    rfq: { rfqNumber: 'RFQ-2026-007' },
     createdBy: { name: 'PO User' },
     lineItems: [
       {
@@ -148,7 +148,7 @@ describe('BulkOrdersService', () => {
           createdAt: new Date('2026-03-01'),
           endDate: null,
           status: 'ACTIVE',
-          project: { name: 'Alpha' },
+          project: { name: 'Alpha', code: 'PRJ-2026-001' },
           company: { legalName: 'ContractorCo' },
           vendor: { legalName: 'VendorCo' },
           _count: { lineItems: 2 },
@@ -165,6 +165,8 @@ describe('BulkOrdersService', () => {
       expect(result.items[0].deliveriesPercent).toBe(40);
       // No totalAmount, so sum of line items: 5000+8000=13000
       expect(result.items[0].totalAmount).toBe(13000);
+      // Exposes the human-readable project code (not the project UUID) for the list column.
+      expect(result.items[0].projectCode).toBe('PRJ-2026-001');
     });
 
     it('sorts by id', async () => {
@@ -337,7 +339,7 @@ describe('BulkOrdersService', () => {
 
       const result = await service.getBulkOrder('bo-1', companyAdmin);
       expect(result.bulkId).toBe('bo-1');
-      expect(result.rfqReference).toBe('rfq-1');
+      expect(result.rfqReference).toBe('RFQ-2026-007');
       expect(result.lineItems).toHaveLength(1);
       expect(result.lineItems[0].pricePerUnit).toBe(45.5);
     });

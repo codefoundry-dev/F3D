@@ -1,5 +1,12 @@
 import { useTranslation } from '@forethread/i18n';
-import { Button, Modal, ModalIconHeader, Spinner, cn } from '@forethread/ui-components';
+import {
+  Button,
+  Modal,
+  ModalGridBackground,
+  ModalIconHeader,
+  Spinner,
+  cn,
+} from '@forethread/ui-components';
 import CaretLeftIcon from '@forethread/ui-components/assets/icons/caret-left.svg?react';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
@@ -204,7 +211,9 @@ function EntityListPhase({
                         ? 'text-foreground hover:text-destructive'
                         : 'text-muted-foreground hover:text-foreground',
                     )}
-                    aria-label={isSelected ? t('create.picker.deselect') : t('create.picker.select')}
+                    aria-label={
+                      isSelected ? t('create.picker.deselect') : t('create.picker.select')
+                    }
                     data-testid={`picker-toggle-${entity.id}`}
                   >
                     {isSelected ? (
@@ -234,7 +243,18 @@ function EntityListPhase({
 
 /* ─── Item list phase ─────────────────────────────────────────────── */
 
-const COMMON_UOMS = ['unit', 'pcs', 'blocks', 'gallons', 'bottles', 'rolls', 'sheets', 'bags', 'm', 'kg'];
+const COMMON_UOMS = [
+  'unit',
+  'pcs',
+  'blocks',
+  'gallons',
+  'bottles',
+  'rolls',
+  'sheets',
+  'bags',
+  'm',
+  'kg',
+];
 
 function ItemListPhase({
   entity,
@@ -254,7 +274,10 @@ function ItemListPhase({
   picked: Map<string, PickedSourceItem>;
   onPick: (item: SourceItem) => void;
   onUnpick: (itemId: string) => void;
-  onPatchPicked: (itemId: string, patch: Partial<Pick<PickedSourceItem, 'quantity' | 'pickedUom'>>) => void;
+  onPatchPicked: (
+    itemId: string,
+    patch: Partial<Pick<PickedSourceItem, 'quantity' | 'pickedUom'>>,
+  ) => void;
   onAddAll: () => void;
   onBack: () => void;
   selectionAction?: ReactNode;
@@ -391,7 +414,9 @@ function ItemListPhase({
                     {item.manufacturer && (
                       <p className="text-xs text-muted-foreground truncate">{item.manufacturer}</p>
                     )}
-                    {item.uom && <p className="text-xs text-muted-foreground truncate">{item.uom}</p>}
+                    {item.uom && (
+                      <p className="text-xs text-muted-foreground truncate">{item.uom}</p>
+                    )}
                     {item.description && (
                       <p className="text-xs text-muted-foreground truncate">{item.description}</p>
                     )}
@@ -558,8 +583,12 @@ export function SourcePickerModal({
   const totalSelected = picked.size + (convertMode ? selectedEntityIds.size : 0);
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-[1024px] min-w-[860px]">
-      <div className="p-8 flex flex-col gap-6">
+    <Modal
+      onClose={onClose}
+      maxWidth="max-w-[1024px] min-w-[860px]"
+      decoration={<ModalGridBackground />}
+    >
+      <div className="relative p-8 flex flex-col gap-6">
         <ModalIconHeader
           icon={<PackageIcon className="w-6 h-6 text-foreground" />}
           title={texts.title}

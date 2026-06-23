@@ -314,7 +314,7 @@ export default function RfqListPage() {
                 <div className="absolute left-0 mt-1 w-[301px] border-2 border-foreground/20 bg-background rounded-lg p-2 z-50 flex flex-col items-start gap-1">
                   <button
                     type="button"
-                    className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-[18px] leading-6 font-medium font-[Inter] hover:bg-muted transition-colors w-full text-left"
+                    className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-sm font-medium hover:bg-muted transition-colors w-full text-left"
                     onClick={() => {
                       createDD.setIsOpen(false);
                       navigate(ROUTES.rfqNew);
@@ -324,7 +324,7 @@ export default function RfqListPage() {
                   </button>
                   <button
                     type="button"
-                    className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-[18px] leading-6 font-medium font-[Inter] hover:bg-muted transition-colors w-full text-left"
+                    className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-sm font-medium hover:bg-muted transition-colors w-full text-left"
                     onClick={() => {
                       createDD.setIsOpen(false);
                       setConvertKind('BOM');
@@ -335,7 +335,7 @@ export default function RfqListPage() {
                   </button>
                   <button
                     type="button"
-                    className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-[18px] leading-6 font-medium font-[Inter] hover:bg-muted transition-colors w-full text-left"
+                    className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-sm font-medium hover:bg-muted transition-colors w-full text-left"
                     onClick={() => {
                       createDD.setIsOpen(false);
                       setConvertKind('MATERIAL_LIST');
