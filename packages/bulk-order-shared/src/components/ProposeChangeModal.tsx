@@ -4,6 +4,7 @@ import {
   Modal,
   ModalBody,
   ModalCloseButton,
+  ModalGridBackground,
   Input,
   FormField,
   Button,
@@ -115,9 +116,9 @@ export function ProposeChangeModal({
   };
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-[640px]">
+    <Modal onClose={onClose} maxWidth="max-w-[640px]" decoration={<ModalGridBackground />}>
       <ModalBody>
-        <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+        <form onSubmit={handleSubmit} className="relative space-y-5" noValidate>
           <div className="flex flex-col items-center text-center mb-2">
             <div className="w-full flex justify-between items-start">
               <div className="flex-1" />

@@ -3,9 +3,8 @@ import { useState } from 'react';
 import EyeIcon from '../assets/icons/eye-opened.svg?react';
 
 import { Button } from './Button';
-import { IconBadge } from './IconBadge';
+import { GridModal } from './GridModal';
 import { Input } from './Input';
-import { Modal, ModalCloseButton } from './Modal';
 
 export interface CreateViewModalProps {
   onClose: () => void;
@@ -38,32 +37,13 @@ export function CreateViewModal({
   };
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-[560px]">
-      <div className="px-6 pt-6 pb-2">
-        <div className="flex justify-end">
-          <ModalCloseButton onClose={onClose} />
-        </div>
-        <div className="flex flex-col items-center gap-2 mb-6">
-          <IconBadge icon={<EyeIcon className="w-5 h-5" />} />
-          <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-          <p className="text-sm text-muted-foreground text-center">{subtitle}</p>
-        </div>
-
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-foreground mb-1.5">
-            {viewNameLabel}
-          </label>
-          <Input
-            value={viewName}
-            onChange={(e) => setViewName(e.target.value)}
-            placeholder={viewNamePlaceholder}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleCreate();
-            }}
-          />
-        </div>
-
-        <div className="flex flex-col gap-3 pb-4">
+    <GridModal
+      onClose={onClose}
+      icon={<EyeIcon className="size-6 text-gray-700" />}
+      title={title}
+      description={subtitle}
+      actions={
+        <>
           <Button
             variant="primary"
             size="lg"
@@ -76,8 +56,20 @@ export function CreateViewModal({
           <Button variant="outline" size="lg" onClick={onClose} className="w-full">
             {cancelLabel}
           </Button>
-        </div>
+        </>
+      }
+    >
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1.5">{viewNameLabel}</label>
+        <Input
+          value={viewName}
+          onChange={(e) => setViewName(e.target.value)}
+          placeholder={viewNamePlaceholder}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleCreate();
+          }}
+        />
       </div>
-    </Modal>
+    </GridModal>
   );
 }

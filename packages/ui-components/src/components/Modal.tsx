@@ -122,9 +122,22 @@ export function ModalCloseButton({
   );
 }
 
-export function ModalHeader({ children, onClose }: { children: ReactNode; onClose?: () => void }) {
+export function ModalHeader({
+  children,
+  onClose,
+  className,
+}: {
+  children: ReactNode;
+  onClose?: () => void;
+  className?: string;
+}) {
   return (
-    <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+    <div
+      className={cn(
+        'flex items-center justify-between px-6 py-4 border-b border-border',
+        className,
+      )}
+    >
       <h2 className="text-lg font-semibold text-foreground">{children}</h2>
       {onClose && <ModalCloseButton onClose={onClose} />}
     </div>

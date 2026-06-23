@@ -9,6 +9,7 @@ import {
   Modal,
   ModalBody,
   ModalFooter,
+  ModalGridBackground,
   ModalHeader,
   notificationService,
 } from '@forethread/ui-components';
@@ -230,31 +231,34 @@ export function CatalogueImportModal({ onClose, onImported }: CatalogueImportMod
   ]);
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-4xl" scrollBody>
-      <ModalHeader onClose={onClose}>{t('import.title')}</ModalHeader>
-      {/* Pinned layout: header + footer stay fixed; only this body scrolls.
-          `toolbar:overflow-y-auto` overrides the shared ModalBody's desktop
-          `overflow-visible` (tailwind-merge, last-wins) and the bounded height
-          keeps the card within 90vh so the footer is always visible. */}
-      <ModalBody className="toolbar:flex-1 toolbar:min-h-0 toolbar:overflow-y-auto">
-        {body}
-      </ModalBody>
-      <ModalFooter>
-        <Button variant="outline" onClick={onClose}>
-          {t('import.actions.cancel')}
-        </Button>
-        {isCompleted && !isEmptyResult ? (
-          <Button
-            onClick={() => void onConfirmImport()}
-            disabled={isImporting || itemCount === 0}
-            data-testid="catalogue-import-confirm"
-          >
-            {isImporting
-              ? t('import.actions.importing')
-              : t('import.actions.import', { count: itemCount })}
+    <Modal onClose={onClose} maxWidth="max-w-4xl" scrollBody decoration={<ModalGridBackground />}>
+      {/* `relative` lifts the content above the absolutely-positioned grid. */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <ModalHeader onClose={onClose}>{t('import.title')}</ModalHeader>
+        {/* Pinned layout: header + footer stay fixed; only this body scrolls.
+            `toolbar:overflow-y-auto` overrides the shared ModalBody's desktop
+            `overflow-visible` (tailwind-merge, last-wins) and the bounded height
+            keeps the card within 90vh so the footer is always visible. */}
+        <ModalBody className="toolbar:flex-1 toolbar:min-h-0 toolbar:overflow-y-auto">
+          {body}
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="outline" onClick={onClose}>
+            {t('import.actions.cancel')}
           </Button>
-        ) : null}
-      </ModalFooter>
+          {isCompleted && !isEmptyResult ? (
+            <Button
+              onClick={() => void onConfirmImport()}
+              disabled={isImporting || itemCount === 0}
+              data-testid="catalogue-import-confirm"
+            >
+              {isImporting
+                ? t('import.actions.importing')
+                : t('import.actions.import', { count: itemCount })}
+            </Button>
+          ) : null}
+        </ModalFooter>
+      </div>
     </Modal>
   );
 }

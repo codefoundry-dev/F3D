@@ -8,6 +8,7 @@ import { useTranslation } from '@forethread/i18n';
 import { PoChangeDiff } from '@forethread/po-shared';
 import {
   Modal,
+  ModalGridBackground,
   ModalIconHeader,
   ModalBody,
   ModalFooter,
@@ -60,8 +61,12 @@ export function ChangeRequestModal({ poId, onClose }: ChangeRequestModalProps) {
   };
 
   return (
-    <Modal onClose={onClose} maxWidth="min-w-[640px] max-w-[640px]">
-      <ModalBody>
+    <Modal
+      onClose={onClose}
+      maxWidth="min-w-[640px] max-w-[640px]"
+      decoration={<ModalGridBackground />}
+    >
+      <ModalBody className="relative">
         <ModalIconHeader
           icon={<EditWithoutLineIcon className="w-6 h-6 text-foreground" />}
           title={t('changeRequest.title', 'Change Request')}

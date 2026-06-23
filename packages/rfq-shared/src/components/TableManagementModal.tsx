@@ -1,5 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
-import { Checkbox, Modal, ModalIconHeader } from '@forethread/ui-components';
+import { Checkbox, Modal, ModalGridBackground, ModalIconHeader } from '@forethread/ui-components';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import SettingsIcon from '@forethread/ui-components/assets/icons/settings.svg?react';
 
@@ -42,8 +42,8 @@ export function TableManagementModal({ visibility, onChange, onClose }: TableMan
   const { t } = useTranslation('rfqs');
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-[1024px]">
-      <div className="p-6">
+    <Modal onClose={onClose} maxWidth="max-w-[1024px]" decoration={<ModalGridBackground />}>
+      <div className="relative p-6">
         <ModalIconHeader
           icon={<SettingsIcon className="w-6 h-6" />}
           title={t('tableManagement.title')}

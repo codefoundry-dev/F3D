@@ -19,6 +19,7 @@ vi.mock('@forethread/i18n', () => ({
 vi.mock('@forethread/ui-components', () => ({
   Button: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>,
   Modal: ({ children }: any) => <div data-testid="modal">{children}</div>,
+  ModalGridBackground: () => <div data-testid="modal-grid-bg" />,
   ModalIconHeader: ({ title, subtitle, onClose }: any) => (
     <div data-testid="modal-icon-header">
       <span>{title}</span>

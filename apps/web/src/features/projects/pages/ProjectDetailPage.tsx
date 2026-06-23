@@ -11,7 +11,7 @@ import {
   Badge,
   Button,
   Checkbox,
-  Modal,
+  GridModal,
   ConfirmDialog,
   AvatarWithStatus,
   EmptyState,
@@ -20,6 +20,7 @@ import {
 } from '@forethread/ui-components';
 import FlagIcon from '@forethread/ui-components/assets/icons/flag.svg?react';
 import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
+import UserPlusIcon from '@forethread/ui-components/assets/icons/user-plus.svg?react';
 import { useCallback, useEffect, useState } from 'react';
 import type React from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
@@ -444,40 +445,18 @@ function AddMembersModal({
   };
 
   return (
-    <Modal onClose={onClose}>
-      <div className="p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">
-          {t('detail.addMembersModal.title')}
-        </h3>
-
-        {availableUsers.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {t('detail.addMembersModal.noUsersAvailable')}
-          </p>
-        ) : (
-          <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
-            {availableUsers.map((user) => (
-              <Checkbox
-                key={user.id}
-                checked={selectedIds.includes(user.id)}
-                onChange={(checked) => {
-                  if (checked) {
-                    setSelectedIds((prev) => [...prev, user.id]);
-                  } else {
-                    setSelectedIds((prev) => prev.filter((uid) => uid !== user.id));
-                  }
-                }}
-                label={`${user.name} (${user.email})`}
-              />
-            ))}
-          </div>
-        )}
-
-        <div className="flex justify-end gap-3">
-          <Button variant="outline" onClick={onClose}>
+    <GridModal
+      onClose={onClose}
+      icon={<UserPlusIcon className="size-6 text-gray-700" />}
+      title={t('detail.addMembersModal.title')}
+      actionsClassName="flex-row"
+      actions={
+        <>
+          <Button variant="outline" className="flex-1" onClick={onClose}>
             {t('create.cancel')}
           </Button>
           <Button
+            className="flex-1"
             onClick={handleAdd}
             disabled={selectedIds.length === 0}
             isLoading={addMutation.isPending}
@@ -486,9 +465,32 @@ function AddMembersModal({
               ? t('detail.addMembersModal.adding')
               : t('detail.addMembersModal.add')}
           </Button>
+        </>
+      }
+    >
+      {availableUsers.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {t('detail.addMembersModal.noUsersAvailable')}
+        </p>
+      ) : (
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+          {availableUsers.map((user) => (
+            <Checkbox
+              key={user.id}
+              checked={selectedIds.includes(user.id)}
+              onChange={(checked) => {
+                if (checked) {
+                  setSelectedIds((prev) => [...prev, user.id]);
+                } else {
+                  setSelectedIds((prev) => prev.filter((uid) => uid !== user.id));
+                }
+              }}
+              label={`${user.name} (${user.email})`}
+            />
+          ))}
         </div>
-      </div>
-    </Modal>
+      )}
+    </GridModal>
   );
 }
 

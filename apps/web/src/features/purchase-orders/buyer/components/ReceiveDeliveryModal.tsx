@@ -3,6 +3,7 @@ import type { PoDetail } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
   Modal,
+  ModalGridBackground,
   ModalHeader,
   ModalBody,
   ModalFooter,
@@ -75,82 +76,84 @@ export function ReceiveDeliveryModal({ po, onClose, onReceived }: ReceiveDeliver
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, value } : r)));
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-2xl">
-      <ModalHeader onClose={onClose}>{t('receive.title', 'Record delivery')}</ModalHeader>
-      <ModalBody>
-        <p className="text-sm text-muted-foreground mb-4">
-          {t(
-            'receive.description',
-            'Enter the total quantity received so far for each line. The order is marked delivered once all lines are fully received.',
-          )}
-        </p>
-
-        <div className="space-y-3">
-          {/* Column headers */}
-          <div className="grid grid-cols-12 gap-3 text-xs font-medium text-muted-foreground px-1">
-            <div className="col-span-6">{t('receive.item', 'Item')}</div>
-            <div className="col-span-2 text-right">{t('receive.ordered', 'Ordered')}</div>
-            <div className="col-span-2 text-right">{t('receive.delivered', 'Delivered')}</div>
-            <div className="col-span-2 text-right">{t('receive.receiving', 'Received')}</div>
-          </div>
-
-          {rows.map((row) => {
-            const invalid = !isValidRow(row);
-            return (
-              <div key={row.id} className="grid grid-cols-12 gap-3 items-center">
-                <div className="col-span-6 text-sm text-foreground truncate" title={row.name}>
-                  {row.name}
-                </div>
-                <div className="col-span-2 text-right text-sm text-foreground">
-                  {row.quantityOrdered}
-                </div>
-                <div className="col-span-2 text-right text-sm text-muted-foreground">
-                  {row.alreadyDelivered}
-                </div>
-                <div className="col-span-2">
-                  <Input
-                    type="number"
-                    inputMode="numeric"
-                    min={row.alreadyDelivered}
-                    max={row.quantityOrdered}
-                    step={1}
-                    value={row.value}
-                    aria-label={t('receive.receivedFor', 'Received quantity for {{name}}').replace(
-                      '{{name}}',
-                      row.name,
-                    )}
-                    aria-invalid={invalid}
-                    onChange={(e) => setRowValue(row.id, e.target.value)}
-                    className={invalid ? 'border-destructive' : undefined}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {!allValid && (
-          <p className="text-xs text-destructive mt-3">
+    <Modal onClose={onClose} maxWidth="max-w-2xl" decoration={<ModalGridBackground />}>
+      <div className="relative flex flex-col min-h-0">
+        <ModalHeader onClose={onClose}>{t('receive.title', 'Record delivery')}</ModalHeader>
+        <ModalBody>
+          <p className="text-sm text-muted-foreground mb-4">
             {t(
-              'receive.validation',
-              'Each quantity must be a whole number between the delivered amount and the ordered amount.',
+              'receive.description',
+              'Enter the total quantity received so far for each line. The order is marked delivered once all lines are fully received.',
             )}
           </p>
-        )}
-      </ModalBody>
-      <ModalFooter>
-        <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>
-          {t('receive.cancel', 'Cancel')}
-        </Button>
-        <Button
-          variant="primary"
-          onClick={() => mutation.mutate()}
-          isLoading={mutation.isPending}
-          disabled={!allValid}
-        >
-          {t('receive.confirm', 'Record delivery')}
-        </Button>
-      </ModalFooter>
+
+          <div className="space-y-3">
+            {/* Column headers */}
+            <div className="grid grid-cols-12 gap-3 text-xs font-medium text-muted-foreground px-1">
+              <div className="col-span-6">{t('receive.item', 'Item')}</div>
+              <div className="col-span-2 text-right">{t('receive.ordered', 'Ordered')}</div>
+              <div className="col-span-2 text-right">{t('receive.delivered', 'Delivered')}</div>
+              <div className="col-span-2 text-right">{t('receive.receiving', 'Received')}</div>
+            </div>
+
+            {rows.map((row) => {
+              const invalid = !isValidRow(row);
+              return (
+                <div key={row.id} className="grid grid-cols-12 gap-3 items-center">
+                  <div className="col-span-6 text-sm text-foreground truncate" title={row.name}>
+                    {row.name}
+                  </div>
+                  <div className="col-span-2 text-right text-sm text-foreground">
+                    {row.quantityOrdered}
+                  </div>
+                  <div className="col-span-2 text-right text-sm text-muted-foreground">
+                    {row.alreadyDelivered}
+                  </div>
+                  <div className="col-span-2">
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min={row.alreadyDelivered}
+                      max={row.quantityOrdered}
+                      step={1}
+                      value={row.value}
+                      aria-label={t(
+                        'receive.receivedFor',
+                        'Received quantity for {{name}}',
+                      ).replace('{{name}}', row.name)}
+                      aria-invalid={invalid}
+                      onChange={(e) => setRowValue(row.id, e.target.value)}
+                      className={invalid ? 'border-destructive' : undefined}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {!allValid && (
+            <p className="text-xs text-destructive mt-3">
+              {t(
+                'receive.validation',
+                'Each quantity must be a whole number between the delivered amount and the ordered amount.',
+              )}
+            </p>
+          )}
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>
+            {t('receive.cancel', 'Cancel')}
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => mutation.mutate()}
+            isLoading={mutation.isPending}
+            disabled={!allValid}
+          >
+            {t('receive.confirm', 'Record delivery')}
+          </Button>
+        </ModalFooter>
+      </div>
     </Modal>
   );
 }

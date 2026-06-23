@@ -1,10 +1,26 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 
 vi.mock('@forethread/ui-components', () => ({
-  Modal: ({ children }: any) => <div role="dialog">{children}</div>,
-  ModalHeader: ({ children }: any) => <div>{children}</div>,
-  ModalBody: ({ children }: any) => <div>{children}</div>,
-  ModalFooter: ({ children }: any) => <div>{children}</div>,
+  GridModal: ({
+    title,
+    description,
+    children,
+    actions,
+  }: {
+    title: React.ReactNode;
+    description?: React.ReactNode;
+    children?: React.ReactNode;
+    actions?: React.ReactNode;
+    icon?: React.ReactNode;
+    onClose?: () => void;
+  }) => (
+    <div role="dialog">
+      <span>{title}</span>
+      <span>{description}</span>
+      {children}
+      {actions}
+    </div>
+  ),
   Input: (props: any) => <input {...props} />,
   Alert: ({ children }: any) => <div role="alert">{children}</div>,
   Button: (props: any) => (
@@ -17,6 +33,10 @@ vi.mock('@forethread/ui-components', () => ({
       {props.children}
     </button>
   ),
+}));
+
+vi.mock('@forethread/ui-components/assets/icons/paper-plane.svg?react', () => ({
+  default: () => <span />,
 }));
 
 import { SendRfqDialog } from './SendRfqDialog';

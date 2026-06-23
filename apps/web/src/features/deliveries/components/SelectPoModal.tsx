@@ -3,6 +3,7 @@ import type { PoListItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
   Modal,
+  ModalGridBackground,
   ModalIconHeader,
   QueryContainer,
   SearchInput,
@@ -50,8 +51,8 @@ export function SelectPoModal({ open, onClose, onSelect }: SelectPoModalProps) {
   if (!open) return null;
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-[640px]">
-      <div className="p-8 max-h-[80vh] flex flex-col">
+    <Modal onClose={onClose} maxWidth="max-w-[640px]" decoration={<ModalGridBackground />}>
+      <div className="relative p-8 max-h-[80vh] flex flex-col">
         <ModalIconHeader
           icon={<CartIcon className="w-6 h-6 text-foreground" />}
           title={t('create.selectPo')}

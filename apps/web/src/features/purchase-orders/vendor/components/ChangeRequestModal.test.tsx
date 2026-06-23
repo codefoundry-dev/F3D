@@ -18,6 +18,7 @@ vi.mock('@forethread/i18n', () => ({
 
 vi.mock('@forethread/ui-components', () => ({
   Modal: ({ children }: { children: React.ReactNode }) => <div data-testid="modal">{children}</div>,
+  ModalGridBackground: () => null,
   ModalIconHeader: ({
     title,
     subtitle,

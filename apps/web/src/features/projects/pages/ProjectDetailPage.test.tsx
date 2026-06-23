@@ -47,7 +47,15 @@ vi.mock('@forethread/ui-components', () => ({
       {props.label}
     </label>
   ),
-  Modal: ({ children }: any) => <div data-testid="modal">{children}</div>,
+  GridModal: (p: any) => (
+    <div data-testid="modal">
+      {p.icon}
+      {p.title}
+      {p.description}
+      {p.children}
+      {p.actions}
+    </div>
+  ),
   ConfirmDialog: (props: any) => (
     <div data-testid="confirm-dialog">
       <span>{props.title}</span>

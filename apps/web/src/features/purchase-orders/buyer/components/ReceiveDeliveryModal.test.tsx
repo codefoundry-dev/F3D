@@ -15,6 +15,7 @@ vi.mock('@forethread/api-client', () => ({
 
 vi.mock('@forethread/ui-components', () => ({
   Modal: ({ children }: { children: ReactNode }) => <div data-testid="modal">{children}</div>,
+  ModalGridBackground: () => null,
   ModalHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   ModalBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   ModalFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,

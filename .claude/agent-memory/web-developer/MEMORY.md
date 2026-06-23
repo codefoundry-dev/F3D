@@ -2,58 +2,72 @@
 
 ## Feature Notes
 
+- [Orange-grid modal conversion recipes](modal-grid-conversion-recipes.md) — app-wide GridModal /
+  ModalGridBackground rollout; Recipe A (narrow→GridModal) vs B (wide→add decoration + `relative`);
+  GOTCHA: Recipe B + `scrollBody` can't wrap children in one div → per-element `relative` (added
+  optional `className` to shared `ModalHeader`); test mock gotchas for both recipes.
+
 - [User Mgmt DS-fidelity company-admin list](usermgmt-ds-fidelity-company-admin-list.md) — rebuilt
-  company-admin UserListPage mirroring the super-admin anchor (gradient icon-chip header + DS `<Tabs>`
-  + `#F9F9FA rounded-[18px]` table container + `ICON_BTN_28` row actions + shared `RoleBadge`/`StatusBadge`);
-  breadcrumb via `setPageTitle(t,null,null,[{label}])`; GOTCHA: don't import `cn` unless used (TS6133);
-  keeps the Projects column + ProjectAccessModal + InvitationSuccessModal (not the anchor's CompanyCard
-  grouping); test mirrors anchor (mock userBadges + rfq-shared + Tabs/EmptyBoxIllustration stubs); 55 green.
+  company-admin UserListPage mirroring the super-admin anchor (gradient icon-chip header + DS
+  `<Tabs>`
+  - `#F9F9FA rounded-[18px]` table container + `ICON_BTN_28` row actions + shared
+    `RoleBadge`/`StatusBadge`); breadcrumb via `setPageTitle(t,null,null,[{label}])`; GOTCHA: don't
+    import `cn` unless used (TS6133); keeps the Projects column + ProjectAccessModal +
+    InvitationSuccessModal (not the anchor's CompanyCard grouping); test mirrors anchor (mock
+    userBadges + rfq-shared + Tabs/EmptyBoxIllustration stubs); 55 green.
 
 - [Delivery public QR portal (Epic 6 Part C)](delivery-public-qr-portal-epic6c.md) — public mobile
   `/delivery/:token` PublicDeliveryPage (no auth, no shell): identify→code→form→submitted step
   machine; portalLines.ts pure helpers (resolveOutcome DERIVES partial/delivered/not-delivered from
-  qty unless an explicit toggle wins; portalLineToInput zeroes qty for NOT_DELIVERED+REJECTED, carries
-  damage for DAMAGED; summarisePortalLines → screen-14 counts); api-client portal fns used verbatim
-  (X-Access-Token, verify→sessionToken→submit/upload/finalize); copies TwoFactorCard 6-box OTP +
-  authStyles input look inline; "View PO"→/po/:token same token; harness shot_portal.mjs (390x844).
+  qty unless an explicit toggle wins; portalLineToInput zeroes qty for NOT_DELIVERED+REJECTED,
+  carries damage for DAMAGED; summarisePortalLines → screen-14 counts); api-client portal fns used
+  verbatim (X-Access-Token, verify→sessionToken→submit/upload/finalize); copies TwoFactorCard 6-box
+  OTP + authStyles input look inline; "View PO"→/po/:token same token; harness shot_portal.mjs
+  (390x844).
 - [Deliveries test/harness conventions](delivery-feature-test-harness-conventions.md) — vitest
-  mock-everything style for the deliveries feature; GOTCHA: `vi.mock` with a template-literal path in
-  a `.forEach` throws "x is not defined" (hoisting) — write each icon mock literally; run
-  `--pool=threads`; PUBLIC-page harness needs no auth seeding, just route-mock `/v1/delivery-portal/*`.
+  mock-everything style for the deliveries feature; GOTCHA: `vi.mock` with a template-literal path
+  in a `.forEach` throws "x is not defined" (hoisting) — write each icon mock literally; run
+  `--pool=threads`; PUBLIC-page harness needs no auth seeding, just route-mock
+  `/v1/delivery-portal/*`.
 
 - [User Mgmt Create/Invite modal (US 1.07)](usermgmt-create-invite-modal.md) — Figma-fidelity for
-  CreateUserModal + InvitationSuccessModal; POSITION-OPTIONAL gotcha (design+DTO say optional but zod
-  forced it → blocked submit); inlined success modal off shared StatusSuccessModal for bigger title +
-  gray (not green) icon chip + bold email; shot_create.mjs success-modal 3s auto-close timing.
+  CreateUserModal + InvitationSuccessModal; POSITION-OPTIONAL gotcha (design+DTO say optional but
+  zod forced it → blocked submit); inlined success modal off shared StatusSuccessModal for bigger
+  title + gray (not green) icon chip + bold email; shot_create.mjs success-modal 3s auto-close
+  timing.
 - [User Mgmt Edit + Deactivate/Activate modals (US 1.08)](usermgmt-edit-status-modals.md) —
   Figma-fidelity for EditUserModal + shared StatusActionModal/StatusSuccessModal; modal-family title
   convention = `text-2xl font-semibold leading-[140%]` (shared modals were outliers at text-lg —
   bumped, safe across all 28 consumers); remove FormField `required` asterisks (Figma has none, zod
   still enforces); email `disabled`→`readOnly` for full opacity; shot_edit.mjs.
 - [User Mgmt SA Create/Invite wizard + Add-company modals (US 1.01)](usermgmt-superadmin-create-wizard.md)
-  — SA invite wizard Figma pass: step1+step2 share "Create a new user account" header (no company box),
-  contractor Role defaults COMPANY_ADMIN + building icon, vendor hides Role; AddVendorCompanyModal DROPS
-  assign-contractors + Specialisation→single dropdown; lowercase "(optional)" via `common:optional` span
-  (not FormField `optional` prop which is capital); invited ⋮ label "Reset Invitation" hits 4 list pages.
-- [User Mgmt Super Admin list (US 1.05)](usermgmt-superadmin-list.md) — SA cross-company grouped list
-  Figma pass: uniform-gray role pill + light status pill (leave ROLE_BADGE_COLORS export, roles.test
-  needs it); company-admin tab pattern; NEW local DateRangeFilterPopover (FilterPopover pill trigger +
-  shared DatePicker, wired to useUsers dateFrom/dateTo); row ⋮ drops Edit (pencil icon); company row =
-  eye+pencil+⋮ menu {View/Edit company details, Deactivate all}; shot_sa_list.mjs.
+  — SA invite wizard Figma pass: step1+step2 share "Create a new user account" header (no company
+  box), contractor Role defaults COMPANY_ADMIN + building icon, vendor hides Role;
+  AddVendorCompanyModal DROPS assign-contractors + Specialisation→single dropdown; lowercase
+  "(optional)" via `common:optional` span (not FormField `optional` prop which is capital); invited
+  ⋮ label "Reset Invitation" hits 4 list pages.
+- [User Mgmt Super Admin list (US 1.05)](usermgmt-superadmin-list.md) — SA cross-company grouped
+  list Figma pass: uniform-gray role pill + light status pill (leave ROLE_BADGE_COLORS export,
+  roles.test needs it); company-admin tab pattern; NEW local DateRangeFilterPopover (FilterPopover
+  pill trigger + shared DatePicker, wired to useUsers dateFrom/dateTo); row ⋮ drops Edit (pencil
+  icon); company row = eye+pencil+⋮ menu {View/Edit company details, Deactivate all};
+  shot_sa_list.mjs.
 - [User Mgmt SA User Profile + Company detail (US 1.05)](usermgmt-superadmin-profile-company-detail.md)
   — SA `/users/:id` profile + `/companies/:id` 3-tab detail Figma pass; ProfileInfoGrid/Sections are
   RE-EXPORTS of profile-shared (diff via props: drop `company` prop → no Company field); 18px tabs +
   page-title wiring; company-users gray-role/light-status pills (drop ROLE_BADGE_COLORS import, keep
-  export); company-overview SENTENCE-case labels via NEW `overviewLabels.*` (shared field-keys feed the
-  out-of-scope buyer Company Profile — don't mutate); Documents → bordered cards + uploader-initials
-  avatar + ClockIcon + per-row eye/download/trash via `openFileInNewTab`/`downloadFile`.
-- [User Mgmt SA Action Log + Edit modals (US 1.05)](usermgmt-superadmin-actionlog-editmodals.md) — SA
-  board final chunk: ActionLogTab heading "Action Log"→NEW `tabs.activityLogTitle` "Activity Log" + chip
-  `rounded-full`→`rounded-xl` (match profile-shared timeline); SA EditUserModal title→text-2xl, drop
-  required asterisks, email readOnly, REMOVE Company field (not in Figma, fix its test); EditCompanyModal
-  title→text-2xl + drop bg-muted IconBadge override + NEW companyNamePlaceholder (kept building icon, the
-  person-icon is a leftover); deactivate subtitle 1→2 sentences + shorter info (SHARED copy, t-mocked
-  tests safe, 636 users tests green); shot_sa_chunkd.mjs.
+  export); company-overview SENTENCE-case labels via NEW `overviewLabels.*` (shared field-keys feed
+  the out-of-scope buyer Company Profile — don't mutate); Documents → bordered cards +
+  uploader-initials avatar + ClockIcon + per-row eye/download/trash via
+  `openFileInNewTab`/`downloadFile`.
+- [User Mgmt SA Action Log + Edit modals (US 1.05)](usermgmt-superadmin-actionlog-editmodals.md) —
+  SA board final chunk: ActionLogTab heading "Action Log"→NEW `tabs.activityLogTitle` "Activity
+  Log" + chip `rounded-full`→`rounded-xl` (match profile-shared timeline); SA EditUserModal
+  title→text-2xl, drop required asterisks, email readOnly, REMOVE Company field (not in Figma, fix
+  its test); EditCompanyModal title→text-2xl + drop bg-muted IconBadge override + NEW
+  companyNamePlaceholder (kept building icon, the person-icon is a leftover); deactivate subtitle
+  1→2 sentences + shorter info (SHARED copy, t-mocked tests safe, 636 users tests green);
+  shot_sa_chunkd.mjs.
 - [Material catalogue feature (FOR-228)](material-catalogue-feature.md) — catalogue list + import
   flow reusing doc-intelligence upload/poll hooks; api-client MaterialListItemDto drift gotcha.
 - [Bulk Order flow (US 5.08)](bulk-order-flow-us508.md) — Create-page-from-approved-RFQ +
@@ -72,44 +86,47 @@
   row-anchored preview; VENDOR_QUICK_FILTERS→4-set (incoming→openRfqs, approvedForMe label "Approved
   for a vendor"); VENDOR_COLUMNS→11 canonical (contractorCompany+contractorName BOTH=createdBy,
   totalRespondedQuotes=recQuotes — DTO gaps); panel title rfqNumber + paper-plane + Project ID;
-  rfq-shared vendor consts SAFE (PO uses po-shared); harness .tmp/figma-vendor-rfq/shot_vendor_rfq.mjs
+  rfq-shared vendor consts SAFE (PO uses po-shared); harness
+  .tmp/figma-vendor-rfq/shot_vendor_rfq.mjs
 - [RFQ Dashboard US 2.06 (PO+CA)](rfq-dashboard-us206.md) — Figma pass on buyer RfqListPage: wire
   new RfqListItem cols (invitedVendors/approvedItems/declinedItems/avgQuoteCost), DROP
-  recVendors/applIssues/arcBlocksDist; column KEYS == export `columns` param (don't drift); table-mgmt
-  modal needs LONG labels (NEW `columnLabels.*`) vs short headers (`columns.*`); avgQuoteCost cell =
-  `$ <int>` literal (not formatCurrency); count cols 0-is-valid; resDeadline parses
-  `"YYYY-MM-DD - YYYY-MM-DD"`; pick-up=gray Badge; panel title=rfqNumber not projectName;
+  recVendors/applIssues/arcBlocksDist; column KEYS == export `columns` param (don't drift);
+  table-mgmt modal needs LONG labels (NEW `columnLabels.*`) vs short headers (`columns.*`);
+  avgQuoteCost cell = `$ <int>` literal (not formatCurrency); count cols 0-is-valid; resDeadline
+  parses `"YYYY-MM-DD - YYYY-MM-DD"`; pick-up=gray Badge; panel title=rfqNumber not projectName;
   ViewSelectorDropdown NEW `defaultViewItemLabel`; harness vendor mock must use real RfqVendor shape
   (`contacts` not `salesContacts`) or VendorList crashes; getViews mock = flat `{data:[]}`.
 - [PO Week-3 Approvals/States/Delivery](po-week3-approvals-states-delivery.md) — REAL audit timeline
-  now exists: usePoActionLog hook + humanizeAuditAction pure mapper (supersedes the "NO PO audit feed"
-  note above for the detail PAGES; List-page PoDetailPanel still placeholder); AwaitingApprovalSection
-  approver inbox (listPendingApproval, has('po.approve'), above grids); ReceiveDeliveryModal
-  (receivePurchaseOrder cumulative lines, RECEIVABLE_STATUSES, has('po.receive')).
+  now exists: usePoActionLog hook + humanizeAuditAction pure mapper (supersedes the "NO PO audit
+  feed" note above for the detail PAGES; List-page PoDetailPanel still placeholder);
+  AwaitingApprovalSection approver inbox (listPendingApproval, has('po.approve'), above grids);
+  ReceiveDeliveryModal (receivePurchaseOrder cumulative lines, RECEIVABLE_STATUSES,
+  has('po.receive')).
 
 - [Super-Admin dashboard content fidelity](super-admin-dashboard-figma-fidelity.md) — SA `/`
   dashboard CONTENT Figma pass (node 3345-110088): drop StatCard row + StatCard helper, "Users by
   role"→"Google Analytics" empty Phase-2 card; KpiCard trend now GRAY text + direction arrow
   (`trendDirection` replaces `trendUp`) + `formatDelta` fixes the `+-2` double-sign; DB-perf trend
-  omitted (no DTO delta field); dark pills `bg-[#131313]` 18px/24px-icon, 3rd pill → "Public Material
-  Catalogue" ENABLED to ROUTES.materialCatalogue; table status pills UNIFORM gray (accent token),
-  toggle only on integration rows; timeline icon → rounded SQUARE + fixed-height scroll; page title via
-  usePageTitleStore; harness shot_dashboard.mjs.
-- [Vendor + Finance dashboard content fidelity](vendor-finance-dashboard-figma-fidelity.md) —
-  VENDOR (node 3345-110220) + FINANCE (3346-110351) `/` dashboards Figma pass: both now set page
-  title via usePageTitleStore (own the header on `/`); vendor "Response" btn icon letter→paper-plane
-  (Figma "Responce" is a typo, copy stays "Response"); Active POs status+Revision → UNIFORM gray
-  pills (drop ORDER_STATUS_COLORS) + Revision renders "Active" pill not raw number + actions centered
-  + outer card → shared rounded-[14px]/border-black/20 chrome; finance Upload btn → hardcoded
-  bg-[#131313] dark pill (not Button primary, dark-mode-safe); KPI disputed value 28px→24px (uniform)
-  + px-[16.8px]/py-[12.8px] + icon bg foreground/10; harness shot_vendor.mjs + shot_finance.mjs.
-- [App-shell Figma fidelity (sidebar + header)](app-shell-figma-fidelity.md) — global shell tuned
-  to dashboard frames: sidebar `bg-secondary` + active `bg-accent` + inactive `text-foreground/80`,
+  omitted (no DTO delta field); dark pills `bg-[#131313]` 18px/24px-icon, 3rd pill → "Public
+  Material Catalogue" ENABLED to ROUTES.materialCatalogue; table status pills UNIFORM gray (accent
+  token), toggle only on integration rows; timeline icon → rounded SQUARE + fixed-height scroll;
+  page title via usePageTitleStore; harness shot_dashboard.mjs.
+- [Vendor + Finance dashboard content fidelity](vendor-finance-dashboard-figma-fidelity.md) — VENDOR
+  (node 3345-110220) + FINANCE (3346-110351) `/` dashboards Figma pass: both now set page title via
+  usePageTitleStore (own the header on `/`); vendor "Response" btn icon letter→paper-plane (Figma
+  "Responce" is a typo, copy stays "Response"); Active POs status+Revision → UNIFORM gray pills
+  (drop ORDER_STATUS_COLORS) + Revision renders "Active" pill not raw number + actions centered
+  - outer card → shared rounded-[14px]/border-black/20 chrome; finance Upload btn → hardcoded
+    bg-[#131313] dark pill (not Button primary, dark-mode-safe); KPI disputed value 28px→24px
+    (uniform)
+  - px-[16.8px]/py-[12.8px] + icon bg foreground/10; harness shot_vendor.mjs + shot_finance.mjs.
+- [App-shell Figma fidelity (sidebar + header)](app-shell-figma-fidelity.md) — global shell tuned to
+  dashboard frames: sidebar `bg-secondary` + active `bg-accent` + inactive `text-foreground/80`,
   rail `w-[72px]`, real `logo.svg` glyph + appName wordmark (Figma chip is a placeholder); SA gets
   NEW Admin panel + Users management items (sidebarConfig.test asserts the 4-item list); header
-  DROPS SearchInput app-wide, bordered bell + red dot (always-on placeholder, no unread hook),
-  user pill avatar+name+chevron; title is page-owned via usePageTitleStore; harness shot_shell.mjs
-  (SA expanded → /admin-panel, vendor collapsed → /).
+  DROPS SearchInput app-wide, bordered bell + red dot (always-on placeholder, no unread hook), user
+  pill avatar+name+chevron; title is page-owned via usePageTitleStore; harness shot_shell.mjs (SA
+  expanded → /admin-panel, vendor collapsed → /).
 
 ## UI Component Gotchas
 
@@ -190,8 +207,8 @@
   required step-1 Delivery location + Expected Delivery Date are NOT seeded from a source — fill
   them to advance (DatePicker is a custom sectioned mask, not native `type=date`; open it and click
   today's day-of-month cell in `[data-datepicker-portal]`). GOTCHA: Git Bash MANGLES
-  `VITE_API_URL=/v1` into `C:/Program Files/Git/v1` (MSYS path conversion) → baseURL wrong →
-  getMe 404 → app bounces to /login. Fix: prefix with `MSYS_NO_PATHCONV=1`. Default baseURL is `/v1`
+  `VITE_API_URL=/v1` into `C:/Program Files/Git/v1` (MSYS path conversion) → baseURL wrong → getMe
+  404 → app bounces to /login. Fix: prefix with `MSYS_NO_PATHCONV=1`. Default baseURL is `/v1`
   (main.tsx `VITE_API_URL ?? '/v1'`). Pattern lives in `.tmp/figma-flows/shot_drawdown.mjs` +
   `.tmp/figma-po/shot_po.mjs` + `.tmp/figma-flows/shot_change.mjs`.
 - HARNESS GOTCHA (PO wizard step 2 manual/change mode): `useLineItemValidation` runs in non-drawdown
@@ -205,7 +222,7 @@
 
 ## Figma Access
 
-- Figma MCP IS configured (mcp__figma__* tools available): get_screenshot, get_design_context,
+- Figma MCP IS configured (mcp**figma**\* tools available): get_screenshot, get_design_context,
   get_metadata, get_variable_defs. Use `get_screenshot` (maxDimension ~2000-2400 for table detail) +
   `get_design_context` per sub-node; don't fetch whole boards (1M+ chars). Forethread file key =
   `CFA6k0XCvImOmWXbBgdWYZ` (the local Forethread.fig). Returns a short-lived URL + curl by default.

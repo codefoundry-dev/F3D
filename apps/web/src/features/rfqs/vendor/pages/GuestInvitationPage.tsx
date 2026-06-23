@@ -3,9 +3,7 @@ import { useTranslation } from '@forethread/i18n';
 import {
   Alert,
   Button,
-  Modal,
-  ModalBody,
-  ModalIconHeader,
+  GridModal,
   SegmentedControl,
   Spinner,
   StatusErrorModal,
@@ -293,19 +291,14 @@ function GuestResponseContent({ rfq, token }: { rfq: GuestRfqDetail; token: stri
 
       {/* ═══ Success Modal ═══ */}
       {showSuccessModal && (
-        <Modal onClose={() => setShowSuccessModal(false)}>
-          <ModalBody>
-            <ModalIconHeader
-              icon={<FileTextIcon className="w-6 h-6 text-foreground" />}
-              title={t('guest.successTitle')}
-              subtitle={t('guest.successDescription')}
-              onClose={() => setShowSuccessModal(false)}
-            />
-            <div className="mt-5">
-              <p className="text-sm text-muted-foreground text-center">{t('guest.successHint')}</p>
-            </div>
-          </ModalBody>
-        </Modal>
+        <GridModal
+          onClose={() => setShowSuccessModal(false)}
+          icon={<FileTextIcon className="size-6 text-gray-700" />}
+          title={t('guest.successTitle')}
+          description={t('guest.successDescription')}
+        >
+          <p className="text-sm text-muted-foreground text-center">{t('guest.successHint')}</p>
+        </GridModal>
       )}
 
       {/* ═══ Error Modal ═══ */}

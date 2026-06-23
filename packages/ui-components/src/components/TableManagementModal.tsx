@@ -6,7 +6,7 @@ import SettingsIcon from '../assets/icons/settings.svg?react';
 import { Badge } from './Badge';
 import { Button } from './Button';
 import { Checkbox } from './Checkbox';
-import { Modal, ModalCloseButton } from './Modal';
+import { Modal, ModalCloseButton, ModalGridBackground } from './Modal';
 
 export interface TableColumn {
   id: string;
@@ -91,8 +91,8 @@ export function TableManagementModal({
   };
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-2xl">
-      <div className="px-6 pt-6 pb-6">
+    <Modal onClose={onClose} maxWidth="max-w-2xl" decoration={<ModalGridBackground />}>
+      <div className="relative px-6 pt-6 pb-6">
         <div className="flex justify-end">
           <ModalCloseButton onClose={onClose} />
         </div>

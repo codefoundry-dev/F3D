@@ -1,5 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
-import { Button, Modal, ModalIconHeader } from '@forethread/ui-components';
+import { Button, GridModal } from '@forethread/ui-components';
 import FileTextIcon from '@forethread/ui-components/assets/icons/file-text.svg?react';
 import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
 
@@ -28,22 +28,19 @@ export function StartOrderModal({
   const { t } = useTranslation('rfqs');
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-[520px]">
-      <div className="p-6">
-        <ModalIconHeader
-          icon={
-            kind === 'po' ? (
-              <FileTextIcon className="w-6 h-6" />
-            ) : (
-              <PackageIcon className="w-6 h-6" />
-            )
-          }
-          title={t(kind === 'po' ? 'startOrder.poTitle' : 'startOrder.bulkTitle')}
-          subtitle={t(kind === 'po' ? 'startOrder.poSubtitle' : 'startOrder.bulkSubtitle')}
-          onClose={onClose}
-          className="mb-8"
-        />
-        <div className="flex flex-col gap-3">
+    <GridModal
+      onClose={onClose}
+      icon={
+        kind === 'po' ? (
+          <FileTextIcon className="size-6 text-gray-700" />
+        ) : (
+          <PackageIcon className="size-6 text-gray-700" />
+        )
+      }
+      title={t(kind === 'po' ? 'startOrder.poTitle' : 'startOrder.bulkTitle')}
+      description={t(kind === 'po' ? 'startOrder.poSubtitle' : 'startOrder.bulkSubtitle')}
+      actions={
+        <>
           <Button size="lg" className="w-full" onClick={onStartNow} disabled={isCreating}>
             {t('startOrder.startNow')}
           </Button>
@@ -56,8 +53,8 @@ export function StartOrderModal({
           >
             {isCreating ? t('startOrder.creating') : t('startOrder.createDraft')}
           </Button>
-        </div>
-      </div>
-    </Modal>
+        </>
+      }
+    />
   );
 }

@@ -2,14 +2,11 @@ import type { PoLineItemDetail } from '@forethread/api-client';
 import { updatePurchaseOrder } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
-  Modal,
-  ModalBody,
-  ModalCloseButton,
+  GridModal,
   Input,
   FormField,
   Button,
   Alert,
-  IconBadge,
   onDigitsOnly,
 } from '@forethread/ui-components';
 import EditInSquareIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
@@ -257,105 +254,86 @@ function EditPoLineItemModal({ poId, lineItem, allLineItems, onClose }: EditPoLi
   };
 
   return (
-    <Modal onClose={onClose} maxWidth="max-w-[560px]">
-      <ModalBody>
-        <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-          {/* Header */}
-          <div className="flex flex-col items-center text-center mb-2">
-            <div className="w-full flex justify-between items-start">
-              <div className="flex-1" />
-              <IconBadge icon={<EditWithoutLineIcon className="w-6 h-6 text-foreground" />} />
-              <div className="flex-1 flex justify-end">
-                <ModalCloseButton onClose={onClose} />
-              </div>
-            </div>
-            <h2 className="text-lg font-semibold text-foreground mt-4">
-              {t('lineItemsTab.editModal.title', { defaultValue: 'Edit Line Item' })}
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              {t('lineItemsTab.editModal.subtitle', {
-                defaultValue: 'Update the line item details below',
-              })}
-            </p>
-          </div>
+    <GridModal
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      icon={<EditWithoutLineIcon className="size-6 text-gray-700" />}
+      title={t('lineItemsTab.editModal.title', { defaultValue: 'Edit Line Item' })}
+      description={t('lineItemsTab.editModal.subtitle', {
+        defaultValue: 'Update the line item details below',
+      })}
+      actions={
+        <>
+          <Button type="submit" isLoading={mutation.isPending} className="w-full">
+            {mutation.isPending
+              ? t('lineItemsTab.editModal.submitting', { defaultValue: 'Saving...' })
+              : t('lineItemsTab.editModal.submitChanges', { defaultValue: 'Save Changes' })}
+          </Button>
+          <Button variant="outline" type="button" onClick={onClose} className="w-full">
+            {t('common:cancel')}
+          </Button>
+        </>
+      }
+    >
+      {/* Material Name */}
+      <FormField label={t('lineItemsTab.materialName')} required>
+        <Input
+          type="text"
+          value={materialName}
+          onChange={(e) => setMaterialName(e.target.value)}
+          disabled
+        />
+      </FormField>
 
-          {/* Material Name */}
-          <FormField label={t('lineItemsTab.materialName')} required>
-            <Input
-              type="text"
-              value={materialName}
-              onChange={(e) => setMaterialName(e.target.value)}
-              disabled
-            />
-          </FormField>
+      {/* Quantity + UoM */}
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label={t('lineItemsTab.qtyOrdered')} required>
+          <Input
+            inputMode="numeric"
+            pattern="[0-9]*"
+            onKeyDown={onDigitsOnly}
+            value={quantityOrdered}
+            onChange={(e) => setQuantityOrdered(e.target.value)}
+          />
+        </FormField>
 
-          {/* Quantity + UoM */}
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label={t('lineItemsTab.qtyOrdered')} required>
-              <Input
-                inputMode="numeric"
-                pattern="[0-9]*"
-                onKeyDown={onDigitsOnly}
-                value={quantityOrdered}
-                onChange={(e) => setQuantityOrdered(e.target.value)}
-              />
-            </FormField>
+        <FormField label={t('lineItemsTab.uom')} required>
+          <Input
+            type="text"
+            value={unitOfMeasure}
+            onChange={(e) => setUnitOfMeasure(e.target.value)}
+          />
+        </FormField>
+      </div>
 
-            <FormField label={t('lineItemsTab.uom')} required>
-              <Input
-                type="text"
-                value={unitOfMeasure}
-                onChange={(e) => setUnitOfMeasure(e.target.value)}
-              />
-            </FormField>
-          </div>
+      {/* Unit Price */}
+      <FormField label={t('lineItemsTab.unitPrice')} required>
+        <Input
+          inputMode="decimal"
+          value={unitPrice}
+          onChange={(e) => setUnitPrice(e.target.value)}
+        />
+      </FormField>
 
-          {/* Unit Price */}
-          <FormField label={t('lineItemsTab.unitPrice')} required>
-            <Input
-              inputMode="decimal"
-              value={unitPrice}
-              onChange={(e) => setUnitPrice(e.target.value)}
-            />
-          </FormField>
+      {/* Description */}
+      <div>
+        <label className="block mb-1.5">
+          <span className="text-sm font-medium text-card-foreground">
+            {t('lineItemsTab.description')}&nbsp;
+            <span className="text-muted-foreground font-normal">({t('common:optional')})</span>
+          </span>
+        </label>
+        <Input type="text" value={description} onChange={(e) => setDescription(e.target.value)} />
+      </div>
 
-          {/* Description */}
-          <div>
-            <label className="block mb-1.5">
-              <span className="text-sm font-medium text-card-foreground">
-                {t('lineItemsTab.description')}&nbsp;
-                <span className="text-muted-foreground font-normal">({t('common:optional')})</span>
-              </span>
-            </label>
-            <Input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
-
-          {/* Error */}
-          {mutation.isError && (
-            <Alert variant="destructive">
-              {t('lineItemsTab.editModal.updateError', {
-                defaultValue: 'Failed to update line item',
-              })}
-            </Alert>
-          )}
-
-          {/* Actions */}
-          <div className="flex flex-col gap-3 pt-2">
-            <Button type="submit" isLoading={mutation.isPending} className="w-full">
-              {mutation.isPending
-                ? t('lineItemsTab.editModal.submitting', { defaultValue: 'Saving...' })
-                : t('lineItemsTab.editModal.submitChanges', { defaultValue: 'Save Changes' })}
-            </Button>
-            <Button variant="outline" type="button" onClick={onClose} className="w-full">
-              {t('common:cancel')}
-            </Button>
-          </div>
-        </form>
-      </ModalBody>
-    </Modal>
+      {/* Error */}
+      {mutation.isError && (
+        <Alert variant="destructive">
+          {t('lineItemsTab.editModal.updateError', {
+            defaultValue: 'Failed to update line item',
+          })}
+        </Alert>
+      )}
+    </GridModal>
   );
 }
