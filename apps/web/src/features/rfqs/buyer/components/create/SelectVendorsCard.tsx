@@ -1,7 +1,7 @@
 import type { VendorListItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { VendorContactPopover } from '@forethread/rfq-shared';
-import { Button, Spinner, cn } from '@forethread/ui-components';
+import { Button, Spinner, cn, formatEnum } from '@forethread/ui-components';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import FilterIcon from '@forethread/ui-components/assets/icons/filter.svg?react';
 import InfoIcon from '@forethread/ui-components/assets/icons/info.svg?react';
@@ -96,8 +96,12 @@ export function SelectVendorsCard({
     [vendors, selectedIds],
   );
 
-  const locationOf = (vendor: VendorListItem) => vendor.specialisations[0] ?? '—';
-  const categoryOf = (vendor: VendorListItem) => vendor.categories.join(', ') || '—';
+  const locationOf = (vendor: VendorListItem) => {
+    const specialisation = vendor.specialisations[0];
+    return specialisation ? formatEnum(specialisation) : '—';
+  };
+  const categoryOf = (vendor: VendorListItem) =>
+    vendor.categories.map(formatEnum).join(', ') || '—';
 
   return (
     <section className="bg-card rounded-lg border border-border p-6">
@@ -163,7 +167,7 @@ export function SelectVendorsCard({
                         setFilterOpen(false);
                       }}
                     >
-                      {category}
+                      {formatEnum(category)}
                     </button>
                   ))}
                 </div>
@@ -183,7 +187,7 @@ export function SelectVendorsCard({
           {categoryFilter && (
             <div className="flex items-center gap-2 px-3 pb-2">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-muted text-foreground rounded-full">
-                {categoryFilter}
+                {formatEnum(categoryFilter)}
                 <button
                   type="button"
                   onClick={() => setCategoryFilter(null)}

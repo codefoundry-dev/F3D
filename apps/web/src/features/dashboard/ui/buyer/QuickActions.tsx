@@ -90,7 +90,7 @@ function CreatePoDropdown({ label, icon }: { label: string; icon: React.ReactNod
         <div className="absolute left-0 mt-1 w-[301px] border-2 border-foreground/20 bg-background rounded-lg p-2 z-50 flex flex-col items-start gap-1">
           <button
             type="button"
-            className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-[18px] leading-6 font-medium font-[Inter] hover:bg-muted transition-colors w-full text-left"
+            className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-sm font-medium hover:bg-muted transition-colors w-full text-left"
             onClick={() => {
               dd.setIsOpen(false);
               navigate(ROUTES.purchaseOrderNew);
@@ -100,7 +100,7 @@ function CreatePoDropdown({ label, icon }: { label: string; icon: React.ReactNod
           </button>
           <button
             type="button"
-            className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-[18px] leading-6 font-medium font-[Inter] hover:bg-muted transition-colors w-full text-left"
+            className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-sm font-medium hover:bg-muted transition-colors w-full text-left"
             onClick={() => {
               dd.setIsOpen(false);
               setShowSelectRfq(true);
@@ -110,7 +110,7 @@ function CreatePoDropdown({ label, icon }: { label: string; icon: React.ReactNod
           </button>
           <button
             type="button"
-            className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-[18px] leading-6 font-medium font-[Inter] hover:bg-muted transition-colors w-full text-left"
+            className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-sm font-medium hover:bg-muted transition-colors w-full text-left"
             onClick={() => {
               dd.setIsOpen(false);
               setShowSelectBo(true);
@@ -186,7 +186,7 @@ function CreateRfqDropdown({ label, icon }: { label: string; icon: React.ReactNo
         <div className="absolute left-0 mt-1 w-[301px] border-2 border-foreground/20 bg-background rounded-lg p-2 z-50 flex flex-col items-start gap-1">
           <button
             type="button"
-            className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-[18px] leading-6 font-medium font-[Inter] hover:bg-muted transition-colors w-full text-left"
+            className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-sm font-medium hover:bg-muted transition-colors w-full text-left"
             onClick={() => {
               dd.setIsOpen(false);
               navigate(ROUTES.rfqNew);
@@ -196,7 +196,7 @@ function CreateRfqDropdown({ label, icon }: { label: string; icon: React.ReactNo
           </button>
           <button
             type="button"
-            className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-[18px] leading-6 font-medium font-[Inter] hover:bg-muted transition-colors w-full text-left"
+            className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-sm font-medium hover:bg-muted transition-colors w-full text-left"
             onClick={() => {
               dd.setIsOpen(false);
               // TODO: navigate to BOM conversion flow
@@ -206,7 +206,7 @@ function CreateRfqDropdown({ label, icon }: { label: string; icon: React.ReactNo
           </button>
           <button
             type="button"
-            className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-[18px] leading-6 font-medium font-[Inter] hover:bg-muted transition-colors w-full text-left"
+            className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-sm font-medium hover:bg-muted transition-colors w-full text-left"
             onClick={() => {
               dd.setIsOpen(false);
               // TODO: navigate to material list flow
