@@ -26,12 +26,34 @@ export function SplitPoSection({ po }: SplitPoSectionProps) {
   const issueAll = useMutation({
     mutationFn: async () => {
       const draftChildren = po.childPos.filter((c) => c.status === 'DRAFT');
-      for (const child of draftChildren) {
-        await issuePurchaseOrder(child.id);
+      // Issue every child independently and settle them all: one child being
+      // held for approval (over the issuer's po.approve limit → PENDING_APPROVAL)
+      // or failing must NOT abort the rest, or some vendors would silently never
+      // be notified (US 5.19 — each vendor is notified of its own PO on issue).
+      const results = await Promise.allSettled(
+        draftChildren.map((child) => issuePurchaseOrder(child.id)),
+      );
+
+      let sent = 0; // → SENT: vendor notified
+      let held = 0; // → PENDING_APPROVAL: over the issuer's limit, vendor not yet notified
+      let failed = 0;
+      for (const r of results) {
+        if (r.status === 'rejected') failed += 1;
+        else if (r.value.status === 'SENT') sent += 1;
+        else held += 1;
       }
+      return { sent, held, failed };
     },
-    onSuccess: () => {
-      notificationService.success(t('split.issuedAll'));
+    onSuccess: ({ sent, held, failed }) => {
+      // Report what actually happened per child rather than a blanket success —
+      // so a vendor held for approval (or a failed issue) is never silent.
+      if (failed > 0) {
+        notificationService.error(t('split.issuedWithErrors', { sent, failed }));
+      } else if (held > 0) {
+        notificationService.info(t('split.issuedPartial', { sent, held }));
+      } else {
+        notificationService.success(t('split.issuedAll'));
+      }
       void queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
     },
     onError: () => notificationService.error(t('split.issueError')),
@@ -91,7 +113,7 @@ export function SplitPoSection({ po }: SplitPoSectionProps) {
                 <td className="px-4 py-2.5 text-foreground">{child.vendor?.name ?? '-'}</td>
                 <td className="px-4 py-2.5">
                   <Badge className="rounded-full border-0 bg-[#E8EAED] px-2 py-0.5 text-xs text-[#2D3139]">
-                    {child.status}
+                    {t(`status.${child.status}` as never)}
                   </Badge>
                 </td>
                 <td className="px-4 py-2.5 text-right text-foreground">

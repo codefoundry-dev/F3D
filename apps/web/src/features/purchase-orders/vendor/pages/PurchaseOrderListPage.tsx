@@ -68,8 +68,10 @@ const COLUMN_ORDER = ALL_COLUMNS.map((c) => c.key);
 const usePoTableStore = createPoTableStore(
   COLUMN_ORDER,
   'purchase-orders-vendor',
-  'poNumber',
+  // Default to most-recently-created first so new POs surface at the top.
+  'createdDate',
   VENDOR_DEFAULT_VISIBLE,
+  'desc',
 );
 
 /* ─── Page component ──────────────────────────────────────────────────────── */

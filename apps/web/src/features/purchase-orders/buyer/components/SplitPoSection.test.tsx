@@ -7,6 +7,7 @@ import { SplitPoSection } from './SplitPoSection';
 const mockIssue = vi.hoisted(() => vi.fn());
 const mockSuccess = vi.hoisted(() => vi.fn());
 const mockError = vi.hoisted(() => vi.fn());
+const mockInfo = vi.hoisted(() => vi.fn());
 
 vi.mock('@forethread/i18n', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -22,7 +23,7 @@ vi.mock('@forethread/ui-components', () => ({
     <button onClick={onClick}>{children}</button>
   ),
   formatCurrency: (n: number, c: string) => `${c} ${n}`,
-  notificationService: { success: mockSuccess, error: mockError },
+  notificationService: { success: mockSuccess, error: mockError, info: mockInfo },
 }));
 
 vi.mock('react-router-dom', () => ({
@@ -71,7 +72,8 @@ function po(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockIssue.mockResolvedValue(undefined);
+  // Default: issuing a child sends it straight to the vendor (DRAFT → SENT).
+  mockIssue.mockResolvedValue({ status: 'SENT' });
 });
 
 describe('SplitPoSection', () => {
@@ -90,7 +92,29 @@ describe('SplitPoSection', () => {
     await waitFor(() => expect(mockIssue).toHaveBeenCalledTimes(2));
     expect(mockIssue).toHaveBeenCalledWith('child-1');
     expect(mockIssue).toHaveBeenCalledWith('child-2');
-    await waitFor(() => expect(mockSuccess).toHaveBeenCalled());
+    await waitFor(() => expect(mockSuccess).toHaveBeenCalledWith('split.issuedAll'));
+  });
+
+  it('reports an info toast when a child is held for approval instead of sent', async () => {
+    // First child goes to the vendor, second is over the issuer's limit → held.
+    mockIssue.mockResolvedValueOnce({ status: 'SENT' });
+    mockIssue.mockResolvedValueOnce({ status: 'PENDING_APPROVAL' });
+    renderWithClient(<SplitPoSection po={po()} />);
+    fireEvent.click(screen.getByText('split.issueAll'));
+    // Both children are still attempted — a held child must not abort the batch.
+    await waitFor(() => expect(mockIssue).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mockInfo).toHaveBeenCalledWith('split.issuedPartial'));
+    expect(mockSuccess).not.toHaveBeenCalled();
+  });
+
+  it('reports an error toast but still issues the other child when one fails', async () => {
+    mockIssue.mockResolvedValueOnce({ status: 'SENT' });
+    mockIssue.mockRejectedValueOnce(new Error('boom'));
+    renderWithClient(<SplitPoSection po={po()} />);
+    fireEvent.click(screen.getByText('split.issueAll'));
+    // The first child still gets issued even though the second rejects.
+    await waitFor(() => expect(mockIssue).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mockError).toHaveBeenCalledWith('split.issuedWithErrors'));
   });
 
   it('hides "Issue all" when no child is still a draft', () => {
@@ -116,7 +140,13 @@ describe('SplitPoSection', () => {
   it('links a split child back to its parent', () => {
     renderWithClient(
       <SplitPoSection
-        po={po({ id: 'child-1', poType: 'STANDARD', parentPoId: 'parent-1', parentPoNumber: 'PO-00010', childPos: [] })}
+        po={po({
+          id: 'child-1',
+          poType: 'STANDARD',
+          parentPoId: 'parent-1',
+          parentPoNumber: 'PO-00010',
+          childPos: [],
+        })}
       />,
     );
     expect(screen.getByText('split.partOfTitle')).toBeInTheDocument();
@@ -126,7 +156,9 @@ describe('SplitPoSection', () => {
 
   it('renders nothing for a plain standalone PO', () => {
     const { container } = renderWithClient(
-      <SplitPoSection po={po({ id: 'po-x', poType: 'STANDARD', parentPoId: null, childPos: [] })} />,
+      <SplitPoSection
+        po={po({ id: 'po-x', poType: 'STANDARD', parentPoId: null, childPos: [] })}
+      />,
     );
     expect(container).toBeEmptyDOMElement();
   });

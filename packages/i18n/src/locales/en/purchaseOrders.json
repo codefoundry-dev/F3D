@@ -143,6 +143,8 @@
     "childrenSubtitle": "This consolidated PO was split into one PO per vendor.",
     "issueAll": "Issue all",
     "issuedAll": "All draft child POs were issued to their vendors",
+    "issuedPartial": "{{sent}} PO(s) issued to vendors; {{held}} routed for approval (over your approval limit) — those vendors are notified once approved",
+    "issuedWithErrors": "{{sent}} PO(s) issued to vendors; {{failed}} could not be issued — please retry",
     "issueError": "Could not issue all child POs",
     "partOfTitle": "Part of a split purchase order",
     "partOfLink": "View parent {{poNumber}}",
