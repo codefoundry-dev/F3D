@@ -3,7 +3,6 @@ import { deleteLineItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { ConfirmDialog, formatDate } from '@forethread/ui-components';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
-import EditIcon from '@forethread/ui-components/assets/icons/edit-without-line.svg?react';
 import EditRowIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -43,16 +42,6 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-base font-bold text-foreground">{t('lineItemsTab.title')}</h2>
-        <button
-          type="button"
-          className="flex items-center gap-1.5 py-1 text-foreground hover:text-foreground/70 transition-colors"
-          onClick={() => {
-            if (lineItems.length > 0) setEditingItem(lineItems[0]);
-          }}
-        >
-          <EditIcon className="w-6 h-6" />
-          <span className="text-lg font-medium">{t('lineItemsTab.edit')}</span>
-        </button>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-border">

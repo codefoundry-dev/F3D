@@ -41,12 +41,6 @@ vi.mock('@forethread/ui-components/assets/icons/delete.svg?react', () => ({
 vi.mock('@forethread/ui-components/assets/icons/edit.svg?react', () => ({
   default: (props: Record<string, unknown>) => <svg data-testid="icon-edit" {...props} />,
 }));
-vi.mock('@forethread/ui-components/assets/icons/edit-without-line.svg?react', () => ({
-  default: (props: Record<string, unknown>) => (
-    <svg data-testid="icon-edit-without-line" {...props} />
-  ),
-}));
-
 vi.mock('./EditLineItemModal', () => ({
   EditLineItemModal: () => null,
 }));
@@ -108,10 +102,14 @@ describe('RfqLineItemsTab', () => {
     expect(screen.queryByText('lineItemsTab.actions')).not.toBeInTheDocument();
   });
 
-  it('shows actions column and edit button in page layout', () => {
+  it('shows actions column in page layout', () => {
     renderWithQuery(<RfqLineItemsTab rfqId="rfq-1" lineItems={MOCK_LINE_ITEMS} layout="page" />);
     expect(screen.getByText('lineItemsTab.actions')).toBeInTheDocument();
-    expect(screen.getByText('lineItemsTab.edit')).toBeInTheDocument();
+  });
+
+  it('does not show a header edit button in page layout', () => {
+    renderWithQuery(<RfqLineItemsTab rfqId="rfq-1" lineItems={MOCK_LINE_ITEMS} layout="page" />);
+    expect(screen.queryByText('lineItemsTab.edit')).not.toBeInTheDocument();
   });
 
   it('formats delivery date', () => {
@@ -139,13 +137,6 @@ describe('RfqLineItemsTab', () => {
     fireEvent.click(deleteButtons[0]);
     // ConfirmDialog is mocked to return null
     expect(deleteButtons[0]).toBeInTheDocument();
-  });
-
-  it('opens edit modal when header edit button is clicked', () => {
-    renderWithQuery(<RfqLineItemsTab rfqId="rfq-1" lineItems={MOCK_LINE_ITEMS} layout="page" />);
-    fireEvent.click(screen.getByText('lineItemsTab.edit'));
-    // Clicking the header edit button opens modal for first item
-    expect(screen.getByText('lineItemsTab.edit')).toBeInTheDocument();
   });
 
   it('defaults to panel layout', () => {
