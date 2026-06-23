@@ -30,7 +30,8 @@ function makeItem(overrides: Partial<BulkOrderListItem> = {}): BulkOrderListItem
     id: 'bo-1',
     bulkOrderNumber: 'BULK-2025-011',
     projectName: 'Bayside Transit',
-    projectId: 'PRJ-2024-015',
+    projectId: 'proj-uuid-1',
+    projectCode: 'PRJ-2024-015',
     companyId: 'c1',
     contractorName: 'Acme',
     vendorId: 'v1',
@@ -81,6 +82,9 @@ describe('BulkOrderTable', () => {
     renderTable([makeItem()]);
     expect(screen.getByText('BULK-2025-011')).toBeInTheDocument();
     expect(screen.getByText('Bayside Transit')).toBeInTheDocument();
+    // The Project Code column shows the human-readable code, not the UUID.
+    expect(screen.getByText('PRJ-2024-015')).toBeInTheDocument();
+    expect(screen.queryByText('proj-uuid-1')).not.toBeInTheDocument();
     expect(screen.getByText('1234')).toBeInTheDocument();
   });
 });

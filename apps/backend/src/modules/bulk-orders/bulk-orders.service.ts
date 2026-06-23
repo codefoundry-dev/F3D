@@ -87,6 +87,9 @@ export class BulkOrdersService {
       case 'projectName':
         orderBy.project = { name: sortDir };
         break;
+      case 'projectCode':
+        orderBy.project = { code: sortDir };
+        break;
       case 'vendorName':
         orderBy.vendor = { legalName: sortDir };
         break;
@@ -104,7 +107,7 @@ export class BulkOrdersService {
         take: query.take,
         orderBy,
         include: {
-          project: { select: { name: true } },
+          project: { select: { name: true, code: true } },
           company: { select: { legalName: true } },
           vendor: { select: { legalName: true } },
           _count: { select: { lineItems: true } },
@@ -150,6 +153,7 @@ export class BulkOrdersService {
           bulkOrderNumber: bo.bulkOrderNumber ?? bo.id,
           projectName: bo.project.name,
           projectId: bo.projectId,
+          projectCode: bo.project.code,
           companyId: bo.companyId,
           contractorName: bo.company.legalName,
           vendorId: bo.vendorId,
@@ -368,7 +372,7 @@ export class BulkOrdersService {
         project: { select: { name: true } },
         company: { select: { legalName: true } },
         vendor: { select: { legalName: true } },
-        rfq: { select: { id: true } },
+        rfq: { select: { rfqNumber: true } },
         createdBy: { select: { name: true } },
         lineItems: true,
         drawdowns: {
@@ -422,7 +426,7 @@ export class BulkOrdersService {
     return {
       id: bo.id,
       bulkId: bo.bulkOrderNumber ?? bo.id,
-      rfqReference: bo.rfq?.id ?? null,
+      rfqReference: bo.rfq?.rfqNumber ?? null,
       contractorName: bo.company.legalName,
       vendorName: bo.vendor.legalName,
       projectName: bo.project.name,

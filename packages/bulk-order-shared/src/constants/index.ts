@@ -7,7 +7,7 @@ export const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
 export const COLUMNS: Array<{ field: SortableField; key: string }> = [
   { field: 'id', key: 'bulkOrderId' },
   { field: 'projectName', key: 'projectName' },
-  { field: 'projectId', key: 'projectId' },
+  { field: 'projectCode', key: 'projectCode' },
   { field: 'vendorName', key: 'vendorName' },
   { field: 'status', key: 'status' },
   { field: 'lineItems', key: 'lineItems' },

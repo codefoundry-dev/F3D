@@ -102,7 +102,7 @@ export function BulkOrderTable({
             >
               <td className="py-3 px-3 text-foreground">{bo.bulkOrderNumber ?? bo.id}</td>
               <td className="py-3 px-3 text-foreground truncate max-w-[180px]">{bo.projectName}</td>
-              <td className="py-3 px-3 text-foreground">{bo.projectId}</td>
+              <td className="py-3 px-3 text-foreground">{bo.projectCode}</td>
               <td className="py-3 px-3 text-foreground truncate max-w-[150px]">{bo.vendorName}</td>
               <td className="py-3 px-3">
                 <Badge className={getStatusColor(BULK_ORDER_STATUS_COLORS, bo.status)}>
