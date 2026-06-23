@@ -36,7 +36,6 @@ vi.mock('@forethread/i18n', () => ({
   }),
 }));
 
-
 /* ── Fixtures ───────────────────────────────────────────────────────────── */
 
 function cell(overrides: Partial<Record<string, unknown>> = {}) {
@@ -272,7 +271,7 @@ describe('QuoteComparisonTable', () => {
     expect(screen.getByText('reviewTable.restoreAll')).toBeInTheDocument();
   });
 
-  it('approved filter shows the Order column and Award & split / Create Bulk on selection', async () => {
+  it('approved filter shows the Order column and Create Bulk (no split award) on selection', async () => {
     const approvedComparison = {
       ...comparison,
       vendors: [{ ...comparison.vendors[0], status: 'APPROVED' }],
@@ -290,50 +289,117 @@ describe('QuoteComparisonTable', () => {
     expect(screen.getAllByText('reviewTable.order').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getAllByTitle('reviewTable.selectLine')[0]);
-    expect(screen.getByText('reviewTable.awardSplit')).toBeInTheDocument();
+    // The split award is no longer offered on the Approved tab (the quotes are
+    // already decided) — it now lives on the All tab. Only Create Bulk remains.
+    expect(screen.queryByText('reviewTable.awardSplit')).not.toBeInTheDocument();
     expect(screen.getByText('reviewTable.createBulk')).toBeInTheDocument();
-
-    // Award & split → calls awardSplit with the selected line's allocation
-    // (US 5.19); the order qty defaults to the full quoted quantity.
-    mockAwardSplit.mockResolvedValue({ parentPoId: 'po-p', parentPoNumber: 'PO-1', children: [] });
-    fireEvent.click(screen.getByText('reviewTable.awardSplit'));
-    await waitFor(() => expect(mockAwardSplit).toHaveBeenCalled());
-    expect(mockAwardSplit.mock.calls[0][0]).toBe('rfq-1');
-    expect(mockAwardSplit.mock.calls[0][1]).toMatchObject({
-      allocations: [{ quoteResponseId: 'q-1', quoteLineItemId: 'ql-1', approvedQuantity: 500 }],
-    });
   });
 
-  it('blocks the split award when the cross-vendor approved qty exceeds the requested qty (AC 4)', async () => {
-    // Two vendors both quote the same RFQ line (requested 500); the row carries
-    // both approved cells so selecting both over-allocates the line.
-    const overComparison = {
-      ...comparison,
+  it('all tab: split-awards lines selected across vendors via awardSplit (US 5.19)', async () => {
+    // Two still-open (SUBMITTED) vendors, each quoting a distinct RFQ line so the
+    // selection never over-allocates a line.
+    const splitComparison = {
+      rfqId: 'rfq-1',
+      currency: 'AUD',
       vendors: [
-        { ...comparison.vendors[0], status: 'APPROVED' },
-        { ...comparison.vendors[1], status: 'APPROVED' },
+        { ...comparison.vendors[0], status: 'SUBMITTED' },
+        { ...comparison.vendors[1], status: 'SUBMITTED' },
       ],
       rows: [
         {
-          ...comparison.rows[0],
+          rfqLineItemId: 'li-1',
+          materialName: 'Rubber Hoses',
+          quantity: 500,
+          unit: 'meters',
+          projectId: 'p-1',
+          projectName: 'Project One',
+          lowestVendorId: 'v-1',
           cells: [
-            cell({ quoteLineItemId: 'ql-1', status: 'APPROVED' }),
+            cell({ quoteLineItemId: 'ql-1' }),
             cell({
               vendorId: 'v-2',
               quoteResponseId: 'q-2',
               quoteLineItemId: 'ql-21',
-              status: 'APPROVED',
+              unitPrice: 30,
+            }),
+          ],
+        },
+        {
+          rfqLineItemId: 'li-2',
+          materialName: 'Glass Panes',
+          quantity: 500,
+          unit: 'meters',
+          projectId: 'p-1',
+          projectName: 'Project One',
+          lowestVendorId: 'v-2',
+          cells: [
+            cell({ quoteLineItemId: 'ql-2' }),
+            cell({
+              vendorId: 'v-2',
+              quoteResponseId: 'q-2',
+              quoteLineItemId: 'ql-22',
+              unitPrice: 28,
             }),
           ],
         },
       ],
     };
-    mockGetComparison.mockResolvedValue(overComparison);
-    renderTable({ statusFilter: 'approved' });
+    mockGetComparison.mockResolvedValue(splitComparison);
+    mockAwardSplit.mockResolvedValue({
+      parentPoId: 'po-p',
+      parentPoNumber: 'PO-1',
+      children: [{}, {}],
+    });
+    renderTable({ statusFilter: 'all' });
 
     await screen.findByText('Vendor One');
-    // Select both vendors' approved cells for the same line (500 + 500 > 500).
-    screen.getAllByTitle('reviewTable.selectLine').forEach((el) => fireEvent.click(el));
+    // li-1 / Vendor One (ql-1) then li-2 / Vendor Two (ql-22) — distinct lines.
+    fireEvent.click(screen.getAllByTitle('reviewTable.selectLine')[0]);
+    fireEvent.click(screen.getAllByTitle('reviewTable.selectLine')[2]);
+
+    expect(screen.getByText('reviewTable.itemsSelected:2')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('reviewTable.awardSplit'));
+
+    await waitFor(() => expect(mockAwardSplit).toHaveBeenCalled());
+    expect(mockAwardSplit.mock.calls[0][0]).toBe('rfq-1');
+    const payload = mockAwardSplit.mock.calls[0][1];
+    // The order qty defaults to the full quoted quantity for each line.
+    expect(payload.allocations).toEqual(
+      expect.arrayContaining([
+        { quoteResponseId: 'q-1', quoteLineItemId: 'ql-1', approvedQuantity: 500 },
+        { quoteResponseId: 'q-2', quoteLineItemId: 'ql-22', approvedQuantity: 500 },
+      ]),
+    );
+    expect(payload.allocations).toHaveLength(2);
+  });
+
+  it('all tab: blocks the split award when cross-vendor qty exceeds the requested qty (AC 4)', async () => {
+    // Both still-open vendors quote the same RFQ line (requested 500); selecting
+    // both cells over-allocates it (500 + 500 > 500).
+    const overComparison = {
+      ...comparison,
+      vendors: [
+        { ...comparison.vendors[0], status: 'SUBMITTED' },
+        { ...comparison.vendors[1], status: 'SUBMITTED' },
+      ],
+      rows: [
+        {
+          ...comparison.rows[0],
+          cells: [
+            cell({ quoteLineItemId: 'ql-1' }),
+            cell({ vendorId: 'v-2', quoteResponseId: 'q-2', quoteLineItemId: 'ql-21' }),
+          ],
+        },
+      ],
+    };
+    mockGetComparison.mockResolvedValue(overComparison);
+    renderTable({ statusFilter: 'all' });
+
+    await screen.findByText('Vendor One');
+    // Select both vendors' cells for the same line (re-query: the first click
+    // turns that cell's select action into a deselect).
+    fireEvent.click(screen.getAllByTitle('reviewTable.selectLine')[0]);
+    fireEvent.click(screen.getAllByTitle('reviewTable.selectLine')[0]);
 
     expect(screen.getByText('reviewTable.overAllocatedWarning')).toBeInTheDocument();
     fireEvent.click(screen.getByText('reviewTable.awardSplit'));
