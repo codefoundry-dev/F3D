@@ -514,8 +514,16 @@ export async function updatePurchaseOrder(
   return data.data;
 }
 
-export async function issuePurchaseOrder(id: string, config?: AxiosRequestConfig): Promise<void> {
-  await getApiClient().post(PURCHASE_ORDERS_PATHS.issue(id), undefined, config);
+export async function issuePurchaseOrder(
+  id: string,
+  config?: AxiosRequestConfig,
+): Promise<PoDetail> {
+  const { data } = await getApiClient().post<{ data: PoDetail }>(
+    PURCHASE_ORDERS_PATHS.issue(id),
+    undefined,
+    config,
+  );
+  return data.data;
 }
 
 export async function confirmPurchaseOrder(
