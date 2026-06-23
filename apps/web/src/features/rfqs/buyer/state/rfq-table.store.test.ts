@@ -48,8 +48,8 @@ describe('createRfqTableStore', () => {
     expect(s.pageSize).toBe(25);
     expect(s.search).toBe('');
     expect(s.searchOpen).toBe(false);
-    expect(s.sortBy).toBe('deadlineRange');
-    expect(s.sortDir).toBe('asc');
+    expect(s.sortBy).toBe('createdDate');
+    expect(s.sortDir).toBe('desc');
     expect(s.quickFilter).toBe('');
     expect(s.groupBy).toBe('');
     expect(s.columnOrder).toEqual(DEFAULT_COLUMNS);
@@ -250,8 +250,8 @@ describe('createRfqTableStore', () => {
       expect(useStore.getState().activeViewId).toBeNull();
       expect(useStore.getState().visibleColumns).toEqual(DEFAULT_COLUMNS);
       expect(useStore.getState().columnOrder).toEqual(DEFAULT_COLUMNS);
-      expect(useStore.getState().sortBy).toBe('deadlineRange');
-      expect(useStore.getState().sortDir).toBe('asc');
+      expect(useStore.getState().sortBy).toBe('createdDate');
+      expect(useStore.getState().sortDir).toBe('desc');
       expect(useStore.getState().quickFilter).toBe('');
       expect(useStore.getState().groupBy).toBe('');
       expect(useStore.getState().page).toBe(1);

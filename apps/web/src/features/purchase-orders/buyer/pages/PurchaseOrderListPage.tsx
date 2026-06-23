@@ -84,8 +84,10 @@ const CHANGEABLE_PO_STATUSES = ['SENT', 'ACKNOWLEDGED', 'ACCEPTED'];
 const usePoTableStore = createPoTableStore(
   COLUMN_ORDER,
   'purchase-orders',
-  'poNumber',
+  // Default to most-recently-created first so new POs surface at the top.
+  'createdDate',
   PO_CA_DEFAULT_VISIBLE,
+  'desc',
 );
 
 /* ─── Page component ──────────────────────────────────────────────────────── */
