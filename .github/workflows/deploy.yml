@@ -241,9 +241,28 @@ jobs:
             --instance-ids ${{ steps.target.outputs.instance_id }} \
             --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
 
-          # Caddy 308-redirects HTTP -> HTTPS for the domain-configured site, so
-          # follow redirects and accept self-signed/missing certs for v1.
-          #
+          # Caddy serves a domain-scoped vhost with automatic HTTPS and routes by
+          # Host header, so a request to the bare IP never matches the vhost — it
+          # only ever gets a 308 to https, never a 200. Probe the real domain but
+          # pin it to THIS instance's IP with --resolve, so we test the box we
+          # just deployed regardless of DNS propagation. Envs with no domain
+          # (http-only Caddy) fall back to the bare IP, which serves every Host.
+          case "${TARGET_ENV}" in
+            staging) DOMAIN="api-main.forethread.com" ;;
+            prod)    DOMAIN="api.forethread.com" ;;
+            *)       DOMAIN="" ;;
+          esac
+
+          if [ -n "${DOMAIN}" ]; then
+            BASE="https://${DOMAIN}"
+            RESOLVE=(--resolve "${DOMAIN}:443:${PUBLIC_IP}")
+            echo "Probing ${BASE} (pinned to ${PUBLIC_IP})"
+          else
+            BASE="http://${PUBLIC_IP}"
+            RESOLVE=()
+            echo "No domain for env '${TARGET_ENV}' — probing bare IP ${PUBLIC_IP}"
+          fi
+
           # `probe <path>` polls for a 200 over up to 60s and returns non-zero on
           # timeout. We check two endpoints in order:
           #   /v1/health — liveness, always 200 once the process is up.
@@ -253,9 +272,8 @@ jobs:
           #               FOR-251.
           probe() {
             local path="$1"
-            echo "Probing http://${PUBLIC_IP}${path} (via Caddy proxy)"
             for i in $(seq 1 12); do
-              CODE=$(curl -kfsS -o /tmp/probe.out -w '%{http_code}' -L --max-time 5 "http://${PUBLIC_IP}${path}" || true)
+              CODE=$(curl -kfsS "${RESOLVE[@]}" -o /tmp/probe.out -w '%{http_code}' -L --max-time 5 "${BASE}${path}" || true)
               echo "[$i] ${path} -> HTTP ${CODE}"
               if [ "$CODE" = "200" ]; then
                 cat /tmp/probe.out; echo
