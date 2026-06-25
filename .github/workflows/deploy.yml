@@ -234,22 +234,44 @@ jobs:
             --instance-id "${{ steps.target.outputs.instance_id }}" \
             --query 'StandardOutputContent' --output text || true
 
-      - name: Smoke test (health check)
+      - name: Smoke test (liveness + DB readiness)
         run: |
           set -euo pipefail
           PUBLIC_IP=$(aws ec2 describe-instances \
             --instance-ids ${{ steps.target.outputs.instance_id }} \
             --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          echo "Probing http://${PUBLIC_IP}/v1/health (via Caddy proxy)"
-          # Caddy will 308-redirect to HTTPS for the domain-configured site, so
-          # we follow redirects and accept self-signed/missing certs for v1.
-          for i in $(seq 1 12); do
-            CODE=$(curl -kfsS -o /tmp/probe.out -w '%{http_code}' -L --max-time 5 "http://${PUBLIC_IP}/v1/health" || true)
-            echo "[$i] HTTP ${CODE}"
-            if [ "$CODE" = "200" ]; then
-              cat /tmp/probe.out
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "::warning::Health check did not return 200 within 60s. Container may still be starting; check CloudWatch logs."
+
+          # Caddy 308-redirects HTTP -> HTTPS for the domain-configured site, so
+          # follow redirects and accept self-signed/missing certs for v1.
+          #
+          # `probe <path>` polls for a 200 over up to 60s and returns non-zero on
+          # timeout. We check two endpoints in order:
+          #   /v1/health — liveness, always 200 once the process is up.
+          #   /v1/ready  — readiness, 200 ONLY when the DB connection works. This
+          #               is what catches a stale/invalid DATABASE_URL (the exact
+          #               failure mode that liveness alone silently passed). See
+          #               FOR-251.
+          probe() {
+            local path="$1"
+            echo "Probing http://${PUBLIC_IP}${path} (via Caddy proxy)"
+            for i in $(seq 1 12); do
+              CODE=$(curl -kfsS -o /tmp/probe.out -w '%{http_code}' -L --max-time 5 "http://${PUBLIC_IP}${path}" || true)
+              echo "[$i] ${path} -> HTTP ${CODE}"
+              if [ "$CODE" = "200" ]; then
+                cat /tmp/probe.out; echo
+                return 0
+              fi
+              sleep 5
+            done
+            return 1
+          }
+
+          if ! probe /v1/health; then
+            echo "::error::Liveness check (/v1/health) did not return 200 within 60s. Container may have failed to start; check CloudWatch logs."
+            exit 1
+          fi
+          if ! probe /v1/ready; then
+            echo "::error::Readiness check (/v1/ready) did not return 200 within 60s — the backend is up but cannot reach the database (likely an invalid DATABASE_URL). See FOR-251."
+            exit 1
+          fi
+          echo "Liveness + DB readiness OK."

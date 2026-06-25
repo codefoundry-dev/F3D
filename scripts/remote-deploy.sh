@@ -186,6 +186,119 @@ docker compose run --rm -T backend migrate
 log "docker compose up -d backend..."
 docker compose up -d backend
 
+############################################
+# 6b. Install the DB-credential reconciler (self-heals after secret rotation)
+############################################
+#
+# The RDS master secret has managed rotation (every 7 days). This deploy bakes
+# the *current* password into backend.env, but if the secret rotates before the
+# next deploy, the running container keeps presenting the old password and every
+# DB-backed request 500s ("Authentication failed against database server").
+#
+# To make that self-healing, we install a tiny reconciler + systemd timer that
+# re-derives DATABASE_URL from Secrets Manager every few minutes and, ONLY when
+# it has changed, rewrites that single env line and restarts the backend. It
+# reuses the exact same URL-encoding as the assembly above so an unchanged
+# password compares equal and the reconciler is a no-op (no restart) until the
+# next rotation.
+
+log "Installing DB-credential reconciler + systemd timer..."
+
+cat > /etc/forethread/reconciler.env <<EOF
+# Read by /usr/local/bin/db-creds-reconciler.sh (written by remote-deploy.sh).
+FORETHREAD_ENV=${ENV}
+AWS_REGION=${REGION}
+SSM_PREFIX=${SSM_PREFIX}
+EOF
+chmod 0644 /etc/forethread/reconciler.env
+
+cat > /usr/local/bin/db-creds-reconciler.sh <<'RECON_EOF'
+#!/usr/bin/env bash
+# db-creds-reconciler.sh — keep the backend's DATABASE_URL in sync with the
+# rotating RDS master secret. Installed and kept current by remote-deploy.sh;
+# run on a systemd timer. Idempotent: only rewrites the env file + restarts the
+# backend when the credentials have actually changed.
+set -euo pipefail
+
+# Serialize runs so a slow restart never overlaps the next timer tick.
+exec 9>/var/lock/db-creds-reconciler.lock
+flock -n 9 || { echo "reconciler: previous run still holding lock, skipping"; exit 0; }
+
+[ -f /etc/forethread/reconciler.env ] && . /etc/forethread/reconciler.env
+REGION="${AWS_REGION:-$(curl -sf http://169.254.169.254/latest/meta-data/placement/region || echo eu-north-1)}"
+: "${SSM_PREFIX:?reconciler: SSM_PREFIX not set}"
+BACKEND_ENV=/etc/forethread/backend.env
+COMPOSE_DIR=/opt/forethread-backend
+
+ssm_get() { aws ssm get-parameter --region "$REGION" --name "$1" --with-decryption --query 'Parameter.Value' --output text; }
+sm_get()  { aws secretsmanager get-secret-value --region "$REGION" --secret-id "$1" --query 'SecretString' --output text; }
+
+RDS_ENDPOINT=$(ssm_get "${SSM_PREFIX}/rds/endpoint")
+RDS_PORT=$(ssm_get "${SSM_PREFIX}/rds/port")
+RDS_DB=$(ssm_get "${SSM_PREFIX}/rds/db-name")
+RDS_SECRET_ARN=$(ssm_get "${SSM_PREFIX}/rds/master-secret-arn")
+RDS_HOST="${RDS_ENDPOINT%:*}"
+
+CREDS_JSON=$(sm_get "$RDS_SECRET_ARN")
+RDS_USER=$(echo "$CREDS_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['username'])")
+RDS_PASS=$(echo "$CREDS_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['password'])")
+# MUST match remote-deploy.sh's encoding byte-for-byte, else an unchanged
+# password would compare unequal and the backend would restart every tick.
+RDS_PASS_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$RDS_PASS")
+DESIRED_URL="postgresql://${RDS_USER}:${RDS_PASS_ENC}@${RDS_HOST}:${RDS_PORT}/${RDS_DB}?schema=public"
+
+CURRENT_URL=$(sed -n 's/^DATABASE_URL=//p' "$BACKEND_ENV" | head -n1)
+
+if [ "$DESIRED_URL" = "$CURRENT_URL" ]; then
+  exit 0   # in sync — nothing to do
+fi
+
+echo "reconciler: RDS credentials changed — rewriting DATABASE_URL and restarting backend"
+TMP=$(mktemp)
+if grep -q '^DATABASE_URL=' "$BACKEND_ENV"; then
+  # awk (not sed) so the URL's / : @ ? & chars need no escaping.
+  awk -v repl="DATABASE_URL=${DESIRED_URL}" '/^DATABASE_URL=/{print repl; next} {print}' "$BACKEND_ENV" > "$TMP"
+else
+  cp "$BACKEND_ENV" "$TMP"
+  printf 'DATABASE_URL=%s\n' "$DESIRED_URL" >> "$TMP"
+fi
+chmod 0640 "$TMP"
+mv -f "$TMP" "$BACKEND_ENV"
+
+cd "$COMPOSE_DIR"
+docker compose up -d backend
+echo "reconciler: backend restarted with refreshed database credentials"
+RECON_EOF
+chmod 0755 /usr/local/bin/db-creds-reconciler.sh
+
+cat > /etc/systemd/system/db-creds-reconciler.service <<'SVC_EOF'
+[Unit]
+Description=Reconcile backend DATABASE_URL with the rotating RDS master secret
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/db-creds-reconciler.sh
+SVC_EOF
+
+cat > /etc/systemd/system/db-creds-reconciler.timer <<'TMR_EOF'
+[Unit]
+Description=Periodically reconcile backend DB credentials after RDS secret rotation
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+TMR_EOF
+
+systemctl daemon-reload
+systemctl enable --now db-creds-reconciler.timer
+log "DB-credential reconciler timer enabled (runs every 5 min)."
+
 log "Waiting for backend container to be healthy..."
 for i in $(seq 1 24); do
   STATE=$(docker inspect --format='{{.State.Status}}' forethread-backend-backend-1 2>/dev/null || echo "missing")
