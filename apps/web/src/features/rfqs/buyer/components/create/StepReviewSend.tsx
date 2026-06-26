@@ -24,6 +24,7 @@ interface StepReviewSendProps {
   projects: ProjectListItem[];
   vendors: VendorListItem[];
   selectedVendorIds: string[];
+  selectedRepIds: string[];
   attachments: PendingAttachment[];
   onAttachmentsChange: (attachments: PendingAttachment[]) => void;
   message: string;
@@ -88,6 +89,7 @@ export function StepReviewSend({
   projects,
   vendors,
   selectedVendorIds,
+  selectedRepIds,
   attachments,
   onAttachmentsChange,
   message,
@@ -107,6 +109,7 @@ export function StepReviewSend({
 
   const selectedProjects = projects.filter((project) => basicInfo.projectIds.includes(project.id));
   const selectedVendors = vendors.filter((vendor) => selectedVendorIds.includes(vendor.companyId));
+  const repSet = useMemo(() => new Set(selectedRepIds), [selectedRepIds]);
 
   const grouped = useMemo(() => {
     const order = basicInfo.projectIds;
@@ -298,38 +301,45 @@ export function StepReviewSend({
         editLabel={t('create.review.edit')}
       >
         <div className="flex flex-col gap-2.5">
-          {selectedVendors.map((vendor) => (
-            <div
-              key={vendor.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground shrink-0">
-                  {vendor.companyName
-                    .split(/\s+/)
-                    .slice(0, 2)
-                    .map((part) => part[0]?.toUpperCase() ?? '')
-                    .join('')}
+          {selectedVendors.map((vendor) => {
+            const selectedReps = (vendor.representatives ?? []).filter((rep) => repSet.has(rep.id));
+            return (
+              <div key={vendor.id} className="rounded-lg border border-border px-3 py-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground shrink-0">
+                      {vendor.companyName
+                        .split(/\s+/)
+                        .slice(0, 2)
+                        .map((part) => part[0]?.toUpperCase() ?? '')
+                        .join('')}
+                    </div>
+                    <p className="text-sm text-foreground truncate">
+                      <span className="font-medium">{vendor.companyName}</span>
+                      {(vendor.specialisations[0] ?? (vendor.categories.join(', ') || '')) && (
+                        <span className="text-muted-foreground ml-2">
+                          {vendor.specialisations[0] ?? vendor.categories.join(', ')}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveVendor(vendor.companyId)}
+                    className="p-1.5 text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                    aria-label={t('create.vendors.remove', { name: vendor.companyName })}
+                  >
+                    <CrossIcon className="w-3 h-3" />
+                  </button>
                 </div>
-                <p className="text-sm text-foreground truncate">
-                  <span className="font-medium">{vendor.companyName}</span>
-                  {(vendor.specialisations[0] ?? (vendor.categories.join(', ') || '')) && (
-                    <span className="text-muted-foreground ml-2">
-                      {vendor.specialisations[0] ?? vendor.categories.join(', ')}
-                    </span>
-                  )}
-                </p>
+                <div className="mt-1.5 pl-11 text-xs text-muted-foreground">
+                  {selectedReps.length > 0
+                    ? selectedReps.map((rep) => rep.name).join(', ')
+                    : t('create.vendors.allContacts')}
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => onRemoveVendor(vendor.companyId)}
-                className="p-1.5 text-muted-foreground hover:text-destructive transition-colors shrink-0"
-                aria-label={t('create.vendors.remove', { name: vendor.companyName })}
-              >
-                <CrossIcon className="w-3 h-3" />
-              </button>
-            </div>
-          ))}
+            );
+          })}
           {selectedVendors.length === 0 && (
             <p className="text-sm text-muted-foreground">{t('create.vendors.selectAtLeastOne')}</p>
           )}

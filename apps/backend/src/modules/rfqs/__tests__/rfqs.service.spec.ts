@@ -114,6 +114,7 @@ const mockPrisma = {
   rfqVendor: {
     deleteMany: jest.fn(),
     createMany: jest.fn(),
+    create: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
   },
@@ -1488,7 +1489,11 @@ describe('RfqsService', () => {
       await expect(
         service.awardSplit(
           'rfq-1',
-          { allocations: [{ quoteResponseId: 'quote-a', quoteLineItemId: 'ql-a', approvedQuantity: 8 }] },
+          {
+            allocations: [
+              { quoteResponseId: 'quote-a', quoteLineItemId: 'ql-a', approvedQuantity: 8 },
+            ],
+          },
           companyAdmin,
         ),
       ).rejects.toThrow(BadRequestException);
@@ -1499,7 +1504,11 @@ describe('RfqsService', () => {
       await expect(
         service.awardSplit(
           'rfq-1',
-          { allocations: [{ quoteResponseId: 'quote-a', quoteLineItemId: 'ql-a', approvedQuantity: 1 }] },
+          {
+            allocations: [
+              { quoteResponseId: 'quote-a', quoteLineItemId: 'ql-a', approvedQuantity: 1 },
+            ],
+          },
           companyAdmin,
         ),
       ).rejects.toThrow(BadRequestException);
@@ -1579,7 +1588,12 @@ describe('RfqsService', () => {
         }),
       );
       expect(childAData.lineItems.create[0]).toEqual(
-        expect.objectContaining({ materialId: 'mat-1', quantityOrdered: 6, unitPrice: 10, lineTotal: 60 }),
+        expect.objectContaining({
+          materialId: 'mat-1',
+          quantityOrdered: 6,
+          unitPrice: 10,
+          lineTotal: 60,
+        }),
       );
 
       const childBData = mockPrisma.purchaseOrder.create.mock.calls[2][0].data;
@@ -2237,6 +2251,46 @@ describe('RfqsService', () => {
         BadRequestException,
       );
     });
+
+    // ── US 5.05: chosen sales reps persisted as per-vendor contacts ──────
+    it('persists the chosen sales reps as contacts grouped by vendor', async () => {
+      setupCreateSuccess();
+      mockPrisma.user.findMany.mockResolvedValue([
+        { id: 'rep-1', companyId: 'vendor-1' },
+        { id: 'rep-2', companyId: 'vendor-1' },
+        { id: 'rep-3', companyId: 'vendor-2' },
+      ]);
+      const rfqCreate = jest.fn().mockResolvedValue({ id: 'rfq-new' });
+      mockPrisma.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) =>
+        cb({ rfq: { create: rfqCreate }, rfqDocument: { createMany: jest.fn() } }),
+      );
+
+      await service.createRfq(
+        { ...createDto, salesRepIds: ['rep-1', 'rep-2', 'rep-3'] } as never,
+        procOfficer,
+      );
+
+      const data = (rfqCreate.mock.calls[0][0] as { data: { invitedVendors: unknown } }).data;
+      expect(data.invitedVendors).toEqual({
+        create: [
+          {
+            vendorId: 'vendor-1',
+            contacts: { create: [{ userId: 'rep-1' }, { userId: 'rep-2' }] },
+          },
+          { vendorId: 'vendor-2', contacts: { create: [{ userId: 'rep-3' }] } },
+        ],
+      });
+    });
+
+    it('throws BadRequestException when a sales rep does not belong to a selected vendor', async () => {
+      setupCreateSuccess();
+      // Only one of the two requested reps resolves to a selected vendor.
+      mockPrisma.user.findMany.mockResolvedValue([{ id: 'rep-1', companyId: 'vendor-1' }]);
+
+      await expect(
+        service.createRfq({ ...createDto, salesRepIds: ['rep-1', 'rep-x'] } as never, procOfficer),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   // ── saveRfqDraft (FOR-202) ───────────────────────────────────────────
@@ -2698,6 +2752,77 @@ describe('RfqsService', () => {
           attachments: [],
           log: expect.objectContaining({ rfqId: 'rfq-1' }),
         }),
+      );
+    });
+
+    it('emails only the chosen sales reps when contacts are set (US 5.05)', async () => {
+      mockPrisma.rfq.findUnique
+        .mockResolvedValueOnce({
+          id: 'rfq-1',
+          status: 'DRAFT',
+          companyId: 'comp-1',
+          _count: { lineItems: 2, invitedVendors: 1 },
+        })
+        // generateInvitationTokensAndNotify — a vendor with a chosen rep plus
+        // other (unchosen) users; only the chosen rep should be emailed.
+        .mockResolvedValueOnce({
+          rfqNumber: 'RFQ-1',
+          ccEmails: [],
+          documents: [],
+          invitedVendors: [
+            {
+              id: 'iv-1',
+              contacts: [{ user: { email: 'chosen@vendor.com' } }],
+              vendor: {
+                id: 'v-1',
+                contactEmail: 'contact@vendor.com',
+                users: [{ email: 'other@vendor.com', status: 'ACTIVE' }],
+              },
+            },
+          ],
+        })
+        // getRfq
+        .mockResolvedValueOnce({
+          id: 'rfq-1',
+          rfqNumber: 'RFQ-1',
+          status: 'OPEN',
+          currency: 'AUD',
+          companyId: 'comp-1',
+          projectId: 'proj-1',
+          project: { name: 'Proj' },
+          createdBy: { id: 'po-1', name: 'PO' },
+          approvedBy: null,
+          lineItems: [],
+          quoteResponses: [],
+          invitedVendors: [],
+          documents: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          deadlineStart: null,
+          deadlineEnd: null,
+          deliveryLocationId: null,
+          needByDate: null,
+          holdForRelease: false,
+          earliestDeliveryDate: null,
+          message: null,
+          totalRequestedQty: 0,
+          pickUpLocation: null,
+          pickUpDate: null,
+          approvalStatus: null,
+        });
+      mockPrisma.rfq.update.mockResolvedValue({});
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue(null);
+      mockEmailService.sendRfqReceivedEmail.mockResolvedValue(undefined);
+
+      await service.sendRfq('rfq-1', {}, procOfficer);
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockEmailService.sendRfqReceivedEmail).toHaveBeenCalledTimes(1);
+      expect(mockEmailService.sendRfqReceivedEmail).toHaveBeenCalledWith(
+        'chosen@vendor.com',
+        'RFQ-1',
+        'http://localhost:5179/invitation/issued-token-xyz',
+        expect.objectContaining({ log: expect.objectContaining({ rfqId: 'rfq-1' }) }),
       );
     });
 
@@ -3203,6 +3328,19 @@ describe('RfqsService', () => {
         documents: [],
         invitedVendors: [
           {
+            // Chosen reps win over the company users when mapping detail contacts.
+            contacts: [
+              {
+                user: {
+                  id: 'rep-1',
+                  name: 'Chosen Rep',
+                  role: 'VENDOR',
+                  phone: null,
+                  email: 'chosen@co.com',
+                  position: 'Buyer Lead',
+                },
+              },
+            ],
             vendor: {
               id: 'vendor-1',
               legalName: 'VendorCo',
@@ -3238,8 +3376,20 @@ describe('RfqsService', () => {
       expect(result.vendors).toHaveLength(2);
       expect(result.vendors[0].approved).toBe(true);
       expect(result.vendors[0].category).toBe('steel, iron');
+      // The chosen rep is mapped (not the company user) when contacts exist.
+      expect(result.vendors[0].contacts).toEqual([
+        {
+          id: 'rep-1',
+          name: 'Chosen Rep',
+          role: 'Buyer Lead',
+          phone: null,
+          email: 'chosen@co.com',
+        },
+      ]);
       expect(result.vendors[1].approved).toBe(false);
       expect(result.vendors[1].category).toBeNull();
+      // No chosen reps → falls back to the company users (here, none).
+      expect(result.vendors[1].contacts).toEqual([]);
     });
   });
 

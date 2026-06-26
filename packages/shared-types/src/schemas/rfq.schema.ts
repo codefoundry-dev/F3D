@@ -70,6 +70,8 @@ export const createRfqSchema = z.object({
   currency: z.string().optional(),
   lineItems: z.array(createRfqLineItemSchema).min(1),
   vendorIds: z.array(z.string().uuid()).min(1),
+  /** Selected vendor sales-rep user ids (US 5.05); the RFQ email targets these reps. */
+  salesRepIds: z.array(z.string().uuid()).optional(),
   message: z.string().optional(),
   attachmentIds: z.array(z.string()).optional(),
 });
@@ -99,6 +101,8 @@ export const saveRfqDraftSchema = z.object({
   currency: z.string().optional(),
   lineItems: z.array(createRfqLineItemSchema).optional(),
   vendorIds: z.array(z.string().uuid()).optional(),
+  /** Selected vendor sales-rep user ids (US 5.05); the RFQ email targets these reps. */
+  salesRepIds: z.array(z.string().uuid()).optional(),
   message: z.string().optional(),
   attachmentIds: z.array(z.string()).optional(),
 });

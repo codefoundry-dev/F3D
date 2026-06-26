@@ -32,14 +32,33 @@ vi.mock('@forethread/ui-components', () => ({
 // Stand-in for the wizard card: exposes the seeded selection count and a toggle
 // so we can assert seeding + the exact onSave payload without its internals.
 vi.mock('./create/SelectVendorsCard', () => ({
-  SelectVendorsCard: ({ selectedIds, onToggle }: any) => (
+  SelectVendorsCard: ({ selectedVendorIds, selectedRepIds, onChange }: any) => (
     <div data-testid="select-vendors-card">
-      <span data-testid="selected-count">{selectedIds.length}</span>
+      <span data-testid="selected-count">{selectedVendorIds.length}</span>
+      <span data-testid="selected-rep-count">{selectedRepIds.length}</span>
       <button
         data-testid="toggle-company-3"
-        onClick={() => onToggle('company-3', !selectedIds.includes('company-3'))}
+        onClick={() =>
+          onChange({
+            vendorIds: selectedVendorIds.includes('company-3')
+              ? selectedVendorIds.filter((id: string) => id !== 'company-3')
+              : [...selectedVendorIds, 'company-3'],
+            repIds: selectedRepIds,
+          })
+        }
       >
         toggle
+      </button>
+      <button
+        data-testid="add-rep-9"
+        onClick={() =>
+          onChange({
+            vendorIds: [...new Set([...selectedVendorIds, 'company-3'])],
+            repIds: [...selectedRepIds, 'rep-9'],
+          })
+        }
+      >
+        add rep
       </button>
     </div>
   ),
@@ -55,6 +74,7 @@ const VENDORS = [
 
 const baseProps = {
   currentVendorIds: ['company-1'],
+  currentSalesRepIds: [],
   isSaving: false,
   isError: false,
   onCancel: vi.fn(),
@@ -80,7 +100,23 @@ describe('ManageVendorsDialog', () => {
     expect(screen.getByTestId('selected-count')).toHaveTextContent('2');
 
     fireEvent.click(screen.getByTestId('save-vendors'));
-    expect(onSave).toHaveBeenCalledWith(['company-1', 'company-3']);
+    expect(onSave).toHaveBeenCalledWith({
+      vendorIds: ['company-1', 'company-3'],
+      salesRepIds: [],
+    });
+  });
+
+  it('seeds chosen reps and saves them as salesRepIds', () => {
+    const onSave = vi.fn();
+    render(<ManageVendorsDialog {...baseProps} currentSalesRepIds={['rep-1']} onSave={onSave} />);
+    expect(screen.getByTestId('selected-rep-count')).toHaveTextContent('1');
+
+    fireEvent.click(screen.getByTestId('add-rep-9'));
+    fireEvent.click(screen.getByTestId('save-vendors'));
+    expect(onSave).toHaveBeenCalledWith({
+      vendorIds: ['company-1', 'company-3'],
+      salesRepIds: ['rep-1', 'rep-9'],
+    });
   });
 
   it('disables Save when no vendor is selected', () => {

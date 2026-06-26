@@ -12,16 +12,18 @@ import { useState } from 'react';
 
 import { useAssignedVendors } from '../services/rfqs.service';
 
-import { SelectVendorsCard } from './create/SelectVendorsCard';
+import { SelectVendorsCard, type VendorSelection } from './create/SelectVendorsCard';
 
 interface ManageVendorsDialogProps {
   /** Vendor company ids already invited on this RFQ — pre-selected on open. */
   currentVendorIds: string[];
+  /** Sales-rep user ids already chosen on this RFQ — pre-selected on open. */
+  currentSalesRepIds: string[];
   isSaving: boolean;
   isError: boolean;
   onCancel: () => void;
-  /** Receives the chosen vendor company ids (always ≥ 1 — Save is disabled at 0). */
-  onSave: (vendorIds: string[]) => void;
+  /** Receives the chosen vendors + reps (vendorIds always ≥ 1 — Save is disabled at 0). */
+  onSave: (selection: { vendorIds: string[]; salesRepIds: string[] }) => void;
 }
 
 /**
@@ -33,6 +35,7 @@ interface ManageVendorsDialogProps {
  */
 export function ManageVendorsDialog({
   currentVendorIds,
+  currentSalesRepIds,
   isSaving,
   isError,
   onCancel,
@@ -40,12 +43,10 @@ export function ManageVendorsDialog({
 }: ManageVendorsDialogProps) {
   const { t } = useTranslation('rfqs');
   const { data: vendors = [], isLoading } = useAssignedVendors();
-  const [selectedIds, setSelectedIds] = useState<string[]>(currentVendorIds);
-
-  const toggle = (vendorId: string, selected: boolean) =>
-    setSelectedIds((prev) =>
-      selected ? [...new Set([...prev, vendorId])] : prev.filter((id) => id !== vendorId),
-    );
+  const [selection, setSelection] = useState<VendorSelection>({
+    vendorIds: currentVendorIds,
+    repIds: currentSalesRepIds,
+  });
 
   return (
     <Modal onClose={onCancel} maxWidth="max-w-4xl" scrollBody decoration={<ModalGridBackground />}>
@@ -57,10 +58,9 @@ export function ManageVendorsDialog({
 
         <SelectVendorsCard
           vendors={vendors}
-          selectedIds={selectedIds}
-          onToggle={toggle}
-          onSelectAll={(ids) => setSelectedIds((prev) => [...new Set([...prev, ...ids])])}
-          onRemoveAll={() => setSelectedIds([])}
+          selectedVendorIds={selection.vendorIds}
+          selectedRepIds={selection.repIds}
+          onChange={setSelection}
           isLoading={isLoading}
         />
 
@@ -76,9 +76,9 @@ export function ManageVendorsDialog({
         </Button>
         <Button
           type="button"
-          onClick={() => onSave(selectedIds)}
+          onClick={() => onSave({ vendorIds: selection.vendorIds, salesRepIds: selection.repIds })}
           isLoading={isSaving}
-          disabled={isSaving || selectedIds.length === 0}
+          disabled={isSaving || selection.vendorIds.length === 0}
           data-testid="save-vendors"
         >
           {t('manageVendors.save')}

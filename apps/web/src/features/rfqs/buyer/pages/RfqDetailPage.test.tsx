@@ -59,7 +59,10 @@ vi.mock('../components/ManageVendorsDialog', () => ({
     <div role="dialog" data-testid="vendors-dialog">
       <span data-testid="vendors-dialog-count">{currentVendorIds.length}</span>
       {isError && <span data-testid="vendors-dialog-error">error</span>}
-      <button data-testid="vendors-dialog-save" onClick={() => onSave(['company-9'])}>
+      <button
+        data-testid="vendors-dialog-save"
+        onClick={() => onSave({ vendorIds: ['company-9'], salesRepIds: ['rep-9'] })}
+      >
         save
       </button>
       <button data-testid="vendors-dialog-cancel" onClick={onCancel}>
@@ -249,8 +252,8 @@ describe('RfqDetailPage', () => {
       { id: 'li-1', materialName: 'Cement', quantity: 5, unit: 'bag', description: null },
     ],
     vendors: [
-      { id: 'rv-1', vendorId: 'company-1', vendorName: 'Acme' },
-      { id: 'rv-2', vendorId: 'company-2', vendorName: 'BuildCo' },
+      { id: 'company-1', vendorName: 'Acme', contacts: [{ id: 'rep-1' }, { id: 'rep-2' }] },
+      { id: 'company-2', vendorName: 'BuildCo', contacts: [] },
     ],
   };
 
@@ -486,7 +489,7 @@ describe('RfqDetailPage', () => {
     await waitFor(() =>
       expect(mockUpdateRfq.mutateAsync).toHaveBeenCalledWith({
         id: 'RFQ-2024-008',
-        dto: { vendorIds: ['company-9'] },
+        dto: { vendorIds: ['company-9'], salesRepIds: ['rep-9'] },
       }),
     );
   });

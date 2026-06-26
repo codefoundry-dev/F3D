@@ -112,6 +112,7 @@ export const ERR = {
     invalidMaterialIds: errors.rfqs.invalidMaterialIds,
     invalidLineItem: errors.rfqs.invalidLineItem,
     invalidVendorIds: errors.rfqs.invalidVendorIds,
+    invalidSalesReps: errors.rfqs.invalidSalesReps,
     holdForReleaseRequiresEarliestDelivery: errors.rfqs.holdForReleaseRequiresEarliestDelivery,
     cannotEditStatus: (status: string) => t(errors.rfqs.cannotEditStatus, { status }),
     cannotSendNotDraft: (status: string) => t(errors.rfqs.cannotSendNotDraft, { status }),

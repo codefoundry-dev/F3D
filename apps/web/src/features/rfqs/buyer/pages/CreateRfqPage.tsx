@@ -67,6 +67,7 @@ function buildPayload(
   basicInfo: WizardBasicInfo,
   items: WizardLineItem[],
   vendorIds: string[],
+  salesRepIds: string[],
   message: string,
 ): SaveRfqDraftValues {
   const payload: SaveRfqDraftValues = {
@@ -85,6 +86,7 @@ function buildPayload(
   }
   if (message.trim()) payload.message = message.trim();
   if (vendorIds.length > 0) payload.vendorIds = vendorIds;
+  if (salesRepIds.length > 0) payload.salesRepIds = salesRepIds;
 
   if (items.length > 0) {
     payload.lineItems = items.map((item) => {
@@ -153,6 +155,7 @@ export default function CreateRfqPage() {
 
   const [basicInfo, setBasicInfo] = useState<WizardBasicInfo>(EMPTY_BASIC_INFO);
   const [vendorIds, setVendorIds] = useState<string[]>([]);
+  const [salesRepIds, setSalesRepIds] = useState<string[]>([]);
   const [items, setItems] = useState<WizardLineItem[]>([]);
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
@@ -245,7 +248,7 @@ export default function CreateRfqPage() {
   const isSaving = saveDraft.isPending || updateDraft.isPending;
 
   const persist = async (): Promise<RfqDetail> => {
-    const payload = buildPayload(basicInfo, items, vendorIds, message);
+    const payload = buildPayload(basicInfo, items, vendorIds, salesRepIds, message);
     if (draftId) {
       const { projectId: _omit, ...patch } = payload;
       void _omit;
@@ -519,15 +522,13 @@ export default function CreateRfqPage() {
               >
                 <SelectVendorsCard
                   vendors={vendors}
-                  selectedIds={vendorIds}
+                  selectedVendorIds={vendorIds}
+                  selectedRepIds={salesRepIds}
                   isLoading={vendorsLoading || projectsLoading}
-                  onToggle={(vendorId, selected) =>
-                    setVendorIds((prev) =>
-                      selected ? [...prev, vendorId] : prev.filter((id) => id !== vendorId),
-                    )
-                  }
-                  onSelectAll={(ids) => setVendorIds((prev) => [...new Set([...prev, ...ids])])}
-                  onRemoveAll={() => setVendorIds([])}
+                  onChange={({ vendorIds: nextVendorIds, repIds }) => {
+                    setVendorIds(nextVendorIds);
+                    setSalesRepIds(repIds);
+                  }}
                   error={errors.vendorIds ? t('create.vendors.selectAtLeastOne') : undefined}
                 />
               </WizardAccordion>
@@ -572,6 +573,7 @@ export default function CreateRfqPage() {
               projects={projects}
               vendors={vendors}
               selectedVendorIds={vendorIds}
+              selectedRepIds={salesRepIds}
               attachments={attachments}
               onAttachmentsChange={setAttachments}
               message={message}
@@ -579,9 +581,15 @@ export default function CreateRfqPage() {
               onEditStep={goToStep}
               onEditItem={setEditingItem}
               onRemoveItem={(key) => setItems((prev) => prev.filter((item) => item.key !== key))}
-              onRemoveVendor={(vendorId) =>
-                setVendorIds((prev) => prev.filter((id) => id !== vendorId))
-              }
+              onRemoveVendor={(vendorId) => {
+                const repIdsOfVendor = new Set(
+                  (vendors.find((v) => v.companyId === vendorId)?.representatives ?? []).map(
+                    (rep) => rep.id,
+                  ),
+                );
+                setVendorIds((prev) => prev.filter((id) => id !== vendorId));
+                setSalesRepIds((prev) => prev.filter((id) => !repIdsOfVendor.has(id)));
+              }}
             />
           )}
 
