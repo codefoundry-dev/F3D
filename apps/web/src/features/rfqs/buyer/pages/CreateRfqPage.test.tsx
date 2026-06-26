@@ -188,26 +188,29 @@ function selectMulti(label: string, values: string[]) {
   fireEvent.change(select);
 }
 
-/** Complete step 1 with the minimum valid input and a selected vendor. */
-async function fillStepOne() {
-  fireEvent.change(screen.getByTestId('rfq-document-name'), {
+/** Fill the basic-info fields and select a vendor (no line item yet). */
+function fillBasics() {
+  fireEvent.change(screen.getByTestId('rfq-reference'), {
     target: { value: 'Structural steel package' },
   });
   // First date input = RFQ response deadline.
   fireEvent.change(screen.getAllByLabelText('date')[0], { target: { value: '2026-07-01' } });
   selectMulti('create.basicInfo.projectPlaceholder', [PROJECT_ID]);
-  // Delivery locations load from the selected project's detail.
-  await waitFor(() => {
-    const select = screen.getByLabelText<HTMLSelectElement>(
-      'create.basicInfo.deliveryLocationPlaceholder',
-    );
-    expect(select.options.length).toBeGreaterThan(0);
-  });
-  selectMulti('create.basicInfo.deliveryLocationPlaceholder', [LOCATION_ID]);
   fireEvent.click(screen.getByTestId(`vendor-toggle-${VENDOR_COMPANY_ID}`));
 }
 
-async function continueWizard() {
+/** Add the stubbed catalogue material to the line-items table. */
+function addMaterial() {
+  fireEvent.click(screen.getByTestId('mock-pick-material'));
+}
+
+/** Complete the whole first step (basics + a line item). */
+function fillStepOne() {
+  fillBasics();
+  addMaterial();
+}
+
+function continueWizard() {
   fireEvent.click(screen.getByTestId('wizard-continue'));
 }
 
@@ -218,28 +221,30 @@ beforeEach(() => {
 });
 
 describe('CreateRfqPage', () => {
-  it('renders the four-step stepper and both step-1 cards', () => {
+  it('renders the two-step stepper and the consolidated step-1 sections', () => {
     renderPage();
     expect(screen.getByTestId('stepper')).toHaveTextContent(
-      'create.steps.basicInfo|create.steps.lineItems|create.steps.availability|create.steps.review',
+      'create.steps.basicInfo|create.steps.review (step 1)',
     );
     expect(screen.getByText('create.basicInfo.cardTitle')).toBeInTheDocument();
+    // Vendors + line-items accordions carry their titles in the header.
     expect(screen.getByText('create.vendors.cardTitle')).toBeInTheDocument();
+    expect(screen.getByText('create.lineItems.cardTitle')).toBeInTheDocument();
   });
 
   it('blocks continuing with an empty form and shows field + vendor errors', async () => {
     renderPage();
-    await continueWizard();
+    continueWizard();
     expect(await screen.findAllByText('create.errors.required')).not.toHaveLength(0);
     expect(mockSaveDraft.mutateAsync).not.toHaveBeenCalled();
-    // Still on step 1.
+    // Still on the consolidated first step.
     expect(screen.getByText(/create\.headings\.step1Title/)).toBeInTheDocument();
   });
 
-  it('persists step 1 as a draft (document name, projects, ISO deadline, vendor COMPANY id) and advances', async () => {
+  it('persists the draft (reference, projects, ISO deadline, vendor COMPANY id, items) and advances to review', async () => {
     renderPage();
-    await fillStepOne();
-    await continueWizard();
+    fillStepOne();
+    continueWizard();
 
     await waitFor(() => expect(mockSaveDraft.mutateAsync).toHaveBeenCalledTimes(1));
     const payload = mockSaveDraft.mutateAsync.mock.calls[0][0];
@@ -248,42 +253,37 @@ describe('CreateRfqPage', () => {
       projectIds: [PROJECT_ID],
       name: 'Structural steel package',
       deadlineEnd: '2026-07-01T00:00:00.000Z',
-      deliveryLocationId: LOCATION_ID,
       vendorIds: [VENDOR_COMPANY_ID],
     });
-    expect(await screen.findByText(/create\.headings\.step2Title/)).toBeInTheDocument();
+    expect(payload).not.toHaveProperty('deliveryLocationId');
+    expect(payload.lineItems).toHaveLength(1);
+    expect(await screen.findByText(/create\.headings\.step4Title/)).toBeInTheDocument();
   });
 
-  it('swaps the delivery location for a pick-up location on pick-up orders', async () => {
+  it('reveals a pick-up location field only on pick-up orders (no delivery location field)', () => {
     renderPage();
+    expect(screen.queryByTestId('rfq-pickup-location')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('rfq-delivery-location')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('create.basicInfo.pickUpOrder'));
     expect(screen.getByTestId('rfq-pickup-location')).toBeInTheDocument();
     expect(screen.queryByTestId('rfq-delivery-location')).not.toBeInTheDocument();
   });
 
-  it('reveals the earliest allowed delivery date only when holding for release', async () => {
+  it('reveals the earliest allowed delivery date only when holding for release', () => {
     renderPage();
     expect(screen.queryByTestId('rfq-earliest-date')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('create.basicInfo.holdForRelease'));
     expect(screen.getByTestId('rfq-earliest-date')).toBeInTheDocument();
   });
 
-  it('adds a catalogue material on step 2, runs the availability check and reaches step 3', async () => {
+  it('runs the inline availability check from the line-items section', async () => {
     renderPage();
-    await fillStepOne();
-    await continueWizard();
-    await screen.findByText(/create\.headings\.step2Title/);
-
-    fireEvent.click(screen.getByTestId('mock-pick-material'));
+    fillStepOne();
     const table = screen.getByTestId('line-items-table');
     expect(within(table).getByText('Cement')).toBeInTheDocument();
     expect(screen.getByTestId('total-items')).toHaveTextContent('1');
 
-    // With items present the primary action becomes "Check Availability".
-    expect(screen.getByTestId('wizard-continue')).toHaveTextContent(
-      'create.footer.checkAvailability',
-    );
-    await continueWizard();
+    fireEvent.click(screen.getByTestId('check-availability'));
 
     await waitFor(() => expect(mockApi.checkRfqAvailability).toHaveBeenCalledTimes(1));
     expect(mockApi.checkRfqAvailability).toHaveBeenCalledWith({
@@ -291,24 +291,24 @@ describe('CreateRfqPage', () => {
         expect.objectContaining({ index: 0, materialId: MATERIAL_ID, quantity: 1, uom: 'bag' }),
       ],
     });
-    expect(await screen.findByText(/create\.headings\.step3Title/)).toBeInTheDocument();
-    // Draft was updated (id from the first save) rather than re-created.
-    expect(mockUpdateDraft.mutateAsync).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'rfq-1' }),
-    );
+    // Persisting the draft gave the rows server ids (one save).
+    expect(mockSaveDraft.mutateAsync).toHaveBeenCalledTimes(1);
+    // No bulk-order vendors in the default fixture → the no-coverage hint shows.
+    expect(await screen.findByTestId('no-coverage')).toBeInTheDocument();
+  });
+
+  it('offers a per-row availability check in the Availability column', async () => {
+    renderPage();
+    fillStepOne();
+    // Before any check, each row exposes an inline Availability "Check" action.
+    fireEvent.click(screen.getByTestId('row-check-0'));
+    await waitFor(() => expect(mockApi.checkRfqAvailability).toHaveBeenCalledTimes(1));
   });
 
   it('walks through to review & send and submits the RFQ', async () => {
     renderPage();
-    await fillStepOne();
-    await continueWizard();
-    await screen.findByText(/create\.headings\.step2Title/);
-    fireEvent.click(screen.getByTestId('mock-pick-material'));
-    await continueWizard();
-    await screen.findByText(/create\.headings\.step3Title/);
-
-    // No coverage selected — straight to review.
-    await continueWizard();
+    fillStepOne();
+    continueWizard();
     await screen.findByText(/create\.headings\.step4Title/);
     expect(screen.getByText('create.review.rfqInformation')).toBeInTheDocument();
     expect(screen.getByText('Structural steel package')).toBeInTheDocument();
@@ -348,17 +348,14 @@ describe('CreateRfqPage', () => {
     mockApi.deleteRfq.mockResolvedValue(undefined);
 
     renderPage();
-    await fillStepOne();
-    await continueWizard();
-    await screen.findByText(/create\.headings\.step2Title/);
-    fireEvent.click(screen.getByTestId('mock-pick-material'));
-    await continueWizard();
-    await screen.findByText(/create\.headings\.step3Title/);
+    fillStepOne();
+    fireEvent.click(screen.getByTestId('check-availability'));
 
-    // Cover the single line from the single vendor (per-vendor column
-    // checkbox), then continue.
-    fireEvent.click(await screen.findByTestId('cover-vendor-v1'));
-    await continueWizard();
+    // The line is auto-covered from its best vendor the moment the check
+    // returns (no manual "Cover" click), so the row shows the covered state.
+    await screen.findByTestId('row-cancel-0');
+    expect(screen.queryByTestId('row-cover-0')).not.toBeInTheDocument();
+    continueWizard();
 
     await waitFor(() =>
       expect(mockApi.confirmRfqCoverage).toHaveBeenCalledWith('rfq-1', {
@@ -369,7 +366,7 @@ describe('CreateRfqPage', () => {
     expect(mockApi.deleteRfq).toHaveBeenCalledWith('rfq-1');
   });
 
-  it('seeds line items and locks the project from a Converting-BOM seed', async () => {
+  it('seeds line items and locks the project from a Converting-BOM seed', () => {
     mockUseLocation.mockReturnValue({
       state: {
         seed: {
@@ -389,16 +386,12 @@ describe('CreateRfqPage', () => {
     });
 
     renderPage();
-    await fillStepOne();
-    await continueWizard();
-    await screen.findByText(/create\.headings\.step2Title/);
-
     const table = screen.getByTestId('line-items-table');
     expect(within(table).getByText('Paint Primer White 5-Gal')).toBeInTheDocument();
     expect(screen.getByTestId('total-qty')).toHaveTextContent('12');
   });
 
-  it('seeds from a confirmed BOM extraction passed via route state (FOR-200)', async () => {
+  it('seeds from a confirmed BOM extraction passed via route state (FOR-200)', () => {
     mockUseLocation.mockReturnValue({ state: { bomExtractionId: 'ext-1' } });
     mockUseConfirmedBoms.mockReturnValue({
       data: {
@@ -423,9 +416,8 @@ describe('CreateRfqPage', () => {
     });
 
     renderPage();
-    await fillStepOne();
-    await continueWizard();
-    await screen.findByText(/create\.headings\.step2Title/);
+    // The seeded rows need a selected project to render their group.
+    selectMulti('create.basicInfo.projectPlaceholder', [PROJECT_ID]);
     expect(
       within(screen.getByTestId('line-items-table')).getByText('Wide flange beam W12x26'),
     ).toBeInTheDocument();
@@ -433,9 +425,28 @@ describe('CreateRfqPage', () => {
 
   it('saves as draft from any step and navigates to the RFQ detail', async () => {
     renderPage();
-    await fillStepOne();
+    fillStepOne();
     fireEvent.click(screen.getByTestId('save-as-draft'));
     await waitFor(() => expect(mockSaveDraft.mutateAsync).toHaveBeenCalled());
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/rfqs/rfq-1'));
+  });
+
+  it('keeps added line items visible before a project is picked (Unassigned group)', () => {
+    renderPage();
+    // No project selected yet — just add a catalogue material via search.
+    addMaterial();
+    const table = screen.getByTestId('line-items-table');
+    expect(within(table).getByText('Cement')).toBeInTheDocument();
+    expect(within(table).getByText('create.lineItems.unassignedGroup')).toBeInTheDocument();
+    expect(screen.getByTestId('total-items')).toHaveTextContent('1');
+  });
+
+  it('guides to the project field instead of failing the save when none is picked', async () => {
+    renderPage();
+    addMaterial();
+    fireEvent.click(screen.getByTestId('save-as-draft'));
+    // The save is never attempted — the missing-project error is surfaced.
+    expect(mockSaveDraft.mutateAsync).not.toHaveBeenCalled();
+    expect(await screen.findAllByText('create.errors.required')).not.toHaveLength(0);
   });
 });

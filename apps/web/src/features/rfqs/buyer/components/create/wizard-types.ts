@@ -26,21 +26,18 @@ export interface WizardLineItem {
   uom: string;
   /** Project this row belongs to — one of the wizard's selected projects. */
   projectId?: string;
-  deliveryLocationId?: string;
   /** YYYY-MM-DD */
   expectedDeliveryDate?: string;
   notes?: string;
 }
 
 export interface WizardBasicInfo {
+  /** Buyer-facing reference / title for the RFQ (persisted as RFQ.name). */
   documentName: string;
   /** YYYY-MM-DD */
   responseDeadline: string;
   /** Selected project ids; the first is the primary project. */
   projectIds: string[];
-  /** Selected delivery location ids (union across selected projects);
-   * the first is persisted as the RFQ-level delivery location. */
-  deliveryLocationIds: string[];
   /** YYYY-MM-DD */
   needByDate: string;
   isPickUp: boolean;
@@ -54,7 +51,6 @@ export const EMPTY_BASIC_INFO: WizardBasicInfo = {
   documentName: '',
   responseDeadline: '',
   projectIds: [],
-  deliveryLocationIds: [],
   needByDate: '',
   isPickUp: false,
   pickUpLocation: '',
@@ -88,7 +84,6 @@ export interface WizardFieldErrors {
   documentName?: string;
   responseDeadline?: string;
   projectIds?: string;
-  deliveryLocationIds?: string;
   pickUpLocation?: string;
   earliestDeliveryDate?: string;
   vendorIds?: string;
@@ -96,18 +91,13 @@ export interface WizardFieldErrors {
 }
 
 /** Validate the Basic Information step (design: all * fields). */
-export function validateBasicInfo(
-  values: WizardBasicInfo,
-  vendorIds: string[],
-): WizardFieldErrors {
+export function validateBasicInfo(values: WizardBasicInfo, vendorIds: string[]): WizardFieldErrors {
   const errors: WizardFieldErrors = {};
   if (!values.documentName.trim()) errors.documentName = 'required';
   if (!values.responseDeadline) errors.responseDeadline = 'required';
   if (values.projectIds.length === 0) errors.projectIds = 'required';
-  if (values.isPickUp) {
-    if (!values.pickUpLocation.trim()) errors.pickUpLocation = 'required';
-  } else if (values.deliveryLocationIds.length === 0) {
-    errors.deliveryLocationIds = 'required';
+  if (values.isPickUp && !values.pickUpLocation.trim()) {
+    errors.pickUpLocation = 'required';
   }
   if (values.holdForRelease && !values.earliestDeliveryDate) {
     errors.earliestDeliveryDate = 'required';

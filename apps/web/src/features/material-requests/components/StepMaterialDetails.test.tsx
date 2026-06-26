@@ -70,6 +70,36 @@ vi.mock('@forethread/ui-components', () => ({
   DatePicker: ({ value, onChange }: { value: string; onChange: (d: string) => void }) => (
     <input aria-label="date" value={value} onChange={(e) => onChange(e.target.value)} />
   ),
+  // Multi-select renders each option as a checkbox labelled by the member name.
+  SelectDropdown: ({
+    selected = [],
+    onSelectedChange,
+    options,
+  }: {
+    selected?: string[];
+    onSelectedChange?: (s: string[]) => void;
+    options: Array<{ value: string; label: string }>;
+  }) => (
+    <div>
+      {options.map((o) => (
+        <label key={o.value}>
+          <input
+            type="checkbox"
+            aria-label={o.label}
+            checked={selected.includes(o.value)}
+            onChange={() =>
+              onSelectedChange?.(
+                selected.includes(o.value)
+                  ? selected.filter((v) => v !== o.value)
+                  : [...selected, o.value],
+              )
+            }
+          />
+          {o.label}
+        </label>
+      ))}
+    </div>
+  ),
 }));
 
 import { StepMaterialDetails } from './StepMaterialDetails';
@@ -89,14 +119,19 @@ function line(overrides: Partial<MrWizardLine> = {}): MrWizardLine {
 }
 
 const LOCATIONS = [{ id: 'loc-1', label: 'Gate B' }];
+const MEMBERS = [
+  { id: 'u1', name: 'Jane Doe' },
+  { id: 'u2', name: 'John Smith' },
+];
 
 describe('StepMaterialDetails', () => {
-  it('renders a card per line with the material summary', () => {
+  it('renders a table row per line with the material name', () => {
     render(
       <StepMaterialDetails
         lines={[line(), line({ key: 'k2', materialName: 'Plywood' })]}
         errors={{}}
         locationOptions={LOCATIONS}
+        memberOptions={MEMBERS}
         onPatchLine={vi.fn()}
       />,
     );
@@ -111,6 +146,7 @@ describe('StepMaterialDetails', () => {
         lines={[line()]}
         errors={{}}
         locationOptions={LOCATIONS}
+        memberOptions={MEMBERS}
         onPatchLine={onPatchLine}
       />,
     );
@@ -125,6 +161,7 @@ describe('StepMaterialDetails', () => {
         lines={[line()]}
         errors={{}}
         locationOptions={LOCATIONS}
+        memberOptions={MEMBERS}
         onPatchLine={onPatchLine}
       />,
     );
@@ -139,6 +176,7 @@ describe('StepMaterialDetails', () => {
         lines={[line()]}
         errors={{}}
         locationOptions={LOCATIONS}
+        memberOptions={MEMBERS}
         onPatchLine={onPatchLine}
       />,
     );
@@ -155,11 +193,64 @@ describe('StepMaterialDetails', () => {
         lines={[line()]}
         errors={errors}
         locationOptions={LOCATIONS}
+        memberOptions={MEMBERS}
         onPatchLine={vi.fn()}
       />,
     );
-    // The quantity label is rendered both as the field label and the error; at
-    // least one occurrence proves the error branch rendered.
+    // The quantity label renders as both the column header and the per-row
+    // error; more than one occurrence proves the error branch rendered.
     expect(screen.getAllByText('materialDetails.quantityNeeded').length).toBeGreaterThan(1);
+  });
+
+  it('reveals the CC team / instructions / notes drawer when the notes cell is toggled', () => {
+    render(
+      <StepMaterialDetails
+        lines={[line()]}
+        errors={{}}
+        locationOptions={LOCATIONS}
+        memberOptions={MEMBERS}
+        onPatchLine={vi.fn()}
+      />,
+    );
+    // The optional fields stay hidden until the row is expanded.
+    expect(screen.queryByTestId('mr-cc-k1')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mr-notes-toggle-k1'));
+    expect(screen.getByTestId('mr-cc-k1')).toBeInTheDocument();
+    expect(screen.getByLabelText('materialDetails.instructions')).toBeInTheDocument();
+    expect(screen.getByLabelText('materialDetails.internalNotes')).toBeInTheDocument();
+  });
+
+  it('CCs a project member chosen from the members dropdown', () => {
+    const onPatchLine = vi.fn();
+    render(
+      <StepMaterialDetails
+        lines={[line()]}
+        errors={{}}
+        locationOptions={LOCATIONS}
+        memberOptions={MEMBERS}
+        onPatchLine={onPatchLine}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('mr-notes-toggle-k1'));
+    fireEvent.click(screen.getByLabelText('Jane Doe'));
+    expect(onPatchLine).toHaveBeenCalledWith('k1', { ccTeamMembers: ['Jane Doe'] });
+  });
+
+  it('patches an instruction typed into the expanded drawer', () => {
+    const onPatchLine = vi.fn();
+    render(
+      <StepMaterialDetails
+        lines={[line()]}
+        errors={{}}
+        locationOptions={LOCATIONS}
+        memberOptions={MEMBERS}
+        onPatchLine={onPatchLine}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('mr-notes-toggle-k1'));
+    fireEvent.change(screen.getByLabelText('materialDetails.instructions'), {
+      target: { value: 'Handle with care' },
+    });
+    expect(onPatchLine).toHaveBeenCalledWith('k1', { instructions: 'Handle with care' });
   });
 });

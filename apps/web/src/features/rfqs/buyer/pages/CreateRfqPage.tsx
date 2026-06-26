@@ -2,7 +2,6 @@ import {
   checkRfqAvailability,
   confirmRfqCoverage,
   deleteRfq,
-  getProject,
   uploadRfqDocument,
   type RfqAvailabilityResult,
   type RfqDetail,
@@ -15,23 +14,22 @@ import { Button, StatusErrorModal, StatusSuccessModal } from '@forethread/ui-com
 import ArrowRightIcon from '@forethread/ui-components/assets/icons/arrow-right.svg?react';
 import BackArrowIcon from '@forethread/ui-components/assets/icons/back-arrow.svg?react';
 import NewUserIcon from '@forethread/ui-components/assets/icons/new-user.svg?react';
-import { useQueries } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 import { useConfirmedBoms } from '@/features/doc-intelligence';
 
+import {
+  autoCoverAllocations,
+  remainingQty,
+  type AllocationMap,
+} from '../components/create/availability';
 import { bomLineToRfqDraftFields } from '../components/create/bom-draft';
 import { EditMaterialModal } from '../components/create/EditMaterialModal';
 import { SelectVendorsCard } from '../components/create/SelectVendorsCard';
 import { AddFromBomModal, AddFromMaterialListModal } from '../components/create/source-modals';
-import {
-  StepAvailability,
-  remainingQty,
-  type AllocationMap,
-} from '../components/create/StepAvailability';
-import { StepBasicInfo, type DeliveryLocationOption } from '../components/create/StepBasicInfo';
+import { StepBasicInfo } from '../components/create/StepBasicInfo';
 import { StepLineItems } from '../components/create/StepLineItems';
 import { StepReviewSend, type PendingAttachment } from '../components/create/StepReviewSend';
 import {
@@ -44,6 +42,7 @@ import {
   type WizardLineItem,
   type WizardSeed,
 } from '../components/create/wizard-types';
+import { WizardAccordion } from '../components/create/WizardAccordion';
 import {
   useAssignedVendors,
   useRfqMaterials,
@@ -55,7 +54,7 @@ import {
 
 type WizardPhase = 'steps' | 'noRfqRequired';
 
-const STEP_COUNT = 4;
+const STEP_COUNT = 2;
 
 /** YYYY-MM-DD (DatePicker) → ISO datetime (the zod schemas use `.datetime()`). */
 function toIsoDate(date: string | undefined): string | undefined {
@@ -80,9 +79,6 @@ function buildPayload(
   } as SaveRfqDraftValues;
 
   if (basicInfo.responseDeadline) payload.deadlineEnd = toIsoDate(basicInfo.responseDeadline);
-  if (!basicInfo.isPickUp && basicInfo.deliveryLocationIds[0]) {
-    payload.deliveryLocationId = basicInfo.deliveryLocationIds[0];
-  }
   if (basicInfo.needByDate) payload.needByDate = toIsoDate(basicInfo.needByDate);
   if (basicInfo.holdForRelease && basicInfo.earliestDeliveryDate) {
     payload.earliestDeliveryDate = toIsoDate(basicInfo.earliestDeliveryDate);
@@ -97,7 +93,6 @@ function buildPayload(
         uom: item.uom,
         notes: item.notes,
         projectId: item.projectId,
-        deliveryLocationId: item.deliveryLocationId,
         expectedDeliveryDate: toIsoDate(item.expectedDeliveryDate),
         description: item.description,
       };
@@ -126,10 +121,12 @@ function withServerIds(items: WizardLineItem[], detail: RfqDetail): WizardLineIt
 }
 
 /**
- * Create New RFQ wizard (Figma US 5.05 — node 2974:38530): four steps
- * (Basic Information + vendors → Add Line Items → Check Availability →
- * Review & Send) with save-as-you-go drafts, bulk-order coverage and the
- * No-RFQ-Required terminal state.
+ * Create New RFQ wizard (Figma US 5.05 — node 2974:38530). Two steps: a
+ * consolidated first step (RFQ basic information + a Select-Vendors accordion +
+ * an Add-Line-Items accordion with inline bulk-order coverage), then Review &
+ * Send. Drafts save as you go, bulk-order coverage can short-circuit to the
+ * No-RFQ-Required terminal state. Delivery is captured per line item, not at
+ * the RFQ level.
  */
 export default function CreateRfqPage() {
   const { t } = useTranslation('rfqs');
@@ -166,6 +163,7 @@ export default function CreateRfqPage() {
   const [editingItem, setEditingItem] = useState<WizardLineItem | null>(null);
 
   const [availability, setAvailability] = useState<RfqAvailabilityResult | undefined>(undefined);
+  const [availabilityChecked, setAvailabilityChecked] = useState(false);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [allocations, setAllocations] = useState<AllocationMap>(new Map());
 
@@ -188,44 +186,6 @@ export default function CreateRfqPage() {
         .filter(Boolean) as typeof projects,
     [basicInfo.projectIds, projects],
   );
-
-  // Delivery locations across every selected project (step-1 multi-select and
-  // per-row dropdowns).
-  const locationQueries = useQueries({
-    queries: basicInfo.projectIds.map((projectId) => ({
-      queryKey: ['projects', projectId, 'detail'],
-      queryFn: () => getProject(projectId),
-      staleTime: 60_000,
-    })),
-  });
-  const locationOptions = useMemo<DeliveryLocationOption[]>(() => {
-    const options: DeliveryLocationOption[] = [];
-    for (const query of locationQueries) {
-      const project = query.data;
-      if (!project) continue;
-      for (const projectLocation of project.locations) {
-        if (projectLocation.type !== 'DELIVERY') continue;
-        options.push({
-          id: projectLocation.id,
-          label: projectLocation.label ?? projectLocation.address,
-          projectId: project.id,
-        });
-      }
-    }
-    return options;
-  }, [locationQueries]);
-
-  // Drop selected locations that no longer belong to a selected project.
-  useEffect(() => {
-    if (locationOptions.length === 0) return;
-    const valid = new Set(locationOptions.map((option) => option.id));
-    setBasicInfo((prev) => {
-      const kept = prev.deliveryLocationIds.filter((id) => valid.has(id));
-      return kept.length === prev.deliveryLocationIds.length
-        ? prev
-        : { ...prev, deliveryLocationIds: kept };
-    });
-  }, [locationOptions]);
 
   // ── Legacy seeding: "Convert a project BOM" upload flow (FOR-200) hands
   // over a confirmed doc-intelligence extraction id via router state. ───────
@@ -298,17 +258,13 @@ export default function CreateRfqPage() {
   };
 
   // ── Step navigation ───────────────────────────────────────────────────────
-  const stepLabels = [
-    t('create.steps.basicInfo'),
-    t('create.steps.lineItems'),
-    t('create.steps.availability'),
-    t('create.steps.review'),
-  ];
+  const stepLabels = [t('create.steps.basicInfo'), t('create.steps.review')];
 
   const validateCurrentStep = (): boolean => {
     let stepErrors: WizardFieldErrors = {};
-    if (step === 0) stepErrors = validateBasicInfo(basicInfo, vendorIds);
-    if (step === 1) stepErrors = validateLineItems(items);
+    if (step === 0) {
+      stepErrors = { ...validateBasicInfo(basicInfo, vendorIds), ...validateLineItems(items) };
+    }
     setErrors(stepErrors);
     return Object.keys(stepErrors).length === 0;
   };
@@ -319,77 +275,91 @@ export default function CreateRfqPage() {
     window.scrollTo({ top: 0 });
   };
 
+  /** Every draft save requires a project (server-side). Guide the user to the
+   * RFQ Information field rather than failing the save with a generic error. */
+  const ensureProjectSelected = (): boolean => {
+    if (basicInfo.projectIds.length > 0) return true;
+    setErrors((prev) => ({ ...prev, projectIds: 'required' }));
+    window.scrollTo({ top: 0 });
+    return false;
+  };
+
+  /** Persist the draft and fetch bulk-order coverage for the current rows. */
+  const handleCheckAvailability = async () => {
+    if (!ensureProjectSelected()) return;
+    const lineErrors = validateLineItems(items);
+    if (Object.keys(lineErrors).length > 0) {
+      setErrors((prev) => ({ ...prev, ...lineErrors }));
+      return;
+    }
+    try {
+      const detail = await persist();
+      const synced = withServerIds(items, detail);
+      setItems(synced);
+      setAvailabilityChecked(true);
+      setAvailabilityLoading(true);
+      try {
+        const result = await checkRfqAvailability({
+          lineItems: synced.map((item, index) => ({
+            index,
+            materialId: item.materialId,
+            materialName: item.materialName,
+            quantity: item.quantity,
+            uom: item.uom,
+          })),
+        });
+        setAvailability(result);
+        // Auto-cover everything the bulk orders can serve; buyers can still
+        // Cancel a row if they'd rather quote it out.
+        setAllocations(autoCoverAllocations(synced, result));
+      } finally {
+        setAvailabilityLoading(false);
+      }
+    } catch {
+      // Mutation errors surface via the saving alert below.
+    }
+  };
+
   const handleContinue = async () => {
+    if (step !== 0) return;
     if (!validateCurrentStep()) return;
 
     try {
-      if (step === 0) {
-        await persist();
-        goToStep(1);
-        return;
-      }
+      const detail = await persist();
+      const synced = withServerIds(items, detail);
+      setItems(synced);
 
-      if (step === 1) {
-        // Persisting gives the rows their server ids, which step 3's
-        // confirm-coverage allocations reference.
-        const detail = await persist();
-        const synced = withServerIds(items, detail);
-        setItems(synced);
-        setAvailabilityLoading(true);
-        goToStep(2);
-        try {
-          const result = await checkRfqAvailability({
-            lineItems: synced.map((item, index) => ({
-              index,
-              materialId: item.materialId,
-              materialName: item.materialName,
-              quantity: item.quantity,
-              uom: item.uom,
+      // Apply any bulk-order coverage selected inline before sending the RFQ.
+      const flat = [...allocations.values()].flatMap((byVendor) => [...byVendor.values()]);
+      if (flat.length > 0) {
+        const serverIdOf = new Map(synced.map((item) => [item.key, item.serverId]));
+        const result = await confirmRfqCoverage(detail.id, {
+          allocations: flat
+            .filter((allocation) => serverIdOf.get(allocation.lineKey))
+            .map((allocation) => ({
+              rfqLineItemId: serverIdOf.get(allocation.lineKey) as string,
+              bulkOrderLineItemId: allocation.bulkOrderLineItemId,
+              quantity: allocation.quantity,
             })),
-          });
-          setAvailability(result);
-          setAllocations(new Map());
-        } finally {
-          setAvailabilityLoading(false);
+        });
+
+        // Apply coverage locally: drop fully covered rows, reduce partials.
+        const nextItems = synced
+          .map((item) => ({ ...item, quantity: remainingQty(item, allocations) }))
+          .filter((item) => item.quantity > 0);
+
+        if (result.remainingLineItems === 0 || nextItems.length === 0) {
+          // Everything is covered by bulk orders — no RFQ needed. Discard the
+          // empty draft (drawdowns have already been created server-side).
+          await deleteRfq(detail.id).catch(() => undefined);
+          setPhase('noRfqRequired');
+          return;
         }
-        return;
+        setItems(nextItems);
+        setAllocations(new Map());
+        setAvailabilityChecked(false);
       }
-
-      if (step === 2) {
-        const flat = [...allocations.values()].flatMap((byVendor) => [...byVendor.values()]);
-        if (flat.length > 0 && draftId) {
-          const serverIdOf = new Map(items.map((item) => [item.key, item.serverId]));
-          const result = await confirmRfqCoverage(draftId, {
-            allocations: flat
-              .filter((allocation) => serverIdOf.get(allocation.lineKey))
-              .map((allocation) => ({
-                rfqLineItemId: serverIdOf.get(allocation.lineKey) as string,
-                bulkOrderLineItemId: allocation.bulkOrderLineItemId,
-                quantity: allocation.quantity,
-              })),
-          });
-
-          // Apply coverage locally: drop fully covered rows, reduce partials.
-          const nextItems = items
-            .map((item) => {
-              const remaining = remainingQty(item, allocations);
-              return { ...item, quantity: remaining };
-            })
-            .filter((item) => item.quantity > 0);
-
-          if (result.remainingLineItems === 0 || nextItems.length === 0) {
-            // Everything is covered by bulk orders — no RFQ needed. Discard the
-            // empty draft (drawdowns have already been created server-side).
-            await deleteRfq(draftId).catch(() => undefined);
-            setPhase('noRfqRequired');
-            return;
-          }
-          setItems(nextItems);
-          setAllocations(new Map());
-        }
-        goToStep(3);
-        return;
-      }
+      goToStep(1);
     } catch {
       // Mutation errors surface via the saving alert below.
     }
@@ -401,6 +371,7 @@ export default function CreateRfqPage() {
   };
 
   const handleSaveAsDraft = async () => {
+    if (!ensureProjectSelected()) return;
     try {
       const detail = await persist();
       navigate(ROUTES.rfqDetail.replace(':id', detail.id));
@@ -507,15 +478,8 @@ export default function CreateRfqPage() {
 
   const stepHeading = [
     { title: t('create.headings.step1Title'), subtitle: t('create.headings.step1Subtitle') },
-    { title: t('create.headings.step2Title'), subtitle: t('create.headings.step2Subtitle') },
-    { title: t('create.headings.step3Title'), subtitle: t('create.headings.step3Subtitle') },
     { title: t('create.headings.step4Title'), subtitle: t('create.headings.step4Subtitle') },
   ][step];
-
-  const continueLabel =
-    step === 1 && items.length > 0
-      ? t('create.footer.checkAvailability')
-      : t('create.footer.continue');
 
   return (
     <div className="p-4 sm:px-10 flex flex-col flex-1 min-h-full bg-secondary">
@@ -539,57 +503,73 @@ export default function CreateRfqPage() {
                 values={basicInfo}
                 onChange={(patch) => setBasicInfo((prev) => ({ ...prev, ...patch }))}
                 projects={projects}
-                locationOptions={locationOptions}
                 errors={errors}
                 projectLocked={projectLocked}
               />
-              <SelectVendorsCard
-                vendors={vendors}
-                selectedIds={vendorIds}
-                isLoading={vendorsLoading || projectsLoading}
-                onToggle={(vendorId, selected) =>
-                  setVendorIds((prev) =>
-                    selected ? [...prev, vendorId] : prev.filter((id) => id !== vendorId),
-                  )
+
+              <WizardAccordion
+                title={t('create.vendors.cardTitle')}
+                subtitle={t('create.vendors.cardSubtitle')}
+                summary={
+                  <span className="text-xs text-muted-foreground">
+                    {t('create.vendors.selectedCount', { count: vendorIds.length })}
+                  </span>
                 }
-                onSelectAll={(ids) => setVendorIds((prev) => [...new Set([...prev, ...ids])])}
-                onRemoveAll={() => setVendorIds([])}
-                error={errors.vendorIds ? t('create.vendors.selectAtLeastOne') : undefined}
-              />
+                testId="vendors-accordion"
+              >
+                <SelectVendorsCard
+                  vendors={vendors}
+                  selectedIds={vendorIds}
+                  isLoading={vendorsLoading || projectsLoading}
+                  onToggle={(vendorId, selected) =>
+                    setVendorIds((prev) =>
+                      selected ? [...prev, vendorId] : prev.filter((id) => id !== vendorId),
+                    )
+                  }
+                  onSelectAll={(ids) => setVendorIds((prev) => [...new Set([...prev, ...ids])])}
+                  onRemoveAll={() => setVendorIds([])}
+                  error={errors.vendorIds ? t('create.vendors.selectAtLeastOne') : undefined}
+                />
+              </WizardAccordion>
+
+              <WizardAccordion
+                title={t('create.lineItems.cardTitle')}
+                subtitle={t('create.lineItems.cardSubtitle')}
+                summary={
+                  <span className="text-xs text-muted-foreground">
+                    {t('create.lineItems.totalItems')} {items.length}
+                  </span>
+                }
+                testId="line-items-accordion"
+              >
+                <StepLineItems
+                  items={items}
+                  onItemsChange={setItems}
+                  projects={selectedProjects}
+                  materials={materials}
+                  search={materialSearch}
+                  onSearchChange={setMaterialSearch}
+                  onOpenAddFromBom={() => setShowAddFromBom(true)}
+                  onOpenAddFromMaterialList={() => setShowAddFromMaterialList(true)}
+                  error={
+                    errors.lineItems ? t(`create.errors.${errors.lineItems}` as never) : undefined
+                  }
+                  onCheckAvailability={() => void handleCheckAvailability()}
+                  availability={availability}
+                  availabilityChecked={availabilityChecked}
+                  availabilityLoading={availabilityLoading}
+                  allocations={allocations}
+                  onAllocationsChange={setAllocations}
+                />
+              </WizardAccordion>
             </>
           )}
 
           {step === 1 && (
-            <StepLineItems
-              items={items}
-              onItemsChange={setItems}
-              projects={selectedProjects}
-              locationOptions={locationOptions}
-              materials={materials}
-              search={materialSearch}
-              onSearchChange={setMaterialSearch}
-              onOpenAddFromBom={() => setShowAddFromBom(true)}
-              onOpenAddFromMaterialList={() => setShowAddFromMaterialList(true)}
-              error={errors.lineItems ? t(`create.errors.${errors.lineItems}` as never) : undefined}
-            />
-          )}
-
-          {step === 2 && (
-            <StepAvailability
-              items={items}
-              availability={availability}
-              isLoading={availabilityLoading}
-              allocations={allocations}
-              onAllocationsChange={setAllocations}
-            />
-          )}
-
-          {step === 3 && (
             <StepReviewSend
               basicInfo={basicInfo}
               items={items}
               projects={projects}
-              locationOptions={locationOptions}
               vendors={vendors}
               selectedVendorIds={vendorIds}
               attachments={attachments}
@@ -634,7 +614,7 @@ export default function CreateRfqPage() {
             >
               {t('create.footer.back')}
             </Button>
-            {step === 3 ? (
+            {step === 1 ? (
               <Button
                 type="button"
                 size="lg"
@@ -653,7 +633,7 @@ export default function CreateRfqPage() {
                 rightIcon={<ArrowRightIcon className="w-4 h-4" />}
                 data-testid="wizard-continue"
               >
-                {continueLabel}
+                {t('create.footer.continue')}
               </Button>
             )}
           </div>
@@ -680,7 +660,6 @@ export default function CreateRfqPage() {
       {editingItem && (
         <EditMaterialModal
           item={editingItem}
-          locationOptions={locationOptions}
           onConfirm={(patch) =>
             setItems((prev) =>
               prev.map((item) => (item.key === editingItem.key ? { ...item, ...patch } : item)),

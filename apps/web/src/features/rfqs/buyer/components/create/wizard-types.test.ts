@@ -14,7 +14,6 @@ const validInfo: WizardBasicInfo = {
   documentName: 'Structural steel package',
   responseDeadline: '2026-07-01',
   projectIds: ['p1'],
-  deliveryLocationIds: ['loc1'],
 };
 
 const vendor = ['v1'];
@@ -35,7 +34,7 @@ describe('validateBasicInfo', () => {
     expect(validateBasicInfo(validInfo, vendor)).toEqual({});
   });
 
-  it('requires document name, deadline, project and a vendor', () => {
+  it('requires reference, deadline, project and a vendor', () => {
     const errors = validateBasicInfo(EMPTY_BASIC_INFO, []);
     expect(errors.documentName).toBeDefined();
     expect(errors.responseDeadline).toBeDefined();
@@ -43,13 +42,8 @@ describe('validateBasicInfo', () => {
     expect(errors.vendorIds).toBeDefined();
   });
 
-  it('requires a delivery location only for delivery orders', () => {
-    const errors = validateBasicInfo({ ...validInfo, deliveryLocationIds: [] }, vendor);
-    expect(errors.deliveryLocationIds).toBeDefined();
-  });
-
-  it('swaps the location requirement to pick-up location for pick-up orders', () => {
-    const pickUp = { ...validInfo, isPickUp: true, deliveryLocationIds: [] };
+  it('requires a pick-up location for pick-up orders', () => {
+    const pickUp = { ...validInfo, isPickUp: true };
     expect(validateBasicInfo(pickUp, vendor).pickUpLocation).toBeDefined();
     expect(
       validateBasicInfo({ ...pickUp, pickUpLocation: 'Vendor yard, Detroit' }, vendor),
@@ -59,9 +53,7 @@ describe('validateBasicInfo', () => {
   it('requires the earliest allowed delivery date only when holding for release', () => {
     const hold = { ...validInfo, holdForRelease: true };
     expect(validateBasicInfo(hold, vendor).earliestDeliveryDate).toBeDefined();
-    expect(
-      validateBasicInfo({ ...hold, earliestDeliveryDate: '2026-08-01' }, vendor),
-    ).toEqual({});
+    expect(validateBasicInfo({ ...hold, earliestDeliveryDate: '2026-08-01' }, vendor)).toEqual({});
   });
 });
 

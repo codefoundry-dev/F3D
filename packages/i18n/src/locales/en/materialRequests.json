@@ -94,6 +94,9 @@
   },
   "materialDetails": {
     "title": "Material Details",
+    "colMaterial": "Material",
+    "colNotes": "Notes",
+    "addNotes": "Add notes",
     "materialImage": "Material Image",
     "unit": "Unit",
     "stock": "Stock",
@@ -103,6 +106,8 @@
     "maxAvailable": "Maximum available: {{count}} {{unit}}",
     "ccTeam": "CC Team Members",
     "ccTeamPlaceholder": "Name Surname, Name Surname",
+    "ccTeamSelect": "Select team members",
+    "noMembers": "No project members",
     "priority": "Priority",
     "priorityStandard": "Standard",
     "priorityHigh": "High",
