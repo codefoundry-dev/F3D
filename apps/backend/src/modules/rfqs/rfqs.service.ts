@@ -37,7 +37,7 @@ import {
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { nextSequentialNumber } from '../../common/utils/sequential-number.util';
-import { resolveVendorEmailRecipients } from '../../common/utils/vendor-recipients.util';
+import { resolveSelectedRecipients } from '../../common/utils/vendor-recipients.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { EmailAttachment, EmailService } from '../notifications/email.service';
@@ -96,6 +96,15 @@ const RFQ_DETAIL_INCLUDE = {
   },
   invitedVendors: {
     include: {
+      // The reps the buyer chose for this RFQ (US 5.05); shown as the vendor's
+      // contacts when present, otherwise the active company users are listed.
+      contacts: {
+        select: {
+          user: {
+            select: { id: true, name: true, role: true, phone: true, email: true, position: true },
+          },
+        },
+      },
       vendor: {
         select: {
           id: true,
@@ -415,6 +424,16 @@ export class RfqsService {
         (
           rfq as unknown as {
             invitedVendors: {
+              contacts: {
+                user: {
+                  id: string;
+                  name: string;
+                  role: string;
+                  phone: string | null;
+                  email: string;
+                  position: string;
+                };
+              }[];
               vendor: {
                 id: string;
                 legalName: string;
@@ -436,6 +455,10 @@ export class RfqsService {
           const hasApprovedQuote = rfq.quoteResponses.some(
             (qr) => qr.vendorId === iv.vendor.id && qr.status === QuoteResponseStatus.APPROVED,
           );
+          // Prefer the explicitly-chosen reps (US 5.05); fall back to the vendor's
+          // active users for legacy/quick-added vendors with no recorded contacts.
+          const selectedContacts = (iv.contacts ?? []).map((c) => c.user);
+          const contactUsers = selectedContacts.length > 0 ? selectedContacts : iv.vendor.users;
           return {
             id: iv.vendor.id,
             name: iv.vendor.legalName,
@@ -444,7 +467,7 @@ export class RfqsService {
               iv.vendor.specialisations.length > 0 ? iv.vendor.specialisations.join(', ') : null,
             location: iv.vendor.legalAddress,
             approved: hasApprovedQuote,
-            contacts: iv.vendor.users.map((u) => ({
+            contacts: contactUsers.map((u) => ({
               id: u.id,
               name: u.name,
               role: u.position || u.role,
@@ -649,6 +672,10 @@ export class RfqsService {
     // not arbitrary platform vendors belonging to other contractors.
     await this.assertVendorsAssigned(dto.vendorIds, user.companyId);
 
+    // Validate the chosen sales reps and group them by vendor so each invited
+    // vendor records exactly the reps that should be emailed (US 5.05).
+    const repsByCompany = await this.assertSalesRepsValid(dto.salesRepIds, dto.vendorIds);
+
     // Hold-for-release requires earliestDeliveryDate
     if (dto.holdForRelease && !dto.earliestDeliveryDate) {
       throw new BadRequestException(ERR.rfqs.holdForReleaseRequiresEarliestDelivery);
@@ -686,7 +713,12 @@ export class RfqsService {
             create: projectIds.map((projectId) => ({ projectId })),
           },
           invitedVendors: {
-            create: dto.vendorIds.map((vendorId) => ({ vendorId })),
+            create: dto.vendorIds.map((vendorId) => ({
+              vendorId,
+              contacts: {
+                create: (repsByCompany.get(vendorId) ?? []).map((userId) => ({ userId })),
+              },
+            })),
           },
         } as never,
       });
@@ -749,9 +781,11 @@ export class RfqsService {
       await this.assertLineItemLocationsInRfq(dto.lineItems, projectIds);
     }
 
-    // Validate vendor assignment scope (when vendors provided)
+    // Validate vendor assignment scope + chosen sales reps (when vendors provided)
+    let repsByCompany = new Map<string, string[]>();
     if (dto.vendorIds && dto.vendorIds.length > 0) {
       await this.assertVendorsAssigned(dto.vendorIds, user.companyId);
+      repsByCompany = await this.assertSalesRepsValid(dto.salesRepIds, dto.vendorIds);
     }
 
     // Hold-for-release requires earliestDeliveryDate
@@ -795,7 +829,16 @@ export class RfqsService {
               }
             : {}),
           ...(dto.vendorIds && dto.vendorIds.length > 0
-            ? { invitedVendors: { create: dto.vendorIds.map((vendorId) => ({ vendorId })) } }
+            ? {
+                invitedVendors: {
+                  create: dto.vendorIds.map((vendorId) => ({
+                    vendorId,
+                    contacts: {
+                      create: (repsByCompany.get(vendorId) ?? []).map((userId) => ({ userId })),
+                    },
+                  })),
+                },
+              }
             : {}),
         } as never,
       });
@@ -891,9 +934,11 @@ export class RfqsService {
       await this.assertLineItemLocationsInRfq(dto.lineItems, projectIds);
     }
 
-    // Validate vendorIds if provided — same M:N scope check as createRfq.
+    // Validate vendorIds + chosen sales reps if provided — same checks as createRfq.
+    let repsByCompany = new Map<string, string[]>();
     if (dto.vendorIds) {
       await this.assertVendorsAssigned(dto.vendorIds, rfq.companyId);
+      repsByCompany = await this.assertSalesRepsValid(dto.salesRepIds, dto.vendorIds);
     }
 
     // Hold-for-release validation
@@ -964,14 +1009,24 @@ export class RfqsService {
       );
     }
 
-    // Delete + recreate vendors if provided
+    // Delete + recreate vendors (and their chosen sales-rep contacts) if provided.
+    // Per-vendor `create` (not createMany) so nested contacts can be attached;
+    // the cascade on deleteMany clears the old RfqVendorContact rows.
     if (dto.vendorIds) {
       txOps.push(this.prisma.rfqVendor.deleteMany({ where: { rfqId: id } }));
-      txOps.push(
-        this.prisma.rfqVendor.createMany({
-          data: dto.vendorIds.map((vendorId) => ({ rfqId: id, vendorId })),
-        }),
-      );
+      for (const vendorId of dto.vendorIds) {
+        txOps.push(
+          this.prisma.rfqVendor.create({
+            data: {
+              rfqId: id,
+              vendorId,
+              contacts: {
+                create: (repsByCompany.get(vendorId) ?? []).map((userId) => ({ userId })),
+              },
+            },
+          }),
+        );
+      }
     }
 
     // Link new attachments if provided
@@ -1955,6 +2010,11 @@ export class RfqsService {
           orderBy: { invitedAt: 'asc' },
           select: {
             id: true,
+            // The reps the buyer explicitly chose (US 5.05). When present they are
+            // the sole recipients; otherwise we fall back to the vendor's users.
+            contacts: {
+              select: { user: { select: { email: true } } },
+            },
             vendor: {
               select: {
                 id: true,
@@ -2003,10 +2063,15 @@ export class RfqsService {
       // need to branch on whether the vendor has an active user account.
       const replyUrl = `${this.webAppUrl}/invitation/${token}`;
 
-      // Reach the vendor's user accounts, or fall back to the company contact
-      // email when the vendor was quick-added without a user (US-3.01) — the
-      // guest invitation link above is what those vendors use to respond.
-      const emails = resolveVendorEmailRecipients(iv.vendor.users, iv.vendor.contactEmail);
+      // Email the buyer-selected reps (US 5.05). When none were chosen, fall back
+      // to the vendor's user accounts, or the company contact email for vendors
+      // quick-added without a user (US-3.01) — the guest invitation link above is
+      // what those vendors use to respond either way.
+      const emails = resolveSelectedRecipients(
+        (iv.contacts ?? []).map((c) => c.user),
+        iv.vendor.users,
+        iv.vendor.contactEmail,
+      );
 
       await Promise.all(
         emails.map((email) =>
@@ -2224,6 +2289,43 @@ export class RfqsService {
     if (assignedIds.size !== new Set(vendorIds).size) {
       throw new BadRequestException(ERR.rfqs.invalidVendorIds);
     }
+  }
+
+  /**
+   * Validate the selected vendor sales reps (US 5.05): every id must be a
+   * VENDOR-role user belonging to one of the (already-validated) invited vendor
+   * companies. Returns a map of vendor companyId → chosen user ids so the caller
+   * can attach the RfqVendorContact rows per vendor. An empty/absent selection
+   * is valid — those vendors fall back to their company contact on send.
+   */
+  private async assertSalesRepsValid(
+    salesRepIds: string[] | undefined,
+    vendorIds: string[],
+  ): Promise<Map<string, string[]>> {
+    const repsByCompany = new Map<string, string[]>();
+    const uniqueIds = [...new Set(salesRepIds ?? [])];
+    if (uniqueIds.length === 0) return repsByCompany;
+
+    const reps = await this.prisma.user.findMany({
+      where: {
+        id: { in: uniqueIds },
+        role: UserRole.VENDOR,
+        companyId: { in: vendorIds },
+      },
+      select: { id: true, companyId: true },
+    });
+
+    if (reps.length !== uniqueIds.length) {
+      throw new BadRequestException(ERR.rfqs.invalidSalesReps);
+    }
+
+    for (const rep of reps) {
+      if (!rep.companyId) continue;
+      const list = repsByCompany.get(rep.companyId) ?? [];
+      list.push(rep.id);
+      repsByCompany.set(rep.companyId, list);
+    }
+    return repsByCompany;
   }
 
   /**

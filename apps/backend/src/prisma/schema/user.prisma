@@ -91,6 +91,9 @@ model User {
   // Tokenized vendor access (FOR-201)
   issuedAccessTokens AccessToken[] @relation("AccessTokenCreatedBy")
 
+  // Vendor reps chosen as RFQ recipients (US 5.05)
+  rfqVendorContacts RfqVendorContact[]
+
   @@index([companyId, status], map: "idx_users_company_status")
   @@index([companyId, role], map: "idx_users_company_role")
   @@index([invitationToken], map: "idx_users_invitation_token")

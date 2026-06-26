@@ -109,13 +109,32 @@ model RfqVendor {
   invitedAt       DateTime @default(now()) @map("invited_at")
   invitationToken String?  @unique @map("invitation_token") @db.VarChar(16)
 
-  rfq    Rfq     @relation(fields: [rfqId], references: [id], onDelete: Cascade)
-  vendor Company @relation("RfqInvitedVendor", fields: [vendorId], references: [id])
+  rfq      Rfq                @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  vendor   Company            @relation("RfqInvitedVendor", fields: [vendorId], references: [id])
+  contacts RfqVendorContact[]
 
   @@unique([rfqId, vendorId], map: "idx_rfq_vendor_unique")
   @@index([rfqId], map: "idx_rfq_vendors_rfq")
   @@index([vendorId], map: "idx_rfq_vendors_vendor")
   @@map("rfq_vendors")
+}
+
+/// The specific vendor sales reps chosen for an invited vendor (US 5.05). When
+/// an RFQ is sent, only these reps are emailed; a vendor with no contacts falls
+/// back to the company's user accounts / contact email. `userId` references a
+/// VENDOR-role User belonging to the invited vendor company.
+model RfqVendorContact {
+  id          String @id @default(uuid())
+  rfqVendorId String @map("rfq_vendor_id")
+  userId      String @map("user_id")
+
+  rfqVendor RfqVendor @relation(fields: [rfqVendorId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([rfqVendorId, userId], map: "idx_rfq_vendor_contact_unique")
+  @@index([rfqVendorId], map: "idx_rfq_vendor_contacts_vendor")
+  @@index([userId], map: "idx_rfq_vendor_contacts_user")
+  @@map("rfq_vendor_contacts")
 }
 
 model RfqLineItem {

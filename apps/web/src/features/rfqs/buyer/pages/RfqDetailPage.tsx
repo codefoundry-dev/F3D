@@ -102,10 +102,10 @@ export default function RfqDetailPage() {
   // Persist the chosen vendors onto the draft RFQ. `useUpdateRfq` invalidates
   // the RFQ cache, so `rfq.vendors` repopulates and the Send button enables.
   const handleSaveVendors = useCallback(
-    async (vendorIds: string[]) => {
+    async ({ vendorIds, salesRepIds }: { vendorIds: string[]; salesRepIds: string[] }) => {
       if (!rfq) return;
       try {
-        await updateRfq.mutateAsync({ id: rfq.id, dto: { vendorIds } });
+        await updateRfq.mutateAsync({ id: rfq.id, dto: { vendorIds, salesRepIds } });
         setShowVendorsDialog(false);
       } catch {
         // error surfaces inside the dialog via updateRfq.isError
@@ -244,10 +244,11 @@ export default function RfqDetailPage() {
       {showVendorsDialog && (
         <ManageVendorsDialog
           currentVendorIds={rfq.vendors?.map((v) => v.id) ?? []}
+          currentSalesRepIds={rfq.vendors?.flatMap((v) => v.contacts.map((c) => c.id)) ?? []}
           isSaving={updateRfq.isPending}
           isError={updateRfq.isError}
           onCancel={() => setShowVendorsDialog(false)}
-          onSave={(vendorIds) => void handleSaveVendors(vendorIds)}
+          onSave={(selection) => void handleSaveVendors(selection)}
         />
       )}
     </div>

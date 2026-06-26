@@ -23,6 +23,22 @@ export function resolveVendorEmailRecipients(
   return dedupeEmails([contactEmail]);
 }
 
+/**
+ * Resolve the recipients for an RFQ invitation when the buyer chose specific
+ * vendor sales reps (US 5.05). The selected reps win; a vendor with no chosen
+ * reps (quick-added or legacy) falls back to the company's user accounts /
+ * contact email via {@link resolveVendorEmailRecipients}.
+ */
+export function resolveSelectedRecipients(
+  selectedReps: ReadonlyArray<{ email: string }>,
+  fallbackUsers: ReadonlyArray<{ email: string }>,
+  contactEmail?: string | null,
+): string[] {
+  const selected = dedupeEmails(selectedReps.map((r) => r.email));
+  if (selected.length > 0) return selected;
+  return resolveVendorEmailRecipients(fallbackUsers, contactEmail);
+}
+
 /** Trim, drop blanks, and de-duplicate case-insensitively (first-seen wins). */
 function dedupeEmails(emails: ReadonlyArray<string | null | undefined>): string[] {
   const seen = new Set<string>();

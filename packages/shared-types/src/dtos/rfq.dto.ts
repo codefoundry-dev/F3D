@@ -151,6 +151,16 @@ export class CreateRfqDto {
   @ArrayMinSize(1)
   vendorIds!: string[];
 
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Selected vendor sales-rep user ids (US 5.05). The RFQ email targets these reps; a vendor with no selected reps falls back to its company contact email / users.',
+  })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @IsOptional()
+  salesRepIds?: string[];
+
   @IsString()
   @IsOptional()
   message?: string;
@@ -226,6 +236,15 @@ export class UpdateRfqDto {
   @IsUUID('4', { each: true })
   @IsOptional()
   vendorIds?: string[];
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Selected vendor sales-rep user ids (US 5.05); see CreateRfqDto.salesRepIds.',
+  })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @IsOptional()
+  salesRepIds?: string[];
 
   @IsString()
   @IsOptional()
@@ -310,6 +329,15 @@ export class SaveRfqDraftDto {
   @IsUUID('4', { each: true })
   @IsOptional()
   vendorIds?: string[];
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Selected vendor sales-rep user ids (US 5.05); see CreateRfqDto.salesRepIds.',
+  })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @IsOptional()
+  salesRepIds?: string[];
 
   @IsString()
   @IsOptional()
