@@ -169,6 +169,19 @@ aws ecr get-login-password --region "$REGION" \
 ############################################
 
 cd /opt/forethread-backend
+
+# Reclaim disk before pulling. Every deploy pulls a fresh image tag
+# (sha-<sha> plus :latest), so each superseded image is left behind as an
+# untagged dangling image and its layers accumulate on the root volume. Left
+# unchecked this eventually fills the disk and the pull dies mid-extract with
+# "failed to register layer: ... no space left on device" (FOR — staging
+# deploy outage). Pruning images not referenced by any container is safe: the
+# running backend keeps its current image, only orphaned layers and stale
+# build cache are removed, freeing room for the incoming image.
+log "Pruning unused docker images + build cache to reclaim disk..."
+docker image prune -af || true
+docker builder prune -af || true
+
 log "docker compose pull backend..."
 docker compose pull backend
 
