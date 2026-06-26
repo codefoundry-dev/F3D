@@ -10,7 +10,6 @@ import NoteIcon from '@forethread/ui-components/assets/icons/note.svg?react';
 import PaperclipIcon from '@forethread/ui-components/assets/icons/paperclip.svg?react';
 import { useMemo, useRef, useState } from 'react';
 
-import type { DeliveryLocationOption } from './StepBasicInfo';
 import { TABLE_BODY_ROW, TABLE_HEADER_ROW, TABLE_TH } from './tableStyles';
 import type { WizardBasicInfo, WizardLineItem } from './wizard-types';
 
@@ -23,7 +22,6 @@ interface StepReviewSendProps {
   basicInfo: WizardBasicInfo;
   items: WizardLineItem[];
   projects: ProjectListItem[];
-  locationOptions: DeliveryLocationOption[];
   vendors: VendorListItem[];
   selectedVendorIds: string[];
   attachments: PendingAttachment[];
@@ -88,7 +86,6 @@ export function StepReviewSend({
   basicInfo,
   items,
   projects,
-  locationOptions,
   vendors,
   selectedVendorIds,
   attachments,
@@ -107,8 +104,6 @@ export function StepReviewSend({
 
   const projectName = (projectId: string | undefined) =>
     projects.find((project) => project.id === projectId)?.name ?? '—';
-  const locationLabel = (locationId: string | undefined) =>
-    locationOptions.find((location) => location.id === locationId)?.label ?? '—';
 
   const selectedProjects = projects.filter((project) => basicInfo.projectIds.includes(project.id));
   const selectedVendors = vendors.filter((vendor) => selectedVendorIds.includes(vendor.companyId));
@@ -171,7 +166,7 @@ export function StepReviewSend({
               <dd className="text-foreground mt-1">{formatDate(basicInfo.earliestDeliveryDate)}</dd>
             </div>
           </div>
-          {/* Second row — project list and delivery/pick-up location. */}
+          {/* Second row — project list and (for pick-up orders) pick-up location. */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-5 mt-5">
             <div>
               <dt className="text-xs text-muted-foreground">{t('create.review.project')}</dt>
@@ -181,22 +176,16 @@ export function StepReviewSend({
                   : '—'}
               </dd>
             </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">
-                {basicInfo.isPickUp
-                  ? t('create.review.pickUpLocation')
-                  : t('create.review.deliveryLocation')}
-              </dt>
-              <dd className="text-foreground mt-1 space-y-0.5">
-                {basicInfo.isPickUp
-                  ? basicInfo.pickUpLocation || '—'
-                  : basicInfo.deliveryLocationIds.length > 0
-                    ? basicInfo.deliveryLocationIds.map((id) => (
-                        <div key={id}>{locationLabel(id)}</div>
-                      ))
-                    : '—'}
-              </dd>
-            </div>
+            {basicInfo.isPickUp && (
+              <div>
+                <dt className="text-xs text-muted-foreground">
+                  {t('create.review.pickUpLocation')}
+                </dt>
+                <dd className="text-foreground mt-1 space-y-0.5">
+                  {basicInfo.pickUpLocation || '—'}
+                </dd>
+              </div>
+            )}
           </div>
         </dl>
       </ReviewCard>
@@ -204,7 +193,7 @@ export function StepReviewSend({
       {/* ── Line Items ── */}
       <ReviewCard
         title={t('create.review.lineItems')}
-        onEdit={() => onEditStep(1)}
+        onEdit={() => onEditStep(0)}
         editLabel={t('create.review.edit')}
       >
         <div className="rounded-lg border border-border overflow-x-auto">
@@ -217,7 +206,6 @@ export function StepReviewSend({
                 <th className={TABLE_TH}>{t('create.review.colUnit')}</th>
                 <th className={TABLE_TH}>{t('create.review.colQuantity')}</th>
                 <th className={TABLE_TH}>{t('create.review.colExpDelivery')}</th>
-                <th className={TABLE_TH}>{t('create.review.colDeliveryLocation')}</th>
                 <th className={cn(TABLE_TH, 'w-[110px]')}>{t('create.review.colActions')}</th>
               </tr>
             </thead>
@@ -226,7 +214,7 @@ export function StepReviewSend({
               return (
                 <tbody key={groupProjectId}>
                   <tr className="bg-muted/60">
-                    <td colSpan={8} className="py-2 px-3">
+                    <td colSpan={7} className="py-2 px-3">
                       <button
                         type="button"
                         className="flex items-center gap-2 text-sm text-foreground"
@@ -256,9 +244,6 @@ export function StepReviewSend({
                         <td className="py-2.5 px-3">{item.uom}</td>
                         <td className="py-2.5 px-3">{item.quantity}</td>
                         <td className="py-2.5 px-3">{formatDate(item.expectedDeliveryDate)}</td>
-                        <td className="py-2.5 px-3 text-muted-foreground">
-                          {locationLabel(item.deliveryLocationId)}
-                        </td>
                         <td className="py-2.5 px-3">
                           <div className="flex items-center gap-1">
                             <span

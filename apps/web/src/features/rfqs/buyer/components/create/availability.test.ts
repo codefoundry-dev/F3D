@@ -1,7 +1,12 @@
 import type { RfqAvailabilityResult } from '@forethread/api-client';
 import { describe, expect, it } from 'vitest';
 
-import { buildMatchIndex, remainingQty, type AllocationMap } from './StepAvailability';
+import {
+  autoCoverAllocations,
+  buildMatchIndex,
+  remainingQty,
+  type AllocationMap,
+} from './availability';
 import type { WizardLineItem } from './wizard-types';
 
 const item: WizardLineItem = {
@@ -82,7 +87,10 @@ describe('remainingQty', () => {
       [
         'li-a',
         new Map([
-          ['v1', { lineKey: 'li-a', vendorId: 'v1', bulkOrderLineItemId: 'bol-big', quantity: 200 }],
+          [
+            'v1',
+            { lineKey: 'li-a', vendorId: 'v1', bulkOrderLineItemId: 'bol-big', quantity: 200 },
+          ],
           ['v2', { lineKey: 'li-a', vendorId: 'v2', bulkOrderLineItemId: 'bol-v2', quantity: 45 }],
         ]),
       ],
@@ -93,10 +101,43 @@ describe('remainingQty', () => {
       [
         'li-a',
         new Map([
-          ['v1', { lineKey: 'li-a', vendorId: 'v1', bulkOrderLineItemId: 'bol-big', quantity: 300 }],
+          [
+            'v1',
+            { lineKey: 'li-a', vendorId: 'v1', bulkOrderLineItemId: 'bol-big', quantity: 300 },
+          ],
         ]),
       ],
     ]);
     expect(remainingQty(item, over)).toBe(0);
+  });
+});
+
+describe('autoCoverAllocations', () => {
+  it('covers a line fully from its single best vendor', () => {
+    // qty 250 ≤ v1's 300 → one allocation against the larger bulk line.
+    const allocations = autoCoverAllocations([item], availability);
+    const line = allocations.get('li-a');
+    expect(line?.size).toBe(1);
+    expect(line?.get('v1')).toMatchObject({ bulkOrderLineItemId: 'bol-big', quantity: 250 });
+    expect(remainingQty(item, allocations)).toBe(0);
+  });
+
+  it('spills over to the next vendor when the best one cannot fully cover', () => {
+    const big = { ...item, quantity: 320 };
+    const allocations = autoCoverAllocations([big], availability);
+    expect(allocations.get('li-a')?.get('v1')?.quantity).toBe(300);
+    expect(allocations.get('li-a')?.get('v2')?.quantity).toBe(20);
+    expect(remainingQty(big, allocations)).toBe(0);
+  });
+
+  it('covers only what capacity allows, leaving the rest uncovered', () => {
+    const huge = { ...item, quantity: 400 };
+    const allocations = autoCoverAllocations([huge], availability);
+    // 300 (v1) + 45 (v2) = 345 covered, 55 left to quote out.
+    expect(remainingQty(huge, allocations)).toBe(55);
+  });
+
+  it('returns an empty map without availability data', () => {
+    expect(autoCoverAllocations([item], undefined).size).toBe(0);
   });
 });

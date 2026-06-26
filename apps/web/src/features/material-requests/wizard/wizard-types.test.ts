@@ -110,7 +110,7 @@ describe('composeLineNotes', () => {
         instructions: 'Deliver to gate B',
         internalNotes: 'Foreman: Joe',
         deliveryTime: '09:30',
-        ccTeamMembers: 'Jane Doe',
+        ccTeamMembers: ['Jane Doe'],
       }),
     );
     expect(notes).toContain('Deliver to gate B');
@@ -121,7 +121,7 @@ describe('composeLineNotes', () => {
 
   it('returns undefined when there is nothing to note', () => {
     const notes = composeLineNotes(
-      makeLine({ instructions: '', internalNotes: '', deliveryTime: '', ccTeamMembers: '' }),
+      makeLine({ instructions: '', internalNotes: '', deliveryTime: '', ccTeamMembers: [] }),
     );
     expect(notes).toBeUndefined();
   });

@@ -52,8 +52,9 @@ export interface MrWizardLine {
   instructions?: string;
   /** Internal notes (appended to the line notes). */
   internalNotes?: string;
-  /** CC team members free-text (display only — no API field today). */
-  ccTeamMembers?: string;
+  /** CC'd project member names (display only — composed into the line notes;
+   * no dedicated API field today). */
+  ccTeamMembers?: string[];
 }
 
 export interface MrWizardState {
@@ -138,7 +139,7 @@ export function composeLineNotes(line: MrWizardLine): string | undefined {
   if (line.instructions?.trim()) parts.push(line.instructions.trim());
   if (line.internalNotes?.trim()) parts.push(`Internal: ${line.internalNotes.trim()}`);
   if (line.deliveryTime?.trim()) parts.push(`Delivery time: ${line.deliveryTime.trim()}`);
-  if (line.ccTeamMembers?.trim()) parts.push(`CC: ${line.ccTeamMembers.trim()}`);
+  if (line.ccTeamMembers?.length) parts.push(`CC: ${line.ccTeamMembers.join(', ')}`);
   return parts.length > 0 ? parts.join('\n') : undefined;
 }
 

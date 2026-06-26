@@ -42,7 +42,6 @@ interface Item {
   uom: string;
   quantity: number;
   expectedDeliveryDate?: string;
-  deliveryLocationId?: string;
   notes?: string;
   projectId?: string;
 }
@@ -55,32 +54,15 @@ const baseItem: Item = {
   uom: 'unit',
   quantity: 5,
   expectedDeliveryDate: '2026-07-01',
-  deliveryLocationId: 'loc-p1',
   notes: 'handle with care',
   projectId: 'p1',
 };
 
-const locationOptions = [
-  { id: 'loc-p1', label: 'Site A (P1)', projectId: 'p1' },
-  { id: 'loc-p1b', label: 'Site B (P1)', projectId: 'p1' },
-  { id: 'loc-p2', label: 'Site C (P2)', projectId: 'p2' },
-];
-
-function renderModal(
-  overrides: Partial<Item> = {},
-  opts: { locations?: typeof locationOptions } = {},
-) {
+function renderModal(overrides: Partial<Item> = {}) {
   const onConfirm = vi.fn();
   const onClose = vi.fn();
   const item = { ...baseItem, ...overrides };
-  render(
-    <EditMaterialModal
-      item={item as any}
-      locationOptions={(opts.locations ?? locationOptions) as any}
-      onConfirm={onConfirm}
-      onClose={onClose}
-    />,
-  );
+  render(<EditMaterialModal item={item as any} onConfirm={onConfirm} onClose={onClose} />);
   return { onConfirm, onClose, item };
 }
 
@@ -99,29 +81,15 @@ describe('EditMaterialModal', () => {
     expect(screen.getByTestId('date')).toHaveValue('2026-07-01');
   });
 
-  it('prefills empty strings when optional fields are absent', () => {
-    renderModal({
-      description: undefined,
-      expectedDeliveryDate: undefined,
-      deliveryLocationId: undefined,
-      notes: undefined,
-    });
+  it('prefills an empty date when the optional field is absent', () => {
+    renderModal({ description: undefined, expectedDeliveryDate: undefined, notes: undefined });
     expect(screen.getByTestId('date')).toHaveValue('');
-    // delivery-location select falls back to the placeholder option.
-    expect(screen.getByRole('combobox')).toHaveValue('');
   });
 
-  it('only renders delivery locations matching the item projectId', () => {
+  it('does not render a delivery-location field', () => {
     renderModal();
-    expect(screen.getByText('Site A (P1)')).toBeInTheDocument();
-    expect(screen.getByText('Site B (P1)')).toBeInTheDocument();
-    expect(screen.queryByText('Site C (P2)')).not.toBeInTheDocument();
-  });
-
-  it('renders every location when the item has no projectId', () => {
-    renderModal({ projectId: undefined });
-    expect(screen.getByText('Site A (P1)')).toBeInTheDocument();
-    expect(screen.getByText('Site C (P2)')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.queryByText('create.editMaterial.deliveryLocation')).not.toBeInTheDocument();
   });
 
   it('calls onClose from the cancel button', () => {
@@ -177,7 +145,6 @@ describe('EditMaterialModal', () => {
       uom: 'kg',
       quantity: 12,
       expectedDeliveryDate: '2026-07-01',
-      deliveryLocationId: 'loc-p1',
       notes: 'handle with care',
     });
     expect(onClose).toHaveBeenCalled();
@@ -187,7 +154,6 @@ describe('EditMaterialModal', () => {
     const { onConfirm } = renderModal({
       description: undefined,
       expectedDeliveryDate: undefined,
-      deliveryLocationId: undefined,
       notes: undefined,
     });
     fireEvent.click(screen.getByTestId('edit-material-confirm'));
@@ -197,37 +163,23 @@ describe('EditMaterialModal', () => {
       uom: 'unit',
       quantity: 5,
       expectedDeliveryDate: undefined,
-      deliveryLocationId: undefined,
       notes: undefined,
     });
   });
 
-  it('updates the description, date, location and notes fields', () => {
+  it('updates the description, date and notes fields', () => {
     const { onConfirm } = renderModal();
     fireEvent.change(screen.getByTestId('date'), { target: { value: '2026-08-15' } });
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'loc-p1b' } });
-    // description is the second Input (no testid); query all textboxes.
-    const textboxes = screen.getAllByRole('textbox');
-    // Order: name, description, uom, quantity, date(? — it's an input), textarea(notes)
-    // Just change the notes textarea explicitly.
-    const notes = textboxes.find((el) => el.tagName.toLowerCase() === 'textarea');
+    const notes = screen
+      .getAllByRole('textbox')
+      .find((el) => el.tagName.toLowerCase() === 'textarea');
     fireEvent.change(notes!, { target: { value: 'updated note' } });
     fireEvent.click(screen.getByTestId('edit-material-confirm'));
     expect(onConfirm).toHaveBeenCalledWith(
       expect.objectContaining({
         expectedDeliveryDate: '2026-08-15',
-        deliveryLocationId: 'loc-p1b',
         notes: 'updated note',
       }),
-    );
-  });
-
-  it('clears the delivery location when set back to the placeholder', () => {
-    const { onConfirm } = renderModal();
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: '' } });
-    fireEvent.click(screen.getByTestId('edit-material-confirm'));
-    expect(onConfirm).toHaveBeenCalledWith(
-      expect.objectContaining({ deliveryLocationId: undefined }),
     );
   });
 });

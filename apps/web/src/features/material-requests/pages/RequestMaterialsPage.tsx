@@ -14,6 +14,7 @@ import { type NewMaterialDraft } from '../components/NewMaterialModal';
 import {
   StepMaterialDetails,
   type DeliveryLocationOption,
+  type MemberOption,
 } from '../components/StepMaterialDetails';
 import { StepProgress } from '../components/StepProgress';
 import { StepReview } from '../components/StepReview';
@@ -69,6 +70,19 @@ export default function RequestMaterialsPage() {
         .map((l) => ({ id: l.id, label: l.label ? `${l.label} — ${l.address}` : l.address })),
     [project?.locations],
   );
+
+  // Project members available to CC on a line, deduped by display name (the CC
+  // field stores names, which compose into the line notes).
+  const memberOptions: MemberOption[] = useMemo(() => {
+    const seen = new Set<string>();
+    return (project?.assignedUsers ?? []).reduce<MemberOption[]>((acc, user) => {
+      if (!seen.has(user.name)) {
+        seen.add(user.name);
+        acc.push({ id: user.id, name: user.name });
+      }
+      return acc;
+    }, []);
+  }, [project?.assignedUsers]);
 
   // Default each line's delivery location to the project's default delivery
   // location once the project loads, so the foreman rarely has to set it.
@@ -207,6 +221,7 @@ export default function RequestMaterialsPage() {
             lines={lines}
             errors={detailErrors}
             locationOptions={locationOptions}
+            memberOptions={memberOptions}
             onPatchLine={patchLine}
           />
         )}

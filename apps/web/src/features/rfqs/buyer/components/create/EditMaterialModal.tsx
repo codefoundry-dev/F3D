@@ -3,39 +3,27 @@ import { Button, DatePicker, GridModal, Input, Textarea } from '@forethread/ui-c
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import { useState } from 'react';
 
-import type { DeliveryLocationOption } from './StepBasicInfo';
 import type { WizardLineItem } from './wizard-types';
 
 interface EditMaterialModalProps {
   item: WizardLineItem;
-  locationOptions: DeliveryLocationOption[];
   onConfirm: (patch: Partial<WizardLineItem>) => void;
   onClose: () => void;
 }
 
 /**
  * "Edit material" dialog (Figma 5.05): name, description, unit + quantity,
- * expected delivery date + delivery location, optional note.
+ * expected delivery date, optional note.
  */
-export function EditMaterialModal({
-  item,
-  locationOptions,
-  onConfirm,
-  onClose,
-}: EditMaterialModalProps) {
+export function EditMaterialModal({ item, onConfirm, onClose }: EditMaterialModalProps) {
   const { t } = useTranslation('rfqs');
   const [name, setName] = useState(item.materialName);
   const [description, setDescription] = useState(item.description ?? '');
   const [uom, setUom] = useState(item.uom);
   const [quantity, setQuantity] = useState(String(item.quantity));
   const [expectedDate, setExpectedDate] = useState(item.expectedDeliveryDate ?? '');
-  const [locationId, setLocationId] = useState(item.deliveryLocationId ?? '');
   const [notes, setNotes] = useState(item.notes ?? '');
   const [error, setError] = useState<string | null>(null);
-
-  const locations = locationOptions.filter(
-    (location) => !item.projectId || location.projectId === item.projectId,
-  );
 
   const handleConfirm = () => {
     const qty = Number(quantity);
@@ -49,7 +37,6 @@ export function EditMaterialModal({
       uom: uom.trim(),
       quantity: qty,
       expectedDeliveryDate: expectedDate || undefined,
-      deliveryLocationId: locationId || undefined,
       notes: notes.trim() || undefined,
     });
     onClose();
@@ -122,31 +109,14 @@ export function EditMaterialModal({
         </label>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-          <span>{t('create.editMaterial.expDeliveryDate')}</span>
-          <DatePicker
-            value={expectedDate}
-            onChange={setExpectedDate}
-            editable
-            placeholder="mm/dd/yyyy"
-          />
-        </div>
-        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-          <span>{t('create.editMaterial.deliveryLocation')}</span>
-          <select
-            value={locationId}
-            onChange={(e) => setLocationId(e.target.value)}
-            className="h-12 rounded-xl border border-foreground/20 bg-background px-3 text-sm text-foreground focus:outline-none focus:border-foreground/40"
-          >
-            <option value="">—</option>
-            {locations.map((location) => (
-              <option key={location.id} value={location.id}>
-                {location.label}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+        <span>{t('create.editMaterial.expDeliveryDate')}</span>
+        <DatePicker
+          value={expectedDate}
+          onChange={setExpectedDate}
+          editable
+          placeholder="mm/dd/yyyy"
+        />
       </div>
 
       <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
