@@ -2,6 +2,13 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import svgr from 'vite-plugin-svgr';
 import path from 'path';
+import os from 'os';
+
+// FOR-226: half the host cores, so this suite can run alongside the backend
+// jest suite under `turbo test --concurrency=2` without OOMing a 16GB machine.
+// (Vitest 2.1 does not resolve a '50%' string inside poolOptions, so compute a
+// concrete number; 2 on a 4-core CI runner, 8 on a 16-core dev box.)
+const halfCores = Math.max(1, Math.floor(os.cpus().length / 2));
 
 export default defineConfig({
   plugins: [react(), svgr()],
@@ -42,6 +49,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     pool: 'forks',
+    // FOR-226: cap the fork pool (see halfCores above). minForks:1 avoids
+    // Tinypool's "minThreads and maxThreads must not conflict" error.
+    poolOptions: { forks: { minForks: 1, maxForks: halfCores } },
     teardownTimeout: 3000,
     coverage: {
       provider: 'v8',
