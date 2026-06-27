@@ -4,7 +4,8 @@ import { usePageTitleStore } from '@forethread/rfq-shared';
 import {
   AvatarWithStatus,
   Breadcrumbs,
-  NotificationBell,
+  // FOR-261: notification button temporarily hidden until functionality is restored.
+  // NotificationBell,
   Sidebar,
   type BreadcrumbItem,
   type WorkStatusType,
@@ -85,7 +86,9 @@ export function AppLayout() {
               header/title there) so it never collides with the bell + user menu. */}
           <Breadcrumbs items={breadcrumbItems} className="hidden min-w-0 sm:flex" />
           <div className="flex items-center gap-2">
-            <NotificationBell aria-label={t('nav:notifications')} hasNotifications />
+            {/* FOR-261: notification button temporarily hidden until functionality is
+                restored. Re-enable by uncommenting this (and the import above). */}
+            {/* <NotificationBell aria-label={t('nav:notifications')} hasNotifications /> */}
 
             <div className="relative group">
               <button
