@@ -11,8 +11,8 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "test": "turbo test",
-    "test:coverage": "turbo test:coverage",
+    "test": "turbo test --concurrency=2",
+    "test:coverage": "turbo test:coverage --concurrency=2",
     "lint": "turbo lint",
     "lint:fix": "turbo lint:fix",
     "typecheck": "turbo typecheck",
