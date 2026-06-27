@@ -306,6 +306,11 @@ export class EmailService implements OnModuleInit {
       await this.dispatch({
         to,
         subject: t.subject,
+        // Mirror the OTP email: send a plaintext alternative alongside the HTML.
+        // A text/plain part keeps the reset link intact for text-only clients and
+        // makes the message far less likely to be spam-filtered or dropped than an
+        // HTML-only email.
+        text: this.interpolate(emailTranslations.passwordReset.plainText, { name, resetUrl }),
         html: this.renderEmail(EMAIL_TEMPLATES.PASSWORD_RESET, t, { resetUrl }),
       });
     } catch {

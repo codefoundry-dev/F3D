@@ -33,7 +33,11 @@ jest.mock(
       plainText:
         'Your one-time login code is: {{otp}}\n\nThis code expires in {{expiresMinutes}} minutes.',
     },
-    passwordReset: { subject: 'Forethread — Password Reset Request', greeting: 'Hi {{name}},' },
+    passwordReset: {
+      subject: 'Forethread — Password Reset Request',
+      greeting: 'Hi {{name}},',
+      plainText: 'Hi {{name}},\n\nReset your password using the link below:\n{{resetUrl}}',
+    },
     deactivation: {
       subject: 'Forethread — Your Account Has Been Deactivated',
       greeting: 'Hi {{name}},',
@@ -268,6 +272,29 @@ describe('EmailService', () => {
           subject: 'Forethread — Password Reset Request',
         }),
       );
+    });
+
+    it('includes a plaintext alternative carrying the reset link (mirrors OTP)', async () => {
+      await service.sendPasswordResetEmail('user@test.com', 'https://reset.test/abc', 'John');
+
+      const payload = mockSendMail.mock.calls[0][0] as { text?: string; html?: string };
+      expect(payload.text).toContain('https://reset.test/abc');
+      expect(payload.html).toBeDefined();
+    });
+
+    it('routes the reset email through Resend when configured', async () => {
+      resendService.isConfigured.mockReturnValue(true);
+
+      await service.sendPasswordResetEmail('user@test.com', 'https://reset.test/abc', 'John');
+
+      expect(resendService.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'user@test.com',
+          subject: 'Forethread — Password Reset Request',
+          text: expect.stringContaining('https://reset.test/abc'),
+        }),
+      );
+      expect(mockSendMail).not.toHaveBeenCalled();
     });
 
     it('should not throw when sendMail fails', async () => {
