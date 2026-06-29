@@ -141,23 +141,18 @@ function ActivityLogTimeline({ userId }: { userId?: string }) {
 
   const logs = data?.items ?? [];
 
-  // No real activity yet → render the design's placeholder timeline rows.
-  const entries: TimelineEntry[] =
-    logs.length === 0
-      ? Array.from({ length: 3 }, (_, i) => ({
-          key: `placeholder-${i}`,
-          title: t('activityPlaceholderAction'),
-          timestamp: '28/11/2025, 9:30:00 am',
-          description: t('activityPlaceholderDesc'),
-        }))
-      : logs.map((log: AuditLogResponse) => ({
-          key: log.id,
-          title: AUDIT_ACTION_LABELS[log.action] ?? log.action,
-          timestamp: formatDateTime(log.createdAt),
-          description: log.targetLabel
-            ? `${log.targetType}: ${log.targetLabel}`
-            : `${log.targetType} ${log.targetId.slice(0, 8)}`,
-        }));
+  if (logs.length === 0) {
+    return <p className="text-sm text-muted-foreground">{t('noActivityLog')}</p>;
+  }
+
+  const entries: TimelineEntry[] = logs.map((log: AuditLogResponse) => ({
+    key: log.id,
+    title: AUDIT_ACTION_LABELS[log.action] ?? log.action,
+    timestamp: formatDateTime(log.createdAt),
+    description: log.targetLabel
+      ? `${log.targetType}: ${log.targetLabel}`
+      : `${log.targetType} ${log.targetId.slice(0, 8)}`,
+  }));
 
   return (
     <div className="space-y-0">
