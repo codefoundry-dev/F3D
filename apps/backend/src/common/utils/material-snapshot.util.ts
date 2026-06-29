@@ -21,7 +21,10 @@ export type MaterialSnapshotMap = Map<string, MaterialSnapshotFields>;
 /** Trim a possibly-blank string, collapsing empty/whitespace results to null. */
 function blankToNull(value?: string | null): string | null {
   const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
+  // Note: not `trimmed ?? null` — an empty/whitespace string must also collapse
+  // to null, which `??` would let through.
+  if (trimmed === undefined || trimmed === '') return null;
+  return trimmed;
 }
 
 /**
