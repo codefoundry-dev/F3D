@@ -18,6 +18,7 @@ import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?reac
 import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
 import { Link } from 'react-router-dom';
 
+import { availExceedsRequested } from '../hooks/availExceedsRequested';
 import type { LineItemFormState, QuoteTotals } from '../hooks/useRfqResponse';
 
 import { LineItemExpandedRow } from './LineItemExpandedRow';
@@ -213,6 +214,8 @@ function LineItemRow({
     Boolean(item.backOrderQty && parseFloat(item.backOrderQty) > 0) ||
     Boolean(item.backOrderDeliveryDate);
   const hasSubstitute = Boolean(item.substituteItemId);
+  // FOR-273: flag the row when the available qty exceeds the requested qty.
+  const availExceedsReq = availExceedsRequested(item);
 
   return (
     <>
@@ -277,13 +280,21 @@ function LineItemRow({
         <td className={cn(TD_CLASS, 'overflow-clip')}>{item.requestedQty}</td>
 
         {/* Avail Qty */}
-        <td className={cn(TD_CLASS, 'px-1')}>
-          <StepperInput
-            value={item.availQty}
-            onValueChange={(v) => onUpdateItem(index, 'availQty', v)}
-            className={cn('h-8 w-full text-sm', NAKED_INPUT_CLASS)}
-            disabled={!item.included}
-          />
+        <td className={cn(TD_CLASS, 'px-1', availExceedsReq && 'bg-destructive/5')}>
+          <div className="flex flex-col gap-0.5">
+            <StepperInput
+              value={item.availQty}
+              onValueChange={(v) => onUpdateItem(index, 'availQty', v)}
+              className={cn('h-8 w-full text-sm', NAKED_INPUT_CLASS)}
+              disabled={!item.included}
+              aria-invalid={availExceedsReq || undefined}
+            />
+            {availExceedsReq && (
+              <span className="text-[10px] leading-tight text-destructive">
+                {t('response.availExceedsReq', { requested: item.requestedQty })}
+              </span>
+            )}
+          </div>
         </td>
 
         {/* Unit Price */}

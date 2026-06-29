@@ -8,6 +8,7 @@ import { type QuoteExtractionResult, EMPTY_QUOTE_RESULT } from '@forethread/shar
 import { useMutation } from '@tanstack/react-query';
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
+import { availExceedsRequested } from './availExceedsRequested';
 import { matchExtractedQuote } from './matchExtractedQuote';
 import { useQuoteExtraction } from './useQuoteExtraction';
 import type { BulkDefaults, LineItemFormState, QuoteTotals } from './useRfqResponse';
@@ -35,11 +36,13 @@ function safeFloat(value: string): number {
  */
 export type QuoteValidationError =
   | { type: 'NO_ITEMS' }
-  | { type: 'LINE_ITEM'; index: number; material: string };
+  | { type: 'LINE_ITEM'; index: number; material: string }
+  | { type: 'AVAIL_EXCEEDS_REQ'; index: number; material: string; requested: number };
 
 /**
  * Each included line item must have a positive unit price, a positive available
- * quantity and a delivery date; at least one line item must be included.
+ * quantity and a delivery date; at least one line item must be included. The
+ * available quantity must also not exceed the requested quantity (FOR-273).
  */
 export function validateGuestQuote(lineItems: LineItemFormState[]): QuoteValidationError[] {
   const included = lineItems.filter((item) => item.included);
@@ -53,6 +56,14 @@ export function validateGuestQuote(lineItems: LineItemFormState[]): QuoteValidat
     const hasDate = item.deliveryDate.trim().length > 0;
     if (!hasPrice || !hasQty || !hasDate) {
       errors.push({ type: 'LINE_ITEM', index, material: item.materialName });
+    }
+    if (availExceedsRequested(item)) {
+      errors.push({
+        type: 'AVAIL_EXCEEDS_REQ',
+        index,
+        material: item.materialName,
+        requested: item.requestedQty,
+      });
     }
   });
   return errors;

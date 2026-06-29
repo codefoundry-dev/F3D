@@ -49,7 +49,9 @@ const mockGuestForm = vi.hoisted(() => ({
     submitError: null as string | null,
     submitSuccess: false,
     validationErrors: [] as Array<
-      { type: 'NO_ITEMS' } | { type: 'LINE_ITEM'; index: number; material: string }
+      | { type: 'NO_ITEMS' }
+      | { type: 'LINE_ITEM'; index: number; material: string }
+      | { type: 'AVAIL_EXCEEDS_REQ'; index: number; material: string; requested: number }
     >,
     // PDF-upload mode (FOR-206)
     mode: 'manual' as 'manual' | 'upload',
@@ -337,5 +339,29 @@ describe('GuestInvitationPage', () => {
     };
     render(<GuestInvitationPage />);
     expect(screen.getByText('guest.validationTitle')).toBeInTheDocument();
+  });
+
+  it('surfaces an available-qty-exceeds-required error on the tokenised page (FOR-273)', () => {
+    mockGuestForm.value = {
+      ...mockGuestForm.value,
+      validationErrors: [
+        { type: 'AVAIL_EXCEEDS_REQ', index: 0, material: 'Cement', requested: 100 },
+      ],
+    };
+    mockQueryResult.value = {
+      data: {
+        id: 'rfq-1',
+        rfqNumber: 'RFQ-001',
+        contractorName: 'Contractor Corp',
+        vendorName: 'Vendor Inc',
+        lineItems: [],
+        attachments: [],
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+    };
+    render(<GuestInvitationPage />);
+    expect(screen.getByText('guest.validationAvailExceedsReq')).toBeInTheDocument();
   });
 });

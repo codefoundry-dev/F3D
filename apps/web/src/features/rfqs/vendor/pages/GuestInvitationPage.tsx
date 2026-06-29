@@ -202,7 +202,12 @@ function GuestResponseContent({ rfq, token }: { rfq: GuestRfqDetail; token: stri
                 <li key={i}>
                   {err.type === 'NO_ITEMS'
                     ? t('guest.validationNoItems')
-                    : t('guest.validationLineItem', { material: err.material })}
+                    : err.type === 'AVAIL_EXCEEDS_REQ'
+                      ? t('guest.validationAvailExceedsReq', {
+                          material: err.material,
+                          requested: err.requested,
+                        })
+                      : t('guest.validationLineItem', { material: err.material })}
                 </li>
               ))}
             </ul>
