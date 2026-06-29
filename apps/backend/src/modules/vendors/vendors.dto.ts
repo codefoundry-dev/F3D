@@ -87,3 +87,15 @@ export class InviteVendorUserDto {
   @IsEmail() email!: string;
   @IsString() @IsNotEmpty() position!: string;
 }
+
+/**
+ * Adds a vendor representative WITHOUT sending an invitation email (FOR-272).
+ * Phone and position are optional; name and email are required and email
+ * uniqueness is enforced server-side (same duplicate check as the invite flow).
+ */
+export class CreateVendorRepresentativeDto {
+  @IsString() @IsNotEmpty() name!: string;
+  @IsEmail() email!: string;
+  @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsString() position?: string;
+}

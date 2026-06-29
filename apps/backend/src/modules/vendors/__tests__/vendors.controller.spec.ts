@@ -14,6 +14,7 @@ const mockVendorsService = {
   updateWarehouse: jest.fn(),
   deleteWarehouse: jest.fn(),
   getRepresentatives: jest.fn(),
+  addRepresentative: jest.fn(),
 };
 const mockInviteService = { inviteVendor: jest.fn() };
 const mockUserInviteService = {
@@ -174,6 +175,15 @@ describe('VendorsController', () => {
     mockVendorsService.getRepresentatives.mockResolvedValue(expected);
     const result = await controller.getRepresentatives('v-1', mockUser as never);
     expect(mockVendorsService.getRepresentatives).toHaveBeenCalledWith('v-1', mockUser);
+    expect(result).toEqual(expected);
+  });
+
+  it('addRepresentative delegates to VendorsService (FOR-272)', async () => {
+    const expected = { id: 'u-new', name: 'Rep', email: 'rep@vendor.com', status: 'INVITED' };
+    mockVendorsService.addRepresentative.mockResolvedValue(expected);
+    const dto = { name: 'Rep', email: 'rep@vendor.com', phone: '+61400000000', position: 'Sales' };
+    const result = await controller.addRepresentative('v-1', dto as never, mockUser as never);
+    expect(mockVendorsService.addRepresentative).toHaveBeenCalledWith('v-1', dto, mockUser);
     expect(result).toEqual(expected);
   });
 });

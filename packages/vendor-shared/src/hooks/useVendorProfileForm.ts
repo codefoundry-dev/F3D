@@ -16,6 +16,7 @@ import {
   useDeleteWarehouse,
   useAddWarehouse,
   useUpdateWarehouse,
+  useAddVendorRepresentative,
   useVendorLogoUrl,
   useUploadVendorLogo,
 } from '../services';
@@ -54,6 +55,7 @@ export function useVendorProfileForm(vendorId: string, initialEdit?: boolean) {
   const deleteWarehouseMutation = useDeleteWarehouse();
   const addWarehouseMutation = useAddWarehouse();
   const updateWarehouseMutation = useUpdateWarehouse();
+  const addRepresentativeMutation = useAddVendorRepresentative();
 
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Record<string, string>>({});
@@ -165,11 +167,20 @@ export function useVendorProfileForm(vendorId: string, initialEdit?: boolean) {
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    // Run full validation
+    if (!profile) return;
+
+    // Only validate/save the profile fields when they actually changed, so a
+    // representative can be added (FOR-272) without being blocked by required
+    // profile fields the user never touched (e.g. an incomplete profile).
+    const original = buildFormData(profile);
+    const profileChanged = Object.keys(original).some((k) => formData[k] !== original[k]);
+
     const errors: Record<string, string> = {};
-    for (const key of [...REQUIRED_FIELDS, 'website']) {
-      const err = validateField(key, formData[key] || '');
-      if (err) errors[key] = err;
+    if (profileChanged) {
+      for (const key of [...REQUIRED_FIELDS, 'website']) {
+        const err = validateField(key, formData[key] || '');
+        if (err) errors[key] = err;
+      }
     }
     const wh = newWarehouse;
     const whHasAny = wh.name || wh.city || wh.address || wh.postcode;
@@ -197,19 +208,21 @@ export function useVendorProfileForm(vendorId: string, initialEdit?: boolean) {
     if (Object.keys(errors).length > 0 || hasRepErrors) return;
 
     try {
-      await updateProfile.mutateAsync({
-        id: vendorId,
-        dto: {
-          legalName: formData.legalName,
-          abn: formData.abn,
-          taxCode: formData.taxCode,
-          legalAddress: formData.legalAddress,
-          contactEmail: formData.contactEmail,
-          contactPhone: formData.contactPhone,
-          website: formData.website,
-          specialisations: formData.specialisations ? [formData.specialisations] : [],
-        },
-      });
+      if (profileChanged) {
+        await updateProfile.mutateAsync({
+          id: vendorId,
+          dto: {
+            legalName: formData.legalName,
+            abn: formData.abn,
+            taxCode: formData.taxCode,
+            legalAddress: formData.legalAddress,
+            contactEmail: formData.contactEmail,
+            contactPhone: formData.contactPhone,
+            website: formData.website,
+            specialisations: formData.specialisations ? [formData.specialisations] : [],
+          },
+        });
+      }
 
       // Add new warehouse
       if (wh.name && wh.city && wh.address && wh.postcode) {
@@ -232,9 +245,60 @@ export function useVendorProfileForm(vendorId: string, initialEdit?: boolean) {
       setWarehouseEdits({});
       setWarehouseDeletes(new Set());
 
-      // TODO: send filled rep drafts to backend when endpoint is ready
-      // const filledDrafts = repDrafts.filter((d) => d.name || d.email);
-      // for (const draft of filledDrafts) { await createRepresentative(vendorId, draft); }
+      // ── Persist newly added representative drafts (FOR-272) ──
+      // Each filled draft becomes a saved representative WITHOUT an invitation
+      // email. Successfully created drafts are dropped; any that fail (e.g. a
+      // duplicate email → 409) stay in the form with an inline error so the user
+      // can correct and resubmit. Profile/warehouse changes are already saved.
+      const remainingDrafts: RepDraft[] = [];
+      const remainingErrors: RepDraftErrors[] = [];
+      const remainingTouched: Partial<Record<keyof RepDraft, boolean>>[] = [];
+      let repFailed = false;
+
+      for (const draft of repDrafts) {
+        if (!draft.name.trim() && !draft.email.trim()) continue; // skip empty rows
+
+        try {
+          await addRepresentativeMutation.mutateAsync({
+            vendorId,
+            input: {
+              name: draft.name.trim(),
+              email: draft.email.trim(),
+              phone: draft.phone.trim() || undefined,
+              position: draft.position.trim() || undefined,
+            },
+          });
+        } catch (err) {
+          repFailed = true;
+          const statusCode = (err as { statusCode?: number })?.statusCode;
+          remainingDrafts.push(draft);
+          remainingErrors.push({
+            email:
+              statusCode === 409
+                ? t('vendors:representatives.emailInUse', {
+                    defaultValue: 'A user with this email already exists',
+                  })
+                : t('vendors:representatives.addError', {
+                    defaultValue: 'Failed to add representative',
+                  }),
+          });
+          // Mark touched so editing the email clears the error and re-enables submit.
+          remainingTouched.push({ email: true });
+        }
+      }
+
+      if (repFailed) {
+        setRepDrafts(remainingDrafts);
+        setRepDraftErrors(remainingErrors);
+        setRepTouched(remainingTouched);
+        notificationService.error(
+          t('vendors:representatives.addError', {
+            defaultValue: 'Failed to add representative',
+          }),
+        );
+        return; // stay in edit mode so the user can fix the failed rows
+      }
+
       setRepDrafts([{ ...EMPTY_REP_DRAFT }]);
       setRepDraftErrors([{}]);
       setRepTouched([{}]);
@@ -249,6 +313,7 @@ export function useVendorProfileForm(vendorId: string, initialEdit?: boolean) {
       );
     }
   }, [
+    profile,
     validateField,
     formData,
     newWarehouse,
@@ -260,6 +325,7 @@ export function useVendorProfileForm(vendorId: string, initialEdit?: boolean) {
     addWarehouseMutation,
     deleteWarehouseMutation,
     updateWarehouseMutation,
+    addRepresentativeMutation,
     repDrafts,
     invalidEmailMsg,
     t,

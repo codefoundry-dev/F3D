@@ -195,6 +195,42 @@ export async function getRepresentatives(vendorId: string): Promise<VendorRepres
   return data.data;
 }
 
+export interface CreateVendorRepresentativeInput {
+  name: string;
+  email: string;
+  phone?: string;
+  position?: string;
+}
+
+/**
+ * Adds a representative to a vendor company WITHOUT sending an invitation email
+ * (FOR-272). Email uniqueness is enforced server-side (409 on duplicate).
+ */
+export async function addVendorRepresentative(
+  vendorId: string,
+  input: CreateVendorRepresentativeInput,
+  config?: AxiosRequestConfig,
+): Promise<{
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  position: string;
+  status: string;
+}> {
+  const { data } = await getApiClient().post<{
+    data: {
+      id: string;
+      name: string;
+      email: string;
+      phone: string | null;
+      position: string;
+      status: string;
+    };
+  }>(VENDORS_PATHS.representatives(vendorId), input, config);
+  return data.data;
+}
+
 // ── Vendor User Invitation ───────────────────────────────────────────────────
 
 export interface InviteVendorUserInput {
