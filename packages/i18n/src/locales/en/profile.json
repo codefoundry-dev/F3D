@@ -40,8 +40,6 @@
   "permissionInventory": "Inventory and budget tracking",
   "approvalResponsibilities": "Assigned approval responsibilities",
   "activityLog": "Activity log",
-  "activityPlaceholderAction": "Action name goes here",
-  "activityPlaceholderDesc": "Lorem ipsum dolor sit amet consectetur. Amet aenean purus mauris tortor at tincidunt ultrices.",
   "noApprovalResponsibilities": "No approval responsibilities assigned yet",
   "noActivityLog": "No activity recorded yet",
   "comingSoon": "Coming soon",
