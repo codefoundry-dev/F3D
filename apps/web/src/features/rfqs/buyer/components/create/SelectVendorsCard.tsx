@@ -251,7 +251,7 @@ export function SelectVendorsCard({
                   <th className={TABLE_TH}>{t('create.vendors.colName')}</th>
                   <th className={TABLE_TH}>{t('create.vendors.colLocation')}</th>
                   <th className={TABLE_TH}>{t('create.vendors.colCategory')}</th>
-                  <th className={cn(TABLE_TH, 'w-28')}>{t('create.vendors.colAction')}</th>
+                  <th className={cn(TABLE_TH, 'w-36')}>{t('create.vendors.colAction')}</th>
                 </tr>
               </thead>
               {filtered.map((vendor) => {
@@ -319,6 +319,7 @@ export function SelectVendorsCard({
                               ? toggleAllReps(vendor, !allRepsSelected)
                               : toggleCompany(vendor, !onRfq)
                           }
+                          className="w-full whitespace-nowrap"
                           data-testid={`vendor-toggle-${vendor.companyId}`}
                         >
                           {hasReps
