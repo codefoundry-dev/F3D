@@ -4,6 +4,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { formatEnum } from '../../common/utils/format-enum';
+import { BrandingService } from '../export/branding.service';
 import { PdfExportService } from '../export/pdf-export.service';
 
 import { RfqsService } from './rfqs.service';
@@ -191,6 +192,7 @@ export class RfqExportService {
   constructor(
     private readonly rfqsService: RfqsService,
     private readonly pdfExportService: PdfExportService,
+    private readonly brandingService: BrandingService,
   ) {}
 
   async exportRfqs(
@@ -224,9 +226,11 @@ export class RfqExportService {
     }
 
     if (normalized === 'PDF') {
+      const brand = await this.brandingService.getPdfBrand(user.companyId);
       return this.pdfExportService.exportToPDF({
         title: 'RFQ List Export',
         landscape: true,
+        ...(brand ? { brand } : {}),
         columns: activeCols.map((c) => ({ header: c.header, width: c.pdfWidth ?? 80 })),
         rows: items.map((item) => {
           const record: Record<string, string> = {};

@@ -20,6 +20,15 @@
     <tr>
       <td align="center" style="padding:40px 16px;">
         <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
+          {{#if brand}}
+          <!-- Company logo (FOR-267) -->
+          <tr>
+            <td style="padding:0 0 32px;">
+              <img src="{{brand.logoUrl}}" alt="{{brand.name}}" height="40"
+                   style="display:block;height:40px;max-height:40px;width:auto;border:0;outline:none;text-decoration:none;" />
+            </td>
+          </tr>
+          {{/if}}
           <!-- Content -->
           <tr>
             <td style="padding:0 0 40px;">

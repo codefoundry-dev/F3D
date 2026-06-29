@@ -41,6 +41,7 @@ import { nextSequentialNumber } from '../../common/utils/sequential-number.util'
 import { resolveSelectedRecipients } from '../../common/utils/vendor-recipients.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
+import { BrandingService } from '../export/branding.service';
 import { EmailAttachment, EmailService } from '../notifications/email.service';
 import { StorageService } from '../storage/storage.service';
 
@@ -148,6 +149,7 @@ export class RfqsService {
     private readonly emailService: EmailService,
     private readonly accessTokens: AccessTokensService,
     config: ConfigService,
+    private readonly branding: BrandingService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
   }
@@ -2082,6 +2084,9 @@ export class RfqsService {
     // de-dupes, so a member already typed into the CC field isn't doubled up.
     const cc = normalizeCcEmails([...(rfq.ccEmails ?? []), ...collectProjectMemberEmails(rfq)]);
 
+    // The issuing company's logo, shown atop every vendor email (FOR-267).
+    const brand = await this.branding.getEmailBrand(rfq.companyId);
+
     const ttlMs = this.invitationTokenTtlMs(rfq.needByDate);
 
     // Issue a single-use access token (A15) per vendor and send emails. The
@@ -2121,6 +2126,7 @@ export class RfqsService {
           this.emailService.sendRfqReceivedEmail(email, rfqNumber, replyUrl, {
             cc,
             attachments,
+            ...(brand ? { brand } : {}),
             // Track each vendor email so it surfaces on the RFQ email log (FOR-213).
             log: { companyId: rfq.companyId, rfqId, sentByUserId: rfq.createdByUserId },
           }),

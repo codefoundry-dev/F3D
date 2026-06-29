@@ -17,6 +17,17 @@ export interface PdfTableRow {
   [key: string]: string;
 }
 
+/**
+ * Issuing-company branding rendered in a document header (FOR-267). When set, the
+ * company logo + name replace the plain "Forethread" wordmark.
+ */
+export interface PdfBrand {
+  /** Company display name shown beside the logo. */
+  name: string;
+  /** Logo image bytes — pdfkit only supports PNG and JPEG. */
+  logo: Buffer;
+}
+
 export interface PdfExportOptions {
   title: string;
   subtitle?: string;
@@ -24,6 +35,8 @@ export interface PdfExportOptions {
   rows: PdfTableRow[];
   filenamePrefix: string;
   landscape?: boolean;
+  /** Issuing-company brand mark for the header (defaults to the Forethread wordmark). */
+  brand?: PdfBrand;
 }
 
 export interface InvoiceInfoBlock {
@@ -73,6 +86,8 @@ export interface InvoiceExportOptions {
   terms?: InvoiceInfoBlock;
   /** Optional signature lines rendered at the bottom. */
   signatures?: InvoiceSignatureBlock[];
+  /** Issuing-company brand mark for the header (defaults to the Forethread wordmark). */
+  brand?: PdfBrand;
   filenamePrefix: string;
 }
 
@@ -125,28 +140,26 @@ export class PdfExportService {
         reject(error);
       });
 
-      // ── Title ──────────────────────────────────────────────────────────────
+      // ── Header: brand mark + report title ────────────────────────────────────
       const leftMargin = 40;
       const rightEdge = doc.page.width - 40;
 
-      doc
-        .fontSize(16)
-        .font('Helvetica-Bold')
-        .fillColor(PDF_STYLES.text.primary)
-        .text(PDF_COMPANY.name, leftMargin, 50, { width: rightEdge - leftMargin });
+      this.drawBrandMark(doc, leftMargin, 50, options.brand, 16);
 
-      doc.moveDown(0.3);
-
+      // Drop the title below the brand mark — lower when a logo is present so it
+      // never collides with the rendered image.
+      const titleY = options.brand?.logo ? 96 : 78;
       doc
         .fontSize(12)
         .font('Helvetica')
-        .text(title, { width: rightEdge - leftMargin });
+        .fillColor(PDF_STYLES.text.primary)
+        .text(title, leftMargin, titleY, { width: rightEdge - leftMargin });
 
       if (subtitle) {
         doc
           .fontSize(9)
           .fillColor(PDF_STYLES.text.secondary)
-          .text(subtitle, { width: rightEdge - leftMargin });
+          .text(subtitle, leftMargin, doc.y, { width: rightEdge - leftMargin });
       }
 
       doc.moveDown(1);
@@ -303,16 +316,13 @@ export class PdfExportService {
     const leftMargin = 40;
     const rightEdge = doc.page.width - 40;
 
-    // ── Header row: Company name (left) + Heading (right) ──────────────
-    doc
-      .fontSize(18)
-      .font('Helvetica-Bold')
-      .fillColor(PDF_STYLES.text.primary)
-      .text(PDF_COMPANY.name, leftMargin, 50, { width: rightEdge - leftMargin });
+    // ── Header row: brand mark (left) + heading (right) ────────────────
+    this.drawBrandMark(doc, leftMargin, 50, options.brand, 18);
 
     doc
       .fontSize(20)
       .font('Helvetica-Bold')
+      .fillColor(PDF_STYLES.text.primary)
       .text(heading, rightEdge - 200, 50, { width: 200, align: 'right' });
 
     let currentY = 90;
@@ -393,6 +403,41 @@ export class PdfExportService {
         currentY + 24,
         { align: 'left' },
       );
+  }
+
+  /**
+   * Draw the document's brand mark at (x, y): the issuing company's logo + name
+   * (FOR-267) when available, otherwise the plain "Forethread" wordmark. The image
+   * draw is guarded so an unsupported or corrupt logo can never break the
+   * surrounding document — it simply falls back to the text wordmark.
+   */
+  private drawBrandMark(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    doc: any,
+    x: number,
+    y: number,
+    brand: PdfBrand | undefined,
+    nameFontSize: number,
+  ): void {
+    if (brand?.logo) {
+      try {
+        doc.image(brand.logo, x, y, { fit: [120, 36] });
+        doc
+          .fontSize(nameFontSize)
+          .font('Helvetica-Bold')
+          .fillColor(PDF_STYLES.text.primary)
+          .text(brand.name, x + 132, y + 10, { width: 170, lineBreak: false, ellipsis: true });
+        return;
+      } catch {
+        // Unsupported/corrupt image — fall through to the text wordmark.
+      }
+    }
+
+    doc
+      .fontSize(nameFontSize)
+      .font('Helvetica-Bold')
+      .fillColor(PDF_STYLES.text.primary)
+      .text(brand?.name ?? PDF_COMPANY.name, x, y, { width: 300 });
   }
 
   /** Render a label + lines block; returns the Y after the last line. */

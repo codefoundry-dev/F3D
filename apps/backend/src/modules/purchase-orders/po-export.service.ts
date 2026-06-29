@@ -4,7 +4,8 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { formatEnum } from '../../common/utils/format-enum';
-import { InvoiceExportOptions, PdfExportService } from '../export/pdf-export.service';
+import { BrandingService } from '../export/branding.service';
+import { InvoiceExportOptions, PdfBrand, PdfExportService } from '../export/pdf-export.service';
 
 import { PurchaseOrdersService } from './purchase-orders.service';
 
@@ -206,6 +207,7 @@ export class PoExportService {
   constructor(
     private readonly poService: PurchaseOrdersService,
     private readonly pdfExportService: PdfExportService,
+    private readonly brandingService: BrandingService,
   ) {}
 
   async exportPos(
@@ -239,9 +241,11 @@ export class PoExportService {
     }
 
     if (normalized === 'PDF') {
+      const brand = await this.brandingService.getPdfBrand(user.companyId);
       return this.pdfExportService.exportToPDF({
         title: 'Purchase Orders Export',
         landscape: true,
+        ...(brand ? { brand } : {}),
         columns: activeCols.map((c) => ({ header: c.header, width: c.pdfWidth ?? 80 })),
         rows: items.map((item) => {
           const record: Record<string, string> = {};
@@ -275,13 +279,15 @@ export class PoExportService {
       throw new BadRequestException(ERR.export.invalidFormatCsvPdfXlsx);
     }
     const po = await this.poService.getPurchaseOrder(id, user);
-    return this.pdfExportService.exportInvoicePDF(this.buildPoPdfOptions(po));
+    const brand = await this.brandingService.getPdfBrand(po.company?.id);
+    return this.pdfExportService.exportInvoicePDF(this.buildPoPdfOptions(po, brand));
   }
 
   /** Generate a PO PDF buffer (for email attachment — not uploaded to storage). */
   async generatePoPdfBuffer(id: string, user: AuthenticatedUser): Promise<Buffer> {
     const po = await this.poService.getPurchaseOrder(id, user);
-    return this.pdfExportService.generateInvoicePDFBuffer(this.buildPoPdfOptions(po));
+    const brand = await this.brandingService.getPdfBrand(po.company?.id);
+    return this.pdfExportService.generateInvoicePDFBuffer(this.buildPoPdfOptions(po, brand));
   }
 
   /**
@@ -291,7 +297,8 @@ export class PoExportService {
    */
   async exportPublicPoPdf(id: string): Promise<{ url: string }> {
     const po = await this.poService.getPurchaseOrderById(id);
-    return this.pdfExportService.exportInvoicePDF(this.buildPoPdfOptions(po));
+    const brand = await this.brandingService.getPdfBrand(po.company?.id);
+    return this.pdfExportService.exportInvoicePDF(this.buildPoPdfOptions(po, brand));
   }
 
   /**
@@ -299,7 +306,7 @@ export class PoExportService {
    * line items, the multi-delivery schedule (FOR-210), terms and signature lines.
    * Shared by the download and email-attachment paths so both stay in sync.
    */
-  buildPoPdfOptions(po: PoDetail): InvoiceExportOptions {
+  buildPoPdfOptions(po: PoDetail, brand?: PdfBrand): InvoiceExportOptions {
     const currency = po.currency || 'AUD';
     const money = (value: unknown): string => formatMoney(value, currency);
 
@@ -310,6 +317,7 @@ export class PoExportService {
 
     return {
       heading: 'Purchase Order',
+      ...(brand ? { brand } : {}),
       date: createdDate,
       infoLeft: {
         label: 'PO Details',

@@ -415,6 +415,30 @@ describe('EmailService', () => {
       );
     });
 
+    it('passes the issuing company brand to the email layout when provided (FOR-267)', async () => {
+      const layoutFn = require('handlebars').compile();
+
+      await service.sendRfqReceivedEmail('vendor@test.com', 'RFQ-001', 'https://reply.test', {
+        brand: { name: 'Acme Builders', logoUrl: 'https://cdn.test/acme.png' },
+      });
+
+      expect(layoutFn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          brand: { name: 'Acme Builders', logoUrl: 'https://cdn.test/acme.png' },
+        }),
+      );
+    });
+
+    it('omits the brand from the layout when none is provided', async () => {
+      const layoutFn = require('handlebars').compile();
+
+      await service.sendRfqReceivedEmail('vendor@test.com', 'RFQ-001', 'https://reply.test');
+
+      expect(layoutFn).not.toHaveBeenCalledWith(
+        expect.objectContaining({ brand: expect.anything() }),
+      );
+    });
+
     it('should not throw when sendMail fails', async () => {
       mockSendMail.mockRejectedValue(new Error('SMTP error'));
 
@@ -433,6 +457,25 @@ describe('EmailService', () => {
           from: 'test@forethread.local',
           to: 'vendor@test.com',
           attachments: [],
+        }),
+      );
+    });
+
+    it('passes the issuing company brand to the email layout when provided (FOR-267)', async () => {
+      const layoutFn = require('handlebars').compile();
+
+      await service.sendPoIssuedEmail(
+        'vendor@test.com',
+        'PO-001',
+        'https://view.test',
+        undefined,
+        undefined,
+        { name: 'Acme Builders', logoUrl: 'https://cdn.test/acme.png' },
+      );
+
+      expect(layoutFn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          brand: { name: 'Acme Builders', logoUrl: 'https://cdn.test/acme.png' },
         }),
       );
     });

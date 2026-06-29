@@ -49,6 +49,28 @@ import type {
   CsvExportOptions,
 } from './pdf-export.service';
 
+/** Build a mocked pdfkit doc, merging in any extra method overrides (e.g. image). */
+function mockDocWith(extra = {}) {
+  const doc = new EventEmitter();
+  doc.page = { width: 595, height: 842 };
+  doc.y = 100;
+  doc.fontSize = jest.fn().mockReturnThis();
+  doc.font = jest.fn().mockReturnThis();
+  doc.fillColor = jest.fn().mockReturnThis();
+  doc.text = jest.fn().mockReturnThis();
+  doc.moveDown = jest.fn().mockReturnThis();
+  doc.rect = jest.fn().mockReturnThis();
+  doc.fill = jest.fn().mockReturnThis();
+  doc.addPage = jest.fn().mockReturnThis();
+  doc.end = jest.fn(() => {
+    process.nextTick(() => {
+      doc.emit('data', Buffer.from('fake-pdf'));
+      doc.emit('end');
+    });
+  });
+  return Object.assign(doc, extra);
+}
+
 describe('PdfExportService', () => {
   let service: PdfExportService;
   const mockUploadBuffer = jest.fn().mockResolvedValue({ key: 'exports/test.pdf', bucket: 'test' });
@@ -98,6 +120,40 @@ describe('PdfExportService', () => {
 
       expect(result).toEqual({ url: 'https://signed.url/exports/test.pdf' });
       expect(mockUploadBuffer).toHaveBeenCalled();
+    });
+
+    it('draws the company logo + name in the header when a brand is provided (FOR-267)', async () => {
+      const PDFDocument = require('pdfkit');
+      const imageFn = jest.fn().mockReturnThis();
+      PDFDocument.mockImplementationOnce(() => mockDocWith({ image: imageFn }));
+
+      await service.exportToPDF({
+        ...baseOptions,
+        brand: { name: 'Acme Builders', logo: Buffer.from('png-bytes') },
+      } as PdfExportOptions);
+
+      expect(imageFn).toHaveBeenCalledWith(
+        expect.any(Buffer),
+        expect.any(Number),
+        expect.any(Number),
+        expect.objectContaining({ fit: [120, 36] }),
+      );
+    });
+
+    it('falls back to the wordmark when the logo image fails to render (FOR-267)', async () => {
+      const PDFDocument = require('pdfkit');
+      const imageFn = jest.fn(() => {
+        throw new Error('unsupported image');
+      });
+      PDFDocument.mockImplementationOnce(() => mockDocWith({ image: imageFn }));
+
+      const result = await service.exportToPDF({
+        ...baseOptions,
+        brand: { name: 'Acme Builders', logo: Buffer.from('bad') },
+      } as PdfExportOptions);
+
+      expect(imageFn).toHaveBeenCalled();
+      expect(result).toEqual({ url: 'https://signed.url/exports/test.pdf' });
     });
 
     it('renders subtitle when provided', async () => {
@@ -286,6 +342,24 @@ describe('PdfExportService', () => {
 
       const result = await service.exportInvoicePDF(options);
       expect(result).toEqual({ url: 'https://signed.url/exports/test.pdf' });
+    });
+
+    it('draws the company logo in the document header when a brand is provided (FOR-267)', async () => {
+      const PDFDocument = require('pdfkit');
+      const imageFn = jest.fn().mockReturnThis();
+      PDFDocument.mockImplementationOnce(() => mockDocWith({ image: imageFn }));
+
+      await service.exportInvoicePDF({
+        ...baseOptions,
+        brand: { name: 'Acme Builders', logo: Buffer.from('png-bytes') },
+      } as InvoiceExportOptions);
+
+      expect(imageFn).toHaveBeenCalledWith(
+        expect.any(Buffer),
+        expect.any(Number),
+        expect.any(Number),
+        expect.objectContaining({ fit: [120, 36] }),
+      );
     });
 
     it('renders without infoLeft and infoRight', async () => {

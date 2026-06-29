@@ -147,6 +147,11 @@ const mockConfig = {
   get: jest.fn((_key: string, fallback: string) => fallback),
 };
 
+const mockBranding = {
+  getEmailBrand: jest.fn().mockResolvedValue(undefined),
+  getPdfBrand: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('PoStatusService', () => {
   let service: PoStatusService;
 
@@ -162,6 +167,7 @@ describe('PoStatusService', () => {
       mockInventoryService as never,
       mockAccessTokensService as never,
       mockConfig as never,
+      mockBranding as never,
     );
     // Default: getPurchaseOrder / getPurchaseOrderById return fullPoDetail-shaped response
     mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue(fullPoDetail);
@@ -1141,9 +1147,9 @@ describe('PoStatusService', () => {
 
     it('throws BadRequestException when PO is not SENT or ACKNOWLEDGED', async () => {
       mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ ...declinePoBase, status: 'DRAFT' });
-      await expect(
-        service.vendorDeclinePurchaseOrderViaToken('po-1', undefined),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.vendorDeclinePurchaseOrderViaToken('po-1', undefined)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('declines the PO, stores the reason, and notifies the contractor', async () => {
@@ -1332,6 +1338,7 @@ describe('PoStatusService', () => {
         'http://localhost:5179/purchase-orders/po-1',
         expect.any(Buffer),
         expect.objectContaining({ purchaseOrderId: 'po-1' }),
+        undefined,
       );
     });
 
@@ -1372,6 +1379,7 @@ describe('PoStatusService', () => {
         'http://localhost:5179/po/lookup1234567890.secretsecretsecret',
         expect.any(Buffer),
         expect.objectContaining({ purchaseOrderId: 'po-1' }),
+        undefined,
       );
     });
 
@@ -1408,6 +1416,7 @@ describe('PoStatusService', () => {
         'http://localhost:5179/purchase-orders/po-1',
         expect.any(Buffer),
         expect.objectContaining({ purchaseOrderId: 'po-1' }),
+        undefined,
       );
     });
 
@@ -1523,6 +1532,7 @@ describe('PoStatusService', () => {
         'http://localhost:5179/purchase-orders/po-pa',
         expect.any(Buffer),
         expect.objectContaining({ purchaseOrderId: 'po-pa' }),
+        undefined,
       );
     });
 
@@ -1556,6 +1566,7 @@ describe('PoStatusService', () => {
         'http://localhost:5179/po/lookup1234567890.secretsecretsecret',
         expect.any(Buffer),
         expect.objectContaining({ purchaseOrderId: 'po-pa2' }),
+        undefined,
       );
     });
 
@@ -2222,7 +2233,13 @@ describe('PoStatusService', () => {
       companyId: 'comp-1',
       deliveryLocationId: 'loc-hdr',
       lineItems: [
-        { id: 'li-1', quantityOrdered: 60, quantityDelivered: 0, materialId: 'mat-1', deliveryLocationId: null },
+        {
+          id: 'li-1',
+          quantityOrdered: 60,
+          quantityDelivered: 0,
+          materialId: 'mat-1',
+          deliveryLocationId: null,
+        },
       ],
     };
 
@@ -2262,7 +2279,11 @@ describe('PoStatusService', () => {
       await service.auditDeliveryTransition(
         'po-1',
         'ca-1',
-        { transitioned: true, fromStatus: 'PARTIALLY_DELIVERED' as never, nextStatus: 'DELIVERED' as never },
+        {
+          transitioned: true,
+          fromStatus: 'PARTIALLY_DELIVERED' as never,
+          nextStatus: 'DELIVERED' as never,
+        },
         { deliveryReportId: 'dr-1' },
       );
       expect(mockAuditService.log).toHaveBeenCalledWith(

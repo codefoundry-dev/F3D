@@ -24,6 +24,10 @@ const mockPdfExportService = {
   exportToXLSX: jest.fn(),
 };
 
+const mockBrandingService = {
+  getPdfBrand: jest.fn().mockResolvedValue(undefined),
+};
+
 function q(overrides: Partial<RfqListQueryDto> = {}): RfqListQueryDto {
   return Object.assign(new RfqListQueryDto(), overrides);
 }
@@ -66,7 +70,11 @@ describe('RfqExportService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new RfqExportService(mockRfqsService as never, mockPdfExportService as never);
+    service = new RfqExportService(
+      mockRfqsService as never,
+      mockPdfExportService as never,
+      mockBrandingService as never,
+    );
     mockRfqsService.listRfqs.mockResolvedValue({ items: sampleItems, meta: {} });
   });
 
@@ -101,6 +109,27 @@ describe('RfqExportService', () => {
         filenamePrefix: 'rfqs-export',
       }),
     );
+  });
+
+  it('forwards the issuing company brand to the PDF export when set (FOR-267)', async () => {
+    mockPdfExportService.exportToPDF.mockResolvedValue({ url: 'https://storage/rfqs.pdf' });
+    const brand = { name: 'Acme', logo: Buffer.from('png') };
+    mockBrandingService.getPdfBrand.mockResolvedValueOnce(brand);
+
+    await service.exportRfqs('pdf', q(), companyAdmin as never);
+
+    expect(mockBrandingService.getPdfBrand).toHaveBeenCalledWith('comp-1');
+    expect(mockPdfExportService.exportToPDF).toHaveBeenCalledWith(
+      expect.objectContaining({ brand }),
+    );
+  });
+
+  it('omits brand when the issuing company has no logo', async () => {
+    mockPdfExportService.exportToPDF.mockResolvedValue({ url: 'https://storage/rfqs.pdf' });
+
+    await service.exportRfqs('pdf', q(), companyAdmin as never);
+
+    expect(mockPdfExportService.exportToPDF.mock.calls[0][0].brand).toBeUndefined();
   });
 
   it('exports to XLSX format', async () => {
