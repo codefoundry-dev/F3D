@@ -71,6 +71,11 @@ const mockConfig = {
   get: jest.fn((_key: string, fallback: string) => fallback),
 };
 
+const mockBranding = {
+  getEmailBrand: jest.fn().mockResolvedValue(undefined),
+  getPdfBrand: jest.fn().mockResolvedValue(undefined),
+};
+
 // ── Mock PrismaService ──────────────────────────────────────────────────────
 
 const mockPrisma = {
@@ -159,6 +164,7 @@ describe('RfqsService', () => {
       mockEmailService as never,
       mockAccessTokens as never,
       mockConfig as never,
+      mockBranding as never,
     );
     mockAccessTokens.issueToken.mockResolvedValue({
       token: 'issued-token-xyz',
@@ -3153,6 +3159,88 @@ describe('RfqsService', () => {
         expect.objectContaining({
           cc: ['pm@acme.com'],
           attachments: [{ filename: 'spec.pdf', content: pdf, contentType: 'application/pdf' }],
+          log: expect.objectContaining({ rfqId: 'rfq-1' }),
+        }),
+      );
+    });
+
+    it('auto-CCs members of every project the RFQ spans, merged with manual CC (FOR-255)', async () => {
+      mockPrisma.rfq.findUnique
+        .mockResolvedValueOnce({
+          id: 'rfq-1',
+          status: 'DRAFT',
+          companyId: 'comp-1',
+          _count: { lineItems: 2, invitedVendors: 1 },
+        })
+        // generateInvitationTokensAndNotify
+        .mockResolvedValueOnce({
+          rfqNumber: 'RFQ-1',
+          // Manually-entered CC; one of these also happens to be a project member.
+          ccEmails: ['buyer@acme.com', 'pm@acme.com'],
+          documents: [],
+          // Primary project + a second spanned project (US 5.05).
+          project: { members: [{ user: { email: 'pm@acme.com' } }] },
+          projects: [
+            { project: { members: [{ user: { email: 'pm@acme.com' } }] } },
+            { project: { members: [{ user: { email: 'foreman@acme.com' } }] } },
+          ],
+          invitedVendors: [
+            {
+              id: 'iv-1',
+              vendor: {
+                id: 'v-1',
+                users: [{ email: 'active@vendor.com', status: 'ACTIVE' }],
+              },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          id: 'rfq-1',
+          rfqNumber: 'RFQ-1',
+          status: 'OPEN',
+          currency: 'AUD',
+          companyId: 'comp-1',
+          projectId: 'proj-1',
+          project: { name: 'Proj' },
+          createdBy: { id: 'po-1', name: 'PO' },
+          approvedBy: null,
+          lineItems: [],
+          quoteResponses: [],
+          invitedVendors: [],
+          documents: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          deadlineStart: null,
+          deadlineEnd: null,
+          deliveryLocationId: null,
+          needByDate: null,
+          holdForRelease: false,
+          earliestDeliveryDate: null,
+          message: null,
+          totalRequestedQty: 0,
+          pickUpLocation: null,
+          pickUpDate: null,
+          approvalStatus: null,
+        });
+      mockPrisma.rfq.update.mockResolvedValue({});
+      mockPrisma.rfqVendor.update.mockResolvedValue({});
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue(null);
+      mockEmailService.sendRfqReceivedEmail.mockResolvedValue(undefined);
+
+      await service.sendRfq('rfq-1', { cc: ['buyer@acme.com', 'pm@acme.com'] }, procOfficer);
+
+      // Wait for fire-and-forget
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Manual recipients preserved (first), project members appended, and the
+      // duplicate pm@acme.com de-duped — proving all three FOR-255 acceptance
+      // criteria (members auto-included, no manual selection, existing kept).
+      expect(mockEmailService.sendRfqReceivedEmail).toHaveBeenCalledWith(
+        'active@vendor.com',
+        'RFQ-1',
+        'http://localhost:5179/invitation/issued-token-xyz',
+        expect.objectContaining({
+          cc: ['buyer@acme.com', 'pm@acme.com', 'foreman@acme.com'],
           log: expect.objectContaining({ rfqId: 'rfq-1' }),
         }),
       );

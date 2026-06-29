@@ -208,6 +208,44 @@ describe('useGuestRfqResponse', () => {
     expect(result.current.validationErrors[0]).toMatchObject({ type: 'LINE_ITEM', index: 0 });
   });
 
+  it('blocks submit and reports an AVAIL_EXCEEDS_REQ error when availQty exceeds requestedQty', () => {
+    const { result } = renderHook(() =>
+      useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),
+    );
+    act(() => {
+      // li-1 requestedQty 100; quote 150 (exceeds) but otherwise complete.
+      result.current.updateLineItem(0, 'availQty', '150');
+      result.current.updateLineItem(0, 'unitPrice', '50');
+      result.current.updateLineItem(0, 'deliveryDate', '2026-07-01');
+      // Drop li-2 so it isn't flagged for its own missing fields.
+      result.current.toggleInclude(1);
+    });
+    act(() => {
+      result.current.handleSubmit();
+    });
+    expect(mockMutate).not.toHaveBeenCalled();
+    expect(result.current.validationErrors).toEqual([
+      { type: 'AVAIL_EXCEEDS_REQ', index: 0, material: 'Cement', requested: 100 },
+    ]);
+  });
+
+  it('accepts availQty equal to requestedQty', () => {
+    const { result } = renderHook(() =>
+      useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),
+    );
+    act(() => {
+      result.current.updateLineItem(0, 'availQty', '100'); // == requestedQty (100)
+      result.current.updateLineItem(0, 'unitPrice', '50');
+      result.current.updateLineItem(0, 'deliveryDate', '2026-07-01');
+      result.current.toggleInclude(1);
+    });
+    act(() => {
+      result.current.handleSubmit();
+    });
+    expect(mockMutate).toHaveBeenCalled();
+    expect(result.current.validationErrors).toHaveLength(0);
+  });
+
   it('blocks submit with a NO_ITEMS error when nothing is included', () => {
     const { result } = renderHook(() =>
       useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),

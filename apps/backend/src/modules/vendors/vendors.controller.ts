@@ -18,6 +18,7 @@ import { RequirePermissions } from '../../common/permissions';
 import { VendorInviteService } from './vendor-invite.service';
 import { VendorUserInviteService } from './vendor-user-invite.service';
 import {
+  CreateVendorRepresentativeDto,
   CreateWarehouseDto,
   InviteVendorDto,
   InviteVendorUserDto,
@@ -174,5 +175,20 @@ export class VendorsController {
   @ApiResponse({ status: 404, description: 'Vendor not found' })
   getRepresentatives(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.vendorsService.getRepresentatives(id, user);
+  }
+
+  @Post(':id/representatives')
+  @RequirePermissions('vendor.representatives.create')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Add a representative without sending an invitation (FOR-272)' })
+  @ApiResponse({ status: 201, description: 'Representative added' })
+  @ApiResponse({ status: 404, description: 'Vendor not found' })
+  @ApiResponse({ status: 409, description: 'Email already in use' })
+  addRepresentative(
+    @Param('id') id: string,
+    @Body() dto: CreateVendorRepresentativeDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.vendorsService.addRepresentative(id, dto, user);
   }
 }

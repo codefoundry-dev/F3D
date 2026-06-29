@@ -233,6 +233,39 @@ describe('useRfqResponse', () => {
     expect(result.current.isValid).toBe(true);
   });
 
+  it('validation fails when availQty exceeds requestedQty', () => {
+    const { result } = renderHook(() => useRfqResponse(rfqWithItems, 'vendor-1'));
+    act(() => {
+      // li-1 requestedQty is 100; quote 150 (exceeds) but otherwise complete.
+      result.current.updateLineItem(0, 'availQty', '150');
+      result.current.updateLineItem(0, 'unitPrice', '50');
+      result.current.updateLineItem(0, 'deliveryDate', '2026-06-01');
+      // li-2 valid and within its requestedQty (50).
+      result.current.updateLineItem(1, 'availQty', '50');
+      result.current.updateLineItem(1, 'unitPrice', '50');
+      result.current.updateLineItem(1, 'deliveryDate', '2026-06-01');
+    });
+    expect(result.current.isValid).toBe(false);
+    act(() => {
+      result.current.handleSubmit();
+    });
+    expect(result.current.validationError).toBe('response.validationAvailExceedsReq');
+    expect(mockSubmitMutate).not.toHaveBeenCalled();
+  });
+
+  it('validation passes when availQty equals requestedQty', () => {
+    const { result } = renderHook(() => useRfqResponse(rfqWithItems, 'vendor-1'));
+    act(() => {
+      result.current.updateLineItem(0, 'availQty', '100'); // == requestedQty (100)
+      result.current.updateLineItem(0, 'unitPrice', '50');
+      result.current.updateLineItem(0, 'deliveryDate', '2026-06-01');
+      result.current.updateLineItem(1, 'availQty', '50'); // == requestedQty (50)
+      result.current.updateLineItem(1, 'unitPrice', '50');
+      result.current.updateLineItem(1, 'deliveryDate', '2026-06-01');
+    });
+    expect(result.current.isValid).toBe(true);
+  });
+
   it('handleSubmit calls mutate when valid', () => {
     const { result } = renderHook(() => useRfqResponse(rfqWithItems, 'vendor-1'));
     act(() => {

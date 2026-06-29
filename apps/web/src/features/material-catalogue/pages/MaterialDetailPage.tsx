@@ -246,6 +246,12 @@ export default function MaterialDetailPage() {
                   }`
                 : DASH}
             </Field>
+            <Field label={t('detail.fields.costCode')} field="costCode">
+              {val(material.costCode)}
+            </Field>
+            <Field label={t('detail.fields.taxCode')} field="taxCode">
+              {val(material.taxCode)}
+            </Field>
             <Field label={t('detail.fields.lastModified')} field="lastModified">
               {formatLongDate(material.updatedAt)}
             </Field>

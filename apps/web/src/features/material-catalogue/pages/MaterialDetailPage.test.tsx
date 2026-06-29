@@ -48,6 +48,8 @@ function detail(over: Partial<apiClient.MaterialDetailDto> = {}): apiClient.Mate
     size: '123×456×123',
     pricePerUnit: '42.50',
     currency: 'AUD',
+    costCode: null,
+    taxCode: null,
     dimensions: {
       length: { value: 123456, uom: null },
       width: { value: 123456, uom: null },

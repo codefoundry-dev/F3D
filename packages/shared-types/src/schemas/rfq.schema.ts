@@ -41,6 +41,11 @@ export const createRfqLineItemSchema = z
     quantity: z.number().min(0.01),
     uom: z.string().min(1),
     costCode: z.string().optional(),
+    // Snapshots defaulted from the linked catalogue material (US: materials carry
+    // UPC / MPN / tax code; cost code pre-fills from the material).
+    upc: z.string().optional(),
+    manufacturerPartNumber: z.string().optional(),
+    taxCode: z.string().optional(),
     description: z.string().optional(),
     notes: z.string().optional(),
     pickUp: z.boolean().optional(),

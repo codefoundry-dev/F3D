@@ -185,7 +185,9 @@
     "position": "Position",
     "noRepresentatives": "No representatives found",
     "addUser": "Add user",
-    "inviteUser": "Invite user"
+    "inviteUser": "Invite user",
+    "emailInUse": "A user with this email already exists",
+    "addError": "Failed to add representative"
   },
   "vendorProfile": {
     "pageTitle": "Vendor Company Profile",

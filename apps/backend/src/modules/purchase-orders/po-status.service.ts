@@ -26,6 +26,7 @@ import { resolveVendorEmailRecipients } from '../../common/utils/vendor-recipien
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { AuditService } from '../audit/audit.service';
+import { BrandingService } from '../export/branding.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { EmailService } from '../notifications/email.service';
 
@@ -96,6 +97,7 @@ export class PoStatusService {
     private readonly inventoryService: InventoryService,
     private readonly accessTokens: AccessTokensService,
     config: ConfigService,
+    private readonly branding: BrandingService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
   }
@@ -1204,9 +1206,12 @@ export class PoStatusService {
       ? { companyId: po.companyId, purchaseOrderId: poId, sentByUserId: user.id }
       : undefined;
 
+    // The issuing company's logo, shown atop the PO email (FOR-267).
+    const brand = po ? await this.branding.getEmailBrand(po.companyId) : undefined;
+
     await Promise.all(
       recipients.map((email) =>
-        this.emailService.sendPoIssuedEmail(email, poNumber, viewUrl, pdfBuffer, log),
+        this.emailService.sendPoIssuedEmail(email, poNumber, viewUrl, pdfBuffer, log, brand),
       ),
     );
   }

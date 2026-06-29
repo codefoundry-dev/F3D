@@ -108,6 +108,11 @@ export interface RfqLineItem {
   description: string | null;
   quantity: number;
   unit: string;
+  /** Catalogue codes carried on the line (snapshot/default from the material). */
+  costCode?: string | null;
+  upc?: string | null;
+  manufacturerPartNumber?: string | null;
+  taxCode?: string | null;
   expectedDeliveryDate: string | null;
   deliveryLocation: string | null;
   hasNotes?: boolean;

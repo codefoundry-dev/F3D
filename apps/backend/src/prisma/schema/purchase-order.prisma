@@ -172,6 +172,12 @@ model PoLineItem {
   unitPrice             Decimal   @map("unit_price") @db.Decimal(18, 4)
   lineTotal             Decimal   @map("line_total") @db.Decimal(18, 4)
   costCode              String?   @map("cost_code") @db.VarChar(100)
+  // Snapshot of the linked material's identity/tax codes, captured at create (see
+  // RfqLineItem). UPC/MPN are pure snapshots; taxCode defaults from the material
+  // but is editable per line.
+  upc                    String?  @db.VarChar(100)
+  manufacturerPartNumber String?  @map("manufacturer_part_number") @db.VarChar(255)
+  taxCode                String?  @map("tax_code") @db.VarChar(100)
   expectedDeliveryDate  DateTime? @map("expected_delivery_date")
   deliveryLocationId    String?   @map("delivery_location_id")
   notes                 String?

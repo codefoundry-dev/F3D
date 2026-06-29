@@ -25,6 +25,10 @@ import {
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import {
+  loadMaterialSnapshots,
+  resolveMaterialSnapshot,
+} from '../../common/utils/material-snapshot.util';
 import { nextSequentialNumber } from '../../common/utils/sequential-number.util';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -331,6 +335,9 @@ export class PurchaseOrdersService {
         unitPrice: Number(li.unitPrice),
         lineTotal: Number(li.lineTotal),
         costCode: li.costCode,
+        upc: li.upc,
+        manufacturerPartNumber: li.manufacturerPartNumber,
+        taxCode: li.taxCode,
         expectedDeliveryDate: li.expectedDeliveryDate?.toISOString() ?? null,
         deliveryLocation: li.deliveryLocationId,
         notes: li.notes,
@@ -533,10 +540,19 @@ export class PurchaseOrdersService {
     const isDrawdown =
       (dto.sourceOfCreation as string) === PoSourceOfCreation.BULK_DRAWDOWN && !!dto.bulkOrderId;
 
+    // Snapshot each catalogue material's UPC / MPN / tax code onto its line and
+    // pre-fill the cost code (US: materials carry these codes; cost code defaults
+    // onto the line but stays editable).
+    const materialSnapshots = await loadMaterialSnapshots(
+      this.prisma,
+      dto.lineItems.map((li) => li.materialId),
+    );
+
     // Calculate line totals. `bulkOrderLineItemId` is not a PoLineItem column —
     // it only drives the drawdown, so keep it alongside the create payload.
     const lineItems = dto.lineItems.map((li: CreatePoLineItemDto, idx: number) => {
       const lineTotal = li.quantityOrdered * li.unitPrice;
+      const snapshot = resolveMaterialSnapshot(li, li.materialId ?? null, materialSnapshots);
       return {
         bulkOrderLineItemId: li.bulkOrderLineItemId,
         data: {
@@ -548,7 +564,10 @@ export class PurchaseOrdersService {
           unitOfMeasure: li.unitOfMeasure,
           unitPrice: li.unitPrice,
           lineTotal,
-          costCode: li.costCode,
+          costCode: snapshot.costCode,
+          upc: snapshot.upc,
+          manufacturerPartNumber: snapshot.manufacturerPartNumber,
+          taxCode: snapshot.taxCode,
           notes: li.notes,
           expectedDeliveryDate: li.expectedDeliveryDate ? new Date(li.expectedDeliveryDate) : null,
           deliveryLocationId: li.deliveryLocationId,
@@ -755,9 +774,15 @@ export class PurchaseOrdersService {
       : undefined;
 
     if (dto.lineItems) {
-      // Delete old and create new line items in a transaction
+      // Delete old and create new line items in a transaction. Re-snapshot the
+      // catalogue codes from each line's material (see createPurchaseOrder).
+      const materialSnapshots = await loadMaterialSnapshots(
+        this.prisma,
+        dto.lineItems.map((li) => li.materialId),
+      );
       const lineItems = dto.lineItems.map((li: CreatePoLineItemDto, idx: number) => {
         const lineTotal = li.quantityOrdered * li.unitPrice;
+        const snapshot = resolveMaterialSnapshot(li, li.materialId ?? null, materialSnapshots);
         return {
           lineNumber: idx + 1,
           materialId: li.materialId ?? null,
@@ -767,7 +792,10 @@ export class PurchaseOrdersService {
           unitOfMeasure: li.unitOfMeasure,
           unitPrice: li.unitPrice,
           lineTotal,
-          costCode: li.costCode,
+          costCode: snapshot.costCode,
+          upc: snapshot.upc,
+          manufacturerPartNumber: snapshot.manufacturerPartNumber,
+          taxCode: snapshot.taxCode,
           notes: li.notes,
           expectedDeliveryDate: li.expectedDeliveryDate ? new Date(li.expectedDeliveryDate) : null,
           deliveryLocationId: li.deliveryLocationId,
@@ -954,6 +982,9 @@ export class PurchaseOrdersService {
             unitPrice: li.unitPrice,
             lineTotal: li.lineTotal,
             costCode: li.costCode,
+            upc: li.upc,
+            manufacturerPartNumber: li.manufacturerPartNumber,
+            taxCode: li.taxCode,
             expectedDeliveryDate: li.expectedDeliveryDate,
             deliveryLocationId: li.deliveryLocationId,
             notes: li.notes,

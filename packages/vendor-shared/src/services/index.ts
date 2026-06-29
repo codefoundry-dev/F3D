@@ -10,6 +10,7 @@ export {
   useAddWarehouse,
   useUpdateWarehouse,
   useDeleteWarehouse,
+  useAddVendorRepresentative,
   useVendorLogoUrl,
   useUploadVendorLogo,
 } from './vendors.service';

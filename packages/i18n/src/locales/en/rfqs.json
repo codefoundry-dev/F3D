@@ -317,6 +317,10 @@
     "description": "Description",
     "qtyOrdered": "Qty. Ordered",
     "uom": "UoM",
+    "costCode": "Cost code",
+    "upc": "UPC",
+    "mpn": "MPN",
+    "taxCode": "Tax code",
     "expDeliveryDate": "Exp. delivery date",
     "deliveryLocation": "Delivery location",
     "actions": "Actions",
@@ -470,7 +474,9 @@
     "validationAvailQty": "Available quantity is required for included items",
     "validationDeliveryDate": "Delivery date is required for included items",
     "validationDiscountMax": "Discount cannot exceed 100%",
-    "validationGstMax": "GST cannot exceed 100%"
+    "validationGstMax": "GST cannot exceed 100%",
+    "validationAvailExceedsReq": "Available quantity cannot exceed the required quantity",
+    "availExceedsReq": "Exceeds required qty ({{requested}})"
   },
   "responsesTab": {
     "title": "Responses",
@@ -598,6 +604,7 @@
     "validationTitle": "Please fix the following before submitting:",
     "validationNoItems": "Add at least one line item to your quote.",
     "validationLineItem": "{{material}}: unit price, available quantity and delivery date are required.",
+    "validationAvailExceedsReq": "{{material}}: available quantity cannot exceed the required quantity ({{requested}}).",
     "successTitle": "Quote Submitted Successfully",
     "successDescription": "Your quote has been sent to the contractor. You will be notified when they respond.",
     "successHint": "You can close this page. To manage your quotes, activate your account using the link in your invitation email.",

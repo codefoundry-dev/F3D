@@ -321,6 +321,22 @@ export function CoreIdentificationFields({
             )}
           />
         </FormField>
+        <FormField label={f('costCode')} optional>
+          <Input
+            leftIcon={<FieldIcon field="costCode" />}
+            {...register('costCode')}
+            placeholder={f('costCodePlaceholder')}
+            data-testid="material-form-cost-code"
+          />
+        </FormField>
+        <FormField label={f('taxCode')} optional>
+          <Input
+            leftIcon={<FieldIcon field="taxCode" />}
+            {...register('taxCode')}
+            placeholder={f('taxCodePlaceholder')}
+            data-testid="material-form-tax-code"
+          />
+        </FormField>
       </div>
 
       {/* ── Description ─────────────────────────────────────────────────── */}

@@ -10,6 +10,7 @@ import {
   addWarehouse,
   updateWarehouse,
   deleteWarehouse,
+  addVendorRepresentative,
   getCompanyLogoUrl,
   uploadCompanyLogo,
   type VendorListParams,
@@ -17,6 +18,7 @@ import {
   type CreateCompanyDto,
   type UpdateVendorProfileInput,
   type CreateWarehouseInput,
+  type CreateVendorRepresentativeInput,
 } from '@forethread/api-client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -141,6 +143,28 @@ export function useDeleteWarehouse() {
   return useMutation({
     mutationFn: ({ vendorId, warehouseId }: { vendorId: string; warehouseId: string }) =>
       deleteWarehouse(vendorId, warehouseId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [VENDORS_KEY] });
+    },
+  });
+}
+
+/**
+ * Adds a vendor representative without sending an invitation email (FOR-272).
+ * Uses `skipErrorHandler` so the caller can surface duplicate-email (409)
+ * errors on the offending draft row instead of a generic global toast.
+ */
+export function useAddVendorRepresentative() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      vendorId,
+      input,
+    }: {
+      vendorId: string;
+      input: CreateVendorRepresentativeInput;
+    }) => addVendorRepresentative(vendorId, input, { skipErrorHandler: true }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [VENDORS_KEY] });
     },

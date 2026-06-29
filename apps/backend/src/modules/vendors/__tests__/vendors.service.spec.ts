@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UserRole, UserStatus } from '@prisma/client';
 
 import { VendorsService } from '../vendors.service';
@@ -21,8 +21,12 @@ const mockPrisma = {
   },
   user: {
     findMany: jest.fn(),
+    findUnique: jest.fn(),
+    create: jest.fn(),
   },
 };
+
+const mockAudit = { log: jest.fn() };
 
 const companyAdmin = {
   id: 'ca-1',
@@ -65,7 +69,7 @@ describe('VendorsService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new VendorsService(mockPrisma as never);
+    service = new VendorsService(mockPrisma as never, mockAudit as never);
   });
 
   // ── listVendors ─────────────────────────────────────────────────────────
@@ -569,6 +573,104 @@ describe('VendorsService', () => {
 
       const result = await service.getRepresentatives('vendor-comp-1', companyAdmin);
       expect(result).toEqual([]);
+    });
+  });
+
+  // ── addRepresentative (FOR-272) ─────────────────────────────────────────
+
+  describe('addRepresentative', () => {
+    const dto = {
+      name: 'New Rep',
+      email: 'newrep@vendor.com',
+      phone: '+61400000000',
+      position: 'Sales',
+    };
+
+    it('throws NotFoundException when vendor not found', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue(null);
+      await expect(service.addRepresentative('missing', dto, vendorUser)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockPrisma.user.create).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException when vendor user targets a different company', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({ id: 'other-comp', type: 'VENDOR' });
+      await expect(service.addRepresentative('other-comp', dto, vendorUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(mockPrisma.user.create).not.toHaveBeenCalled();
+    });
+
+    it('throws ConflictException when the email is already in use', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({ id: 'vendor-comp-1', type: 'VENDOR' });
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'existing', email: dto.email });
+
+      await expect(service.addRepresentative('vendor-comp-1', dto, vendorUser)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(mockPrisma.user.create).not.toHaveBeenCalled();
+    });
+
+    it('creates an INVITED representative with no invitation token and sends no email', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({ id: 'vendor-comp-1', type: 'VENDOR' });
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.create.mockResolvedValue({
+        id: 'rep-1',
+        name: dto.name,
+        email: dto.email,
+        phone: dto.phone,
+        position: dto.position,
+        status: UserStatus.INVITED,
+      });
+
+      const result = await service.addRepresentative('vendor-comp-1', dto, vendorUser);
+
+      const createArg = mockPrisma.user.create.mock.calls[0][0];
+      expect(createArg.data).toMatchObject({
+        name: dto.name,
+        email: dto.email,
+        phone: dto.phone,
+        position: dto.position,
+        role: UserRole.VENDOR,
+        status: UserStatus.INVITED,
+        companyId: 'vendor-comp-1',
+        invitedByUserId: vendorUser.id,
+      });
+      // No invitation token is generated for an added-without-invite rep.
+      expect(createArg.data.invitationToken).toBeUndefined();
+      expect(createArg.data.invitationTokenExpiresAt).toBeUndefined();
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'VENDOR_USER_ADDED', targetId: 'rep-1' }),
+      );
+      expect(result.status).toBe(UserStatus.INVITED);
+    });
+
+    it('defaults optional phone/position when omitted', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({ id: 'vendor-comp-1', type: 'VENDOR' });
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.create.mockResolvedValue({ id: 'rep-2', status: UserStatus.INVITED });
+
+      await service.addRepresentative(
+        'vendor-comp-1',
+        { name: 'No Extras', email: 'noextras@vendor.com' },
+        vendorUser,
+      );
+
+      const createArg = mockPrisma.user.create.mock.calls[0][0];
+      expect(createArg.data.phone).toBeNull();
+      expect(createArg.data.position).toBe('');
+    });
+
+    it('allows a contractor to add a rep to an assigned vendor', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({ id: 'vendor-comp-1', type: 'VENDOR' });
+      mockPrisma.companyVendorAssignment.findFirst.mockResolvedValue({ id: 'assign-1' });
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.create.mockResolvedValue({ id: 'rep-3', status: UserStatus.INVITED });
+
+      const result = await service.addRepresentative('vendor-comp-1', dto, companyAdmin);
+      expect(result.id).toBe('rep-3');
+      expect(mockPrisma.user.create).toHaveBeenCalled();
     });
   });
 });

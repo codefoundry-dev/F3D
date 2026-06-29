@@ -55,6 +55,8 @@ function material(over: Partial<apiClient.MaterialDetailDto> = {}): apiClient.Ma
     size: null,
     pricePerUnit: null,
     currency: 'AUD',
+    costCode: null,
+    taxCode: null,
     dimensions: {
       length: { value: 1200, uom: 'mm' },
       packaging: { packagingUnit: 'box', unitsPerPackage: 10, weightPerPackage: null },

@@ -24,6 +24,10 @@ const mockPdfExportService = {
   generateInvoicePDFBuffer: jest.fn(),
 };
 
+const mockBrandingService = {
+  getPdfBrand: jest.fn().mockResolvedValue(undefined),
+};
+
 function q(overrides: Partial<PoListQueryDto> = {}): PoListQueryDto {
   return Object.assign(new PoListQueryDto(), overrides);
 }
@@ -104,7 +108,11 @@ describe('PoExportService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new PoExportService(mockPoService as never, mockPdfExportService as never);
+    service = new PoExportService(
+      mockPoService as never,
+      mockPdfExportService as never,
+      mockBrandingService as never,
+    );
     mockPoService.listPurchaseOrders.mockResolvedValue({ items: sampleItems, meta: {} });
   });
 
@@ -138,6 +146,19 @@ describe('PoExportService', () => {
         rows: expect.any(Array),
         filenamePrefix: 'purchase-orders-export',
       }),
+    );
+  });
+
+  it('forwards the issuing company brand to the list PDF when set (FOR-267)', async () => {
+    mockPdfExportService.exportToPDF.mockResolvedValue({ url: 'https://storage/pos.pdf' });
+    const brand = { name: 'BuildCo', logo: Buffer.from('png') };
+    mockBrandingService.getPdfBrand.mockResolvedValueOnce(brand);
+
+    await service.exportPos('pdf', q(), companyAdmin as never);
+
+    expect(mockBrandingService.getPdfBrand).toHaveBeenCalledWith('comp-1');
+    expect(mockPdfExportService.exportToPDF).toHaveBeenCalledWith(
+      expect.objectContaining({ brand }),
     );
   });
 
@@ -551,6 +572,20 @@ describe('PoExportService', () => {
       expect(result).toEqual({ url: 'https://storage/po.pdf' });
       expect(mockPdfExportService.exportInvoicePDF).toHaveBeenCalledWith(
         expect.objectContaining({ heading: 'Purchase Order', filenamePrefix: 'po-PO-2026-0042' }),
+      );
+    });
+
+    it('forwards the buyer company brand to the single-PO PDF (FOR-267)', async () => {
+      mockPoService.getPurchaseOrder.mockResolvedValue(poDetail);
+      mockPdfExportService.exportInvoicePDF.mockResolvedValue({ url: 'https://storage/po.pdf' });
+      const brand = { name: 'BuildCo', logo: Buffer.from('png') };
+      mockBrandingService.getPdfBrand.mockResolvedValueOnce(brand);
+
+      await service.exportSinglePo('po-123', 'pdf', companyAdmin as never);
+
+      expect(mockBrandingService.getPdfBrand).toHaveBeenCalledWith('c-1');
+      expect(mockPdfExportService.exportInvoicePDF).toHaveBeenCalledWith(
+        expect.objectContaining({ brand }),
       );
     });
 

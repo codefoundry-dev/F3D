@@ -129,8 +129,8 @@ export function MaterialTable({
   const { t } = useTranslation(['materialCatalogue']);
 
   const showStarColumn = Boolean(onToggleFavourite);
-  // Base columns = 10; +1 when the leading favourites star column is shown.
-  const columnCount = 10 + (showStarColumn ? 1 : 0);
+  // Base columns = 12; +1 when the leading favourites star column is shown.
+  const columnCount = 12 + (showStarColumn ? 1 : 0);
 
   function SortHeader({
     label,
@@ -217,6 +217,8 @@ export function MaterialTable({
             <SortHeader label={t('table.columns.manufacturer')} />
             <SortHeader label={t('table.columns.uom')} />
             <SortHeader label={t('table.columns.upc')} />
+            <SortHeader label={t('table.columns.costCode')} />
+            <SortHeader label={t('table.columns.taxCode')} />
             <SortHeader label={t('table.columns.lastPrice')} />
             <SortHeader label={t('table.columns.updated')} sortKey="updatedAt" />
             <th className="text-left px-3 py-3 whitespace-nowrap">{t('table.columns.actions')}</th>
@@ -302,6 +304,12 @@ export function MaterialTable({
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
+                  </td>
+                  <td className="px-3 py-3 text-muted-foreground whitespace-nowrap">
+                    {material.costCode ?? '—'}
+                  </td>
+                  <td className="px-3 py-3 text-muted-foreground whitespace-nowrap">
+                    {material.taxCode ?? '—'}
                   </td>
                   <td className="px-3 py-3 text-foreground whitespace-nowrap">
                     {formatPrice(material.pricePerUnit, material.currency)}

@@ -32,6 +32,8 @@ const FIELD_ICONS: Record<string, IconCmp> = {
   size: P.BoundingBoxIcon,
   pricePerUnit: P.CoinsIcon,
   currency: P.CurrencyCircleDollarIcon,
+  costCode: P.HashIcon,
+  taxCode: P.HashIcon,
   description: P.TextAlignLeftIcon,
   // Dimensions
   length: P.RulerIcon,

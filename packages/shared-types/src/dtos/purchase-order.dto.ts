@@ -100,6 +100,23 @@ export class CreatePoLineItemDto {
   @IsString()
   costCode?: string;
 
+  @ApiPropertyOptional({ description: 'UPC snapshot (defaults from the linked material)' })
+  @IsOptional()
+  @IsString()
+  upc?: string;
+
+  @ApiPropertyOptional({
+    description: 'Manufacturer part number snapshot (defaults from the linked material)',
+  })
+  @IsOptional()
+  @IsString()
+  manufacturerPartNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Tax code (defaults from the linked material)' })
+  @IsOptional()
+  @IsString()
+  taxCode?: string;
+
   @IsOptional()
   @IsString()
   notes?: string;
@@ -525,6 +542,15 @@ export class PoLineItemResponseDto {
 
   @ApiPropertyOptional()
   costCode!: string | null;
+
+  @ApiPropertyOptional()
+  upc!: string | null;
+
+  @ApiPropertyOptional()
+  manufacturerPartNumber!: string | null;
+
+  @ApiPropertyOptional()
+  taxCode!: string | null;
 
   @ApiPropertyOptional()
   expectedDeliveryDate!: string | null;

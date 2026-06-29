@@ -37,6 +37,8 @@ const materialListDetailInclude = {
           upc: true,
           pricePerUnit: true,
           currency: true,
+          costCode: true,
+          taxCode: true,
           imageUrl: true,
           updatedAt: true,
           category: { select: { id: true, name: true } },
@@ -125,6 +127,8 @@ export class MaterialListsService {
               ? item.material.pricePerUnit.toString()
               : null,
           currency: item.material.currency,
+          costCode: item.material.costCode,
+          taxCode: item.material.taxCode,
           imageUrl: item.material.imageUrl,
           updatedAt: item.material.updatedAt.toISOString(),
           category: { id: item.material.category.id, name: item.material.category.name },

@@ -34,6 +34,9 @@ const mockProfile = vi.hoisted<VendorProfile>(() => ({
 
 const mockMutateAsync = vi.hoisted(() => vi.fn().mockResolvedValue(mockProfile));
 const mockDeleteMutateAsync = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mockAddRepMutateAsync = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ id: 'rep-new', status: 'INVITED' }),
+);
 const mockUseVendorProfile = vi.hoisted(() =>
   vi.fn(() => ({
     data: mockProfile,
@@ -66,6 +69,11 @@ vi.mock('../services', () => ({
   useUpdateWarehouse: vi.fn(() => ({
     mutate: vi.fn(),
     mutateAsync: vi.fn().mockResolvedValue(undefined),
+    isPending: false,
+  })),
+  useAddVendorRepresentative: vi.fn(() => ({
+    mutate: vi.fn(),
+    mutateAsync: mockAddRepMutateAsync,
     isPending: false,
   })),
 }));
@@ -307,6 +315,71 @@ describe('VendorProfilePage', () => {
         }),
       );
     });
+  });
+
+  it('persists an added representative without sending an invitation (FOR-272)', async () => {
+    render(<VendorProfilePage vendorId="vendor-1" />);
+
+    // "Add user" flips to edit mode and seeds an empty draft row.
+    fireEvent.click(screen.getByText('Add user'));
+
+    fireEvent.change(screen.getByPlaceholderText('Name Surname'), {
+      target: { value: 'Jane Smith' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('email@company.com'), {
+      target: { value: 'jane@acme.com' },
+    });
+
+    fireEvent.click(screen.getByText('Submit'));
+
+    await waitFor(() => {
+      expect(mockAddRepMutateAsync).toHaveBeenCalledWith({
+        vendorId: 'vendor-1',
+        input: expect.objectContaining({ name: 'Jane Smith', email: 'jane@acme.com' }),
+      });
+    });
+  });
+
+  it('does not call addRepresentative when no draft is filled', async () => {
+    render(<VendorProfilePage vendorId="vendor-1" />);
+
+    fireEvent.click(screen.getByText('Edit Profile'));
+    fireEvent.change(screen.getByDisplayValue('https://acme.com'), {
+      target: { value: 'https://acme.com/updated' },
+    });
+    fireEvent.click(screen.getByText('Submit'));
+
+    await waitFor(() => {
+      expect(mockMutateAsync).toHaveBeenCalled();
+    });
+    expect(mockAddRepMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('adds a representative even when the profile is missing required fields (FOR-272)', async () => {
+    mockUseVendorProfile.mockReturnValue({
+      data: { ...mockProfile, abn: null, taxCode: null, legalAddress: null },
+      isLoading: false,
+    });
+
+    render(<VendorProfilePage vendorId="vendor-1" />);
+
+    fireEvent.click(screen.getByText('Add user'));
+    fireEvent.change(screen.getByPlaceholderText('Name Surname'), {
+      target: { value: 'Jane Smith' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('email@company.com'), {
+      target: { value: 'jane@acme.com' },
+    });
+    fireEvent.click(screen.getByText('Submit'));
+
+    await waitFor(() => {
+      expect(mockAddRepMutateAsync).toHaveBeenCalledWith({
+        vendorId: 'vendor-1',
+        input: expect.objectContaining({ name: 'Jane Smith', email: 'jane@acme.com' }),
+      });
+    });
+    // The incomplete profile is not patched, so no required-field errors block the add.
+    expect(mockMutateAsync).not.toHaveBeenCalled();
   });
 
   it('shows loading spinner when data is loading', () => {

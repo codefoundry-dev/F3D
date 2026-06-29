@@ -39,6 +39,8 @@ function entryToRow(entry: MaterialListEntryDto): MaterialListItemDto {
     upc: m.upc,
     pricePerUnit: m.pricePerUnit,
     currency: m.currency,
+    costCode: m.costCode,
+    taxCode: m.taxCode,
     imageUrl: m.imageUrl,
   };
 }

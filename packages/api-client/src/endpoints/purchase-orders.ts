@@ -38,6 +38,10 @@ export interface CreatePoLineItemInput {
   unitOfMeasure: string;
   unitPrice: number;
   costCode?: string;
+  /** Catalogue snapshots; default from the linked material when omitted. */
+  upc?: string;
+  manufacturerPartNumber?: string;
+  taxCode?: string;
   notes?: string;
   expectedDeliveryDate?: string;
   deliveryLocationId?: string;
@@ -152,6 +156,9 @@ export interface PoLineItemDetail {
   unitPrice: number;
   lineTotal: number;
   costCode: string | null;
+  upc?: string | null;
+  manufacturerPartNumber?: string | null;
+  taxCode?: string | null;
   expectedDeliveryDate: string | null;
   deliveryLocation: string | null;
   notes: string | null;

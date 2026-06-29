@@ -22,6 +22,18 @@ export interface EmailAttachment {
   contentType?: string;
 }
 
+/**
+ * Issuing-company branding for a transactional email (FOR-267). When provided the
+ * layout renders the company logo above the message body, embedded as a remote
+ * `<img>` pointing at the public logo URL.
+ */
+export interface EmailBrand {
+  /** Company display name — used as the logo's alt text. */
+  name: string;
+  /** Public URL to the company logo image. */
+  logoUrl: string;
+}
+
 /** A rendered message ready to hand to whichever transport is active. */
 interface EmailMessage {
   to: string;
@@ -111,6 +123,7 @@ export class EmailService implements OnModuleInit {
     templateName: EmailTemplateName,
     translations: Record<string, string>,
     params: Record<string, unknown> = {},
+    brand?: EmailBrand,
   ): string {
     const template = this.templates.get(templateName);
     if (!template) {
@@ -119,7 +132,7 @@ export class EmailService implements OnModuleInit {
 
     const footer = emailTranslations.footer;
     const content = template({ t: translations, ...params });
-    return this.layoutTemplate({ content, footer });
+    return this.layoutTemplate({ content, footer, ...(brand ? { brand } : {}) });
   }
 
   /**
@@ -373,7 +386,12 @@ export class EmailService implements OnModuleInit {
     to: string,
     rfqNumber: string,
     replyUrl: string,
-    options?: { cc?: string[]; attachments?: EmailAttachment[]; log?: EmailLogContext },
+    options?: {
+      cc?: string[];
+      attachments?: EmailAttachment[];
+      brand?: EmailBrand;
+      log?: EmailLogContext;
+    },
   ): Promise<void> {
     const t = this.getTranslations('rfqReceived', { rfqNumber });
 
@@ -382,7 +400,7 @@ export class EmailService implements OnModuleInit {
         to,
         ...(options?.cc && options.cc.length > 0 ? { cc: options.cc } : {}),
         subject: t.subject,
-        html: this.renderEmail(EMAIL_TEMPLATES.RFQ_RECEIVED, t, { replyUrl }),
+        html: this.renderEmail(EMAIL_TEMPLATES.RFQ_RECEIVED, t, { replyUrl }, options?.brand),
         ...(options?.attachments && options.attachments.length > 0
           ? { attachments: options.attachments }
           : {}),
@@ -400,6 +418,7 @@ export class EmailService implements OnModuleInit {
     viewUrl: string,
     pdfBuffer?: Buffer,
     log?: EmailLogContext,
+    brand?: EmailBrand,
   ): Promise<void> {
     const t = this.getTranslations('poIssued', { poNumber });
 
@@ -409,7 +428,7 @@ export class EmailService implements OnModuleInit {
       await this.dispatch({
         to,
         subject: t.subject,
-        html: this.renderEmail(EMAIL_TEMPLATES.PO_ISSUED, t, { viewUrl }),
+        html: this.renderEmail(EMAIL_TEMPLATES.PO_ISSUED, t, { viewUrl }, brand),
         attachments,
         template: EMAIL_TEMPLATES.PO_ISSUED,
         ...(log ? { log } : {}),

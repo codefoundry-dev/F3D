@@ -147,6 +147,13 @@ model RfqLineItem {
   quantity     Int
   unit         String  @db.VarChar(50)
   costCode     String? @map("cost_code") @db.VarChar(100)
+  // Snapshot of the linked material's identity/tax codes, captured at create so
+  // the line keeps its values even if the catalogue material later changes. UPC
+  // and MPN are pure snapshots; taxCode (like costCode) defaults from the
+  // material but is editable per line.
+  upc                    String? @db.VarChar(100)
+  manufacturerPartNumber String? @map("manufacturer_part_number") @db.VarChar(255)
+  taxCode                String? @map("tax_code") @db.VarChar(100)
   description  String?
   // Per-line buyer notes (US 5.05). Historically the create DTO's `notes` was
   // persisted into `description`; `description` now stays reserved for the

@@ -36,15 +36,17 @@ import {
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { loadMaterialSnapshots } from '../../common/utils/material-snapshot.util';
 import { nextSequentialNumber } from '../../common/utils/sequential-number.util';
 import { resolveSelectedRecipients } from '../../common/utils/vendor-recipients.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
+import { BrandingService } from '../export/branding.service';
 import { EmailAttachment, EmailService } from '../notifications/email.service';
 import { StorageService } from '../storage/storage.service';
 
 import { AwardSplitDto } from './quote-response.dto';
-import { normalizeCcEmails } from './rfq-cc.util';
+import { collectProjectMemberEmails, normalizeCcEmails } from './rfq-cc.util';
 import {
   catalogMaterialIds,
   isValidRfqLineItemInput,
@@ -147,6 +149,7 @@ export class RfqsService {
     private readonly emailService: EmailService,
     private readonly accessTokens: AccessTokensService,
     config: ConfigService,
+    private readonly branding: BrandingService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
   }
@@ -406,6 +409,13 @@ export class RfqsService {
           hasNotes: Boolean(notes),
           quantity: li.quantity,
           unit: li.unit,
+          // Catalogue codes carried on the line (US: materials list Cost Code,
+          // UPC, Manufacturer Part Number, Tax Code wherever they appear).
+          costCode: (liAny.costCode as string | null | undefined) ?? null,
+          upc: (liAny.upc as string | null | undefined) ?? null,
+          manufacturerPartNumber:
+            (liAny.manufacturerPartNumber as string | null | undefined) ?? null,
+          taxCode: (liAny.taxCode as string | null | undefined) ?? null,
           expectedDeliveryDate: liAny.expectedDeliveryDate
             ? (liAny.expectedDeliveryDate as Date).toISOString()
             : null,
@@ -579,6 +589,11 @@ export class RfqsService {
             description: li.description,
             notes: (li as Record<string, unknown>).notes as string | null,
             costCode: (li as Record<string, unknown>).costCode as string | undefined,
+            upc: (li as Record<string, unknown>).upc as string | undefined,
+            manufacturerPartNumber: (li as Record<string, unknown>).manufacturerPartNumber as
+              | string
+              | undefined,
+            taxCode: (li as Record<string, unknown>).taxCode as string | undefined,
             pickUp: (li as Record<string, unknown>).pickUp as boolean | undefined,
             projectId: (li as Record<string, unknown>).projectId as string | null,
             deliveryLocationId: (li as Record<string, unknown>).deliveryLocationId as string | null,
@@ -636,6 +651,18 @@ export class RfqsService {
     }
   }
 
+  /**
+   * Build the persisted line-item create rows, snapshotting each catalogue
+   * material's UPC / MPN / tax code and pre-filling its cost code (US: materials
+   * carry these codes; cost code defaults onto the line but stays editable).
+   */
+  private async buildLineItemCreates(
+    lineItems: CreateRfqLineItemDto[],
+  ): Promise<ReturnType<typeof normalizeRfqLineItem>[]> {
+    const snapshots = await loadMaterialSnapshots(this.prisma, catalogMaterialIds(lineItems));
+    return lineItems.map((li) => normalizeRfqLineItem(li, snapshots));
+  }
+
   // ── Create RFQ ────────────────────────────────────────────────────────────
 
   async createRfq(dto: CreateRfqDto, user: AuthenticatedUser) {
@@ -683,6 +710,7 @@ export class RfqsService {
 
     const totalRequestedQty = dto.lineItems.reduce((sum, li) => sum + li.quantity, 0);
     const rfqNumber = await nextSequentialNumber(this.prisma, 'rfq', 'RFQ', user.companyId ?? '');
+    const lineItemCreates = await this.buildLineItemCreates(dto.lineItems);
 
     const rfq = await this.prisma.$transaction(async (tx) => {
       const created = await tx.rfq.create({
@@ -706,7 +734,7 @@ export class RfqsService {
           message: dto.message,
           totalRequestedQty,
           lineItems: {
-            create: dto.lineItems.map((li) => normalizeRfqLineItem(li)),
+            create: lineItemCreates,
           },
           // The primary project always also appears in rfq_projects.
           projects: {
@@ -795,6 +823,10 @@ export class RfqsService {
 
     const totalRequestedQty = (dto.lineItems ?? []).reduce((sum, li) => sum + li.quantity, 0);
     const rfqNumber = await nextSequentialNumber(this.prisma, 'rfq', 'RFQ', user.companyId ?? '');
+    const lineItemCreates =
+      dto.lineItems && dto.lineItems.length > 0
+        ? await this.buildLineItemCreates(dto.lineItems)
+        : [];
 
     const rfq = await this.prisma.$transaction(async (tx) => {
       const created = await tx.rfq.create({
@@ -821,10 +853,10 @@ export class RfqsService {
           projects: {
             create: projectIds.map((projectId) => ({ projectId })),
           },
-          ...(dto.lineItems && dto.lineItems.length > 0
+          ...(lineItemCreates.length > 0
             ? {
                 lineItems: {
-                  create: dto.lineItems.map((li) => normalizeRfqLineItem(li)),
+                  create: lineItemCreates,
                 },
               }
             : {}),
@@ -1001,10 +1033,11 @@ export class RfqsService {
 
     // Delete + recreate line items if provided
     if (dto.lineItems) {
+      const lineItemCreates = await this.buildLineItemCreates(dto.lineItems);
       txOps.push(this.prisma.rfqLineItem.deleteMany({ where: { rfqId: id } }));
       txOps.push(
         this.prisma.rfqLineItem.createMany({
-          data: dto.lineItems.map((li) => ({ rfqId: id, ...normalizeRfqLineItem(li) })),
+          data: lineItemCreates.map((li) => ({ rfqId: id, ...li })),
         }),
       );
     }
@@ -1999,6 +2032,15 @@ export class RfqsService {
         createdByUserId: true,
         ccEmails: true,
         needByDate: true,
+        // Members of every project the RFQ spans are auto-CC'd on the vendor
+        // emails (FOR-255). Both the primary project and the rfq_projects join
+        // are read so legacy rows (primary only on `project`) are covered.
+        project: { select: { members: { select: { user: { select: { email: true } } } } } },
+        projects: {
+          select: {
+            project: { select: { members: { select: { user: { select: { email: true } } } } } },
+          },
+        },
         documents: {
           select: {
             file: { select: { key: true, filename: true, mimeType: true } },
@@ -2037,7 +2079,13 @@ export class RfqsService {
     // Download the RFQ documents once so every vendor email carries the same
     // attachments without re-fetching from S3 per recipient.
     const attachments = await this.buildRfqAttachments(rfq.documents);
-    const cc = rfq.ccEmails ?? [];
+    // Manually-entered CC addresses (kept verbatim) plus every project member,
+    // auto-included (FOR-255). normalizeCcEmails lower-cases, validates and
+    // de-dupes, so a member already typed into the CC field isn't doubled up.
+    const cc = normalizeCcEmails([...(rfq.ccEmails ?? []), ...collectProjectMemberEmails(rfq)]);
+
+    // The issuing company's logo, shown atop every vendor email (FOR-267).
+    const brand = await this.branding.getEmailBrand(rfq.companyId);
 
     const ttlMs = this.invitationTokenTtlMs(rfq.needByDate);
 
@@ -2078,6 +2126,7 @@ export class RfqsService {
           this.emailService.sendRfqReceivedEmail(email, rfqNumber, replyUrl, {
             cc,
             attachments,
+            ...(brand ? { brand } : {}),
             // Track each vendor email so it surfaces on the RFQ email log (FOR-213).
             log: { companyId: rfq.companyId, rfqId, sentByUserId: rfq.createdByUserId },
           }),

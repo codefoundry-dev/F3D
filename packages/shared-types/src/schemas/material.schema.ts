@@ -68,6 +68,8 @@ export const materialFormSchema = z.object({
   size: z.string().optional(),
   pricePerUnit: numericString,
   currency: z.string().optional(),
+  costCode: z.string().optional(),
+  taxCode: z.string().optional(),
   description: z.string().optional(),
   imageUrl: z.string().optional(),
   // ── Additional properties ──

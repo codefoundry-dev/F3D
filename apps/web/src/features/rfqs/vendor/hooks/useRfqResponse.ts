@@ -12,6 +12,8 @@ import {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState, useCallback, useMemo, useEffect } from 'react';
 
+import { availExceedsRequested } from './availExceedsRequested';
+
 export interface BulkDefaults {
   bulkAvailability: string;
   bulkDiscount: string;
@@ -348,6 +350,7 @@ export function useRfqResponse(rfq: RfqDetail, vendorId: string, options?: UseRf
     for (const item of included) {
       if (!item.unitPrice || safeFloat(item.unitPrice) <= 0) return 'response.validationUnitPrice';
       if (!item.availQty || safeFloat(item.availQty) <= 0) return 'response.validationAvailQty';
+      if (availExceedsRequested(item)) return 'response.validationAvailExceedsReq';
       if (!item.deliveryDate) return 'response.validationDeliveryDate';
       if (item.discount && safeFloat(item.discount) > 100) return 'response.validationDiscountMax';
       if (item.gst && safeFloat(item.gst) > 100) return 'response.validationGstMax';

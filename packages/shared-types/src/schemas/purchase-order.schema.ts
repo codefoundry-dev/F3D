@@ -23,6 +23,10 @@ export const createPoLineItemSchema = z.object({
   unitOfMeasure: z.string().min(1),
   unitPrice: z.number().min(0),
   costCode: z.string().optional(),
+  // Snapshots defaulted from the linked catalogue material.
+  upc: z.string().optional(),
+  manufacturerPartNumber: z.string().optional(),
+  taxCode: z.string().optional(),
   notes: z.string().optional(),
   expectedDeliveryDate: z.string().datetime().optional(),
   deliveryLocationId: z.string().uuid().optional(),

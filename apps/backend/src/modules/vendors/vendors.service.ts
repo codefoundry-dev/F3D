@@ -1,12 +1,19 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CompanyType, UserRole, UserStatus } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService, AuditAction } from '../audit/audit.service';
 
 import {
   AuthUser,
+  CreateVendorRepresentativeDto,
   CreateWarehouseDto,
   UpdateVendorProfileDto,
   UpdateWarehouseDto,
@@ -44,7 +51,10 @@ export interface VendorListRow {
 
 @Injectable()
 export class VendorsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async listVendors(query: VendorListQueryDto, requestingUser: AuthUser) {
     if (!requestingUser.companyId) {
@@ -352,6 +362,70 @@ export class VendorsService {
   }
 
   // ── Representatives (US-3.12) ─────────────────────────────────────────────
+
+  /**
+   * Adds a representative to a vendor company WITHOUT sending an invitation
+   * email (FOR-272). Mirrors the access rules of the rest of the profile
+   * editing surface (vendor managing its own company OR a contractor managing
+   * an assigned vendor) via {@link validateVendorAccess} — unlike the
+   * email-sending invite flow, which is vendor-only.
+   *
+   * The representative is stored as a vendor `User` with INVITED status and no
+   * invitation token, so it appears in the representatives list immediately and
+   * can later be sent a real invitation via the resend action.
+   */
+  async addRepresentative(
+    vendorCompanyId: string,
+    dto: CreateVendorRepresentativeDto,
+    user: AuthenticatedUser,
+  ) {
+    const company = await this.prisma.company.findFirst({
+      where: { id: vendorCompanyId, type: CompanyType.VENDOR },
+    });
+
+    if (!company) {
+      throw new NotFoundException(ERR.vendors.notFound);
+    }
+
+    await this.validateVendorAccess(vendorCompanyId, user);
+
+    // Same duplicate check as the invite flow (email is globally unique).
+    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (existing) {
+      throw new ConflictException(ERR.vendors.userEmailInUse);
+    }
+
+    const rep = await this.prisma.user.create({
+      data: {
+        name: dto.name,
+        email: dto.email,
+        phone: dto.phone ?? null,
+        position: dto.position ?? '',
+        role: UserRole.VENDOR,
+        status: UserStatus.INVITED,
+        companyId: vendorCompanyId,
+        invitedByUserId: user.id,
+      },
+    });
+
+    await this.auditService.log({
+      action: AuditAction.VENDOR_USER_ADDED,
+      performedById: user.id,
+      targetType: 'User',
+      targetId: rep.id,
+      targetLabel: rep.name,
+      metadata: { companyId: vendorCompanyId, email: dto.email },
+    });
+
+    return {
+      id: rep.id,
+      name: rep.name,
+      email: rep.email,
+      phone: rep.phone,
+      position: rep.position,
+      status: rep.status,
+    };
+  }
 
   async getRepresentatives(vendorCompanyId: string, user: AuthenticatedUser) {
     const company = await this.prisma.company.findFirst({
