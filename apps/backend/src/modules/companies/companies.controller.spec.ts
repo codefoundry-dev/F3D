@@ -50,7 +50,7 @@ describe('CompaniesController', () => {
 
     storageService = {
       upload: jest.fn(),
-      getSignedUrl: jest.fn(),
+      getSignedUrl: jest.fn((key: string) => Promise.resolve(`https://signed.test/${key}?sig=abc`)),
       getPublicUrl: jest.fn((key: string) => `http://localhost:9000/forethread-dev/${key}`),
       delete: jest.fn(),
     };
@@ -196,7 +196,7 @@ describe('CompaniesController', () => {
       });
       expect(result).toEqual({
         id: 'c1',
-        logoUrl: 'http://localhost:9000/forethread-dev/logos/c1/uuid.png',
+        logoUrl: 'https://signed.test/logos/c1/uuid.png?sig=abc',
       });
     });
 
@@ -224,12 +224,12 @@ describe('CompaniesController', () => {
   });
 
   describe('getLogoUrl', () => {
-    it('should return public URL when logo exists', async () => {
+    it('should return a presigned URL when logo exists', async () => {
       prisma.company.findUnique.mockResolvedValue({ logoUrl: 'logos/c1/logo.png' });
 
       const result = await controller.getLogoUrl('c1');
 
-      expect(result).toEqual({ url: 'http://localhost:9000/forethread-dev/logos/c1/logo.png' });
+      expect(result).toEqual({ url: 'https://signed.test/logos/c1/logo.png?sig=abc' });
     });
 
     it('should return null URL when company has no logo', async () => {

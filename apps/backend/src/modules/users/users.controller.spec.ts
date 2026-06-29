@@ -21,7 +21,7 @@ const mockUsersService = {
 
 const mockStorageService = {
   upload: jest.fn(),
-  getSignedUrl: jest.fn(),
+  getSignedUrl: jest.fn((key: string) => Promise.resolve(`https://signed.test/${key}?sig=abc`)),
   getPublicUrl: jest.fn((key: string) => `http://localhost:9000/forethread-dev/${key}`),
 };
 
@@ -112,7 +112,7 @@ describe('UsersController', () => {
       expect(mockPrisma.user.update).toHaveBeenCalled();
       expect(result).toEqual({
         id: 'user-1',
-        avatarUrl: 'http://localhost:9000/forethread-dev/avatars/user-1/uuid.png',
+        avatarUrl: 'https://signed.test/avatars/user-1/uuid.png?sig=abc',
       });
     });
 
@@ -138,12 +138,12 @@ describe('UsersController', () => {
   // ── getAvatarUrl ─────────────────────────────────────────────────────────
 
   describe('getAvatarUrl', () => {
-    it('returns public URL when avatar exists', async () => {
+    it('returns a presigned URL when avatar exists', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ avatarUrl: 'avatars/user-1/photo.jpg' });
 
       const result = await controller.getAvatarUrl(authUser);
       expect(result).toEqual({
-        url: 'http://localhost:9000/forethread-dev/avatars/user-1/photo.jpg',
+        url: 'https://signed.test/avatars/user-1/photo.jpg?sig=abc',
       });
     });
 
@@ -194,15 +194,13 @@ describe('UsersController', () => {
       expect(result.avatarUrl).toBeNull();
     });
 
-    it('resolves avatarUrl to public URL when present', async () => {
+    it('resolves avatarUrl to a presigned URL when present', async () => {
       mockUsersService.getUser.mockResolvedValue({
         id: 'user-2',
         avatarUrl: 'avatars/user-2/photo.png',
       });
       const result = await controller.getUser('user-2', authUser);
-      expect(result.avatarUrl).toBe(
-        'http://localhost:9000/forethread-dev/avatars/user-2/photo.png',
-      );
+      expect(result.avatarUrl).toBe('https://signed.test/avatars/user-2/photo.png?sig=abc');
     });
   });
 

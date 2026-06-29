@@ -56,7 +56,7 @@ export class CompaniesController {
   @ApiResponse({ status: 200, description: 'Paginated company list' })
   async listCompanies(@Query() query: CompanyListQueryDto, @CurrentUser() user: AuthUser) {
     const result = await this.companiesService.listCompanies(query, user);
-    const items = result.items.map((item) => this.resolveLogoUrl(item));
+    const items = await Promise.all(result.items.map((item) => this.resolveLogoUrl(item)));
     return { ...result, items };
   }
 
@@ -159,11 +159,11 @@ export class CompaniesController {
       data: { logoUrl: result.key },
     });
 
-    return { id, logoUrl: this.storageService.getPublicUrl(result.key) };
+    return { id, logoUrl: await this.storageService.getSignedUrl(result.key) };
   }
 
   @Get(':id/logo-url')
-  @ApiOperation({ summary: 'Get public URL for company logo' })
+  @ApiOperation({ summary: 'Get a presigned URL for the company logo' })
   @ApiResponse({ status: 200, description: 'Logo URL' })
   async getLogoUrl(@Param('id') id: string) {
     const company = await this.prisma.company.findUnique({
@@ -171,7 +171,7 @@ export class CompaniesController {
       select: { logoUrl: true },
     });
     if (!company?.logoUrl) return { url: null };
-    return { url: this.storageService.getPublicUrl(company.logoUrl) };
+    return { url: await this.storageService.getSignedUrl(company.logoUrl) };
   }
 
   // ── Company Documents ─────────────────────────────────────────────────────
@@ -273,10 +273,12 @@ export class CompaniesController {
     return { message: 'Document deleted' };
   }
 
-  /** Convert S3 key stored in logoUrl to a public URL */
-  private resolveLogoUrl<T extends { logoUrl: string | null }>(item: T): T {
+  /** Convert the S3 key stored in `logoUrl` to a short-lived presigned GET URL.
+   *  The uploads bucket blocks public access (see StorageService.getPublicUrl),
+   *  so a presigned URL is the only way the browser can load the object. */
+  private async resolveLogoUrl<T extends { logoUrl: string | null }>(item: T): Promise<T> {
     if (item.logoUrl) {
-      return { ...item, logoUrl: this.storageService.getPublicUrl(item.logoUrl) };
+      return { ...item, logoUrl: await this.storageService.getSignedUrl(item.logoUrl) };
     }
     return item;
   }
