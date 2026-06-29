@@ -53,6 +53,11 @@ model Material {
   size                     String?  @db.VarChar(100)
   pricePerUnit             Decimal? @map("price_per_unit") @db.Decimal(18, 4)
   currency                 String   @default("AUD") @db.VarChar(3)
+  // Accounting codes carried on every line item that references this material.
+  // costCode acts as a catalogue default — it pre-fills the editable per-line
+  // cost code on RFQ/PO lines; taxCode is the material's tax classification code.
+  costCode                 String?  @map("cost_code") @db.VarChar(100)
+  taxCode                  String?  @map("tax_code") @db.VarChar(100)
   // {length:{value,uom}, width:{...}, ..., packaging:{packagingUnit, unitsPerPackage, weightPerPackage}}
   dimensions               Json?
   // Open-ended, category-specific "Specific data".

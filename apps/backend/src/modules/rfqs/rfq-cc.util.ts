@@ -22,3 +22,36 @@ export function normalizeCcEmails(cc?: string[] | null): string[] {
 
   return result;
 }
+
+/** Minimal RFQ shape needed to harvest its projects' member emails. */
+type ProjectMemberEmailSource = {
+  /** Primary project (US 5.05). Legacy rows may carry their primary only here. */
+  project?: { members?: { user: { email?: string | null } }[] | null } | null;
+  /** Every project the RFQ spans, including the primary on newer rows (US 5.05). */
+  projects?: { project: { members?: { user: { email?: string | null } }[] | null } }[] | null;
+};
+
+/**
+ * Collect the email addresses of every member across all projects an RFQ spans
+ * (FOR-255). Duplicates and blanks are tolerated — callers pass the result
+ * through {@link normalizeCcEmails}, which lower-cases, validates and de-dupes.
+ *
+ * Both the primary `project` relation and the `projects` (rfq_projects) join are
+ * read: newer RFQs list their primary in both, but legacy rows only carry it on
+ * `project`, so reading both guarantees the primary's members are never missed.
+ */
+export function collectProjectMemberEmails(rfq: ProjectMemberEmailSource): string[] {
+  const emails: string[] = [];
+
+  for (const member of rfq.project?.members ?? []) {
+    if (member.user.email) emails.push(member.user.email);
+  }
+
+  for (const rp of rfq.projects ?? []) {
+    for (const member of rp.project.members ?? []) {
+      if (member.user.email) emails.push(member.user.email);
+    }
+  }
+
+  return emails;
+}

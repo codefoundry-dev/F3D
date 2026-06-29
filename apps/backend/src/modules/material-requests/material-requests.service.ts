@@ -19,6 +19,10 @@ import {
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PermissionsService } from '../../common/permissions';
+import {
+  loadMaterialSnapshots,
+  resolveMaterialSnapshot,
+} from '../../common/utils/material-snapshot.util';
 import { nextSequentialNumber } from '../../common/utils/sequential-number.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -433,6 +437,12 @@ export class MaterialRequestsService {
 
     const rfqNumber = await nextSequentialNumber(this.prisma, 'rfq', 'RFQ', mr.companyId);
     const totalRequestedQty = mr.lineItems.reduce((sum, li) => sum + li.quantity, 0);
+    // Snapshot the catalogue codes from each line's material onto the new RFQ
+    // lines (MR lines don't carry these; they default from the material).
+    const materialSnapshots = await loadMaterialSnapshots(
+      this.prisma,
+      mr.lineItems.map((li) => li.materialId),
+    );
 
     const rfq = await this.prisma.$transaction(async (tx) => {
       const createdRfq = await tx.rfq.create({
@@ -447,16 +457,25 @@ export class MaterialRequestsService {
           needByDate: mr.neededByDate,
           totalRequestedQty,
           lineItems: {
-            create: mr.lineItems.map((li) => ({
-              materialId: li.materialId,
-              materialName: li.materialName,
-              description: li.description,
-              quantity: li.quantity,
-              unit: li.unit,
-              expectedDeliveryDate: li.expectedDeliveryDate,
-              deliveryLocationId: li.deliveryLocationId,
-              notes: li.notes,
-            })),
+            create: mr.lineItems.map((li) => {
+              // MR lines carry none of the codes themselves — they default purely
+              // from the linked material.
+              const snapshot = resolveMaterialSnapshot({}, li.materialId, materialSnapshots);
+              return {
+                materialId: li.materialId,
+                materialName: li.materialName,
+                description: li.description,
+                quantity: li.quantity,
+                unit: li.unit,
+                costCode: snapshot.costCode,
+                upc: snapshot.upc,
+                manufacturerPartNumber: snapshot.manufacturerPartNumber,
+                taxCode: snapshot.taxCode,
+                expectedDeliveryDate: li.expectedDeliveryDate,
+                deliveryLocationId: li.deliveryLocationId,
+                notes: li.notes,
+              };
+            }),
           },
         },
         select: { id: true, rfqNumber: true },
@@ -504,6 +523,12 @@ export class MaterialRequestsService {
 
     const poNumber = await nextSequentialNumber(this.prisma, 'purchaseOrder', 'PO', mr.companyId);
     const totalRequestedQty = mr.lineItems.reduce((sum, li) => sum + li.quantity, 0);
+    // Snapshot the catalogue codes from each line's material onto the new PO
+    // lines (MR lines don't carry these; they default from the material).
+    const materialSnapshots = await loadMaterialSnapshots(
+      this.prisma,
+      mr.lineItems.map((li) => li.materialId),
+    );
 
     const po = await this.prisma.$transaction(async (tx) => {
       const createdPo = await tx.purchaseOrder.create({
@@ -524,18 +549,27 @@ export class MaterialRequestsService {
           lineItems: {
             // unitPrice / lineTotal default to 0 — filled in during PO edit since
             // the MR carries no pricing.
-            create: mr.lineItems.map((li, idx) => ({
-              lineNumber: idx + 1,
-              materialId: li.materialId,
-              description: li.description ?? li.materialName,
-              quantityOrdered: li.quantity,
-              unitOfMeasure: li.unit,
-              unitPrice: 0,
-              lineTotal: 0,
-              expectedDeliveryDate: li.expectedDeliveryDate,
-              deliveryLocationId: li.deliveryLocationId,
-              notes: li.notes,
-            })),
+            create: mr.lineItems.map((li, idx) => {
+              // MR lines carry none of the codes themselves — they default purely
+              // from the linked material.
+              const snapshot = resolveMaterialSnapshot({}, li.materialId, materialSnapshots);
+              return {
+                lineNumber: idx + 1,
+                materialId: li.materialId,
+                description: li.description ?? li.materialName,
+                quantityOrdered: li.quantity,
+                unitOfMeasure: li.unit,
+                unitPrice: 0,
+                lineTotal: 0,
+                costCode: snapshot.costCode,
+                upc: snapshot.upc,
+                manufacturerPartNumber: snapshot.manufacturerPartNumber,
+                taxCode: snapshot.taxCode,
+                expectedDeliveryDate: li.expectedDeliveryDate,
+                deliveryLocationId: li.deliveryLocationId,
+                notes: li.notes,
+              };
+            }),
           },
         },
         select: { id: true, poNumber: true },

@@ -157,6 +157,12 @@ export function MaterialReviewSummary({
             <Field label={f('pricePerUnit')} field="pricePerUnit">
               {price}
             </Field>
+            <Field label={f('costCode')} field="costCode">
+              {val(values.costCode)}
+            </Field>
+            <Field label={f('taxCode')} field="taxCode">
+              {val(values.taxCode)}
+            </Field>
           </div>
         </div>
 

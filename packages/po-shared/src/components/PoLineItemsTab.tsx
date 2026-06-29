@@ -58,7 +58,7 @@ export function PoLineItemsTab({
 
   const isPageLayout = layout === 'page';
   const showActions = isPageLayout && Boolean(poId) && !readOnly;
-  const columnCount = (isPageLayout ? 9 : 6) + (showActions ? 1 : 0);
+  const columnCount = (isPageLayout ? 12 : 6) + (showActions ? 1 : 0);
 
   return (
     <div className="rounded-lg border border-border bg-background">
@@ -88,6 +88,9 @@ export function PoLineItemsTab({
               <th className={TH}>{t('lineItemsTab.materialName')}</th>
               {isPageLayout && <th className={TH}>{t('lineItemsTab.materialCode')}</th>}
               {isPageLayout && <th className={TH}>{t('lineItemsTab.costCode')}</th>}
+              {isPageLayout && <th className={TH}>{t('lineItemsTab.upc')}</th>}
+              {isPageLayout && <th className={TH}>{t('lineItemsTab.mpn')}</th>}
+              {isPageLayout && <th className={TH}>{t('lineItemsTab.taxCode')}</th>}
               <th className={TH}>{t('lineItemsTab.description')}</th>
               <th className={TH}>{t('lineItemsTab.qtyOrdered')}</th>
               <th className={TH}>{t('lineItemsTab.uom')}</th>
@@ -118,6 +121,21 @@ export function PoLineItemsTab({
                   {isPageLayout && (
                     <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
                       {item.costCode ?? '-'}
+                    </td>
+                  )}
+                  {isPageLayout && (
+                    <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
+                      {item.upc ?? '-'}
+                    </td>
+                  )}
+                  {isPageLayout && (
+                    <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
+                      {item.manufacturerPartNumber ?? '-'}
+                    </td>
+                  )}
+                  {isPageLayout && (
+                    <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
+                      {item.taxCode ?? '-'}
                     </td>
                   )}
                   <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
@@ -225,6 +243,9 @@ function EditPoLineItemModal({ poId, lineItem, allLineItems, onClose }: EditPoLi
           unitOfMeasure: li.unitOfMeasure,
           unitPrice: li.unitPrice,
           costCode: li.costCode ?? undefined,
+          upc: li.upc ?? undefined,
+          manufacturerPartNumber: li.manufacturerPartNumber ?? undefined,
+          taxCode: li.taxCode ?? undefined,
           notes: li.notes ?? undefined,
           expectedDeliveryDate: li.expectedDeliveryDate ?? undefined,
           deliveryLocationId: li.deliveryLocation ?? undefined,

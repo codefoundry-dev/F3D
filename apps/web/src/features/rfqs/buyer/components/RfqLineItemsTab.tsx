@@ -67,6 +67,18 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
                 {t('lineItemsTab.uom')}
               </th>
               <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
+                {t('lineItemsTab.costCode')}
+              </th>
+              <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
+                {t('lineItemsTab.upc')}
+              </th>
+              <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
+                {t('lineItemsTab.mpn')}
+              </th>
+              <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
+                {t('lineItemsTab.taxCode')}
+              </th>
+              <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
                 {t('lineItemsTab.expDeliveryDate')}
               </th>
               <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
@@ -90,6 +102,12 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
                 </td>
                 <td className="p-3 text-foreground border border-border">{item.quantity}</td>
                 <td className="p-3 text-foreground border border-border">{item.unit}</td>
+                <td className="p-3 text-foreground border border-border">{item.costCode ?? '-'}</td>
+                <td className="p-3 text-foreground border border-border">{item.upc ?? '-'}</td>
+                <td className="p-3 text-foreground border border-border">
+                  {item.manufacturerPartNumber ?? '-'}
+                </td>
+                <td className="p-3 text-foreground border border-border">{item.taxCode ?? '-'}</td>
                 <td className="p-3 text-foreground border border-border">
                   {formatDate(item.expectedDeliveryDate)}
                 </td>
@@ -121,7 +139,7 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
           </tbody>
           <tfoot>
             <tr className="border-t border-border bg-muted/50">
-              <td colSpan={9} className="px-6 py-3">
+              <td colSpan={13} className="px-6 py-3">
                 <span className="text-sm text-muted-foreground">
                   {t('lineItemsTab.totalItems')}:{' '}
                   <span className="text-foreground">{lineItems.length}</span>

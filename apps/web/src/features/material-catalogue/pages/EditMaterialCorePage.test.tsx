@@ -57,6 +57,8 @@ function material(over: Partial<apiClient.MaterialDetailDto> = {}): apiClient.Ma
     size: '123×456',
     pricePerUnit: '42.50',
     currency: 'AUD',
+    costCode: null,
+    taxCode: null,
     dimensions: { length: { value: 1200, uom: 'mm' } },
     properties: { fireRating: 'A1' },
     status: 'PUBLIC',

@@ -216,6 +216,10 @@ export function usePoWizardForm({
           unitOfMeasure: item.unitOfMeasure,
           unitPrice: item.unitPrice,
           costCode: item.costCode || undefined,
+          // Catalogue snapshots; default from the material server-side when blank.
+          upc: item.upc || undefined,
+          manufacturerPartNumber: item.manufacturerPartNumber || undefined,
+          taxCode: item.taxCode || undefined,
           notes: item.notes || undefined,
           expectedDeliveryDate: item.expectedDeliveryDate
             ? new Date(item.expectedDeliveryDate).toISOString()

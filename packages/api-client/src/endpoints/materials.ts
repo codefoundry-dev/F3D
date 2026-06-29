@@ -57,6 +57,10 @@ export interface CreateMaterialInput {
   size?: string;
   pricePerUnit?: number;
   currency?: string;
+  /** Accounting cost code; pre-fills the per-line cost code on RFQ/PO lines. */
+  costCode?: string;
+  /** Tax classification code. */
+  taxCode?: string;
   dimensions?: MaterialDimensions;
   properties?: MaterialProperties;
 }
@@ -101,6 +105,8 @@ export interface MaterialListItemDto {
   /** Decimal serialised as a string, e.g. "12.50"; null when not priced. */
   pricePerUnit?: string | null;
   currency?: string;
+  costCode?: string | null;
+  taxCode?: string | null;
   imageUrl?: string | null;
   /**
    * Owning company of a private material; null for the global PUBLIC catalogue
@@ -178,6 +184,8 @@ export interface MaterialDetailDto {
   size: string | null;
   pricePerUnit: string | null;
   currency: string;
+  costCode: string | null;
+  taxCode: string | null;
   dimensions: MaterialDimensions | null;
   properties: MaterialProperties | null;
   status: string;
@@ -215,6 +223,8 @@ export interface UpdateMaterialInput {
   size?: string;
   pricePerUnit?: number;
   currency?: string;
+  costCode?: string;
+  taxCode?: string;
   dimensions?: MaterialDimensions;
   properties?: MaterialProperties;
 }

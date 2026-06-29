@@ -70,6 +70,9 @@ const mockPrisma = {
   drawdown: {
     create: jest.fn(),
   },
+  material: {
+    findMany: jest.fn(),
+  },
   $transaction: jest.fn(),
 };
 
@@ -78,6 +81,9 @@ describe('PurchaseOrdersService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Default: no catalogue snapshot rows, so each line keeps the codes the DTO
+    // supplied (the snapshot fallback only fires when a material row matches).
+    mockPrisma.material.findMany.mockResolvedValue([]);
     service = new PurchaseOrdersService(mockPrisma as never);
     // createPurchaseOrder now runs its create + drawdown bookkeeping inside a
     // $transaction callback. Default: invoke the callback with mockPrisma so

@@ -87,6 +87,8 @@ export class MaterialsService {
     'colourFinish',
     'size',
     'currency',
+    'costCode',
+    'taxCode',
   ];
 
   // ── List Materials ──────────────────────────────────────────────────────────
@@ -134,6 +136,8 @@ export class MaterialsService {
             ? m.pricePerUnit.toString()
             : null,
         currency: m.currency,
+        costCode: m.costCode,
+        taxCode: m.taxCode,
         status: m.status,
         companyId: m.companyId,
         isFavourite: favouriteIds.has(m.id),
@@ -428,6 +432,8 @@ export class MaterialsService {
         colourFinish: dto.colourFinish ?? null,
         size: dto.size ?? null,
         pricePerUnit: dto.pricePerUnit ?? null,
+        costCode: dto.costCode ?? null,
+        taxCode: dto.taxCode ?? null,
         ...(dto.currency ? { currency: dto.currency } : {}),
         ...(dto.dimensions ? { dimensions: dto.dimensions as Prisma.InputJsonValue } : {}),
         ...(dto.properties ? { properties: dto.properties as Prisma.InputJsonValue } : {}),
@@ -863,6 +869,8 @@ export class MaterialsService {
       pricePerUnit:
         m.pricePerUnit !== null && m.pricePerUnit !== undefined ? m.pricePerUnit.toString() : null,
       currency: m.currency,
+      costCode: m.costCode,
+      taxCode: m.taxCode,
       dimensions: (m.dimensions as MaterialDimensions | null) ?? null,
       properties: (m.properties as MaterialProperties | null) ?? null,
       // Prisma's MaterialStatus union ↔ shared-types' MaterialStatus enum share
@@ -1056,6 +1064,8 @@ export class MaterialsService {
     assign('colourFinish', 'colourFinish');
     assign('size', 'size');
     assign('currency', 'currency');
+    assign('costCode', 'costCode');
+    assign('taxCode', 'taxCode');
     if (dto.pricePerUnit !== undefined) {
       data.pricePerUnit = dto.pricePerUnit;
     }

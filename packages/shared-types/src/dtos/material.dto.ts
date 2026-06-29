@@ -221,6 +221,16 @@ export class CreateMaterialDto {
   @IsOptional()
   currency?: string;
 
+  @ApiPropertyOptional({ description: 'Accounting cost code; pre-fills line-item cost code.' })
+  @IsString()
+  @IsOptional()
+  costCode?: string;
+
+  @ApiPropertyOptional({ description: 'Tax classification code.' })
+  @IsString()
+  @IsOptional()
+  taxCode?: string;
+
   @ApiPropertyOptional({ type: Object, description: 'Structured physical dimensions' })
   @IsObject()
   @IsOptional()
@@ -342,6 +352,16 @@ export class UpdateMaterialDto {
   @IsOptional()
   currency?: string;
 
+  @ApiPropertyOptional({ description: 'Accounting cost code; pre-fills line-item cost code.' })
+  @IsString()
+  @IsOptional()
+  costCode?: string;
+
+  @ApiPropertyOptional({ description: 'Tax classification code.' })
+  @IsString()
+  @IsOptional()
+  taxCode?: string;
+
   @ApiPropertyOptional({ type: Object, description: 'Structured physical dimensions' })
   @IsObject()
   @IsOptional()
@@ -435,6 +455,8 @@ export interface MaterialListItemDto {
   countryOfOrigin: string | null;
   pricePerUnit: string | number | null;
   currency: string;
+  costCode: string | null;
+  taxCode: string | null;
   status: MaterialStatus;
   // Owning company for a company-private material (US 4.02); null ⇒ public/shared.
   companyId: string | null;
@@ -469,6 +491,8 @@ export interface MaterialDetailDto {
   size: string | null;
   pricePerUnit: string | null;
   currency: string;
+  costCode: string | null;
+  taxCode: string | null;
   dimensions: MaterialDimensions | null;
   properties: MaterialProperties | null;
   status: MaterialStatus;

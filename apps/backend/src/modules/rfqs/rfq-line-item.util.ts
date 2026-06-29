@@ -1,5 +1,10 @@
 import type { CreateRfqLineItemDto } from '@forethread/shared-types';
 
+import {
+  type MaterialSnapshotMap,
+  resolveMaterialSnapshot,
+} from '../../common/utils/material-snapshot.util';
+
 /**
  * The single, source-agnostic persisted shape of an RFQ line item (FOR-204).
  *
@@ -14,6 +19,11 @@ export interface NormalizedRfqLineItem {
   quantity: number;
   unit: string;
   costCode: string | null;
+  // Catalogue snapshots (US: materials carry UPC / MPN / tax code; cost code
+  // pre-fills from the material). Defaulted from the linked material at create.
+  upc: string | null;
+  manufacturerPartNumber: string | null;
+  taxCode: string | null;
   description: string | null;
   notes: string | null;
   pickUp: boolean;
@@ -44,16 +54,24 @@ export function isValidRfqLineItemInput(li: CreateRfqLineItemDto): boolean {
  *   `description` carries the material description (it used to receive `notes`
  *   before the column existed — existing rows are unchanged).
  */
-export function normalizeRfqLineItem(li: CreateRfqLineItemDto): NormalizedRfqLineItem {
+export function normalizeRfqLineItem(
+  li: CreateRfqLineItemDto,
+  snapshots: MaterialSnapshotMap = new Map(),
+): NormalizedRfqLineItem {
   const materialId = blankToNull(li.materialId);
   const materialName = blankToNull(li.materialName);
+  // costCode/taxCode default from the material; upc/mpn snapshot from it.
+  const snapshot = resolveMaterialSnapshot(li, materialId, snapshots);
 
   return {
     materialId,
     materialName: materialId ? null : materialName,
     quantity: li.quantity,
     unit: li.uom,
-    costCode: blankToNull(li.costCode),
+    costCode: snapshot.costCode,
+    upc: snapshot.upc,
+    manufacturerPartNumber: snapshot.manufacturerPartNumber,
+    taxCode: snapshot.taxCode,
     description: blankToNull(li.description),
     notes: blankToNull(li.notes),
     pickUp: li.pickUp ?? false,

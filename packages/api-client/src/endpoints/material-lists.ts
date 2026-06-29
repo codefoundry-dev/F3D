@@ -28,6 +28,8 @@ export interface MaterialListMaterialDto {
   upc: string | null;
   pricePerUnit: string | null;
   currency: string;
+  costCode: string | null;
+  taxCode: string | null;
   imageUrl: string | null;
   updatedAt: string;
   category: { id: string; name: string };

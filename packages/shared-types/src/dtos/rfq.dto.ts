@@ -55,6 +55,23 @@ export class CreateRfqLineItemDto {
   @IsOptional()
   costCode?: string;
 
+  @ApiPropertyOptional({ description: 'UPC snapshot (defaults from the linked material)' })
+  @IsString()
+  @IsOptional()
+  upc?: string;
+
+  @ApiPropertyOptional({
+    description: 'Manufacturer part number snapshot (defaults from the linked material)',
+  })
+  @IsString()
+  @IsOptional()
+  manufacturerPartNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Tax code (defaults from the linked material)' })
+  @IsString()
+  @IsOptional()
+  taxCode?: string;
+
   @ApiPropertyOptional({ description: 'Material description shown to vendors' })
   @IsString()
   @IsOptional()

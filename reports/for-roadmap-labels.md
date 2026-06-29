@@ -32,6 +32,9 @@ itself is fixed in **FOR-231** — keep consistent.)
 
 ## FOR-235 — Unbuilt fields/entities
 
+> **Detailed apply-ready version: `reports/for-235-unbuilt-fields-docs-change.md`** (re-verified against
+> current schema 2026-06-27, with exact section names + callout text). Summary below.
+
 - `guides/setup/material-database` → **Default Cost Code** per material — coming soon.
 - `guides/setup/material-database` (or wherever a Settings UoM list is described) → **managed Units of
   Measure list** — coming soon (UoM is free-text today).

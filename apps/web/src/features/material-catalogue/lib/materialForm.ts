@@ -47,6 +47,8 @@ export const emptyMaterialForm: MaterialFormValues = {
   size: '',
   pricePerUnit: '',
   currency: 'AUD',
+  costCode: '',
+  taxCode: '',
   description: '',
   imageUrl: '',
   dimensions: {
@@ -107,6 +109,8 @@ export function detailToForm(material: MaterialDetailDto): MaterialFormValues {
     size: material.size ?? '',
     pricePerUnit: material.pricePerUnit ?? '',
     currency: material.currency ?? 'AUD',
+    costCode: material.costCode ?? '',
+    taxCode: material.taxCode ?? '',
     description: material.description ?? '',
     imageUrl: material.imageUrl ?? '',
     dimensions: {
@@ -218,6 +222,8 @@ function coreFields(values: MaterialFormValues) {
     size: trimOrUndefined(values.size),
     pricePerUnit: parseNumber(values.pricePerUnit),
     currency: trimOrUndefined(values.currency),
+    costCode: trimOrUndefined(values.costCode),
+    taxCode: trimOrUndefined(values.taxCode),
     description: trimOrUndefined(values.description),
     imageUrl: trimOrUndefined(values.imageUrl),
   };
