@@ -5,10 +5,10 @@ describe('BrandingService', () => {
 
   const mockFindUnique = jest.fn();
   const mockGetObject = jest.fn();
-  const mockGetPublicUrl = jest.fn();
+  const mockGetSignedUrl = jest.fn();
 
   const mockPrisma = { company: { findUnique: mockFindUnique } };
-  const mockStorage = { getObject: mockGetObject, getPublicUrl: mockGetPublicUrl };
+  const mockStorage = { getObject: mockGetObject, getSignedUrl: mockGetSignedUrl };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -84,17 +84,21 @@ describe('BrandingService', () => {
     it('returns undefined when the company has no logo', async () => {
       mockFindUnique.mockResolvedValue({ legalName: 'Acme', logoUrl: null });
       expect(await service.getEmailBrand('comp-1')).toBeUndefined();
-      expect(mockGetPublicUrl).not.toHaveBeenCalled();
+      expect(mockGetSignedUrl).not.toHaveBeenCalled();
     });
 
-    it('returns name + public logo URL when a logo is set', async () => {
+    it('returns name + a presigned logo URL when a logo is set', async () => {
       mockFindUnique.mockResolvedValue({ legalName: 'Acme', logoUrl: 'logos/c1/logo.png' });
-      mockGetPublicUrl.mockReturnValue('https://cdn.test/logos/c1/logo.png');
+      mockGetSignedUrl.mockResolvedValue('https://signed.test/logos/c1/logo.png?sig=abc');
 
       const brand = await service.getEmailBrand('comp-1');
 
-      expect(mockGetPublicUrl).toHaveBeenCalledWith('logos/c1/logo.png');
-      expect(brand).toEqual({ name: 'Acme', logoUrl: 'https://cdn.test/logos/c1/logo.png' });
+      // Presign with the 7-day max so the logo survives until the email is opened.
+      expect(mockGetSignedUrl).toHaveBeenCalledWith('logos/c1/logo.png', 7 * 24 * 60 * 60);
+      expect(brand).toEqual({
+        name: 'Acme',
+        logoUrl: 'https://signed.test/logos/c1/logo.png?sig=abc',
+      });
     });
   });
 });

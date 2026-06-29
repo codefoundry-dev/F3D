@@ -108,11 +108,11 @@ export class UsersController {
       data: { avatarUrl: result.key },
     });
 
-    return { id: user.id, avatarUrl: this.storageService.getPublicUrl(result.key) };
+    return { id: user.id, avatarUrl: await this.storageService.getSignedUrl(result.key) };
   }
 
   @Get('me/avatar-url')
-  @ApiOperation({ summary: 'Get public URL for current user avatar' })
+  @ApiOperation({ summary: 'Get a presigned URL for the current user avatar' })
   @ApiResponse({ status: 200, description: 'Avatar URL' })
   async getAvatarUrl(@CurrentUser() user: AuthUser) {
     const u = await this.prisma.user.findUnique({
@@ -120,7 +120,7 @@ export class UsersController {
       select: { avatarUrl: true },
     });
     if (!u?.avatarUrl) return { url: null };
-    return { url: this.storageService.getPublicUrl(u.avatarUrl) };
+    return { url: await this.storageService.getSignedUrl(u.avatarUrl) };
   }
 
   @Get()
@@ -129,7 +129,7 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'Paginated user list' })
   async listUsers(@Query() query: UserListQueryDto, @CurrentUser() user: AuthUser) {
     const result = await this.usersService.listUsers(query, user);
-    const items = result.items.map((item) => this.resolveAvatarUrl(item));
+    const items = await Promise.all(result.items.map((item) => this.resolveAvatarUrl(item)));
     return { ...result, items };
   }
 
@@ -205,10 +205,12 @@ export class UsersController {
     return this.usersService.cancelInvitation(id);
   }
 
-  /** Convert S3 key stored in avatarUrl to a public URL */
-  private resolveAvatarUrl<T extends { avatarUrl: string | null }>(item: T): T {
+  /** Convert the S3 key stored in `avatarUrl` to a short-lived presigned GET URL.
+   *  The uploads bucket blocks public access (see StorageService.getPublicUrl),
+   *  so a presigned URL is the only way the browser can load the object. */
+  private async resolveAvatarUrl<T extends { avatarUrl: string | null }>(item: T): Promise<T> {
     if (item.avatarUrl) {
-      return { ...item, avatarUrl: this.storageService.getPublicUrl(item.avatarUrl) };
+      return { ...item, avatarUrl: await this.storageService.getSignedUrl(item.avatarUrl) };
     }
     return item;
   }

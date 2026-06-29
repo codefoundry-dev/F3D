@@ -6,6 +6,15 @@ import { StorageService } from '../storage/storage.service';
 
 import type { PdfBrand } from './pdf-export.service';
 
+/** Presign window for logos embedded in emails. Emails are opened long after
+ *  they're sent, so we request the SigV4 maximum (7 days). NOTE: when the backend
+ *  signs with the EC2 instance role (staging/prod), the URL is also bound to the
+ *  lifetime of those temporary credentials, so it can stop working sooner than 7
+ *  days. A permanently-loading email logo needs a public image proxy or CDN —
+ *  tracked as a follow-up. Most mail clients (Gmail/Outlook) proxy-cache the image
+ *  on first open, which masks the expiry in practice. */
+const EMAIL_LOGO_URL_TTL_SECONDS = 7 * 24 * 60 * 60;
+
 /**
  * Resolves a company's branding (name + logo) for generated documents and emails
  * (FOR-267).
@@ -39,15 +48,20 @@ export class BrandingService {
   }
 
   /**
-   * Resolve a company's email brand: display name + public logo URL. Returns
+   * Resolve a company's email brand: display name + a presigned logo URL. Returns
    * `undefined` when the company is unknown or has no logo, so the email simply
-   * renders without a logo header.
+   * renders without a logo header. The uploads bucket blocks public access, so the
+   * raw object URL 403s in mail clients — a presigned URL is required (see
+   * {@link EMAIL_LOGO_URL_TTL_SECONDS} for the expiry caveat).
    */
   async getEmailBrand(companyId?: string | null): Promise<EmailBrand | undefined> {
     const company = await this.findCompany(companyId);
     if (!company?.logoUrl) return undefined;
 
-    return { name: company.legalName, logoUrl: this.storage.getPublicUrl(company.logoUrl) };
+    return {
+      name: company.legalName,
+      logoUrl: await this.storage.getSignedUrl(company.logoUrl, EMAIL_LOGO_URL_TTL_SECONDS),
+    };
   }
 
   private findCompany(
