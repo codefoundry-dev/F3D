@@ -25,6 +25,18 @@ const INITIAL_BULK_DEFAULTS: BulkDefaults = {
   bulkDeliveryTime: '',
 };
 
+/**
+ * Bulk-level defaults that have a per-line-item equivalent. Entering one of
+ * these seeds the matching column on every line item that's still empty.
+ * Shipment + warehouse are bulk-only and have no per-line column.
+ */
+const BULK_TO_LINE_FIELD: Partial<Record<keyof BulkDefaults, keyof LineItemFormState>> = {
+  bulkAvailability: 'availQty',
+  bulkDiscount: 'discount',
+  bulkTax: 'gst',
+  bulkDeliveryTime: 'deliveryDate',
+};
+
 function safeFloat(value: string): number {
   const parsed = parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -100,13 +112,28 @@ export function useGuestRfqResponse(rfq: GuestRfqDetail, token: string) {
   const [bulkDefaults, setBulkDefaults] = useState<BulkDefaults>(INITIAL_BULK_DEFAULTS);
   const [bulkExpanded, setBulkExpanded] = useState(false);
 
-  const setBulkField = useCallback((field: keyof BulkDefaults, value: string) => {
-    setBulkDefaults((prev) => ({ ...prev, [field]: value }));
-  }, []);
-
   const [lineItems, setLineItems] = useState<LineItemFormState[]>(() =>
     initGuestLineItems(rfq.lineItems),
   );
+
+  const setBulkField = useCallback((field: keyof BulkDefaults, value: string) => {
+    setBulkDefaults((prev) => ({ ...prev, [field]: value }));
+
+    // Seed the matching per-line column on every item the vendor hasn't filled
+    // in yet, so a bulk default flows into the (still editable) line-item table.
+    const lineField = BULK_TO_LINE_FIELD[field];
+    if (!lineField || value === '') return;
+    setLineItems((prev) =>
+      prev.map((item) => {
+        if (item[lineField]) return item; // never overwrite a value already entered
+        // A bulk discount is a percentage, so pin the line's discount mode too.
+        if (lineField === 'discount') {
+          return { ...item, discount: value, discountType: 'PERCENT' as const };
+        }
+        return { ...item, [lineField]: value };
+      }),
+    );
+  }, []);
 
   // ── Quote entry mode + PDF extraction (FOR-206) ─────────────────────────────
   const [mode, setMode] = useState<ResponseMode>('manual');

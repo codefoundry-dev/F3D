@@ -76,6 +76,57 @@ describe('useGuestRfqResponse', () => {
     expect(result.current.bulkDefaults.bulkTax).toBe('15');
   });
 
+  it('seeds empty line items from bulk-level defaults', () => {
+    const { result } = renderHook(() =>
+      useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),
+    );
+    act(() => {
+      result.current.setBulkField('bulkAvailability', '25');
+      result.current.setBulkField('bulkDiscount', '5');
+      result.current.setBulkField('bulkTax', '10');
+      result.current.setBulkField('bulkDeliveryTime', '2026-07-03');
+    });
+    result.current.lineItems.forEach((item) => {
+      expect(item.availQty).toBe('25');
+      expect(item.discount).toBe('5');
+      expect(item.discountType).toBe('PERCENT');
+      expect(item.gst).toBe('10');
+      expect(item.deliveryDate).toBe('2026-07-03');
+    });
+  });
+
+  it('does not overwrite line-item values the vendor already entered', () => {
+    const { result } = renderHook(() =>
+      useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),
+    );
+    act(() => {
+      result.current.updateLineItem(0, 'availQty', '7');
+      result.current.updateLineItem(0, 'gst', '20');
+    });
+    act(() => {
+      result.current.setBulkField('bulkAvailability', '25');
+      result.current.setBulkField('bulkTax', '10');
+    });
+    // Item 0 keeps its own values; the empty item 1 takes the bulk defaults.
+    expect(result.current.lineItems[0].availQty).toBe('7');
+    expect(result.current.lineItems[0].gst).toBe('20');
+    expect(result.current.lineItems[1].availQty).toBe('25');
+    expect(result.current.lineItems[1].gst).toBe('10');
+  });
+
+  it('leaves line items untouched for bulk fields with no per-line column', () => {
+    const { result } = renderHook(() =>
+      useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),
+    );
+    act(() => {
+      result.current.setBulkField('shipment', '3');
+    });
+    expect(result.current.bulkDefaults.shipment).toBe('3');
+    result.current.lineItems.forEach((item) => {
+      expect(item.availQty).toBe('');
+    });
+  });
+
   it('toggles include on line item', () => {
     const { result } = renderHook(() =>
       useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),

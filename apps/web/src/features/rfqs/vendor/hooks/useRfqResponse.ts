@@ -134,6 +134,18 @@ const INITIAL_BULK_DEFAULTS: BulkDefaults = {
   bulkDeliveryTime: '',
 };
 
+/**
+ * Bulk-level defaults that have a per-line-item equivalent. Entering one of
+ * these seeds the matching column on every line item that's still empty.
+ * Shipment + warehouse are bulk-only and have no per-line column.
+ */
+const BULK_TO_LINE_FIELD: Partial<Record<keyof BulkDefaults, keyof LineItemFormState>> = {
+  bulkAvailability: 'availQty',
+  bulkDiscount: 'discount',
+  bulkTax: 'gst',
+  bulkDeliveryTime: 'deliveryDate',
+};
+
 /* ─── Local draft persistence ("Save as draft") ────────────────────────────── */
 
 /** Per-line-item fields persisted in a local draft. */
@@ -224,15 +236,30 @@ export function useRfqResponse(rfq: RfqDetail, vendorId: string, options?: UseRf
   );
   const [bulkExpanded, setBulkExpanded] = useState(true);
 
-  const setBulkField = useCallback((field: keyof BulkDefaults, value: string) => {
-    setBulkDefaults((prev) => ({ ...prev, [field]: value }));
-  }, []);
-
   const [lineItems, setLineItems] = useState<LineItemFormState[]>(() =>
     existingQuote
       ? initLineItemsFromQuote(rfq.lineItems, existingQuote.lineItems)
       : applyDraftToLineItems(initLineItems(rfq.lineItems), draft),
   );
+
+  const setBulkField = useCallback((field: keyof BulkDefaults, value: string) => {
+    setBulkDefaults((prev) => ({ ...prev, [field]: value }));
+
+    // Seed the matching per-line column on every item the vendor hasn't filled
+    // in yet, so a bulk default flows into the (still editable) line-item table.
+    const lineField = BULK_TO_LINE_FIELD[field];
+    if (!lineField || value === '') return;
+    setLineItems((prev) =>
+      prev.map((item) => {
+        if (item[lineField]) return item; // never overwrite a value already entered
+        // A bulk discount is a percentage, so pin the line's discount mode too.
+        if (lineField === 'discount') {
+          return { ...item, discount: value, discountType: 'PERCENT' as const };
+        }
+        return { ...item, [lineField]: value };
+      }),
+    );
+  }, []);
 
   useEffect(() => {
     if (!existingQuote) {
