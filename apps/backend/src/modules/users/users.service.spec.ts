@@ -251,6 +251,37 @@ describe('UsersService', () => {
       const result = await service.createUser({ ...dto, companyId: 'comp-other' }, superAdmin);
       expect(result).toEqual(createdUser);
     });
+
+    it('SuperAdmin can create another SuperAdmin without a company', async () => {
+      const { companyId: _omitted, ...noCompanyDto } = dto;
+      const result = await service.createUser(
+        { ...noCompanyDto, role: UserRole.SUPER_ADMIN },
+        superAdmin,
+      );
+
+      // No company lookup is attempted, and the user is created company-less.
+      expect(mockPrisma.company.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ role: UserRole.SUPER_ADMIN, companyId: null }),
+        }),
+      );
+      expect(result).toEqual(createdUser);
+    });
+
+    it('throws BadRequestException when a non-SuperAdmin role is created without a company', async () => {
+      const { companyId: _omitted, ...noCompanyDto } = dto;
+      await expect(service.createUser(noCompanyDto, superAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('non-SuperAdmin cannot assign the SuperAdmin role', async () => {
+      const { companyId: _omitted, ...noCompanyDto } = dto;
+      await expect(
+        service.createUser({ ...noCompanyDto, role: UserRole.SUPER_ADMIN }, companyAdmin),
+      ).rejects.toThrow(ForbiddenException);
+    });
   });
 
   // ── getUser ────────────────────────────────────────────────────────────

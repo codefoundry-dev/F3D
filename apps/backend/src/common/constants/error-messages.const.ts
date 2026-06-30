@@ -50,6 +50,7 @@ export const ERR = {
     notFound: errors.users.notFound,
     cannotCreateForOtherCompanies: errors.users.cannotCreateForOtherCompanies,
     cannotAssignRole: errors.users.cannotAssignRole,
+    companyRequired: errors.users.companyRequired,
     emailAlreadyInUse: errors.users.emailAlreadyInUse,
     alreadyInactive: errors.users.alreadyInactive,
     notInactive: errors.users.notInactive,

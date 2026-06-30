@@ -33,9 +33,12 @@ export class CreateUserDto {
   @IsNotEmpty()
   position!: string;
 
-  @ApiProperty({ format: 'uuid' })
+  // Optional: SUPER_ADMIN users are platform-level and may be created without a
+  // company. All other roles still require a companyId (enforced in the service).
+  @ApiPropertyOptional({ format: 'uuid' })
   @IsUUID()
-  companyId!: string;
+  @IsOptional()
+  companyId?: string;
 
   @ApiPropertyOptional({ enum: CompanyType })
   @IsEnum(CompanyType)

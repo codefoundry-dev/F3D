@@ -9,7 +9,12 @@
   "searchingResultLabel": "Searching result: {{total}}",
   "createUser": "+ Create User",
   "inviteUser": "Invite user",
+  "addSuperAdmin": "Add Super Admin",
   "createCompany": "Create company",
+  "createSuperAdminModal": {
+    "title": "Add a super admin",
+    "subtitle": "Invite another platform super admin. They'll receive an email to activate their account — no company required."
+  },
   "createCompanyChooser": {
     "title": "Create company",
     "subtitle": "Choose the type of company you want to add to the platform.",
