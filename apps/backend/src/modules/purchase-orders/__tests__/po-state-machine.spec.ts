@@ -55,6 +55,8 @@ describe('PO state machine', () => {
       expect(PO_TRANSITIONS[PoStatus.CANCELLED_BY_VENDOR]).toEqual([]);
       expect(PO_TRANSITIONS[PoStatus.DECLINED]).toEqual([]);
       expect(PO_TRANSITIONS[PoStatus.NOT_DELIVERED]).toEqual([]);
+      // The SPLIT parent is a vendorless container — never issued or transitioned.
+      expect(PO_TRANSITIONS[PoStatus.SPLIT]).toEqual([]);
     });
   });
 });

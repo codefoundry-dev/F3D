@@ -1561,6 +1561,9 @@ export class RfqsService {
       await tx.rfq.update({ where: { id: rfqId }, data: { status: RfqStatus.AWARDED } });
 
       // 4. Consolidated SPLIT parent PO (vendorless — never issued to a vendor).
+      // Its status is SPLIT (not DRAFT): the parent is only a container for its
+      // per-vendor children, so the status makes the relationship explicit rather
+      // than implying it is an issuable draft.
       const parent = await tx.purchaseOrder.create({
         data: {
           poNumber: parentPoNumber,
@@ -1569,7 +1572,7 @@ export class RfqsService {
           vendorId: null,
           rfqId,
           createdByUserId: user.id,
-          status: PoStatus.DRAFT,
+          status: PoStatus.SPLIT,
           poType: PoType.SPLIT,
           sourceOfCreation: PoSourceOfCreation.RFQ,
           currency: rfq.currency,

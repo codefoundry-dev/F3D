@@ -54,6 +54,9 @@ export const PO_STATUS_KEYS = [
   'DISPUTE',
   'NOT_DELIVERED',
   'CHANGE_PENDING',
+  // Vendorless parent of a multi-vendor award (US 5.19); filterable like any
+  // other status so split parents can be isolated on the PO list.
+  'SPLIT',
 ] as const;
 
 export const PO_TYPE_KEYS = ['STANDARD', 'BULK', 'HOLD_FOR_RELEASE', 'DRAWDOWN', 'SPLIT'] as const;

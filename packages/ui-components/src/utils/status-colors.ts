@@ -41,6 +41,9 @@ export const PO_STATUS_COLORS: Record<string, string> = {
   DISPUTE: 'bg-destructive/10 text-destructive',
   NOT_DELIVERED: 'bg-destructive/10 text-destructive',
   CHANGE_PENDING: 'bg-[hsl(var(--badge-orange))] text-[hsl(var(--badge-orange-text))]',
+  // The vendorless parent of a multi-vendor award (US 5.19). Purple is unused by
+  // any lifecycle status, so it reads as a distinct "this PO is split" marker.
+  SPLIT: 'bg-[hsl(var(--badge-purple))] text-[hsl(var(--badge-purple-text))]',
 };
 
 /** Epic 6 — Delivery Report review states (screenshots 01/04/16). */

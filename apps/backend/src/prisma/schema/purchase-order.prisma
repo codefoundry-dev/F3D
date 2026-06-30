@@ -17,6 +17,11 @@ enum PoStatus {
   DISPUTE
   NOT_DELIVERED
   CHANGE_PENDING
+  // Status of the vendorless consolidated parent of a multi-vendor award
+  // (US 5.19). It is never issued — it exists only to own its per-vendor child
+  // POs — so "Split" stands in for a lifecycle status to make the relationship
+  // visible on the PO list/detail.
+  SPLIT
 }
 
 enum PoType {

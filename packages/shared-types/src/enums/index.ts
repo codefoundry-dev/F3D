@@ -150,6 +150,12 @@ export enum PoStatus {
   DISPUTE = 'DISPUTE',
   NOT_DELIVERED = 'NOT_DELIVERED',
   CHANGE_PENDING = 'CHANGE_PENDING',
+  /**
+   * The vendorless consolidated parent of a multi-vendor award (US 5.19). Never
+   * issued — it only owns its per-vendor child POs — so "Split" stands in for a
+   * lifecycle status to surface the parent/child relationship on the PO views.
+   */
+  SPLIT = 'SPLIT',
 }
 
 export enum PoType {

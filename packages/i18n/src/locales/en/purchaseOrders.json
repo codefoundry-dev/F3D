@@ -172,6 +172,7 @@
     "DISPUTE": "Dispute",
     "NOT_DELIVERED": "Not delivered",
     "CHANGE_PENDING": "Change pending",
+    "SPLIT": "Split",
     "PENDING": "Pending",
     "REJECTED": "Rejected"
   },

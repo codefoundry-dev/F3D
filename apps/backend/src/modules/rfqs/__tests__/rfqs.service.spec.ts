@@ -1574,7 +1574,9 @@ describe('RfqsService', () => {
           poNumber: 'PO-00010',
           poType: 'SPLIT',
           vendorId: null,
-          status: 'DRAFT',
+          // The vendorless parent carries the SPLIT status (not DRAFT) so the
+          // parent/child relationship is visible rather than looking issuable.
+          status: 'SPLIT',
           companyId: 'comp-1',
         }),
       );

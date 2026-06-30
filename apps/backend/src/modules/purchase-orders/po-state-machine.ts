@@ -122,6 +122,9 @@ export const PO_TRANSITIONS: Record<PoStatus, PoStatus[]> = {
   [PoStatus.CANCELLED_BY_VENDOR]: [],
   [PoStatus.DECLINED]: [],
   [PoStatus.NOT_DELIVERED]: [],
+  // A SPLIT parent is a vendorless container for its per-vendor child POs
+  // (US 5.19); it is never issued or transitioned, so it has no outgoing edges.
+  [PoStatus.SPLIT]: [],
 };
 
 /** True when `from → to` is a legal Purchase Order status transition. */
