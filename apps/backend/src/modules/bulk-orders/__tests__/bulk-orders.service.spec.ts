@@ -390,6 +390,11 @@ describe('BulkOrdersService', () => {
   });
 
   describe('createBulkOrder', () => {
+    beforeEach(() => {
+      // nextSequentialNumber reads existing numbers via findMany; empty → BULK-00001.
+      mockPrisma.bulkOrder.findMany.mockResolvedValue([]);
+    });
+
     it('creates bulk order with line items and calculates total', async () => {
       mockPrisma.bulkOrder.create.mockResolvedValue({ id: 'new-bo' });
       mockPrisma.bulkOrder.findUnique.mockResolvedValue(fullBo({ id: 'new-bo' }));
@@ -784,6 +789,10 @@ describe('BulkOrdersService', () => {
   });
 
   describe('createBulkOrder — additional branches', () => {
+    beforeEach(() => {
+      mockPrisma.bulkOrder.findMany.mockResolvedValue([]);
+    });
+
     it('sets endDate to null when not provided', async () => {
       mockPrisma.bulkOrder.create.mockResolvedValue({ id: 'new-bo' });
       mockPrisma.bulkOrder.findUnique.mockResolvedValue(fullBo({ id: 'new-bo' }));

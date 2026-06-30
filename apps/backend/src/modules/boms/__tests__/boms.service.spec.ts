@@ -100,7 +100,7 @@ describe('BomsService', () => {
       const { service, prisma, tx, materials } = makeService();
       prisma.project.findFirst.mockResolvedValue({ id: 'project-1' });
       prisma.material.count.mockResolvedValue(2);
-      prisma.bom.count.mockResolvedValue(7);
+      prisma.bom.findMany.mockResolvedValue([{ bomNumber: 'BOM-00007' }]); // highest → next BOM-00008
       const created = { id: 'bom-1' };
       tx.bom.create.mockResolvedValue(created);
 
