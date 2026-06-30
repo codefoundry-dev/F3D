@@ -27,6 +27,7 @@
     "notFound": "User not found",
     "cannotCreateForOtherCompanies": "Cannot create users for other companies",
     "cannotAssignRole": "Cannot assign this role",
+    "companyRequired": "A company is required for this role",
     "emailAlreadyInUse": "Email already in use",
     "alreadyInactive": "User is already inactive",
     "notInactive": "User is not inactive",

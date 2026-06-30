@@ -9,7 +9,8 @@ export interface CreateUserDto {
   name: string;
   email: string;
   role: string;
-  companyId: string;
+  /** Optional: SUPER_ADMIN users are platform-level and need no company. */
+  companyId?: string;
   position?: string;
   department?: string;
   phone?: string;

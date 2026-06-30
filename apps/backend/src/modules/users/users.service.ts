@@ -30,8 +30,11 @@ export class CreateUserDto {
   @IsEnum(UserRole)
   role!: UserRole;
 
+  // Optional: SUPER_ADMIN users are platform-level and may be created without a
+  // company. All other roles still require a companyId (enforced in createUser).
+  @IsOptional()
   @IsString()
-  companyId!: string;
+  companyId?: string;
 
   @IsOptional()
   @IsString()
@@ -262,21 +265,36 @@ export class UsersService {
   }
 
   async createUser(dto: CreateUserDto, requestingUser: AuthUser) {
-    // CompanyAdmin can only create users in their own company
-    if (requestingUser.role === UserRole.COMPANY_ADMIN) {
-      if (dto.companyId !== requestingUser.companyId) {
-        throw new ForbiddenException(ERR.users.cannotCreateForOtherCompanies);
-      }
-      if (dto.role === UserRole.SUPER_ADMIN) {
-        throw new ForbiddenException(ERR.users.cannotAssignRole);
-      }
+    const isSuperAdminRole = dto.role === UserRole.SUPER_ADMIN;
+
+    // Only an existing SUPER_ADMIN may mint another SUPER_ADMIN. Every other
+    // role (incl. COMPANY_ADMIN) is forbidden from creating platform admins.
+    if (isSuperAdminRole && requestingUser.role !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException(ERR.users.cannotAssignRole);
+    }
+
+    // CompanyAdmin can only create users in their own company.
+    if (
+      requestingUser.role === UserRole.COMPANY_ADMIN &&
+      dto.companyId !== requestingUser.companyId
+    ) {
+      throw new ForbiddenException(ERR.users.cannotCreateForOtherCompanies);
     }
 
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw new ConflictException(ERR.users.emailAlreadyInUse);
 
-    const company = await this.prisma.company.findUnique({ where: { id: dto.companyId } });
-    if (!company) throw new NotFoundException(ERR.companies.notFoundGeneric);
+    // Super admins are platform-level and may be created without a company; any
+    // other role must belong to a company. When a companyId is supplied (incl.
+    // for a super admin) it must resolve to a real company.
+    let companyId: string | null = null;
+    if (dto.companyId) {
+      const company = await this.prisma.company.findUnique({ where: { id: dto.companyId } });
+      if (!company) throw new NotFoundException(ERR.companies.notFoundGeneric);
+      companyId = company.id;
+    } else if (!isSuperAdminRole) {
+      throw new BadRequestException(ERR.users.companyRequired);
+    }
 
     // Generate raw invitation token
     const rawToken = crypto.randomBytes(32).toString('hex');
@@ -288,7 +306,7 @@ export class UsersService {
         name: dto.name,
         email: dto.email,
         role: dto.role,
-        companyId: dto.companyId,
+        companyId,
         position: dto.position,
         department: dto.department,
         phone: dto.phone,

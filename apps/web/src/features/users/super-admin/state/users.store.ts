@@ -8,6 +8,11 @@ interface UsersState {
   openCreateModal: () => void;
   closeCreateModal: () => void;
 
+  // Add super admin modal (invite a platform-level super admin, no company)
+  isCreateSuperAdminModalOpen: boolean;
+  openCreateSuperAdminModal: () => void;
+  closeCreateSuperAdminModal: () => void;
+
   // Edit modal
   isEditModalOpen: boolean;
   editUserId: string | null;
@@ -77,6 +82,11 @@ export const useUsersStore = create<UsersState>((set) => ({
   isCreateModalOpen: false,
   openCreateModal: () => set({ isCreateModalOpen: true }),
   closeCreateModal: () => set({ isCreateModalOpen: false }),
+
+  // Add super admin modal
+  isCreateSuperAdminModalOpen: false,
+  openCreateSuperAdminModal: () => set({ isCreateSuperAdminModalOpen: true }),
+  closeCreateSuperAdminModal: () => set({ isCreateSuperAdminModalOpen: false }),
 
   // Edit modal
   isEditModalOpen: false,

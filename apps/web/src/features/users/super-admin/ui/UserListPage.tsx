@@ -36,6 +36,7 @@ import DepartmentIcon from '@forethread/ui-components/assets/icons/department.sv
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import NewUserIcon from '@forethread/ui-components/assets/icons/new-user.svg?react';
+import ShieldIcon from '@forethread/ui-components/assets/icons/shield-icon.svg?react';
 import SuppliersIcon from '@forethread/ui-components/assets/icons/suppliers.svg?react';
 import UsersGroupIcon from '@forethread/ui-components/assets/icons/users-group.svg?react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -61,6 +62,7 @@ import {
 import { useUsersStore } from '../state/users.store';
 
 import { ActionLogTab } from './ActionLogTab';
+import { AddSuperAdminModal } from './AddSuperAdminModal';
 import { CreateUserModal } from './CreateUserModal';
 import { DateRangeFilterPopover } from './DateRangeFilterPopover';
 import { EditUserModal } from './EditUserModal';
@@ -128,6 +130,9 @@ export default function UserListPage() {
     isCreateModalOpen,
     openCreateModal,
     closeCreateModal,
+    isCreateSuperAdminModalOpen,
+    openCreateSuperAdminModal,
+    closeCreateSuperAdminModal,
     isEditModalOpen,
     openEditModal,
     closeEditModal,
@@ -200,11 +205,11 @@ export default function UserListPage() {
   const total = data?.meta.total ?? 0;
   const hasActiveFilters = Boolean(
     debouncedSearch ||
-      selectedCompanies.length ||
-      selectedStatuses.length ||
-      (!isVendorsTab && selectedRoles.length) ||
-      dateFrom ||
-      dateTo,
+    selectedCompanies.length ||
+    selectedStatuses.length ||
+    (!isVendorsTab && selectedRoles.length) ||
+    dateFrom ||
+    dateTo,
   );
 
   // ── Handlers ──
@@ -481,6 +486,13 @@ export default function UserListPage() {
             </Button>
             <Button
               variant="secondary"
+              onClick={openCreateSuperAdminModal}
+              leftIcon={<ShieldIcon className="size-4" />}
+            >
+              {t('addSuperAdmin')}
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => setIsCreateCompanyOpen(true)}
               leftIcon={<DepartmentIcon className="size-4" />}
             >
@@ -680,6 +692,7 @@ export default function UserListPage() {
 
       {/* ── Modals ── */}
       {isCreateModalOpen && <CreateUserModal onClose={closeCreateModal} />}
+      {isCreateSuperAdminModalOpen && <AddSuperAdminModal onClose={closeCreateSuperAdminModal} />}
       {isEditModalOpen && <EditUserModal onClose={closeEditModal} />}
       {isEditCompanyModalOpen && <EditCompanyModal />}
       {/* Create company: pick a company type, then open the matching Add modal */}
