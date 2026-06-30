@@ -1,14 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 
-/** Maps each supported table to the column holding its `PREFIX-NNNNN` number. */
-const NUMBER_FIELD = {
-  rfq: 'rfqNumber',
-  purchaseOrder: 'poNumber',
-  bulkOrder: 'bulkOrderNumber',
-  bom: 'bomNumber',
-} as const;
-
-type NumberedTable = keyof typeof NUMBER_FIELD;
+type NumberedTable = 'rfq' | 'purchaseOrder' | 'bulkOrder' | 'bom';
 
 /**
  * Generate the next sequential number for a given prefix and table, e.g.
@@ -37,21 +29,11 @@ export async function nextSequentialNumber(
   prefix: 'RFQ' | 'PO' | 'BULK' | 'BOM',
   companyId: string,
 ): Promise<string> {
-  const field = NUMBER_FIELD[table];
-
-  const rows = (await (
-    prisma[table] as unknown as {
-      findMany: (args: unknown) => Promise<Array<Record<string, string | null>>>;
-    }
-  ).findMany({
-    where: { companyId },
-    select: { [field]: true },
-  })) as Array<Record<string, string | null>>;
+  const existing = await loadCompanyNumbers(prisma, table, companyId);
 
   const pattern = new RegExp(`^${prefix}-(\\d+)$`);
   let max = 0;
-  for (const row of rows) {
-    const value = row[field];
+  for (const value of existing) {
     const match = value ? pattern.exec(value) : null;
     if (match) {
       const n = Number.parseInt(match[1], 10);
@@ -60,4 +42,30 @@ export async function nextSequentialNumber(
   }
 
   return `${prefix}-${String(max + 1).padStart(5, '0')}`;
+}
+
+/** Read every existing number for the company from the table's number column. */
+async function loadCompanyNumbers(
+  prisma: PrismaClient,
+  table: NumberedTable,
+  companyId: string,
+): Promise<Array<string | null>> {
+  switch (table) {
+    case 'rfq':
+      return (await prisma.rfq.findMany({ where: { companyId }, select: { rfqNumber: true } })).map(
+        (r) => r.rfqNumber,
+      );
+    case 'purchaseOrder':
+      return (
+        await prisma.purchaseOrder.findMany({ where: { companyId }, select: { poNumber: true } })
+      ).map((r) => r.poNumber);
+    case 'bulkOrder':
+      return (
+        await prisma.bulkOrder.findMany({ where: { companyId }, select: { bulkOrderNumber: true } })
+      ).map((r) => r.bulkOrderNumber);
+    case 'bom':
+      return (await prisma.bom.findMany({ where: { companyId }, select: { bomNumber: true } })).map(
+        (r) => r.bomNumber,
+      );
+  }
 }

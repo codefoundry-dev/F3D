@@ -101,7 +101,7 @@ const mockPrisma = {
   purchaseOrder: {
     create: jest.fn(),
     update: jest.fn(),
-    count: jest.fn(),
+    findMany: jest.fn(),
   },
   rfqLineItem: {
     findUnique: jest.fn(),
@@ -1248,7 +1248,7 @@ describe('RfqsService', () => {
       });
       mockPrisma.rfq.update.mockResolvedValue({});
       mockPrisma.quoteAudit.create.mockResolvedValue({});
-      mockPrisma.purchaseOrder.count.mockResolvedValue(0);
+      mockPrisma.purchaseOrder.findMany.mockResolvedValue([]);
       mockPrisma.purchaseOrder.create.mockResolvedValue({ id: 'po-1', poNumber: 'PO-00001' });
       mockPrisma.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) =>
         cb(mockPrisma),
@@ -1436,7 +1436,7 @@ describe('RfqsService', () => {
       mockPrisma.quoteResponse.update.mockResolvedValue({});
       mockPrisma.quoteAudit.create.mockResolvedValue({});
       mockPrisma.rfq.update.mockResolvedValue({});
-      mockPrisma.purchaseOrder.count.mockResolvedValue(9); // next = PO-00010
+      mockPrisma.purchaseOrder.findMany.mockResolvedValue([{ poNumber: 'PO-00009' }]); // next = PO-00010
       mockPrisma.purchaseOrder.create
         .mockResolvedValueOnce({ id: 'parent-1', poNumber: 'PO-00010' })
         .mockResolvedValueOnce({
