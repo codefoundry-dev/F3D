@@ -1,0 +1,14 @@
+-- US 5.19 (split parent/child POs): the consolidated SPLIT parent PurchaseOrder is
+-- vendorless (vendor_id = NULL) — it is never issued to a vendor; only its per-vendor
+-- child POs are. The Prisma schema already models PurchaseOrder.vendorId as optional
+-- (`vendorId String?`), but no migration had dropped the original NOT NULL constraint
+-- created in 20260310120000. As a result `rfqsService.awardSplit` failed when inserting
+-- the parent PO with a null vendor — "Null constraint violation on the fields:
+-- (`vendor_id`)" — surfacing as an HTTP 500 on every Award & split, on any database
+-- built purely from committed migrations (staging/prod). Dev only worked because its
+-- schema had drifted via `prisma db push`.
+--
+-- Bring the column in line with the schema. The foreign key (ON DELETE RESTRICT) is
+-- unaffected — it already permits NULL. DROP NOT NULL is a no-op when the column is
+-- already nullable, so this is safe to apply on environments that have drifted.
+ALTER TABLE "purchase_orders" ALTER COLUMN "vendor_id" DROP NOT NULL;
