@@ -22,6 +22,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "node --env-file=.env -r ts-node/register prisma/seed.ts",
+    "db:bootstrap-admin": "node --env-file=.env prisma/bootstrap-super-admin.js",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset --force",
     "clean": "rm -rf dist"
