@@ -95,6 +95,23 @@ describe('useGuestRfqResponse', () => {
     });
   });
 
+  it('keeps line items in sync as a bulk number is typed digit by digit', () => {
+    const { result } = renderHook(() =>
+      useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),
+    );
+    // Each keystroke is its own event/render, so the closure sees the prior
+    // value — a separate act() per digit models real typing of "30".
+    act(() => {
+      result.current.setBulkField('bulkAvailability', '3');
+    });
+    act(() => {
+      result.current.setBulkField('bulkAvailability', '30');
+    });
+    result.current.lineItems.forEach((item) => {
+      expect(item.availQty).toBe('30');
+    });
+  });
+
   it('does not overwrite line-item values the vendor already entered', () => {
     const { result } = renderHook(() =>
       useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),
