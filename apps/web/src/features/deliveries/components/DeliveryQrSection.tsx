@@ -29,7 +29,13 @@ export function DeliveryQrSection({ poId }: DeliveryQrSectionProps) {
   const generate = () =>
     mutation.mutate(poId, {
       onSuccess: (link) => setUrl(link.url),
-      onError: () => notificationService.error(t('qr.generateFailed')),
+      // Surface the backend's reason (e.g. "A delivery link cannot be generated
+      // for a PO in status DRAFT.") rather than a generic message. The error
+      // interceptor carries `data.error` on `ApiRequestError.message`.
+      onError: (error) =>
+        notificationService.error(
+          error instanceof Error && error.message ? error.message : t('qr.generateFailed'),
+        ),
     });
 
   const copyLink = () => {
