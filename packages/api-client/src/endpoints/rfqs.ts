@@ -141,6 +141,12 @@ export interface RfqDetail {
   approvedBy: { id: string; name: string } | null;
   createdBy: { id: string; name: string };
   lastModifiedBy: { id: string; name: string } | null;
+  /**
+   * The issuing (contractor) company. `logoUrl` is a short-lived presigned URL for
+   * the company's logo (null when none is set), used to brand the RFQ document view
+   * to match the generated PDF (FOR-267).
+   */
+  company?: { id: string; name: string; logoUrl?: string | null };
   lineItems: RfqLineItem[];
   vendors: RfqVendor[];
   quoteResponses: Array<{
@@ -832,6 +838,8 @@ export interface GuestRfqDetail {
   id: string;
   rfqNumber: string | null;
   contractorName: string;
+  /** Short-lived presigned URL for the issuing company's logo; null when none is set (FOR-267). */
+  contractorLogoUrl?: string | null;
   projectName: string | null;
   status: string;
   deliveryLocation: string | null;

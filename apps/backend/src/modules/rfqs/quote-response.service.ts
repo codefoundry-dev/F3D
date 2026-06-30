@@ -743,7 +743,7 @@ export class QuoteResponseService {
           include: { material: { select: { id: true, name: true, uom: true } } },
         },
         project: { select: { name: true } },
-        company: { select: { legalName: true } },
+        company: { select: { legalName: true, logoUrl: true } },
         deliveryLocation: true,
         documents: {
           include: {
@@ -803,10 +803,17 @@ export class QuoteResponseService {
       })),
     );
 
+    // Issuing company branding (FOR-267): presigned logo URL so the guest portal
+    // can brand the RFQ to match the generated PDF. Null when no logo is set.
+    const contractorLogoUrl = rfq.company.logoUrl
+      ? await this.storageService.getSignedUrl(rfq.company.logoUrl)
+      : null;
+
     return {
       id: rfq.id,
       rfqNumber: rfq.rfqNumber,
       contractorName: rfq.company.legalName,
+      contractorLogoUrl,
       projectName: rfq.project?.name ?? null,
       status: rfq.status,
       deliveryLocation: rfq.deliveryLocation?.label ?? rfq.deliveryLocation?.address ?? null,

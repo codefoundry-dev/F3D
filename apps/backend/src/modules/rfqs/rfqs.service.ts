@@ -78,6 +78,7 @@ const RFQ_DETAIL_INCLUDE = {
   project: { select: { id: true, name: true, code: true } },
   projects: { include: { project: { select: { id: true, name: true, code: true } } } },
   deliveryLocation: { select: { id: true, label: true, address: true } },
+  company: { select: { id: true, legalName: true, logoUrl: true } },
   createdBy: { select: { id: true, name: true } },
   approvedBy: { select: { id: true, name: true } },
   lineItems: {
@@ -352,6 +353,13 @@ export class RfqsService {
     } | null;
     const isPickUp = (rfqAny.isPickUp as boolean | undefined) ?? false;
 
+    // Issuing (contractor) company branding (FOR-267): presigned logo URL so the
+    // document view can match the generated PDF. Null when no logo is set.
+    const company = rfqAny.company as { id: string; legalName: string; logoUrl: string | null };
+    const companyLogoUrl = company?.logoUrl
+      ? await this.storageService.getSignedUrl(company.logoUrl)
+      : null;
+
     return {
       id: rfq.id,
       rfqNumber: rfqAny.rfqNumber ?? null,
@@ -386,6 +394,9 @@ export class RfqsService {
       approvalStatus: rfq.approvalStatus,
       approvedBy: rfq.approvedBy ? { id: rfq.approvedBy.id, name: rfq.approvedBy.name } : null,
       createdBy: { id: rfq.createdBy.id, name: rfq.createdBy.name },
+      company: company
+        ? { id: company.id, name: company.legalName, logoUrl: companyLogoUrl }
+        : undefined,
       lineItems: rfq.lineItems.map((li) => {
         const liAny = li as Record<string, unknown>;
         const liProject = liAny.project as { id: string; name: string } | null | undefined;

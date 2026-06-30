@@ -1,6 +1,7 @@
 import type { RfqDetail } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { DetailField, SectionDivider, SectionTitle, formatDate } from '@forethread/rfq-shared';
+import { DocumentBrandHeader } from '@forethread/ui-components';
 
 interface VendorRfqDetailsTabProps {
   rfq: RfqDetail;
@@ -14,60 +15,68 @@ export function VendorRfqDetailsTab({ rfq, layout = 'panel' }: VendorRfqDetailsT
 
   if (layout === 'page') {
     return (
-      <div className="rounded-lg border border-border bg-card p-[17px]">
-        <h3 className="text-base font-bold text-foreground leading-6">
-          {t('detailFields.rfqDetails')}
-        </h3>
-        <div className="flex flex-col gap-3 mt-4">
-          <div className="flex items-start">
-            <div className="w-[296px] shrink-0">
-              <DetailField label={`${t('detailFields.rfqId')}:`} value={rfq.rfqNumber ?? rfq.id} />
+      <div className="flex flex-col gap-4">
+        {rfq.company && rfq.company.logoUrl && (
+          <DocumentBrandHeader logoUrl={rfq.company.logoUrl} name={rfq.company.name} />
+        )}
+        <div className="rounded-lg border border-border bg-card p-[17px]">
+          <h3 className="text-base font-bold text-foreground leading-6">
+            {t('detailFields.rfqDetails')}
+          </h3>
+          <div className="flex flex-col gap-3 mt-4">
+            <div className="flex items-start">
+              <div className="w-[296px] shrink-0">
+                <DetailField
+                  label={`${t('detailFields.rfqId')}:`}
+                  value={rfq.rfqNumber ?? rfq.id}
+                />
+              </div>
+              <div className="w-[296px] shrink-0">
+                <DetailField
+                  label={`${t('detailFields.rfqStatus')}:`}
+                  value={t(`status.${rfq.status}` as never)}
+                />
+              </div>
+              <div className="w-[296px] shrink-0">
+                <DetailField
+                  label={`${t('detailFields.contractorCompany')}:`}
+                  value={rfq.createdBy.name}
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <DetailField label={`${t('detailFields.projectName')}:`} value={rfq.projectName} />
+              </div>
             </div>
-            <div className="w-[296px] shrink-0">
-              <DetailField
-                label={`${t('detailFields.rfqStatus')}:`}
-                value={t(`status.${rfq.status}` as never)}
-              />
+            <div className="flex items-start">
+              <div className="w-[296px] shrink-0">
+                <DetailField label={`${t('detailFields.resDeadline')}:`} value={deadlineDisplay} />
+              </div>
+              <div className="w-[296px] shrink-0">
+                <DetailField
+                  label={`${t('columns.createdDate')}:`}
+                  value={formatDate(rfq.createdAt)}
+                />
+              </div>
+              <div className="w-[296px] shrink-0">
+                <DetailField
+                  label={`${t('columns.pickUp')}:`}
+                  value={rfq.pickUp ? t('common:yes') : t('common:no')}
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <DetailField
+                  label={`${t('detailFields.deliveryLocation')}:`}
+                  value={rfq.deliveryLocation ?? '-'}
+                />
+              </div>
             </div>
-            <div className="w-[296px] shrink-0">
-              <DetailField
-                label={`${t('detailFields.contractorCompany')}:`}
-                value={rfq.createdBy.name}
-              />
-            </div>
-            <div className="flex-1 min-w-0">
-              <DetailField label={`${t('detailFields.projectName')}:`} value={rfq.projectName} />
-            </div>
-          </div>
-          <div className="flex items-start">
-            <div className="w-[296px] shrink-0">
-              <DetailField label={`${t('detailFields.resDeadline')}:`} value={deadlineDisplay} />
-            </div>
-            <div className="w-[296px] shrink-0">
-              <DetailField
-                label={`${t('columns.createdDate')}:`}
-                value={formatDate(rfq.createdAt)}
-              />
-            </div>
-            <div className="w-[296px] shrink-0">
-              <DetailField
-                label={`${t('columns.pickUp')}:`}
-                value={rfq.pickUp ? t('common:yes') : t('common:no')}
-              />
-            </div>
-            <div className="flex-1 min-w-0">
-              <DetailField
-                label={`${t('detailFields.deliveryLocation')}:`}
-                value={rfq.deliveryLocation ?? '-'}
-              />
-            </div>
-          </div>
-          <div className="flex items-start">
-            <div className="w-[296px] shrink-0">
-              <DetailField label={t('response.contractorContact')} value={rfq.createdBy.name} />
-            </div>
-            <div className="w-[296px] shrink-0">
-              <DetailField label={`${t('detailFields.email')}:`} value="-" />
+            <div className="flex items-start">
+              <div className="w-[296px] shrink-0">
+                <DetailField label={t('response.contractorContact')} value={rfq.createdBy.name} />
+              </div>
+              <div className="w-[296px] shrink-0">
+                <DetailField label={`${t('detailFields.email')}:`} value="-" />
+              </div>
             </div>
           </div>
         </div>

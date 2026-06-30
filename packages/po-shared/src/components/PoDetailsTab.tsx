@@ -1,7 +1,12 @@
 import type { PoDetail } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { DetailField, SectionDivider, SectionTitle, formatDate } from '@forethread/rfq-shared';
-import { Badge, getStatusColor, PO_STATUS_COLORS } from '@forethread/ui-components';
+import {
+  Badge,
+  DocumentBrandHeader,
+  getStatusColor,
+  PO_STATUS_COLORS,
+} from '@forethread/ui-components';
 
 import { formatCurrency } from '../utils/format';
 
@@ -77,6 +82,9 @@ export function PoDetailsTab({
   if (layout === 'page') {
     return (
       <div className="flex flex-col gap-4 w-full">
+        {po.company.logoUrl && (
+          <DocumentBrandHeader logoUrl={po.company.logoUrl} name={po.company.name} />
+        )}
         <div className="flex flex-col lg:flex-row gap-4 items-start w-full">
           {/* Left: Basic Information */}
           <div className="flex-1 rounded-[10px] border border-foreground/10 p-4">

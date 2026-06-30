@@ -131,6 +131,9 @@ export type { CardProps } from './components/Card';
 export { Divider } from './components/Divider';
 export type { DividerProps } from './components/Divider';
 
+export { DocumentBrandHeader } from './components/DocumentBrandHeader';
+export type { DocumentBrandHeaderProps } from './components/DocumentBrandHeader';
+
 export { StepCircle } from './components/StepCircle';
 export type { StepCircleProps } from './components/StepCircle';
 

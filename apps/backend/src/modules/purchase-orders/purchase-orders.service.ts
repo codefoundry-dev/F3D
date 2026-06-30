@@ -31,10 +31,14 @@ import {
 } from '../../common/utils/material-snapshot.util';
 import { nextSequentialNumber } from '../../common/utils/sequential-number.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class PurchaseOrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storageService: StorageService,
+  ) {}
 
   // ── List Purchase Orders ───────────────────────────────────────────────────
 
@@ -229,7 +233,7 @@ export class PurchaseOrdersService {
       include: {
         project: { select: { name: true, code: true } },
         vendor: { select: { id: true, legalName: true } },
-        company: { select: { id: true, legalName: true } },
+        company: { select: { id: true, legalName: true, logoUrl: true } },
         createdBy: { select: { id: true, name: true } },
         approvedBy: { select: { id: true, name: true } },
         lastModifiedBy: { select: { id: true, name: true } },
@@ -263,6 +267,12 @@ export class PurchaseOrdersService {
     });
 
     if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
+
+    // Presigned URL for the issuing company's logo so the document view can brand
+    // the PO to match the generated PDF (FOR-267). Null when no logo is set.
+    const companyLogoUrl = po.company.logoUrl
+      ? await this.storageService.getSignedUrl(po.company.logoUrl)
+      : null;
 
     return {
       id: po.id,
@@ -321,7 +331,7 @@ export class PurchaseOrdersService {
         ? { id: po.lastModifiedBy.id, name: po.lastModifiedBy.name }
         : null,
       vendor: po.vendor ? { id: po.vendor.id, name: po.vendor.legalName } : null,
-      company: { id: po.company.id, name: po.company.legalName },
+      company: { id: po.company.id, name: po.company.legalName, logoUrl: companyLogoUrl },
       lineItems: po.lineItems.map((li) => ({
         id: li.id,
         lineNumber: li.lineNumber,

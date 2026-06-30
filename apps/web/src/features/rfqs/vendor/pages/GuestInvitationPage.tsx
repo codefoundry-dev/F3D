@@ -3,6 +3,7 @@ import { useTranslation } from '@forethread/i18n';
 import {
   Alert,
   Button,
+  DocumentBrandHeader,
   GridModal,
   SegmentedControl,
   Spinner,
@@ -99,17 +100,22 @@ function GuestResponseContent({ rfq, token }: { rfq: GuestRfqDetail; token: stri
     <div className="flex flex-col min-h-screen bg-background">
       {/* ═══ Header ═══ */}
       <header className="border-b border-border bg-card px-6 py-4">
-        <div className="max-w-[1400px] mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-foreground">
-              {t('guest.title', { rfqNumber: rfq.rfqNumber ?? rfq.id.slice(0, 8) })}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {t('guest.subtitle', {
-                contractor: rfq.contractorName,
-                vendor: rfq.vendorName,
-              })}
-            </p>
+        <div className="max-w-[1400px] mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0">
+            {rfq.contractorLogoUrl && (
+              <DocumentBrandHeader logoUrl={rfq.contractorLogoUrl} name={rfq.contractorName} />
+            )}
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold text-foreground">
+                {t('guest.title', { rfqNumber: rfq.rfqNumber ?? rfq.id.slice(0, 8) })}
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {t('guest.subtitle', {
+                  contractor: rfq.contractorName,
+                  vendor: rfq.vendorName,
+                })}
+              </p>
+            </div>
           </div>
           <Button
             variant="primary"

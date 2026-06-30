@@ -10,7 +10,7 @@ import {
   VendorList,
 } from '@forethread/rfq-shared';
 import { QuoteResponseStatus } from '@forethread/shared-types/client';
-import { Badge } from '@forethread/ui-components';
+import { Badge, DocumentBrandHeader } from '@forethread/ui-components';
 import EyeClosedIcon from '@forethread/ui-components/assets/icons/eye-closed.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import { useState } from 'react';
@@ -187,6 +187,9 @@ function RfqDetailsTabPageLayout({ rfq }: { rfq: RfqDetail }) {
 
   return (
     <div className="space-y-6">
+      {rfq.company && rfq.company.logoUrl && (
+        <DocumentBrandHeader logoUrl={rfq.company.logoUrl} name={rfq.company.name} />
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="rounded-xl border border-border bg-card p-6">
           <SectionTitle>{t('detailFields.basicInformation')}</SectionTitle>

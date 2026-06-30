@@ -223,7 +223,12 @@ export interface PoDetail {
   lastModifiedBy: { id: string; name: string } | null;
   /** Null for a SPLIT parent (vendorless consolidated award). */
   vendor: { id: string; name: string } | null;
-  company: { id: string; name: string };
+  /**
+   * The issuing (contractor) company. `logoUrl` is a short-lived presigned URL for
+   * the company's logo (null when none is set), used to brand the PO document view
+   * to match the generated PDF (FOR-267).
+   */
+  company: { id: string; name: string; logoUrl?: string | null };
   lineItems: PoLineItemDetail[];
   documents: PoDocumentDetail[];
   /** FOR-210: header-level multi-delivery rows. */
