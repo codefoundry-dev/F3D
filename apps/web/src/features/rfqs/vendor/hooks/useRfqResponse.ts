@@ -242,24 +242,33 @@ export function useRfqResponse(rfq: RfqDetail, vendorId: string, options?: UseRf
       : applyDraftToLineItems(initLineItems(rfq.lineItems), draft),
   );
 
-  const setBulkField = useCallback((field: keyof BulkDefaults, value: string) => {
-    setBulkDefaults((prev) => ({ ...prev, [field]: value }));
+  const setBulkField = useCallback(
+    (field: keyof BulkDefaults, value: string) => {
+      const lineField = BULK_TO_LINE_FIELD[field];
+      const oldValue = bulkDefaults[field];
 
-    // Seed the matching per-line column on every item the vendor hasn't filled
-    // in yet, so a bulk default flows into the (still editable) line-item table.
-    const lineField = BULK_TO_LINE_FIELD[field];
-    if (!lineField || value === '') return;
-    setLineItems((prev) =>
-      prev.map((item) => {
-        if (item[lineField]) return item; // never overwrite a value already entered
-        // A bulk discount is a percentage, so pin the line's discount mode too.
-        if (lineField === 'discount') {
-          return { ...item, discount: value, discountType: 'PERCENT' as const };
-        }
-        return { ...item, [lineField]: value };
-      }),
-    );
-  }, []);
+      setBulkDefaults((prev) => ({ ...prev, [field]: value }));
+
+      // Seed the matching per-line column. A cell is updated when it's empty or
+      // still holds the previous bulk value (i.e. it was seeded by this default
+      // and the vendor hasn't since edited it) — so typing "30" digit by digit
+      // keeps the line in sync instead of sticking on the first keystroke.
+      // Cells the vendor changed, and clearing the bulk field, are left alone.
+      if (!lineField || value === '') return;
+      setLineItems((prev) =>
+        prev.map((item) => {
+          const current = item[lineField] as string;
+          if (current !== '' && current !== oldValue) return item;
+          // A bulk discount is a percentage, so pin the line's discount mode too.
+          if (lineField === 'discount') {
+            return { ...item, discount: value, discountType: 'PERCENT' as const };
+          }
+          return { ...item, [lineField]: value };
+        }),
+      );
+    },
+    [bulkDefaults],
+  );
 
   useEffect(() => {
     if (!existingQuote) {
