@@ -16,6 +16,7 @@ vi.mock('@forethread/ui-components', () => ({
   Badge: ({ children }: any) => <span data-testid="badge">{children}</span>,
   Spinner: () => <div data-testid="spinner" />,
   formatDateTime: (v: string) => `dt(${v})`,
+  formatAuditAction: (a: string) => (a === 'PO_ISSUED' ? 'PO issued' : a),
 }));
 
 vi.mock('@forethread/ui-components/assets/icons/checkcircle-icon.svg?react', () => ({
@@ -33,7 +34,7 @@ import { PoActionLogTab } from './PoActionLogTab';
 
 const log = {
   id: 'created',
-  action: 'Purchase Order Created',
+  action: 'PO_ISSUED',
   description: 'Created by Sarah',
   performedBy: { id: 'u-1', name: 'Sarah' },
   createdAt: '2024-12-12T12:00:00.000Z',
@@ -97,6 +98,6 @@ describe('PoActionLogTab', () => {
   it('renders generic audit logs alongside resolved CRs', () => {
     render(<PoActionLogTab logs={[log]} changeRequests={[makeCr()]} />);
     expect(screen.getByText('CR-003')).toBeInTheDocument();
-    expect(screen.getByText('Purchase Order Created')).toBeInTheDocument();
+    expect(screen.getByText('PO issued')).toBeInTheDocument();
   });
 });

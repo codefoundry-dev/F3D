@@ -1,7 +1,7 @@
 import { type MaterialListItemDto, type MaterialListSummaryDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
-import { Button, Input, Select, TablePagination, useDebounce } from '@forethread/ui-components';
+import { Button, Input, TablePagination, useDebounce } from '@forethread/ui-components';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
 import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
@@ -17,6 +17,7 @@ import {
   type ConfirmMaterialAction,
 } from '../components/ConfirmMaterialModal';
 import { CreateEditMaterialListModal } from '../components/CreateEditMaterialListModal';
+import { FacetFilterSelect } from '../components/FacetFilterSelect';
 import { MaterialListsPanel } from '../components/MaterialListsPanel';
 import { MaterialNoResults } from '../components/MaterialNoResults';
 import { MaterialSearchDropdown } from '../components/MaterialSearchDropdown';
@@ -454,7 +455,7 @@ export default function MaterialCataloguePage() {
               )}
             </div>
 
-            <FilterSelect
+            <FacetFilterSelect
               value={categoryId}
               onChange={(v) => {
                 setCategoryId(v);
@@ -464,7 +465,7 @@ export default function MaterialCataloguePage() {
               testId="filter-category"
               options={(categories ?? []).map((c) => ({ value: c.id, label: c.name }))}
             />
-            <FilterSelect
+            <FacetFilterSelect
               value={manufacturer}
               onChange={(v) => {
                 setManufacturer(v);
@@ -474,7 +475,7 @@ export default function MaterialCataloguePage() {
               testId="filter-manufacturer"
               options={facets.manufacturers.map((m) => ({ value: m, label: m }))}
             />
-            <FilterSelect
+            <FacetFilterSelect
               value={uom}
               onChange={(v) => {
                 setUom(v);
@@ -484,7 +485,7 @@ export default function MaterialCataloguePage() {
               testId="filter-uom"
               options={facets.uoms.map((u) => ({ value: u, label: u }))}
             />
-            <FilterSelect
+            <FacetFilterSelect
               value={materialType}
               onChange={(v) => {
                 setMaterialType(v);
@@ -494,7 +495,7 @@ export default function MaterialCataloguePage() {
               testId="filter-material-type"
               options={facets.materialTypes.map((m) => ({ value: m, label: m }))}
             />
-            <FilterSelect
+            <FacetFilterSelect
               value={countryOfOrigin}
               onChange={(v) => {
                 setCountryOfOrigin(v);
@@ -637,37 +638,4 @@ function buildEditPath(id: string): string {
 
 function buildListDetailPath(id: string): string {
   return ROUTES.materialCatalogueListDetail.replace(':id', id);
-}
-
-interface FilterSelectProps {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  testId: string;
-  options: { value: string; label: string }[];
-}
-
-/**
- * A catalogue filter dropdown (US 4.04). All five facets — category,
- * manufacturer, UoM, material type, country of origin — render as a Select with
- * a placeholder "all" option, matching the Figma chevron dropdowns. When a facet
- * has no derived options the dropdown still renders (placeholder only).
- */
-function FilterSelect({ value, onChange, placeholder, testId, options }: FilterSelectProps) {
-  return (
-    <Select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      aria-label={placeholder}
-      data-testid={testId}
-      className="w-auto min-w-[128px] rounded-xl"
-    >
-      <option value="">{placeholder}</option>
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </Select>
-  );
 }

@@ -11,6 +11,7 @@ export { cn } from './utils/cn';
 export { onDigitsOnly, onDecimalOnly, onPhoneOnly } from './utils/inputFilters';
 export { formatDateTime } from './utils/formatDateTime';
 export { formatCurrency, formatDate, formatEnum, formatStatus } from './utils/formatters';
+export { formatAuditAction } from './utils/formatAuditAction';
 export { formatTime, formatDateLabel, groupMessagesByDate } from './utils/messaging';
 export type { MessageItem } from './utils/messaging';
 export {

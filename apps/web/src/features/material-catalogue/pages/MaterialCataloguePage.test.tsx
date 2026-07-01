@@ -213,7 +213,7 @@ describe('MaterialCataloguePage', () => {
     expect(screen.getByTestId('material-upload')).toBeInTheDocument();
   });
 
-  it('renders the facet filters as dropdowns sourced from the facets endpoint (US 4.04)', async () => {
+  it('renders the facet filters as searchable dropdowns sourced from the facets endpoint (US 4.04)', async () => {
     mockedGetMaterials.mockResolvedValue(
       page([
         { id: 'm-1', name: 'Portland Cement', manufacturer: 'LafargeHolcim', uom: 'bag' },
@@ -232,17 +232,23 @@ describe('MaterialCataloguePage', () => {
     renderPage();
     await screen.findByText('Portland Cement');
 
-    // All five facets are <select> dropdowns, not free-text inputs.
+    // Open the manufacturer facet — a searchable combobox, not a free-text input.
     const manufacturer = screen.getByTestId('filter-manufacturer');
-    expect(manufacturer.tagName).toBe('SELECT');
-    // Options are the sorted-unique manufacturers derived from the facets fetch.
-    expect(within(manufacturer).getByRole('option', { name: 'LafargeHolcim' })).toBeInTheDocument();
-    expect(within(manufacturer).getByRole('option', { name: 'Nucor Steel' })).toBeInTheDocument();
+    fireEvent.click(within(manufacturer).getByRole('button'));
 
-    const uom = screen.getByTestId('filter-uom');
-    expect(uom.tagName).toBe('SELECT');
-    expect(within(uom).getByRole('option', { name: 'bag' })).toBeInTheDocument();
-    expect(within(uom).getByRole('option', { name: 'ton' })).toBeInTheDocument();
+    // Options are the sorted-unique manufacturers derived from the facets fetch.
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).getByRole('option', { name: 'LafargeHolcim' })).toBeInTheDocument();
+    expect(within(listbox).getByRole('option', { name: 'Nucor Steel' })).toBeInTheDocument();
+
+    // The dropdown is searchable — typing narrows the options.
+    fireEvent.change(within(listbox).getByPlaceholderText('Manufacturer'), {
+      target: { value: 'nucor' },
+    });
+    expect(
+      within(listbox).queryByRole('option', { name: 'LafargeHolcim' }),
+    ).not.toBeInTheDocument();
+    expect(within(listbox).getByRole('option', { name: 'Nucor Steel' })).toBeInTheDocument();
   });
 
   it('opens the search dropdown with grouped suggestions when the input is focused', async () => {

@@ -698,7 +698,10 @@ describe('QuoteResponseService', () => {
       expect(result.needByDate).toBeNull();
     });
 
-    it('should use description as materialName when material is null', async () => {
+    it('should use the free-text materialName for a manually-typed line (no catalogue material)', async () => {
+      // Regression: manually-typed RFQ lines have no `material` relation and
+      // carry their name in the `materialName` column. The guest portal must
+      // surface it — otherwise the row renders nameless (looks "missing").
       mockPrisma.rfqVendor.findUnique.mockResolvedValue({
         ...baseRfqVendor,
         rfq: {
@@ -707,6 +710,57 @@ describe('QuoteResponseService', () => {
             {
               id: 'li-1',
               material: null,
+              materialName: 'Accessory Lead 5Pin 2.4M',
+              unit: 'ea',
+              quantity: 20,
+              description: null,
+              costCode: null,
+            },
+          ],
+        },
+      });
+
+      const result = await service.getGuestRfq('valid-token');
+
+      expect(result.lineItems[0].materialName).toBe('Accessory Lead 5Pin 2.4M');
+    });
+
+    it('should prefer the catalogue material name over a stored materialName', async () => {
+      // Catalogue lines keep both a `material` relation and (defensively) may
+      // carry a stale materialName; the relation name wins.
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue({
+        ...baseRfqVendor,
+        rfq: {
+          ...baseRfqVendor.rfq,
+          lineItems: [
+            {
+              id: 'li-1',
+              material: { id: 'mat-1', name: 'Steel', uom: 'KG' },
+              materialName: 'stale name',
+              unit: 'KG',
+              quantity: 100,
+              description: 'Hot rolled steel',
+              costCode: 'CC-01',
+            },
+          ],
+        },
+      });
+
+      const result = await service.getGuestRfq('valid-token');
+
+      expect(result.lineItems[0].materialName).toBe('Steel');
+    });
+
+    it('should use description as materialName when material and materialName are null', async () => {
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue({
+        ...baseRfqVendor,
+        rfq: {
+          ...baseRfqVendor.rfq,
+          lineItems: [
+            {
+              id: 'li-1',
+              material: null,
+              materialName: null,
               unit: 'KG',
               quantity: 100,
               description: 'Custom item',

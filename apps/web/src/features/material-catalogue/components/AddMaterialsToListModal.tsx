@@ -9,7 +9,6 @@ import {
   ModalFooter,
   ModalGridBackground,
   ModalIconHeader,
-  Select,
   useDebounce,
 } from '@forethread/ui-components';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
@@ -21,6 +20,8 @@ import { useMemo, useState } from 'react';
 import { useMaterialFacets } from '../hooks/useMaterialFacets';
 import { useMaterialListMutations } from '../hooks/useMaterialLists';
 import { useMaterialCategories, useMaterials } from '../hooks/useMaterials';
+
+import { FacetFilterSelect } from './FacetFilterSelect';
 
 export interface AddMaterialsToListModalProps {
   listId: string;
@@ -203,40 +204,45 @@ export function AddMaterialsToListModal({
             clearAllLabel={t('addMaterialsToListModal.clearFilters')}
           >
             <div className="space-y-3" data-testid="add-materials-filters">
-              <FacetSelect
+              <FacetFilterSelect
                 value={categoryId}
                 onChange={setCategoryId}
                 placeholder={t('filters.allCategories')}
                 testId="add-materials-filter-category"
                 options={(categories ?? []).map((c) => ({ value: c.id, label: c.name }))}
+                className="w-full"
               />
-              <FacetSelect
+              <FacetFilterSelect
                 value={manufacturer}
                 onChange={setManufacturer}
                 placeholder={t('filters.manufacturer')}
                 testId="add-materials-filter-manufacturer"
                 options={facets.manufacturers.map((m) => ({ value: m, label: m }))}
+                className="w-full"
               />
-              <FacetSelect
+              <FacetFilterSelect
                 value={uom}
                 onChange={setUom}
                 placeholder={t('filters.uom')}
                 testId="add-materials-filter-uom"
                 options={facets.uoms.map((u) => ({ value: u, label: u }))}
+                className="w-full"
               />
-              <FacetSelect
+              <FacetFilterSelect
                 value={materialType}
                 onChange={setMaterialType}
                 placeholder={t('filters.materialType')}
                 testId="add-materials-filter-material-type"
                 options={facets.materialTypes.map((m) => ({ value: m, label: m }))}
+                className="w-full"
               />
-              <FacetSelect
+              <FacetFilterSelect
                 value={countryOfOrigin}
                 onChange={setCountryOfOrigin}
                 placeholder={t('filters.countryOfOrigin')}
                 testId="add-materials-filter-country"
                 options={facets.countriesOfOrigin.map((c) => ({ value: c, label: c }))}
+                className="w-full"
               />
             </div>
           </FilterPanel>
@@ -342,37 +348,5 @@ export function AddMaterialsToListModal({
         </Button>
       </ModalFooter>
     </Modal>
-  );
-}
-
-interface FacetSelectProps {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  testId: string;
-  options: { value: string; label: string }[];
-}
-
-/**
- * A facet dropdown for the add-materials filters — "Filter as in material
- * catalog" per the Figma annotation, so these mirror the catalogue's dropdowns.
- * Renders gracefully (placeholder only) when a facet has no values.
- */
-function FacetSelect({ value, onChange, placeholder, testId, options }: FacetSelectProps) {
-  return (
-    <Select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      aria-label={placeholder}
-      data-testid={testId}
-      className="w-full rounded-xl"
-    >
-      <option value="">{placeholder}</option>
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </Select>
   );
 }

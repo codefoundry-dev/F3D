@@ -814,7 +814,10 @@ export class QuoteResponseService {
       message: rfq.message,
       lineItems: rfq.lineItems.map((li) => ({
         id: li.id,
-        materialName: li.material?.name ?? li.description ?? '',
+        // Honour the free-text `materialName` column for manually-typed lines
+        // (no catalogue material) before falling back to description. Without
+        // this, manual RFQ lines render nameless on the guest quote portal.
+        materialName: li.material?.name ?? li.materialName ?? li.description ?? '',
         unit: li.unit,
         quantity: li.quantity,
         description: li.description,

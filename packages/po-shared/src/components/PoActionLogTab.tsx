@@ -1,6 +1,6 @@
 import type { PoChangeRequest } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Badge, Spinner, formatDateTime } from '@forethread/ui-components';
+import { Badge, Spinner, formatAuditAction, formatDateTime } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock.svg?react';
 
@@ -138,7 +138,9 @@ export function PoActionLogTab({
 
                 <div className="pb-6 min-w-0 flex flex-col gap-1.5 justify-center min-h-[50px]">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <p className="text-sm font-medium text-foreground">{log.action}</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {formatAuditAction(log.action)}
+                    </p>
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
                       <ClockIcon className="w-3.5 h-3.5" />
                       {formatDateTime(log.createdAt)}
