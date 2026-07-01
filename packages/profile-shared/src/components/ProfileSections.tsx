@@ -1,13 +1,13 @@
 import { getAuditLogs, type AuditLogResponse } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Spinner, formatDateTime } from '@forethread/ui-components';
+import { Spinner, formatAuditAction, formatDateTime } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock.svg?react';
 import ShieldIcon from '@forethread/ui-components/assets/icons/shield-icon.svg?react';
 import UserOutlineIcon from '@forethread/ui-components/assets/icons/user-outline.svg?react';
 import { useQuery } from '@tanstack/react-query';
 
-import { AUDIT_ACTION_LABELS, DEFAULT_PERMISSION_KEYS } from '../constants';
+import { DEFAULT_PERMISSION_KEYS } from '../constants';
 
 function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
@@ -147,7 +147,7 @@ function ActivityLogTimeline({ userId }: { userId?: string }) {
 
   const entries: TimelineEntry[] = logs.map((log: AuditLogResponse) => ({
     key: log.id,
-    title: AUDIT_ACTION_LABELS[log.action] ?? log.action,
+    title: formatAuditAction(log.action),
     timestamp: formatDateTime(log.createdAt),
     description: log.targetLabel
       ? `${log.targetType}: ${log.targetLabel}`

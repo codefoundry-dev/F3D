@@ -1,30 +1,15 @@
 import { getAuditLogs, type AuditLogResponse, type AuditLogParams } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Spinner, TablePagination, formatDateTime } from '@forethread/ui-components';
+import {
+  Spinner,
+  TablePagination,
+  formatAuditAction,
+  formatDateTime,
+} from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock.svg?react';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-
-const AUDIT_ACTION_LABELS: Record<string, string> = {
-  USER_CREATED: 'User created',
-  USER_UPDATED: 'User updated',
-  USER_DEACTIVATED: 'User deactivated',
-  USER_REACTIVATED: 'User reactivated',
-  USER_INVITATION_RESENT: 'Invitation resent',
-  USER_INVITATION_CANCELLED: 'Invitation cancelled',
-  USER_PASSWORD_RESET_INITIATED: 'Password reset initiated',
-  COMPANY_CREATED: 'Company created',
-  COMPANY_UPDATED: 'Company updated',
-  FILE_UPLOADED: 'File uploaded',
-  FILE_DELETED: 'File deleted',
-  PROJECT_CREATED: 'Project created',
-  PROJECT_UPDATED: 'Project updated',
-  PROJECT_MEMBER_ADDED: 'Project member added',
-  PROJECT_MEMBER_REMOVED: 'Project member removed',
-  VENDOR_ASSIGNED: 'Vendor assigned',
-  VENDOR_UNASSIGNED: 'Vendor unassigned',
-};
 
 export function ActionLogTab() {
   const { t } = useTranslation(['users', 'common']);
@@ -74,7 +59,7 @@ export function ActionLogTab() {
                 <div className="min-w-0 pb-6">
                   <div className="flex flex-wrap items-center gap-3">
                     <p className="text-sm font-semibold text-gray-900">
-                      {AUDIT_ACTION_LABELS[log.action] ?? log.action}
+                      {formatAuditAction(log.action)}
                     </p>
                     <span className="flex items-center gap-1 text-xs text-gray-500">
                       <ClockIcon className="size-3.5" />

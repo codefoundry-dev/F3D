@@ -7,7 +7,6 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { createPortal } from 'react-dom';
 
 import CheckmarkIcon from '../assets/icons/checkmark.svg?react';
 import ChevronDownIcon from '../assets/icons/chevron-down.svg?react';
@@ -60,30 +59,23 @@ export function CustomDropdown({
 }: CustomDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [portalStyle, setPortalStyle] = useState<React.CSSProperties>({});
+  // Whether the panel opens above the trigger — decided once on open, when there
+  // isn't enough room below (i.e. the trigger sits near the viewport bottom).
+  const [openUp, setOpenUp] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const portalRef = useRef<HTMLDivElement>(null);
 
   const selectedOption = options.find((o) => o.value === value);
 
-  // Position the portal dropdown relative to the trigger
+  // The panel is an absolutely-positioned child of the trigger's wrapper, so it
+  // stays glued to the trigger while the page scrolls (nothing to re-measure)
+  // and is bounded to the wrapper's width — it can't spill past the container or
+  // widen the page. We only measure once on open to pick the vertical direction.
   useLayoutEffect(() => {
     if (!isOpen || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const openUp = spaceBelow < 250;
-    // Match the trigger's width so the panel always fits inside whatever
-    // container the trigger does (e.g. a modal). Anchoring to a viewport-based
-    // max-width let `w-full` children expand the panel to the screen edge and
-    // spill out of narrower containers; long option labels simply wrap instead.
-    setPortalStyle({
-      position: 'fixed',
-      left: rect.left,
-      width: rect.width,
-      ...(openUp ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
-    });
+    setOpenUp(window.innerHeight - rect.bottom < 250);
   }, [isOpen]);
 
   const filteredOptions =
@@ -114,11 +106,7 @@ export function CustomDropdown({
     if (!isOpen) return;
     const handler = (e: MouseEvent) => {
       const target = e.target as Node;
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(target) &&
-        !portalRef.current?.contains(target)
-      ) {
+      if (containerRef.current && !containerRef.current.contains(target)) {
         close();
       }
     };
@@ -206,105 +194,102 @@ export function CustomDropdown({
         />
       </button>
 
-      {isOpen &&
-        createPortal(
-          <div
-            ref={(el) => {
-              (portalRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-              (listRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-            }}
-            role="listbox"
-            style={portalStyle}
-            className="z-[9999] max-h-60 overflow-auto rounded-[12px] border border-gray-100 bg-white p-1 shadow-[0_12px_16px_-4px_rgba(10,13,18,0.08),0_4px_6px_-2px_rgba(10,13,18,0.03)]"
-          >
-            {searchable && (
-              <div className="px-2 py-1.5">
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={searchPlaceholder}
-                  className="w-full px-2.5 py-1.5 text-sm bg-muted border border-input rounded-lg focus:outline-none focus:border-foreground/50 focus:bg-muted text-foreground placeholder:text-muted-foreground"
-                />
-              </div>
-            )}
+      {isOpen && (
+        <div
+          ref={listRef}
+          role="listbox"
+          className={cn(
+            'absolute inset-x-0 z-[9999] max-h-60 overflow-auto rounded-[12px] border border-gray-100 bg-white p-1 shadow-[0_12px_16px_-4px_rgba(10,13,18,0.08),0_4px_6px_-2px_rgba(10,13,18,0.03)]',
+            openUp ? 'bottom-full mb-1' : 'top-full mt-1',
+          )}
+        >
+          {searchable && (
+            <div className="px-2 py-1.5">
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={searchPlaceholder}
+                className="w-full px-2.5 py-1.5 text-sm bg-muted border border-input rounded-lg focus:outline-none focus:border-foreground/50 focus:bg-muted text-foreground placeholder:text-muted-foreground"
+              />
+            </div>
+          )}
 
-            {grouped && groupedOptions
-              ? Array.from(groupedOptions.entries()).map(([letter, opts]) => (
-                  <div key={letter}>
-                    <div
-                      data-group-letter={letter}
-                      className="sticky top-0 px-3 py-1 text-xs font-semibold text-muted-foreground bg-card border-b border-border"
-                    >
-                      {letter}
-                    </div>
-                    {opts.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        role="option"
-                        aria-selected={option.value === value}
-                        onClick={() => handleSelect(option.value)}
-                        className={cn(
-                          'flex w-full items-center justify-between gap-2 rounded-[8px] px-2.5 py-2 text-left text-sm transition-colors',
-                          option.value === value
-                            ? 'bg-gray-50 font-semibold text-gray-900'
-                            : 'text-gray-700 hover:bg-gray-50',
-                        )}
-                      >
-                        <span className="truncate">{option.label}</span>
-                        {option.value === value && (
-                          <CheckmarkIcon className="size-4 shrink-0 text-gray-900" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                ))
-              : filteredOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    role="option"
-                    aria-selected={option.value === value}
-                    onClick={() => handleSelect(option.value)}
-                    className={cn(
-                      'flex w-full items-center justify-between gap-2 rounded-[8px] px-2.5 py-2 text-left text-sm transition-colors',
-                      option.value === value
-                        ? 'bg-gray-50 font-semibold text-gray-900'
-                        : 'text-gray-700 hover:bg-gray-50',
-                    )}
+          {grouped && groupedOptions
+            ? Array.from(groupedOptions.entries()).map(([letter, opts]) => (
+                <div key={letter}>
+                  <div
+                    data-group-letter={letter}
+                    className="sticky top-0 px-3 py-1 text-xs font-semibold text-muted-foreground bg-card border-b border-border"
                   >
-                    <span className="truncate">{option.label}</span>
-                    {option.value === value && (
-                      <CheckmarkIcon className="size-4 shrink-0 text-gray-900" />
-                    )}
-                  </button>
-                ))}
-
-            {filteredOptions.length === 0 && (
-              <div className="px-3 py-2 text-sm text-muted-foreground">No options</div>
-            )}
-
-            {actionItem && (
-              <>
-                <div className="my-1 border-t border-gray-100" />
+                    {letter}
+                  </div>
+                  {opts.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="option"
+                      aria-selected={option.value === value}
+                      onClick={() => handleSelect(option.value)}
+                      className={cn(
+                        'flex w-full items-center justify-between gap-2 rounded-[8px] px-2.5 py-2 text-left text-sm transition-colors',
+                        option.value === value
+                          ? 'bg-gray-50 font-semibold text-gray-900'
+                          : 'text-gray-700 hover:bg-gray-50',
+                      )}
+                    >
+                      <span className="truncate">{option.label}</span>
+                      {option.value === value && (
+                        <CheckmarkIcon className="size-4 shrink-0 text-gray-900" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              ))
+            : filteredOptions.map((option) => (
                 <button
+                  key={option.value}
                   type="button"
-                  onClick={() => {
-                    actionItem.onClick();
-                    close();
-                  }}
-                  className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
+                  role="option"
+                  aria-selected={option.value === value}
+                  onClick={() => handleSelect(option.value)}
+                  className={cn(
+                    'flex w-full items-center justify-between gap-2 rounded-[8px] px-2.5 py-2 text-left text-sm transition-colors',
+                    option.value === value
+                      ? 'bg-gray-50 font-semibold text-gray-900'
+                      : 'text-gray-700 hover:bg-gray-50',
+                  )}
                 >
-                  {actionItem.icon}
-                  {actionItem.label}
+                  <span className="truncate">{option.label}</span>
+                  {option.value === value && (
+                    <CheckmarkIcon className="size-4 shrink-0 text-gray-900" />
+                  )}
                 </button>
-              </>
-            )}
-          </div>,
-          document.body,
-        )}
+              ))}
+
+          {filteredOptions.length === 0 && (
+            <div className="px-3 py-2 text-sm text-muted-foreground">No options</div>
+          )}
+
+          {actionItem && (
+            <>
+              <div className="my-1 border-t border-gray-100" />
+              <button
+                type="button"
+                onClick={() => {
+                  actionItem.onClick();
+                  close();
+                }}
+                className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                {actionItem.icon}
+                {actionItem.label}
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

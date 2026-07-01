@@ -47,6 +47,13 @@ vi.mock('@forethread/ui-components', () => ({
     </div>
   ),
   formatDateTime: (date: string) => new Date(date).toLocaleString(),
+  formatAuditAction: (a: string) =>
+    a
+      .split('_')
+      .map((w: string, i: number) =>
+        i === 0 ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w.toLowerCase(),
+      )
+      .join(' '),
   onPhoneOnly: vi.fn(),
   onDigitsOnly: vi.fn(),
   onDecimalOnly: vi.fn(),
@@ -156,7 +163,7 @@ describe('ActionLogTab', () => {
     expect(screen.getByTestId('icon-clock')).toBeInTheDocument();
   });
 
-  it('renders unknown action label as raw action string', () => {
+  it('humanizes an unmapped action instead of showing the raw enum string', () => {
     mockUseQuery.mockReturnValueOnce({
       data: {
         items: [
@@ -175,8 +182,9 @@ describe('ActionLogTab', () => {
       isLoading: false,
     });
     render(<ActionLogTab />);
-    // Unknown action falls through to raw string
-    expect(screen.getByText('SOME_UNKNOWN_ACTION')).toBeInTheDocument();
+    // Unmapped actions are humanized rather than shown in raw SCREAMING_SNAKE_CASE
+    expect(screen.getByText('Some unknown action')).toBeInTheDocument();
+    expect(screen.queryByText('SOME_UNKNOWN_ACTION')).not.toBeInTheDocument();
   });
 
   it('renders targetId truncated when targetLabel is null', () => {

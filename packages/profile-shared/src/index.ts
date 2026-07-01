@@ -25,4 +25,4 @@ export {
 } from './services/profile.service';
 
 // Constants
-export { DEFAULT_PERMISSION_KEYS, AUDIT_ACTION_LABELS } from './constants';
+export { DEFAULT_PERMISSION_KEYS } from './constants';

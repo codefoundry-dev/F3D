@@ -48,22 +48,22 @@ export default function DashboardPage() {
   const quickActions = [
     {
       label: t('quickActions.userManagement'),
-      icon: <NewUserIcon className="w-6 h-6" />,
+      icon: <NewUserIcon className="w-5 h-5" />,
       onClick: () => navigate(ROUTES.users),
     },
     {
       label: t('quickActions.companyManagement'),
-      icon: <SuppliersIcon className="w-6 h-6" />,
+      icon: <SuppliersIcon className="w-5 h-5" />,
       onClick: () => navigate(ROUTES.users),
     },
     {
       label: t('quickActions.materialCatalogue'),
-      icon: <MaterialCatalogueIcon className="w-6 h-6" />,
+      icon: <MaterialCatalogueIcon className="w-5 h-5" />,
       onClick: () => navigate(ROUTES.materialCatalogue),
     },
     {
       label: t('quickActions.adminPanel'),
-      icon: <SettingsIcon className="w-6 h-6" />,
+      icon: <SettingsIcon className="w-5 h-5" />,
       onClick: () => navigate(ROUTES.adminPanel),
     },
   ];
@@ -133,7 +133,7 @@ export default function DashboardPage() {
             key={action.label}
             type="button"
             onClick={action.onClick}
-            className="flex items-center justify-center gap-2.5 px-6 py-4 rounded-xl bg-[#1B1D22] text-white text-lg font-medium hover:bg-[#1B1D22]/90 transition-colors"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#1B1D22] text-white text-sm font-medium hover:bg-[#1B1D22]/90 transition-colors"
           >
             {action.icon}
             {action.label}

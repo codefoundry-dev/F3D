@@ -1,17 +1,5 @@
 import { ComponentStatus } from '../../types/super-admin/platform-state.types';
 
-export const AUDIT_ACTION_LABELS: Record<string, string> = {
-  USER_CREATED: 'User created',
-  USER_UPDATED: 'User updated',
-  USER_DEACTIVATED: 'User deactivated',
-  USER_REACTIVATED: 'User reactivated',
-  USER_INVITATION_RESENT: 'Invitation resent',
-  USER_INVITATION_CANCELLED: 'Invitation cancelled',
-  USER_PASSWORD_RESET_INITIATED: 'Password reset initiated',
-  COMPANY_CREATED: 'Company created',
-  COMPANY_UPDATED: 'Company updated',
-};
-
 /**
  * Platform-state status pills.
  *
