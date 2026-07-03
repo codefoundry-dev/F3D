@@ -19,6 +19,12 @@ export function rfqToFormDefaults(rfq: RfqDetail): SourceFormDefaults {
   const lineItems: FormValues['lineItems'] = rfq.lineItems.map((li) => ({
     ...EMPTY_LINE_ITEM,
     materialName: li.materialName,
+    // Carry the RFQ line's catalogue link + code snapshots onto the PO line.
+    materialId: li.materialId ?? '',
+    costCode: li.costCode ?? '',
+    upc: li.upc ?? '',
+    manufacturerPartNumber: li.manufacturerPartNumber ?? '',
+    taxCode: li.taxCode ?? '',
     description: li.description ?? '',
     unitOfMeasure: li.unit,
     quantityOrdered: li.quantity,
@@ -121,8 +127,14 @@ export function poToFormDefaults(po: PoDetail): { defaultValues: Partial<FormVal
     ...EMPTY_LINE_ITEM,
     lineItemId: li.id,
     materialName: li.materialName ?? li.description ?? '',
+    materialId: li.materialId ?? '',
     materialCode: li.materialCode ?? '',
     costCode: li.costCode ?? '',
+    // Keep the line's catalogue snapshots across a change — otherwise the
+    // replacement PO would silently drop UPC / MPN / tax code.
+    upc: li.upc ?? '',
+    manufacturerPartNumber: li.manufacturerPartNumber ?? '',
+    taxCode: li.taxCode ?? '',
     unitOfMeasure: li.unitOfMeasure,
     unitPrice: li.unitPrice,
     quantityOrdered: li.quantityOrdered,

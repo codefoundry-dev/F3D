@@ -4,6 +4,12 @@ import type { RfqDetail } from '@forethread/api-client';
 export interface DerivedQuoteItem {
   id: string;
   lineItemId: string;
+  /** Catalogue material link + code snapshots carried from the RFQ line. */
+  materialId: string | null;
+  costCode: string | null;
+  upc: string | null;
+  manufacturerPartNumber: string | null;
+  taxCode: string | null;
   materialName: string;
   description: string | null;
   unitPrice: number;
@@ -47,6 +53,11 @@ export function deriveVendorGroups(rfq: RfqDetail): VendorGroup[] {
     const items: DerivedQuoteItem[] = rfq.lineItems.map((li) => ({
       id: `${qr.id}-${li.id}`,
       lineItemId: li.id,
+      materialId: li.materialId ?? null,
+      costCode: li.costCode ?? null,
+      upc: li.upc ?? null,
+      manufacturerPartNumber: li.manufacturerPartNumber ?? null,
+      taxCode: li.taxCode ?? null,
       materialName: li.materialName,
       description: li.description,
       unitPrice: perItemCost > 0 ? Math.round((perItemCost / li.quantity) * 100) / 100 : 0,

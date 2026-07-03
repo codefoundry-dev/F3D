@@ -24,6 +24,24 @@ import {
 import { UOM_OPTIONS, ACTION_ICON_SIZE, NAKED_INPUT_CLASS } from '../constants/line-items';
 import type { FormValues } from '../schemas/create-po.schema';
 
+/**
+ * Fill a line-item row from a catalogue pick: link the material (materialId)
+ * and pre-fill its identity/accounting codes so they persist onto the PO line.
+ */
+function applyMaterialToRow(
+  setValue: UseFormSetValue<FormValues>,
+  index: number,
+  mat: MaterialItem,
+) {
+  setValue(`lineItems.${index}.materialName`, mat.name);
+  setValue(`lineItems.${index}.materialId`, mat.id);
+  setValue(`lineItems.${index}.materialCode`, mat.sku ?? '');
+  setValue(`lineItems.${index}.costCode`, mat.costCode ?? '');
+  setValue(`lineItems.${index}.upc`, mat.upc ?? '');
+  setValue(`lineItems.${index}.manufacturerPartNumber`, mat.manufacturerPartNumber ?? '');
+  setValue(`lineItems.${index}.taxCode`, mat.taxCode ?? '');
+}
+
 /** Grouped material search state to reduce prop drilling (ISP) */
 export interface MaterialSearchState {
   cellSearchOpen: number | null;
@@ -111,8 +129,7 @@ export function LineItemRow({
               results={materialSearch.results}
               selected={materialSearch.selected}
               onSelect={(mat) => {
-                setValue(`lineItems.${index}.materialName`, mat.name);
-                setValue(`lineItems.${index}.materialCode`, mat.id);
+                applyMaterialToRow(setValue, index, mat);
                 if (mat.unit) setValue(`lineItems.${index}.unitOfMeasure`, mat.unit);
                 materialSearch.onCellSearchClose();
               }}
@@ -120,8 +137,7 @@ export function LineItemRow({
               onQuantityChange={materialSearch.onQtyChange}
               onAddToList={() => {
                 for (const mat of materialSearch.selected) {
-                  setValue(`lineItems.${index}.materialName`, mat.name);
-                  setValue(`lineItems.${index}.materialCode`, mat.id);
+                  applyMaterialToRow(setValue, index, mat);
                   if (mat.unit) setValue(`lineItems.${index}.unitOfMeasure`, mat.unit);
                   setValue(`lineItems.${index}.quantityOrdered`, mat.quantity);
                 }

@@ -97,8 +97,11 @@ export function PoCreateLineItemsStep({
   // Line item CRUD operations (SRP: extracted to dedicated hook)
   const crud = useLineItemsCrud({ watchedLineItems, append, remove, setValue });
 
-  // Top-bar material search
-  const topSearch = useMaterialSearch();
+  // Top-bar material search; while a per-cell picker is open its query text
+  // drives the catalogue fetch instead of the top-bar input.
+  const topSearch = useMaterialSearch(
+    crud.cellSearchOpen !== null ? crud.cellSearchQuery : undefined,
+  );
 
   // Bulk price mismatch alert — placeholder for API integration
   const [hasBulkPriceMismatch] = useState(false);

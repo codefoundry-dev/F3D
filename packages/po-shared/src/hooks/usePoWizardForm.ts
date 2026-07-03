@@ -210,6 +210,9 @@ export function usePoWizardForm({
       const lineItems: CreatePoLineItemInput[] = data.lineItems
         .filter((item) => item.materialName)
         .map((item) => ({
+          // Links the line to the catalogue material — the backend snapshots the
+          // material's UPC/MPN/tax code and the detail view resolves the name.
+          materialId: item.materialId || undefined,
           materialCode: item.materialCode || undefined,
           description: item.materialName || item.description || undefined,
           quantityOrdered: item.quantityOrdered,

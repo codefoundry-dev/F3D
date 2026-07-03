@@ -35,6 +35,27 @@ import { ModalListView } from './ModalListView';
 /** Re-export for backward compatibility */
 export type QuoteLineItem = DerivedQuoteItem;
 
+/**
+ * Map a derived quote item to a PO wizard line-item row, carrying the RFQ
+ * line's catalogue link + code snapshots so they persist onto the PO line.
+ */
+function mapQuoteItemToFormItem(qi: DerivedQuoteItem): FormValues['lineItems'][number] {
+  return {
+    ...EMPTY_LINE_ITEM,
+    materialName: qi.materialName,
+    materialId: qi.materialId ?? '',
+    materialCode: '',
+    costCode: qi.costCode ?? '',
+    upc: qi.upc ?? '',
+    manufacturerPartNumber: qi.manufacturerPartNumber ?? '',
+    taxCode: qi.taxCode ?? '',
+    unitOfMeasure: qi.unit,
+    unitPrice: qi.unitPrice,
+    quantityOrdered: qi.quantity,
+    description: qi.description ?? '',
+  };
+}
+
 type ModalView = 'list' | 'viewQuotes' | 'addItems';
 
 interface ApprovedQuotesModalProps {
@@ -165,15 +186,7 @@ export function ApprovedQuotesModal({
   const handleAddSelected = useCallback(() => {
     const items = quoteLineItems
       .filter((qi) => sel.selectedItems.has(qi.id) && !alreadyInTable.has(qi.id))
-      .map((qi) => ({
-        ...EMPTY_LINE_ITEM,
-        materialName: qi.materialName,
-        materialCode: '',
-        unitOfMeasure: qi.unit,
-        unitPrice: qi.unitPrice,
-        quantityOrdered: qi.quantity,
-        description: qi.description ?? '',
-      }));
+      .map(mapQuoteItemToFormItem);
     if (items.length > 0) onAddItems(items);
     handleClose();
   }, [quoteLineItems, sel.selectedItems, alreadyInTable, onAddItems]);
@@ -188,15 +201,7 @@ export function ApprovedQuotesModal({
   const handleAddAll = useCallback(() => {
     const items = quoteLineItems
       .filter((qi) => !alreadyInTable.has(qi.id))
-      .map((qi) => ({
-        ...EMPTY_LINE_ITEM,
-        materialName: qi.materialName,
-        materialCode: '',
-        unitOfMeasure: qi.unit,
-        unitPrice: qi.unitPrice,
-        quantityOrdered: qi.quantity,
-        description: qi.description ?? '',
-      }));
+      .map(mapQuoteItemToFormItem);
     if (items.length > 0) onAddItems(items);
     handleClose();
   }, [quoteLineItems, alreadyInTable, onAddItems, handleClose]);

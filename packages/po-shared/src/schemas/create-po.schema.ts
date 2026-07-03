@@ -11,6 +11,10 @@ export type LockedField = 'projectId' | 'vendorId' | 'deliveryLocationId' | 'pla
 
 export const lineItemSchema = z.object({
   materialName: z.string().min(1, 'Required'),
+  // Catalogue material id when the row was picked from (or sourced with) the
+  // catalogue; links the PO line to the material so the backend snapshots the
+  // material's codes and the detail view can show the live material name.
+  materialId: z.string().optional(),
   materialCode: z.string().optional(),
   costCode: z.string().optional(),
   // Snapshots defaulted from the linked catalogue material (UPC / MPN / tax code).
@@ -111,6 +115,7 @@ export type FormValues = z.infer<typeof formSchema>;
 
 export const EMPTY_LINE_ITEM = {
   materialName: '',
+  materialId: '',
   materialCode: '',
   costCode: '',
   upc: '',

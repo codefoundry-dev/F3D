@@ -107,7 +107,12 @@ export function useLineItemsCrud({
       if (lastIsEmpty && mats.length > 0) {
         const mat = mats[0];
         setValue(`lineItems.${lastIdx}.materialName`, mat.name);
-        setValue(`lineItems.${lastIdx}.materialCode`, mat.id);
+        setValue(`lineItems.${lastIdx}.materialId`, mat.id);
+        setValue(`lineItems.${lastIdx}.materialCode`, mat.sku ?? '');
+        setValue(`lineItems.${lastIdx}.costCode`, mat.costCode ?? '');
+        setValue(`lineItems.${lastIdx}.upc`, mat.upc ?? '');
+        setValue(`lineItems.${lastIdx}.manufacturerPartNumber`, mat.manufacturerPartNumber ?? '');
+        setValue(`lineItems.${lastIdx}.taxCode`, mat.taxCode ?? '');
         setValue(`lineItems.${lastIdx}.unitOfMeasure`, mat.unit ?? '');
         setValue(`lineItems.${lastIdx}.quantityOrdered`, mat.quantity);
         startIndex = 1;
@@ -117,7 +122,12 @@ export function useLineItemsCrud({
         append({
           ...EMPTY_LINE_ITEM,
           materialName: mat.name,
-          materialCode: mat.id,
+          materialId: mat.id,
+          materialCode: mat.sku ?? '',
+          costCode: mat.costCode ?? '',
+          upc: mat.upc ?? '',
+          manufacturerPartNumber: mat.manufacturerPartNumber ?? '',
+          taxCode: mat.taxCode ?? '',
           unitOfMeasure: mat.unit ?? '',
           quantityOrdered: mat.quantity,
         });

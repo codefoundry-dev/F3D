@@ -1215,6 +1215,9 @@ export class RfqsService {
                 materialName: true,
                 unit: true,
                 costCode: true,
+                upc: true,
+                manufacturerPartNumber: true,
+                taxCode: true,
                 description: true,
                 pickUp: true,
               },
@@ -1242,6 +1245,12 @@ export class RfqsService {
           unitPrice,
           lineTotal: li.quotedQuantity * unitPrice,
           costCode: li.rfqLineItem.costCode,
+          // Carry the RFQ line's catalogue snapshots onto the PO line (they were
+          // captured at RFQ create; dropping them here blanked UPC/MPN/tax code
+          // on every awarded PO).
+          upc: li.rfqLineItem.upc,
+          manufacturerPartNumber: li.rfqLineItem.manufacturerPartNumber,
+          taxCode: li.rfqLineItem.taxCode,
           expectedDeliveryDate: li.deliveryDate,
           notes: li.notes,
           pickUp: li.rfqLineItem.pickUp,
@@ -1343,6 +1352,9 @@ export class RfqsService {
         description: string | null;
         unit: string;
         costCode: string | null;
+        upc: string | null;
+        manufacturerPartNumber: string | null;
+        taxCode: string | null;
         pickUp: boolean;
         deliveryLocationId: string | null;
       };
@@ -1359,6 +1371,11 @@ export class RfqsService {
         unitPrice,
         lineTotal: a.quantity * unitPrice,
         costCode: a.rfqLineItem.costCode,
+        // Carry the RFQ line's catalogue snapshots (UPC / MPN / tax code) onto
+        // each child PO line, mirroring awardQuote.
+        upc: a.rfqLineItem.upc,
+        manufacturerPartNumber: a.rfqLineItem.manufacturerPartNumber,
+        taxCode: a.rfqLineItem.taxCode,
         expectedDeliveryDate: a.deliveryDate,
         deliveryLocationId: a.rfqLineItem.deliveryLocationId,
         notes: a.notes,
@@ -1430,6 +1447,9 @@ export class RfqsService {
             description: true,
             unit: true,
             costCode: true,
+            upc: true,
+            manufacturerPartNumber: true,
+            taxCode: true,
             pickUp: true,
             projectId: true,
             deliveryLocationId: true,

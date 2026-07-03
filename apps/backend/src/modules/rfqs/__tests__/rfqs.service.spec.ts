@@ -1217,6 +1217,9 @@ describe('RfqsService', () => {
             materialName: 'Cement',
             unit: 'bags',
             costCode: 'CC-1',
+            upc: '012345678905',
+            manufacturerPartNumber: 'MPN-1',
+            taxCode: 'GST',
             description: null,
             pickUp: false,
           },
@@ -1232,6 +1235,9 @@ describe('RfqsService', () => {
             materialName: 'Sand',
             unit: 'tonnes',
             costCode: 'CC-2',
+            upc: null,
+            manufacturerPartNumber: null,
+            taxCode: null,
             description: null,
             pickUp: false,
           },
@@ -1355,6 +1361,10 @@ describe('RfqsService', () => {
           unitPrice: 10,
           lineTotal: 50,
           costCode: 'CC-1',
+          // The RFQ line's catalogue snapshots must survive onto the PO line.
+          upc: '012345678905',
+          manufacturerPartNumber: 'MPN-1',
+          taxCode: 'GST',
         }),
       );
     });
@@ -1384,6 +1394,9 @@ describe('RfqsService', () => {
       description: null,
       unit: 'm',
       costCode: 'CC-1',
+      upc: '112345678906',
+      manufacturerPartNumber: 'MPN-CW',
+      taxCode: 'GST',
       pickUp: false,
       projectId: null,
       deliveryLocationId: null,
@@ -1601,6 +1614,10 @@ describe('RfqsService', () => {
           quantityOrdered: 6,
           unitPrice: 10,
           lineTotal: 60,
+          // The RFQ line's catalogue snapshots must survive onto child PO lines.
+          upc: '112345678906',
+          manufacturerPartNumber: 'MPN-CW',
+          taxCode: 'GST',
         }),
       );
 

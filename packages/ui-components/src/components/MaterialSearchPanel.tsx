@@ -31,6 +31,16 @@ export interface MaterialItem {
   unit?: string;
   description?: string;
   imageUrl?: string;
+  /**
+   * Catalogue identity/accounting codes so pickers can snapshot them onto
+   * RFQ/PO line-item rows at selection time (all optional — feeds that only
+   * supply id/name keep working).
+   */
+  sku?: string | null;
+  upc?: string | null;
+  manufacturerPartNumber?: string | null;
+  costCode?: string | null;
+  taxCode?: string | null;
 }
 
 export interface SelectedMaterial extends MaterialItem {

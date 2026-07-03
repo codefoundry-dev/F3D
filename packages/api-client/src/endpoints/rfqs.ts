@@ -104,6 +104,8 @@ export interface RfqDocument {
 export interface RfqLineItem {
   id: string;
   projectName: string;
+  /** Catalogue material id when the line references a catalogue material (null for free-text/BOM lines). */
+  materialId?: string | null;
   materialName: string;
   description: string | null;
   quantity: number;
