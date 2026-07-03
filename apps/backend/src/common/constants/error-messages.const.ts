@@ -246,6 +246,11 @@ export const ERR = {
     notFound: errors.vendors.notFound,
     accessDenied: errors.vendors.accessDenied,
     warehouseNotFound: errors.vendors.warehouseNotFound,
+    representativeNotFound: errors.vendors.representativeNotFound,
+    noPendingInvitation: errors.vendors.noPendingInvitation,
+    cannotRemoveActiveRepresentative: errors.vendors.cannotRemoveActiveRepresentative,
+    cannotRemoveDeactivatedRepresentative: errors.vendors.cannotRemoveDeactivatedRepresentative,
+    representativeReferencedByRfqs: errors.vendors.representativeReferencedByRfqs,
   },
 
   // ── Messages ───────────────────────────────────────────

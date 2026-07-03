@@ -11,6 +11,7 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService, AuditAction } from '../audit/audit.service';
 
+import { assertVendorAccess } from './vendor-access.util';
 import {
   AuthUser,
   CreateVendorRepresentativeDto,
@@ -188,29 +189,7 @@ export class VendorsService {
     vendorCompanyId: string,
     user: AuthenticatedUser,
   ): Promise<void> {
-    // Vendor accessing own company
-    if (user.role === UserRole.VENDOR) {
-      if (user.companyId !== vendorCompanyId) {
-        throw new ForbiddenException(ERR.vendors.accessDenied);
-      }
-      return;
-    }
-
-    // Contractor roles: check vendor is in their assignment list
-    if (!user.companyId) {
-      throw new ForbiddenException(ERR.vendors.accessDenied);
-    }
-
-    const assignment = await this.prisma.companyVendorAssignment.findFirst({
-      where: {
-        vendorId: vendorCompanyId,
-        contractorId: user.companyId,
-      },
-    });
-
-    if (!assignment) {
-      throw new ForbiddenException(ERR.vendors.accessDenied);
-    }
+    await assertVendorAccess(this.prisma, vendorCompanyId, user);
   }
 
   async getVendorProfile(vendorCompanyId: string, user: AuthenticatedUser) {
@@ -447,9 +426,117 @@ export class VendorsService {
         phone: true,
         position: true,
         role: true,
+        status: true,
+        createdAt: true,
+        invitationToken: true,
       },
     });
 
-    return users;
+    // Expose only *whether* an invitation is pending, never the token itself.
+    return users.map(({ invitationToken, ...rest }) => ({
+      ...rest,
+      invitePending: invitationToken != null,
+    }));
+  }
+
+  async getRepresentative(vendorCompanyId: string, userId: string, user: AuthenticatedUser) {
+    const company = await this.prisma.company.findFirst({
+      where: { id: vendorCompanyId, type: CompanyType.VENDOR },
+    });
+
+    if (!company) {
+      throw new NotFoundException(ERR.vendors.notFound);
+    }
+
+    await this.validateVendorAccess(vendorCompanyId, user);
+
+    const rep = await this.prisma.user.findFirst({
+      where: { id: userId, companyId: vendorCompanyId, role: UserRole.VENDOR },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        position: true,
+        department: true,
+        avatarUrl: true,
+        role: true,
+        status: true,
+        createdAt: true,
+        invitationToken: true,
+        invitedBy: { select: { name: true } },
+      },
+    });
+
+    if (!rep) {
+      throw new NotFoundException(ERR.vendors.representativeNotFound);
+    }
+
+    const { invitationToken, invitedBy, ...rest } = rep;
+    return {
+      ...rest,
+      invitePending: invitationToken != null,
+      invitedByName: invitedBy?.name ?? null,
+      companyId: vendorCompanyId,
+      companyName: company.legalName,
+    };
+  }
+
+  /**
+   * Deletes a representative record. Per ADR-0016 authority follows
+   * activation: never-activated reps (INVITED) may be removed by the vendor or
+   * any assigned contractor; deactivated reps (INACTIVE) only by the vendor;
+   * activated reps (ACTIVE) by nobody — deactivation via the vendor's own user
+   * management must come first. Reps referenced by RFQ contact selections are
+   * never deletable, because recipient resolution and document history hang
+   * off those rows.
+   */
+  async removeRepresentative(vendorCompanyId: string, userId: string, user: AuthenticatedUser) {
+    const company = await this.prisma.company.findFirst({
+      where: { id: vendorCompanyId, type: CompanyType.VENDOR },
+    });
+
+    if (!company) {
+      throw new NotFoundException(ERR.vendors.notFound);
+    }
+
+    await this.validateVendorAccess(vendorCompanyId, user);
+
+    const rep = await this.prisma.user.findFirst({
+      where: { id: userId, companyId: vendorCompanyId, role: UserRole.VENDOR },
+    });
+
+    if (!rep) {
+      throw new NotFoundException(ERR.vendors.representativeNotFound);
+    }
+
+    if (rep.status === UserStatus.ACTIVE) {
+      throw new ConflictException(ERR.vendors.cannotRemoveActiveRepresentative);
+    }
+
+    if (rep.status === UserStatus.INACTIVE && user.role !== UserRole.VENDOR) {
+      throw new ForbiddenException(ERR.vendors.cannotRemoveDeactivatedRepresentative);
+    }
+
+    const rfqReferences = await this.prisma.rfqVendorContact.count({
+      where: { userId },
+    });
+
+    if (rfqReferences > 0) {
+      throw new ConflictException(ERR.vendors.representativeReferencedByRfqs);
+    }
+
+    await this.prisma.user.delete({ where: { id: userId } });
+
+    await this.auditService.log({
+      action: AuditAction.VENDOR_USER_REMOVED,
+      performedById: user.id,
+      targetType: 'User',
+      targetId: rep.id,
+      targetLabel: rep.name,
+      metadata: { companyId: vendorCompanyId, email: rep.email },
+    });
+
+    return { success: true };
   }
 }

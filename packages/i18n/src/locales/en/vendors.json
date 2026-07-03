@@ -193,6 +193,40 @@
     "pageTitle": "Vendor Company Profile",
     "pageSubtitle": "View and manage your user information"
   },
+  "repDetail": {
+    "pageTitle": "Representative",
+    "pageSubtitle": "View and manage this sales rep",
+    "notFound": "Representative not found",
+    "sendInvitation": "Send invitation",
+    "resendInvitation": "Resend invitation",
+    "cancelInvitation": "Cancel invitation",
+    "remove": "Remove",
+    "addedBy": "Added by {{name}}",
+    "inviteSentToast": "Invitation sent",
+    "inviteFailedToast": "Could not send invitation",
+    "cancelledToast": "Invitation cancelled",
+    "cancelFailedToast": "Could not cancel the invitation",
+    "removedToast": "Representative removed",
+    "removeFailedToast": "Could not remove this representative. Reps selected on RFQs cannot be removed.",
+    "state": {
+      "notInvited": "Not invited",
+      "inviteSent": "Invite sent",
+      "active": "Active",
+      "deactivated": "Deactivated"
+    },
+    "cancelModal": {
+      "title": "Cancel invitation?",
+      "subtitle": "The activation link will stop working.",
+      "info": "The representative stays on the vendor as a contact and can be invited again later.",
+      "confirm": "Cancel invitation"
+    },
+    "removeModal": {
+      "title": "Remove representative?",
+      "subtitle": "This deletes the contact record entirely.",
+      "info": "Representatives selected as contacts on an RFQ cannot be removed, because document history depends on them.",
+      "confirm": "Remove"
+    }
+  },
   "noRepresentatives": "No representatives added yet.",
   "representativesDetails": "Representatives' details",
   "legalInformation": "Legal Information",

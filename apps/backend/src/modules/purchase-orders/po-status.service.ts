@@ -22,7 +22,7 @@ import {
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ApprovalAuthorizationService } from '../../common/permissions';
-import { resolveVendorEmailRecipients } from '../../common/utils/vendor-recipients.util';
+import { resolveVendorRecipientsWithState } from '../../common/utils/vendor-recipients.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { AuditService } from '../audit/audit.service';
@@ -33,17 +33,9 @@ import { EmailService } from '../notifications/email.service';
 import { PoExportService } from './po-export.service';
 import { assertTransition } from './po-state-machine';
 import { DeclinePoDto, ReceivePoDto } from './po-status.dto';
+import { PO_TOKEN_TTL_MS } from './po-token.const';
 import { VendorAcceptPoDto, VendorDeclinePoDto } from './po-vendor.dto';
 import { PurchaseOrdersService } from './purchase-orders.service';
-
-/**
- * Lifetime of a tokenised vendor PO link. A fixed 30-day cap — a deliberate
- * deviation from the base ADR's "lifetime of the document" rule, per the
- * ADR-0002 Release-1 PO token amendment (2026-06-16). The window comfortably
- * covers acknowledge/accept (which happen within days); later lifecycle actions
- * (delivery confirmation, change-request reply, …) will re-issue a fresh token.
- */
-const PO_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
  * Lifetime of a public QR delivery-submission link (Epic 6). 90 days — the link
@@ -250,7 +242,7 @@ export class PoStatusService {
             select: {
               id: true,
               contactEmail: true,
-              users: { where: { role: UserRole.VENDOR }, select: { email: true } },
+              users: { where: { role: UserRole.VENDOR }, select: { email: true, status: true } },
             },
           },
         },
@@ -424,7 +416,7 @@ export class PoStatusService {
             select: {
               legalName: true,
               contactEmail: true,
-              users: { where: { role: UserRole.VENDOR }, select: { email: true } },
+              users: { where: { role: UserRole.VENDOR }, select: { email: true, status: true } },
             },
           },
         },
@@ -1167,13 +1159,40 @@ export class PoStatusService {
   private async notifyVendorOfPo(
     poId: string,
     poNumber: string,
-    vendor: { users: Array<{ email: string }>; contactEmail: string | null } | null | undefined,
+    vendor:
+      | { users: Array<{ email: string; status: string }>; contactEmail: string | null }
+      | null
+      | undefined,
     user: AuthenticatedUser,
     poViewToken?: string | null,
   ): Promise<void> {
-    // Reach the vendor's user accounts, or fall back to the company contact
-    // email when the vendor was quick-added without a user (US-3.01).
-    const recipients = resolveVendorEmailRecipients(vendor?.users ?? [], vendor?.contactEmail);
+    // companyId feeds the email log/brand; rfqId+vendorId locate the buyer's
+    // sales-rep selection on the source RFQ.
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id: poId },
+      select: { companyId: true, rfqId: true, vendorId: true },
+    });
+
+    // The sales reps selected on the source RFQ govern the whole RFQ→PO thread
+    // (CONTEXT.md) — resolved live here, not snapshotted at award, so a
+    // selection fixed on the RFQ before issue changes who receives the PO. A
+    // manual PO (no rfqId) or an empty selection falls back to the vendor's
+    // user accounts, then the company contact email (US-3.01 quick-add).
+    const selectedReps =
+      po?.rfqId && po.vendorId
+        ? (
+            await this.prisma.rfqVendorContact.findMany({
+              where: { rfqVendor: { rfqId: po.rfqId, vendorId: po.vendorId } },
+              select: { user: { select: { email: true, status: true } } },
+            })
+          ).map((c) => c.user)
+        : [];
+
+    const recipients = resolveVendorRecipientsWithState(
+      selectedReps,
+      vendor?.users ?? [],
+      vendor?.contactEmail,
+    );
     if (recipients.length === 0) return;
 
     // Generate PDF buffer for email attachment
@@ -1184,24 +1203,16 @@ export class PoStatusService {
       // PDF generation failure is non-critical — send email without attachment
     }
 
-    // Choose the "View" link by vendor state (ADR-0001 / ADR-0002 R1 PO token):
-    //  - Activated vendor (has a real account) → authenticated app route.
-    //  - Unactivated vendor (email-only) → tokenised public PO portal so they can
-    //    view (and later act on) the PO with no login.
-    // resolveVendorEmailRecipients() already collapses to a single state — it
-    // returns user emails when the vendor is activated, otherwise the contact
-    // email — so the whole recipient set shares one link type.
-    const isActivated = (vendor?.users?.length ?? 0) > 0;
-    const viewUrl =
-      !isActivated && poViewToken
-        ? `${this.webAppUrl}/po/${poViewToken}`
-        : `${this.webAppUrl}/purchase-orders/${poId}`;
+    // The "View" link is chosen per recipient (ADR-0001 / CONTEXT.md), not per
+    // vendor: an activated rep (ACTIVE user) gets the authenticated app route;
+    // an unactivated rep (INVITED, no credentials) or contact-email recipient
+    // gets the tokenised public PO portal so they can view (and act on) the PO
+    // with no login. All unactivated recipients share the one PO-scoped token
+    // (ADR-0002 — authority is (vendor, document), never per-person).
+    const authenticatedUrl = `${this.webAppUrl}/purchase-orders/${poId}`;
+    const tokenisedUrl = poViewToken ? `${this.webAppUrl}/po/${poViewToken}` : null;
 
     // Track each vendor email so it surfaces on the PO email log (FOR-213).
-    const po = await this.prisma.purchaseOrder.findUnique({
-      where: { id: poId },
-      select: { companyId: true },
-    });
     const log = po
       ? { companyId: po.companyId, purchaseOrderId: poId, sentByUserId: user.id }
       : undefined;
@@ -1210,8 +1221,15 @@ export class PoStatusService {
     const brand = po ? await this.branding.getEmailBrand(po.companyId) : undefined;
 
     await Promise.all(
-      recipients.map((email) =>
-        this.emailService.sendPoIssuedEmail(email, poNumber, viewUrl, pdfBuffer, log, brand),
+      recipients.map((r) =>
+        this.emailService.sendPoIssuedEmail(
+          r.email,
+          poNumber,
+          !r.activated && tokenisedUrl ? tokenisedUrl : authenticatedUrl,
+          pdfBuffer,
+          log,
+          brand,
+        ),
       ),
     );
   }

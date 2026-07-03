@@ -38,6 +38,8 @@ interface RepresentativesSectionProps {
   onDraftFieldChange: (index: number, field: keyof RepDraft, value: string) => void;
   onDraftBlur: (index: number, field: keyof RepDraft) => void;
   onRemoveDraft: (index: number) => void;
+  /** When provided, each saved rep row shows a "View" eye (rep detail page) */
+  onViewRep?: (repId: string) => void;
 }
 
 const EMPTY_DRAFT: RepDraft = { name: '', email: '', phone: '', position: '' };
@@ -67,6 +69,7 @@ export function RepresentativesSection({
   onDraftFieldChange,
   onDraftBlur,
   onRemoveDraft,
+  onViewRep,
 }: RepresentativesSectionProps) {
   const { t } = useTranslation(['vendors']);
 
@@ -84,7 +87,12 @@ export function RepresentativesSection({
     return (
       <div className="space-y-4">
         {representatives.map((rep) => (
-          <RepresentativeRow key={rep.id} rep={rep} isEditing={false} />
+          <RepresentativeRow
+            key={rep.id}
+            rep={rep}
+            isEditing={false}
+            onView={onViewRep ? () => onViewRep(rep.id) : undefined}
+          />
         ))}
       </div>
     );

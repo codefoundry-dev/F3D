@@ -103,6 +103,7 @@ export const PERMISSIONS = {
   'vendor.user.cancelInvitation': 'Cancel a vendor-user invitation',
   'vendor.representatives.read': 'Read vendor representatives',
   'vendor.representatives.create': 'Add a vendor representative without an invitation',
+  'vendor.representatives.delete': 'Remove a never-activated vendor representative',
 
   // ── RFQs ────────────────────────────────────────────────────────────────
   'rfq.list': 'List RFQs',
@@ -302,6 +303,10 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'vendor.warehouse.delete',
     'vendor.representatives.read',
     'vendor.representatives.create',
+    'vendor.representatives.delete',
+    'vendor.user.invite',
+    'vendor.user.resendInvitation',
+    'vendor.user.cancelInvitation',
 
     'rfq.list',
     'rfq.create',
@@ -451,6 +456,10 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'vendor.warehouse.delete',
     'vendor.representatives.read',
     'vendor.representatives.create',
+    'vendor.representatives.delete',
+    'vendor.user.invite',
+    'vendor.user.resendInvitation',
+    'vendor.user.cancelInvitation',
 
     'rfq.list',
     'rfq.create',
@@ -667,6 +676,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'vendor.user.cancelInvitation',
     'vendor.representatives.read',
     'vendor.representatives.create',
+    'vendor.representatives.delete',
 
     'rfq.list',
     'rfq.export',

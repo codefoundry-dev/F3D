@@ -39,6 +39,74 @@ export function resolveSelectedRecipients(
   return resolveVendorEmailRecipients(fallbackUsers, contactEmail);
 }
 
+/** A vendor-side email recipient together with what kind of "View" link they can use. */
+export interface VendorRecipient {
+  email: string;
+  /**
+   * True when the person has a real login (User status `ACTIVE`) and should be
+   * sent the authenticated app link; false for the tokenised-link audience
+   * (`INVITED` reps and company contact emails). See CONTEXT.md → Sales Rep.
+   */
+  activated: boolean;
+}
+
+/** The user shape recipient resolution needs: an address plus account state. */
+interface UserWithStatus {
+  email: string;
+  status: string;
+}
+
+/**
+ * Resolve the recipients of a vendor-bound Purchase Order email (issue,
+ * change-request proposed, …) together with each person's activation state, so
+ * the caller can choose the "View" link **per recipient** (CONTEXT.md): an
+ * `ACTIVE` user gets the authenticated app route; an `INVITED` rep or the
+ * company contact email gets the tokenised PO link (ADR-0001).
+ *
+ * Recipient precedence mirrors {@link resolveSelectedRecipients}: the sales
+ * reps selected on the source RFQ win; a vendor with no (sendable) selection
+ * falls back to its user accounts, then to the company contact email.
+ *
+ * `INACTIVE` (deactivated) users are excluded outright — they must receive
+ * neither a dead authenticated link nor, worse, a tokenised link that would
+ * hand a deactivated person login-free authority over the document.
+ */
+export function resolveVendorRecipientsWithState(
+  selectedReps: ReadonlyArray<UserWithStatus>,
+  fallbackUsers: ReadonlyArray<UserWithStatus>,
+  contactEmail?: string | null,
+): VendorRecipient[] {
+  const selected = dedupeRecipients(sendableRecipients(selectedReps));
+  if (selected.length > 0) return selected;
+
+  const users = dedupeRecipients(sendableRecipients(fallbackUsers));
+  if (users.length > 0) return users;
+
+  return dedupeRecipients([{ email: contactEmail ?? '', activated: false }]);
+}
+
+/** Map users to recipients, dropping deactivated (`INACTIVE`) accounts. */
+function sendableRecipients(users: ReadonlyArray<UserWithStatus>): VendorRecipient[] {
+  return users
+    .filter((u) => u.status !== 'INACTIVE')
+    .map((u) => ({ email: u.email, activated: u.status === 'ACTIVE' }));
+}
+
+/** Trim, drop blanks, and de-duplicate case-insensitively (first-seen wins). */
+function dedupeRecipients(recipients: ReadonlyArray<VendorRecipient>): VendorRecipient[] {
+  const seen = new Set<string>();
+  const result: VendorRecipient[] = [];
+  for (const raw of recipients) {
+    const email = raw.email?.trim();
+    if (!email) continue;
+    const key = email.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({ email, activated: raw.activated });
+  }
+  return result;
+}
+
 /** Trim, drop blanks, and de-duplicate case-insensitively (first-seen wins). */
 function dedupeEmails(emails: ReadonlyArray<string | null | undefined>): string[] {
   const seen = new Set<string>();
