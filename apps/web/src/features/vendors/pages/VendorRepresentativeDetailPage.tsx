@@ -52,7 +52,7 @@ type ConfirmAction = 'cancelInvitation' | 'remove' | null;
 
 export default function VendorRepresentativeDetailPage() {
   const { t } = useTranslation(['vendors', 'common']);
-  const { id: vendorId, userId } = useParams<{ id: string; userId: string }>();
+  const { id: vendorId = '', userId = '' } = useParams<{ id: string; userId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
@@ -73,7 +73,7 @@ export default function VendorRepresentativeDetailPage() {
     isError,
   } = useQuery({
     queryKey: [REP_KEY, vendorId, userId],
-    queryFn: () => getVendorRepresentative(vendorId!, userId!),
+    queryFn: () => getVendorRepresentative(vendorId, userId),
     enabled: !!vendorId && !!userId,
   });
 
@@ -84,7 +84,7 @@ export default function VendorRepresentativeDetailPage() {
   };
 
   const inviteMutation = useMutation({
-    mutationFn: () => resendVendorUserInvitation(vendorId!, userId!),
+    mutationFn: () => resendVendorUserInvitation(vendorId, userId),
     onSuccess: () => {
       invalidate();
       notificationService.success(
@@ -98,7 +98,7 @@ export default function VendorRepresentativeDetailPage() {
   });
 
   const cancelMutation = useMutation({
-    mutationFn: () => cancelVendorUserInvitation(vendorId!, userId!),
+    mutationFn: () => cancelVendorUserInvitation(vendorId, userId),
     onSuccess: () => {
       invalidate();
       setConfirmAction(null);
@@ -115,7 +115,7 @@ export default function VendorRepresentativeDetailPage() {
   });
 
   const removeMutation = useMutation({
-    mutationFn: () => removeVendorRepresentative(vendorId!, userId!),
+    mutationFn: () => removeVendorRepresentative(vendorId, userId),
     onSuccess: () => {
       invalidate();
       setConfirmAction(null);
