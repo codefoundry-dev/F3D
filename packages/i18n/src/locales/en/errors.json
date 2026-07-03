@@ -180,7 +180,12 @@
     "userEmailInUse": "A user with this email already exists",
     "notFound": "Vendor not found",
     "accessDenied": "You do not have access to this vendor",
-    "warehouseNotFound": "Warehouse location not found"
+    "warehouseNotFound": "Warehouse location not found",
+    "representativeNotFound": "Representative not found",
+    "noPendingInvitation": "This representative has no pending invitation",
+    "cannotRemoveActiveRepresentative": "An activated representative cannot be removed; the vendor manages their own active accounts",
+    "cannotRemoveDeactivatedRepresentative": "A deactivated representative can only be removed by the vendor",
+    "representativeReferencedByRfqs": "This representative is a selected contact on one or more RFQs and cannot be removed"
   },
   "messages": {
     "threadNotFound": "Message thread not found",

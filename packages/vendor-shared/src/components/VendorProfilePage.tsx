@@ -41,9 +41,15 @@ interface VendorProfilePageProps {
   vendorId: string;
   onBack?: () => void;
   initialEdit?: boolean;
+  /** When provided, each saved rep row shows a "View" eye (buyer rep detail page) */
+  onViewRepresentative?: (userId: string) => void;
 }
 
-export default function VendorProfilePage({ vendorId, initialEdit }: VendorProfilePageProps) {
+export default function VendorProfilePage({
+  vendorId,
+  initialEdit,
+  onViewRepresentative,
+}: VendorProfilePageProps) {
   const { t } = useTranslation(['vendors', 'common']);
   const handleAddressSearch = useAddressSearch();
 
@@ -342,6 +348,7 @@ export default function VendorProfilePage({ vendorId, initialEdit }: VendorProfi
             onDraftFieldChange={handleRepDraftFieldChange}
             onDraftBlur={handleRepDraftBlur}
             onRemoveDraft={handleRemoveRepDraft}
+            onViewRep={onViewRepresentative}
           />
           <hr className="border-border mt-6" />
         </section>

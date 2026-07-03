@@ -34,6 +34,7 @@ const mockPrisma = {
   },
   poLineItem: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
   user: { findUnique: jest.fn() },
+  rfqVendorContact: { findMany: jest.fn() },
   $transaction: jest.fn(),
 };
 
@@ -43,6 +44,10 @@ const mockEmailService = {
   sendChangeRequestProposedEmail: jest.fn(),
   sendChangeRequestApprovedEmail: jest.fn(),
   sendChangeRequestRejectedEmail: jest.fn(),
+};
+
+const mockAccessTokensService = {
+  issueToken: jest.fn(),
 };
 
 const mockConfig = {
@@ -58,6 +63,7 @@ describe('PoChangeService', () => {
       mockPrisma as never,
       mockAuditService as never,
       mockEmailService as never,
+      mockAccessTokensService as never,
       mockConfig as never,
     );
     mockEmailService.sendChangeRequestProposedEmail.mockResolvedValue(undefined);
@@ -65,6 +71,13 @@ describe('PoChangeService', () => {
     mockEmailService.sendChangeRequestRejectedEmail.mockResolvedValue(undefined);
     mockAuditService.log.mockResolvedValue(undefined);
     mockPrisma.poChangeRequest.count.mockResolvedValue(0);
+    // Default: no sales-rep selection on a source RFQ (manual-PO shape), and a
+    // fresh PO_VIEW token for unactivated change-request recipients.
+    mockPrisma.rfqVendorContact.findMany.mockResolvedValue([]);
+    mockAccessTokensService.issueToken.mockResolvedValue({
+      token: 'crtoken1234567890.secretsecretsecret',
+      record: { id: 'tok-cr' },
+    });
     // The apply transaction invokes its callback with the tx client. (jest's
     // clearAllMocks above has already reset mockTx's call history.)
     mockTx.purchaseOrder.update.mockResolvedValue({});
@@ -81,9 +94,13 @@ describe('PoChangeService', () => {
       status: 'SENT',
       companyId: 'comp-1',
       vendorId: 'vendor-comp-1',
+      rfqId: null,
       poNumber: 'PO-0001',
       company: { users: [{ email: 'admin@contractor.com' }] },
-      vendor: { contactEmail: 'contact@vendor.com', users: [{ email: 'vendor@vendor.com' }] },
+      vendor: {
+        contactEmail: 'contact@vendor.com',
+        users: [{ email: 'vendor@vendor.com', status: 'ACTIVE' }],
+      },
     };
 
     const dto = {
@@ -199,11 +216,119 @@ describe('PoChangeService', () => {
       );
     });
 
-    it('falls back to the vendor contactEmail when the vendor has no user accounts', async () => {
+    it('sends the tokenised portal link to the contactEmail of a vendor with no user accounts', async () => {
+      // A quick-added vendor (US-3.01) cannot log in — the change-request email
+      // now carries the tokenised PO link (re-minted; the 30-day issue token may
+      // have lapsed) instead of a login-walled authenticated route.
       mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
         ...poWithRelations,
         vendor: { contactEmail: 'quickadd@vendor.com', users: [] },
       });
+      mockPrisma.poChangeRequest.create.mockResolvedValue(
+        createdCr({ requestedBy: { id: 'ca-1', name: 'CA Admin', company: { legalName: 'Con' } } }),
+      );
+
+      await service.proposeChange('po-1', dto as never, companyAdmin);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockAccessTokensService.issueToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subjectType: 'PURCHASE_ORDER',
+          subjectId: 'po-1',
+          purpose: 'PO_VIEW',
+          ttlMs: 30 * 24 * 60 * 60 * 1000,
+        }),
+      );
+      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+        'quickadd@vendor.com',
+        'PO-0001',
+        'CA Admin',
+        'http://localhost:5179/po/crtoken1234567890.secretsecretsecret',
+      );
+    });
+
+    it('chooses the link per recipient for a vendor with mixed activation states', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        ...poWithRelations,
+        vendor: {
+          contactEmail: null,
+          users: [
+            { email: 'active@vendor.com', status: 'ACTIVE' },
+            { email: 'rep@vendor.com', status: 'INVITED' },
+          ],
+        },
+      });
+      mockPrisma.poChangeRequest.create.mockResolvedValue(
+        createdCr({ requestedBy: { id: 'ca-1', name: 'CA Admin', company: { legalName: 'Con' } } }),
+      );
+
+      await service.proposeChange('po-1', dto as never, companyAdmin);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledTimes(2);
+      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+        'active@vendor.com',
+        'PO-0001',
+        'CA Admin',
+        'http://localhost:5179/purchase-orders/po-1',
+      );
+      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+        'rep@vendor.com',
+        'PO-0001',
+        'CA Admin',
+        'http://localhost:5179/po/crtoken1234567890.secretsecretsecret',
+      );
+    });
+
+    it('does not mint a token when every vendor recipient is activated', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(poWithRelations);
+      mockPrisma.poChangeRequest.create.mockResolvedValue(
+        createdCr({ requestedBy: { id: 'ca-1', name: 'CA Admin', company: { legalName: 'Con' } } }),
+      );
+
+      await service.proposeChange('po-1', dto as never, companyAdmin);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockAccessTokensService.issueToken).not.toHaveBeenCalled();
+    });
+
+    it('honours the sales reps selected on the source RFQ over the vendor user list', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        ...poWithRelations,
+        rfqId: 'rfq-1',
+      });
+      mockPrisma.rfqVendorContact.findMany.mockResolvedValue([
+        { user: { email: 'chosen-rep@vendor.com', status: 'INVITED' } },
+      ]);
+      mockPrisma.poChangeRequest.create.mockResolvedValue(
+        createdCr({ requestedBy: { id: 'ca-1', name: 'CA Admin', company: { legalName: 'Con' } } }),
+      );
+
+      await service.proposeChange('po-1', dto as never, companyAdmin);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockPrisma.rfqVendorContact.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { rfqVendor: { rfqId: 'rfq-1', vendorId: 'vendor-comp-1' } },
+        }),
+      );
+      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledTimes(1);
+      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+        'chosen-rep@vendor.com',
+        'PO-0001',
+        'CA Admin',
+        'http://localhost:5179/po/crtoken1234567890.secretsecretsecret',
+      );
+    });
+
+    it('degrades to the authenticated link when token minting fails', async () => {
+      // The email must still go out — a login-walled link with the PO number is
+      // better than no notification at all.
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        ...poWithRelations,
+        vendor: { contactEmail: 'quickadd@vendor.com', users: [] },
+      });
+      mockAccessTokensService.issueToken.mockRejectedValue(new Error('mint failed'));
       mockPrisma.poChangeRequest.create.mockResolvedValue(
         createdCr({ requestedBy: { id: 'ca-1', name: 'CA Admin', company: { legalName: 'Con' } } }),
       );

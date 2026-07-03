@@ -3,6 +3,7 @@ import { useTranslation } from '@forethread/i18n';
 import { FormField, Input, onPhoneOnly } from '@forethread/ui-components';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import EnvelopeIcon from '@forethread/ui-components/assets/icons/envelope-simple.svg?react';
+import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import IdBadgeIcon from '@forethread/ui-components/assets/icons/id-badge.svg?react';
 import PhoneIcon from '@forethread/ui-components/assets/icons/phone.svg?react';
 import UserIcon from '@forethread/ui-components/assets/icons/user-outline.svg?react';
@@ -34,6 +35,8 @@ interface RepresentativeRowProps {
   onEmailChange?: (value: string) => void;
   onRemove?: () => void;
   errors?: RepErrors;
+  /** When provided, a "View" eye is shown in read-only mode (rep detail page) */
+  onView?: () => void;
 }
 
 export function RepresentativeRow({
@@ -46,6 +49,7 @@ export function RepresentativeRow({
   onEmailChange,
   onRemove,
   errors,
+  onView,
 }: RepresentativeRowProps) {
   const { t } = useTranslation(['vendors']);
 
@@ -111,27 +115,39 @@ export function RepresentativeRow({
   }
 
   return (
-    <div className="grid grid-cols-4 gap-6">
-      <InfoItem
-        icon={<UserIcon className="w-4 h-4" />}
-        label={t('vendors:fields.fullName', { defaultValue: 'Full name' })}
-        value={rep.name}
-      />
-      <InfoItem
-        icon={<EnvelopeIcon className="w-4 h-4" />}
-        label={t('vendors:fields.contactEmail', { defaultValue: 'Contact Email' })}
-        value={rep.email}
-      />
-      <InfoItem
-        icon={<PhoneIcon className="w-4 h-4" />}
-        label={t('vendors:fields.phoneNumber', { defaultValue: 'Phone Number' })}
-        value={rep.phone}
-      />
-      <InfoItem
-        icon={<IdBadgeIcon className="w-4 h-4" />}
-        label={t('vendors:fields.position', { defaultValue: 'Position' })}
-        value={rep.position}
-      />
+    <div className="flex items-start gap-2">
+      <div className="grid grid-cols-4 gap-6 flex-1">
+        <InfoItem
+          icon={<UserIcon className="w-4 h-4" />}
+          label={t('vendors:fields.fullName', { defaultValue: 'Full name' })}
+          value={rep.name}
+        />
+        <InfoItem
+          icon={<EnvelopeIcon className="w-4 h-4" />}
+          label={t('vendors:fields.contactEmail', { defaultValue: 'Contact Email' })}
+          value={rep.email}
+        />
+        <InfoItem
+          icon={<PhoneIcon className="w-4 h-4" />}
+          label={t('vendors:fields.phoneNumber', { defaultValue: 'Phone Number' })}
+          value={rep.phone}
+        />
+        <InfoItem
+          icon={<IdBadgeIcon className="w-4 h-4" />}
+          label={t('vendors:fields.position', { defaultValue: 'Position' })}
+          value={rep.position}
+        />
+      </div>
+      {onView && (
+        <button
+          type="button"
+          className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          aria-label="View"
+          onClick={onView}
+        >
+          <EyeIcon className="w-4 h-4" />
+        </button>
+      )}
     </div>
   );
 }

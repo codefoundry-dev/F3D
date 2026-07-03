@@ -106,6 +106,8 @@ export interface WarehouseLocation {
   address: string;
 }
 
+export type VendorRepresentativeStatus = 'INVITED' | 'ACTIVE' | 'INACTIVE';
+
 export interface VendorRepresentative {
   id: string;
   name: string;
@@ -113,6 +115,27 @@ export interface VendorRepresentative {
   phone: string | null;
   position: string;
   department: string | null;
+  status?: VendorRepresentativeStatus;
+  createdAt?: string;
+  /** True when an activation invitation has been sent and not yet accepted */
+  invitePending?: boolean;
+}
+
+export interface VendorRepresentativeDetail {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  position: string;
+  department: string | null;
+  avatarUrl: string | null;
+  role: string;
+  status: VendorRepresentativeStatus;
+  createdAt: string;
+  invitePending: boolean;
+  invitedByName: string | null;
+  companyId: string;
+  companyName: string;
 }
 
 export interface UpdateVendorProfileInput {
@@ -250,10 +273,36 @@ export async function inviteVendorUser(
   return data.data;
 }
 
+/**
+ * Sends (first invite) or re-sends the activation invitation to an existing
+ * representative. Buyer- and vendor-accessible (ADR-0016).
+ */
 export async function resendVendorUserInvitation(companyId: string, userId: string): Promise<void> {
   await getApiClient().post(VENDORS_PATHS.resendUserInvitation(companyId, userId));
 }
 
+/**
+ * Revokes a pending invitation; the representative reverts to a contact-only
+ * record (it is NOT deleted — use removeVendorRepresentative for that).
+ */
 export async function cancelVendorUserInvitation(companyId: string, userId: string): Promise<void> {
   await getApiClient().delete(VENDORS_PATHS.cancelUserInvitation(companyId, userId));
+}
+
+export async function getVendorRepresentative(
+  vendorId: string,
+  userId: string,
+): Promise<VendorRepresentativeDetail> {
+  const { data } = await getApiClient().get<{ data: VendorRepresentativeDetail }>(
+    VENDORS_PATHS.representative(vendorId, userId),
+  );
+  return data.data;
+}
+
+/**
+ * Deletes a never-activated representative. 409 when the rep is ACTIVE or is
+ * a selected contact on any RFQ (ADR-0016).
+ */
+export async function removeVendorRepresentative(vendorId: string, userId: string): Promise<void> {
+  await getApiClient().delete(VENDORS_PATHS.representative(vendorId, userId));
 }

@@ -41,6 +41,9 @@ const mockPrisma = {
     findFirst: jest.fn(),
     create: jest.fn(),
   },
+  rfqVendorContact: {
+    findMany: jest.fn(),
+  },
   $transaction: jest.fn(),
 };
 
@@ -186,6 +189,8 @@ describe('PoStatusService', () => {
       record: { id: 'tok-1' },
       reused: false,
     });
+    // Default: no sales-rep selection on a source RFQ (manual-PO shape).
+    mockPrisma.rfqVendorContact.findMany.mockResolvedValue([]);
   });
 
   describe('approvePurchaseOrder', () => {
@@ -1320,7 +1325,7 @@ describe('PoStatusService', () => {
       mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
       mockPrisma.purchaseOrder.update.mockResolvedValue({
         poNumber: 'PO-1',
-        vendor: { users: [{ email: 'vendor@test.com' }] },
+        vendor: { users: [{ email: 'vendor@test.com', status: 'ACTIVE' }] },
       });
       mockPoExportService.generatePoPdfBuffer.mockResolvedValue(Buffer.from('pdf'));
       mockEmailService.sendPoIssuedEmail.mockResolvedValue(undefined);
@@ -1329,8 +1334,8 @@ describe('PoStatusService', () => {
       await new Promise((r) => setTimeout(r, 10));
 
       // A PO_VIEW token is always minted at SENT (the portal foundation), but an
-      // activated vendor — one with a user account — is sent the authenticated
-      // app route, not the tokenised link (FOR-246).
+      // activated rep — an ACTIVE user with a real login — is sent the
+      // authenticated app route, not the tokenised link (FOR-246).
       expect(mockAccessTokensService.issueTokenIfNoneLive).toHaveBeenCalledTimes(1);
       expect(mockEmailService.sendPoIssuedEmail).toHaveBeenCalledWith(
         'vendor@test.com',
@@ -1420,6 +1425,158 @@ describe('PoStatusService', () => {
       );
     });
 
+    it('emails the tokenised link to an unactivated (INVITED) sales rep', async () => {
+      // The reported bug: a rep persisted as an INVITED user (FOR-272) has no
+      // credentials, yet their mere existence used to flip the vendor to
+      // "activated" and suppress the tokenised link. The link is now chosen per
+      // recipient — an INVITED rep gets the portal link (CONTEXT.md).
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'DRAFT',
+        companyId: 'comp-1',
+        totalAmount: { toString: () => '5000' },
+        currency: 'AUD',
+      });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        poNumber: 'PO-1',
+        vendor: { users: [{ email: 'rep@vendor.com', status: 'INVITED' }] },
+      });
+      mockPoExportService.generatePoPdfBuffer.mockResolvedValue(Buffer.from('pdf'));
+      mockEmailService.sendPoIssuedEmail.mockResolvedValue(undefined);
+
+      await service.issuePurchaseOrder('po-1', companyAdmin);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendPoIssuedEmail).toHaveBeenCalledWith(
+        'rep@vendor.com',
+        'PO-1',
+        'http://localhost:5179/po/lookup1234567890.secretsecretsecret',
+        expect.any(Buffer),
+        expect.objectContaining({ purchaseOrderId: 'po-1' }),
+        undefined,
+      );
+    });
+
+    it('chooses the link per recipient for a vendor with mixed activation states', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'DRAFT',
+        companyId: 'comp-1',
+        totalAmount: { toString: () => '5000' },
+        currency: 'AUD',
+      });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        poNumber: 'PO-1',
+        vendor: {
+          users: [
+            { email: 'active@vendor.com', status: 'ACTIVE' },
+            { email: 'rep@vendor.com', status: 'INVITED' },
+          ],
+        },
+      });
+      mockPoExportService.generatePoPdfBuffer.mockResolvedValue(Buffer.from('pdf'));
+      mockEmailService.sendPoIssuedEmail.mockResolvedValue(undefined);
+
+      await service.issuePurchaseOrder('po-1', companyAdmin);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendPoIssuedEmail).toHaveBeenCalledTimes(2);
+      expect(mockEmailService.sendPoIssuedEmail).toHaveBeenCalledWith(
+        'active@vendor.com',
+        'PO-1',
+        'http://localhost:5179/purchase-orders/po-1',
+        expect.any(Buffer),
+        expect.anything(),
+        undefined,
+      );
+      expect(mockEmailService.sendPoIssuedEmail).toHaveBeenCalledWith(
+        'rep@vendor.com',
+        'PO-1',
+        'http://localhost:5179/po/lookup1234567890.secretsecretsecret',
+        expect.any(Buffer),
+        expect.anything(),
+        undefined,
+      );
+    });
+
+    it('honours the sales reps selected on the source RFQ over the vendor user list', async () => {
+      // An awarded PO resolves its recipients live from the RFQ's selection
+      // (po.rfqId → RfqVendor → RfqVendorContact) — CONTEXT.md: the selection
+      // governs the whole RFQ→PO thread; nothing is snapshotted at award.
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'DRAFT',
+        companyId: 'comp-1',
+        totalAmount: { toString: () => '5000' },
+        currency: 'AUD',
+        rfqId: 'rfq-1',
+        vendorId: 'vendor-co-1',
+      });
+      mockPrisma.rfqVendorContact.findMany.mockResolvedValue([
+        { user: { email: 'chosen-rep@vendor.com', status: 'INVITED' } },
+      ]);
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        poNumber: 'PO-1',
+        vendor: { users: [{ email: 'unrelated@vendor.com', status: 'ACTIVE' }] },
+      });
+      mockPoExportService.generatePoPdfBuffer.mockResolvedValue(Buffer.from('pdf'));
+      mockEmailService.sendPoIssuedEmail.mockResolvedValue(undefined);
+
+      await service.issuePurchaseOrder('po-1', companyAdmin);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockPrisma.rfqVendorContact.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { rfqVendor: { rfqId: 'rfq-1', vendorId: 'vendor-co-1' } },
+        }),
+      );
+      expect(mockEmailService.sendPoIssuedEmail).toHaveBeenCalledTimes(1);
+      expect(mockEmailService.sendPoIssuedEmail).toHaveBeenCalledWith(
+        'chosen-rep@vendor.com',
+        'PO-1',
+        'http://localhost:5179/po/lookup1234567890.secretsecretsecret',
+        expect.any(Buffer),
+        expect.anything(),
+        undefined,
+      );
+    });
+
+    it('sends nothing to INACTIVE (deactivated) users', async () => {
+      // A deactivated rep must receive neither a dead authenticated link nor a
+      // tokenised link that would restore their authority login-free.
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'DRAFT',
+        companyId: 'comp-1',
+        totalAmount: { toString: () => '5000' },
+        currency: 'AUD',
+      });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({
+        poNumber: 'PO-1',
+        vendor: {
+          users: [
+            { email: 'gone@vendor.com', status: 'INACTIVE' },
+            { email: 'rep@vendor.com', status: 'INVITED' },
+          ],
+        },
+      });
+      mockPoExportService.generatePoPdfBuffer.mockResolvedValue(Buffer.from('pdf'));
+      mockEmailService.sendPoIssuedEmail.mockResolvedValue(undefined);
+
+      await service.issuePurchaseOrder('po-1', companyAdmin);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendPoIssuedEmail).toHaveBeenCalledTimes(1);
+      expect(mockEmailService.sendPoIssuedEmail).toHaveBeenCalledWith(
+        'rep@vendor.com',
+        'PO-1',
+        expect.any(String),
+        expect.any(Buffer),
+        expect.anything(),
+        undefined,
+      );
+    });
+
     it('routes to PENDING_APPROVAL when the PO total exceeds the threshold (belowThreshold)', async () => {
       mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
         id: 'po-big',
@@ -1504,7 +1661,7 @@ describe('PoStatusService', () => {
         status: 'SENT',
         poNumber: 'PO-PA',
         project: { name: 'Alpha' },
-        vendor: { legalName: 'VendorCo', users: [{ email: 'vendor@test.com' }] },
+        vendor: { legalName: 'VendorCo', users: [{ email: 'vendor@test.com', status: 'ACTIVE' }] },
       });
       mockPoExportService.generatePoPdfBuffer.mockResolvedValue(Buffer.from('pdf'));
       mockEmailService.sendPoIssuedEmail.mockResolvedValue(undefined);

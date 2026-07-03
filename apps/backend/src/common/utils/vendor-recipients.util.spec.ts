@@ -1,4 +1,8 @@
-import { resolveSelectedRecipients, resolveVendorEmailRecipients } from './vendor-recipients.util';
+import {
+  resolveSelectedRecipients,
+  resolveVendorEmailRecipients,
+  resolveVendorRecipientsWithState,
+} from './vendor-recipients.util';
 
 describe('resolveVendorEmailRecipients', () => {
   it('returns the vendor user emails when users exist', () => {
@@ -76,5 +80,79 @@ describe('resolveSelectedRecipients', () => {
     expect(resolveSelectedRecipients([{ email: '  ' }], [{ email: 'user@vendor.com' }])).toEqual([
       'user@vendor.com',
     ]);
+  });
+});
+
+describe('resolveVendorRecipientsWithState', () => {
+  it('marks ACTIVE users activated and INVITED reps unactivated', () => {
+    expect(
+      resolveVendorRecipientsWithState(
+        [],
+        [
+          { email: 'active@vendor.com', status: 'ACTIVE' },
+          { email: 'rep@vendor.com', status: 'INVITED' },
+        ],
+        'contact@vendor.com',
+      ),
+    ).toEqual([
+      { email: 'active@vendor.com', activated: true },
+      { email: 'rep@vendor.com', activated: false },
+    ]);
+  });
+
+  it('prefers the selected reps over the vendor user accounts', () => {
+    expect(
+      resolveVendorRecipientsWithState(
+        [{ email: 'jane@vendor.com', status: 'INVITED' }],
+        [{ email: 'someone-else@vendor.com', status: 'ACTIVE' }],
+        'contact@vendor.com',
+      ),
+    ).toEqual([{ email: 'jane@vendor.com', activated: false }]);
+  });
+
+  it('excludes INACTIVE users entirely — no dead link, no tokenised authority', () => {
+    expect(
+      resolveVendorRecipientsWithState(
+        [],
+        [
+          { email: 'gone@vendor.com', status: 'INACTIVE' },
+          { email: 'rep@vendor.com', status: 'INVITED' },
+        ],
+      ),
+    ).toEqual([{ email: 'rep@vendor.com', activated: false }]);
+  });
+
+  it('falls back past an all-INACTIVE selection to the vendor users', () => {
+    expect(
+      resolveVendorRecipientsWithState(
+        [{ email: 'gone@vendor.com', status: 'INACTIVE' }],
+        [{ email: 'user@vendor.com', status: 'ACTIVE' }],
+      ),
+    ).toEqual([{ email: 'user@vendor.com', activated: true }]);
+  });
+
+  it('falls back to the contact email (unactivated) when there is no one else', () => {
+    expect(resolveVendorRecipientsWithState([], [], 'contact@vendor.com')).toEqual([
+      { email: 'contact@vendor.com', activated: false },
+    ]);
+  });
+
+  it('returns empty when there is genuinely nowhere to send', () => {
+    expect(resolveVendorRecipientsWithState([], [], null)).toEqual([]);
+    expect(
+      resolveVendorRecipientsWithState([], [{ email: 'gone@vendor.com', status: 'INACTIVE' }]),
+    ).toEqual([]);
+  });
+
+  it('trims and de-duplicates case-insensitively (first-seen wins)', () => {
+    expect(
+      resolveVendorRecipientsWithState(
+        [],
+        [
+          { email: '  Rep@Vendor.com  ', status: 'INVITED' },
+          { email: 'rep@vendor.com', status: 'ACTIVE' },
+        ],
+      ),
+    ).toEqual([{ email: 'Rep@Vendor.com', activated: false }]);
   });
 });

@@ -176,7 +176,9 @@ export default function VendorListPage() {
             getVendorRowActions={vendorActions.getVendorRowActions}
             onEditVendor={openEditModal}
             onViewCompany={(companyId: string) => navigate(`/vendors/${companyId}`)}
-            onViewUser={(userId: string) => navigate(`/settings/users/${userId}`)}
+            onViewUser={(companyId: string, userId: string) =>
+              navigate(`/vendors/${companyId}/representatives/${userId}`)
+            }
           />
         )}
 
@@ -231,7 +233,7 @@ interface VendorTableProps {
   getVendorRowActions: (vendor: VendorListItem) => DotAction[];
   onEditVendor: (userId: string) => void;
   onViewCompany: (companyId: string) => void;
-  onViewUser: (userId: string) => void;
+  onViewUser: (companyId: string, userId: string) => void;
 }
 
 function VendorTable({
@@ -284,7 +286,7 @@ interface VendorGroupSectionProps {
   getVendorRowActions: (vendor: VendorListItem) => DotAction[];
   onEditVendor: (userId: string) => void;
   onViewCompany: (companyId: string) => void;
-  onViewUser: (userId: string) => void;
+  onViewUser: (companyId: string, userId: string) => void;
 }
 
 function VendorGroupSection({
@@ -331,7 +333,7 @@ function VendorGroupSection({
               contactEmail: rep.email,
               status: rep.status,
             })}
-            onView={() => onViewUser(rep.id)}
+            onView={() => onViewUser(group.companyId, rep.id)}
             onEdit={onEditVendor}
           />
         ))}

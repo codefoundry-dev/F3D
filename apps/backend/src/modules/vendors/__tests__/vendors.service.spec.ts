@@ -22,7 +22,12 @@ const mockPrisma = {
   user: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     create: jest.fn(),
+    delete: jest.fn(),
+  },
+  rfqVendorContact: {
+    count: jest.fn(),
   },
 };
 
@@ -566,6 +571,20 @@ describe('VendorsService', () => {
       expect(result[0].name).toBe('Rep 1');
     });
 
+    it('maps invitationToken to an invitePending flag without exposing the token', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({ id: 'vendor-comp-1', type: 'VENDOR' });
+      mockPrisma.user.findMany.mockResolvedValue([
+        { id: 'u-1', name: 'Contact Only', invitationToken: null },
+        { id: 'u-2', name: 'Invite Pending', invitationToken: 'hashed-token' },
+      ]);
+
+      const result = await service.getRepresentatives('vendor-comp-1', vendorUser);
+      expect(result[0].invitePending).toBe(false);
+      expect(result[1].invitePending).toBe(true);
+      expect(result[0]).not.toHaveProperty('invitationToken');
+      expect(result[1]).not.toHaveProperty('invitationToken');
+    });
+
     it('allows contractor to view representatives of assigned vendor', async () => {
       mockPrisma.company.findFirst.mockResolvedValue({ id: 'vendor-comp-1', type: 'VENDOR' });
       mockPrisma.companyVendorAssignment.findFirst.mockResolvedValue({ id: 'assign-1' });
@@ -671,6 +690,149 @@ describe('VendorsService', () => {
       const result = await service.addRepresentative('vendor-comp-1', dto, companyAdmin);
       expect(result.id).toBe('rep-3');
       expect(mockPrisma.user.create).toHaveBeenCalled();
+    });
+  });
+
+  // ── getRepresentative (rep detail page) ─────────────────────────────────
+
+  describe('getRepresentative', () => {
+    const repRow = {
+      id: 'rep-1',
+      name: 'Jane Rep',
+      email: 'jane@vendor.com',
+      phone: null,
+      position: 'Sales',
+      department: null,
+      avatarUrl: null,
+      role: 'VENDOR',
+      status: UserStatus.INVITED,
+      createdAt: new Date('2026-06-01'),
+      invitationToken: null,
+      invitedBy: { name: 'Buyer Bob' },
+    };
+
+    it('throws NotFoundException when vendor not found', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue(null);
+      await expect(service.getRepresentative('missing', 'rep-1', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws NotFoundException when the rep is not a vendor user of that company', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({
+        id: 'vendor-comp-1',
+        type: 'VENDOR',
+        legalName: 'VendorCo',
+      });
+      mockPrisma.companyVendorAssignment.findFirst.mockResolvedValue({ id: 'assign-1' });
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getRepresentative('vendor-comp-1', 'stranger', companyAdmin),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('returns detail with invitePending and invitedByName, never the token', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({
+        id: 'vendor-comp-1',
+        type: 'VENDOR',
+        legalName: 'VendorCo',
+      });
+      mockPrisma.companyVendorAssignment.findFirst.mockResolvedValue({ id: 'assign-1' });
+      mockPrisma.user.findFirst.mockResolvedValue({
+        ...repRow,
+        invitationToken: 'hashed-token',
+      });
+
+      const result = await service.getRepresentative('vendor-comp-1', 'rep-1', companyAdmin);
+      expect(result.invitePending).toBe(true);
+      expect(result.invitedByName).toBe('Buyer Bob');
+      expect(result.companyName).toBe('VendorCo');
+      expect(result).not.toHaveProperty('invitationToken');
+    });
+  });
+
+  // ── removeRepresentative (ADR-0016) ─────────────────────────────────────
+
+  describe('removeRepresentative', () => {
+    const vendorCompany = { id: 'vendor-comp-1', type: 'VENDOR', legalName: 'VendorCo' };
+    const invitedRep = {
+      id: 'rep-1',
+      name: 'Jane Rep',
+      email: 'jane@vendor.com',
+      status: UserStatus.INVITED,
+    };
+
+    beforeEach(() => {
+      mockPrisma.company.findFirst.mockResolvedValue(vendorCompany);
+      mockPrisma.companyVendorAssignment.findFirst.mockResolvedValue({ id: 'assign-1' });
+      mockPrisma.rfqVendorContact.count.mockResolvedValue(0);
+    });
+
+    it('throws NotFoundException when vendor not found', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue(null);
+      await expect(service.removeRepresentative('missing', 'rep-1', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws NotFoundException when the rep does not exist on that vendor', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      await expect(
+        service.removeRepresentative('vendor-comp-1', 'missing', companyAdmin),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it('throws ConflictException for an ACTIVE rep (authority transferred to the vendor)', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({ ...invitedRep, status: UserStatus.ACTIVE });
+      await expect(
+        service.removeRepresentative('vendor-comp-1', 'rep-1', companyAdmin),
+      ).rejects.toThrow(ConflictException);
+      expect(mockPrisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it('forbids a contractor from removing a deactivated (INACTIVE) rep', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({ ...invitedRep, status: UserStatus.INACTIVE });
+      await expect(
+        service.removeRepresentative('vendor-comp-1', 'rep-1', companyAdmin),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it('lets the vendor remove its own deactivated rep', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({ ...invitedRep, status: UserStatus.INACTIVE });
+      mockPrisma.user.delete.mockResolvedValue({});
+
+      const result = await service.removeRepresentative('vendor-comp-1', 'rep-1', vendorUser);
+      expect(result.success).toBe(true);
+      expect(mockPrisma.user.delete).toHaveBeenCalledWith({ where: { id: 'rep-1' } });
+    });
+
+    it('throws ConflictException when the rep is referenced by RFQ contact selections', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(invitedRep);
+      mockPrisma.rfqVendorContact.count.mockResolvedValue(2);
+
+      await expect(
+        service.removeRepresentative('vendor-comp-1', 'rep-1', companyAdmin),
+      ).rejects.toThrow(ConflictException);
+      expect(mockPrisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it('deletes a never-activated rep and audits VENDOR_USER_REMOVED', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(invitedRep);
+      mockPrisma.user.delete.mockResolvedValue({});
+
+      const result = await service.removeRepresentative('vendor-comp-1', 'rep-1', companyAdmin);
+      expect(result.success).toBe(true);
+      expect(mockPrisma.user.delete).toHaveBeenCalledWith({ where: { id: 'rep-1' } });
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'VENDOR_USER_REMOVED',
+          performedById: companyAdmin.id,
+          targetId: 'rep-1',
+        }),
+      );
     });
   });
 });

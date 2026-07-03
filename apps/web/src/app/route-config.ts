@@ -80,6 +80,7 @@ export const ROUTES = {
   vendors: '/vendors',
   vendorNew: '/vendors/new',
   vendorDetail: '/vendors/:id',
+  vendorRepDetail: '/vendors/:id/representatives/:userId',
   materialCatalogue: '/material-catalogue',
   materialCatalogueNew: '/material-catalogue/new',
   materialCatalogueUpload: '/material-catalogue/upload',

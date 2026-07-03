@@ -191,4 +191,31 @@ export class VendorsController {
   ) {
     return this.vendorsService.addRepresentative(id, dto, user);
   }
+
+  @Get(':id/representatives/:userId')
+  @RequirePermissions('vendor.representatives.read')
+  @ApiOperation({ summary: 'Get a single vendor representative' })
+  @ApiResponse({ status: 200, description: 'Representative detail' })
+  @ApiResponse({ status: 404, description: 'Vendor or representative not found' })
+  getRepresentative(
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.vendorsService.getRepresentative(id, userId, user);
+  }
+
+  @Delete(':id/representatives/:userId')
+  @RequirePermissions('vendor.representatives.delete')
+  @ApiOperation({ summary: 'Remove a never-activated vendor representative (ADR-0016)' })
+  @ApiResponse({ status: 200, description: 'Representative removed' })
+  @ApiResponse({ status: 404, description: 'Vendor or representative not found' })
+  @ApiResponse({ status: 409, description: 'Representative is active or referenced by RFQs' })
+  removeRepresentative(
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.vendorsService.removeRepresentative(id, userId, user);
+  }
 }
