@@ -435,7 +435,7 @@ export class VendorsService {
     // Expose only *whether* an invitation is pending, never the token itself.
     return users.map(({ invitationToken, ...rest }) => ({
       ...rest,
-      invitePending: invitationToken != null,
+      invitePending: invitationToken !== null,
     }));
   }
 
@@ -475,7 +475,7 @@ export class VendorsService {
     const { invitationToken, invitedBy, ...rest } = rep;
     return {
       ...rest,
-      invitePending: invitationToken != null,
+      invitePending: invitationToken !== null,
       invitedByName: invitedBy?.name ?? null,
       companyId: vendorCompanyId,
       companyName: company.legalName,

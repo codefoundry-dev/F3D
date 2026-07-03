@@ -103,7 +103,7 @@ export class VendorUserInviteService {
       throw new NotFoundException(ERR.users.notFound);
     }
 
-    const isFirstInvite = targetUser.invitationToken == null;
+    const isFirstInvite = targetUser.invitationToken === null;
 
     // Mint (or regenerate) the token
     const rawToken = crypto.randomBytes(32).toString('hex');
@@ -156,7 +156,7 @@ export class VendorUserInviteService {
       throw new NotFoundException(ERR.users.notFound);
     }
 
-    if (targetUser.invitationToken == null) {
+    if (targetUser.invitationToken === null) {
       throw new NotFoundException(ERR.vendors.noPendingInvitation);
     }
 
