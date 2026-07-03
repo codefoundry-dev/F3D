@@ -109,6 +109,9 @@ const UploadInvoicePage = lazy(() => import('@/features/invoices/buyer/pages/Upl
 const VendorListPage = lazy(() => import('@/features/vendors/pages/VendorListPage'));
 const CreateVendorPage = lazy(() => import('@/features/vendors/pages/CreateVendorPage'));
 const VendorProfilePage = lazy(() => import('@/features/vendors/pages/VendorProfilePage'));
+const VendorRepresentativeDetailPage = lazy(
+  () => import('@/features/vendors/pages/VendorRepresentativeDetailPage'),
+);
 const MaterialCataloguePage = lazy(
   () => import('@/features/material-catalogue/pages/MaterialCataloguePage'),
 );
@@ -508,6 +511,10 @@ export const routes: RouteObject[] = [
                   { path: ROUTES.vendors, element: withSuspense(<VendorListPage />) },
                   { path: ROUTES.vendorNew, element: withSuspense(<CreateVendorPage />) },
                   { path: ROUTES.vendorDetail, element: withSuspense(<VendorProfilePage />) },
+                  {
+                    path: ROUTES.vendorRepDetail,
+                    element: withSuspense(<VendorRepresentativeDetailPage />),
+                  },
                 ],
               },
 

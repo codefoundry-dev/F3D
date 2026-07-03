@@ -11,6 +11,9 @@ const mockPrisma = {
     update: jest.fn(),
     delete: jest.fn(),
   },
+  companyVendorAssignment: {
+    findFirst: jest.fn(),
+  },
 };
 
 const mockEmailService = {
@@ -32,6 +35,15 @@ const vendorUser = {
   companyId: 'vendor-comp-1',
 };
 
+// Assigned contractor (ADR-0016: rep authority is relational — the buyer may
+// invite/cancel while the rep has never activated)
+const buyerUser = {
+  id: 'buyer-1',
+  email: 'buyer@contractor.com',
+  role: UserRole.COMPANY_ADMIN,
+  companyId: 'contractor-1',
+};
+
 describe('VendorUserInviteService', () => {
   let service: VendorUserInviteService;
 
@@ -46,15 +58,39 @@ describe('VendorUserInviteService', () => {
   });
 
   describe('inviteVendorUser', () => {
-    it('throws ForbiddenException when user is not a vendor', async () => {
-      const adminUser = { ...vendorUser, role: UserRole.COMPANY_ADMIN };
+    it('throws ForbiddenException when a contractor has no assignment to the vendor', async () => {
+      mockPrisma.companyVendorAssignment.findFirst.mockResolvedValue(null);
       await expect(
         service.inviteVendorUser(
           'vendor-comp-1',
           { name: 'New', email: 'new@v.com', position: 'Sales' },
-          adminUser,
+          buyerUser,
         ),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('allows an assigned contractor to invite (ADR-0016)', async () => {
+      mockPrisma.companyVendorAssignment.findFirst.mockResolvedValue({ id: 'assign-1' });
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.create.mockResolvedValue({
+        id: 'new-u-2',
+        name: 'New User',
+        email: 'new@v.com',
+        position: 'Sales',
+        status: UserStatus.INVITED,
+      });
+
+      const result = await service.inviteVendorUser(
+        'vendor-comp-1',
+        { name: 'New User', email: 'new@v.com', position: 'Sales' },
+        buyerUser,
+      );
+
+      expect(result.id).toBe('new-u-2');
+      expect(mockPrisma.companyVendorAssignment.findFirst).toHaveBeenCalledWith({
+        where: { vendorId: 'vendor-comp-1', contractorId: 'contractor-1' },
+      });
+      expect(mockEmailService.sendVendorInvitationEmail).toHaveBeenCalled();
     });
 
     it('throws ForbiddenException when vendor user belongs to different company', async () => {
@@ -132,12 +168,13 @@ describe('VendorUserInviteService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('regenerates token and resends email', async () => {
+    it('regenerates token and resends email without re-auditing', async () => {
       mockPrisma.user.findFirst.mockResolvedValue({
         id: 'u-1',
         email: 'invited@v.com',
         name: 'Invited User',
         status: UserStatus.INVITED,
+        invitationToken: 'hashed-existing-token',
       });
       mockPrisma.user.update.mockResolvedValue({});
 
@@ -157,6 +194,30 @@ describe('VendorUserInviteService', () => {
         expect.stringContaining('activate?token='),
         'Invited User',
       );
+      expect(mockAuditService.log).not.toHaveBeenCalled();
+    });
+
+    it('audits VENDOR_USER_INVITED on the first invite of a contact-only rep', async () => {
+      mockPrisma.companyVendorAssignment.findFirst.mockResolvedValue({ id: 'assign-1' });
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'rep-1',
+        email: 'contact@v.com',
+        name: 'Contact Only',
+        status: UserStatus.INVITED,
+        invitationToken: null,
+      });
+      mockPrisma.user.update.mockResolvedValue({});
+
+      await service.resendInvitation('vendor-comp-1', 'rep-1', buyerUser);
+
+      expect(mockEmailService.sendVendorInvitationEmail).toHaveBeenCalled();
+      expect(mockAuditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'VENDOR_USER_INVITED',
+          performedById: 'buyer-1',
+          targetId: 'rep-1',
+        }),
+      );
     });
   });
 
@@ -174,16 +235,32 @@ describe('VendorUserInviteService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('deletes the invited user', async () => {
+    it('throws NotFoundException when the rep has no pending invitation (contact-only)', async () => {
       mockPrisma.user.findFirst.mockResolvedValue({
         id: 'u-1',
         status: UserStatus.INVITED,
+        invitationToken: null,
       });
-      mockPrisma.user.delete.mockResolvedValue({});
+      await expect(service.cancelInvitation('vendor-comp-1', 'u-1', vendorUser)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('revokes the token, reverting the rep to contact-only (never deletes)', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'u-1',
+        status: UserStatus.INVITED,
+        invitationToken: 'hashed-token',
+      });
+      mockPrisma.user.update.mockResolvedValue({});
 
       const result = await service.cancelInvitation('vendor-comp-1', 'u-1', vendorUser);
       expect(result.message).toBe('Invitation cancelled successfully');
-      expect(mockPrisma.user.delete).toHaveBeenCalledWith({ where: { id: 'u-1' } });
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'u-1' },
+        data: { invitationToken: null, invitationTokenExpiresAt: null },
+      });
+      expect(mockPrisma.user.delete).not.toHaveBeenCalled();
     });
   });
 });

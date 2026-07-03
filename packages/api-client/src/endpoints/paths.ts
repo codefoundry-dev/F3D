@@ -257,6 +257,7 @@ export const VENDORS_PATHS = {
   warehouses: (id: string) => `/vendors/${id}/warehouses`,
   warehouse: (id: string, whId: string) => `/vendors/${id}/warehouses/${whId}`,
   representatives: (id: string) => `/vendors/${id}/representatives`,
+  representative: (id: string, userId: string) => `/vendors/${id}/representatives/${userId}`,
   inviteUser: (companyId: string) => `/vendors/${companyId}/users/invite`,
   resendUserInvitation: (companyId: string, userId: string) =>
     `/vendors/${companyId}/users/${userId}/resend-invitation`,

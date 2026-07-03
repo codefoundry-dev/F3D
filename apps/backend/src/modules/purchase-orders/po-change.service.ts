@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  AccessTokenPurpose,
+  AccessTokenSubject,
   AuditAction,
   PickUpTimeExpectation,
   PoChangeRequestStatus,
@@ -17,12 +19,14 @@ import {
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { resolveVendorEmailRecipients } from '../../common/utils/vendor-recipients.util';
+import { resolveVendorRecipientsWithState } from '../../common/utils/vendor-recipients.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../notifications/email.service';
 
 import { CreatePoChangeRequestDto, RejectPoChangeRequestDto } from './po-change.dto';
+import { PO_TOKEN_TTL_MS } from './po-token.const';
 
 /**
  * The agreed cross-package `changedFields` JSON shape (see PLAN §B). Both the
@@ -144,6 +148,7 @@ export class PoChangeService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     private readonly emailService: EmailService,
+    private readonly accessTokens: AccessTokensService,
     config: ConfigService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
@@ -159,6 +164,7 @@ export class PoChangeService {
         status: true,
         companyId: true,
         vendorId: true,
+        rfqId: true,
         poNumber: true,
         company: {
           select: {
@@ -168,7 +174,7 @@ export class PoChangeService {
         vendor: {
           select: {
             contactEmail: true,
-            users: { where: { role: UserRole.VENDOR }, select: { email: true } },
+            users: { where: { role: UserRole.VENDOR }, select: { email: true, status: true } },
           },
         },
       },
@@ -209,24 +215,108 @@ export class PoChangeService {
       metadata: { changeRequestId: changeRequest.id, reference },
     });
 
-    // Notify the other party (fire-and-forget). When the contractor proposes a
-    // change the recipient is the vendor, which may have been quick-added with
-    // only a contactEmail and no user accounts (US-3.01) — fall back to it.
-    // Contractors always have COMPANY_ADMIN user accounts, so no fallback there.
-    const isVendor = user.role === UserRole.VENDOR;
-    const recipientEmails = isVendor
-      ? (po.company?.users ?? []).map((u) => u.email)
-      : resolveVendorEmailRecipients(po.vendor?.users ?? [], po.vendor?.contactEmail);
-    const viewUrl = `${this.webAppUrl}/purchase-orders/${poId}`;
+    // Notify the other party (fire-and-forget).
     const proposedBy = changeRequest.requestedBy?.name ?? 'A user';
-
-    Promise.all(
-      recipientEmails.map((email) =>
-        this.emailService.sendChangeRequestProposedEmail(email, po.poNumber, proposedBy, viewUrl),
-      ),
-    ).catch(() => {});
+    this.notifyChangeProposed(po, user, proposedBy).catch(() => {});
 
     return this.toChangeRequestResponse(changeRequest);
+  }
+
+  /**
+   * Email the counterparty about a freshly proposed change. A vendor's proposal
+   * goes to the contractor's COMPANY_ADMINs — contractors always have accounts,
+   * so the authenticated link is right. A contractor's proposal is vendor-bound
+   * and follows the same contract as the PO issue email (CONTEXT.md): the sales
+   * reps selected on the source RFQ win (falling back to the vendor's users /
+   * contact email), and the "View" link is chosen per recipient (ADR-0001) —
+   * unactivated recipients get the tokenised PO portal link, re-minted here
+   * because the 30-day issue token may have lapsed (ADR-0002 R1 amendment).
+   */
+  private async notifyChangeProposed(
+    po: {
+      id: string;
+      poNumber: string;
+      vendorId: string | null;
+      rfqId: string | null;
+      company: { users: Array<{ email: string }> } | null;
+      vendor: {
+        contactEmail: string | null;
+        users?: Array<{ email: string; status: string }>;
+      } | null;
+    },
+    user: AuthenticatedUser,
+    proposedBy: string,
+  ): Promise<void> {
+    const authenticatedUrl = `${this.webAppUrl}/purchase-orders/${po.id}`;
+
+    if (user.role === UserRole.VENDOR) {
+      await Promise.all(
+        (po.company?.users ?? []).map((u) =>
+          this.emailService.sendChangeRequestProposedEmail(
+            u.email,
+            po.poNumber,
+            proposedBy,
+            authenticatedUrl,
+          ),
+        ),
+      );
+      return;
+    }
+
+    const selectedReps =
+      po.rfqId && po.vendorId
+        ? (
+            await this.prisma.rfqVendorContact.findMany({
+              where: { rfqVendor: { rfqId: po.rfqId, vendorId: po.vendorId } },
+              select: { user: { select: { email: true, status: true } } },
+            })
+          ).map((c) => c.user)
+        : [];
+
+    const recipients = resolveVendorRecipientsWithState(
+      selectedReps,
+      po.vendor?.users ?? [],
+      po.vendor?.contactEmail,
+    );
+    if (recipients.length === 0) return;
+
+    const tokenisedUrl = recipients.some((r) => !r.activated)
+      ? await this.mintPoViewUrl(po.id, user.id)
+      : null;
+
+    await Promise.all(
+      recipients.map((r) =>
+        this.emailService.sendChangeRequestProposedEmail(
+          r.email,
+          po.poNumber,
+          proposedBy,
+          !r.activated && tokenisedUrl ? tokenisedUrl : authenticatedUrl,
+        ),
+      ),
+    );
+  }
+
+  /**
+   * A usable tokenised PO-portal URL for unactivated recipients. Always mints a
+   * fresh PO_VIEW token: a live token's plaintext cannot be reconstructed (only
+   * its hash is stored), so reuse is impossible — the same reason the delivery
+   * QR force-mints. Earlier links stay valid (PO_VIEW is validated, never
+   * consumed). Returns null on failure so the caller degrades to the
+   * authenticated link instead of dropping the email.
+   */
+  private async mintPoViewUrl(poId: string, userId: string): Promise<string | null> {
+    try {
+      const { token } = await this.accessTokens.issueToken({
+        subjectType: AccessTokenSubject.PURCHASE_ORDER,
+        subjectId: poId,
+        purpose: AccessTokenPurpose.PO_VIEW,
+        ttlMs: PO_TOKEN_TTL_MS,
+        createdByUserId: userId,
+      });
+      return `${this.webAppUrl}/po/${token}`;
+    } catch {
+      return null;
+    }
   }
 
   // ── List change requests ─────────────────────────────────────────────────
