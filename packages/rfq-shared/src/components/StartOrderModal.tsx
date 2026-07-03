@@ -15,8 +15,8 @@ export interface StartOrderModalProps {
 
 /**
  * "Do you want to start PO creation?" / "…Bulk order creation?" prompt shown
- * after approving quote items (US 5.19). "Start now" opens the guided creation
- * flow; "Create draft" saves a draft order immediately.
+ * after approving quote items (US 5.19). "Issue PO" / "Start now" opens the
+ * guided creation flow; "Create draft" saves a draft order immediately.
  */
 export function StartOrderModal({
   kind,
@@ -42,7 +42,7 @@ export function StartOrderModal({
       actions={
         <>
           <Button size="lg" className="w-full" onClick={onStartNow} disabled={isCreating}>
-            {t('startOrder.startNow')}
+            {t(kind === 'po' ? 'startOrder.poStartNow' : 'startOrder.bulkStartNow')}
           </Button>
           <Button
             size="lg"
