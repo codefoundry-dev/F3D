@@ -54,7 +54,6 @@ export interface MaterialSearchState {
   onFiltersChange: (f: MaterialFilters) => void;
   onDeselect: (id: string) => void;
   onQtyChange: (id: string, qty: number) => void;
-  addToListLabel: string;
 }
 
 export interface LineItemRowProps {
@@ -108,6 +107,13 @@ export function LineItemRow({
   const rowBorder = isLast && !hasNotes ? '' : 'border-b';
   const cellBorder = `border-r border-border ${rowBorder}`;
   const cell = 'px-1 py-1';
+  // FOR-274 parity with the RFQ manual row: the cell popup is single-pick —
+  // clicking anywhere on a result row links the material to the line.
+  const pickMaterial = (mat: MaterialItem) => {
+    applyMaterialToRow(setValue, index, mat);
+    if (mat.unit) setValue(`lineItems.${index}.unitOfMeasure`, mat.unit);
+    materialSearch.onCellSearchClose();
+  };
   // Drawdown over-limit flag: ordered qty exceeds the bulk-order remaining qty.
   const exceedsAvailable =
     isDrawdownMode &&
@@ -128,21 +134,11 @@ export function LineItemRow({
               onSearchChange={(v) => materialSearch.onCellSearchChange(index, v)}
               results={materialSearch.results}
               selected={materialSearch.selected}
-              onSelect={(mat) => {
-                applyMaterialToRow(setValue, index, mat);
-                if (mat.unit) setValue(`lineItems.${index}.unitOfMeasure`, mat.unit);
-                materialSearch.onCellSearchClose();
-              }}
+              onSelect={pickMaterial}
+              onPickItem={pickMaterial}
               onDeselect={materialSearch.onDeselect}
               onQuantityChange={materialSearch.onQtyChange}
-              onAddToList={() => {
-                for (const mat of materialSearch.selected) {
-                  applyMaterialToRow(setValue, index, mat);
-                  if (mat.unit) setValue(`lineItems.${index}.unitOfMeasure`, mat.unit);
-                  setValue(`lineItems.${index}.quantityOrdered`, mat.quantity);
-                }
-                materialSearch.onCellSearchClose();
-              }}
+              onAddToList={() => undefined}
               filters={materialSearch.filters}
               onFiltersChange={materialSearch.onFiltersChange}
               open={materialSearch.cellSearchOpen === index}
@@ -150,8 +146,7 @@ export function LineItemRow({
                 if (open) materialSearch.onCellSearchChange(index, materialSearch.cellSearchQuery);
                 else materialSearch.onCellSearchClose();
               }}
-              searchPlaceholder=""
-              addToListLabel={materialSearch.addToListLabel}
+              searchPlaceholder={t('create.enterMaterialName')}
               compact
             />
           )}

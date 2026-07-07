@@ -405,6 +405,7 @@
     "searchMaterials": "Search",
     "selectApprovedQuotes": "Select Approved Quotes",
     "selectBulkOrders": "Select Bulk Orders",
+    "enterMaterialName": "Enter material name",
     "materialName": "Material Name",
     "materialCode": "Material code",
     "costCode": "Cost code",

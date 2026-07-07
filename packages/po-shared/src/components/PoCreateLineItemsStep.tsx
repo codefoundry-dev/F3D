@@ -225,7 +225,6 @@ export function PoCreateLineItemsStep({
                         onFiltersChange: topSearch.setFilters,
                         onDeselect: topSearch.handleDeselect,
                         onQtyChange: topSearch.handleQtyChange,
-                        addToListLabel: t('create.addToList', { defaultValue: 'Add to list' }),
                       }}
                       approvedQuotesCount={suggestion?.rfqMatch ? 1 : 0}
                       bulkOrdersCount={suggestion?.bulkOrderMatch ? 1 : 0}
