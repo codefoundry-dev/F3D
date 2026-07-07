@@ -1,5 +1,6 @@
 import type {
   MaterialListItemDto,
+  MaterialSuggestionDto,
   ProjectListItem,
   RfqAvailabilityResult,
 } from '@forethread/api-client';
@@ -28,6 +29,7 @@ import {
   type CoverageAllocation,
   type VendorCellMatch,
 } from './availability';
+import { ManualMaterialNameCell } from './ManualMaterialNameCell';
 import { TABLE_BODY_ROW, TABLE_HEADER_ROW, TABLE_TH } from './tableStyles';
 import { nextLineKey, type WizardLineItem } from './wizard-types';
 
@@ -60,6 +62,19 @@ interface StepLineItemsProps {
 
 /** Trailing group id for line items not matched to any selected project. */
 const UNASSIGNED_GROUP_ID = '__unassigned__';
+
+/** Per-project inline manual entry draft. `materialId` is set when the name
+ * was picked from the catalogue popup (FOR-274) and dropped again as soon as
+ * the user edits the name to free text. */
+interface ManualDraft {
+  name: string;
+  description: string;
+  quantity: string;
+  uom: string;
+  materialId?: string;
+}
+
+const EMPTY_MANUAL_DRAFT: ManualDraft = { name: '', description: '', quantity: '', uom: '' };
 
 function formatExpiration(value: string | null | undefined): string {
   if (!value) return '';
@@ -134,9 +149,7 @@ export function StepLineItems({
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [notesOpen, setNotesOpen] = useState<Record<string, boolean>>({});
   /** Per-project inline manual entry drafts. */
-  const [manualDrafts, setManualDrafts] = useState<
-    Record<string, { name: string; description: string; quantity: string; uom: string }>
-  >({});
+  const [manualDrafts, setManualDrafts] = useState<Record<string, ManualDraft>>({});
 
   const defaultProjectId = projects[0]?.id;
 
@@ -181,17 +194,25 @@ export function StepLineItems({
     onSearchChange('');
   };
 
-  const manualDraftFor = (projectId: string) =>
-    manualDrafts[projectId] ?? { name: '', description: '', quantity: '', uom: '' };
+  const manualDraftFor = (projectId: string) => manualDrafts[projectId] ?? EMPTY_MANUAL_DRAFT;
 
-  const patchManualDraft = (
-    projectId: string,
-    patch: Partial<{ name: string; description: string; quantity: string; uom: string }>,
-  ) => {
+  const patchManualDraft = (projectId: string, patch: Partial<ManualDraft>) => {
     setManualDrafts((prev) => ({
       ...prev,
       [projectId]: { ...manualDraftFor(projectId), ...patch },
     }));
+  };
+
+  /** Fill the manual draft from a catalogue pick (FOR-274): the name is linked
+   * to the material, and UoM / description prefill only when still empty. */
+  const selectManualMaterial = (projectId: string, material: MaterialSuggestionDto) => {
+    const draft = manualDraftFor(projectId);
+    patchManualDraft(projectId, {
+      name: material.name,
+      materialId: material.id,
+      uom: draft.uom.trim() ? draft.uom : (material.uom ?? ''),
+      description: draft.description.trim() ? draft.description : (material.description ?? ''),
+    });
   };
 
   /** Promote a complete manual draft into a real line item. */
@@ -206,6 +227,7 @@ export function StepLineItems({
       {
         key: nextLineKey(),
         source: 'CATALOG',
+        materialId: draft.materialId,
         materialName: draft.name.trim(),
         description: draft.description.trim() || undefined,
         quantity,
@@ -213,10 +235,7 @@ export function StepLineItems({
         projectId,
       },
     ]);
-    setManualDrafts((prev) => ({
-      ...prev,
-      [projectId]: { name: '', description: '', quantity: '', uom: '' },
-    }));
+    setManualDrafts((prev) => ({ ...prev, [projectId]: EMPTY_MANUAL_DRAFT }));
   };
 
   // ── Coverage allocation helpers (merged from the Check-Availability step) ──
@@ -488,13 +507,15 @@ export function StepLineItems({
                     <td className="py-1.5 px-3 text-muted-foreground">{groupName}</td>
                     <td className="py-1.5 px-3 text-muted-foreground">—</td>
                     <td className="py-1.5 px-1">
-                      <input
+                      <ManualMaterialNameCell
                         value={draft.name}
-                        onChange={(e) => patchManualDraft(groupId, { name: e.target.value })}
-                        onBlur={() => commitManualDraft(groupId)}
+                        onValueChange={(name) =>
+                          patchManualDraft(groupId, { name, materialId: undefined })
+                        }
+                        onSelectMaterial={(material) => selectManualMaterial(groupId, material)}
+                        onCommit={() => commitManualDraft(groupId)}
                         placeholder={t('create.lineItems.manualNamePlaceholder')}
-                        className="w-full h-9 px-2 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:bg-muted/40 rounded"
-                        data-testid={`manual-name-${groupId}`}
+                        testId={`manual-name-${groupId}`}
                       />
                     </td>
                     <td className="py-1.5 px-1">

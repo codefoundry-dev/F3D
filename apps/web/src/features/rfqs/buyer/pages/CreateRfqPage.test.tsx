@@ -64,6 +64,7 @@ vi.mock('../services/rfqs.service', () => ({
   useSendRfq: () => mockSendRfq,
   useRfqProjects: mockUseRfqProjects,
   useRfqMaterials: mockUseRfqMaterials,
+  useRfqMaterialSuggestions: () => ({ data: undefined, isLoading: false }),
   useAssignedVendors: mockUseAssignedVendors,
 }));
 

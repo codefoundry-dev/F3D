@@ -6,7 +6,9 @@ import {
   getProjects,
   getProject,
   getMaterials,
+  getMaterialSuggestions,
   getVendors,
+  queryKeys,
   type ProjectListParams,
   type MaterialListQueryParams,
   type VendorListParams,
@@ -98,6 +100,19 @@ export function useRfqMaterials(params?: MaterialListQueryParams) {
     queryKey: ['materials', params],
     queryFn: () => getMaterials({ limit: 50, ...params }),
     select: (data) => data.items,
+  });
+}
+
+/** Catalogue autocomplete for the manual line-item name cell (FOR-274). Same
+ * endpoint and query key as the catalogue page's search dropdown (US 4.04), so
+ * both integrations share one cache. Disabled while the term is empty. */
+export function useRfqMaterialSuggestions(search: string) {
+  const term = search.trim();
+  return useQuery({
+    queryKey: queryKeys.materials.suggestions(term),
+    queryFn: () => getMaterialSuggestions({ q: term }),
+    enabled: term.length > 0,
+    staleTime: 30 * 1000,
   });
 }
 
