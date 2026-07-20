@@ -16,10 +16,13 @@ import {
   Spinner,
 } from '@forethread/ui-components';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
+import EditWithoutLineIcon from '@forethread/ui-components/assets/icons/edit-without-line.svg?react';
 import InfoIcon from '@forethread/ui-components/assets/icons/info.svg?react';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+
+import { ROUTES } from '@/app/route-config';
 
 import { PoVendorActions } from '../components/PoVendorActions';
 
@@ -28,6 +31,9 @@ const GUEST_TABS: PoTab[] = ['details', 'lineItems'];
 
 /** Statuses where the vendor can still act on the PO from the portal link. */
 const ACTIONABLE_STATUSES = ['SENT', 'ACKNOWLEDGED'];
+
+/** Statuses for which the backend accepts a change proposal (po-change.service). */
+const CHANGEABLE_STATUSES = ['SENT', 'ACKNOWLEDGED', 'ACCEPTED'];
 
 /**
  * Public view of a Purchase Order reached from a tokenised email link (FOR-246).
@@ -86,8 +92,10 @@ export default function GuestPurchaseOrderPage() {
 
 function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
   const { t } = useTranslation('purchaseOrders');
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<PoTab>('details');
   const isActionable = ACTIONABLE_STATUSES.includes(po.status);
+  const canChange = CHANGEABLE_STATUSES.includes(po.status);
 
   const handleDownload = () => {
     void exportPublicPurchaseOrder(token).then(({ url }) => window.open(url, '_blank'));
@@ -111,14 +119,28 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
               {t('guest.subtitle', { contractor: po.company.name, vendor: po.vendor?.name ?? '' })}
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="lg"
-            leftIcon={<DownloadIcon className="w-4 h-4" />}
-            onClick={handleDownload}
-          >
-            {t('guest.download')}
-          </Button>
+          <div className="flex items-center gap-3 shrink-0">
+            {canChange && (
+              <Button
+                variant="outline"
+                size="lg"
+                leftIcon={<EditWithoutLineIcon className="w-4 h-4" />}
+                onClick={() =>
+                  navigate(ROUTES.guestPurchaseOrderChangeRequest.replace(':token', token))
+                }
+              >
+                {t('guest.requestChanges')}
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="lg"
+              leftIcon={<DownloadIcon className="w-4 h-4" />}
+              onClick={handleDownload}
+            >
+              {t('guest.download')}
+            </Button>
+          </div>
         </div>
       </header>
 

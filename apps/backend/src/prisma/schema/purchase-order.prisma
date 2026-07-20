@@ -246,13 +246,17 @@ model PoChangeRequest {
   message          String?
   status           PoChangeRequestStatus @default(PENDING)
   reason           String?
-  requestedById    String                @map("requested_by_id")
+  // Nullable: a guest vendor proposing via the tokenised PO portal has no user
+  // account, so it is attributed by `requestedByLabel` instead (mirrors
+  // AuditLog.performedById / performedByLabel, FOR-247).
+  requestedById    String?               @map("requested_by_id")
+  requestedByLabel String?               @map("requested_by_label")
   resolvedById     String?               @map("resolved_by_id")
   resolvedAt       DateTime?             @map("resolved_at")
   createdAt        DateTime              @default(now()) @map("created_at")
 
   purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  requestedBy   User          @relation("PoChangeRequestedBy", fields: [requestedById], references: [id])
+  requestedBy   User?         @relation("PoChangeRequestedBy", fields: [requestedById], references: [id])
   resolvedBy    User?         @relation("PoChangeApprovedBy", fields: [resolvedById], references: [id])
 
   @@index([purchaseOrderId], map: "idx_po_change_requests_po")

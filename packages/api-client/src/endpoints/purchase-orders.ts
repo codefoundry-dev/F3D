@@ -696,6 +696,37 @@ export async function listPoChangeRequests(poId: string): Promise<PoChangeReques
   return data.data;
 }
 
+/**
+ * Propose a PO change request from the tokenised vendor portal (guest, no login).
+ * Public — authorised by the PO_VIEW access token (sent in the `X-Access-Token`
+ * header), which resolves the PO server-side, so no id is passed. Opts out of the
+ * global error toast so the portal renders its own friendly failure state.
+ */
+export async function proposePublicPoChange(
+  token: string,
+  input: CreatePoChangeRequestInput,
+  config?: AxiosRequestConfig,
+): Promise<PoChangeRequest> {
+  const { data } = await getApiClient().post<{ data: PoChangeRequest }>(
+    PURCHASE_ORDERS_PATHS.portalChangeRequests,
+    input,
+    { headers: { [ACCESS_TOKEN_HEADER]: token }, skipErrorHandler: true, ...config },
+  );
+  return data.data;
+}
+
+/** List a PO's change requests via the tokenised vendor portal (guest, no login). */
+export async function listPublicPoChangeRequests(
+  token: string,
+  config?: AxiosRequestConfig,
+): Promise<PoChangeRequest[]> {
+  const { data } = await getApiClient().get<{ data: PoChangeRequest[] }>(
+    PURCHASE_ORDERS_PATHS.portalChangeRequests,
+    { headers: { [ACCESS_TOKEN_HEADER]: token }, skipErrorHandler: true, ...config },
+  );
+  return data.data;
+}
+
 export async function approvePoChange(poId: string, crId: string): Promise<void> {
   await getApiClient().patch(PURCHASE_ORDERS_PATHS.approveChange(poId, crId));
 }

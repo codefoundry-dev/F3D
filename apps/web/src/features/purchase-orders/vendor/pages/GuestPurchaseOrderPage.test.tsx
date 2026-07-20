@@ -20,6 +20,7 @@ vi.mock('@forethread/i18n', () => ({
 
 vi.mock('react-router-dom', () => ({
   useParams: () => ({ token: 'po-token-123' }),
+  useNavigate: () => vi.fn(),
 }));
 
 vi.mock('@forethread/api-client', () => ({

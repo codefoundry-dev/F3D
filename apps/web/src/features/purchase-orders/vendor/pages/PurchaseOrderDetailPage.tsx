@@ -7,6 +7,7 @@ import {
 import { useTranslation } from '@forethread/i18n';
 import {
   usePurchaseOrder,
+  usePoChangeRequests,
   usePoActionLog,
   PoDetailTabs,
   PoDetailsTab,
@@ -14,6 +15,8 @@ import {
   PoDocumentsTab,
   PoMessagesTab,
   PoActionLogTab,
+  PoChangeRequestTab,
+  PoChangeRequestTabLoading,
 } from '@forethread/po-shared';
 import type { PoTab, RelatedDocument } from '@forethread/po-shared';
 import { usePageTitleStore } from '@forethread/rfq-shared';
@@ -31,13 +34,15 @@ import { usePermissions } from '@/shared/role/usePermissions';
 import { PoVendorAcceptFields } from '../components/PoVendorAcceptFields';
 import { PoVendorActions } from '../components/PoVendorActions';
 
-const VENDOR_TABS: PoTab[] = ['details', 'lineItems', 'messages', 'documents', 'actionLog'];
 const ACTIONABLE_STATUSES = ['SENT', 'ACKNOWLEDGED'];
+/** Statuses for which the backend accepts a change proposal (po-change.service). */
+const CHANGEABLE_STATUSES = ['SENT', 'ACKNOWLEDGED', 'ACCEPTED'];
 
 export default function PurchaseOrderDetailPage() {
   const { t } = useTranslation('purchaseOrders');
   const { id } = useParams<{ id: string }>();
   const { data: po, isLoading, isError } = usePurchaseOrder(id ?? '');
+  const { data: changeRequests, isLoading: isLoadingCrs } = usePoChangeRequests(id ?? '');
   const { logs: actionLogs, isLoading: isLoadingLog } = usePoActionLog(po?.id ?? id ?? '');
   const navigate = useNavigate();
   const currentUser = useAuthStore((s) => s.currentUser);
@@ -49,9 +54,41 @@ export default function PurchaseOrderDetailPage() {
     return () => setPageTitle(null);
   }, [po, setPageTitle]);
 
+  // A buyer-proposed change surfaces in the "Changes request" tab so the vendor
+  // can Apply-all / Reject it; the vendor's own pending proposal shows there too
+  // (read-only — the self-approval guard hides its action buttons).
+  const pendingCr = useMemo(
+    () => changeRequests?.find((cr) => cr.status === 'PENDING'),
+    [changeRequests],
+  );
+
+  // The PO carries only the delivery location *name* (not a project location
+  // list a vendor could fetch); one option is enough to label it in the diff.
+  const locationOptions = useMemo(
+    () =>
+      po?.deliveryLocationId
+        ? [
+            {
+              value: po.deliveryLocationId,
+              label: po.deliveryLocationName ?? po.deliveryLocationId,
+            },
+          ]
+        : [],
+    [po?.deliveryLocationId, po?.deliveryLocationName],
+  );
+
+  // The "Changes request" tab only appears while a pending CR exists (mirrors
+  // the buyer detail view).
+  const validTabs: PoTab[] = useMemo(() => {
+    const tabs: PoTab[] = ['details'];
+    if (pendingCr) tabs.push('changeRequest');
+    tabs.push('lineItems', 'messages', 'documents', 'actionLog');
+    return tabs;
+  }, [pendingCr]);
+
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') as PoTab | null;
-  const activeTab: PoTab = tabParam && VENDOR_TABS.includes(tabParam) ? tabParam : 'details';
+  const activeTab: PoTab = tabParam && validTabs.includes(tabParam) ? tabParam : 'details';
 
   const setActiveTab = useCallback(
     (tab: PoTab) => setSearchParams({ tab }, { replace: true }),
@@ -133,6 +170,7 @@ export default function PurchaseOrderDetailPage() {
   }, [po]);
 
   const isActionable = po ? ACTIONABLE_STATUSES.includes(po.status) : false;
+  const canChange = po ? CHANGEABLE_STATUSES.includes(po.status) && has('po.proposeChange') : false;
 
   if (isLoading) {
     return (
@@ -166,7 +204,7 @@ export default function PurchaseOrderDetailPage() {
         <PoDetailTabs
           activeTab={activeTab}
           onTabChange={setActiveTab}
-          tabs={VENDOR_TABS}
+          tabs={validTabs}
           rightSlot={
             <div className="flex gap-3 items-center">
               {activeTab === 'details' && (
@@ -183,7 +221,7 @@ export default function PurchaseOrderDetailPage() {
                   {t('actions.exportAs')}
                 </Button>
               )}
-              {isActionable && activeTab === 'details' && (
+              {canChange && activeTab === 'details' && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -220,12 +258,27 @@ export default function PurchaseOrderDetailPage() {
             }
           />
         )}
+        {activeTab === 'changeRequest' &&
+          (isLoadingCrs ? (
+            <PoChangeRequestTabLoading />
+          ) : pendingCr ? (
+            <PoChangeRequestTab
+              poId={po.id}
+              changeRequest={pendingCr}
+              locationOptions={locationOptions}
+              currentUserName={currentUser?.name}
+            />
+          ) : null)}
         {activeTab === 'lineItems' && (
           <PoLineItemsTab
             poId={po.id}
             lineItems={po.lineItems ?? []}
             layout="page"
-            onEditAll={() => navigate(`${ROUTES.purchaseOrderChangeRequest.replace(':id', po.id)}`)}
+            onEditAll={
+              canChange
+                ? () => navigate(`${ROUTES.purchaseOrderChangeRequest.replace(':id', po.id)}`)
+                : undefined
+            }
           />
         )}
         {activeTab === 'documents' && (
@@ -244,7 +297,14 @@ export default function PurchaseOrderDetailPage() {
             creatorUserId={po.createdBy.id}
           />
         )}
-        {activeTab === 'actionLog' && <PoActionLogTab logs={actionLogs} isLoading={isLoadingLog} />}
+        {activeTab === 'actionLog' && (
+          <PoActionLogTab
+            logs={actionLogs}
+            isLoading={isLoadingLog}
+            changeRequests={changeRequests ?? []}
+            locationOptions={locationOptions}
+          />
+        )}
       </div>
     </div>
   );

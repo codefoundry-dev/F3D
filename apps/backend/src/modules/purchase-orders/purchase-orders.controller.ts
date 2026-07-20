@@ -161,6 +161,43 @@ export class PurchaseOrdersController {
     return this.poStatusService.vendorDeclinePurchaseOrderViaToken(token.subjectId, dto);
   }
 
+  // ── Tokenised vendor PO change requests (guest propose, no login) ──────────
+  // Same token policy: the PO is resolved from the token's subject. A guest
+  // vendor proposes a change; the contractor reviews it in their authenticated
+  // "Changes request" tab (approve/reject already exist). Listing lets the portal
+  // show the vendor its own proposal + resolution status.
+
+  @Post('portal/change-requests')
+  @Public()
+  @RequireAccessToken({
+    expectedPurpose: AccessTokenPurpose.PO_VIEW,
+    expectedSubjectType: AccessTokenSubject.PURCHASE_ORDER,
+  })
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Vendor proposes a PO change via a tokenised link (no login)' })
+  @ApiResponse({ status: 201, description: 'Change request created' })
+  @ApiResponse({ status: 400, description: 'PO cannot receive a change in its current status' })
+  @ApiResponse({ status: 403, description: 'Token missing, expired, revoked, or invalid' })
+  async proposePublicPoChange(
+    @CurrentAccessToken() token: AccessToken,
+    @Body() dto: CreatePoChangeRequestDto,
+  ) {
+    return this.poChangeService.proposeChangeViaToken(token.subjectId, dto);
+  }
+
+  @Get('portal/change-requests')
+  @Public()
+  @RequireAccessToken({
+    expectedPurpose: AccessTokenPurpose.PO_VIEW,
+    expectedSubjectType: AccessTokenSubject.PURCHASE_ORDER,
+  })
+  @ApiOperation({ summary: 'List a PO’s change requests via a tokenised link (no login)' })
+  @ApiResponse({ status: 200, description: 'List of change requests' })
+  @ApiResponse({ status: 403, description: 'Token missing, expired, revoked, or invalid' })
+  async listPublicPoChangeRequests(@CurrentAccessToken() token: AccessToken) {
+    return this.poChangeService.listChangeRequestsViaToken(token.subjectId);
+  }
+
   // ── POST /v1/purchase-orders ──────────────────────────────────────────────
 
   @Post()

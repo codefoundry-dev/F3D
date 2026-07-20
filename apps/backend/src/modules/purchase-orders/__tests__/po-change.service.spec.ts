@@ -426,6 +426,156 @@ describe('PoChangeService', () => {
     });
   });
 
+  // ── proposeChangeViaToken (guest portal) ──────────────────────────────────
+
+  describe('proposeChangeViaToken', () => {
+    const guestPo = {
+      id: 'po-1',
+      status: 'SENT',
+      companyId: 'comp-1',
+      vendorId: 'vendor-comp-1',
+      rfqId: null,
+      poNumber: 'PO-0001',
+      company: { users: [{ email: 'admin@contractor.com' }] },
+      vendor: { legalName: 'VendorCo', tradeName: 'Vendor', contactEmail: 'contact@vendor.com' },
+    };
+
+    const dto = {
+      changeType: 'COMMERCIAL',
+      changedFields: { lineItems: [{ lineItemId: 'li-1', name: 'Item', changes: {} }] },
+      message: 'We can only ship next week',
+    };
+
+    it('throws NotFoundException when PO not found', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(null);
+      await expect(service.proposeChangeViaToken('missing', dto as never)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws BadRequestException when the PO status disallows changes', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ ...guestPo, status: 'DRAFT' });
+      await expect(service.proposeChangeViaToken('po-1', dto as never)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('creates a CR with no requester user, attributed by the vendor label', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(guestPo);
+      mockPrisma.poChangeRequest.count.mockResolvedValue(2);
+      mockPrisma.poChangeRequest.create.mockImplementation(({ data }: never) => ({
+        id: 'cr-9',
+        purchaseOrderId: 'po-1',
+        reference: (data as { reference: string }).reference,
+        changeType: 'COMMERCIAL',
+        changedFields: dto.changedFields,
+        message: dto.message,
+        status: 'PENDING',
+        reason: null,
+        requestedByLabel: (data as { requestedByLabel: string }).requestedByLabel,
+        resolvedAt: null,
+        createdAt: new Date('2026-07-20T00:00:00.000Z'),
+      }));
+
+      const result = await service.proposeChangeViaToken('po-1', dto as never);
+
+      // Stored with a null requester + the vendor's name as the label.
+      const createArg = mockPrisma.poChangeRequest.create.mock.calls[0][0];
+      expect(createArg.data.requestedById).toBeNull();
+      expect(createArg.data.requestedByLabel).toBe('VendorCo');
+      expect(createArg.data.reference).toBe('CR-003');
+      // The response surfaces the label where a name would normally go.
+      expect(result.requestedByName).toBe('VendorCo');
+    });
+
+    it('audits the proposal as a guest (no performedById) with a label', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(guestPo);
+      mockPrisma.poChangeRequest.create.mockResolvedValue({
+        id: 'cr-9',
+        purchaseOrderId: 'po-1',
+        reference: 'CR-001',
+        changeType: 'COMMERCIAL',
+        changedFields: dto.changedFields,
+        message: dto.message,
+        status: 'PENDING',
+        reason: null,
+        requestedByLabel: 'VendorCo',
+        resolvedAt: null,
+        createdAt: new Date('2026-07-20T00:00:00.000Z'),
+      });
+
+      await service.proposeChangeViaToken('po-1', dto as never);
+
+      const auditArg = mockAuditService.log.mock.calls[0][0];
+      expect(auditArg.performedById).toBeNull();
+      expect(auditArg.performedByLabel).toBeTruthy();
+    });
+
+    it('notifies the contractor admins (never the vendor) with the authenticated link', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(guestPo);
+      mockPrisma.poChangeRequest.create.mockResolvedValue({
+        id: 'cr-9',
+        purchaseOrderId: 'po-1',
+        reference: 'CR-001',
+        changeType: 'COMMERCIAL',
+        changedFields: dto.changedFields,
+        message: dto.message,
+        status: 'PENDING',
+        reason: null,
+        requestedByLabel: 'VendorCo',
+        resolvedAt: null,
+        createdAt: new Date('2026-07-20T00:00:00.000Z'),
+      });
+
+      await service.proposeChangeViaToken('po-1', dto as never);
+
+      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+        'admin@contractor.com',
+        'PO-0001',
+        'VendorCo',
+        'http://localhost:5179/purchase-orders/po-1',
+      );
+      // No tokenised link is minted — the contractor has an account.
+      expect(mockAccessTokensService.issueToken).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── listChangeRequestsViaToken (guest portal) ─────────────────────────────
+
+  describe('listChangeRequestsViaToken', () => {
+    it('throws NotFoundException when PO not found', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(null);
+      await expect(service.listChangeRequestsViaToken('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('returns the shaped change requests without an access check', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ id: 'po-1' });
+      mockPrisma.poChangeRequest.findMany.mockResolvedValue([
+        {
+          id: 'cr-1',
+          purchaseOrderId: 'po-1',
+          reference: 'CR-001',
+          changeType: 'COMMERCIAL',
+          changedFields: { fields: {} },
+          message: null,
+          status: 'PENDING',
+          reason: null,
+          requestedByLabel: 'VendorCo',
+          resolvedAt: null,
+          createdAt: new Date('2026-07-20T00:00:00.000Z'),
+          requestedBy: null,
+          resolvedBy: null,
+        },
+      ]);
+
+      const result = await service.listChangeRequestsViaToken('po-1');
+      expect(result).toHaveLength(1);
+      expect(result[0].requestedByName).toBe('VendorCo');
+    });
+  });
+
   // ── listChangeRequests ────────────────────────────────────────────────────
 
   describe('listChangeRequests', () => {
@@ -889,6 +1039,31 @@ describe('PoChangeService', () => {
         'vendor@test.com',
         'PO-0001',
         'http://localhost:5179/purchase-orders/po-1',
+      );
+    });
+
+    it('notifies the vendor with a tokenised link when the requester was a guest', async () => {
+      // A guest-proposed CR has no requester user (requestedById null); the
+      // outcome must still reach the vendor via a tokenised portal link.
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue(
+        pendingCr({ requestedById: null, requestedBy: null }),
+      );
+      mockTx.poLineItem.findMany.mockResolvedValue([]);
+      mockPrisma.user.findUnique.mockResolvedValue({ name: 'CA Admin' }); // resolver only
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        poNumber: 'PO-0001',
+        vendorId: 'vendor-comp-1',
+        rfqId: null,
+        vendor: { contactEmail: 'contact@vendor.com', users: [] },
+      });
+
+      await service.approveChange('po-1', 'cr-1', companyAdmin);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendChangeRequestApprovedEmail).toHaveBeenCalledWith(
+        'contact@vendor.com',
+        'PO-0001',
+        'http://localhost:5179/po/crtoken1234567890.secretsecretsecret',
       );
     });
   });

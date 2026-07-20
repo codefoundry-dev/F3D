@@ -53,6 +53,8 @@ const mockChangeService = {
   listChangeRequests: jest.fn(),
   approveChange: jest.fn(),
   rejectChange: jest.fn(),
+  proposeChangeViaToken: jest.fn(),
+  listChangeRequestsViaToken: jest.fn(),
 };
 
 const mockUser = {
@@ -344,6 +346,88 @@ describe('PurchaseOrdersController', () => {
 
       const result = await controller.deleteDocument('po-1', 'doc-1', mockUser);
       expect(mockDocumentService.deleteDocument).toHaveBeenCalledWith('po-1', 'doc-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  // ── PO Change Request endpoints ────────────────────────────────────────────
+  // Both parties (contractor + vendor) hit these authenticated routes; the
+  // controller just forwards the caller to the change service, which owns the
+  // access + self-approval rules.
+
+  describe('proposePoChange', () => {
+    it('delegates to change service', async () => {
+      const expected = { id: 'cr-1', reference: 'CR-001', status: 'PENDING' };
+      mockChangeService.proposeChange.mockResolvedValue(expected);
+      const dto = {
+        changeType: 'COMMERCIAL',
+        changedFields: { fields: { paymentTermsDays: { from: 30, to: 45 } } },
+        message: 'Revised terms',
+      };
+
+      const result = await controller.proposePoChange('po-1', dto as never, mockUser);
+      expect(mockChangeService.proposeChange).toHaveBeenCalledWith('po-1', dto, mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('listPoChangeRequests', () => {
+    it('delegates to change service', async () => {
+      const expected = [{ id: 'cr-1', status: 'PENDING' }];
+      mockChangeService.listChangeRequests.mockResolvedValue(expected);
+
+      const result = await controller.listPoChangeRequests('po-1', mockUser);
+      expect(mockChangeService.listChangeRequests).toHaveBeenCalledWith('po-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('approvePoChange', () => {
+    it('delegates to change service', async () => {
+      const expected = { approved: true };
+      mockChangeService.approveChange.mockResolvedValue(expected);
+
+      const result = await controller.approvePoChange('po-1', 'cr-1', mockUser);
+      expect(mockChangeService.approveChange).toHaveBeenCalledWith('po-1', 'cr-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('rejectPoChange', () => {
+    it('delegates to change service', async () => {
+      const expected = { rejected: true };
+      mockChangeService.rejectChange.mockResolvedValue(expected);
+      const dto = { reason: 'Price too high' };
+
+      const result = await controller.rejectPoChange('po-1', 'cr-1', dto as never, mockUser);
+      expect(mockChangeService.rejectChange).toHaveBeenCalledWith('po-1', 'cr-1', dto, mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('tokenised guest PO change requests', () => {
+    // Resolved from the token subject (never a path param), like the other
+    // portal actions — a token only ever reaches its own PO.
+    const token = { id: 'tok-1', subjectId: 'po-99' };
+
+    it('proposePublicPoChange proposes for the token subject', async () => {
+      const expected = { id: 'cr-9', reference: 'CR-001', status: 'PENDING' };
+      mockChangeService.proposeChangeViaToken.mockResolvedValue(expected);
+      const dto = { changeType: 'COMMERCIAL', changedFields: { fields: {} } };
+
+      const result = await controller.proposePublicPoChange(token as never, dto as never);
+
+      expect(mockChangeService.proposeChangeViaToken).toHaveBeenCalledWith('po-99', dto);
+      expect(result).toEqual(expected);
+    });
+
+    it('listPublicPoChangeRequests lists for the token subject', async () => {
+      const expected = [{ id: 'cr-9', status: 'PENDING' }];
+      mockChangeService.listChangeRequestsViaToken.mockResolvedValue(expected);
+
+      const result = await controller.listPublicPoChangeRequests(token as never);
+
+      expect(mockChangeService.listChangeRequestsViaToken).toHaveBeenCalledWith('po-99');
       expect(result).toEqual(expected);
     });
   });

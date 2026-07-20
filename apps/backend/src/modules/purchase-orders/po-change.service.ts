@@ -47,6 +47,14 @@ interface ChangedFields {
 }
 
 /**
+ * Audit-trail + attribution label for a change request proposed by a vendor
+ * through a tokenised portal link — the actor has no user account, so this human
+ * label stands in for `requestedById` / `performedById` (mirrors the FOR-247
+ * guest PO-action pattern in po-status.service.ts).
+ */
+const GUEST_VENDOR_ACTOR_LABEL = 'Vendor (portal link)';
+
+/**
  * PO-level fields a change request may modify, mapped from the camelCase key in
  * `changedFields.fields` to a typed coercion of the `to` value into a Prisma
  * update. Anything not in this allowlist is ignored when applying — a change
@@ -217,7 +225,76 @@ export class PoChangeService {
 
     // Notify the other party (fire-and-forget).
     const proposedBy = changeRequest.requestedBy?.name ?? 'A user';
-    this.notifyChangeProposed(po, user, proposedBy).catch(() => {});
+    this.notifyChangeProposed(po, user.role === UserRole.VENDOR, user.id, proposedBy).catch(
+      () => {},
+    );
+
+    return this.toChangeRequestResponse(changeRequest);
+  }
+
+  // ── Propose a change via the tokenised portal (guest vendor, no login) ──────
+
+  /**
+   * Guest counterpart to {@link proposeChange}. The validated PO_VIEW access
+   * token already binds the request to this exact PO (the caller never names an
+   * id), so the token IS the authorization — there is no user / ownership check
+   * (mirrors the FOR-247 guest PO actions). The proposer has no account, so the
+   * CR is attributed by `requestedByLabel` (the vendor's name) and the contractor
+   * is notified with the authenticated link.
+   */
+  async proposeChangeViaToken(poId: string, dto: CreatePoChangeRequestDto) {
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id: poId },
+      select: {
+        id: true,
+        status: true,
+        companyId: true,
+        vendorId: true,
+        rfqId: true,
+        poNumber: true,
+        company: {
+          select: {
+            users: { where: { role: UserRole.COMPANY_ADMIN }, select: { email: true } },
+          },
+        },
+        vendor: { select: { legalName: true, tradeName: true, contactEmail: true } },
+      },
+    });
+    if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
+
+    const allowedStatuses: PoStatus[] = [PoStatus.SENT, PoStatus.ACKNOWLEDGED, PoStatus.ACCEPTED];
+    if (!allowedStatuses.includes(po.status)) {
+      throw new BadRequestException(`Cannot propose changes: PO status is ${po.status}`);
+    }
+
+    const vendorLabel = po.vendor?.legalName ?? po.vendor?.tradeName ?? GUEST_VENDOR_ACTOR_LABEL;
+    const reference = await this.nextChangeReference(poId);
+
+    const changeRequest = await this.prisma.poChangeRequest.create({
+      data: {
+        purchaseOrderId: poId,
+        reference,
+        changeType: dto.changeType as PoChangeType,
+        changedFields: (dto.changedFields ?? {}) as object,
+        message: dto.message ?? null,
+        status: PoChangeRequestStatus.PENDING,
+        requestedById: null,
+        requestedByLabel: vendorLabel,
+      },
+    });
+
+    await this.auditService.log({
+      action: AuditAction.PO_CHANGE_PROPOSED,
+      performedById: null,
+      performedByLabel: GUEST_VENDOR_ACTOR_LABEL,
+      targetType: 'PurchaseOrder',
+      targetId: poId,
+      metadata: { changeRequestId: changeRequest.id, reference },
+    });
+
+    // A guest proposal is always vendor→contractor: notify the contractor admins
+    // (they have accounts, so the authenticated link is right; nothing to mint).
+    this.notifyChangeProposed(po, true, null, vendorLabel).catch(() => {});
 
     return this.toChangeRequestResponse(changeRequest);
   }
@@ -240,16 +317,20 @@ export class PoChangeService {
       rfqId: string | null;
       company: { users: Array<{ email: string }> } | null;
       vendor: {
-        contactEmail: string | null;
+        contactEmail?: string | null;
         users?: Array<{ email: string; status: string }>;
       } | null;
     },
-    user: AuthenticatedUser,
+    proposerIsVendor: boolean,
+    // Non-null only for an authenticated contractor proposer — used to mint the
+    // tokenised link for unactivated vendor recipients. Guests never reach the
+    // vendor-recipient branch (their proposal notifies the contractor).
+    proposerUserId: string | null,
     proposedBy: string,
   ): Promise<void> {
     const authenticatedUrl = `${this.webAppUrl}/purchase-orders/${po.id}`;
 
-    if (user.role === UserRole.VENDOR) {
+    if (proposerIsVendor) {
       await Promise.all(
         (po.company?.users ?? []).map((u) =>
           this.emailService.sendChangeRequestProposedEmail(
@@ -280,9 +361,10 @@ export class PoChangeService {
     );
     if (recipients.length === 0) return;
 
-    const tokenisedUrl = recipients.some((r) => !r.activated)
-      ? await this.mintPoViewUrl(po.id, user.id)
-      : null;
+    const tokenisedUrl =
+      recipients.some((r) => !r.activated) && proposerUserId
+        ? await this.mintPoViewUrl(po.id, proposerUserId)
+        : null;
 
     await Promise.all(
       recipients.map((r) =>
@@ -329,6 +411,30 @@ export class PoChangeService {
     if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
 
     this.validateAccess(po, user);
+
+    const requests = await this.prisma.poChangeRequest.findMany({
+      where: { purchaseOrderId: poId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        requestedBy: { select: { id: true, name: true, company: { select: { legalName: true } } } },
+        resolvedBy: { select: { id: true, name: true } },
+      },
+    });
+
+    return requests.map((cr) => this.toChangeRequestResponse(cr));
+  }
+
+  /**
+   * Guest counterpart to {@link listChangeRequests} — the PO_VIEW token binds the
+   * request to this PO, so no user/access check is needed. Lets the tokenised
+   * portal show the vendor its proposed change(s) and their resolution status.
+   */
+  async listChangeRequestsViaToken(poId: string) {
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id: poId },
+      select: { id: true },
+    });
+    if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
 
     const requests = await this.prisma.poChangeRequest.findMany({
       where: { purchaseOrderId: poId },
@@ -444,7 +550,7 @@ export class PoChangeService {
     });
 
     // Notify the requester that their change was approved (fire-and-forget)
-    this.notifyChangeRequestRequester(cr.requestedById, poId, 'approved').catch(() => {});
+    this.notifyChangeRequestRequester(cr.requestedById, poId, 'approved', user.id).catch(() => {});
 
     return { approved: true };
   }
@@ -506,7 +612,7 @@ export class PoChangeService {
     });
 
     // Notify the requester that their change was rejected (fire-and-forget)
-    this.notifyChangeRequestRequester(cr.requestedById, poId, 'rejected').catch(() => {});
+    this.notifyChangeRequestRequester(cr.requestedById, poId, 'rejected', user.id).catch(() => {});
 
     return { rejected: true };
   }
@@ -543,6 +649,7 @@ export class PoChangeService {
     reason: string | null;
     resolvedAt: Date | null;
     createdAt: Date;
+    requestedByLabel?: string | null;
     requestedBy?: { id: string; name: string; company?: { legalName: string } | null } | null;
     resolvedBy?: { id: string; name: string } | null;
   }) {
@@ -555,38 +662,91 @@ export class PoChangeService {
       message: cr.message,
       status: cr.status,
       reason: cr.reason,
-      requestedByName: cr.requestedBy?.name ?? null,
-      requestedByCompanyName: cr.requestedBy?.company?.legalName ?? null,
+      // Guest (tokenised) proposers have no user — fall back to the stored label.
+      requestedByName: cr.requestedBy?.name ?? cr.requestedByLabel ?? null,
+      requestedByCompanyName: cr.requestedBy?.company?.legalName ?? cr.requestedByLabel ?? null,
       resolvedByName: cr.resolvedBy?.name ?? null,
       resolvedAt: cr.resolvedAt?.toISOString() ?? null,
       createdAt: cr.createdAt.toISOString(),
     };
   }
 
+  /**
+   * Tell the change-request requester the outcome (approved/rejected). An
+   * authenticated requester (contractor, or a vendor with an account) is emailed
+   * directly with the authenticated link. A guest (tokenised) requester has no
+   * account (`requestedById` is null), so the vendor's recipients are notified
+   * instead, with a tokenised portal link for anyone not yet activated —
+   * `resolverUserId` is the approver/rejecter, used to mint that link.
+   */
   private async notifyChangeRequestRequester(
-    requestedById: string,
+    requestedById: string | null,
     poId: string,
     outcome: 'approved' | 'rejected',
+    resolverUserId: string,
   ): Promise<void> {
-    const requester = await this.prisma.user.findUnique({
-      where: { id: requestedById },
-      select: { email: true, role: true },
-    });
-    if (!requester) return;
-
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id: poId },
-      select: { poNumber: true },
+      select: {
+        poNumber: true,
+        vendorId: true,
+        rfqId: true,
+        vendor: {
+          select: {
+            contactEmail: true,
+            users: { where: { role: UserRole.VENDOR }, select: { email: true, status: true } },
+          },
+        },
+      },
     });
     if (!po) return;
 
-    const viewUrl = `${this.webAppUrl}/purchase-orders/${poId}`;
+    const authenticatedUrl = `${this.webAppUrl}/purchase-orders/${poId}`;
+    const send = (email: string, url: string) =>
+      outcome === 'approved'
+        ? this.emailService.sendChangeRequestApprovedEmail(email, po.poNumber, url)
+        : this.emailService.sendChangeRequestRejectedEmail(email, po.poNumber, url);
 
-    if (outcome === 'approved') {
-      await this.emailService.sendChangeRequestApprovedEmail(requester.email, po.poNumber, viewUrl);
-    } else {
-      await this.emailService.sendChangeRequestRejectedEmail(requester.email, po.poNumber, viewUrl);
+    // Authenticated requester → email them directly.
+    if (requestedById) {
+      const requester = await this.prisma.user.findUnique({
+        where: { id: requestedById },
+        select: { email: true },
+      });
+      if (!requester) return;
+      await send(requester.email, authenticatedUrl);
+      return;
     }
+
+    // Guest (tokenised) requester → notify the vendor's recipients. Mirrors the
+    // vendor branch of notifyChangeProposed: RFQ sales reps win, else vendor
+    // users / contact email; unactivated recipients get a fresh tokenised link.
+    const selectedReps =
+      po.rfqId && po.vendorId
+        ? (
+            await this.prisma.rfqVendorContact.findMany({
+              where: { rfqVendor: { rfqId: po.rfqId, vendorId: po.vendorId } },
+              select: { user: { select: { email: true, status: true } } },
+            })
+          ).map((c) => c.user)
+        : [];
+
+    const recipients = resolveVendorRecipientsWithState(
+      selectedReps,
+      po.vendor?.users ?? [],
+      po.vendor?.contactEmail,
+    );
+    if (recipients.length === 0) return;
+
+    const tokenisedUrl = recipients.some((r) => !r.activated)
+      ? await this.mintPoViewUrl(poId, resolverUserId)
+      : null;
+
+    await Promise.all(
+      recipients.map((r) =>
+        send(r.email, !r.activated && tokenisedUrl ? tokenisedUrl : authenticatedUrl),
+      ),
+    );
   }
 
   private validateAccess(

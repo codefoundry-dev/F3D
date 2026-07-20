@@ -21,6 +21,7 @@ export const ROUTES = {
   resetPassword: '/reset-password',
   guestInvitation: '/invitation/:token',
   guestPurchaseOrder: '/po/:token',
+  guestPurchaseOrderChangeRequest: '/po/:token/change-request',
   guestDelivery: '/delivery/:token',
   forbidden: '/forbidden',
 

@@ -26,8 +26,13 @@ vi.mock('@forethread/i18n', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
+const mockCrState = vi.hoisted(() => ({
+  value: { data: [] as Array<Record<string, unknown>>, isLoading: false },
+}));
+
 vi.mock('@forethread/po-shared', () => ({
   usePurchaseOrder: () => mockPoState.value,
+  usePoChangeRequests: () => mockCrState.value,
   usePoActionLog: () => ({ logs: [], isLoading: false }),
   PoDetailTabs: ({
     activeTab,
@@ -52,7 +57,10 @@ vi.mock('@forethread/po-shared', () => ({
   PoLineItemsTab: () => <div>line-items-tab</div>,
   PoDocumentsTab: () => <div>documents-tab</div>,
   PoMessagesTab: () => <div>messages-tab</div>,
+  PoActionLogTab: () => <div>action-log-tab</div>,
   PoPurchaseOrdersTab: () => <div>purchase-orders-tab</div>,
+  PoChangeRequestTab: () => <div>change-request-tab</div>,
+  PoChangeRequestTabLoading: () => <div>change-request-loading</div>,
 }));
 
 vi.mock('@forethread/rfq-shared', () => ({
@@ -94,6 +102,7 @@ function renderWithProviders(ui: React.ReactElement, { initialEntries = ['/'] } 
 describe('PurchaseOrderDetailPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCrState.value = { data: [], isLoading: false };
     mockPoState.value = {
       data: {
         id: 'po-123',
@@ -199,5 +208,17 @@ describe('PurchaseOrderDetailPage', () => {
   it('falls back to details tab for invalid tab param', () => {
     renderWithProviders(<PurchaseOrderDetailPage />, { initialEntries: ['?tab=invalidTab'] });
     expect(screen.getByText('details-tab')).toBeInTheDocument();
+  });
+
+  it('does not surface the change-request tab without a pending CR', () => {
+    renderWithProviders(<PurchaseOrderDetailPage />, { initialEntries: ['?tab=changeRequest'] });
+    // With no pending CR the tab is not valid, so it falls back to details.
+    expect(screen.getByText('details-tab')).toBeInTheDocument();
+  });
+
+  it('renders the change-request review tab when a pending CR exists', () => {
+    mockCrState.value = { data: [{ id: 'cr-1', status: 'PENDING' }], isLoading: false };
+    renderWithProviders(<PurchaseOrderDetailPage />, { initialEntries: ['?tab=changeRequest'] });
+    expect(screen.getByText('change-request-tab')).toBeInTheDocument();
   });
 });

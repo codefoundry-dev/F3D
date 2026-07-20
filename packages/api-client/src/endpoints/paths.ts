@@ -151,6 +151,8 @@ export const PURCHASE_ORDERS_PATHS = {
   portalAcknowledge: '/purchase-orders/portal/acknowledge',
   portalAccept: '/purchase-orders/portal/accept',
   portalDecline: '/purchase-orders/portal/decline',
+  // Tokenised guest PO change-request propose/list — public, same token.
+  portalChangeRequests: '/purchase-orders/portal/change-requests',
   changeRequests: (id: string) => `/purchase-orders/${id}/change-requests`,
   approveChange: (id: string, crId: string) =>
     `/purchase-orders/${id}/change-requests/${crId}/approve`,
