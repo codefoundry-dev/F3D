@@ -248,7 +248,7 @@ jobs:
           # just deployed regardless of DNS propagation. Envs with no domain
           # (http-only Caddy) fall back to the bare IP, which serves every Host.
           case "${TARGET_ENV}" in
-            staging) DOMAIN="api-main.forethread.com" ;;
+            staging) DOMAIN="api-stage.forethread.com" ;;
             prod)    DOMAIN="api.forethread.com" ;;
             *)       DOMAIN="" ;;
           esac

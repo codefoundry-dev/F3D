@@ -81,8 +81,10 @@ SENTRY_DSN=$(sm_get "${SECRETS_PREFIX}/sentry-dsn" 2>/dev/null || echo "")
 # hard-coded to the staging values for EVERY env, which made prod emit api-main
 # links in emails/portal URLs and allow only the staging frontend origin. Split
 # per-env here:
-#   prod    -> api.forethread.com      + forethread-main.vercel.app (prod frontend)
-#   staging -> api-main.forethread.com + the dev-branch preview (staging frontend)
+#   prod    -> api.forethread.com      + forethread-main.vercel.app / app.forethread.com
+#   staging -> api-stage.forethread.com + dev-app.forethread.com (dev-branch preview)
+# During the api-main -> api-stage rename the staging box still serves api-main too
+# (see CADDY_SITES in each case); drop it once links/bookmarks have moved.
 # RESEND_FROM is the same verified sender domain in every env.
 #
 # Note: CORS is an exact-match list; only the stable dev-branch alias is allowed
@@ -92,12 +94,23 @@ case "${ENV}" in
   prod)
     APP_URL="https://api.forethread.com"
     WEB_APP_URL="https://forethread-main.vercel.app"
-    CORS_ORIGINS="https://forethread-main.vercel.app"
+    # Branded frontend domain (app.forethread.com) pre-staged alongside the
+    # .vercel.app origin so it is already allow-listed the moment its DNS goes
+    # live. Keep BOTH during the transition; drop the .vercel.app origin only
+    # once the branded domain is the sole prod frontend URL. WEB_APP_URL stays
+    # on .vercel.app until the branded domain is confirmed serving.
+    CORS_ORIGINS="https://forethread-main.vercel.app,https://app.forethread.com"
+    CADDY_SITES="api.forethread.com"
     ;;
   staging)
-    APP_URL="https://api-main.forethread.com"
-    WEB_APP_URL="https://forethread-main-git-dev-codefoundry.vercel.app"
-    CORS_ORIGINS="https://forethread-main-git-dev-codefoundry.vercel.app"
+    # Canonical staging backend host is now api-stage; the box still serves
+    # api-main too (CADDY_SITES below) until that name is retired.
+    APP_URL="https://api-stage.forethread.com"
+    WEB_APP_URL="https://dev-app.forethread.com"
+    # dev-app.forethread.com is live alongside the raw dev-branch preview alias;
+    # both are CORS-allowed during the transition.
+    CORS_ORIGINS="https://forethread-main-git-dev-codefoundry.vercel.app,https://dev-app.forethread.com"
+    CADDY_SITES="api-main.forethread.com, api-stage.forethread.com"
     ;;
   *)
     # Unknown env (local/experimental box, no public domain): fall back to
@@ -105,6 +118,7 @@ case "${ENV}" in
     APP_URL="http://localhost:3000"
     WEB_APP_URL="http://localhost:5173"
     CORS_ORIGINS="http://localhost:5173"
+    CADDY_SITES=""
     ;;
 esac
 
@@ -229,7 +243,60 @@ log "docker compose up -d backend..."
 docker compose up -d backend
 
 ############################################
-# 6b. Install the DB-credential reconciler (self-heals after secret rotation)
+# 6b. Reconcile the Caddy reverse-proxy config (declarative, per-env)
+############################################
+#
+# The box's /opt/forethread-backend/Caddyfile was historically hand-edited on the
+# host and drifted from git — nothing deployed it, since this script otherwise only
+# manages the backend container. That made a hostname change (e.g. the api-main ->
+# api-stage rename) a manual, error-prone box edit. Render it from CADDY_SITES and
+# apply only when it actually changed, so the reverse-proxy config is versioned and
+# a rename is a one-line change here + a deploy. NOTE: a graceful `caddy reload` was
+# observed NOT to pick up new site names on this box, so we restart the caddy
+# container on change. Change is rare — a normal deploy renders identical bytes and
+# is a no-op (no restart, no blip).
+if [ -n "${CADDY_SITES:-}" ]; then
+  CADDY_FILE=/opt/forethread-backend/Caddyfile
+  CADDY_TMP="$(mktemp)"
+  cat > "$CADDY_TMP" <<CADDYEOF
+# Domain configured - Caddy obtains a real Let's Encrypt cert via HTTP-01 and
+# auto-redirects HTTP -> HTTPS.
+${CADDY_SITES} {
+  encode gzip
+  @connect {
+    method CONNECT
+  }
+  respond @connect "" 405
+  reverse_proxy backend:3000
+  log {
+    output file /var/log/caddy/access.log
+  }
+}
+CADDYEOF
+  if [ -f "$CADDY_FILE" ] && cmp -s "$CADDY_TMP" "$CADDY_FILE"; then
+    log "Caddyfile already current (${CADDY_SITES}); Caddy left running"
+    rm -f "$CADDY_TMP"
+  else
+    CN="$(docker ps --filter name=caddy --format '{{.Names}}' | head -1)"
+    if [ -f "$CADDY_FILE" ]; then
+      cp -a "$CADDY_FILE" "${CADDY_FILE}.bak-$(date -u +%Y%m%d-%H%M%S)"
+    fi
+    mv "$CADDY_TMP" "$CADDY_FILE"
+    log "Caddyfile updated -> ${CADDY_SITES}"
+    if [ -z "$CN" ]; then
+      log "WARNING: no caddy container found; wrote Caddyfile but could not reload it"
+    elif docker exec "$CN" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile; then
+      docker restart "$CN"
+      log "Caddy restarted with updated config"
+    else
+      log "ERROR: caddy validate failed; restoring previous Caddyfile"
+      cp -a "$(ls -t "${CADDY_FILE}".bak-* | head -1)" "$CADDY_FILE"
+    fi
+  fi
+fi
+
+############################################
+# 6c. Install the DB-credential reconciler (self-heals after secret rotation)
 ############################################
 #
 # The RDS master secret has managed rotation (every 7 days). This deploy bakes
