@@ -83,8 +83,11 @@ SENTRY_DSN=$(sm_get "${SECRETS_PREFIX}/sentry-dsn" 2>/dev/null || echo "")
 # per-env here:
 #   prod    -> api.forethread.com      + forethread-main.vercel.app / app.forethread.com
 #   staging -> api-stage.forethread.com + dev-app.forethread.com (dev-branch preview)
-# During the api-main -> api-stage rename the staging box still serves api-main too
-# (see CADDY_SITES in each case); drop it once links/bookmarks have moved.
+# api-main was retired 2026-07-23 (removed from staging CADDY_SITES below).
+# NOTE: Terraform still seeds a fresh staging box with domain_name=api-main
+# (infrastructure/envs/staging/variables.tf); update it to api-stage at the next
+# instance replacement, else a re-provision briefly serves the retired name until
+# the first deploy's Caddy reconcile fixes it.
 # RESEND_FROM is the same verified sender domain in every env.
 #
 # Note: CORS is an exact-match list; only the stable dev-branch alias is allowed
@@ -103,14 +106,14 @@ case "${ENV}" in
     CADDY_SITES="api.forethread.com"
     ;;
   staging)
-    # Canonical staging backend host is now api-stage; the box still serves
-    # api-main too (CADDY_SITES below) until that name is retired.
+    # Sole staging backend host is api-stage (api-main retired: removed from
+    # CADDY_SITES below; delete its GoDaddy DNS record to finish the cutover).
     APP_URL="https://api-stage.forethread.com"
     WEB_APP_URL="https://dev-app.forethread.com"
     # dev-app.forethread.com is live alongside the raw dev-branch preview alias;
-    # both are CORS-allowed during the transition.
+    # both are CORS-allowed.
     CORS_ORIGINS="https://forethread-main-git-dev-codefoundry.vercel.app,https://dev-app.forethread.com"
-    CADDY_SITES="api-main.forethread.com, api-stage.forethread.com"
+    CADDY_SITES="api-stage.forethread.com"
     ;;
   *)
     # Unknown env (local/experimental box, no public domain): fall back to
