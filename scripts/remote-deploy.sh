@@ -96,12 +96,11 @@ SENTRY_DSN=$(sm_get "${SECRETS_PREFIX}/sentry-dsn" 2>/dev/null || echo "")
 case "${ENV}" in
   prod)
     APP_URL="https://api.forethread.com"
-    WEB_APP_URL="https://forethread-main.vercel.app"
-    # Branded frontend domain (app.forethread.com) pre-staged alongside the
-    # .vercel.app origin so it is already allow-listed the moment its DNS goes
-    # live. Keep BOTH during the transition; drop the .vercel.app origin only
-    # once the branded domain is the sole prod frontend URL. WEB_APP_URL stays
-    # on .vercel.app until the branded domain is confirmed serving.
+    # Branded prod frontend. Email/portal links now use app.forethread.com
+    # (confirmed serving + CORS-allowed). forethread-main.vercel.app stays in
+    # CORS_ORIGINS as a fallback origin during the transition; drop it once the
+    # branded domain is the sole prod frontend URL.
+    WEB_APP_URL="https://app.forethread.com"
     CORS_ORIGINS="https://forethread-main.vercel.app,https://app.forethread.com"
     CADDY_SITES="api.forethread.com"
     ;;
