@@ -6,7 +6,8 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", ".expo/**", "build/**"]
+      "outputs": ["dist/**", ".next/**", ".expo/**", "build/**"],
+      "env": ["VITE_API_URL"]
     },
     "dev": {
       "dependsOn": ["^build"],
