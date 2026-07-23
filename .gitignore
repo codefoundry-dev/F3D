@@ -79,3 +79,6 @@ test-results
 tmp/
 temp/
 *.timestamp-*.mjs
+
+.vercel
+.env*
