@@ -74,12 +74,41 @@ SENTRY_DSN=$(sm_get "${SECRETS_PREFIX}/sentry-dsn" 2>/dev/null || echo "")
 # 4. Assemble /etc/forethread/backend.env
 ############################################
 #
-# Values not yet in the SSM contract (APP_URL, WEB_APP_URL, CORS_ORIGINS,
-# RESEND_FROM) are hard-coded sensible defaults. Once DNS is pointed at the
-# Elastic IP and Resend's sender domain is verified, replace these via SSM
-# Parameter Store and re-deploy.
+# Per-environment public URLs. APP_URL is the backend's own public base (behind
+# Caddy), WEB_APP_URL is the deployed frontend used to build links in outbound
+# emails / the vendor tokenised-portal flow, and CORS_ORIGINS is the exact
+# browser origin allowed to send credentialed requests. These were previously
+# hard-coded to the staging values for EVERY env, which made prod emit api-main
+# links in emails/portal URLs and allow only the staging frontend origin. Split
+# per-env here:
+#   prod    -> api.forethread.com      + forethread-main.vercel.app (prod frontend)
+#   staging -> api-main.forethread.com + the dev-branch preview (staging frontend)
+# RESEND_FROM is the same verified sender domain in every env.
+#
+# Note: CORS is an exact-match list; only the stable dev-branch alias is allowed
+# against staging. Add more comma-separated origins here if other preview
+# branches need to call the staging API.
+case "${ENV}" in
+  prod)
+    APP_URL="https://api.forethread.com"
+    WEB_APP_URL="https://forethread-main.vercel.app"
+    CORS_ORIGINS="https://forethread-main.vercel.app"
+    ;;
+  staging)
+    APP_URL="https://api-main.forethread.com"
+    WEB_APP_URL="https://forethread-main-git-dev-codefoundry.vercel.app"
+    CORS_ORIGINS="https://forethread-main-git-dev-codefoundry.vercel.app"
+    ;;
+  *)
+    # Unknown env (local/experimental box, no public domain): fall back to
+    # localhost defaults rather than leaking a prod/staging origin.
+    APP_URL="http://localhost:3000"
+    WEB_APP_URL="http://localhost:5173"
+    CORS_ORIGINS="http://localhost:5173"
+    ;;
+esac
 
-log "Writing /etc/forethread/backend.env"
+log "Writing /etc/forethread/backend.env (env=${ENV}, APP_URL=${APP_URL})"
 install -d -m 0755 /etc/forethread
 
 # Build the env file atomically: write to .tmp, then mv.
@@ -125,11 +154,11 @@ S3_FORCE_PATH_STYLE=false
 # Observability
 SENTRY_DSN=${SENTRY_DSN}
 
-# CORS - the deployed Vercel frontend origin. The web api-client sends cookies
-# (withCredentials: true), so this MUST be the exact origin — a browser rejects
-# "*" with credentialed requests, and NestJS treats ["*"] as a literal (matches
-# nothing). Comma-separate to allow more origins (e.g. preview deploys).
-CORS_ORIGINS=https://forethread-main.vercel.app
+# CORS - the deployed Vercel frontend origin (resolved per-env above). The web
+# api-client sends cookies (withCredentials: true), so this MUST be the exact
+# origin — a browser rejects "*" with credentialed requests, and NestJS treats
+# ["*"] as a literal (matches nothing). Comma-separate to allow more origins.
+CORS_ORIGINS=${CORS_ORIGINS}
 
 # Rate limiting
 THROTTLE_TTL_MS=60000
@@ -145,11 +174,11 @@ GEMINI_MODEL=gemini-2.5-flash
 GEMINI_TIMEOUT_MS=180000
 GEMINI_THINKING_BUDGET=0
 
-# App URLs. APP_URL is the backend's own public base (behind Caddy at the
-# api-main domain); WEB_APP_URL is the deployed frontend, used to build links
-# in outbound emails and the vendor tokenized-portal flow.
-APP_URL=https://api-main.forethread.com
-WEB_APP_URL=https://forethread-main.vercel.app
+# App URLs (resolved per-env above). APP_URL is the backend's own public base
+# (behind Caddy); WEB_APP_URL is the deployed frontend, used to build links in
+# outbound emails and the vendor tokenized-portal flow.
+APP_URL=${APP_URL}
+WEB_APP_URL=${WEB_APP_URL}
 EOF
 
 chmod 0640 /etc/forethread/backend.env.tmp
