@@ -11,6 +11,13 @@ on:
       - '.github/workflows/deploy.yml'
       - 'scripts/remote-deploy.sh'
   workflow_dispatch:
+    # Two manual uses:
+    #   • mode=build   (env=staging|prod) → build THIS commit and deploy it
+    #     (e.g. a prod rollback/hotfix from a specific ref).
+    #   • mode=promote (env=prod)         → PROMOTE: retag the image already
+    #     validated on staging into the prod ECR and deploy it. No rebuild, so
+    #     prod runs the byte-identical artifact staging tested. This is the prod
+    #     gate — a human runs it once the staging deploy looks good.
     inputs:
       env:
         description: 'Environment to deploy'
@@ -18,6 +25,17 @@ on:
         type: choice
         default: staging
         options: [staging, prod]
+      mode:
+        description: 'build = build from this commit · promote = ship the image already tested on staging (use with env=prod)'
+        required: true
+        type: choice
+        default: build
+        options: [build, promote]
+      source_tag:
+        description: 'promote only: staging image tag to promote (default: latest)'
+        required: false
+        type: string
+        default: latest
 
 permissions:
   id-token: write # OIDC -> AWS
@@ -32,6 +50,9 @@ concurrency:
 env:
   AWS_REGION: eu-north-1
   TARGET_ENV: ${{ github.event.inputs.env || 'staging' }}
+  # 'build' on every push (staging CD) and by default; 'promote' only via a
+  # manual prod promotion.
+  DEPLOY_MODE: ${{ github.event.inputs.mode || 'build' }}
 
 jobs:
   build-and-push:
@@ -64,7 +85,18 @@ jobs:
 
       - uses: docker/setup-buildx-action@v4
 
+      # promote ships the exact artifact staging validated — it only makes sense
+      # for prod. Fail fast on a nonsensical promote-to-staging.
+      - name: Guard promote target
+        if: env.DEPLOY_MODE == 'promote' && env.TARGET_ENV != 'prod'
+        run: |
+          echo "::error::mode=promote is only valid with env=prod (it promotes the staging-tested image to prod)."
+          exit 1
+
+      # Default path (and ALWAYS the case for a push): build this commit and push
+      # it to the target env's ECR.
       - name: Build and push
+        if: env.DEPLOY_MODE != 'promote'
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -76,6 +108,28 @@ jobs:
             ${{ steps.meta.outputs.ecr_uri }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Promote path: copy the staging-validated image into the prod ECR *by
+      # digest* (buildx imagetools = server-side manifest copy, no rebuild), so
+      # prod runs the byte-identical artifact. The deploy job then pulls prod
+      # :latest exactly as a normal deploy would (remote-deploy.sh resolves the
+      # prod ECR from SSM and `docker compose pull` fetches :latest).
+      - name: Promote validated staging image to prod
+        if: env.DEPLOY_MODE == 'promote'
+        run: |
+          set -euo pipefail
+          STAGING_ECR="814383264167.dkr.ecr.${AWS_REGION}.amazonaws.com/forethread-staging-backend"
+          SRC="${STAGING_ECR}:${{ github.event.inputs.source_tag || 'latest' }}"
+          DST="${{ steps.meta.outputs.ecr_uri }}"
+          echo "Promoting ${SRC}"
+          echo "     ->  ${DST}:${{ steps.meta.outputs.image_tag }}"
+          echo "     ->  ${DST}:latest"
+          docker buildx imagetools create \
+            --tag "${DST}:${{ steps.meta.outputs.image_tag }}" \
+            --tag "${DST}:latest" \
+            "${SRC}"
+          echo "--- promoted manifest ---"
+          docker buildx imagetools inspect "${DST}:latest" || true
 
   deploy:
     name: ssm deploy (${{ github.event.inputs.env || 'staging' }})
