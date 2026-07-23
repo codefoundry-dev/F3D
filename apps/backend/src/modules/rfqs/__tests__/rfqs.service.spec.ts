@@ -61,6 +61,7 @@ const mockEmailService = {
   sendTemplateEmail: jest.fn(),
   sendRfqReceivedEmail: jest.fn(),
   sendQuoteUpdatedEmail: jest.fn(),
+  sendQuoteSubmittedEmail: jest.fn(),
 };
 
 const mockAccessTokens = {
@@ -170,6 +171,9 @@ describe('RfqsService', () => {
       token: 'issued-token-xyz',
       record: { id: 'tok-1' },
     });
+    // Default: no company logo → unbranded email. Re-set every test because
+    // clearAllMocks keeps a brand override a FOR-288 test may have installed.
+    mockBranding.getEmailBrand.mockResolvedValue(undefined);
   });
 
   // ── listRfqs ────────────────────────────────────────────────────────────
@@ -3667,6 +3671,7 @@ describe('RfqsService', () => {
         'ABCDEF12',
         'VendorCo',
         expect.any(String),
+        undefined,
       );
     });
 
@@ -3681,6 +3686,73 @@ describe('RfqsService', () => {
       await expect(
         service.notifyContractorOfQuoteUpdate('rfq-1', 'VendorCo'),
       ).resolves.toBeUndefined();
+    });
+
+    it('forwards the issuing company brand on the quote-updated email (FOR-288)', async () => {
+      const brand = { name: 'TestCo', logoUrl: 'https://cdn.test/testco.png' };
+      mockPrisma.rfq.findUnique.mockResolvedValue({ rfqNumber: 'RFQ-100', companyId: 'comp-1' });
+      mockPrisma.user.findMany.mockResolvedValue([{ email: 'ca@test.com' }]);
+      mockBranding.getEmailBrand.mockResolvedValue(brand);
+      mockEmailService.sendQuoteUpdatedEmail.mockResolvedValue(undefined);
+
+      await service.notifyContractorOfQuoteUpdate('rfq-1', 'VendorCo');
+
+      // Resolved from the RFQ's own (issuing/buyer) company id.
+      expect(mockBranding.getEmailBrand).toHaveBeenCalledWith('comp-1');
+      expect(mockEmailService.sendQuoteUpdatedEmail).toHaveBeenCalledWith(
+        'ca@test.com',
+        'RFQ-100',
+        'VendorCo',
+        expect.any(String),
+        brand,
+      );
+    });
+  });
+
+  // ── notifyContractorOfQuoteSubmission ────────────────────────────────────
+
+  describe('notifyContractorOfQuoteSubmission', () => {
+    it('emails contractor users with the RFQ number and no brand by default', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue({ rfqNumber: 'RFQ-200', companyId: 'comp-1' });
+      mockPrisma.user.findMany.mockResolvedValue([{ email: 'ca@test.com' }]);
+      mockEmailService.sendQuoteSubmittedEmail.mockResolvedValue(undefined);
+
+      await service.notifyContractorOfQuoteSubmission('rfq-1', 'VendorCo');
+
+      expect(mockEmailService.sendQuoteSubmittedEmail).toHaveBeenCalledWith(
+        'ca@test.com',
+        'RFQ-200',
+        'VendorCo',
+        expect.any(String),
+        undefined,
+      );
+    });
+
+    it('forwards the issuing company brand on the quote-submitted email (FOR-288)', async () => {
+      const brand = { name: 'TestCo', logoUrl: 'https://cdn.test/testco.png' };
+      mockPrisma.rfq.findUnique.mockResolvedValue({ rfqNumber: 'RFQ-200', companyId: 'comp-1' });
+      mockPrisma.user.findMany.mockResolvedValue([{ email: 'ca@test.com' }]);
+      mockBranding.getEmailBrand.mockResolvedValue(brand);
+      mockEmailService.sendQuoteSubmittedEmail.mockResolvedValue(undefined);
+
+      await service.notifyContractorOfQuoteSubmission('rfq-1', 'VendorCo');
+
+      expect(mockBranding.getEmailBrand).toHaveBeenCalledWith('comp-1');
+      expect(mockEmailService.sendQuoteSubmittedEmail).toHaveBeenCalledWith(
+        'ca@test.com',
+        'RFQ-200',
+        'VendorCo',
+        expect.any(String),
+        brand,
+      );
+    });
+
+    it('returns early when the rfq is not found', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue(null);
+
+      await service.notifyContractorOfQuoteSubmission('missing', 'VendorCo');
+
+      expect(mockEmailService.sendQuoteSubmittedEmail).not.toHaveBeenCalled();
     });
   });
 });

@@ -54,6 +54,11 @@ const mockConfig = {
   get: jest.fn((_key: string, fallback: string) => fallback),
 };
 
+const mockBranding = {
+  getEmailBrand: jest.fn().mockResolvedValue(undefined),
+  getPdfBrand: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('PoChangeService', () => {
   let service: PoChangeService;
 
@@ -65,11 +70,15 @@ describe('PoChangeService', () => {
       mockEmailService as never,
       mockAccessTokensService as never,
       mockConfig as never,
+      mockBranding as never,
     );
     mockEmailService.sendChangeRequestProposedEmail.mockResolvedValue(undefined);
     mockEmailService.sendChangeRequestApprovedEmail.mockResolvedValue(undefined);
     mockEmailService.sendChangeRequestRejectedEmail.mockResolvedValue(undefined);
     mockAuditService.log.mockResolvedValue(undefined);
+    // Default: no company logo → unbranded email. Re-set every test because
+    // clearAllMocks keeps a brand override a FOR-288 test may have installed.
+    mockBranding.getEmailBrand.mockResolvedValue(undefined);
     mockPrisma.poChangeRequest.count.mockResolvedValue(0);
     // Default: no sales-rep selection on a source RFQ (manual-PO shape), and a
     // fresh PO_VIEW token for unactivated change-request recipients.
@@ -196,6 +205,27 @@ describe('PoChangeService', () => {
         'PO-0001',
         'Vendor User',
         'http://localhost:5179/purchase-orders/po-1',
+        undefined,
+      );
+    });
+
+    it('forwards the issuing company brand on the proposed-change email (FOR-288)', async () => {
+      const brand = { name: 'TestCo', logoUrl: 'https://cdn.test/testco.png' };
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(poWithRelations);
+      mockPrisma.poChangeRequest.create.mockResolvedValue(createdCr());
+      mockBranding.getEmailBrand.mockResolvedValue(brand);
+
+      await service.proposeChange('po-1', dto as never, vendorUser);
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Resolved from the PO's own (issuing/buyer) company id.
+      expect(mockBranding.getEmailBrand).toHaveBeenCalledWith('comp-1');
+      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+        'admin@contractor.com',
+        'PO-0001',
+        'Vendor User',
+        'http://localhost:5179/purchase-orders/po-1',
+        brand,
       );
     });
 
@@ -213,6 +243,7 @@ describe('PoChangeService', () => {
         'PO-0001',
         'CA Admin',
         'http://localhost:5179/purchase-orders/po-1',
+        undefined,
       );
     });
 
@@ -244,6 +275,7 @@ describe('PoChangeService', () => {
         'PO-0001',
         'CA Admin',
         'http://localhost:5179/po/crtoken1234567890.secretsecretsecret',
+        undefined,
       );
     });
 
@@ -271,12 +303,14 @@ describe('PoChangeService', () => {
         'PO-0001',
         'CA Admin',
         'http://localhost:5179/purchase-orders/po-1',
+        undefined,
       );
       expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
         'rep@vendor.com',
         'PO-0001',
         'CA Admin',
         'http://localhost:5179/po/crtoken1234567890.secretsecretsecret',
+        undefined,
       );
     });
 
@@ -318,6 +352,7 @@ describe('PoChangeService', () => {
         'PO-0001',
         'CA Admin',
         'http://localhost:5179/po/crtoken1234567890.secretsecretsecret',
+        undefined,
       );
     });
 
@@ -341,6 +376,7 @@ describe('PoChangeService', () => {
         'PO-0001',
         'CA Admin',
         'http://localhost:5179/purchase-orders/po-1',
+        undefined,
       );
     });
 
@@ -362,6 +398,7 @@ describe('PoChangeService', () => {
         'PO-0001',
         'CA Admin',
         expect.any(String),
+        undefined,
       );
     });
 
@@ -422,6 +459,7 @@ describe('PoChangeService', () => {
         'PO-0001',
         'A user',
         'http://localhost:5179/purchase-orders/po-1',
+        undefined,
       );
     });
   });
@@ -534,6 +572,7 @@ describe('PoChangeService', () => {
         'PO-0001',
         'VendorCo',
         'http://localhost:5179/purchase-orders/po-1',
+        undefined,
       );
       // No tokenised link is minted — the contractor has an account.
       expect(mockAccessTokensService.issueToken).not.toHaveBeenCalled();
@@ -1039,6 +1078,33 @@ describe('PoChangeService', () => {
         'vendor@test.com',
         'PO-0001',
         'http://localhost:5179/purchase-orders/po-1',
+        undefined,
+      );
+    });
+
+    it('forwards the issuing company brand on the approved-change email (FOR-288)', async () => {
+      const brand = { name: 'TestCo', logoUrl: 'https://cdn.test/testco.png' };
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue(pendingCr());
+      mockTx.poLineItem.findMany.mockResolvedValue([]);
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({ name: 'CA Admin' }) // resolver lookup
+        .mockResolvedValueOnce({ email: 'vendor@test.com', role: UserRole.VENDOR }); // requester
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        poNumber: 'PO-0001',
+        companyId: 'comp-1',
+      });
+      mockBranding.getEmailBrand.mockResolvedValue(brand);
+
+      await service.approveChange('po-1', 'cr-1', companyAdmin);
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Resolved from the PO's own (issuing/buyer) company id.
+      expect(mockBranding.getEmailBrand).toHaveBeenCalledWith('comp-1');
+      expect(mockEmailService.sendChangeRequestApprovedEmail).toHaveBeenCalledWith(
+        'vendor@test.com',
+        'PO-0001',
+        'http://localhost:5179/purchase-orders/po-1',
+        brand,
       );
     });
 
@@ -1064,6 +1130,7 @@ describe('PoChangeService', () => {
         'contact@vendor.com',
         'PO-0001',
         'http://localhost:5179/po/crtoken1234567890.secretsecretsecret',
+        undefined,
       );
     });
   });
@@ -1155,6 +1222,7 @@ describe('PoChangeService', () => {
         'vendor@test.com',
         'PO-0001',
         'http://localhost:5179/purchase-orders/po-1',
+        undefined,
       );
     });
 

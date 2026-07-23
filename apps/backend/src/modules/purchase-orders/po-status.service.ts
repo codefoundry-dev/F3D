@@ -1252,6 +1252,9 @@ export class PoStatusService {
     });
     const log = po ? { companyId: po.companyId, purchaseOrderId: poId } : undefined;
 
+    // The issuing company's logo + name, shown atop the decline email (FOR-288).
+    const brand = po ? await this.branding.getEmailBrand(po.companyId) : undefined;
+
     await Promise.all(
       companyAdmins.map((u) =>
         this.emailService.sendPoDeclinedByVendorEmail(
@@ -1261,6 +1264,7 @@ export class PoStatusService {
           viewUrl,
           reason,
           log,
+          brand,
         ),
       ),
     );
@@ -1291,9 +1295,20 @@ export class PoStatusService {
     const viewUrl = `${this.webAppUrl}/purchase-orders/${poId}`;
     const log = { companyId, purchaseOrderId: poId };
 
+    // The issuing company's logo + name, shown atop the approval-request email
+    // (FOR-288). companyId is the PO's own company (the approvers' company).
+    const brand = await this.branding.getEmailBrand(companyId);
+
     await Promise.all(
       recipients.map((email) =>
-        this.emailService.sendPoPendingApprovalEmail(email, po.poNumber, amountLabel, viewUrl, log),
+        this.emailService.sendPoPendingApprovalEmail(
+          email,
+          po.poNumber,
+          amountLabel,
+          viewUrl,
+          log,
+          brand,
+        ),
       ),
     );
   }

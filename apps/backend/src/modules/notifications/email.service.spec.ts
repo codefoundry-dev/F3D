@@ -78,6 +78,23 @@ jest.mock(
       subject: 'Forethread — Quote Updated for {{rfqNumber}}',
       greeting: 'Hello,',
     },
+    quoteSubmitted: {
+      subject: 'Forethread — New Quote for RFQ {{rfqNumber}}',
+      greeting: 'Hello,',
+    },
+    poDeclinedByVendor: {
+      subject: 'Forethread — Purchase Order Declined ({{poNumber}})',
+      greeting: 'Hello,',
+    },
+    poPendingApproval: {
+      subject: 'Forethread — Purchase Order Needs Your Approval ({{poNumber}})',
+      greeting: 'Hello,',
+    },
+    deliveryCode: {
+      subject: 'Forethread — Your Delivery Confirmation Code ({{poNumber}})',
+      greeting: 'Hello,',
+      plainText: 'Your delivery confirmation code for {{poNumber}} is: {{code}}',
+    },
     invitationExpiredNotification: {
       subject: 'Forethread — Invitation Link Expired for {{invitedUserName}}',
       greeting: 'Hi {{name}},',
@@ -625,6 +642,132 @@ describe('EmailService', () => {
       await expect(
         service.sendQuoteUpdatedEmail('user@test.com', 'RFQ-001', 'VendorCo', 'https://view.test'),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  // ── FOR-288: issuing-company branding on transactional emails ──────────────
+  // Every transactional email now carries the issuing company's logo + name. The
+  // layout template (mocked here) is the same shared Handlebars fn for every
+  // template, so asserting it was invoked with `brand` proves the brand was
+  // threaded from the send method into renderEmail's 4th arg.
+  describe('brand forwarding (FOR-288)', () => {
+    const brand = { name: 'Acme Builders', logoUrl: 'https://cdn.test/acme.png' };
+
+    const brandedCalls: Array<[string, () => Promise<void>]> = [
+      [
+        'sendPoPendingApprovalEmail',
+        () =>
+          service.sendPoPendingApprovalEmail(
+            'to@test.com',
+            'PO-1',
+            '100 AUD',
+            'https://view.test',
+            undefined,
+            brand,
+          ),
+      ],
+      [
+        'sendPoDeclinedByVendorEmail',
+        () =>
+          service.sendPoDeclinedByVendorEmail(
+            'to@test.com',
+            'PO-1',
+            'VendorCo',
+            'https://view.test',
+            'out of stock',
+            undefined,
+            brand,
+          ),
+      ],
+      [
+        'sendChangeRequestProposedEmail',
+        () =>
+          service.sendChangeRequestProposedEmail(
+            'to@test.com',
+            'BULK-1',
+            'John Doe',
+            'https://view.test',
+            brand,
+          ),
+      ],
+      [
+        'sendChangeRequestApprovedEmail',
+        () =>
+          service.sendChangeRequestApprovedEmail(
+            'to@test.com',
+            'BULK-1',
+            'https://view.test',
+            brand,
+          ),
+      ],
+      [
+        'sendChangeRequestRejectedEmail',
+        () =>
+          service.sendChangeRequestRejectedEmail(
+            'to@test.com',
+            'BULK-1',
+            'https://view.test',
+            brand,
+          ),
+      ],
+      [
+        'sendBulkOrderCancelledEmail',
+        () => service.sendBulkOrderCancelledEmail('to@test.com', 'BULK-1', 'Admin User', brand),
+      ],
+      [
+        'sendQuoteUpdatedEmail',
+        () =>
+          service.sendQuoteUpdatedEmail(
+            'to@test.com',
+            'RFQ-1',
+            'VendorCo',
+            'https://view.test',
+            brand,
+          ),
+      ],
+      [
+        'sendQuoteSubmittedEmail',
+        () =>
+          service.sendQuoteSubmittedEmail(
+            'to@test.com',
+            'RFQ-1',
+            'VendorCo',
+            'https://view.test',
+            brand,
+          ),
+      ],
+      [
+        'sendDeliveryCodeEmail',
+        () =>
+          service.sendDeliveryCodeEmail(
+            'to@test.com',
+            '123456',
+            new Date(Date.now() + 600000),
+            'PO-1',
+            brand,
+          ),
+      ],
+    ];
+
+    it.each(brandedCalls)(
+      '%s forwards the issuing-company brand (logo + name) to the email layout',
+      async (_name, invoke) => {
+        const layoutFn = require('handlebars').compile();
+
+        await invoke();
+
+        expect(layoutFn).toHaveBeenCalledWith(expect.objectContaining({ brand }));
+      },
+    );
+
+    it('omits the brand from the layout when a transactional email is sent without one', async () => {
+      const layoutFn = require('handlebars').compile();
+
+      await service.sendChangeRequestApprovedEmail('to@test.com', 'BULK-1', 'https://view.test');
+
+      expect(layoutFn).not.toHaveBeenCalledWith(
+        expect.objectContaining({ brand: expect.anything() }),
+      );
     });
   });
 

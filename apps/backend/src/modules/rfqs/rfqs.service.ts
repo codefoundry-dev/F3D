@@ -2209,9 +2209,13 @@ export class RfqsService {
       const rfqNumber = rfq.rfqNumber ?? rfqId.slice(0, 8).toUpperCase();
       const viewUrl = `${this.webAppUrl}/rfqs`;
 
+      // The issuing company's logo + name, shown atop the quote-submitted email
+      // (FOR-288). Caught by the enclosing try/catch, so branding never blocks send.
+      const brand = await this.branding.getEmailBrand(rfq.companyId);
+
       await Promise.all(
         contractors.map((u) =>
-          this.emailService.sendQuoteSubmittedEmail(u.email, rfqNumber, vendorName, viewUrl),
+          this.emailService.sendQuoteSubmittedEmail(u.email, rfqNumber, vendorName, viewUrl, brand),
         ),
       );
     } catch {
@@ -2244,9 +2248,13 @@ export class RfqsService {
 
       const viewUrl = `${this.webAppUrl}/rfqs`;
 
+      // The issuing company's logo + name, shown atop the quote-updated email
+      // (FOR-288). Caught by the enclosing try/catch, so branding never blocks send.
+      const brand = await this.branding.getEmailBrand(rfq.companyId);
+
       await Promise.all(
         contractors.map((u) =>
-          this.emailService.sendQuoteUpdatedEmail(u.email, rfqNumber, vendorName, viewUrl),
+          this.emailService.sendQuoteUpdatedEmail(u.email, rfqNumber, vendorName, viewUrl, brand),
         ),
       );
     } catch {

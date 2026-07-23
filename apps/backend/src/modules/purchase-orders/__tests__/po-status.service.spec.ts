@@ -191,6 +191,11 @@ describe('PoStatusService', () => {
     });
     // Default: no sales-rep selection on a source RFQ (manual-PO shape).
     mockPrisma.rfqVendorContact.findMany.mockResolvedValue([]);
+    // Default: the issuing company has no logo, so emails render unbranded.
+    // Re-set every test because jest.clearAllMocks() keeps implementations that a
+    // brand-forwarding test may have overridden (FOR-288).
+    mockBranding.getEmailBrand.mockResolvedValue(undefined);
+    mockBranding.getPdfBrand.mockResolvedValue(undefined);
   });
 
   describe('approvePurchaseOrder', () => {
@@ -995,6 +1000,34 @@ describe('PoStatusService', () => {
         'http://localhost:5179/purchase-orders/po-1',
         'Out of stock',
         expect.objectContaining({ purchaseOrderId: 'po-1' }),
+        undefined,
+      );
+    });
+
+    it('forwards the issuing company brand on the decline email (FOR-288)', async () => {
+      const brand = { name: 'TestCo', logoUrl: 'https://cdn.test/testco.png' };
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(declinePoBase);
+      mockPrisma.purchaseOrder.update.mockResolvedValue({});
+      mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue({
+        id: 'po-1',
+        status: 'CANCELLED_BY_VENDOR',
+      });
+      mockBranding.getEmailBrand.mockResolvedValue(brand);
+      mockEmailService.sendPoDeclinedByVendorEmail.mockResolvedValue(undefined);
+
+      await service.vendorDeclinePurchaseOrder('po-1', { reason: 'Out of stock' }, vendorUser);
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Resolved from the PO's own (issuing) company id.
+      expect(mockBranding.getEmailBrand).toHaveBeenCalledWith('comp-1');
+      expect(mockEmailService.sendPoDeclinedByVendorEmail).toHaveBeenCalledWith(
+        'admin@contractor.com',
+        'PO-0001',
+        'VendorCo',
+        'http://localhost:5179/purchase-orders/po-1',
+        'Out of stock',
+        expect.objectContaining({ purchaseOrderId: 'po-1' }),
+        brand,
       );
     });
 
@@ -1190,6 +1223,7 @@ describe('PoStatusService', () => {
         expect.any(String),
         'Out of stock',
         expect.objectContaining({ purchaseOrderId: 'po-1' }),
+        undefined,
       );
     });
   });
@@ -2156,6 +2190,34 @@ describe('PoStatusService', () => {
         '30000 AUD',
         'http://localhost:5179/purchase-orders/po-big',
         expect.objectContaining({ companyId: 'comp-1', purchaseOrderId: 'po-big' }),
+        undefined,
+      );
+    });
+
+    it('forwards the issuing company brand on the approval-request email (FOR-288)', async () => {
+      const brand = { name: 'TestCo', logoUrl: 'https://cdn.test/testco.png' };
+      mockPrisma.purchaseOrder.findUnique
+        .mockResolvedValueOnce(heldPo)
+        .mockResolvedValueOnce({ poNumber: 'PO-BIG' });
+      mockPrisma.rolePermission.findMany.mockResolvedValue([
+        { role: UserRole.COMPANY_ADMIN, thresholdAmount: null },
+      ]);
+      mockPrisma.user.findMany.mockResolvedValue([{ email: 'approver@test.com' }]);
+      mockBranding.getEmailBrand.mockResolvedValue(brand);
+      mockEmailService.sendPoPendingApprovalEmail.mockResolvedValue(undefined);
+
+      await service.issuePurchaseOrder('po-big', procurementOfficer);
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Resolved from the held PO's own (issuing) company id.
+      expect(mockBranding.getEmailBrand).toHaveBeenCalledWith('comp-1');
+      expect(mockEmailService.sendPoPendingApprovalEmail).toHaveBeenCalledWith(
+        'approver@test.com',
+        'PO-BIG',
+        '30000 AUD',
+        'http://localhost:5179/purchase-orders/po-big',
+        expect.objectContaining({ companyId: 'comp-1', purchaseOrderId: 'po-big' }),
+        brand,
       );
     });
 
@@ -2205,6 +2267,7 @@ describe('PoStatusService', () => {
         '0 AUD',
         expect.any(String),
         expect.any(Object),
+        undefined,
       );
     });
 
