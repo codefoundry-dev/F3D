@@ -17,6 +17,7 @@ import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { BrandingService } from '../export/branding.service';
 import { EmailService } from '../notifications/email.service';
 
 import { CreateBulkOrderChangeRequestDto, RejectChangeRequestDto } from './bulk-order-change.dto';
@@ -30,6 +31,7 @@ export class BulkOrderChangeService {
     private readonly auditService: AuditService,
     private readonly emailService: EmailService,
     config: ConfigService,
+    private readonly branding: BrandingService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
   }
@@ -393,9 +395,19 @@ export class BulkOrderChangeService {
       const counterpartyRole = isVendorCounterparty ? UserRole.VENDOR : UserRole.COMPANY_ADMIN;
       const viewUrl = `${this.getBulkOrderUrl(bo.id, counterpartyRole)}/review-change`;
 
+      // The issuing (buyer) company's logo + name, shown atop the change-request
+      // email (FOR-288). A branding failure is caught by the enclosing try/catch.
+      const brand = await this.branding.getEmailBrand(bo.companyId);
+
       await Promise.all(
         emails.map((email) =>
-          this.emailService.sendChangeRequestProposedEmail(email, bulkId, proposerName, viewUrl),
+          this.emailService.sendChangeRequestProposedEmail(
+            email,
+            bulkId,
+            proposerName,
+            viewUrl,
+            brand,
+          ),
         ),
       );
     } catch {
@@ -421,18 +433,33 @@ export class BulkOrderChangeService {
         select: { email: true, role: true },
       });
 
+      // The issuing (buyer) company's logo + name, shown atop the resolution email
+      // (FOR-288). A branding failure is caught by the enclosing try/catch.
+      const brand = await this.branding.getEmailBrand(bo.companyId);
+
       await Promise.all(
         users.map((u) => {
           const viewUrl = this.getBulkOrderUrl(bo.id, u.role);
           if (type === 'approved') {
-            return this.emailService.sendChangeRequestApprovedEmail(u.email, bulkId, viewUrl);
+            return this.emailService.sendChangeRequestApprovedEmail(
+              u.email,
+              bulkId,
+              viewUrl,
+              brand,
+            );
           } else if (type === 'rejected') {
-            return this.emailService.sendChangeRequestRejectedEmail(u.email, bulkId, viewUrl);
+            return this.emailService.sendChangeRequestRejectedEmail(
+              u.email,
+              bulkId,
+              viewUrl,
+              brand,
+            );
           } else {
             return this.emailService.sendBulkOrderCancelledEmail(
               u.email,
               bulkId,
               cancelledByName ?? '',
+              brand,
             );
           }
         }),

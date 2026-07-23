@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { AccessTokensModule } from '../access-tokens/access-tokens.module';
 import { AuditModule } from '../audit/audit.module';
+import { ExportModule } from '../export/export.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PurchaseOrdersModule } from '../purchase-orders/purchase-orders.module';
 import { StorageModule } from '../storage/storage.module';
@@ -19,6 +20,9 @@ import { DeliveryPortalService } from './delivery-portal.service';
     NotificationsModule,
     AuditModule,
     AccessTokensModule,
+    // ExportModule exports BrandingService — the delivery-code email carries the
+    // issuing company's logo + name (FOR-288).
+    ExportModule,
     // PurchaseOrdersModule exports PoStatusService — the delivery-report approval
     // path reuses its shared close-out leg (applyDeliveryDeltasInTx).
     PurchaseOrdersModule,

@@ -23,6 +23,7 @@ import { resolveVendorRecipientsWithState } from '../../common/utils/vendor-reci
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { AuditService } from '../audit/audit.service';
+import { BrandingService } from '../export/branding.service';
 import { EmailService } from '../notifications/email.service';
 
 import { CreatePoChangeRequestDto, RejectPoChangeRequestDto } from './po-change.dto';
@@ -158,6 +159,7 @@ export class PoChangeService {
     private readonly emailService: EmailService,
     private readonly accessTokens: AccessTokensService,
     config: ConfigService,
+    private readonly branding: BrandingService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
   }
@@ -312,6 +314,7 @@ export class PoChangeService {
   private async notifyChangeProposed(
     po: {
       id: string;
+      companyId: string;
       poNumber: string;
       vendorId: string | null;
       rfqId: string | null;
@@ -330,6 +333,11 @@ export class PoChangeService {
   ): Promise<void> {
     const authenticatedUrl = `${this.webAppUrl}/purchase-orders/${po.id}`;
 
+    // The issuing (buyer) company's logo + name, shown atop the change-request
+    // email (FOR-288). Resolved once here, inside the fire-and-forget helper, so a
+    // branding failure can never break the notification.
+    const brand = await this.branding.getEmailBrand(po.companyId);
+
     if (proposerIsVendor) {
       await Promise.all(
         (po.company?.users ?? []).map((u) =>
@@ -338,6 +346,7 @@ export class PoChangeService {
             po.poNumber,
             proposedBy,
             authenticatedUrl,
+            brand,
           ),
         ),
       );
@@ -373,6 +382,7 @@ export class PoChangeService {
           po.poNumber,
           proposedBy,
           !r.activated && tokenisedUrl ? tokenisedUrl : authenticatedUrl,
+          brand,
         ),
       ),
     );
@@ -689,6 +699,7 @@ export class PoChangeService {
       where: { id: poId },
       select: {
         poNumber: true,
+        companyId: true,
         vendorId: true,
         rfqId: true,
         vendor: {
@@ -701,11 +712,16 @@ export class PoChangeService {
     });
     if (!po) return;
 
+    // The issuing (buyer) company's logo + name, shown atop the approved/rejected
+    // email (FOR-288). Resolved inside this fire-and-forget helper so a branding
+    // failure never breaks the notification.
+    const brand = await this.branding.getEmailBrand(po.companyId);
+
     const authenticatedUrl = `${this.webAppUrl}/purchase-orders/${poId}`;
     const send = (email: string, url: string) =>
       outcome === 'approved'
-        ? this.emailService.sendChangeRequestApprovedEmail(email, po.poNumber, url)
-        : this.emailService.sendChangeRequestRejectedEmail(email, po.poNumber, url);
+        ? this.emailService.sendChangeRequestApprovedEmail(email, po.poNumber, url, brand)
+        : this.emailService.sendChangeRequestRejectedEmail(email, po.poNumber, url, brand);
 
     // Authenticated requester → email them directly.
     if (requestedById) {

@@ -292,6 +292,7 @@ export class EmailService implements OnModuleInit {
     code: string,
     expiresAt: Date,
     poNumber: string,
+    brand?: EmailBrand,
   ): Promise<void> {
     const expiresMinutes = Math.round((expiresAt.getTime() - Date.now()) / 60000);
     const t = this.getTranslations('deliveryCode', { expiresMinutes, poNumber });
@@ -305,7 +306,7 @@ export class EmailService implements OnModuleInit {
           expiresMinutes,
           poNumber,
         }),
-        html: this.renderEmail(EMAIL_TEMPLATES.DELIVERY_CODE, t, { code, expiresMinutes }),
+        html: this.renderEmail(EMAIL_TEMPLATES.DELIVERY_CODE, t, { code, expiresMinutes }, brand),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -444,6 +445,7 @@ export class EmailService implements OnModuleInit {
     amount: string,
     viewUrl: string,
     log?: EmailLogContext,
+    brand?: EmailBrand,
   ): Promise<void> {
     const t = this.getTranslations('poPendingApproval', { poNumber, amount });
 
@@ -451,7 +453,7 @@ export class EmailService implements OnModuleInit {
       await this.dispatch({
         to,
         subject: t.subject,
-        html: this.renderEmail(EMAIL_TEMPLATES.PO_PENDING_APPROVAL, t, { viewUrl }),
+        html: this.renderEmail(EMAIL_TEMPLATES.PO_PENDING_APPROVAL, t, { viewUrl }, brand),
         template: EMAIL_TEMPLATES.PO_PENDING_APPROVAL,
         ...(log ? { log } : {}),
       });
@@ -467,6 +469,7 @@ export class EmailService implements OnModuleInit {
     viewUrl: string,
     reason?: string,
     log?: EmailLogContext,
+    brand?: EmailBrand,
   ): Promise<void> {
     const t = this.getTranslations('poDeclinedByVendor', { poNumber, vendorName });
 
@@ -474,7 +477,12 @@ export class EmailService implements OnModuleInit {
       await this.dispatch({
         to,
         subject: t.subject,
-        html: this.renderEmail(EMAIL_TEMPLATES.PO_DECLINED_BY_VENDOR, t, { viewUrl, reason }),
+        html: this.renderEmail(
+          EMAIL_TEMPLATES.PO_DECLINED_BY_VENDOR,
+          t,
+          { viewUrl, reason },
+          brand,
+        ),
         template: EMAIL_TEMPLATES.PO_DECLINED_BY_VENDOR,
         ...(log ? { log } : {}),
       });
@@ -488,6 +496,7 @@ export class EmailService implements OnModuleInit {
     bulkId: string,
     proposedBy: string,
     viewUrl: string,
+    brand?: EmailBrand,
   ): Promise<void> {
     const t = this.getTranslations('changeRequestProposed', { bulkId, proposedBy });
 
@@ -495,35 +504,45 @@ export class EmailService implements OnModuleInit {
       await this.dispatch({
         to,
         subject: t.subject,
-        html: this.renderEmail(EMAIL_TEMPLATES.CHANGE_REQUEST_PROPOSED, t, { viewUrl }),
+        html: this.renderEmail(EMAIL_TEMPLATES.CHANGE_REQUEST_PROPOSED, t, { viewUrl }, brand),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
     }
   }
 
-  async sendChangeRequestApprovedEmail(to: string, bulkId: string, viewUrl: string): Promise<void> {
+  async sendChangeRequestApprovedEmail(
+    to: string,
+    bulkId: string,
+    viewUrl: string,
+    brand?: EmailBrand,
+  ): Promise<void> {
     const t = this.getTranslations('changeRequestApproved', { bulkId });
 
     try {
       await this.dispatch({
         to,
         subject: t.subject,
-        html: this.renderEmail(EMAIL_TEMPLATES.CHANGE_REQUEST_APPROVED, t, { viewUrl }),
+        html: this.renderEmail(EMAIL_TEMPLATES.CHANGE_REQUEST_APPROVED, t, { viewUrl }, brand),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
     }
   }
 
-  async sendChangeRequestRejectedEmail(to: string, bulkId: string, viewUrl: string): Promise<void> {
+  async sendChangeRequestRejectedEmail(
+    to: string,
+    bulkId: string,
+    viewUrl: string,
+    brand?: EmailBrand,
+  ): Promise<void> {
     const t = this.getTranslations('changeRequestRejected', { bulkId });
 
     try {
       await this.dispatch({
         to,
         subject: t.subject,
-        html: this.renderEmail(EMAIL_TEMPLATES.CHANGE_REQUEST_REJECTED, t, { viewUrl }),
+        html: this.renderEmail(EMAIL_TEMPLATES.CHANGE_REQUEST_REJECTED, t, { viewUrl }, brand),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -580,6 +599,7 @@ export class EmailService implements OnModuleInit {
     to: string,
     bulkId: string,
     cancelledBy: string,
+    brand?: EmailBrand,
   ): Promise<void> {
     const t = this.getTranslations('bulkOrderCancelled', { bulkId, cancelledBy });
 
@@ -587,7 +607,7 @@ export class EmailService implements OnModuleInit {
       await this.dispatch({
         to,
         subject: t.subject,
-        html: this.renderEmail(EMAIL_TEMPLATES.BULK_ORDER_CANCELLED, t),
+        html: this.renderEmail(EMAIL_TEMPLATES.BULK_ORDER_CANCELLED, t, {}, brand),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -599,6 +619,7 @@ export class EmailService implements OnModuleInit {
     rfqNumber: string,
     vendorName: string,
     viewUrl: string,
+    brand?: EmailBrand,
   ): Promise<void> {
     const t = this.getTranslations('quoteUpdated', { rfqNumber, vendorName });
 
@@ -606,7 +627,7 @@ export class EmailService implements OnModuleInit {
       await this.dispatch({
         to,
         subject: t.subject,
-        html: this.renderEmail(EMAIL_TEMPLATES.QUOTE_UPDATED, t, { viewUrl }),
+        html: this.renderEmail(EMAIL_TEMPLATES.QUOTE_UPDATED, t, { viewUrl }, brand),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -618,6 +639,7 @@ export class EmailService implements OnModuleInit {
     rfqNumber: string,
     vendorName: string,
     viewUrl: string,
+    brand?: EmailBrand,
   ): Promise<void> {
     const t = this.getTranslations('quoteSubmitted', { rfqNumber, vendorName });
 
@@ -625,7 +647,7 @@ export class EmailService implements OnModuleInit {
       await this.dispatch({
         to,
         subject: t.subject,
-        html: this.renderEmail(EMAIL_TEMPLATES.QUOTE_SUBMITTED, t, { viewUrl }),
+        html: this.renderEmail(EMAIL_TEMPLATES.QUOTE_SUBMITTED, t, { viewUrl }, brand),
       });
     } catch {
       // fire-and-forget: email failures are non-critical

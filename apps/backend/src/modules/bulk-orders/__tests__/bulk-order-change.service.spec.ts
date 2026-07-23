@@ -49,6 +49,11 @@ const mockConfig = {
   get: jest.fn((_key: string, fallback: string) => fallback),
 };
 
+const mockBranding = {
+  getEmailBrand: jest.fn().mockResolvedValue(undefined),
+  getPdfBrand: jest.fn().mockResolvedValue(undefined),
+};
+
 const contractorUser = {
   id: 'cu-1',
   email: 'ca@test.com',
@@ -89,7 +94,11 @@ describe('BulkOrderChangeService', () => {
       mockAuditService as never,
       mockEmailService as never,
       mockConfig as never,
+      mockBranding as never,
     );
+    // Default: no company logo → unbranded email. Re-set every test because
+    // clearAllMocks keeps a brand override a FOR-288 test may have installed.
+    mockBranding.getEmailBrand.mockResolvedValue(undefined);
   });
 
   // ── proposeChange ────────────────────────────────────────────────────────
@@ -716,6 +725,33 @@ describe('BulkOrderChangeService', () => {
         expect.stringContaining('BO-'),
         'Contractor User',
         expect.stringContaining('/bulk-orders/bo-1/review-change'),
+        undefined,
+      );
+    });
+
+    it('forwards the issuing company brand on the proposed-change email (FOR-288)', async () => {
+      const brand = { name: 'TestCo', logoUrl: 'https://cdn.test/testco.png' };
+      mockPrisma.bulkOrder.findUnique.mockResolvedValue(activeBulkOrder);
+      mockPrisma.bulkOrderChangeRequest.create.mockResolvedValue({
+        id: 'cr-1',
+        requestedBy: { id: 'cu-1', name: 'Contractor User' },
+      });
+      mockAuditService.log.mockResolvedValue(undefined);
+      mockPrisma.user.findMany.mockResolvedValue([{ email: 'v1@test.com', role: UserRole.VENDOR }]);
+      mockBranding.getEmailBrand.mockResolvedValue(brand);
+      mockEmailService.sendChangeRequestProposedEmail.mockResolvedValue(undefined);
+
+      await service.proposeChange('bo-1', { message: 'change' } as never, contractorUser);
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Resolved from the bulk order's own (issuing/buyer) company id.
+      expect(mockBranding.getEmailBrand).toHaveBeenCalledWith('comp-1');
+      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+        'v1@test.com',
+        expect.stringContaining('BO-'),
+        'Contractor User',
+        expect.stringContaining('/bulk-orders/bo-1/review-change'),
+        brand,
       );
     });
 
@@ -788,16 +824,19 @@ describe('BulkOrderChangeService', () => {
         'ca@test.com',
         expect.stringContaining('BO-'),
         expect.stringContaining('/bulk-orders/bo-1'),
+        undefined,
       );
       expect(mockEmailService.sendChangeRequestApprovedEmail).toHaveBeenCalledWith(
         'po@test.com',
         expect.stringContaining('BO-'),
         expect.stringContaining('/bulk-orders/bo-1'),
+        undefined,
       );
       expect(mockEmailService.sendChangeRequestApprovedEmail).toHaveBeenCalledWith(
         'v@test.com',
         expect.stringContaining('BO-'),
         expect.stringContaining('/bulk-orders/bo-1'),
+        undefined,
       );
     });
 
@@ -826,6 +865,7 @@ describe('BulkOrderChangeService', () => {
         'v@test.com',
         expect.stringContaining('BO-'),
         expect.stringContaining('http://localhost:5179/bulk-orders/bo-1'),
+        undefined,
       );
     });
 
@@ -850,11 +890,13 @@ describe('BulkOrderChangeService', () => {
         'ca@test.com',
         expect.stringContaining('BO-'),
         'Canceller Name',
+        undefined,
       );
       expect(mockEmailService.sendBulkOrderCancelledEmail).toHaveBeenCalledWith(
         'v@test.com',
         expect.stringContaining('BO-'),
         'Canceller Name',
+        undefined,
       );
     });
   });

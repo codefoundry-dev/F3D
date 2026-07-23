@@ -5,6 +5,7 @@ import { AccessTokenPurpose, AccessTokenSubject, Prisma, type AccessToken } from
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
+import { BrandingService } from '../export/branding.service';
 import { EmailService } from '../notifications/email.service';
 
 import { PortalSubmitDto } from './deliveries.dto';
@@ -31,6 +32,7 @@ export class DeliveryPortalService {
     private readonly deliveryCode: DeliveryCodeService,
     private readonly emailService: EmailService,
     private readonly deliveriesService: DeliveriesService,
+    private readonly branding: BrandingService,
   ) {}
 
   // ── Read-only PO view (DELIVERY_SUBMIT token) ────────────────────────────────
@@ -91,14 +93,18 @@ export class DeliveryPortalService {
     try {
       const po = await this.prisma.purchaseOrder.findUnique({
         where: { id: purchaseOrderId },
-        select: { poNumber: true },
+        select: { poNumber: true, companyId: true },
       });
       if (po) {
         const { code, expiresAt } = await this.deliveryCode.generateAndStore(
           purchaseOrderId,
           email,
         );
-        await this.emailService.sendDeliveryCodeEmail(email, code, expiresAt, po.poNumber);
+        // The issuing company's logo + name, shown atop the delivery-code email
+        // (FOR-288). A branding failure is swallowed by the enclosing try/catch,
+        // preserving the anti-enumeration guarantee.
+        const brand = await this.branding.getEmailBrand(po.companyId);
+        await this.emailService.sendDeliveryCodeEmail(email, code, expiresAt, po.poNumber, brand);
       }
     } catch (err) {
       // Swallow — never reveal whether the code was actually sent.

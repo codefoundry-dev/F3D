@@ -4,6 +4,7 @@ import { AccessTokenPurpose, AccessTokenSubject, type AccessToken } from '@prism
 
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AccessTokensService } from '../../access-tokens/access-tokens.service';
+import { BrandingService } from '../../export/branding.service';
 import { EmailService } from '../../notifications/email.service';
 import { PortalSubmitDto } from '../deliveries.dto';
 import { DeliveriesService } from '../deliveries.service';
@@ -39,14 +40,20 @@ function makeService() {
     createReport: jest.fn().mockResolvedValue('dr-1'),
   } as unknown as DeliveriesService & { createReport: jest.Mock };
 
+  const branding = {
+    getEmailBrand: jest.fn().mockResolvedValue(undefined),
+    getPdfBrand: jest.fn().mockResolvedValue(undefined),
+  } as unknown as BrandingService & { getEmailBrand: jest.Mock };
+
   const service = new DeliveryPortalService(
     prisma,
     accessTokens,
     deliveryCode,
     emailService,
     deliveriesService,
+    branding,
   );
-  return { service, prisma, accessTokens, deliveryCode, emailService, deliveriesService };
+  return { service, prisma, accessTokens, deliveryCode, emailService, deliveriesService, branding };
 }
 
 function sessionToken(metadata: Record<string, unknown> | null): AccessToken {
@@ -163,6 +170,28 @@ describe('DeliveryPortalService', () => {
       await expect(service.identify('po-1', 'Dan', 'dan@x.com')).resolves.toEqual({ ok: true });
       expect(deliveryCode.generateAndStore).toHaveBeenCalledWith('po-1', 'dan@x.com');
       expect(emailService.sendDeliveryCodeEmail).toHaveBeenCalled();
+    });
+
+    it('forwards the issuing company brand on the delivery-code email (FOR-288)', async () => {
+      const { service, prisma, emailService, branding } = makeService();
+      const brand = { name: 'TestCo', logoUrl: 'https://cdn.test/testco.png' };
+      (prisma.purchaseOrder.findUnique as jest.Mock).mockResolvedValue({
+        poNumber: 'PO-00001',
+        companyId: 'comp-1',
+      });
+      (branding.getEmailBrand as jest.Mock).mockResolvedValue(brand);
+
+      await service.identify('po-1', 'Dan', 'dan@x.com');
+
+      // Resolved from the delivery's PO (issuing) company id.
+      expect(branding.getEmailBrand).toHaveBeenCalledWith('comp-1');
+      expect(emailService.sendDeliveryCodeEmail).toHaveBeenCalledWith(
+        'dan@x.com',
+        '123456',
+        expect.any(Date),
+        'PO-00001',
+        brand,
+      );
     });
 
     it('returns ok WITHOUT sending when the PO does not exist (anti-enumeration)', async () => {
