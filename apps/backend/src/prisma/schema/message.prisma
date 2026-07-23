@@ -3,6 +3,10 @@ enum MessageContextType {
   PURCHASE_ORDER
   MATERIAL_REQUEST
   WAREHOUSE_RELEASE_REQUEST
+  // A single vendor's quote on an RFQ (FOR-288). Scopes messaging per-vendor so
+  // competing vendors on the same RFQ never share a thread; keyed on the
+  // QuoteResponse id. Added last to match the ADD VALUE migration (appends).
+  QUOTE_RESPONSE
 }
 
 model MessageThread {

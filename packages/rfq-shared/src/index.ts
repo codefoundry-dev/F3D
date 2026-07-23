@@ -25,10 +25,17 @@ export {
   useQuoteDetail,
   useUpdateQuoteLineItemStatuses,
   useCreateDraftPoFromQuote,
+  useMessageThread,
   useDropdown,
   useRfqSort,
   useRfqGrouping,
   useRfqExport,
+} from './hooks';
+export type {
+  MessageContextType,
+  ThreadMessage,
+  UseMessageThreadOptions,
+  UseMessageThreadResult,
 } from './hooks';
 
 // Stores

@@ -4,11 +4,19 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { MessageContextType, PoStatus, RfqStatus } from '@prisma/client';
+import {
+  MessageContextType,
+  PoStatus,
+  Prisma,
+  RfqStatus,
+  UserRole,
+  UserStatus,
+} from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 
 import {
   CreateThreadDto,
@@ -20,23 +28,60 @@ import {
 const CLOSED_RFQ_STATUSES: RfqStatus[] = [RfqStatus.CLOSED, RfqStatus.CANCELLED];
 const CLOSED_PO_STATUSES: PoStatus[] = [PoStatus.CLOSED, PoStatus.CANCELLED];
 
+/**
+ * Presign window for the sender company logos shown beside in-app messages
+ * (FOR-288). Threads are viewed live — the tab re-fetches on a short interval,
+ * which re-signs — so a modest TTL is ample and keeps the URLs from lingering.
+ */
+const MESSAGE_LOGO_URL_TTL_SECONDS = 60 * 60;
+
+/**
+ * Prisma select for a message sender: the person plus their company's brand
+ * (name + logo key), so the UI can render "{rep} at {company}" with the company
+ * logo instead of a bare initial (FOR-288).
+ */
+const MESSAGE_SENDER_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  company: { select: { legalName: true, tradeName: true, logoUrl: true } },
+} satisfies Prisma.UserSelect;
+
+/** A message sender as loaded with {@link MESSAGE_SENDER_SELECT}. */
+type SenderWithCompany = {
+  id: string;
+  name: string;
+  email: string;
+  company: { legalName: string; tradeName: string | null; logoUrl: string | null } | null;
+};
+
 @Injectable()
 export class MessagesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   async createThread(dto: CreateThreadDto, user: AuthenticatedUser) {
+    const contextType = dto.contextType as unknown as MessageContextType;
+
     // Validate context document exists
-    await this.validateContextExists(
-      dto.contextType as unknown as MessageContextType,
-      dto.contextId,
-    );
+    await this.validateContextExists(contextType, dto.contextId);
+
+    // Seed the counterparty automatically for contexts where the "other side"
+    // is derivable — a QUOTE_RESPONSE thread gets that vendor's chosen sales
+    // reps (FOR-288) so the vendor can see the buyer's messages without the
+    // caller having to know their user ids.
+    const counterpartyIds = await this.resolveCounterpartyParticipants(contextType, dto.contextId);
 
     // Ensure the current user is included in participants
-    const allParticipantIds = Array.from(new Set([user.id, ...dto.participantIds]));
+    const allParticipantIds = Array.from(
+      new Set([user.id, ...dto.participantIds, ...counterpartyIds]),
+    );
 
     const thread = await this.prisma.messageThread.create({
       data: {
-        contextType: dto.contextType as unknown as MessageContextType,
+        contextType,
         contextId: dto.contextId,
         participants: {
           create: allParticipantIds.map((userId) => ({
@@ -96,7 +141,7 @@ export class MessagesService {
             take: 1,
             include: {
               sender: {
-                select: { id: true, name: true, email: true },
+                select: MESSAGE_SENDER_SELECT,
               },
             },
           },
@@ -107,6 +152,10 @@ export class MessagesService {
       }),
       this.prisma.messageThread.count({ where }),
     ]);
+
+    const logoUrls = await this.signLogoUrls(
+      threads.map((thread) => thread.messages[0]?.sender.company?.logoUrl),
+    );
 
     const items = threads.map((thread) => ({
       id: thread.id,
@@ -125,7 +174,7 @@ export class MessagesService {
         ? {
             id: thread.messages[0].id,
             content: thread.messages[0].content,
-            sender: thread.messages[0].sender,
+            sender: this.toSender(thread.messages[0].sender, logoUrls),
             createdAt: thread.messages[0].createdAt.toISOString(),
           }
         : null,
@@ -158,7 +207,7 @@ export class MessagesService {
         orderBy: { createdAt: 'asc' },
         include: {
           sender: {
-            select: { id: true, name: true, email: true },
+            select: MESSAGE_SENDER_SELECT,
           },
           attachments: {
             include: {
@@ -172,11 +221,13 @@ export class MessagesService {
       this.prisma.message.count({ where: { threadId } }),
     ]);
 
+    const logoUrls = await this.signLogoUrls(messages.map((m) => m.sender.company?.logoUrl));
+
     const items = messages.map((msg) => ({
       id: msg.id,
       threadId: msg.threadId,
       content: msg.content,
-      sender: msg.sender,
+      sender: this.toSender(msg.sender, logoUrls),
       attachments: msg.attachments.map((a) => ({
         id: a.id,
         file: a.file,
@@ -222,7 +273,7 @@ export class MessagesService {
       },
       include: {
         sender: {
-          select: { id: true, name: true, email: true },
+          select: MESSAGE_SENDER_SELECT,
         },
         attachments: {
           include: {
@@ -240,17 +291,89 @@ export class MessagesService {
       data: { updatedAt: new Date() },
     });
 
+    const logoUrls = await this.signLogoUrls([message.sender.company?.logoUrl]);
+
     return {
       id: message.id,
       threadId: message.threadId,
       content: message.content,
-      sender: message.sender,
+      sender: this.toSender(message.sender, logoUrls),
       attachments: message.attachments.map((a) => ({
         id: a.id,
         file: a.file,
       })),
       createdAt: message.createdAt.toISOString(),
     };
+  }
+
+  /**
+   * Presign each distinct company logo key once (a message list is often many
+   * messages from a handful of companies), returning a key→signed-URL map.
+   */
+  private async signLogoUrls(keys: Array<string | null | undefined>): Promise<Map<string, string>> {
+    const distinct = [...new Set(keys.filter((k): k is string => Boolean(k)))];
+    const signed = await Promise.all(
+      distinct.map(
+        async (key) =>
+          [key, await this.storage.getSignedUrl(key, MESSAGE_LOGO_URL_TTL_SECONDS)] as const,
+      ),
+    );
+    return new Map(signed);
+  }
+
+  /**
+   * Shape a sender for the API: the rep plus their company's display name and a
+   * presigned logo URL (resolved from `logoUrls`). Falls back legalName →
+   * tradeName, and to `null` when the company has no logo (UI shows an initial).
+   */
+  private toSender(sender: SenderWithCompany, logoUrls: Map<string, string>) {
+    const logoKey = sender.company?.logoUrl ?? null;
+    return {
+      id: sender.id,
+      name: sender.name,
+      email: sender.email,
+      companyName: sender.company?.legalName ?? sender.company?.tradeName ?? null,
+      companyLogoUrl: logoKey ? (logoUrls.get(logoKey) ?? null) : null,
+    };
+  }
+
+  /**
+   * The counterparty user ids to seed a new thread with, derived from the
+   * context. For a QUOTE_RESPONSE (FOR-288) that is the vendor's chosen sales
+   * reps for this RFQ (US 5.05 `RfqVendorContact`); when none were chosen we
+   * fall back to the vendor company's own (non-inactive) user accounts so the
+   * message still reaches the vendor. Other contexts derive nothing here — the
+   * caller supplies participants explicitly.
+   */
+  private async resolveCounterpartyParticipants(
+    contextType: MessageContextType,
+    contextId: string,
+  ): Promise<string[]> {
+    if (contextType !== MessageContextType.QUOTE_RESPONSE) return [];
+
+    const quote = await this.prisma.quoteResponse.findUnique({
+      where: { id: contextId },
+      select: { rfqId: true, vendorId: true },
+    });
+    if (!quote) return [];
+
+    const rfqVendor = await this.prisma.rfqVendor.findUnique({
+      where: { rfqId_vendorId: { rfqId: quote.rfqId, vendorId: quote.vendorId } },
+      select: { contacts: { select: { userId: true } } },
+    });
+    const repIds = rfqVendor?.contacts.map((c) => c.userId) ?? [];
+    if (repIds.length > 0) return repIds;
+
+    // Fallback: the vendor company's own vendor-role users.
+    const vendorUsers = await this.prisma.user.findMany({
+      where: {
+        companyId: quote.vendorId,
+        role: UserRole.VENDOR,
+        status: { not: UserStatus.INACTIVE },
+      },
+      select: { id: true },
+    });
+    return vendorUsers.map((u) => u.id);
   }
 
   private async validateParticipant(threadId: string, userId: string): Promise<void> {
@@ -278,6 +401,11 @@ export class MessagesService {
       case MessageContextType.PURCHASE_ORDER: {
         const po = await this.prisma.purchaseOrder.findUnique({ where: { id: contextId } });
         if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
+        break;
+      }
+      case MessageContextType.QUOTE_RESPONSE: {
+        const quote = await this.prisma.quoteResponse.findUnique({ where: { id: contextId } });
+        if (!quote) throw new NotFoundException(ERR.rfqs.quoteNotFound);
         break;
       }
       // MATERIAL_REQUEST and WAREHOUSE_RELEASE_REQUEST — skip validation for now
@@ -308,6 +436,16 @@ export class MessagesService {
           select: { status: true },
         });
         if (po && CLOSED_PO_STATUSES.includes(po.status)) {
+          throw new BadRequestException(ERR.messages.documentClosed);
+        }
+        break;
+      }
+      case MessageContextType.QUOTE_RESPONSE: {
+        const quote = await this.prisma.quoteResponse.findUnique({
+          where: { id: contextId },
+          select: { rfq: { select: { status: true } } },
+        });
+        if (quote && CLOSED_RFQ_STATUSES.includes(quote.rfq.status)) {
           throw new BadRequestException(ERR.messages.documentClosed);
         }
         break;

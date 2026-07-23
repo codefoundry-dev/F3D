@@ -9,6 +9,13 @@ export {
   useUpdateQuoteLineItemStatuses,
   useCreateDraftPoFromQuote,
 } from './useRfqs';
+export { useMessageThread } from './useMessageThread';
+export type {
+  MessageContextType,
+  ThreadMessage,
+  UseMessageThreadOptions,
+  UseMessageThreadResult,
+} from './useMessageThread';
 export { useDropdown } from './useDropdown';
 export { useRfqSort } from './useRfqSort';
 export { useRfqGrouping } from './useRfqGrouping';

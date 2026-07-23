@@ -25,6 +25,15 @@ vi.mock('@forethread/api-client', () => ({
   getRfqEmailLog: vi.fn(),
   getRfqQuoteAudit: vi.fn(),
   openFileInNewTab: vi.fn(),
+  // Messaging thread lifecycle (FOR-288) — the message tab now fetches live.
+  getThreads: vi.fn(() =>
+    Promise.resolve({ items: [], meta: { page: 1, limit: 1, total: 0, totalPages: 0 } }),
+  ),
+  getMessages: vi.fn(() =>
+    Promise.resolve({ items: [], meta: { page: 1, limit: 100, total: 0, totalPages: 0 } }),
+  ),
+  createThread: vi.fn(() => Promise.resolve({ id: 'thread-1' })),
+  sendMessage: vi.fn(() => Promise.resolve({})),
 }));
 
 vi.mock('@forethread/i18n', () => ({

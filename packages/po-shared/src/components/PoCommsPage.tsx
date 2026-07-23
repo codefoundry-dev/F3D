@@ -1,9 +1,10 @@
 import { type PoDetail, type RfqDocument, openFileInNewTab } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { DocumentRow } from '@forethread/rfq-shared';
+import { DocumentRow, useMessageThread } from '@forethread/rfq-shared';
 import {
   Button,
   Input,
+  Spinner,
   formatTime,
   formatDateLabel,
   groupMessagesByDate,
@@ -37,8 +38,30 @@ export function PoCommsPage({ po, initialTab = 'messages', onTabChange }: PoComm
     onTabChange?.(tab);
   };
 
-  // TODO: Replace with real messages from API when available
-  const messages: Message[] = [];
+  // Live message thread for this PO (FOR-288) — replaces the empty-array stub.
+  const {
+    messages,
+    isLoading: isLoadingMessages,
+    isSending,
+    send,
+  } = useMessageThread({
+    contextType: 'PURCHASE_ORDER',
+    contextId: po.id,
+    participantIds: [po.createdBy?.id],
+  });
+
+  const isReadOnly = po.status === 'CLOSED' || po.status === 'CANCELLED';
+
+  const handleSendMessage = useCallback(async () => {
+    if (!messageText.trim()) return;
+    try {
+      await send(messageText);
+      setMessageText('');
+    } catch {
+      // Keep the text in the box so the user can retry a failed send.
+    }
+  }, [messageText, send]);
+
   const documents = po.documents ?? [];
   const lineItems = po.lineItems ?? [];
 
@@ -78,12 +101,12 @@ export function PoCommsPage({ po, initialTab = 'messages', onTabChange }: PoComm
         {activeTab === 'messages' && (
           <MessagesTab
             messages={messages}
+            isLoading={isLoadingMessages}
+            isReadOnly={isReadOnly}
+            isSending={isSending}
             messageText={messageText}
             onMessageTextChange={setMessageText}
-            onSend={() => {
-              // TODO: send message via API
-              setMessageText('');
-            }}
+            onSend={handleSendMessage}
           />
         )}
         {activeTab === 'lineItems' && <LineItemsTab lineItems={lineItems} />}
@@ -99,11 +122,17 @@ export function PoCommsPage({ po, initialTab = 'messages', onTabChange }: PoComm
 
 function MessagesTab({
   messages,
+  isLoading,
+  isReadOnly,
+  isSending,
   messageText,
   onMessageTextChange,
   onSend,
 }: {
   messages: Message[];
+  isLoading: boolean;
+  isReadOnly: boolean;
+  isSending: boolean;
   messageText: string;
   onMessageTextChange: (text: string) => void;
   onSend: () => void;
@@ -111,9 +140,22 @@ function MessagesTab({
   const { t } = useTranslation('purchaseOrders');
   const grouped = groupMessagesByDate(messages);
 
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-16">
+        <Spinner size="md" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 space-y-6">
+        {messages.length === 0 && (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            {t('comms.noMessages', 'No messages yet')}
+          </p>
+        )}
         {Array.from(grouped.entries()).map(([dateKey, msgs]) => (
           <div key={dateKey}>
             <div className="flex items-center gap-4 my-6">
@@ -127,14 +169,26 @@ function MessagesTab({
             <div className="space-y-4">
               {msgs.map((msg) => (
                 <div key={msg.id} className="flex gap-3">
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 text-xs font-medium text-muted-foreground">
-                    {msg.senderName.charAt(0)}
-                  </div>
+                  {/* Avatar — sender's company logo (FOR-288), falling back to an initial */}
+                  {msg.senderCompanyLogoUrl ? (
+                    <img
+                      src={msg.senderCompanyLogoUrl}
+                      alt={msg.senderCompany ?? msg.senderName}
+                      className="w-8 h-8 rounded-full object-contain bg-white border border-border shrink-0"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 text-xs font-medium text-muted-foreground">
+                      {msg.senderName.charAt(0)}
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-foreground">
                         {msg.senderName}
                       </span>
+                      {msg.senderCompany && (
+                        <span className="text-xs text-muted-foreground">· {msg.senderCompany}</span>
+                      )}
                       <span className="text-xs text-muted-foreground">
                         {formatTime(msg.createdAt)}
                       </span>
@@ -148,26 +202,35 @@ function MessagesTab({
         ))}
       </div>
 
-      <div className="mt-6 flex items-center gap-3">
-        <Input
-          value={messageText}
-          onChange={(e) => onMessageTextChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && messageText.trim()) {
-              onSend();
-            }
-          }}
-          placeholder={t('comms.typeMessage')}
-          leftIcon={<PaperclipIcon className="w-4 h-4" />}
-        />
-        <Button
-          onClick={onSend}
-          disabled={!messageText.trim()}
-          leftIcon={<LetterIcon className="w-4 h-4" />}
-        >
-          {t('comms.send')}
-        </Button>
-      </div>
+      {isReadOnly ? (
+        <div className="mt-6 border-t border-border pt-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            {t('comms.readOnly', 'This document is closed. Messages are read-only.')}
+          </p>
+        </div>
+      ) : (
+        <div className="mt-6 flex items-center gap-3">
+          <Input
+            value={messageText}
+            onChange={(e) => onMessageTextChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && messageText.trim() && !isSending) {
+                onSend();
+              }
+            }}
+            placeholder={t('comms.typeMessage')}
+            leftIcon={<PaperclipIcon className="w-4 h-4" />}
+            disabled={isSending}
+          />
+          <Button
+            onClick={onSend}
+            disabled={!messageText.trim() || isSending}
+            leftIcon={<LetterIcon className="w-4 h-4" />}
+          >
+            {t('comms.send')}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

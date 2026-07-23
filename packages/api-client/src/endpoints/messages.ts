@@ -42,11 +42,22 @@ export interface MessageThread {
   };
 }
 
+export interface MessageSender {
+  id: string;
+  name: string;
+  email?: string;
+  /** Sender's company display name — drives "{rep} at {company}" naming (FOR-288). */
+  companyName?: string | null;
+  /** Presigned URL to the sender's company logo, shown as the message avatar (FOR-288). */
+  companyLogoUrl?: string | null;
+  avatarUrl?: string;
+}
+
 export interface MessageItem {
   id: string;
   content: string;
   createdAt: string;
-  sender: { id: string; name: string; avatarUrl?: string };
+  sender: MessageSender;
   attachments: Array<{ id: string; fileId: string; filename: string }>;
 }
 
