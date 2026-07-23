@@ -530,6 +530,52 @@ export class EmailService implements OnModuleInit {
     }
   }
 
+  /**
+   * Notify a catalogue contributor that their proposed edit to a PUBLIC material
+   * was approved (US 4.01 Phase 3). Fire-and-forget, like every other transactional
+   * email — the approval has already been committed by the time we send.
+   */
+  async sendMaterialChangeApprovedEmail(
+    to: string,
+    materialName: string,
+    viewUrl: string,
+  ): Promise<void> {
+    const t = this.getTranslations('materialChangeApproved', { materialName });
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        html: this.renderEmail(EMAIL_TEMPLATES.MATERIAL_CHANGE_APPROVED, t, { viewUrl }),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
+  /**
+   * Notify a catalogue contributor that their proposed edit was rejected (US 4.01
+   * Phase 3), optionally with the reviewer's reason.
+   */
+  async sendMaterialChangeRejectedEmail(
+    to: string,
+    materialName: string,
+    viewUrl: string,
+    reason?: string,
+  ): Promise<void> {
+    const t = this.getTranslations('materialChangeRejected', { materialName });
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        html: this.renderEmail(EMAIL_TEMPLATES.MATERIAL_CHANGE_REJECTED, t, { viewUrl, reason }),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
   async sendBulkOrderCancelledEmail(
     to: string,
     bulkId: string,

@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
 
@@ -371,6 +372,17 @@ export class UpdateMaterialDto {
   @IsObject()
   @IsOptional()
   properties?: MaterialProperties;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional note explaining WHY the edit is proposed. Only recorded when the ' +
+      'edit of a PUBLIC catalogue material is captured as a change request (US 4.01 Phase 3).',
+    maxLength: 500,
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(500)
+  changeReason?: string;
 }
 
 /** Reason payload for rejecting a pending material (US 4.01). */
