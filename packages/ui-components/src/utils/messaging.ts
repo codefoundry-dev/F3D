@@ -15,6 +15,10 @@ export interface MessageItem {
   senderName: string;
   body: string;
   createdAt: string;
+  /** Sender's company display name — drives "{rep} at {company}" naming (FOR-288). */
+  senderCompany?: string | null;
+  /** Presigned URL to the sender's company logo, shown as the message avatar (FOR-288). */
+  senderCompanyLogoUrl?: string | null;
 }
 
 export function groupMessagesByDate<T extends { createdAt: string }>(

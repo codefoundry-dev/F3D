@@ -40,6 +40,8 @@ function toDisplayMessage(msg: ApiMessageItem) {
     id: msg.id,
     senderName: msg.sender.name,
     senderAvatarUrl: msg.sender?.avatarUrl,
+    senderCompany: msg.sender.companyName ?? null,
+    senderCompanyLogoUrl: msg.sender.companyLogoUrl ?? null,
     body: msg.content,
     createdAt: msg.createdAt,
     attachments: msg.attachments,
@@ -182,8 +184,14 @@ export function PoMessagesTab({
                   key={msg.id}
                   className="flex gap-3 p-2 border-b border-border/50 last:border-b-0"
                 >
-                  {/* Avatar */}
-                  {msg.senderAvatarUrl ? (
+                  {/* Avatar — sender's company logo (FOR-288), falling back to an initial */}
+                  {msg.senderCompanyLogoUrl ? (
+                    <img
+                      src={msg.senderCompanyLogoUrl}
+                      alt={msg.senderCompany ?? msg.senderName}
+                      className="w-7 h-7 rounded-full object-contain bg-white border border-border shrink-0"
+                    />
+                  ) : msg.senderAvatarUrl ? (
                     <img
                       src={msg.senderAvatarUrl}
                       alt={msg.senderName}
@@ -197,6 +205,9 @@ export function PoMessagesTab({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1">
                       <span className="text-sm font-medium text-foreground">{msg.senderName}</span>
+                      {msg.senderCompany && (
+                        <span className="text-xs text-muted-foreground">· {msg.senderCompany}</span>
+                      )}
                       <span className="text-xs text-muted-foreground">•</span>
                       <span className="text-xs text-muted-foreground">
                         {formatTime(msg.createdAt)}

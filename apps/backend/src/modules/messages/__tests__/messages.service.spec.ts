@@ -26,6 +26,19 @@ const mockPrisma = {
   purchaseOrder: {
     findUnique: jest.fn(),
   },
+  quoteResponse: {
+    findUnique: jest.fn(),
+  },
+  rfqVendor: {
+    findUnique: jest.fn(),
+  },
+  user: {
+    findMany: jest.fn(),
+  },
+};
+
+const mockStorage = {
+  getSignedUrl: jest.fn(),
 };
 
 const currentUser = {
@@ -40,7 +53,8 @@ describe('MessagesService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new MessagesService(mockPrisma as never);
+    mockStorage.getSignedUrl.mockResolvedValue('https://signed.example/logo.png');
+    service = new MessagesService(mockPrisma as never, mockStorage as never);
   });
 
   // ── createThread ──────────────────────────────────────────────────────────
@@ -157,6 +171,83 @@ describe('MessagesService', () => {
 
       const result = await service.createThread(dto as never, currentUser);
       expect(result.id).toBe('thread-3');
+    });
+
+    it('seeds a QUOTE_RESPONSE thread with the vendor’s chosen sales reps (FOR-288)', async () => {
+      const dto = {
+        contextType: 'QUOTE_RESPONSE',
+        contextId: 'quote-1',
+        participantIds: [],
+      };
+
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({ rfqId: 'rfq-1', vendorId: 'vend-1' });
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue({
+        contacts: [{ userId: 'rep-1' }, { userId: 'rep-2' }],
+      });
+      mockPrisma.messageThread.create.mockResolvedValue({
+        id: 'thread-q',
+        contextType: 'QUOTE_RESPONSE',
+        contextId: 'quote-1',
+        participants: [],
+      });
+
+      await service.createThread(dto as never, currentUser);
+
+      const createCall = mockPrisma.messageThread.create.mock.calls[0][0];
+      const ids = createCall.data.participants.create.map((p: { userId: string }) => p.userId);
+      // Buyer (current user) + both vendor reps, deduped.
+      expect(ids).toEqual(expect.arrayContaining(['user-1', 'rep-1', 'rep-2']));
+      expect(mockPrisma.rfqVendor.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { rfqId_vendorId: { rfqId: 'rfq-1', vendorId: 'vend-1' } },
+        }),
+      );
+      // Reps were found — no fallback to the vendor company's users.
+      expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the vendor company’s users when no reps were chosen', async () => {
+      const dto = {
+        contextType: 'QUOTE_RESPONSE',
+        contextId: 'quote-1',
+        participantIds: [],
+      };
+
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({ rfqId: 'rfq-1', vendorId: 'vend-1' });
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue({ contacts: [] });
+      mockPrisma.user.findMany.mockResolvedValue([{ id: 'vu-1' }]);
+      mockPrisma.messageThread.create.mockResolvedValue({
+        id: 'thread-q',
+        contextType: 'QUOTE_RESPONSE',
+        contextId: 'quote-1',
+        participants: [],
+      });
+
+      await service.createThread(dto as never, currentUser);
+
+      const ids = mockPrisma.messageThread.create.mock.calls[0][0].data.participants.create.map(
+        (p: { userId: string }) => p.userId,
+      );
+      expect(ids).toEqual(expect.arrayContaining(['user-1', 'vu-1']));
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ companyId: 'vend-1', role: UserRole.VENDOR }),
+        }),
+      );
+    });
+
+    it('throws NotFoundException when the QUOTE_RESPONSE context is missing', async () => {
+      const dto = {
+        contextType: 'QUOTE_RESPONSE',
+        contextId: 'quote-missing',
+        participantIds: [],
+      };
+
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue(null);
+
+      await expect(service.createThread(dto as never, currentUser)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should include current user as participant', async () => {
@@ -347,6 +438,74 @@ describe('MessagesService', () => {
       expect(result.items[0].attachments).toHaveLength(1);
       expect(result.items[0].attachments[0].file.filename).toBe('doc.pdf');
     });
+
+    it('enriches the sender with company name + a presigned logo URL (FOR-288)', async () => {
+      const now = new Date();
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue({ id: 'p-1' });
+      mockPrisma.message.findMany.mockResolvedValue([
+        {
+          id: 'msg-1',
+          threadId: 'thread-1',
+          content: 'Hello',
+          sender: {
+            id: 'user-1',
+            name: 'Jane',
+            email: 'jane@acme.com',
+            company: { legalName: 'Acme Ltd', tradeName: null, logoUrl: 'logos/acme.png' },
+          },
+          attachments: [],
+          createdAt: now,
+        },
+      ]);
+      mockPrisma.message.count.mockResolvedValue(1);
+
+      const result = await service.getMessages(
+        'thread-1',
+        { page: 1, limit: 25 } as never,
+        currentUser,
+      );
+
+      expect(result.items[0].sender).toEqual(
+        expect.objectContaining({
+          id: 'user-1',
+          name: 'Jane',
+          companyName: 'Acme Ltd',
+          companyLogoUrl: 'https://signed.example/logo.png',
+        }),
+      );
+      expect(mockStorage.getSignedUrl).toHaveBeenCalledWith('logos/acme.png', expect.any(Number));
+    });
+
+    it('leaves company fields null and skips signing when the sender company has no logo', async () => {
+      const now = new Date();
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue({ id: 'p-1' });
+      mockPrisma.message.findMany.mockResolvedValue([
+        {
+          id: 'msg-1',
+          threadId: 'thread-1',
+          content: 'Hello',
+          sender: {
+            id: 'user-1',
+            name: 'Jane',
+            email: 'jane@acme.com',
+            company: { legalName: 'Acme Ltd', tradeName: null, logoUrl: null },
+          },
+          attachments: [],
+          createdAt: now,
+        },
+      ]);
+      mockPrisma.message.count.mockResolvedValue(1);
+
+      const result = await service.getMessages(
+        'thread-1',
+        { page: 1, limit: 25 } as never,
+        currentUser,
+      );
+
+      expect(result.items[0].sender.companyName).toBe('Acme Ltd');
+      expect(result.items[0].sender.companyLogoUrl).toBeNull();
+      expect(mockStorage.getSignedUrl).not.toHaveBeenCalled();
+    });
   });
 
   // ── sendMessage ───────────────────────────────────────────────────────────
@@ -508,6 +667,77 @@ describe('MessagesService', () => {
 
       const result = await service.sendMessage('thread-1', { content: 'OK' } as never, currentUser);
       expect(result.content).toBe('OK');
+    });
+
+    it('enriches the sender with company branding on send (FOR-288)', async () => {
+      const now = new Date();
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue({ id: 'p-1' });
+      mockPrisma.messageThread.findUniqueOrThrow.mockResolvedValue({
+        id: 'thread-1',
+        contextType: 'PURCHASE_ORDER',
+        contextId: 'po-1',
+      });
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ id: 'po-1', status: 'SENT' });
+      mockPrisma.message.create.mockResolvedValue({
+        id: 'msg-1',
+        threadId: 'thread-1',
+        content: 'Hi',
+        sender: {
+          id: 'user-1',
+          name: 'Jane',
+          email: 'jane@acme.com',
+          company: { legalName: 'Acme Ltd', tradeName: null, logoUrl: 'logos/acme.png' },
+        },
+        attachments: [],
+        createdAt: now,
+      });
+      mockPrisma.messageThread.update.mockResolvedValue({});
+
+      const result = await service.sendMessage('thread-1', { content: 'Hi' } as never, currentUser);
+
+      expect(result.sender.companyName).toBe('Acme Ltd');
+      expect(result.sender.companyLogoUrl).toBe('https://signed.example/logo.png');
+    });
+
+    it('should throw BadRequestException for a QUOTE_RESPONSE whose RFQ is closed', async () => {
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue({ id: 'p-1' });
+      mockPrisma.messageThread.findUniqueOrThrow.mockResolvedValue({
+        id: 'thread-1',
+        contextType: 'QUOTE_RESPONSE',
+        contextId: 'quote-1',
+      });
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({ rfq: { status: 'CLOSED' } });
+
+      await expect(
+        service.sendMessage('thread-1', { content: 'Too late' } as never, currentUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should allow sendMessage for an open QUOTE_RESPONSE (RFQ open)', async () => {
+      const now = new Date();
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue({ id: 'p-1' });
+      mockPrisma.messageThread.findUniqueOrThrow.mockResolvedValue({
+        id: 'thread-1',
+        contextType: 'QUOTE_RESPONSE',
+        contextId: 'quote-1',
+      });
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({ rfq: { status: 'OPEN' } });
+      mockPrisma.message.create.mockResolvedValue({
+        id: 'msg-q',
+        threadId: 'thread-1',
+        content: 'Quote question',
+        sender: { id: 'user-1', name: 'A', email: 'a@t.com' },
+        attachments: [],
+        createdAt: now,
+      });
+      mockPrisma.messageThread.update.mockResolvedValue({});
+
+      const result = await service.sendMessage(
+        'thread-1',
+        { content: 'Quote question' } as never,
+        currentUser,
+      );
+      expect(result.content).toBe('Quote question');
     });
 
     it('should allow sendMessage for unknown context type (default)', async () => {

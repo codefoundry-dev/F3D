@@ -30,6 +30,7 @@ import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { PO_CREATE_ROUTE } from '../constants/routes';
+import { useMessageThread } from '../hooks/useMessageThread';
 import {
   useCreateDraftPoFromQuote,
   useQuoteDetail,
@@ -203,8 +204,26 @@ export function QuoteResponseDetailPage({
     onTabChange?.(tab);
   };
 
-  // TODO: Replace with real messages from API when available
-  const messages: Message[] = [];
+  // Live message thread for this vendor's quote (FOR-288) — replaces the
+  // empty-array stub. Scoped to the QuoteResponse (not the RFQ) so each
+  // buyer↔vendor conversation is isolated; the backend seeds the vendor's
+  // sales reps as participants.
+  const {
+    messages,
+    isLoading: isLoadingMessages,
+    isSending,
+    send,
+  } = useMessageThread({ contextType: 'QUOTE_RESPONSE', contextId: quoteId });
+
+  const handleSendMessage = useCallback(async () => {
+    if (!messageText.trim()) return;
+    try {
+      await send(messageText);
+      setMessageText('');
+    } catch {
+      // Keep the text in the box so the user can retry a failed send.
+    }
+  }, [messageText, send]);
 
   const attachments = quote?.attachments ?? [];
 
@@ -254,12 +273,11 @@ export function QuoteResponseDetailPage({
       {activeTab === 'messages' && (
         <MessagesTab
           messages={messages}
+          isLoading={isLoadingMessages}
+          isSending={isSending}
           messageText={messageText}
           onMessageTextChange={setMessageText}
-          onSend={() => {
-            // TODO: send message via API
-            setMessageText('');
-          }}
+          onSend={handleSendMessage}
         />
       )}
       {activeTab === 'lineItems' && (
@@ -340,17 +358,29 @@ export function QuoteResponseDetailPage({
 
 function MessagesTab({
   messages,
+  isLoading,
+  isSending,
   messageText,
   onMessageTextChange,
   onSend,
 }: {
   messages: Message[];
+  isLoading: boolean;
+  isSending: boolean;
   messageText: string;
   onMessageTextChange: (text: string) => void;
   onSend: () => void;
 }) {
   const { t } = useTranslation('rfqs');
   const grouped = groupMessagesByDate(messages);
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-16">
+        <Spinner size="md" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -374,15 +404,26 @@ function MessagesTab({
             <div className="space-y-4">
               {msgs.map((msg) => (
                 <div key={msg.id} className="flex gap-3">
-                  {/* Avatar placeholder */}
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 text-xs font-medium text-muted-foreground">
-                    {msg.senderName.charAt(0)}
-                  </div>
+                  {/* Avatar — sender's company logo (FOR-288), falling back to an initial */}
+                  {msg.senderCompanyLogoUrl ? (
+                    <img
+                      src={msg.senderCompanyLogoUrl}
+                      alt={msg.senderCompany ?? msg.senderName}
+                      className="w-8 h-8 rounded-full object-contain bg-white border border-border shrink-0"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 text-xs font-medium text-muted-foreground">
+                      {msg.senderName.charAt(0)}
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-foreground">
                         {msg.senderName}
                       </span>
+                      {msg.senderCompany && (
+                        <span className="text-xs text-muted-foreground">· {msg.senderCompany}</span>
+                      )}
                       <span className="text-xs text-muted-foreground">
                         {formatTime(msg.createdAt)}
                       </span>
@@ -402,16 +443,17 @@ function MessagesTab({
           value={messageText}
           onChange={(e) => onMessageTextChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && messageText.trim()) {
+            if (e.key === 'Enter' && messageText.trim() && !isSending) {
               onSend();
             }
           }}
           placeholder={t('quoteResponseDetail.typeMessage')}
           leftIcon={<PaperclipIcon className="w-4 h-4" />}
+          disabled={isSending}
         />
         <Button
           onClick={onSend}
-          disabled={!messageText.trim()}
+          disabled={!messageText.trim() || isSending}
           leftIcon={<LetterIcon className="w-4 h-4" />}
         >
           {t('quoteResponseDetail.send')}
