@@ -4,3 +4,4 @@
 - [material sku unique key](material-sku-unique-key.md) — Material SKU is the natural unique key; (name,status) unique was dropped because catalogue names are not unique.
 - [material company scope + favourites](material-company-scope-favourites.md) — US 4.02/4.03: materials.company_id ownership envelope (PUBLIC vs company-private), edit/approve/restore/import rules, MaterialFavourite, material-lists CRUD.
 - [PO/bulk/drawdown flows](po-bulk-drawdown-flows.md) — US5.08/5.09 + PO Change Request: canonical changedFields shape, approveChange (was a no-op stub) now applies+audits, PoChangeRequest.reference, drawdown-from-PO in createPurchaseOrder, GET /rfqs/approved-responses; $transaction-mock test gotcha.
+- [email HTML templates hand-formatted](email-html-templates-hand-formatted.md) — notifications/templates/*.html are hand-formatted; do NOT prettier --write them (reformats whole file, CI skips prettier for them). Brand = logo+name via BrandingService.getEmailBrand.
