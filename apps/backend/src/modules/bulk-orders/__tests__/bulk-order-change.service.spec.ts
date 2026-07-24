@@ -54,6 +54,11 @@ const mockBranding = {
   getPdfBrand: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockNotifications = {
+  createForEmails: jest.fn().mockResolvedValue(undefined),
+  createForUsers: jest.fn().mockResolvedValue(undefined),
+};
+
 const contractorUser = {
   id: 'cu-1',
   email: 'ca@test.com',
@@ -95,6 +100,7 @@ describe('BulkOrderChangeService', () => {
       mockEmailService as never,
       mockConfig as never,
       mockBranding as never,
+      mockNotifications as never,
     );
     // Default: no company logo → unbranded email. Re-set every test because
     // clearAllMocks keeps a brand override a FOR-288 test may have installed.

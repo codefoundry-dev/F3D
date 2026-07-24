@@ -273,6 +273,15 @@ export const MESSAGES_PATHS = {
   threadMessages: (threadId: string) => `/messages/threads/${threadId}/messages`,
 } as const;
 
+// ── Notifications (in-app feed) ──────────────────────────────────────────────
+export const NOTIFICATIONS_PATHS = {
+  BASE: '/notifications',
+  UNREAD_COUNT: '/notifications/unread-count',
+  STREAM: '/notifications/stream',
+  READ_ALL: '/notifications/read-all',
+  markRead: (id: string) => `/notifications/${id}/read`,
+} as const;
+
 // ── Dashboard ────────────────────────────────────────────────────────────────
 export const DASHBOARD_PATHS = {
   PO_CA: '/dashboard/po-ca',

@@ -155,6 +155,11 @@ const mockBranding = {
   getPdfBrand: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockNotifications = {
+  createForEmails: jest.fn().mockResolvedValue(undefined),
+  createForUsers: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('PoStatusService', () => {
   let service: PoStatusService;
 
@@ -171,6 +176,7 @@ describe('PoStatusService', () => {
       mockAccessTokensService as never,
       mockConfig as never,
       mockBranding as never,
+      mockNotifications as never,
     );
     // Default: getPurchaseOrder / getPurchaseOrderById return fullPoDetail-shaped response
     mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue(fullPoDetail);
@@ -2484,6 +2490,32 @@ describe('PoStatusService', () => {
       // 150 >= 60 ordered → DELIVERED
       expect(outcome.transitioned).toBe(true);
       expect(outcome.nextStatus).toBe('DELIVERED');
+    });
+
+    it('holds at PARTIALLY_DELIVERED when preventFullyDelivered, even at full qty (FOR-287)', async () => {
+      // Full received qty (60 of 60) would normally complete the PO, but an
+      // explicit "partially delivered" report line must not flip it to DELIVERED.
+      const deltas = new Map<string, number>([['li-1', 60]]);
+      const outcome = await service.applyDeliveryDeltasInTx(
+        mockPrisma as never,
+        approvalPo,
+        deltas,
+        'ca-1',
+        { preventFullyDelivered: true },
+      );
+
+      // Line qty is still bumped + pushed to inventory — only the status is held.
+      expect(mockPrisma.poLineItem.update).toHaveBeenCalledWith({
+        where: { id: 'li-1' },
+        data: { quantityDelivered: 60 },
+      });
+      expect(outcome.transitioned).toBe(true);
+      expect(outcome.nextStatus).toBe('PARTIALLY_DELIVERED');
+      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'PARTIALLY_DELIVERED' }),
+        }),
+      );
     });
 
     it('auditDeliveryTransition is a no-op when the status did not move', async () => {

@@ -4,8 +4,6 @@ import { usePageTitleStore } from '@forethread/rfq-shared';
 import {
   AvatarWithStatus,
   Breadcrumbs,
-  // FOR-261: notification button temporarily hidden until functionality is restored.
-  // NotificationBell,
   Sidebar,
   type BreadcrumbItem,
   type WorkStatusType,
@@ -18,6 +16,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/app/route-config';
 import { useLogout } from '@/features/auth/services/auth.service';
 import { useAuthStore } from '@/features/auth/state/auth.store';
+import { NotificationCenter } from '@/features/notifications';
 import { homePathForRole, useUserRole } from '@/shared/role';
 
 import { getSidebarItemsForRole } from './sidebarConfig';
@@ -86,9 +85,7 @@ export function AppLayout() {
               header/title there) so it never collides with the bell + user menu. */}
           <Breadcrumbs items={breadcrumbItems} className="hidden min-w-0 sm:flex" />
           <div className="flex items-center gap-2">
-            {/* FOR-261: notification button temporarily hidden until functionality is
-                restored. Re-enable by uncommenting this (and the import above). */}
-            {/* <NotificationBell aria-label={t('nav:notifications')} hasNotifications /> */}
+            <NotificationCenter />
 
             <div className="relative group">
               <button

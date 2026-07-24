@@ -435,6 +435,13 @@ export class DeliveriesService {
     // Build per-line received deltas from the report outcomes.
     const deltas = this.buildApprovalDeltas(report.lines);
 
+    // A line explicitly reported PARTIALLY_DELIVERED must not complete the PO
+    // even though the create forms pre-fill the received qty to the full ordered
+    // amount — honour the outcome and hold the PO at PARTIALLY_DELIVERED (FOR-287).
+    const preventFullyDelivered = report.lines.some(
+      (line) => line.outcome === DeliveryOutcome.PARTIALLY_DELIVERED,
+    );
+
     const outcome = await this.prisma.$transaction(async (tx) => {
       // Re-read status inside the tx — defeats a concurrent/double approve.
       const fresh = await tx.deliveryReport.findUnique({
@@ -450,6 +457,7 @@ export class DeliveriesService {
         po as DeliveryDeltaPo,
         deltas,
         user.id,
+        { preventFullyDelivered },
       );
 
       await tx.deliveryReport.update({

@@ -9,6 +9,8 @@ import {
   AuditAction,
   BulkOrderChangeRequestStatus,
   BulkOrderStatus,
+  NotificationEntityType,
+  NotificationType,
   Prisma,
   UserRole,
 } from '@prisma/client';
@@ -18,6 +20,7 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { BrandingService } from '../export/branding.service';
+import { NotificationService } from '../notification-feed/notification.service';
 import { EmailService } from '../notifications/email.service';
 
 import { CreateBulkOrderChangeRequestDto, RejectChangeRequestDto } from './bulk-order-change.dto';
@@ -32,6 +35,7 @@ export class BulkOrderChangeService {
     private readonly emailService: EmailService,
     config: ConfigService,
     private readonly branding: BrandingService,
+    private readonly notifications: NotificationService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
   }
@@ -410,6 +414,14 @@ export class BulkOrderChangeService {
           ),
         ),
       );
+
+      await this.notifications.createForEmails(emails, {
+        type: NotificationType.CHANGE_REQUEST_PROPOSED,
+        title: 'Change request proposed',
+        body: `${proposerName} proposed a change to bulk order ${bulkId}.`,
+        entityType: NotificationEntityType.BULK_ORDER,
+        entityId: bo.id,
+      });
     } catch {
       // fire-and-forget: email failures are non-critical
     }
@@ -463,6 +475,38 @@ export class BulkOrderChangeService {
             );
           }
         }),
+      );
+
+      const content =
+        type === 'approved'
+          ? {
+              notificationType: NotificationType.CHANGE_REQUEST_APPROVED,
+              title: 'Change request approved',
+              body: `The change request on bulk order ${bulkId} was approved.`,
+            }
+          : type === 'rejected'
+            ? {
+                notificationType: NotificationType.CHANGE_REQUEST_REJECTED,
+                title: 'Change request rejected',
+                body: `The change request on bulk order ${bulkId} was rejected.`,
+              }
+            : {
+                notificationType: NotificationType.BULK_ORDER_CANCELLED,
+                title: 'Bulk order cancelled',
+                body: `Bulk order ${bulkId} was cancelled${
+                  cancelledByName ? ` by ${cancelledByName}` : ''
+                }.`,
+              };
+
+      await this.notifications.createForEmails(
+        users.map((u) => u.email),
+        {
+          type: content.notificationType,
+          title: content.title,
+          body: content.body,
+          entityType: NotificationEntityType.BULK_ORDER,
+          entityId: bo.id,
+        },
       );
     } catch {
       // fire-and-forget: email failures are non-critical

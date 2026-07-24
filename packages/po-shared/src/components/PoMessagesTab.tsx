@@ -26,9 +26,9 @@ interface PoMessagesTabProps {
   poStatus?: string;
   /** Current user id — needed to auto-create thread with participants */
   currentUserId?: string;
-  /** Vendor company user id — added as participant when creating thread */
-  vendorUserId?: string;
-  /** PO creator id — added as participant when creating thread */
+  /** PO creator id — added as participant when creating thread. The vendor side
+   * is seeded server-side from the PO (the client only has the vendor *company*
+   * id, which is not a valid participant), so it is intentionally not passed. */
   creatorUserId?: string;
   /** Override container height (default 520px, use smaller for panels) */
   height?: string;
@@ -54,7 +54,6 @@ export function PoMessagesTab({
   poId,
   poStatus,
   currentUserId,
-  vendorUserId,
   creatorUserId,
   height,
 }: PoMessagesTabProps) {
@@ -105,7 +104,6 @@ export function PoMessagesTab({
     mutationFn: () => {
       const participantIds = new Set<string>();
       if (currentUserId) participantIds.add(currentUserId);
-      if (vendorUserId) participantIds.add(vendorUserId);
       if (creatorUserId) participantIds.add(creatorUserId);
       return createThread({
         contextType: 'PURCHASE_ORDER',

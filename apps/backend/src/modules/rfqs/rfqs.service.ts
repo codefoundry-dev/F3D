@@ -22,6 +22,8 @@ import {
   AccessTokenPurpose,
   AccessTokenSubject,
   CompanyType,
+  NotificationEntityType,
+  NotificationType,
   PoSourceOfCreation,
   PoStatus,
   PoType,
@@ -42,6 +44,7 @@ import { resolveSelectedRecipients } from '../../common/utils/vendor-recipients.
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { BrandingService } from '../export/branding.service';
+import { NotificationService } from '../notification-feed/notification.service';
 import { EmailAttachment, EmailService } from '../notifications/email.service';
 import { StorageService } from '../storage/storage.service';
 
@@ -158,6 +161,7 @@ export class RfqsService {
     private readonly accessTokens: AccessTokensService,
     config: ConfigService,
     private readonly branding: BrandingService,
+    private readonly notifications: NotificationService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
   }
@@ -2182,6 +2186,16 @@ export class RfqsService {
           }),
         ),
       );
+
+      // Mirror the email into the in-app feed for this vendor's activated reps
+      // (unactivated vendors have no inbox and only get the email above).
+      await this.notifications.createForEmails(emails, {
+        type: NotificationType.RFQ_RECEIVED,
+        title: 'New RFQ received',
+        body: `You have been invited to quote on RFQ ${rfqNumber}.`,
+        entityType: NotificationEntityType.RFQ,
+        entityId: rfqId,
+      });
     }
   }
 
@@ -2245,6 +2259,17 @@ export class RfqsService {
           this.emailService.sendQuoteSubmittedEmail(u.email, rfqNumber, vendorName, viewUrl, brand),
         ),
       );
+
+      await this.notifications.createForEmails(
+        contractors.map((u) => u.email),
+        {
+          type: NotificationType.QUOTE_SUBMITTED,
+          title: 'New quote received',
+          body: `${vendorName} submitted a quote for RFQ ${rfqNumber}.`,
+          entityType: NotificationEntityType.RFQ,
+          entityId: rfqId,
+        },
+      );
     } catch {
       // fire-and-forget: email failures are non-critical
     }
@@ -2283,6 +2308,17 @@ export class RfqsService {
         contractors.map((u) =>
           this.emailService.sendQuoteUpdatedEmail(u.email, rfqNumber, vendorName, viewUrl, brand),
         ),
+      );
+
+      await this.notifications.createForEmails(
+        contractors.map((u) => u.email),
+        {
+          type: NotificationType.QUOTE_UPDATED,
+          title: 'Quote updated',
+          body: `${vendorName} updated their quote for RFQ ${rfqNumber}.`,
+          entityType: NotificationEntityType.RFQ,
+          entityId: rfqId,
+        },
       );
     } catch {
       // fire-and-forget: email failures are non-critical

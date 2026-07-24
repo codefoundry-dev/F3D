@@ -948,6 +948,61 @@ describe('DeliveriesService', () => {
       expect(deltas.get('li-1')).toBe(50);
     });
 
+    it('passes preventFullyDelivered when a line is PARTIALLY_DELIVERED (FOR-287)', async () => {
+      const { service, prisma, poStatus } = makeService();
+      (prisma.deliveryReport.findUnique as jest.Mock)
+        .mockResolvedValueOnce(
+          reportForApproval([
+            {
+              // Full received qty but explicitly marked partial — must not complete the PO.
+              poLineItemId: 'li-1',
+              quantityReceived: 100,
+              outcome: 'PARTIALLY_DELIVERED',
+              damagedQuantity: null,
+              damageDisposition: null,
+            },
+          ]),
+        )
+        .mockResolvedValueOnce(detailRow({ companyId: 'company-1' }));
+      (prisma.purchaseOrder.findUnique as jest.Mock).mockResolvedValue(deliverablePo());
+
+      await service.approve('dr-1', officer);
+
+      // Received qty still flows onto the line...
+      const deltas = poStatus.applyDeliveryDeltasInTx.mock.calls[0][2] as Map<string, number>;
+      expect(deltas.get('li-1')).toBe(100);
+      // ...but the close-out is told to hold the PO at PARTIALLY_DELIVERED.
+      const options = poStatus.applyDeliveryDeltasInTx.mock.calls[0][4] as {
+        preventFullyDelivered?: boolean;
+      };
+      expect(options.preventFullyDelivered).toBe(true);
+    });
+
+    it('does not set preventFullyDelivered for an all-DELIVERED report', async () => {
+      const { service, prisma, poStatus } = makeService();
+      (prisma.deliveryReport.findUnique as jest.Mock)
+        .mockResolvedValueOnce(
+          reportForApproval([
+            {
+              poLineItemId: 'li-1',
+              quantityReceived: 100,
+              outcome: 'DELIVERED',
+              damagedQuantity: null,
+              damageDisposition: null,
+            },
+          ]),
+        )
+        .mockResolvedValueOnce(detailRow({ companyId: 'company-1' }));
+      (prisma.purchaseOrder.findUnique as jest.Mock).mockResolvedValue(deliverablePo());
+
+      await service.approve('dr-1', officer);
+
+      const options = poStatus.applyDeliveryDeltasInTx.mock.calls[0][4] as {
+        preventFullyDelivered?: boolean;
+      };
+      expect(options.preventFullyDelivered).toBe(false);
+    });
+
     it('is idempotent: a concurrent double-approve is defeated by the in-tx re-read', async () => {
       const { service, prisma, poStatus, tx } = makeService();
       (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue(

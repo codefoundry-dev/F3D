@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import {
   MessageContextType,
+  NotificationEntityType,
+  NotificationType,
   PoStatus,
   Prisma,
   RfqStatus,
@@ -16,6 +18,7 @@ import {
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationService } from '../notification-feed/notification.service';
 import { StorageService } from '../storage/storage.service';
 
 import {
@@ -55,11 +58,26 @@ type SenderWithCompany = {
   company: { legalName: string; tradeName: string | null; logoUrl: string | null } | null;
 };
 
+/** Thread loaded with its participants (and each participant's user) — the shape
+ * returned by createThread, used for the get-or-create/join paths. */
+const THREAD_WITH_PARTICIPANTS_INCLUDE = {
+  participants: {
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+    },
+  },
+} satisfies Prisma.MessageThreadInclude;
+
+type ThreadWithParticipants = Prisma.MessageThreadGetPayload<{
+  include: typeof THREAD_WITH_PARTICIPANTS_INCLUDE;
+}>;
+
 @Injectable()
 export class MessagesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async createThread(dto: CreateThreadDto, user: AuthenticatedUser) {
@@ -69,38 +87,83 @@ export class MessagesService {
     await this.validateContextExists(contextType, dto.contextId);
 
     // Seed both sides automatically for contexts where they're derivable — a
-    // QUOTE_RESPONSE thread gets the RFQ buyer AND that vendor's sales reps
+    // QUOTE_RESPONSE thread gets the RFQ buyer AND that vendor's sales reps, and
+    // a PURCHASE_ORDER thread gets the PO's buyer AND the vendor company's users
     // (FOR-288), so the conversation is complete whether the buyer or the vendor
     // opens it first, without the caller having to know the other party's ids.
     const counterpartyIds = await this.resolveThreadCounterparties(contextType, dto.contextId);
 
-    // Ensure the current user is included in participants
-    const allParticipantIds = Array.from(
-      new Set([user.id, ...dto.participantIds, ...counterpartyIds]),
-    );
+    // Only real users can be thread participants. The caller may pass ids that
+    // aren't users — notably a PO's "vendor" is a *Company*, not a User — which
+    // would otherwise fail the participant insert with a foreign-key error (a
+    // 500). Drop unknown ids; the counterparties above seed the real users. The
+    // current user is always kept (they exist by definition).
+    const participantIds = await this.filterExistingUserIds([
+      user.id,
+      ...dto.participantIds,
+      ...counterpartyIds,
+    ]);
 
-    const thread = await this.prisma.messageThread.create({
-      data: {
-        contextType,
-        contextId: dto.contextId,
-        participants: {
-          create: allParticipantIds.map((userId) => ({
-            userId,
-          })),
+    // A context has exactly one thread (unique on contextType + contextId), so
+    // this is get-or-create: a second opener — or a buyer who isn't the PO
+    // creator — joins the existing thread instead of tripping the unique
+    // constraint (which otherwise surfaced as a 500).
+    const existing = await this.findThreadByContext(contextType, dto.contextId);
+    if (existing) return this.joinThread(existing, participantIds);
+
+    try {
+      return await this.prisma.messageThread.create({
+        data: {
+          contextType,
+          contextId: dto.contextId,
+          participants: { create: participantIds.map((userId) => ({ userId })) },
         },
-      },
-      include: {
-        participants: {
-          include: {
-            user: {
-              select: { id: true, name: true, email: true },
-            },
-          },
-        },
-      },
+        include: THREAD_WITH_PARTICIPANTS_INCLUDE,
+      });
+    } catch (err) {
+      // Lost a create race — another request created the context's thread
+      // between our lookup and insert. Join that thread rather than 500-ing.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        const raced = await this.findThreadByContext(contextType, dto.contextId);
+        if (raced) return this.joinThread(raced, participantIds);
+      }
+      throw err;
+    }
+  }
+
+  /** The single thread for a context, or null — keyed on the unique context. */
+  private findThreadByContext(contextType: MessageContextType, contextId: string) {
+    return this.prisma.messageThread.findUnique({
+      where: { contextType_contextId: { contextType, contextId } },
+      include: THREAD_WITH_PARTICIPANTS_INCLUDE,
     });
+  }
 
-    return thread;
+  /** Add any of `participantIds` not already on the thread, then return it. */
+  private async joinThread(
+    thread: ThreadWithParticipants,
+    participantIds: string[],
+  ): Promise<ThreadWithParticipants> {
+    const known = new Set(thread.participants.map((p) => p.userId));
+    const missing = participantIds.filter((id) => !known.has(id));
+    if (missing.length === 0) return thread;
+    return this.prisma.messageThread.update({
+      where: { id: thread.id },
+      data: { participants: { create: missing.map((userId) => ({ userId })) } },
+      include: THREAD_WITH_PARTICIPANTS_INCLUDE,
+    });
+  }
+
+  /** Keep only ids that reference an existing user (deduped), preserving none of
+   * the non-user ids a caller might pass (e.g. a company id). */
+  private async filterExistingUserIds(ids: string[]): Promise<string[]> {
+    const unique = Array.from(new Set(ids));
+    if (unique.length === 0) return [];
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: unique } },
+      select: { id: true },
+    });
+    return users.map((u) => u.id);
   }
 
   async listThreads(query: ListThreadsQueryDto, user: AuthenticatedUser) {
@@ -291,6 +354,16 @@ export class MessagesService {
       data: { updatedAt: new Date() },
     });
 
+    // Notify the other participants in-app (best-effort). Chat is in-app only —
+    // per ADR-0011 the thread itself is the surface, so there is no email here.
+    await this.notifyThreadParticipants(
+      threadId,
+      thread,
+      message.sender.name,
+      message.content,
+      user.id,
+    );
+
     const logoUrls = await this.signLogoUrls([message.sender.company?.logoUrl]);
 
     return {
@@ -304,6 +377,71 @@ export class MessagesService {
       })),
       createdAt: message.createdAt.toISOString(),
     };
+  }
+
+  /**
+   * Notify every other participant of a new message (best-effort). The
+   * notification deep-links to the thread's underlying document so the recipient
+   * lands where the conversation lives.
+   */
+  private async notifyThreadParticipants(
+    threadId: string,
+    thread: { contextType: MessageContextType; contextId: string },
+    senderName: string,
+    content: string,
+    senderId: string,
+  ): Promise<void> {
+    try {
+      const participants = await this.prisma.threadParticipant.findMany({
+        where: { threadId, userId: { not: senderId } },
+        select: { userId: true },
+      });
+      if (participants.length === 0) return;
+
+      const { entityType, metadata } = await this.resolveNotificationTarget(thread);
+      const preview = content.length > 140 ? `${content.slice(0, 140)}…` : content;
+
+      await this.notifications.createForUsers({
+        userIds: participants.map((p) => p.userId),
+        type: NotificationType.MESSAGE_RECEIVED,
+        title: 'New message',
+        body: `${senderName}: ${preview}`,
+        ...(entityType ? { entityType, entityId: thread.contextId } : {}),
+        ...(metadata ? { metadata } : {}),
+      });
+    } catch {
+      // best-effort — a notification failure must not fail the message send
+    }
+  }
+
+  /**
+   * Map a thread's context to a notification deep-link target. QUOTE_RESPONSE
+   * also carries `rfqId` so the front end can build /rfqs/:rfqId/quotes/:quoteId.
+   * Context types without an app route (material/warehouse requests) get no
+   * target — the notification still shows, just without a "go to" link.
+   */
+  private async resolveNotificationTarget(thread: {
+    contextType: MessageContextType;
+    contextId: string;
+  }): Promise<{ entityType?: NotificationEntityType; metadata?: Record<string, unknown> }> {
+    switch (thread.contextType) {
+      case MessageContextType.RFQ:
+        return { entityType: NotificationEntityType.RFQ };
+      case MessageContextType.PURCHASE_ORDER:
+        return { entityType: NotificationEntityType.PURCHASE_ORDER };
+      case MessageContextType.QUOTE_RESPONSE: {
+        const quote = await this.prisma.quoteResponse.findUnique({
+          where: { id: thread.contextId },
+          select: { rfqId: true },
+        });
+        return {
+          entityType: NotificationEntityType.QUOTE_RESPONSE,
+          ...(quote ? { metadata: { rfqId: quote.rfqId } } : {}),
+        };
+      }
+      default:
+        return {};
+    }
   }
 
   /**
@@ -338,20 +476,50 @@ export class MessagesService {
   }
 
   /**
-   * Both sides of a QUOTE_RESPONSE conversation, so the thread is complete no
-   * matter who opens it first (FOR-288): the RFQ owner (buyer) plus the vendor's
-   * chosen sales reps for this RFQ (US 5.05 `RfqVendorContact`), falling back to
-   * the vendor company's own (non-inactive) users when no reps were chosen. The
-   * authenticated caller is always added by createThread, so a buyer-initiated
-   * thread still gets the vendor and a vendor-initiated one still gets the
-   * buyer. Other contexts derive nothing — the caller supplies participants.
+   * Derive both sides of a conversation so the thread is complete no matter who
+   * opens it first (FOR-288), without the caller having to know the other
+   * party's user ids. The authenticated caller is always added by createThread.
+   * Contexts without a derivable counterparty return nothing.
    */
   private async resolveThreadCounterparties(
     contextType: MessageContextType,
     contextId: string,
   ): Promise<string[]> {
-    if (contextType !== MessageContextType.QUOTE_RESPONSE) return [];
+    switch (contextType) {
+      case MessageContextType.QUOTE_RESPONSE:
+        return this.resolveQuoteCounterparties(contextId);
+      case MessageContextType.PURCHASE_ORDER:
+        return this.resolvePurchaseOrderCounterparties(contextId);
+      default:
+        return [];
+    }
+  }
 
+  /**
+   * PO thread sides: the PO's buyer (its creator) and the vendor company's
+   * (non-inactive) users. This is what lets a buyer open a PO thread without
+   * knowing the vendor's user ids — the buyer PO detail page only has the
+   * vendor *company* id, which is not a valid participant.
+   */
+  private async resolvePurchaseOrderCounterparties(contextId: string): Promise<string[]> {
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id: contextId },
+      select: { createdByUserId: true, vendorId: true },
+    });
+    if (!po) return [];
+
+    const participants: string[] = [];
+    if (po.createdByUserId) participants.push(po.createdByUserId);
+    if (po.vendorId) participants.push(...(await this.activeVendorUserIds(po.vendorId)));
+    return participants;
+  }
+
+  /**
+   * QUOTE_RESPONSE thread sides: the RFQ owner (buyer) plus the vendor's chosen
+   * sales reps for this RFQ (US 5.05 `RfqVendorContact`), falling back to the
+   * vendor company's own (non-inactive) users when no reps were chosen.
+   */
+  private async resolveQuoteCounterparties(contextId: string): Promise<string[]> {
     const quote = await this.prisma.quoteResponse.findUnique({
       where: { id: contextId },
       select: {
@@ -376,17 +544,22 @@ export class MessagesService {
     if (repIds.length > 0) {
       participants.push(...repIds);
     } else {
-      const vendorUsers = await this.prisma.user.findMany({
-        where: {
-          companyId: quote.vendorId,
-          role: UserRole.VENDOR,
-          status: { not: UserStatus.INACTIVE },
-        },
-        select: { id: true },
-      });
-      participants.push(...vendorUsers.map((u) => u.id));
+      participants.push(...(await this.activeVendorUserIds(quote.vendorId)));
     }
     return participants;
+  }
+
+  /** The vendor-side reps: a vendor company's non-inactive users. */
+  private async activeVendorUserIds(vendorCompanyId: string): Promise<string[]> {
+    const vendorUsers = await this.prisma.user.findMany({
+      where: {
+        companyId: vendorCompanyId,
+        role: UserRole.VENDOR,
+        status: { not: UserStatus.INACTIVE },
+      },
+      select: { id: true },
+    });
+    return vendorUsers.map((u) => u.id);
   }
 
   private async validateParticipant(threadId: string, userId: string): Promise<void> {

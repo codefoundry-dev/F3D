@@ -8,6 +8,7 @@ const mockPrisma = {
   messageThread: {
     create: jest.fn(),
     findMany: jest.fn(),
+    findUnique: jest.fn(),
     count: jest.fn(),
     findUniqueOrThrow: jest.fn(),
     update: jest.fn(),
@@ -19,6 +20,7 @@ const mockPrisma = {
   },
   threadParticipant: {
     findUnique: jest.fn(),
+    findMany: jest.fn(),
   },
   rfq: {
     findUnique: jest.fn(),
@@ -41,6 +43,11 @@ const mockStorage = {
   getSignedUrl: jest.fn(),
 };
 
+const mockNotifications = {
+  createForUsers: jest.fn().mockResolvedValue(undefined),
+  createForEmails: jest.fn().mockResolvedValue(undefined),
+};
+
 const currentUser = {
   id: 'user-1',
   role: UserRole.COMPANY_ADMIN,
@@ -54,7 +61,21 @@ describe('MessagesService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockStorage.getSignedUrl.mockResolvedValue('https://signed.example/logo.png');
-    service = new MessagesService(mockPrisma as never, mockStorage as never);
+    mockPrisma.threadParticipant.findMany.mockResolvedValue([]);
+    // No existing thread for a context by default → createThread takes the
+    // create path. Tests exercising get-or-create override this.
+    mockPrisma.messageThread.findUnique.mockResolvedValue(null);
+    // filterExistingUserIds looks users up by id — by default treat every
+    // requested id as a real user (echo the id.in list). Vendor-user lookups
+    // (by companyId) return none unless a test sets them.
+    mockPrisma.user.findMany.mockImplementation((args?: { where?: { id?: { in?: string[] } } }) =>
+      Promise.resolve((args?.where?.id?.in ?? []).map((id) => ({ id }))),
+    );
+    service = new MessagesService(
+      mockPrisma as never,
+      mockStorage as never,
+      mockNotifications as never,
+    );
   });
 
   // ── createThread ──────────────────────────────────────────────────────────
@@ -206,8 +227,11 @@ describe('MessagesService', () => {
           where: { rfqId_vendorId: { rfqId: 'rfq-1', vendorId: 'vend-1' } },
         }),
       );
-      // Reps were found — no fallback to the vendor company's users.
-      expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
+      // Reps were found — no fallback lookup of the vendor company's users.
+      // (user.findMany is still called by the participant-existence filter.)
+      expect(mockPrisma.user.findMany).not.toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ companyId: 'vend-1' }) }),
+      );
     });
 
     it('falls back to the vendor company’s users when no reps were chosen (still seeds the buyer)', async () => {
@@ -223,7 +247,16 @@ describe('MessagesService', () => {
         rfq: { createdByUserId: 'buyer-1' },
       });
       mockPrisma.rfqVendor.findUnique.mockResolvedValue({ contacts: [] });
-      mockPrisma.user.findMany.mockResolvedValue([{ id: 'vu-1' }]);
+      // Vendor-company lookup returns one user; the id-existence filter still
+      // echoes the ids it is asked about.
+      mockPrisma.user.findMany.mockImplementation(
+        (args?: { where?: { companyId?: string; id?: { in?: string[] } } }) =>
+          Promise.resolve(
+            args?.where?.companyId
+              ? [{ id: 'vu-1' }]
+              : (args?.where?.id?.in ?? []).map((id) => ({ id })),
+          ),
+      );
       mockPrisma.messageThread.create.mockResolvedValue({
         id: 'thread-q',
         contextType: 'QUOTE_RESPONSE',
@@ -281,6 +314,101 @@ describe('MessagesService', () => {
 
       expect(participantUserIds).toContain('user-1');
       expect(participantUserIds).toContain('user-2');
+    });
+
+    it('seeds a PURCHASE_ORDER thread with the PO buyer AND the vendor company’s users', async () => {
+      const dto = { contextType: 'PURCHASE_ORDER', contextId: 'po-1', participantIds: [] };
+
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        createdByUserId: 'buyer-1',
+        vendorId: 'vend-1',
+      });
+      mockPrisma.user.findMany.mockImplementation(
+        (args?: { where?: { companyId?: string; id?: { in?: string[] } } }) =>
+          Promise.resolve(
+            args?.where?.companyId
+              ? [{ id: 'vu-1' }]
+              : (args?.where?.id?.in ?? []).map((id) => ({ id })),
+          ),
+      );
+      mockPrisma.messageThread.create.mockResolvedValue({ id: 'thread-po', participants: [] });
+
+      await service.createThread(dto as never, currentUser);
+
+      const ids = mockPrisma.messageThread.create.mock.calls[0][0].data.participants.create.map(
+        (p: { userId: string }) => p.userId,
+      );
+      // Buyer opens the thread → caller + PO creator + vendor company users.
+      expect(ids).toEqual(expect.arrayContaining(['user-1', 'buyer-1', 'vu-1']));
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ companyId: 'vend-1', role: UserRole.VENDOR }),
+        }),
+      );
+    });
+
+    it('drops participant ids that are not users (e.g. a vendor *company* id) rather than 500-ing', async () => {
+      const dto = {
+        contextType: 'PURCHASE_ORDER',
+        contextId: 'po-1',
+        // 'company-1' is a Company id wrongly supplied as a participant — the
+        // regression that produced a foreign-key 500. It must be filtered out.
+        participantIds: ['company-1'],
+      };
+
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ id: 'po-1' });
+      mockPrisma.user.findMany.mockImplementation(
+        (args?: { where?: { id?: { in?: string[] } } }) => {
+          const requested = args?.where?.id?.in ?? [];
+          // Only real users exist; the company id is not among them.
+          return Promise.resolve(
+            requested.filter((id) => id !== 'company-1').map((id) => ({ id })),
+          );
+        },
+      );
+      mockPrisma.messageThread.create.mockResolvedValue({ id: 'thread-po', participants: [] });
+
+      await service.createThread(dto as never, currentUser);
+
+      const ids = mockPrisma.messageThread.create.mock.calls[0][0].data.participants.create.map(
+        (p: { userId: string }) => p.userId,
+      );
+      expect(ids).toContain('user-1');
+      expect(ids).not.toContain('company-1');
+    });
+
+    it('joins the existing context thread (adding the caller) instead of creating a duplicate', async () => {
+      const dto = { contextType: 'RFQ', contextId: 'rfq-1', participantIds: [] };
+
+      mockPrisma.rfq.findUnique.mockResolvedValue({ id: 'rfq-1' });
+      const existing = {
+        id: 'thread-x',
+        contextType: 'RFQ',
+        contextId: 'rfq-1',
+        participants: [
+          {
+            id: 'p-9',
+            userId: 'someone-else',
+            user: { id: 'someone-else', name: 'X', email: 'x@t.com' },
+            joinedAt: new Date(),
+          },
+        ],
+      };
+      mockPrisma.messageThread.findUnique.mockResolvedValue(existing);
+      mockPrisma.messageThread.update.mockResolvedValue(existing);
+
+      const result = await service.createThread(dto as never, currentUser);
+
+      expect(result.id).toBe('thread-x');
+      expect(mockPrisma.messageThread.create).not.toHaveBeenCalled();
+      // The caller (user-1) wasn't a participant yet, so they are added.
+      expect(mockPrisma.messageThread.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'thread-x' },
+          data: { participants: { create: [{ userId: 'user-1' }] } },
+        }),
+      );
     });
   });
 
@@ -552,6 +680,105 @@ describe('MessagesService', () => {
             senderUserId: 'user-1',
             content: 'Test message',
           }),
+        }),
+      );
+    });
+
+    it('notifies the other participants in-app, excluding the sender', async () => {
+      const now = new Date();
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue({ id: 'p-1' });
+      mockPrisma.messageThread.findUniqueOrThrow.mockResolvedValue({
+        id: 'thread-1',
+        contextType: 'RFQ',
+        contextId: 'rfq-1',
+      });
+      mockPrisma.rfq.findUnique.mockResolvedValue({ id: 'rfq-1', status: 'OPEN' });
+      mockPrisma.message.create.mockResolvedValue({
+        id: 'msg-1',
+        threadId: 'thread-1',
+        content: 'Ping',
+        sender: { id: 'user-1', name: 'Alice', email: 'a@t.com' },
+        attachments: [],
+        createdAt: now,
+      });
+      mockPrisma.messageThread.update.mockResolvedValue({});
+      // Sender is excluded by the service's `userId: { not: sender }` filter, so
+      // the mock returns only the other participant.
+      mockPrisma.threadParticipant.findMany.mockResolvedValue([{ userId: 'user-2' }]);
+
+      await service.sendMessage('thread-1', { content: 'Ping' } as never, currentUser);
+
+      expect(mockPrisma.threadParticipant.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { threadId: 'thread-1', userId: { not: 'user-1' } },
+        }),
+      );
+      expect(mockNotifications.createForUsers).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userIds: ['user-2'],
+          type: 'MESSAGE_RECEIVED',
+          entityType: 'RFQ',
+          entityId: 'rfq-1',
+          body: expect.stringContaining('Alice'),
+        }),
+      );
+    });
+
+    it('targets the purchase order for a PURCHASE_ORDER thread', async () => {
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue({ id: 'p-1' });
+      mockPrisma.messageThread.findUniqueOrThrow.mockResolvedValue({
+        id: 'thread-1',
+        contextType: 'PURCHASE_ORDER',
+        contextId: 'po-1',
+      });
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ id: 'po-1', status: 'SENT' });
+      mockPrisma.message.create.mockResolvedValue({
+        id: 'msg-1',
+        threadId: 'thread-1',
+        content: 'Hi',
+        sender: { id: 'user-1', name: 'Alice', email: 'a@t.com' },
+        attachments: [],
+        createdAt: new Date(),
+      });
+      mockPrisma.messageThread.update.mockResolvedValue({});
+      mockPrisma.threadParticipant.findMany.mockResolvedValue([{ userId: 'user-2' }]);
+
+      await service.sendMessage('thread-1', { content: 'Hi' } as never, currentUser);
+
+      expect(mockNotifications.createForUsers).toHaveBeenCalledWith(
+        expect.objectContaining({ entityType: 'PURCHASE_ORDER', entityId: 'po-1' }),
+      );
+    });
+
+    it('carries rfqId metadata for a QUOTE_RESPONSE thread', async () => {
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue({ id: 'p-1' });
+      mockPrisma.messageThread.findUniqueOrThrow.mockResolvedValue({
+        id: 'thread-1',
+        contextType: 'QUOTE_RESPONSE',
+        contextId: 'quote-1',
+      });
+      // status guard + target resolution both read the quote.
+      mockPrisma.quoteResponse.findUnique
+        .mockResolvedValueOnce({ rfq: { status: 'OPEN' } })
+        .mockResolvedValueOnce({ rfqId: 'rfq-42' });
+      mockPrisma.message.create.mockResolvedValue({
+        id: 'msg-1',
+        threadId: 'thread-1',
+        content: 'Hi',
+        sender: { id: 'user-1', name: 'Alice', email: 'a@t.com' },
+        attachments: [],
+        createdAt: new Date(),
+      });
+      mockPrisma.messageThread.update.mockResolvedValue({});
+      mockPrisma.threadParticipant.findMany.mockResolvedValue([{ userId: 'user-2' }]);
+
+      await service.sendMessage('thread-1', { content: 'Hi' } as never, currentUser);
+
+      expect(mockNotifications.createForUsers).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityType: 'QUOTE_RESPONSE',
+          entityId: 'quote-1',
+          metadata: { rfqId: 'rfq-42' },
         }),
       );
     });

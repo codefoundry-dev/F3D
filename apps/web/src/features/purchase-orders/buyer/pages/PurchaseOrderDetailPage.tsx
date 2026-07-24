@@ -242,7 +242,6 @@ export default function PurchaseOrderDetailPage() {
             poId={po.id}
             poStatus={po.status}
             currentUserId={currentUser?.id}
-            vendorUserId={po.vendor?.id}
             creatorUserId={po.createdBy.id}
           />
         )}

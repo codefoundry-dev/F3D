@@ -13,6 +13,8 @@ import {
   AccessTokenSubject,
   AuditAction,
   ApprovalStatus,
+  NotificationEntityType,
+  NotificationType,
   PoStatus as PrismaPoStatus,
   PoType as PrismaPoType,
   Prisma,
@@ -28,6 +30,7 @@ import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { AuditService } from '../audit/audit.service';
 import { BrandingService } from '../export/branding.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { NotificationService } from '../notification-feed/notification.service';
 import { EmailService } from '../notifications/email.service';
 
 import { PoExportService } from './po-export.service';
@@ -73,6 +76,20 @@ export interface DeliveryDeltaOutcome {
   nextStatus: PrismaPoStatus;
 }
 
+/** Options for the shared delivery close-out applier. */
+export interface ApplyDeliveryDeltasOptions {
+  /**
+   * When true, the PO is held at PARTIALLY_DELIVERED even if every line's
+   * cumulative delivered quantity has reached the ordered quantity. The
+   * delivery-report path sets this when a report line is explicitly marked
+   * PARTIALLY_DELIVERED, so an incomplete delivery cannot flip the PO to
+   * DELIVERED just because the received figure (which the create forms pre-fill
+   * to the full ordered qty) happened to reach ordered (FOR-287). The manual
+   * receive path never sets it — that path is purely quantity-driven.
+   */
+  preventFullyDelivered?: boolean;
+}
+
 @Injectable()
 export class PoStatusService {
   private readonly logger = new Logger(PoStatusService.name);
@@ -90,6 +107,7 @@ export class PoStatusService {
     private readonly accessTokens: AccessTokensService,
     config: ConfigService,
     private readonly branding: BrandingService,
+    private readonly notifications: NotificationService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
   }
@@ -878,6 +896,11 @@ export class PoStatusService {
    * status actually moves. Returns the transition outcome so the caller can emit
    * a best-effort transition audit AFTER the surrounding transaction commits.
    *
+   * `options.preventFullyDelivered` holds the PO at PARTIALLY_DELIVERED even when
+   * the quantities have reached ordered — the delivery-report path passes it when
+   * a line is explicitly reported PARTIALLY_DELIVERED so an incomplete delivery
+   * cannot complete the PO on a full pre-filled figure (FOR-287).
+   *
    * Callers are responsible for their own validation (e.g. the manual path's
    * over-receipt guard) before invoking this. Deltas of 0 are no-ops.
    */
@@ -886,6 +909,7 @@ export class PoStatusService {
     po: DeliveryDeltaPo,
     deltas: Map<string, number>,
     actorUserId: string,
+    options: ApplyDeliveryDeltasOptions = {},
   ): Promise<DeliveryDeltaOutcome> {
     const lineById = new Map(po.lineItems.map((li) => [li.id, li]));
 
@@ -897,9 +921,12 @@ export class PoStatusService {
       nextDelivered.set(lineId, existing.quantityDelivered + delta);
     }
 
-    const allFullyDelivered = po.lineItems.every(
-      (li) => (nextDelivered.get(li.id) ?? 0) >= li.quantityOrdered,
-    );
+    // An explicit "partially delivered" report line holds the whole PO at
+    // PARTIALLY_DELIVERED even when the received figure reaches ordered (FOR-287):
+    // honour the reported outcome over the raw quantity.
+    const allFullyDelivered =
+      !options.preventFullyDelivered &&
+      po.lineItems.every((li) => (nextDelivered.get(li.id) ?? 0) >= li.quantityOrdered);
     const anyDelivered = po.lineItems.some((li) => (nextDelivered.get(li.id) ?? 0) > 0);
 
     const nextStatus = allFullyDelivered
@@ -971,14 +998,18 @@ export class PoStatusService {
    * is an `increment`-equivalent absolute write of the projected cumulative, so
    * idempotency must be enforced by the caller (re-read the report status inside
    * the same tx before applying).
+   *
+   * `options.preventFullyDelivered` keeps the PO at PARTIALLY_DELIVERED when the
+   * report explicitly marks a line partially delivered (FOR-287).
    */
   async applyDeliveryDeltasInTx(
     tx: Prisma.TransactionClient,
     po: DeliveryDeltaPo,
     deltas: Map<string, number>,
     actorUserId: string,
+    options: ApplyDeliveryDeltasOptions = {},
   ): Promise<DeliveryDeltaOutcome> {
-    return this.applyDeliveryDeltasTx(tx, po, deltas, actorUserId);
+    return this.applyDeliveryDeltasTx(tx, po, deltas, actorUserId, options);
   }
 
   /**
@@ -1232,6 +1263,18 @@ export class PoStatusService {
         ),
       ),
     );
+
+    // Mirror into the in-app feed for the vendor's activated reps.
+    await this.notifications.createForEmails(
+      recipients.map((r) => r.email),
+      {
+        type: NotificationType.PO_ISSUED,
+        title: 'Purchase order received',
+        body: `You have received purchase order ${poNumber}.`,
+        entityType: NotificationEntityType.PURCHASE_ORDER,
+        entityId: poId,
+      },
+    );
   }
 
   private async notifyContractorOfDecline(
@@ -1267,6 +1310,17 @@ export class PoStatusService {
           brand,
         ),
       ),
+    );
+
+    await this.notifications.createForEmails(
+      companyAdmins.map((u) => u.email),
+      {
+        type: NotificationType.PO_DECLINED,
+        title: 'Purchase order declined',
+        body: `${vendorName} declined purchase order ${poNumber}.`,
+        entityType: NotificationEntityType.PURCHASE_ORDER,
+        entityId: poId,
+      },
     );
   }
 
@@ -1311,6 +1365,14 @@ export class PoStatusService {
         ),
       ),
     );
+
+    await this.notifications.createForEmails(recipients, {
+      type: NotificationType.PO_PENDING_APPROVAL,
+      title: 'Purchase order awaiting approval',
+      body: `Purchase order ${po.poNumber} (${amountLabel}) needs your approval.`,
+      entityType: NotificationEntityType.PURCHASE_ORDER,
+      entityId: poId,
+    });
   }
 
   /**

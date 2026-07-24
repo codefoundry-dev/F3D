@@ -1,0 +1,50 @@
+// In-app notification feed. Each row is one notification for one user, mirroring
+// the events that also send a branded transactional email plus new message-thread
+// messages. Surfaced on the header bell (badge + panel + detail modal) and pushed
+// live over SSE. See docs/adr/0011-notifications.md for the broader design.
+
+enum NotificationType {
+  RFQ_RECEIVED
+  QUOTE_SUBMITTED
+  QUOTE_UPDATED
+  PO_ISSUED
+  PO_PENDING_APPROVAL
+  PO_DECLINED
+  CHANGE_REQUEST_PROPOSED
+  CHANGE_REQUEST_APPROVED
+  CHANGE_REQUEST_REJECTED
+  BULK_ORDER_CANCELLED
+  MESSAGE_RECEIVED
+}
+
+// The kind of document a notification points at. Drives the front-end deep link
+// (entityType + entityId, plus any extra ids carried in `metadata`, e.g. rfqId
+// for a QUOTE_RESPONSE). Nullable on Notification so system messages without a
+// target still render.
+enum NotificationEntityType {
+  RFQ
+  QUOTE_RESPONSE
+  PURCHASE_ORDER
+  BULK_ORDER
+}
+
+model Notification {
+  id         String                  @id @default(uuid())
+  userId     String                  @map("user_id")
+  type       NotificationType
+  title      String
+  body       String?
+  entityType NotificationEntityType? @map("entity_type")
+  entityId   String?                 @map("entity_id")
+  // Extra structured context for rendering / linking (e.g. { rfqId } so a
+  // QUOTE_RESPONSE notification can build /rfqs/:rfqId/quotes/:quoteId).
+  metadata   Json?
+  readAt     DateTime?               @map("read_at")
+  createdAt  DateTime                @default(now()) @map("created_at")
+
+  user User @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt], map: "idx_notifications_user_created")
+  @@index([userId, readAt], map: "idx_notifications_user_read")
+  @@map("notifications")
+}

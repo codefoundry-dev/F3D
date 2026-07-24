@@ -28,6 +28,7 @@ export * from './endpoints/invoices';
 export * from './endpoints/dashboard';
 export * from './endpoints/vendors';
 export * from './endpoints/messages';
+export * from './endpoints/notifications';
 export * from './endpoints/views';
 export * from './endpoints/roles';
 export * from './endpoints/doc-extractions';

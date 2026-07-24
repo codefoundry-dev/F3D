@@ -32,6 +32,7 @@ import { MaterialListsModule } from './modules/material-lists/material-lists.mod
 import { MaterialRequestsModule } from './modules/material-requests/material-requests.module';
 import { MaterialsModule } from './modules/materials/materials.module';
 import { MessagesModule } from './modules/messages/messages.module';
+import { NotificationFeedModule } from './modules/notification-feed/notification-feed.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
@@ -83,6 +84,7 @@ import { PrismaModule } from './prisma/prisma.module';
 
     // ── Domain modules ──────────────────────────────────────────────────────
     NotificationsModule,
+    NotificationFeedModule,
     EmailLogModule,
     AuditModule,
     AccessTokensModule,
