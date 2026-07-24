@@ -2,7 +2,10 @@ name: Deploy backend
 
 on:
   push:
-    branches: [main]
+    # Branch-promotion CD: dev → staging, main → prod. The target env is derived
+    # from the pushed branch (see TARGET_ENV below), so a merge/push to main
+    # deploys straight to prod without a manual step.
+    branches: [main, dev]
     paths:
       - 'apps/backend/**'
       - 'packages/**'
@@ -44,19 +47,22 @@ permissions:
 
 concurrency:
   # Serialize deploys per-environment so two pushes can't race on `docker compose up`.
-  group: deploy-${{ github.event.inputs.env || 'staging' }}
+  group: deploy-${{ github.event.inputs.env || (github.ref_name == 'main' && 'prod' || 'staging') }}
   cancel-in-progress: false
 
 env:
   AWS_REGION: eu-north-1
-  TARGET_ENV: ${{ github.event.inputs.env || 'staging' }}
-  # 'build' on every push (staging CD) and by default; 'promote' only via a
-  # manual prod promotion.
+  # Env is chosen by trigger: a manual dispatch honours its `env` input; a push
+  # maps by branch — main → prod, anything else (dev) → staging.
+  TARGET_ENV: ${{ github.event.inputs.env || (github.ref_name == 'main' && 'prod' || 'staging') }}
+  # Every push builds THIS commit and deploys it (dev → staging, main → prod).
+  # 'promote' (ship the already-staging-validated image to prod without a rebuild)
+  # remains available only as a manual workflow_dispatch for hotfixes/rollbacks.
   DEPLOY_MODE: ${{ github.event.inputs.mode || 'build' }}
 
 jobs:
   build-and-push:
-    name: build + push (${{ github.event.inputs.env || 'staging' }})
+    name: build + push (${{ github.event.inputs.env || (github.ref_name == 'main' && 'prod' || 'staging') }})
     runs-on: ubuntu-24.04-arm # native arm64 - no QEMU, no pnpm-install crash
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
@@ -132,10 +138,10 @@ jobs:
           docker buildx imagetools inspect "${DST}:latest" || true
 
   deploy:
-    name: ssm deploy (${{ github.event.inputs.env || 'staging' }})
+    name: ssm deploy (${{ github.event.inputs.env || (github.ref_name == 'main' && 'prod' || 'staging') }})
     needs: build-and-push
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.env || 'staging' }}
+    environment: ${{ github.event.inputs.env || (github.ref_name == 'main' && 'prod' || 'staging') }}
     steps:
       - uses: actions/checkout@v6
 
