@@ -153,6 +153,37 @@ describe('EditMaterialCorePage', () => {
     expect(screen.queryByTestId('detail-page')).not.toBeInTheDocument();
   });
 
+  it('sends the change reason in the payload when a contributor edits a PUBLIC material', async () => {
+    permissionSet.current = new Set(['material.update']);
+    mockedGet.mockResolvedValue(material({ status: 'PUBLIC' }));
+    mockedUpdate.mockResolvedValue(material({ status: 'PUBLIC' }));
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('material-form-name')).toHaveValue('Colorbond Roofing Sheet'),
+    );
+    // The reason field only appears on the change-request path.
+    fireEvent.change(screen.getByTestId('change-reason-input'), {
+      target: { value: 'Updated manufacturer code' },
+    });
+    fireEvent.click(screen.getByTestId('edit-material-core-submit'));
+
+    await waitFor(() => expect(mockedUpdate).toHaveBeenCalledTimes(1));
+    const [, input] = mockedUpdate.mock.calls[0] as [string, apiClient.UpdateMaterialInput];
+    expect(input.changeReason).toBe('Updated manufacturer code');
+  });
+
+  it('hides the change-reason field for an approver editing directly', async () => {
+    // Super-Admin (has material.approve) edits directly — no approval queue, no reason.
+    mockedGet.mockResolvedValue(material({ status: 'PUBLIC' }));
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('material-form-name')).toHaveValue('Colorbond Roofing Sheet'),
+    );
+    expect(screen.queryByTestId('change-reason-input')).not.toBeInTheDocument();
+  });
+
   it('navigates straight to detail (no modal) when a contributor edits their own private material', async () => {
     permissionSet.current = new Set(['material.update']);
     mockedGet.mockResolvedValue(material({ status: 'PRIVATE' }));

@@ -301,7 +301,10 @@
     "loading": "Loading material…",
     "notFound": "This material could not be found.",
     "toastSuccess": "Core identification updated.",
-    "toastError": "Could not update the material. Please try again."
+    "toastError": "Could not update the material. Please try again.",
+    "reasonLabel": "Reason for change",
+    "reasonPlaceholder": "Briefly explain why this change is needed (optional)",
+    "reasonHint": "This material is in the shared catalogue. Your edit will be submitted to a catalogue admin for review."
   },
   "editAdditional": {
     "title": "Edit Additional Properties",
@@ -311,7 +314,10 @@
     "loading": "Loading material…",
     "notFound": "This material could not be found.",
     "toastSuccess": "Additional properties updated.",
-    "toastError": "Could not update the material. Please try again."
+    "toastError": "Could not update the material. Please try again.",
+    "reasonLabel": "Reason for change",
+    "reasonPlaceholder": "Briefly explain why this change is needed (optional)",
+    "reasonHint": "This material is in the shared catalogue. Your edit will be submitted to a catalogue admin for review."
   },
   "import": {
     "title": "Import catalogue",

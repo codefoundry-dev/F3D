@@ -97,6 +97,21 @@
     "body": "The other party has rejected the proposed changes. The current version of the agreement remains active.",
     "buttonLabel": "View Agreement"
   },
+  "materialChangeApproved": {
+    "subject": "Forethread — Catalogue Change Approved ({{materialName}})",
+    "greeting": "Hi,",
+    "heading": "Your change request for {{materialName}} has been approved.",
+    "body": "The catalogue admin has approved your proposed edit and it has been applied to the material. The updated details are now live in the catalogue.",
+    "buttonLabel": "View Material"
+  },
+  "materialChangeRejected": {
+    "subject": "Forethread — Catalogue Change Rejected ({{materialName}})",
+    "greeting": "Hi,",
+    "heading": "Your change request for {{materialName}} has been rejected.",
+    "body": "The catalogue admin has rejected your proposed edit. The material remains unchanged.",
+    "reasonLabel": "Reason",
+    "buttonLabel": "View Material"
+  },
   "bulkOrderCancelled": {
     "subject": "Forethread — Bulk Order Cancelled ({{bulkId}})",
     "greeting": "Hi,",

@@ -15,6 +15,8 @@ describe('EMAIL_TEMPLATES', () => {
     expect(EMAIL_TEMPLATES.CHANGE_REQUEST_PROPOSED).toBe('change-request-proposed');
     expect(EMAIL_TEMPLATES.CHANGE_REQUEST_APPROVED).toBe('change-request-approved');
     expect(EMAIL_TEMPLATES.CHANGE_REQUEST_REJECTED).toBe('change-request-rejected');
+    expect(EMAIL_TEMPLATES.MATERIAL_CHANGE_APPROVED).toBe('material-change-approved');
+    expect(EMAIL_TEMPLATES.MATERIAL_CHANGE_REJECTED).toBe('material-change-rejected');
     expect(EMAIL_TEMPLATES.BULK_ORDER_CANCELLED).toBe('bulk-order-cancelled');
     expect(EMAIL_TEMPLATES.QUOTE_UPDATED).toBe('quote-updated');
     expect(EMAIL_TEMPLATES.QUOTE_SUBMITTED).toBe('quote-submitted');
@@ -23,8 +25,8 @@ describe('EMAIL_TEMPLATES', () => {
     expect(EMAIL_TEMPLATES.DELIVERY_CODE).toBe('delivery-code');
   });
 
-  it('should have exactly 19 templates', () => {
-    expect(Object.keys(EMAIL_TEMPLATES)).toHaveLength(19);
+  it('should have exactly 21 templates', () => {
+    expect(Object.keys(EMAIL_TEMPLATES)).toHaveLength(21);
   });
 
   it('should have unique values', () => {
@@ -50,6 +52,8 @@ describe('EMAIL_TEMPLATES', () => {
         'CHANGE_REQUEST_PROPOSED',
         'CHANGE_REQUEST_APPROVED',
         'CHANGE_REQUEST_REJECTED',
+        'MATERIAL_CHANGE_APPROVED',
+        'MATERIAL_CHANGE_REJECTED',
         'BULK_ORDER_CANCELLED',
         'QUOTE_UPDATED',
         'QUOTE_SUBMITTED',

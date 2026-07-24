@@ -74,25 +74,58 @@ SENTRY_DSN=$(sm_get "${SECRETS_PREFIX}/sentry-dsn" 2>/dev/null || echo "")
 # 4. Assemble /etc/forethread/backend.env
 ############################################
 #
-# Values not yet in the SSM contract (APP_URL, WEB_APP_URL, CORS_ORIGINS,
-# RESEND_FROM) are hard-coded sensible defaults. Once DNS is pointed at the
-# Elastic IP and Resend's sender domain is verified, replace these via SSM
-# Parameter Store and re-deploy.
+# Per-environment public URLs. APP_URL is the backend's own public base (behind
+# Caddy), WEB_APP_URL is the deployed frontend used to build links in outbound
+# emails / the vendor tokenised-portal flow, and CORS_ORIGINS is the exact
+# browser origin allowed to send credentialed requests. These were previously
+# hard-coded to the staging values for EVERY env, which made prod emit api-main
+# links in emails/portal URLs and allow only the staging frontend origin. Split
+# per-env here:
+#   prod    -> api.forethread.com      + forethread-main.vercel.app / app.forethread.com
+#   staging -> api-stage.forethread.com + dev-app.forethread.com (dev-branch preview)
+# api-main was retired 2026-07-23 (removed from staging CADDY_SITES below).
+# NOTE: Terraform still seeds a fresh staging box with domain_name=api-main
+# (infrastructure/envs/staging/variables.tf); update it to api-stage at the next
+# instance replacement, else a re-provision briefly serves the retired name until
+# the first deploy's Caddy reconcile fixes it.
+# RESEND_FROM is the same verified sender domain in every env.
+#
+# Note: CORS is an exact-match list; only the stable dev-branch alias is allowed
+# against staging. Add more comma-separated origins here if other preview
+# branches need to call the staging API.
+case "${ENV}" in
+  prod)
+    APP_URL="https://api.forethread.com"
+    # Branded prod frontend. Email/portal links now use app.forethread.com
+    # (confirmed serving + CORS-allowed). forethread-main.vercel.app stays in
+    # CORS_ORIGINS as a fallback origin during the transition; drop it once the
+    # branded domain is the sole prod frontend URL.
+    WEB_APP_URL="https://app.forethread.com"
+    CORS_ORIGINS="https://forethread-main.vercel.app,https://app.forethread.com"
+    CADDY_SITES="api.forethread.com"
+    ;;
+  staging)
+    # Sole staging backend host is api-stage (api-main retired: removed from
+    # CADDY_SITES below; delete its GoDaddy DNS record to finish the cutover).
+    APP_URL="https://api-stage.forethread.com"
+    WEB_APP_URL="https://dev-app.forethread.com"
+    # dev-app.forethread.com is live alongside the raw dev-branch preview alias;
+    # both are CORS-allowed.
+    CORS_ORIGINS="https://forethread-main-git-dev-codefoundry.vercel.app,https://dev-app.forethread.com"
+    CADDY_SITES="api-stage.forethread.com"
+    ;;
+  *)
+    # Unknown env (local/experimental box, no public domain): fall back to
+    # localhost defaults rather than leaking a prod/staging origin.
+    APP_URL="http://localhost:3000"
+    WEB_APP_URL="http://localhost:5173"
+    CORS_ORIGINS="http://localhost:5173"
+    CADDY_SITES=""
+    ;;
+esac
 
-log "Writing /etc/forethread/backend.env"
+log "Writing /etc/forethread/backend.env (env=${ENV}, APP_URL=${APP_URL})"
 install -d -m 0755 /etc/forethread
-
-# CORS allow-list — exact browser origins per environment (comma-separated). The
-# web api-client sends cookies (withCredentials: true), so each MUST be an exact
-# origin: a browser rejects "*" with credentialed requests, and NestJS treats
-# ["*"] as a literal (matches nothing). Both the branded custom domain and the
-# raw Vercel alias are listed so either resolves. Computed here rather than in the
-# heredoc below because shell `if` does not execute inside the <<EOF body.
-if [ "${ENV}" = "production" ]; then
-  CORS_ORIGINS="https://app.forethread.com,https://forethread-main.vercel.app"
-else
-  CORS_ORIGINS="https://dev-app.forethread.com,https://forethread-main.vercel.app"
-fi
 
 # Build the env file atomically: write to .tmp, then mv.
 cat > /etc/forethread/backend.env.tmp <<EOF
@@ -137,7 +170,10 @@ S3_FORCE_PATH_STYLE=false
 # Observability
 SENTRY_DSN=${SENTRY_DSN}
 
-# CORS - allowed browser origins (computed above, per environment).
+# CORS - the deployed Vercel frontend origin (resolved per-env above). The web
+# api-client sends cookies (withCredentials: true), so this MUST be the exact
+# origin — a browser rejects "*" with credentialed requests, and NestJS treats
+# ["*"] as a literal (matches nothing). Comma-separate to allow more origins.
 CORS_ORIGINS=${CORS_ORIGINS}
 
 # Rate limiting
@@ -154,11 +190,11 @@ GEMINI_MODEL=gemini-2.5-flash
 GEMINI_TIMEOUT_MS=180000
 GEMINI_THINKING_BUDGET=0
 
-# App URLs. APP_URL is the backend's own public base (behind Caddy at the
-# api-main domain); WEB_APP_URL is the deployed frontend, used to build links
-# in outbound emails and the vendor tokenized-portal flow.
-APP_URL=https://api-main.forethread.com
-WEB_APP_URL=https://forethread-main.vercel.app
+# App URLs (resolved per-env above). APP_URL is the backend's own public base
+# (behind Caddy); WEB_APP_URL is the deployed frontend, used to build links in
+# outbound emails and the vendor tokenized-portal flow.
+APP_URL=${APP_URL}
+WEB_APP_URL=${WEB_APP_URL}
 EOF
 
 chmod 0640 /etc/forethread/backend.env.tmp
@@ -209,7 +245,60 @@ log "docker compose up -d backend..."
 docker compose up -d backend
 
 ############################################
-# 6b. Install the DB-credential reconciler (self-heals after secret rotation)
+# 6b. Reconcile the Caddy reverse-proxy config (declarative, per-env)
+############################################
+#
+# The box's /opt/forethread-backend/Caddyfile was historically hand-edited on the
+# host and drifted from git — nothing deployed it, since this script otherwise only
+# manages the backend container. That made a hostname change (e.g. the api-main ->
+# api-stage rename) a manual, error-prone box edit. Render it from CADDY_SITES and
+# apply only when it actually changed, so the reverse-proxy config is versioned and
+# a rename is a one-line change here + a deploy. NOTE: a graceful `caddy reload` was
+# observed NOT to pick up new site names on this box, so we restart the caddy
+# container on change. Change is rare — a normal deploy renders identical bytes and
+# is a no-op (no restart, no blip).
+if [ -n "${CADDY_SITES:-}" ]; then
+  CADDY_FILE=/opt/forethread-backend/Caddyfile
+  CADDY_TMP="$(mktemp)"
+  cat > "$CADDY_TMP" <<CADDYEOF
+# Domain configured - Caddy obtains a real Let's Encrypt cert via HTTP-01 and
+# auto-redirects HTTP -> HTTPS.
+${CADDY_SITES} {
+  encode gzip
+  @connect {
+    method CONNECT
+  }
+  respond @connect "" 405
+  reverse_proxy backend:3000
+  log {
+    output file /var/log/caddy/access.log
+  }
+}
+CADDYEOF
+  if [ -f "$CADDY_FILE" ] && cmp -s "$CADDY_TMP" "$CADDY_FILE"; then
+    log "Caddyfile already current (${CADDY_SITES}); Caddy left running"
+    rm -f "$CADDY_TMP"
+  else
+    CN="$(docker ps --filter name=caddy --format '{{.Names}}' | head -1)"
+    if [ -f "$CADDY_FILE" ]; then
+      cp -a "$CADDY_FILE" "${CADDY_FILE}.bak-$(date -u +%Y%m%d-%H%M%S)"
+    fi
+    mv "$CADDY_TMP" "$CADDY_FILE"
+    log "Caddyfile updated -> ${CADDY_SITES}"
+    if [ -z "$CN" ]; then
+      log "WARNING: no caddy container found; wrote Caddyfile but could not reload it"
+    elif docker exec "$CN" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile; then
+      docker restart "$CN"
+      log "Caddy restarted with updated config"
+    else
+      log "ERROR: caddy validate failed; restoring previous Caddyfile"
+      cp -a "$(ls -t "${CADDY_FILE}".bak-* | head -1)" "$CADDY_FILE"
+    fi
+  fi
+fi
+
+############################################
+# 6c. Install the DB-credential reconciler (self-heals after secret rotation)
 ############################################
 #
 # The RDS master secret has managed rotation (every 7 days). This deploy bakes

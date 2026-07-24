@@ -227,6 +227,11 @@ export interface UpdateMaterialInput {
   taxCode?: string;
   dimensions?: MaterialDimensions;
   properties?: MaterialProperties;
+  /**
+   * Optional note explaining WHY an edit is proposed. Recorded only when editing a
+   * PUBLIC catalogue material (which is captured as a change request), US 4.01 Phase 3.
+   */
+  changeReason?: string;
 }
 
 export interface RejectMaterialInput {

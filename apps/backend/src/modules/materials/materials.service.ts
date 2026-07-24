@@ -28,6 +28,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   DocExtractionStatus,
   DocExtractionType,
@@ -42,6 +43,7 @@ import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { canonicalizeUnit } from '../doc-intelligence/doc-intelligence.bom';
+import { EmailService } from '../notifications/email.service';
 
 const UNCATEGORISED = 'Uncategorised';
 const IMPORT_BATCH_SIZE = 1000;
@@ -64,7 +66,15 @@ function nullableTrim(raw: string | null | undefined): string | null {
 
 @Injectable()
 export class MaterialsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly webAppUrl: string;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
+    config: ConfigService,
+  ) {
+    this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
+  }
 
   /** String/number columns diffable 1:1 from UpdateMaterialDto (US 4.01 Phase 3). */
   private static readonly EDITABLE_SCALAR_FIELDS: (keyof UpdateMaterialDto)[] = [
@@ -974,6 +984,9 @@ export class MaterialsService {
         materialId: id,
         changedFields: changedFields as Prisma.InputJsonValue,
         requestedById: user.id,
+        // Optional note the contributor supplied explaining WHY they proposed the
+        // edit (US 4.01 Phase 3). Shown to the reviewer on the pending diff card.
+        reason: nullableTrim(dto.changeReason),
       },
     });
 
@@ -1314,7 +1327,13 @@ export class MaterialsService {
     id: string,
     user: AuthenticatedUser,
   ): Promise<MaterialChangeRequestDto> {
-    const cr = await this.prisma.materialChangeRequest.findUnique({ where: { id } });
+    const cr = await this.prisma.materialChangeRequest.findUnique({
+      where: { id },
+      include: {
+        material: { select: { id: true, name: true } },
+        requestedBy: { select: { email: true } },
+      },
+    });
     if (!cr) throw new NotFoundException(ERR.materials.changeRequestNotFound);
     if (cr.status !== MaterialChangeRequestStatus.PENDING) {
       throw new BadRequestException(ERR.materials.changeRequestNotPending);
@@ -1342,6 +1361,15 @@ export class MaterialsService {
         resolvedBy: { select: { id: true, name: true } },
       },
     });
+
+    // Notify the contributor their edit went live (fire-and-forget).
+    this.notifyMaterialChangeResolved(
+      cr.requestedBy?.email,
+      cr.material.name,
+      cr.material.id,
+      'approved',
+    ).catch(() => {});
+
     return this.toChangeRequestDto(updated);
   }
 
@@ -1351,17 +1379,25 @@ export class MaterialsService {
     dto: ResolveMaterialChangeDto | undefined,
     user: AuthenticatedUser,
   ): Promise<MaterialChangeRequestDto> {
-    const cr = await this.prisma.materialChangeRequest.findUnique({ where: { id } });
+    const cr = await this.prisma.materialChangeRequest.findUnique({
+      where: { id },
+      include: {
+        material: { select: { id: true, name: true } },
+        requestedBy: { select: { email: true } },
+      },
+    });
     if (!cr) throw new NotFoundException(ERR.materials.changeRequestNotFound);
     if (cr.status !== MaterialChangeRequestStatus.PENDING) {
       throw new BadRequestException(ERR.materials.changeRequestNotPending);
     }
 
+    const reason = nullableTrim(dto?.reason);
+
     const updated = await this.prisma.materialChangeRequest.update({
       where: { id },
       data: {
         status: MaterialChangeRequestStatus.REJECTED,
-        reason: dto?.reason ?? null,
+        reason,
         resolvedById: user.id,
         resolvedAt: new Date(),
       },
@@ -1371,7 +1407,40 @@ export class MaterialsService {
         resolvedBy: { select: { id: true, name: true } },
       },
     });
+
+    // Notify the contributor their edit was declined (fire-and-forget), passing
+    // the reviewer's reason through when one was given.
+    this.notifyMaterialChangeResolved(
+      cr.requestedBy?.email,
+      cr.material.name,
+      cr.material.id,
+      'rejected',
+      reason ?? undefined,
+    ).catch(() => {});
+
     return this.toChangeRequestDto(updated);
+  }
+
+  /**
+   * Email the original contributor the outcome of their proposed catalogue edit
+   * (US 4.01 Phase 3). No-op when the requester has no email on file. Best-effort:
+   * every caller invokes this fire-and-forget so a mail failure never blocks the
+   * (already committed) approval / rejection.
+   */
+  private async notifyMaterialChangeResolved(
+    email: string | null | undefined,
+    materialName: string,
+    materialId: string,
+    outcome: 'approved' | 'rejected',
+    reason?: string,
+  ): Promise<void> {
+    if (!email) return;
+    const viewUrl = `${this.webAppUrl}/material-catalogue/${materialId}`;
+    if (outcome === 'approved') {
+      await this.emailService.sendMaterialChangeApprovedEmail(email, materialName, viewUrl);
+    } else {
+      await this.emailService.sendMaterialChangeRejectedEmail(email, materialName, viewUrl, reason);
+    }
   }
 
   /** Map of category id → name for the supplied ids (empty set → empty map). */
@@ -1418,9 +1487,11 @@ export class MaterialsService {
           to: typeof val.to === 'string' ? (catName.get(val.to) ?? val.to) : null,
         };
       } else if (key === 'dimensions' || key === 'properties') {
+        // Structured JSON fields — flatten to a readable "key: value" summary so
+        // the reviewer sees the actual before/after, not an opaque marker.
         changes[key] = {
-          from: val.from === null || val.from === undefined ? null : 'Provided',
-          to: val.to === null || val.to === undefined ? null : 'Updated',
+          from: this.formatStructuredValue(val.from),
+          to: this.formatStructuredValue(val.to),
         };
       } else {
         changes[key] = { from: this.scalarOrNull(val.from), to: this.scalarOrNull(val.to) };
@@ -1447,6 +1518,66 @@ export class MaterialsService {
     if (typeof v === 'number' || typeof v === 'string') return v;
     if (typeof v === 'boolean') return String(v);
     // Unexpected non-scalar — serialize defensively rather than "[object Object]".
+    return JSON.stringify(v);
+  }
+
+  /**
+   * Flatten a structured material field (`dimensions` / `properties`) into a
+   * readable "key: value" summary for the review diff (US 4.01 Phase 3). Empty or
+   * absent values collapse to null so the card renders a clean "—".
+   */
+  private formatStructuredValue(value: unknown): string | null {
+    if (value === null || value === undefined) return null;
+    if (typeof value !== 'object') return this.formatStructuredLeaf(value);
+
+    const parts: string[] = [];
+    for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+      const leaf = this.formatStructuredLeaf(raw);
+      if (leaf !== null) parts.push(`${key}: ${leaf}`);
+    }
+    return parts.length > 0 ? parts.join(', ') : null;
+  }
+
+  /**
+   * Render a single leaf of a structured field. Dimension axes stored as
+   * `{ value, uom }` become "10 mm"; nested objects (packaging) flatten one more
+   * level; scalars pass through. Empty leaves return null so they are dropped.
+   */
+  private formatStructuredLeaf(raw: unknown): string | null {
+    if (raw === null || raw === undefined || raw === '') return null;
+
+    if (typeof raw === 'object') {
+      const obj = raw as Record<string, unknown>;
+      if ('value' in obj || 'uom' in obj) {
+        const value = obj.value;
+        const uom = obj.uom;
+        if ((value === null || value === undefined) && (uom === null || uom === undefined)) {
+          return null;
+        }
+        return (
+          [value, uom]
+            .filter((x) => x !== null && x !== undefined && x !== '')
+            .map((x) => this.stringifyScalar(x))
+            .join(' ')
+            .trim() || null
+        );
+      }
+
+      const inner: string[] = [];
+      for (const [key, val] of Object.entries(obj)) {
+        const leaf = this.formatStructuredLeaf(val);
+        if (leaf !== null) inner.push(`${key}: ${leaf}`);
+      }
+      return inner.length > 0 ? inner.join(', ') : null;
+    }
+
+    return this.stringifyScalar(raw);
+  }
+
+  /** Coerce a leaf diff value to a display string without risking "[object Object]". */
+  private stringifyScalar(v: unknown): string {
+    if (typeof v === 'number' || typeof v === 'bigint' || typeof v === 'boolean') return String(v);
+    if (typeof v === 'string') return v;
     return JSON.stringify(v);
   }
 

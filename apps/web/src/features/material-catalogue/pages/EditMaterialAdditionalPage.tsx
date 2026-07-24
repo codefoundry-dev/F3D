@@ -11,6 +11,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ROUTES } from '@/app/route-config';
 import { usePermissions } from '@/shared/role';
 
+import { ChangeReasonField } from '../components/ChangeReasonField';
 import { AdditionalPropertiesFields } from '../components/form/AdditionalPropertiesFields';
 import { MaterialCatalogueSuccessModal } from '../components/MaterialCatalogueSuccessModal';
 import { useMaterial } from '../hooks/useMaterial';
@@ -25,6 +26,7 @@ export default function EditMaterialAdditionalPage() {
   const { has } = usePermissions();
   const { data: material, isLoading, isError } = useMaterial(id);
   const [showChangeSubmitted, setShowChangeSubmitted] = useState(false);
+  const [changeReason, setChangeReason] = useState('');
   const updateMutation = useUpdateMaterial({
     successMessageKey: 'editAdditional.toastSuccess',
     errorMessageKey: 'editAdditional.toastError',
@@ -64,8 +66,15 @@ export default function EditMaterialAdditionalPage() {
 
   const onSubmit = (values: MaterialFormValues) => {
     if (!id) return;
+    const trimmedReason = changeReason.trim();
     updateMutation.mutate(
-      { id, input: formToUpdateAdditional(values) },
+      {
+        id,
+        input: {
+          ...formToUpdateAdditional(values),
+          ...(isChangeRequest && trimmedReason ? { changeReason: trimmedReason } : {}),
+        },
+      },
       {
         onSuccess: () => {
           if (isChangeRequest) setShowChangeSubmitted(true);
@@ -147,6 +156,15 @@ export default function EditMaterialAdditionalPage() {
                 : []
             }
           />
+          {isChangeRequest && (
+            <ChangeReasonField
+              value={changeReason}
+              onChange={setChangeReason}
+              label={t('editAdditional.reasonLabel')}
+              hint={t('editAdditional.reasonHint')}
+              placeholder={t('editAdditional.reasonPlaceholder')}
+            />
+          )}
         </form>
       </FormProvider>
 

@@ -11,6 +11,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ROUTES } from '@/app/route-config';
 import { usePermissions } from '@/shared/role';
 
+import { ChangeReasonField } from '../components/ChangeReasonField';
 import { CoreIdentificationFields } from '../components/form/CoreIdentificationFields';
 import { MaterialCatalogueSuccessModal } from '../components/MaterialCatalogueSuccessModal';
 import { useMaterial } from '../hooks/useMaterial';
@@ -27,6 +28,7 @@ export default function EditMaterialCorePage() {
   const { data: categories = [] } = useMaterialCategories();
   const { data: material, isLoading, isError } = useMaterial(id);
   const [showChangeSubmitted, setShowChangeSubmitted] = useState(false);
+  const [changeReason, setChangeReason] = useState('');
   const updateMutation = useUpdateMaterial({
     successMessageKey: 'editCore.toastSuccess',
     errorMessageKey: 'editCore.toastError',
@@ -68,8 +70,15 @@ export default function EditMaterialCorePage() {
 
   const onSubmit = (values: MaterialFormValues) => {
     if (!id) return;
+    const trimmedReason = changeReason.trim();
     updateMutation.mutate(
-      { id, input: formToUpdateCore(values) },
+      {
+        id,
+        input: {
+          ...formToUpdateCore(values),
+          ...(isChangeRequest && trimmedReason ? { changeReason: trimmedReason } : {}),
+        },
+      },
       {
         onSuccess: () => {
           if (isChangeRequest) setShowChangeSubmitted(true);
@@ -148,6 +157,15 @@ export default function EditMaterialCorePage() {
       <FormProvider {...methods}>
         <form onSubmit={(e) => e.preventDefault()} className="mt-6 space-y-6" noValidate>
           <CoreIdentificationFields categories={categories} heading={false} />
+          {isChangeRequest && (
+            <ChangeReasonField
+              value={changeReason}
+              onChange={setChangeReason}
+              label={t('editCore.reasonLabel')}
+              hint={t('editCore.reasonHint')}
+              placeholder={t('editCore.reasonPlaceholder')}
+            />
+          )}
         </form>
       </FormProvider>
 

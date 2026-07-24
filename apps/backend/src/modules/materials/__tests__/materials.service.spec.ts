@@ -52,6 +52,15 @@ const mockPrisma = {
   $queryRaw: jest.fn(),
 };
 
+const mockEmailService = {
+  sendMaterialChangeApprovedEmail: jest.fn(),
+  sendMaterialChangeRejectedEmail: jest.fn(),
+};
+
+const mockConfig = {
+  get: jest.fn().mockReturnValue('http://localhost:5179'),
+};
+
 const superAdmin = {
   id: 'sa-1',
   email: 'sa@test.com',
@@ -71,7 +80,12 @@ describe('MaterialsService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new MaterialsService(mockPrisma as never);
+    mockConfig.get.mockReturnValue('http://localhost:5179');
+    service = new MaterialsService(
+      mockPrisma as never,
+      mockEmailService as never,
+      mockConfig as never,
+    );
     // Default: no favourites — list/detail mappers resolve isFavourite = false
     // unless a test overrides these.
     mockPrisma.materialFavourite.findMany.mockResolvedValue([]);
@@ -1274,6 +1288,22 @@ describe('MaterialsService', () => {
       expect(data.changedFields).toEqual({ description: { from: null, to: 'Updated' } });
     });
 
+    it('persists the supplied changeReason on the queued change request (Phase 3)', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({ ...loaded });
+      mockPrisma.materialChangeRequest.create.mockResolvedValue({ id: 'cr-1' });
+
+      await service.updateMaterial(
+        'm-1',
+        { description: 'Updated', changeReason: '  Price list refresh  ' },
+        companyAdmin,
+      );
+
+      const data = mockPrisma.materialChangeRequest.create.mock.calls[0][0].data;
+      // Trimmed and stored; changeReason is NOT treated as a material field.
+      expect(data.reason).toBe('Price list refresh');
+      expect(data.changedFields).toEqual({ description: { from: null, to: 'Updated' } });
+    });
+
     it('does not create a change request for a non-SuperAdmin no-op edit', async () => {
       // description already equals the supplied value → empty diff.
       mockPrisma.material.findUnique.mockResolvedValue({ ...loaded, description: 'Same' });
@@ -1637,9 +1667,49 @@ describe('MaterialsService', () => {
       expect(res[0].changes.description).toEqual({ from: 'old', to: 'new' });
       // categoryId diff is presented as friendly category names under `category`.
       expect(res[0].changes.category).toEqual({ from: 'Steel', to: 'Timber' });
-      // structured JSON fields collapse to a terse marker.
-      expect(res[0].changes.dimensions).toEqual({ from: null, to: 'Updated' });
+      // structured JSON fields are flattened to a readable before/after summary.
+      expect(res[0].changes.dimensions).toEqual({ from: null, to: 'length: 1 mm' });
       expect(res[0].requestedBy).toEqual({ id: 'ca-1', name: 'Cara Admin' });
+    });
+
+    it('flattens dimensions & properties diffs into readable before/after summaries', async () => {
+      mockPrisma.materialChangeRequest.findMany.mockResolvedValue([
+        {
+          id: 'cr-2',
+          status: 'PENDING',
+          reason: null,
+          resolvedAt: null,
+          createdAt: new Date('2026-06-12T10:00:00Z'),
+          changedFields: {
+            dimensions: {
+              from: { length: { value: 10, uom: 'mm' } },
+              to: {
+                length: { value: 12, uom: 'mm' },
+                packaging: { packagingUnit: 'box', unitsPerPackage: 24 },
+              },
+            },
+            properties: {
+              from: { finish: 'raw' },
+              to: { finish: 'galvanised', grade: '316' },
+            },
+          },
+          material: { id: 'm-1', name: 'Steel Rebar' },
+          requestedBy: null,
+          resolvedBy: null,
+        },
+      ]);
+      mockPrisma.materialCategory.findMany.mockResolvedValue([]);
+
+      const res = await service.listChangeRequests('PENDING' as never);
+
+      expect(res[0].changes.dimensions).toEqual({
+        from: 'length: 10 mm',
+        to: 'length: 12 mm, packaging: packagingUnit: box, unitsPerPackage: 24',
+      });
+      expect(res[0].changes.properties).toEqual({
+        from: 'finish: raw',
+        to: 'finish: galvanised, grade: 316',
+      });
     });
 
     it('coerces boolean and non-scalar diff values defensively', async () => {
@@ -1677,6 +1747,8 @@ describe('MaterialsService', () => {
         materialId: 'm-1',
         status: 'PENDING',
         changedFields: { description: { from: 'old', to: 'new desc' } },
+        material: { id: 'm-1', name: 'Steel Rebar' },
+        requestedBy: { email: 'ca@test.com' },
       });
       // applyMaterialUpdate path
       mockPrisma.material.findUnique.mockResolvedValue({
@@ -1720,6 +1792,12 @@ describe('MaterialsService', () => {
       );
       expect(res.status).toBe('APPROVED');
       expect(res.resolvedBy).toEqual({ id: 'sa-1', name: 'Super Admin' });
+      // The contributor is emailed that their edit went live.
+      expect(mockEmailService.sendMaterialChangeApprovedEmail).toHaveBeenCalledWith(
+        'ca@test.com',
+        'Steel Rebar',
+        'http://localhost:5179/material-catalogue/m-1',
+      );
     });
 
     it('throws NotFound when the change request is missing', async () => {
@@ -1762,8 +1840,11 @@ describe('MaterialsService', () => {
     it('marks the request REJECTED with a reason and leaves the material untouched', async () => {
       mockPrisma.materialChangeRequest.findUnique.mockResolvedValue({
         id: 'cr-1',
+        materialId: 'm-1',
         status: 'PENDING',
         changedFields: { description: { from: 'a', to: 'b' } },
+        material: { id: 'm-1', name: 'Steel Rebar' },
+        requestedBy: { email: 'ca@test.com' },
       });
       mockPrisma.materialChangeRequest.update.mockResolvedValue({
         id: 'cr-1',
@@ -1789,6 +1870,39 @@ describe('MaterialsService', () => {
       );
       expect(res.status).toBe('REJECTED');
       expect(res.reason).toBe('Not accurate');
+      // The contributor is emailed the rejection, with the reviewer's reason.
+      expect(mockEmailService.sendMaterialChangeRejectedEmail).toHaveBeenCalledWith(
+        'ca@test.com',
+        'Steel Rebar',
+        'http://localhost:5179/material-catalogue/m-1',
+        'Not accurate',
+      );
+    });
+
+    it('skips the rejection email when the requester has no email on file', async () => {
+      mockPrisma.materialChangeRequest.findUnique.mockResolvedValue({
+        id: 'cr-1',
+        materialId: 'm-1',
+        status: 'PENDING',
+        changedFields: { description: { from: 'a', to: 'b' } },
+        material: { id: 'm-1', name: 'Steel Rebar' },
+        requestedBy: null,
+      });
+      mockPrisma.materialChangeRequest.update.mockResolvedValue({
+        id: 'cr-1',
+        status: 'REJECTED',
+        reason: null,
+        resolvedAt: new Date('2026-06-12T12:00:00Z'),
+        createdAt: new Date('2026-06-12T10:00:00Z'),
+        changedFields: { description: { from: 'a', to: 'b' } },
+        material: { id: 'm-1', name: 'Steel Rebar' },
+        requestedBy: null,
+        resolvedBy: { id: 'sa-1', name: 'Super Admin' },
+      });
+
+      await service.rejectChangeRequest('cr-1', {}, superAdmin);
+
+      expect(mockEmailService.sendMaterialChangeRejectedEmail).not.toHaveBeenCalled();
     });
 
     it('throws BadRequest when the request is not pending', async () => {
@@ -1805,8 +1919,11 @@ describe('MaterialsService', () => {
     it('resolves categoryId diffs to category names when serializing the resolved request', async () => {
       mockPrisma.materialChangeRequest.findUnique.mockResolvedValue({
         id: 'cr-1',
+        materialId: 'm-1',
         status: 'PENDING',
         changedFields: { categoryId: { from: 'cat-1', to: 'cat-2' } },
+        material: { id: 'm-1', name: 'Steel Rebar' },
+        requestedBy: { email: 'ca@test.com' },
       });
       mockPrisma.materialChangeRequest.update.mockResolvedValue({
         id: 'cr-1',

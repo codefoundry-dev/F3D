@@ -12,6 +12,8 @@ export const EMAIL_TEMPLATES = {
   CHANGE_REQUEST_PROPOSED: 'change-request-proposed',
   CHANGE_REQUEST_APPROVED: 'change-request-approved',
   CHANGE_REQUEST_REJECTED: 'change-request-rejected',
+  MATERIAL_CHANGE_APPROVED: 'material-change-approved',
+  MATERIAL_CHANGE_REJECTED: 'material-change-rejected',
   BULK_ORDER_CANCELLED: 'bulk-order-cancelled',
   QUOTE_UPDATED: 'quote-updated',
   QUOTE_SUBMITTED: 'quote-submitted',
