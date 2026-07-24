@@ -17,7 +17,7 @@ variable "terraform_branches" {
 }
 
 variable "deploy_branches" {
-  description = "Branches in f3d allowed to assume the deploy role."
+  description = "Branches in f3d allowed to assume the deploy role. dev drives the staging CD and main drives prod (branch-promotion model)."
   type        = list(string)
-  default     = ["main", "staging"]
+  default     = ["main", "staging", "dev"]
 }
