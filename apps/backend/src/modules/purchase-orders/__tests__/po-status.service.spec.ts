@@ -2492,6 +2492,32 @@ describe('PoStatusService', () => {
       expect(outcome.nextStatus).toBe('DELIVERED');
     });
 
+    it('holds at PARTIALLY_DELIVERED when preventFullyDelivered, even at full qty (FOR-287)', async () => {
+      // Full received qty (60 of 60) would normally complete the PO, but an
+      // explicit "partially delivered" report line must not flip it to DELIVERED.
+      const deltas = new Map<string, number>([['li-1', 60]]);
+      const outcome = await service.applyDeliveryDeltasInTx(
+        mockPrisma as never,
+        approvalPo,
+        deltas,
+        'ca-1',
+        { preventFullyDelivered: true },
+      );
+
+      // Line qty is still bumped + pushed to inventory — only the status is held.
+      expect(mockPrisma.poLineItem.update).toHaveBeenCalledWith({
+        where: { id: 'li-1' },
+        data: { quantityDelivered: 60 },
+      });
+      expect(outcome.transitioned).toBe(true);
+      expect(outcome.nextStatus).toBe('PARTIALLY_DELIVERED');
+      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'PARTIALLY_DELIVERED' }),
+        }),
+      );
+    });
+
     it('auditDeliveryTransition is a no-op when the status did not move', async () => {
       await service.auditDeliveryTransition('po-1', 'ca-1', {
         transitioned: false,

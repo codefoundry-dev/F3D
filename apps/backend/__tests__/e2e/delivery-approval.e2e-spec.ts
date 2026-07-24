@@ -379,6 +379,45 @@ describe('Delivery approval close-out (Epic 6 A7, e2e)', () => {
     expect(await onHand(materialBId)).toBe(beforeB + 6);
   });
 
+  it('a PARTIALLY_DELIVERED line holds the PO at PARTIALLY_DELIVERED even at full qty (FOR-287)', async () => {
+    const { poId, lineAId, lineBId } = await seedDeliverablePo(
+      PoStatus.ACCEPTED,
+      { materialId: materialAId, quantityOrdered: 5 },
+      { materialId: materialBId, quantityOrdered: 5 },
+    );
+
+    // Both lines received in FULL — but explicitly flagged partially delivered.
+    // The received figure alone would complete the PO; the outcome must win.
+    const createRes = await auth(adminToken)('post', '/v1/delivery-reports').send({
+      purchaseOrderId: poId,
+      lines: [
+        {
+          poLineItemId: lineAId,
+          quantityReceived: 5,
+          outcome: DeliveryOutcome.PARTIALLY_DELIVERED,
+        },
+        {
+          poLineItemId: lineBId,
+          quantityReceived: 5,
+          outcome: DeliveryOutcome.PARTIALLY_DELIVERED,
+        },
+      ],
+    });
+    expect(createRes.status).toBe(201);
+    const reportId: string = createRes.body.data.id;
+    createdReportIds.push(reportId);
+
+    const approveRes = await auth(adminToken)('patch', `/v1/delivery-reports/${reportId}/approve`);
+    expect(approveRes.status).toBe(200);
+
+    // Quantities still flow onto the lines, but the PO is NOT completed.
+    const po = await prisma.purchaseOrder.findUniqueOrThrow({
+      where: { id: poId },
+      select: { status: true },
+    });
+    expect(po.status).toBe(PoStatus.PARTIALLY_DELIVERED);
+  });
+
   it('rejecting a delivery report leaves the PO and inventory untouched', async () => {
     const { poId, lineAId, lineBId } = await seedDeliverablePo(
       PoStatus.ACCEPTED,
