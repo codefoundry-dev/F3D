@@ -327,6 +327,9 @@ export class RfqsService {
 
     // Compute vendor status from the vendor's own quote response
     let vendorStatus: string | undefined;
+    // The current vendor user's own quote id (FOR-288) — keys the per-quote
+    // message thread on the vendor side. Null for buyers / before they quote.
+    let myQuoteResponseId: string | null = null;
     if (isVendor) {
       const STATUS_PRIORITY: Record<string, number> = {
         [QuoteResponseStatus.APPROVED]: 1,
@@ -336,6 +339,7 @@ export class RfqsService {
       };
       const vendorQuotes = (
         rfq.quoteResponses as Array<{
+          id: string;
           vendorId: string;
           status: QuoteResponseStatus;
           vendor: { users: { id: string }[] };
@@ -344,6 +348,7 @@ export class RfqsService {
       const vendorQuote = vendorQuotes.sort(
         (a, b) => (STATUS_PRIORITY[a.status] ?? 99) - (STATUS_PRIORITY[b.status] ?? 99),
       )[0];
+      myQuoteResponseId = vendorQuote?.id ?? null;
       vendorStatus = this.computeVendorStatus(
         {
           status: rfq.status,
@@ -383,6 +388,9 @@ export class RfqsService {
       projectCode: rfq.project.code,
       projects,
       projectIds: projects.map((p) => p.id),
+      // Vendor-only: the current user's own quote id, for the per-quote message
+      // thread (FOR-288). Null for buyers and for vendors who haven't quoted.
+      myQuoteResponseId,
       status: vendorStatus ?? rfq.status,
       isPickUp,
       pickUp: isPickUp || !!rfq.pickUpLocation,

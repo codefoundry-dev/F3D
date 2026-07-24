@@ -173,14 +173,18 @@ describe('MessagesService', () => {
       expect(result.id).toBe('thread-3');
     });
 
-    it('seeds a QUOTE_RESPONSE thread with the vendor’s chosen sales reps (FOR-288)', async () => {
+    it('seeds a QUOTE_RESPONSE thread with the RFQ buyer AND the vendor’s sales reps (FOR-288)', async () => {
       const dto = {
         contextType: 'QUOTE_RESPONSE',
         contextId: 'quote-1',
         participantIds: [],
       };
 
-      mockPrisma.quoteResponse.findUnique.mockResolvedValue({ rfqId: 'rfq-1', vendorId: 'vend-1' });
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({
+        rfqId: 'rfq-1',
+        vendorId: 'vend-1',
+        rfq: { createdByUserId: 'buyer-1' },
+      });
       mockPrisma.rfqVendor.findUnique.mockResolvedValue({
         contacts: [{ userId: 'rep-1' }, { userId: 'rep-2' }],
       });
@@ -195,8 +199,8 @@ describe('MessagesService', () => {
 
       const createCall = mockPrisma.messageThread.create.mock.calls[0][0];
       const ids = createCall.data.participants.create.map((p: { userId: string }) => p.userId);
-      // Buyer (current user) + both vendor reps, deduped.
-      expect(ids).toEqual(expect.arrayContaining(['user-1', 'rep-1', 'rep-2']));
+      // Both sides seeded regardless of initiator: caller + RFQ buyer + vendor reps.
+      expect(ids).toEqual(expect.arrayContaining(['user-1', 'buyer-1', 'rep-1', 'rep-2']));
       expect(mockPrisma.rfqVendor.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { rfqId_vendorId: { rfqId: 'rfq-1', vendorId: 'vend-1' } },
@@ -206,14 +210,18 @@ describe('MessagesService', () => {
       expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
     });
 
-    it('falls back to the vendor company’s users when no reps were chosen', async () => {
+    it('falls back to the vendor company’s users when no reps were chosen (still seeds the buyer)', async () => {
       const dto = {
         contextType: 'QUOTE_RESPONSE',
         contextId: 'quote-1',
         participantIds: [],
       };
 
-      mockPrisma.quoteResponse.findUnique.mockResolvedValue({ rfqId: 'rfq-1', vendorId: 'vend-1' });
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({
+        rfqId: 'rfq-1',
+        vendorId: 'vend-1',
+        rfq: { createdByUserId: 'buyer-1' },
+      });
       mockPrisma.rfqVendor.findUnique.mockResolvedValue({ contacts: [] });
       mockPrisma.user.findMany.mockResolvedValue([{ id: 'vu-1' }]);
       mockPrisma.messageThread.create.mockResolvedValue({
@@ -228,7 +236,7 @@ describe('MessagesService', () => {
       const ids = mockPrisma.messageThread.create.mock.calls[0][0].data.participants.create.map(
         (p: { userId: string }) => p.userId,
       );
-      expect(ids).toEqual(expect.arrayContaining(['user-1', 'vu-1']));
+      expect(ids).toEqual(expect.arrayContaining(['user-1', 'buyer-1', 'vu-1']));
       expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ companyId: 'vend-1', role: UserRole.VENDOR }),
