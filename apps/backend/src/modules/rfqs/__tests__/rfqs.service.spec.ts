@@ -919,6 +919,74 @@ describe('RfqsService', () => {
       expect(result.status).toBe(VendorRfqStatus.INCOMING);
     });
 
+    it('scopes the quoteResponses and invitedVendors queries to the vendor so competitors are not leaked', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue({
+        id: 'rfq-v3',
+        projectId: 'proj-1',
+        status: RfqStatus.OPEN,
+        pickUpDate: null,
+        deliveryLocationId: '123 St',
+        pickUpLocation: null,
+        deadlineStart: null,
+        deadlineEnd: null,
+        totalRequestedQty: 50,
+        approvalStatus: null,
+        createdAt: new Date('2026-03-01'),
+        updatedAt: new Date('2026-03-01'),
+        project: { name: 'VendorProj3' },
+        createdBy: { id: 'po-1', name: 'PO User' },
+        approvedBy: null,
+        lineItems: [],
+        quoteResponses: [],
+        documents: [],
+      });
+
+      await service.getRfq('rfq-v3', vendor);
+
+      // The DB — not post-processing — must do the filtering: both includes have
+      // to carry a where scoping them to this vendor's own company. quoteResponses
+      // guards totalCost/discounts; invitedVendors guards competitors' company
+      // names and rep emails/phones.
+      const ownCompanyOnly = { vendor: { users: { some: { id: vendor.id } } } };
+      expect(mockPrisma.rfq.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            quoteResponses: expect.objectContaining({ where: ownCompanyOnly }),
+            invitedVendors: expect.objectContaining({ where: ownCompanyOnly }),
+          }),
+        }),
+      );
+    });
+
+    it('does not scope the quoteResponses or invitedVendors queries for buyers', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue({
+        id: 'rfq-b1',
+        projectId: 'proj-1',
+        status: RfqStatus.OPEN,
+        pickUpDate: null,
+        deliveryLocationId: '123 St',
+        pickUpLocation: null,
+        deadlineStart: null,
+        deadlineEnd: null,
+        totalRequestedQty: 50,
+        approvalStatus: null,
+        createdAt: new Date('2026-03-01'),
+        updatedAt: new Date('2026-03-01'),
+        project: { name: 'BuyerProj' },
+        createdBy: { id: 'po-1', name: 'PO User' },
+        approvedBy: null,
+        lineItems: [],
+        quoteResponses: [],
+        documents: [],
+      });
+
+      await service.getRfq('rfq-b1', companyAdmin);
+
+      const include = mockPrisma.rfq.findUnique.mock.calls[0][0].include;
+      expect(include.quoteResponses.where).toBeUndefined();
+      expect(include.invitedVendors.where).toBeUndefined();
+    });
+
     it('maps documents correctly', async () => {
       mockPrisma.rfq.findUnique.mockResolvedValue({
         id: 'rfq-doc',
