@@ -79,6 +79,9 @@ model User {
   threadParticipations ThreadParticipant[]
   sentMessages         Message[]
 
+  // In-app notification feed (bell + panel)
+  notifications        Notification[]     @relation("UserNotifications")
+
   // Bulk order change request relations
   bulkOrderChangeRequests         BulkOrderChangeRequest[] @relation("BulkOrderChangeRequestedBy")
   bulkOrderChangeRequestApprovals BulkOrderChangeRequest[] @relation("BulkOrderChangeResolvedBy")

@@ -1,0 +1,23 @@
+{
+  "title": "Notifications",
+  "markAllRead": "Mark all as read",
+  "empty": "You're all caught up",
+  "emptyHint": "New notifications will show up here.",
+  "loading": "Loading notifications…",
+  "close": "Close",
+  "ariaBell": "Notifications",
+  "unreadBadge": "{{count}} unread",
+  "goTo": {
+    "RFQ": "View RFQ",
+    "QUOTE_RESPONSE": "View quote",
+    "PURCHASE_ORDER": "View purchase order",
+    "BULK_ORDER": "View bulk order",
+    "default": "View details"
+  },
+  "time": {
+    "justNow": "Just now",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago"
+  }
+}

@@ -4,11 +4,15 @@ import NotificationIcon from '../assets/icons/notification.svg?react';
 import { cn } from '../utils/cn';
 
 export interface NotificationBellProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  /** Show a plain red dot (unread present, count unknown). Ignored when `count > 0`. */
   hasNotifications?: boolean;
+  /** Unread count. When > 0 a numeric badge is shown (capped at "99+"). */
+  count?: number;
 }
 
 export function NotificationBell({
   hasNotifications = false,
+  count = 0,
   className,
   ...props
 }: NotificationBellProps) {
@@ -22,9 +26,13 @@ export function NotificationBell({
       {...props}
     >
       <NotificationIcon className="w-[18px] h-[18px]" />
-      {hasNotifications && (
+      {count > 0 ? (
+        <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-white">
+          {count > 99 ? '99+' : count}
+        </span>
+      ) : hasNotifications ? (
         <span className="absolute -top-px -right-px w-2 h-2 rounded-full bg-destructive" />
-      )}
+      ) : null}
     </button>
   );
 }

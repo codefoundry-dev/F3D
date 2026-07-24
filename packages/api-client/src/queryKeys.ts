@@ -104,4 +104,10 @@ export const queryKeys = {
     byProject: (projectId: string) => [...queryKeys.boms.all(), 'project', projectId] as const,
     detail: (id: string) => [...queryKeys.boms.all(), id] as const,
   },
+  notifications: {
+    all: () => ['notifications'] as const,
+    list: (params?: Record<string, unknown>) =>
+      [...queryKeys.notifications.all(), 'list', params] as const,
+    unreadCount: () => [...queryKeys.notifications.all(), 'unread-count'] as const,
+  },
 } as const;

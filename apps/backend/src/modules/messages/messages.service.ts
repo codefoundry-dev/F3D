@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import {
   MessageContextType,
+  NotificationEntityType,
+  NotificationType,
   PoStatus,
   Prisma,
   RfqStatus,
@@ -16,6 +18,7 @@ import {
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationService } from '../notification-feed/notification.service';
 import { StorageService } from '../storage/storage.service';
 
 import {
@@ -60,6 +63,7 @@ export class MessagesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async createThread(dto: CreateThreadDto, user: AuthenticatedUser) {
@@ -291,6 +295,16 @@ export class MessagesService {
       data: { updatedAt: new Date() },
     });
 
+    // Notify the other participants in-app (best-effort). Chat is in-app only —
+    // per ADR-0011 the thread itself is the surface, so there is no email here.
+    await this.notifyThreadParticipants(
+      threadId,
+      thread,
+      message.sender.name,
+      message.content,
+      user.id,
+    );
+
     const logoUrls = await this.signLogoUrls([message.sender.company?.logoUrl]);
 
     return {
@@ -304,6 +318,71 @@ export class MessagesService {
       })),
       createdAt: message.createdAt.toISOString(),
     };
+  }
+
+  /**
+   * Notify every other participant of a new message (best-effort). The
+   * notification deep-links to the thread's underlying document so the recipient
+   * lands where the conversation lives.
+   */
+  private async notifyThreadParticipants(
+    threadId: string,
+    thread: { contextType: MessageContextType; contextId: string },
+    senderName: string,
+    content: string,
+    senderId: string,
+  ): Promise<void> {
+    try {
+      const participants = await this.prisma.threadParticipant.findMany({
+        where: { threadId, userId: { not: senderId } },
+        select: { userId: true },
+      });
+      if (participants.length === 0) return;
+
+      const { entityType, metadata } = await this.resolveNotificationTarget(thread);
+      const preview = content.length > 140 ? `${content.slice(0, 140)}…` : content;
+
+      await this.notifications.createForUsers({
+        userIds: participants.map((p) => p.userId),
+        type: NotificationType.MESSAGE_RECEIVED,
+        title: 'New message',
+        body: `${senderName}: ${preview}`,
+        ...(entityType ? { entityType, entityId: thread.contextId } : {}),
+        ...(metadata ? { metadata } : {}),
+      });
+    } catch {
+      // best-effort — a notification failure must not fail the message send
+    }
+  }
+
+  /**
+   * Map a thread's context to a notification deep-link target. QUOTE_RESPONSE
+   * also carries `rfqId` so the front end can build /rfqs/:rfqId/quotes/:quoteId.
+   * Context types without an app route (material/warehouse requests) get no
+   * target — the notification still shows, just without a "go to" link.
+   */
+  private async resolveNotificationTarget(thread: {
+    contextType: MessageContextType;
+    contextId: string;
+  }): Promise<{ entityType?: NotificationEntityType; metadata?: Record<string, unknown> }> {
+    switch (thread.contextType) {
+      case MessageContextType.RFQ:
+        return { entityType: NotificationEntityType.RFQ };
+      case MessageContextType.PURCHASE_ORDER:
+        return { entityType: NotificationEntityType.PURCHASE_ORDER };
+      case MessageContextType.QUOTE_RESPONSE: {
+        const quote = await this.prisma.quoteResponse.findUnique({
+          where: { id: thread.contextId },
+          select: { rfqId: true },
+        });
+        return {
+          entityType: NotificationEntityType.QUOTE_RESPONSE,
+          ...(quote ? { metadata: { rfqId: quote.rfqId } } : {}),
+        };
+      }
+      default:
+        return {};
+    }
   }
 
   /**

@@ -13,6 +13,8 @@ import {
   AccessTokenSubject,
   AuditAction,
   ApprovalStatus,
+  NotificationEntityType,
+  NotificationType,
   PoStatus as PrismaPoStatus,
   PoType as PrismaPoType,
   Prisma,
@@ -28,6 +30,7 @@ import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { AuditService } from '../audit/audit.service';
 import { BrandingService } from '../export/branding.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { NotificationService } from '../notification-feed/notification.service';
 import { EmailService } from '../notifications/email.service';
 
 import { PoExportService } from './po-export.service';
@@ -90,6 +93,7 @@ export class PoStatusService {
     private readonly accessTokens: AccessTokensService,
     config: ConfigService,
     private readonly branding: BrandingService,
+    private readonly notifications: NotificationService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
   }
@@ -1232,6 +1236,18 @@ export class PoStatusService {
         ),
       ),
     );
+
+    // Mirror into the in-app feed for the vendor's activated reps.
+    await this.notifications.createForEmails(
+      recipients.map((r) => r.email),
+      {
+        type: NotificationType.PO_ISSUED,
+        title: 'Purchase order received',
+        body: `You have received purchase order ${poNumber}.`,
+        entityType: NotificationEntityType.PURCHASE_ORDER,
+        entityId: poId,
+      },
+    );
   }
 
   private async notifyContractorOfDecline(
@@ -1267,6 +1283,17 @@ export class PoStatusService {
           brand,
         ),
       ),
+    );
+
+    await this.notifications.createForEmails(
+      companyAdmins.map((u) => u.email),
+      {
+        type: NotificationType.PO_DECLINED,
+        title: 'Purchase order declined',
+        body: `${vendorName} declined purchase order ${poNumber}.`,
+        entityType: NotificationEntityType.PURCHASE_ORDER,
+        entityId: poId,
+      },
     );
   }
 
@@ -1311,6 +1338,14 @@ export class PoStatusService {
         ),
       ),
     );
+
+    await this.notifications.createForEmails(recipients, {
+      type: NotificationType.PO_PENDING_APPROVAL,
+      title: 'Purchase order awaiting approval',
+      body: `Purchase order ${po.poNumber} (${amountLabel}) needs your approval.`,
+      entityType: NotificationEntityType.PURCHASE_ORDER,
+      entityId: poId,
+    });
   }
 
   /**

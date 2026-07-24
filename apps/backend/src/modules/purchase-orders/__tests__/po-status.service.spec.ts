@@ -155,6 +155,11 @@ const mockBranding = {
   getPdfBrand: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockNotifications = {
+  createForEmails: jest.fn().mockResolvedValue(undefined),
+  createForUsers: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('PoStatusService', () => {
   let service: PoStatusService;
 
@@ -171,6 +176,7 @@ describe('PoStatusService', () => {
       mockAccessTokensService as never,
       mockConfig as never,
       mockBranding as never,
+      mockNotifications as never,
     );
     // Default: getPurchaseOrder / getPurchaseOrderById return fullPoDetail-shaped response
     mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue(fullPoDetail);

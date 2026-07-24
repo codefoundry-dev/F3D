@@ -77,6 +77,11 @@ const mockBranding = {
   getPdfBrand: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockNotifications = {
+  createForEmails: jest.fn().mockResolvedValue(undefined),
+  createForUsers: jest.fn().mockResolvedValue(undefined),
+};
+
 // ── Mock PrismaService ──────────────────────────────────────────────────────
 
 const mockPrisma = {
@@ -166,6 +171,7 @@ describe('RfqsService', () => {
       mockAccessTokens as never,
       mockConfig as never,
       mockBranding as never,
+      mockNotifications as never,
     );
     mockAccessTokens.issueToken.mockResolvedValue({
       token: 'issued-token-xyz',
