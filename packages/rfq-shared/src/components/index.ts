@@ -16,6 +16,8 @@ export { ToolbarIconButton } from './ToolbarIconButton';
 export { RfqAdvancedFilters } from './RfqAdvancedFilters';
 export { CopyRfqModal } from './CopyRfqModal';
 export { QuoteResponseDetailPage, QuoteResponseActions } from './QuoteResponseDetailPage';
+export { MessageThreadPanel } from './MessageThreadPanel';
+export type { MessageThreadPanelProps } from './MessageThreadPanel';
 export type {
   QuoteResponseTab,
   QuoteResponseDetailPageProps,

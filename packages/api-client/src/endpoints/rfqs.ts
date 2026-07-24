@@ -129,6 +129,12 @@ export interface RfqDetail {
   /** Human-readable project code (PRJ-YYYY-NNN); shown wherever a "Project ID" is labelled. */
   projectCode: string;
   status: string;
+  /**
+   * Vendor-only: the current vendor user's own quote id, used to key the
+   * per-quote message thread (FOR-288). Null for buyers and for vendors who
+   * have not submitted a quote yet.
+   */
+  myQuoteResponseId?: string | null;
   rfqType: string | null;
   paymentTerms: string | null;
   pickUp: boolean;

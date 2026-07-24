@@ -33,6 +33,9 @@ vi.mock('@forethread/rfq-shared', () => ({
   useRfq: () => mockRfq.value,
   RfqDocumentsTab: () => <div data-testid="documents-tab" />,
   RfqLineItemsTab: () => <div data-testid="line-items-tab" />,
+  MessageThreadPanel: ({ contextId }: { contextId?: string }) => (
+    <div data-testid="messages-panel">{contextId}</div>
+  ),
 }));
 
 vi.mock('@forethread/ui-components', () => ({
@@ -113,6 +116,31 @@ describe('RfqDetailPage', () => {
     mockRfq.value = { data: null, isLoading: false, isError: false };
     render(<RfqDetailPage />);
     expect(screen.getByText('detail.noData')).toBeInTheDocument();
+  });
+
+  it('hides the messages panel until the vendor has a quote', () => {
+    render(<RfqDetailPage />);
+    expect(screen.queryByTestId('messages-panel')).not.toBeInTheDocument();
+  });
+
+  it('renders the quote message thread once the vendor has submitted a quote', () => {
+    mockRfq.value = {
+      data: {
+        id: 'rfq-1',
+        projectName: 'Project X',
+        status: 'OPEN',
+        myQuoteResponseId: 'quote-42',
+        lineItems: [],
+        documents: [],
+      },
+      isLoading: false,
+      isError: false,
+    };
+    render(<RfqDetailPage />);
+    const panel = screen.getByTestId('messages-panel');
+    expect(panel).toBeInTheDocument();
+    // The panel is keyed on the vendor's own quote id (FOR-288).
+    expect(panel).toHaveTextContent('quote-42');
   });
 
   it('renders with undefined lineItems and documents', () => {

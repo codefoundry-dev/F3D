@@ -3,6 +3,7 @@ import { useTranslation } from '@forethread/i18n';
 import {
   usePageTitleStore,
   useRfq,
+  MessageThreadPanel,
   RfqDocumentsTab,
   RfqLineItemsTab,
 } from '@forethread/rfq-shared';
@@ -88,6 +89,17 @@ export default function RfqDetailPage() {
           <h2 className="text-base font-medium text-foreground mb-4">{t('documentsTab.title')}</h2>
           <RfqDocumentsTab rfqId={rfq.id} documents={rfq.documents ?? []} hideUpload />
         </div>
+
+        {/* Messages — buyer↔vendor thread for this vendor's quote (FOR-288). Only
+            once the vendor has submitted a quote (myQuoteResponseId is set). */}
+        {rfq.myQuoteResponseId && (
+          <div className="rounded-xl border border-border bg-card p-6">
+            <h2 className="text-base font-medium text-foreground mb-4">
+              {t('quoteResponseDetail.messages')}
+            </h2>
+            <MessageThreadPanel contextType="QUOTE_RESPONSE" contextId={rfq.myQuoteResponseId} />
+          </div>
+        )}
       </div>
     </div>
   );

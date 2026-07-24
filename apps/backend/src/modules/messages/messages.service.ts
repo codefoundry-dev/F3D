@@ -68,11 +68,11 @@ export class MessagesService {
     // Validate context document exists
     await this.validateContextExists(contextType, dto.contextId);
 
-    // Seed the counterparty automatically for contexts where the "other side"
-    // is derivable — a QUOTE_RESPONSE thread gets that vendor's chosen sales
-    // reps (FOR-288) so the vendor can see the buyer's messages without the
-    // caller having to know their user ids.
-    const counterpartyIds = await this.resolveCounterpartyParticipants(contextType, dto.contextId);
+    // Seed both sides automatically for contexts where they're derivable — a
+    // QUOTE_RESPONSE thread gets the RFQ buyer AND that vendor's sales reps
+    // (FOR-288), so the conversation is complete whether the buyer or the vendor
+    // opens it first, without the caller having to know the other party's ids.
+    const counterpartyIds = await this.resolveThreadCounterparties(contextType, dto.contextId);
 
     // Ensure the current user is included in participants
     const allParticipantIds = Array.from(
@@ -338,14 +338,15 @@ export class MessagesService {
   }
 
   /**
-   * The counterparty user ids to seed a new thread with, derived from the
-   * context. For a QUOTE_RESPONSE (FOR-288) that is the vendor's chosen sales
-   * reps for this RFQ (US 5.05 `RfqVendorContact`); when none were chosen we
-   * fall back to the vendor company's own (non-inactive) user accounts so the
-   * message still reaches the vendor. Other contexts derive nothing here — the
-   * caller supplies participants explicitly.
+   * Both sides of a QUOTE_RESPONSE conversation, so the thread is complete no
+   * matter who opens it first (FOR-288): the RFQ owner (buyer) plus the vendor's
+   * chosen sales reps for this RFQ (US 5.05 `RfqVendorContact`), falling back to
+   * the vendor company's own (non-inactive) users when no reps were chosen. The
+   * authenticated caller is always added by createThread, so a buyer-initiated
+   * thread still gets the vendor and a vendor-initiated one still gets the
+   * buyer. Other contexts derive nothing — the caller supplies participants.
    */
-  private async resolveCounterpartyParticipants(
+  private async resolveThreadCounterparties(
     contextType: MessageContextType,
     contextId: string,
   ): Promise<string[]> {
@@ -353,27 +354,39 @@ export class MessagesService {
 
     const quote = await this.prisma.quoteResponse.findUnique({
       where: { id: contextId },
-      select: { rfqId: true, vendorId: true },
+      select: {
+        rfqId: true,
+        vendorId: true,
+        rfq: { select: { createdByUserId: true } },
+      },
     });
     if (!quote) return [];
 
+    const participants: string[] = [];
+
+    // Buyer side: the RFQ owner.
+    if (quote.rfq?.createdByUserId) participants.push(quote.rfq.createdByUserId);
+
+    // Vendor side: chosen sales reps, else the vendor company's own users.
     const rfqVendor = await this.prisma.rfqVendor.findUnique({
       where: { rfqId_vendorId: { rfqId: quote.rfqId, vendorId: quote.vendorId } },
       select: { contacts: { select: { userId: true } } },
     });
     const repIds = rfqVendor?.contacts.map((c) => c.userId) ?? [];
-    if (repIds.length > 0) return repIds;
-
-    // Fallback: the vendor company's own vendor-role users.
-    const vendorUsers = await this.prisma.user.findMany({
-      where: {
-        companyId: quote.vendorId,
-        role: UserRole.VENDOR,
-        status: { not: UserStatus.INACTIVE },
-      },
-      select: { id: true },
-    });
-    return vendorUsers.map((u) => u.id);
+    if (repIds.length > 0) {
+      participants.push(...repIds);
+    } else {
+      const vendorUsers = await this.prisma.user.findMany({
+        where: {
+          companyId: quote.vendorId,
+          role: UserRole.VENDOR,
+          status: { not: UserStatus.INACTIVE },
+        },
+        select: { id: true },
+      });
+      participants.push(...vendorUsers.map((u) => u.id));
+    }
+    return participants;
   }
 
   private async validateParticipant(threadId: string, userId: string): Promise<void> {
