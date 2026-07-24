@@ -74,6 +74,37 @@ const RFQ_LIST_INCLUDE = {
   },
 } satisfies Prisma.RfqInclude;
 
+/**
+ * invitedVendors sub-include shared by the buyer & vendor detail queries. For a
+ * vendor, getRfq wraps this with a `where` that scopes it to their own company —
+ * competitors' company names and rep contact details (emails/phones) must never
+ * reach a vendor.
+ */
+const RFQ_INVITED_VENDORS_INCLUDE = {
+  // The reps the buyer chose for this RFQ (US 5.05); shown as the vendor's
+  // contacts when present, otherwise the active company users are listed.
+  contacts: {
+    select: {
+      user: {
+        select: { id: true, name: true, role: true, phone: true, email: true, position: true },
+      },
+    },
+  },
+  vendor: {
+    select: {
+      id: true,
+      legalName: true,
+      logoUrl: true,
+      legalAddress: true,
+      specialisations: true,
+      users: {
+        where: { status: 'ACTIVE' },
+        select: { id: true, name: true, role: true, phone: true, email: true, position: true },
+      },
+    },
+  },
+} satisfies Prisma.RfqVendorInclude;
+
 const RFQ_DETAIL_INCLUDE = {
   project: { select: { id: true, name: true, code: true } },
   projects: { include: { project: { select: { id: true, name: true, code: true } } } },
@@ -97,30 +128,7 @@ const RFQ_DETAIL_INCLUDE = {
     },
   },
   invitedVendors: {
-    include: {
-      // The reps the buyer chose for this RFQ (US 5.05); shown as the vendor's
-      // contacts when present, otherwise the active company users are listed.
-      contacts: {
-        select: {
-          user: {
-            select: { id: true, name: true, role: true, phone: true, email: true, position: true },
-          },
-        },
-      },
-      vendor: {
-        select: {
-          id: true,
-          legalName: true,
-          logoUrl: true,
-          legalAddress: true,
-          specialisations: true,
-          users: {
-            where: { status: 'ACTIVE' },
-            select: { id: true, name: true, role: true, phone: true, email: true, position: true },
-          },
-        },
-      },
-    },
+    include: RFQ_INVITED_VENDORS_INCLUDE,
   },
   documents: {
     include: {
@@ -288,6 +296,10 @@ export class RfqsService {
       ? {
           ...RFQ_DETAIL_INCLUDE,
           quoteResponses: {
+            // A vendor must only ever see their OWN quote responses. Without this
+            // filter the include returns every invited vendor's quote, leaking
+            // competitors' totalCost / discounts / coverage into the payload.
+            where: { vendor: { users: { some: { id: user.id } } } },
             include: {
               vendor: { select: { legalName: true, users: { select: { id: true } } } },
               _count: { select: { attachments: true } },
@@ -295,6 +307,13 @@ export class RfqsService {
                 select: { deliveryDate: true, availability: true, notes: true, status: true },
               },
             },
+          },
+          invitedVendors: {
+            // Likewise scope the invited-vendor list to the vendor's own company —
+            // otherwise the payload leaks every competitor company's name and their
+            // reps' emails/phones to a vendor viewing the RFQ.
+            where: { vendor: { users: { some: { id: user.id } } } },
+            include: RFQ_INVITED_VENDORS_INCLUDE,
           },
         }
       : RFQ_DETAIL_INCLUDE;
