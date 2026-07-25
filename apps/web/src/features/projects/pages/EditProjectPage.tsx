@@ -41,6 +41,17 @@ const projectTypes = [
 ] as const;
 const currencies = ['AUD', 'USD', 'GBP', 'EUR', 'NZD'];
 
+/**
+ * Empty / unparseable input → undefined, never NaN. `valueAsNumber` turns a
+ * cleared number input into NaN, which `z.number().optional()` rejects and
+ * would silently block the save.
+ */
+const toOptionalNumber = (v: string): number | undefined => {
+  if (typeof v !== 'string' || !v.trim()) return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
+
 // Valid status transitions
 const VALID_TRANSITIONS: Record<ProjectStatus, ProjectStatus[]> = {
   [ProjectStatus.PLANNED]: [ProjectStatus.PLANNED, ProjectStatus.ONGOING, ProjectStatus.ARCHIVED],
@@ -227,12 +238,12 @@ export default function EditProjectPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <FormField label={t('create.budget')}>
+            <FormField label={t('create.budget')} error={errors.plannedBudget?.message}>
               <Input
                 inputMode="decimal"
                 pattern="[0-9]*\.?[0-9]*"
                 onKeyDown={onDecimalOnly}
-                {...register('plannedBudget', { valueAsNumber: true })}
+                {...register('plannedBudget', { setValueAs: toOptionalNumber })}
               />
             </FormField>
             <FormField label={t('create.currency')}>
