@@ -35,6 +35,7 @@ import {
   useForm,
   useFieldArray,
   Controller,
+  type FieldErrors,
   type FieldPath,
   type UseFormReturn,
 } from 'react-hook-form';
@@ -57,6 +58,17 @@ const STATUS_CHIPS = [
 /** Empty / whitespace string → undefined (so optional API fields are omitted). */
 const blankToUndefined = (v?: string): string | undefined => (v?.trim() ? v : undefined);
 
+/**
+ * Empty / unparseable input → undefined, never NaN.
+ * `valueAsNumber` turns an untouched (empty) number input into NaN, which
+ * `z.number().optional()` rejects — that silently blocked the whole wizard.
+ */
+const toOptionalNumber = (v: string): number | undefined => {
+  if (typeof v !== 'string' || !v.trim()) return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
+
 export default function CreateProjectPage() {
   const { t: tRaw } = useTranslation('projects');
   const t = tRaw as TFn;
@@ -75,6 +87,7 @@ export default function CreateProjectPage() {
   const { data: companyUsers = [] } = useCompanyUsers();
 
   const [step, setStep] = useState(1);
+  const [blockedByValidation, setBlockedByValidation] = useState(false);
   // Files are staged locally only — there is no backend to persist project
   // documents at create time.
   // TODO(US5.03): persist project documents once ProjectDocument backend exists
@@ -176,8 +189,23 @@ export default function CreateProjectPage() {
   };
 
   const goNext = async () => {
+    setBlockedByValidation(false);
     const valid = await trigger(STEP_FIELDS[step]);
     if (valid) setStep((s) => Math.min(3, s + 1));
+  };
+
+  // Step 3 renders no inputs of its own, so a validation failure here would
+  // otherwise be invisible — the button would simply do nothing. Send the user
+  // back to the step that owns the offending field and say so.
+  const onInvalid = (formErrors: FieldErrors<CreateProjectFormValues>) => {
+    const failed = Object.keys(formErrors) as FieldPath<CreateProjectFormValues>[];
+    setStep(failed.some((f) => STEP_FIELDS[1].includes(f)) ? 1 : 2);
+    setBlockedByValidation(true);
+  };
+
+  const submit = () => {
+    setBlockedByValidation(false);
+    void handleSubmit(onSubmit, onInvalid)();
   };
 
   const is409 =
@@ -257,6 +285,12 @@ export default function CreateProjectPage() {
           />
         )}
 
+        {blockedByValidation && (
+          <Alert variant="destructive" className="mt-6">
+            {t('create.validationError')}
+          </Alert>
+        )}
+
         {createMutation.isError && (
           <Alert variant="destructive" className="mt-6">
             {is409 ? t('create.duplicateNameError') : t('create.createError')}
@@ -280,12 +314,7 @@ export default function CreateProjectPage() {
               {t('create.continue')}
             </Button>
           ) : (
-            <Button
-              type="button"
-              size="lg"
-              isLoading={createMutation.isPending}
-              onClick={() => void handleSubmit(onSubmit)()}
-            >
+            <Button type="button" size="lg" isLoading={createMutation.isPending} onClick={submit}>
               {createMutation.isPending ? t('create.creating') : t('create.createProject')}
             </Button>
           )}
@@ -636,12 +665,12 @@ function Step2({
           />
         </FormField>
 
-        <FormField label={t('create.plannedBudgetAud')}>
+        <FormField label={t('create.plannedBudgetAud')} error={errors.plannedBudget?.message}>
           <Input
             inputMode="decimal"
             pattern="[0-9]*\.?[0-9]*"
             onKeyDown={onDecimalOnly}
-            {...register('plannedBudget', { valueAsNumber: true })}
+            {...register('plannedBudget', { setValueAs: toOptionalNumber })}
             placeholder={t('create.budgetPlaceholder')}
           />
         </FormField>
