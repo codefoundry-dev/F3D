@@ -11,7 +11,10 @@ const mockUseCompanyUsers = vi.hoisted(() => vi.fn());
 const mockUseCreateProject = vi.hoisted(() => vi.fn());
 const mockNavigate = vi.hoisted(() => vi.fn());
 const mockSetPageTitle = vi.hoisted(() => vi.fn());
-const mockAuthUser = vi.hoisted(() => ({ value: { id: 'u1', name: 'Sarah Chen', role: 'COMPANY_ADMIN' } as any }));
+const mockAuthUser = vi.hoisted(() => ({
+  value: { id: 'u1', name: 'Sarah Chen', role: 'COMPANY_ADMIN' } as any,
+}));
+const mockNotify = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), info: vi.fn() }));
 
 vi.mock('@forethread/i18n', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -86,6 +89,7 @@ vi.mock('@forethread/ui-components', () => ({
   ),
   cn: (...args: any[]) => args.filter(Boolean).join(' '),
   onDecimalOnly: vi.fn(),
+  notificationService: mockNotify,
 }));
 
 vi.mock('@forethread/ui-components/assets/icons/delete.svg?react', () => ({
@@ -234,9 +238,7 @@ describe('CreateProjectPage', () => {
 
   it('selects a user from search and renders the chip (company admin)', () => {
     mockUseCompanyUsers.mockReturnValue({
-      data: [
-        { id: 'u2', name: 'Bob', email: 'bob@x.com', avatarUrl: null, workStatus: null },
-      ],
+      data: [{ id: 'u2', name: 'Bob', email: 'bob@x.com', avatarUrl: null, workStatus: null }],
     });
     render(<CreateProjectPage />);
     const search = screen.getByPlaceholderText('create.searchUsers');

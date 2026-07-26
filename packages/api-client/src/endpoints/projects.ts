@@ -28,18 +28,23 @@ export interface CreateProjectInput {
   expectedEndDate?: string;
 }
 
+/**
+ * Nullable fields: send `null` to clear the stored value, omit the key to leave
+ * it untouched. An empty string is not accepted — the API validates these as
+ * ISO-8601 / strings and 400s on `''`.
+ */
 export interface UpdateProjectInput {
   name?: string;
-  description?: string;
-  type?: string;
+  description?: string | null;
+  type?: string | null;
   status?: string;
   locations?: ProjectLocationInput[];
   assignedUserIds?: string[];
-  plannedBudget?: number;
+  plannedBudget?: number | null;
   currency?: string;
-  pointOfContactId?: string;
-  startDate?: string;
-  expectedEndDate?: string;
+  pointOfContactId?: string | null;
+  startDate?: string | null;
+  expectedEndDate?: string | null;
 }
 
 export interface AddProjectMembersInput {

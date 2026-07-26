@@ -10,6 +10,7 @@ const mockUpdateMutation = vi.hoisted(() => ({
 const mockUseProject = vi.hoisted(() => vi.fn());
 const mockUseUpdateProject = vi.hoisted(() => vi.fn());
 const mockNavigate = vi.hoisted(() => vi.fn());
+const mockNotify = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), info: vi.fn() }));
 
 vi.mock('@forethread/i18n', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -95,6 +96,7 @@ vi.mock('@forethread/ui-components', () => ({
   onPhoneOnly: vi.fn(),
   onDigitsOnly: vi.fn(),
   onDecimalOnly: vi.fn(),
+  notificationService: mockNotify,
 }));
 
 vi.mock('@forethread/ui-components/assets/icons/delete.svg?react', () => ({
@@ -165,10 +167,11 @@ describe('EditProjectPage', () => {
   it('renders form field labels', () => {
     mockUseProject.mockReturnValue({ data: mockProject, isLoading: false });
     render(<EditProjectPage />);
-    expect(screen.getByText('create.name')).toBeInTheDocument();
+    // Required fields carry a trailing asterisk.
+    expect(screen.getByText('create.name *')).toBeInTheDocument();
+    expect(screen.getByText('create.status *')).toBeInTheDocument();
     expect(screen.getByText('create.description')).toBeInTheDocument();
     expect(screen.getByText('create.type')).toBeInTheDocument();
-    expect(screen.getByText('create.status')).toBeInTheDocument();
     expect(screen.getByText('create.budget')).toBeInTheDocument();
     expect(screen.getByText('create.currency')).toBeInTheDocument();
     expect(screen.getByText('create.startDate')).toBeInTheDocument();

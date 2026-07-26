@@ -9,6 +9,19 @@ const locationSchema = z.object({
   isDefault: z.boolean(),
 });
 
+/** `YYYY-MM-DD`, optionally with a time part — what the API accepts as ISO-8601. */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T.*)?$/;
+
+/**
+ * Start / end dates are optional, so a blank field is valid and means "not set".
+ * Anything else must be a real ISO date — the API rejects `''` and free text with
+ * a 400, and without this the form would happily submit them.
+ */
+const optionalDateString = z
+  .string()
+  .refine((v) => v.trim() === '' || ISO_DATE.test(v), 'Enter a valid date')
+  .optional();
+
 export const createProjectSchema = z
   .object({
     name: z.string().min(1, 'Project name is required').max(255),
@@ -48,8 +61,8 @@ export const createProjectSchema = z
     plannedBudget: z.number().min(0).optional(),
     currency: z.string().max(3).optional().default('AUD'),
     pointOfContactId: z.string().uuid().optional(),
-    startDate: z.string().optional(),
-    expectedEndDate: z.string().optional(),
+    startDate: optionalDateString,
+    expectedEndDate: optionalDateString,
   })
   .refine(
     (data) => {
@@ -103,8 +116,8 @@ export const updateProjectSchema = z
     plannedBudget: z.number().min(0).optional(),
     currency: z.string().max(3).optional(),
     pointOfContactId: z.string().uuid().optional(),
-    startDate: z.string().optional(),
-    expectedEndDate: z.string().optional(),
+    startDate: optionalDateString,
+    expectedEndDate: optionalDateString,
   })
   .refine(
     (data) => {

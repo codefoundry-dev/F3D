@@ -20,16 +20,18 @@ import {
   buttonVariants,
   DatePicker,
   onDecimalOnly,
+  notificationService,
 } from '@forethread/ui-components';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { isAxiosError } from 'axios';
 import { useCallback, useEffect } from 'react';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { useForm, useFieldArray, Controller, type FieldErrors } from 'react-hook-form';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 
+import { invalidFieldLabels, type TFn } from '../formErrors';
 import { useProject, useUpdateProject } from '../services/projects.service';
 
 const projectTypes = [
@@ -52,6 +54,26 @@ const toOptionalNumber = (v: string): number | undefined => {
   return Number.isFinite(n) ? n : undefined;
 };
 
+/**
+ * Blank → `null`, which is how the API clears a nullable column.
+ *
+ * The form seeds every text field with `''`, so a project saved without a start
+ * or end date holds `''` here. Forwarding that verbatim made the API reject the
+ * whole PATCH ("must be a valid ISO 8601 date string"), and `?? undefined`
+ * doesn't catch it — `??` only fires on null/undefined.
+ */
+const blankToNull = (v?: string | null): string | null => (v?.trim() ? v : null);
+
+/**
+ * The API's `{ success, error, statusCode }` envelope names the offending
+ * fields on a 400 — far more useful than a blanket "failed to update".
+ */
+const serverMessage = (error: unknown): string | undefined => {
+  if (!isAxiosError(error)) return undefined;
+  const message = (error.response?.data as { error?: unknown } | undefined)?.error;
+  return typeof message === 'string' && message ? message : undefined;
+};
+
 // Valid status transitions
 const VALID_TRANSITIONS: Record<ProjectStatus, ProjectStatus[]> = {
   [ProjectStatus.PLANNED]: [ProjectStatus.PLANNED, ProjectStatus.ONGOING, ProjectStatus.ARCHIVED],
@@ -62,7 +84,8 @@ const VALID_TRANSITIONS: Record<ProjectStatus, ProjectStatus[]> = {
 
 export default function EditProjectPage() {
   const { id } = useParams<{ id: string }>();
-  const { t } = useTranslation('projects');
+  const { t: tRaw } = useTranslation('projects');
+  const t = tRaw as TFn;
   const navigate = useNavigate();
   const { data: project, isLoading } = useProject(id ?? '');
   const updateMutation = useUpdateProject(id ?? '');
@@ -96,6 +119,16 @@ export default function EditProjectPage() {
   } = useFieldArray({ control, name: 'locations' });
 
   const watchedLocations = watch('locations') ?? [];
+
+  // `errors.locations` is array-shaped when a row fails and object-shaped
+  // (message/root) when an array-level refine fails — both used to render an
+  // empty paragraph, so a blank address gave the user no feedback at all.
+  const locationRows = errors.locations as
+    | ({ address?: { message?: string } } | undefined)[]
+    | undefined;
+  const locationRowError = (index: number) =>
+    Array.isArray(locationRows) ? locationRows[index]?.address?.message : undefined;
+  const locationsGroupError = errors.locations?.message ?? errors.locations?.root?.message;
 
   useEffect(() => {
     if (project) {
@@ -155,14 +188,49 @@ export default function EditProjectPage() {
     updateMutation.mutate(
       {
         ...data,
-        type: data.type ?? undefined,
-        plannedBudget: data.plannedBudget ?? undefined,
-        startDate: data.startDate ?? undefined,
-        expectedEndDate: data.expectedEndDate ?? undefined,
+        // Cleared fields must go as `null` (clear the column); `''` is a 400.
+        description: blankToNull(data.description),
+        type: blankToNull(data.type),
+        plannedBudget: data.plannedBudget ?? null,
+        startDate: blankToNull(data.startDate),
+        expectedEndDate: blankToNull(data.expectedEndDate),
       },
       {
         onSuccess: () => navigate(ROUTES.projectDetail.replace(':id', id ?? '')),
+        onError: (error) =>
+          notificationService.error(serverMessage(error) ?? t('edit.updateError')),
       },
+    );
+  };
+
+  /** Name a failing field for the toast (delivery/storage share one array). */
+  const labelForPath = (path: string): string | undefined => {
+    const [field, index] = path.split('.');
+    if (field === 'locations') {
+      return watchedLocations[Number(index)]?.type === LocationType.STORAGE
+        ? t('create.storageLocations')
+        : t('create.deliveryLocations');
+    }
+    const labels: Record<string, string> = {
+      name: t('create.name'),
+      status: t('create.status'),
+      description: t('create.description'),
+      type: t('create.type'),
+      plannedBudget: t('create.budget'),
+      currency: t('create.currency'),
+      startDate: t('create.startDate'),
+      expectedEndDate: t('create.expectedEndDate'),
+    };
+    return labels[field];
+  };
+
+  // Without this the Save button silently does nothing when a field is invalid.
+  const onInvalid = (formErrors: FieldErrors<UpdateProjectFormValues>) => {
+    const fields = invalidFieldLabels(formErrors, labelForPath);
+    notificationService.error(
+      fields.length > 0
+        ? t('create.validationToast', { fields: fields.join(', ') })
+        : t('create.validationToastGeneric'),
     );
   };
 
@@ -193,21 +261,25 @@ export default function EditProjectPage() {
         <h1 className="text-2xl font-bold text-foreground">{t('edit.title')}</h1>
       </div>
 
-      <form onSubmit={(e) => void handleSubmit(onSubmit)(e)} className="space-y-8" noValidate>
+      <form
+        onSubmit={(e) => void handleSubmit(onSubmit, onInvalid)(e)}
+        className="space-y-8"
+        noValidate
+      >
         {/* Project Details */}
         <section className="bg-card rounded-lg border border-border p-6 space-y-4">
           <h2 className="text-lg font-semibold text-foreground">{t('create.projectDetails')}</h2>
 
-          <FormField label={t('create.name')} error={errors.name?.message}>
+          <FormField label={`${t('create.name')} *`} error={errors.name?.message}>
             <Input {...register('name')} />
           </FormField>
 
-          <FormField label={t('create.description')}>
+          <FormField label={t('create.description')} optional>
             <Textarea {...register('description')} rows={3} />
           </FormField>
 
           <div className="grid grid-cols-2 gap-4">
-            <FormField label={t('create.type')}>
+            <FormField label={t('create.type')} optional>
               <Controller
                 name="type"
                 control={control}
@@ -222,7 +294,7 @@ export default function EditProjectPage() {
               />
             </FormField>
 
-            <FormField label={t('create.status')}>
+            <FormField label={`${t('create.status')} *`}>
               <Controller
                 name="status"
                 control={control}
@@ -238,7 +310,7 @@ export default function EditProjectPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <FormField label={t('create.budget')} error={errors.plannedBudget?.message}>
+            <FormField label={t('create.budget')} optional error={errors.plannedBudget?.message}>
               <Input
                 inputMode="decimal"
                 pattern="[0-9]*\.?[0-9]*"
@@ -261,15 +333,20 @@ export default function EditProjectPage() {
             </FormField>
           </div>
 
+          {/* Both dates are optional — the API stores them nullable. */}
           <div className="grid grid-cols-2 gap-4">
-            <FormField label={t('create.startDate')}>
+            <FormField label={t('create.startDate')} optional error={errors.startDate?.message}>
               <Controller
                 control={control}
                 name="startDate"
                 render={({ field }) => <DatePicker value={field.value} onChange={field.onChange} />}
               />
             </FormField>
-            <FormField label={t('create.expectedEndDate')} error={errors.expectedEndDate?.message}>
+            <FormField
+              label={t('create.expectedEndDate')}
+              optional
+              error={errors.expectedEndDate?.message}
+            >
               <Controller
                 control={control}
                 name="expectedEndDate"
@@ -289,7 +366,7 @@ export default function EditProjectPage() {
         <section className="bg-card rounded-lg border border-border p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-foreground">
-              {t('create.deliveryLocations')}
+              {t('create.deliveryLocations')} <span className="text-muted-foreground">*</span>
             </h2>
             <button
               type="button"
@@ -314,8 +391,13 @@ export default function EditProjectPage() {
                   value={watchedLocations[index]?.address ?? ''}
                   placeholder={t('create.addressPlaceholder')}
                   searchFn={handleAddressSearch}
-                  onChange={(val) => setValue(`locations.${index}.address`, val)}
+                  onChange={(val) =>
+                    setValue(`locations.${index}.address`, val, { shouldValidate: true })
+                  }
                 />
+                {locationRowError(index) && (
+                  <p className="mt-1.5 text-xs text-destructive">{locationRowError(index)}</p>
+                )}
               </div>
               <div className="w-40">
                 <Input
@@ -343,18 +425,14 @@ export default function EditProjectPage() {
               )}
             </div>
           ))}
-          {errors.locations && (
-            <p className="text-xs text-destructive">
-              {errors.locations.message ?? errors.locations.root?.message}
-            </p>
-          )}
+          {locationsGroupError && <p className="text-xs text-destructive">{locationsGroupError}</p>}
         </section>
 
         {/* Storage Locations */}
         <section className="bg-card rounded-lg border border-border p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-foreground">
-              {t('create.storageLocations')}
+              {t('create.storageLocations')} <span className="text-muted-foreground">*</span>
             </h2>
             <button
               type="button"
@@ -379,8 +457,13 @@ export default function EditProjectPage() {
                   value={watchedLocations[index]?.address ?? ''}
                   placeholder={t('create.addressPlaceholder')}
                   searchFn={handleAddressSearch}
-                  onChange={(val) => setValue(`locations.${index}.address`, val)}
+                  onChange={(val) =>
+                    setValue(`locations.${index}.address`, val, { shouldValidate: true })
+                  }
                 />
+                {locationRowError(index) && (
+                  <p className="mt-1.5 text-xs text-destructive">{locationRowError(index)}</p>
+                )}
               </div>
               <div className="w-40">
                 <Input

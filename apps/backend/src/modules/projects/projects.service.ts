@@ -42,10 +42,11 @@ interface CreateProjectInput {
   expectedEndDate?: string;
 }
 
+/** Nullable fields: `null` clears the column, `undefined` leaves it untouched. */
 interface UpdateProjectInput {
   name?: string;
-  description?: string;
-  type?: string;
+  description?: string | null;
+  type?: string | null;
   status?: string;
   locations?: {
     type: 'DELIVERY' | 'STORAGE';
@@ -54,11 +55,11 @@ interface UpdateProjectInput {
     isDefault: boolean;
   }[];
   assignedUserIds?: string[];
-  plannedBudget?: number;
+  plannedBudget?: number | null;
   currency?: string;
-  pointOfContactId?: string;
-  startDate?: string;
-  expectedEndDate?: string;
+  pointOfContactId?: string | null;
+  startDate?: string | null;
+  expectedEndDate?: string | null;
 }
 
 @Injectable()
