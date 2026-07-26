@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ClsModule } from 'nestjs-cls';
 
@@ -72,6 +73,9 @@ import { PrismaModule } from './prisma/prisma.module';
         limit: 100,
       },
     ]),
+
+    // ── Scheduled jobs (payment due / overdue reminders) ────────────────────
+    ScheduleModule.forRoot(),
 
     // ── Database ────────────────────────────────────────────────────────────
     PrismaModule,

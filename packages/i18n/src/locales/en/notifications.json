@@ -12,6 +12,7 @@
     "QUOTE_RESPONSE": "View quote",
     "PURCHASE_ORDER": "View purchase order",
     "BULK_ORDER": "View bulk order",
+    "INVOICE": "View invoice",
     "default": "View details"
   },
   "time": {

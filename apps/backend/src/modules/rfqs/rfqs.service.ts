@@ -2226,7 +2226,12 @@ export class RfqsService {
     return settled.filter((a): a is EmailAttachment => a !== null);
   }
 
-  async notifyContractorOfQuoteSubmission(rfqId: string, vendorName: string): Promise<void> {
+  async notifyContractorOfQuoteSubmission(
+    rfqId: string,
+    vendorName: string,
+    /** The vendor's note on the quote, rendered as the user comment. */
+    comment: string | null = null,
+  ): Promise<void> {
     try {
       const rfq = await this.prisma.rfq.findUnique({
         where: { id: rfqId },
@@ -2256,7 +2261,14 @@ export class RfqsService {
 
       await Promise.all(
         contractors.map((u) =>
-          this.emailService.sendQuoteSubmittedEmail(u.email, rfqNumber, vendorName, viewUrl, brand),
+          this.emailService.sendQuoteSubmittedEmail(
+            u.email,
+            rfqNumber,
+            vendorName,
+            viewUrl,
+            brand,
+            comment,
+          ),
         ),
       );
 
@@ -2275,7 +2287,12 @@ export class RfqsService {
     }
   }
 
-  async notifyContractorOfQuoteUpdate(rfqId: string, vendorName: string): Promise<void> {
+  async notifyContractorOfQuoteUpdate(
+    rfqId: string,
+    vendorName: string,
+    /** The vendor's note on the revised quote, rendered as the user comment. */
+    comment: string | null = null,
+  ): Promise<void> {
     try {
       const rfq = await this.prisma.rfq.findUnique({
         where: { id: rfqId },
@@ -2306,7 +2323,14 @@ export class RfqsService {
 
       await Promise.all(
         contractors.map((u) =>
-          this.emailService.sendQuoteUpdatedEmail(u.email, rfqNumber, vendorName, viewUrl, brand),
+          this.emailService.sendQuoteUpdatedEmail(
+            u.email,
+            rfqNumber,
+            vendorName,
+            viewUrl,
+            brand,
+            comment,
+          ),
         ),
       );
 

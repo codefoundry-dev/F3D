@@ -1,4 +1,8 @@
-import { BulkApproveInvoicesDto, InvoiceListQueryDto } from '@forethread/shared-types';
+import {
+  BulkApproveInvoicesDto,
+  InvoiceListQueryDto,
+  RejectInvoiceDto,
+} from '@forethread/shared-types';
 import {
   Body,
   Controller,
@@ -104,8 +108,12 @@ export class InvoicesController {
   @ApiResponse({ status: 200, description: 'Invoice rejected' })
   @ApiResponse({ status: 400, description: 'Invoice cannot be rejected in its current status' })
   @ApiResponse({ status: 404, description: 'Invoice not found' })
-  async rejectInvoice(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.invoicesService.rejectInvoice(id, user);
+  async rejectInvoice(
+    @Param('id') id: string,
+    @Body() dto: RejectInvoiceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.invoicesService.rejectInvoice(id, dto, user);
   }
 
   // ── POST /v1/invoices/bulk-approve ─────────────────────────────────────────

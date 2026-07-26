@@ -42,6 +42,9 @@ const mockPrisma = {
     update: jest.fn(),
     updateMany: jest.fn(),
   },
+  company: {
+    findUnique: jest.fn(),
+  },
   file: {
     create: jest.fn(),
     delete: jest.fn(),
@@ -61,12 +64,40 @@ const mockStorageService = {
   delete: jest.fn(),
 };
 
+const mockEmailService = {
+  sendInvoiceRejectedEmail: jest.fn().mockResolvedValue(undefined),
+};
+
+const mockNotifications = {
+  createForEmails: jest.fn().mockResolvedValue(undefined),
+  createForUsers: jest.fn().mockResolvedValue(undefined),
+};
+
+const mockBranding = {
+  getEmailBrand: jest.fn().mockResolvedValue(undefined),
+};
+
+const mockConfig = { get: jest.fn(() => 'http://localhost:5179') };
+
 describe('InvoicesService', () => {
   let service: InvoicesService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new InvoicesService(mockPrisma as never, mockStorageService as never);
+    mockEmailService.sendInvoiceRejectedEmail.mockResolvedValue(undefined);
+    mockNotifications.createForEmails.mockResolvedValue(undefined);
+    mockBranding.getEmailBrand.mockResolvedValue(undefined);
+    mockConfig.get.mockReturnValue('http://localhost:5179');
+    // No vendor company by default — the rejection notification simply no-ops.
+    mockPrisma.company.findUnique.mockResolvedValue(null);
+    service = new InvoicesService(
+      mockPrisma as never,
+      mockStorageService as never,
+      mockEmailService as never,
+      mockNotifications as never,
+      mockBranding as never,
+      mockConfig as never,
+    );
   });
 
   describe('listInvoices', () => {
@@ -431,14 +462,106 @@ describe('InvoicesService', () => {
         relatedPo: null,
       });
 
-      const result = await service.rejectInvoice('inv-1', companyAdmin);
+      const result = await service.rejectInvoice('inv-1', {}, companyAdmin);
       expect(result.status).toBe('REJECTED');
       expect(mockPrisma.invoice.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'inv-1' },
-          data: { status: 'REJECTED' },
+          data: { status: 'REJECTED', rejectionReason: null },
         }),
       );
+    });
+
+    it('persists the rejection reason and emails it to the vendor as the user comment', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue({
+        id: 'inv-9',
+        status: 'PENDING',
+        companyId: 'comp-1',
+      });
+      mockPrisma.invoice.update.mockResolvedValue({
+        id: 'inv-9',
+        projectId: 'proj-1',
+        companyId: 'comp-1',
+        vendorId: 'vendor-comp-1',
+        status: 'REJECTED',
+        rejectionReason: 'Quantities do not match the delivery note.',
+        totalAmount: 5000,
+        dueDate: null,
+        project: { name: 'Alpha' },
+        company: { legalName: 'BuilderCo' },
+        vendor: { legalName: 'VendorCo' },
+        relatedPo: null,
+      });
+      mockPrisma.company.findUnique.mockResolvedValue({
+        contactEmail: 'contact@vendor.test',
+        users: [{ email: 'rep@vendor.test' }],
+      });
+
+      await service.rejectInvoice(
+        'inv-9',
+        { reason: 'Quantities do not match the delivery note.' },
+        companyAdmin,
+      );
+      // The vendor notification is fire-and-forget; let the microtask queue drain.
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(mockPrisma.invoice.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: {
+            status: 'REJECTED',
+            rejectionReason: 'Quantities do not match the delivery note.',
+          },
+        }),
+      );
+
+      // Vendor users win over the company contact email.
+      expect(mockEmailService.sendInvoiceRejectedEmail).toHaveBeenCalledTimes(1);
+      expect(mockEmailService.sendInvoiceRejectedEmail).toHaveBeenCalledWith(
+        'rep@vendor.test',
+        {
+          invoiceReference: 'INV-INV9',
+          companyName: 'BuilderCo',
+          projectName: 'Alpha',
+        },
+        'http://localhost:5179/invoices/inv-9',
+        expect.objectContaining({ comment: 'Quantities do not match the delivery note.' }),
+      );
+
+      expect(mockNotifications.createForEmails).toHaveBeenCalledWith(
+        ['rep@vendor.test'],
+        expect.objectContaining({
+          type: 'INVOICE_REJECTED',
+          entityType: 'INVOICE',
+          entityId: 'inv-9',
+        }),
+      );
+    });
+
+    it('does not fail the rejection when the vendor notification throws', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue({
+        id: 'inv-10',
+        status: 'PENDING',
+        companyId: 'comp-1',
+      });
+      mockPrisma.invoice.update.mockResolvedValue({
+        id: 'inv-10',
+        projectId: 'proj-1',
+        companyId: 'comp-1',
+        vendorId: 'vendor-comp-1',
+        status: 'REJECTED',
+        rejectionReason: null,
+        totalAmount: 100,
+        dueDate: null,
+        project: { name: 'Alpha' },
+        company: { legalName: 'BuilderCo' },
+        vendor: { legalName: 'VendorCo' },
+        relatedPo: null,
+      });
+      mockPrisma.company.findUnique.mockRejectedValue(new Error('db down'));
+
+      const result = await service.rejectInvoice('inv-10', {}, companyAdmin);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(result.status).toBe('REJECTED');
     });
 
     it('rejects a DISPUTED invoice', async () => {
@@ -458,14 +581,14 @@ describe('InvoicesService', () => {
         relatedPo: { id: 'po-5' },
       });
 
-      const result = await service.rejectInvoice('inv-2', companyAdmin);
+      const result = await service.rejectInvoice('inv-2', {}, companyAdmin);
       expect(result.status).toBe('REJECTED');
       expect(result.relatedPo).toBe('po-5');
     });
 
     it('throws NotFoundException for missing invoice', async () => {
       mockPrisma.invoice.findUnique.mockResolvedValue(null);
-      await expect(service.rejectInvoice('missing', companyAdmin)).rejects.toThrow(
+      await expect(service.rejectInvoice('missing', {}, companyAdmin)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -476,7 +599,7 @@ describe('InvoicesService', () => {
         status: 'PENDING',
         companyId: 'other-comp',
       });
-      await expect(service.rejectInvoice('inv-1', financialOfficer)).rejects.toThrow(
+      await expect(service.rejectInvoice('inv-1', {}, financialOfficer)).rejects.toThrow(
         ForbiddenException,
       );
     });
@@ -487,7 +610,7 @@ describe('InvoicesService', () => {
         status: 'APPROVED',
         companyId: 'comp-1',
       });
-      await expect(service.rejectInvoice('inv-1', companyAdmin)).rejects.toThrow(
+      await expect(service.rejectInvoice('inv-1', {}, companyAdmin)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -509,7 +632,7 @@ describe('InvoicesService', () => {
         relatedPo: null,
       });
 
-      const result = await service.rejectInvoice('inv-1', superAdmin);
+      const result = await service.rejectInvoice('inv-1', {}, superAdmin);
       expect(result.status).toBe('REJECTED');
     });
   });

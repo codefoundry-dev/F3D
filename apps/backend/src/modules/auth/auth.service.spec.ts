@@ -36,6 +36,7 @@ describe('AuthService', () => {
     sendOtpEmail: jest.Mock;
     sendPasswordResetEmail: jest.Mock;
     sendInvitationExpiredNotification: jest.Mock;
+    sendAccountActivatedEmail: jest.Mock;
   };
 
   const activeUser = {
@@ -91,6 +92,7 @@ describe('AuthService', () => {
       sendOtpEmail: jest.fn().mockResolvedValue(undefined),
       sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
       sendInvitationExpiredNotification: jest.fn().mockResolvedValue(undefined),
+      sendAccountActivatedEmail: jest.fn().mockResolvedValue(undefined),
     };
 
     service = new AuthService(

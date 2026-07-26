@@ -3746,6 +3746,7 @@ describe('RfqsService', () => {
         'VendorCo',
         expect.any(String),
         undefined,
+        null,
       );
     });
 
@@ -3779,6 +3780,7 @@ describe('RfqsService', () => {
         'VendorCo',
         expect.any(String),
         brand,
+        null,
       );
     });
   });
@@ -3799,6 +3801,7 @@ describe('RfqsService', () => {
         'VendorCo',
         expect.any(String),
         undefined,
+        null,
       );
     });
 
@@ -3818,6 +3821,7 @@ describe('RfqsService', () => {
         'VendorCo',
         expect.any(String),
         brand,
+        null,
       );
     });
 

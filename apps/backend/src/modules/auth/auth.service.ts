@@ -307,6 +307,20 @@ export class AuthService {
         invitationTokenExpiresAt: null,
       },
     });
+
+    // Confirm activation to the user (US 1.02). Fire-and-forget, like every
+    // other transactional email — the account is already active by now, so a
+    // mail failure must not fail the request the user is waiting on.
+    const loginUrl = `${this.config.get<string>('WEB_APP_URL', 'http://localhost:5179')}/login`;
+    try {
+      await this.emailService.sendAccountActivatedEmail(
+        matchedUser.email,
+        matchedUser.name,
+        loginUrl,
+      );
+    } catch {
+      // fire-and-forget: activation has already succeeded
+    }
   }
 
   private async generateTokens(user: {

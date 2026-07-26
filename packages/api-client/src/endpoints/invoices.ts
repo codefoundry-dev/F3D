@@ -93,8 +93,16 @@ export async function approveInvoice(id: string, config?: AxiosRequestConfig): P
   await getApiClient().patch(INVOICES_PATHS.approve(id), undefined, config);
 }
 
-export async function rejectInvoice(id: string, config?: AxiosRequestConfig): Promise<void> {
-  await getApiClient().patch(INVOICES_PATHS.reject(id), undefined, config);
+/**
+ * Reject an invoice / raise a discrepancy. The optional reason is persisted on
+ * the invoice and quoted back to the vendor in the rejection email.
+ */
+export async function rejectInvoice(
+  id: string,
+  reason?: string,
+  config?: AxiosRequestConfig,
+): Promise<void> {
+  await getApiClient().patch(INVOICES_PATHS.reject(id), reason ? { reason } : {}, config);
 }
 
 export async function bulkApproveInvoices(

@@ -18,6 +18,8 @@ function useGoToLabel(entityType: NotificationEntityType | null): string {
       return t('goTo.PURCHASE_ORDER');
     case 'BULK_ORDER':
       return t('goTo.BULK_ORDER');
+    case 'INVOICE':
+      return t('goTo.INVOICE');
     default:
       return t('goTo.default');
   }

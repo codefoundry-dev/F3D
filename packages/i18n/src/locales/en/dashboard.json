@@ -66,7 +66,12 @@
     "title": "Invoices pending approval",
     "noInvoices": "No invoices pending approval",
     "reject": "Reject",
-    "approve": "Approve"
+    "approve": "Approve",
+    "rejectTitle": "Reject invoice",
+    "rejectDescription": "Tell the vendor what the discrepancy is. Your note is included in the rejection email sent to them.",
+    "rejectPlaceholder": "Describe the discrepancy…",
+    "rejectConfirm": "Reject invoice",
+    "cancel": "Cancel"
   },
   "vendor": {
     "rfqsWaiting": {

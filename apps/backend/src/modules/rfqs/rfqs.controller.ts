@@ -282,8 +282,7 @@ export class RfqsController {
   @HttpCode(HttpStatus.CREATED)
   @RequirePermissions('rfq.approveQuote')
   @ApiOperation({
-    summary:
-      'Award line items across vendors and split into per-vendor child POs (US 5.19)',
+    summary: 'Award line items across vendors and split into per-vendor child POs (US 5.19)',
   })
   @ApiResponse({ status: 201, description: 'Split award created: SPLIT parent + child POs' })
   @ApiResponse({ status: 400, description: 'Invalid allocation (quantity / quote state)' })
@@ -392,9 +391,10 @@ export class RfqsController {
   ) {
     const result = await this.quoteResponseService.submitQuote(rfqId, dto, user);
 
-    // Notify contractor that a new quote was submitted (fire-and-forget)
+    // Notify contractor that a new quote was submitted (fire-and-forget). The
+    // vendor's note on the quote rides along as the user comment.
     const vendorName = result.vendor?.legalName ?? 'A vendor';
-    void this.rfqsService.notifyContractorOfQuoteSubmission(rfqId, vendorName);
+    void this.rfqsService.notifyContractorOfQuoteSubmission(rfqId, vendorName, dto.message ?? null);
 
     return result;
   }
@@ -416,9 +416,10 @@ export class RfqsController {
   ) {
     const result = await this.quoteResponseService.updateQuote(rfqId, quoteId, dto, user);
 
-    // Notify contractor that vendor edited their response (fire-and-forget)
+    // Notify contractor that vendor edited their response (fire-and-forget). The
+    // vendor's note on the quote rides along as the user comment.
     const vendorName = result.vendor?.legalName ?? 'A vendor';
-    void this.rfqsService.notifyContractorOfQuoteUpdate(rfqId, vendorName);
+    void this.rfqsService.notifyContractorOfQuoteUpdate(rfqId, vendorName, dto.message ?? null);
 
     return result;
   }

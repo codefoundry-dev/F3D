@@ -732,6 +732,7 @@ describe('BulkOrderChangeService', () => {
         'Contractor User',
         expect.stringContaining('/bulk-orders/bo-1/review-change'),
         undefined,
+        null,
       );
     });
 
@@ -758,6 +759,7 @@ describe('BulkOrderChangeService', () => {
         'Contractor User',
         expect.stringContaining('/bulk-orders/bo-1/review-change'),
         brand,
+        null,
       );
     });
 
@@ -831,18 +833,21 @@ describe('BulkOrderChangeService', () => {
         expect.stringContaining('BO-'),
         expect.stringContaining('/bulk-orders/bo-1'),
         undefined,
+        null,
       );
       expect(mockEmailService.sendChangeRequestApprovedEmail).toHaveBeenCalledWith(
         'po@test.com',
         expect.stringContaining('BO-'),
         expect.stringContaining('/bulk-orders/bo-1'),
         undefined,
+        null,
       );
       expect(mockEmailService.sendChangeRequestApprovedEmail).toHaveBeenCalledWith(
         'v@test.com',
         expect.stringContaining('BO-'),
         expect.stringContaining('/bulk-orders/bo-1'),
         undefined,
+        null,
       );
     });
 
@@ -872,6 +877,7 @@ describe('BulkOrderChangeService', () => {
         expect.stringContaining('BO-'),
         expect.stringContaining('http://localhost:5179/bulk-orders/bo-1'),
         undefined,
+        'No',
       );
     });
 
@@ -897,12 +903,14 @@ describe('BulkOrderChangeService', () => {
         expect.stringContaining('BO-'),
         'Canceller Name',
         undefined,
+        null,
       );
       expect(mockEmailService.sendBulkOrderCancelledEmail).toHaveBeenCalledWith(
         'v@test.com',
         expect.stringContaining('BO-'),
         'Canceller Name',
         undefined,
+        null,
       );
     });
   });

@@ -11,13 +11,24 @@ export type NotificationType =
   | 'PO_ISSUED'
   | 'PO_PENDING_APPROVAL'
   | 'PO_DECLINED'
+  // The CHANGE_REQUEST_* trio covers both bulk-agreement and PO change requests
+  // — `entityType` is what tells them apart.
   | 'CHANGE_REQUEST_PROPOSED'
   | 'CHANGE_REQUEST_APPROVED'
   | 'CHANGE_REQUEST_REJECTED'
+  | 'PO_INTERNAL_CHANGE'
   | 'BULK_ORDER_CANCELLED'
+  | 'INVOICE_REJECTED'
+  | 'PAYMENT_DUE'
+  | 'PAYMENT_OVERDUE'
   | 'MESSAGE_RECEIVED';
 
-export type NotificationEntityType = 'RFQ' | 'QUOTE_RESPONSE' | 'PURCHASE_ORDER' | 'BULK_ORDER';
+export type NotificationEntityType =
+  | 'RFQ'
+  | 'QUOTE_RESPONSE'
+  | 'PURCHASE_ORDER'
+  | 'BULK_ORDER'
+  | 'INVOICE';
 
 export interface NotificationItem {
   id: string;

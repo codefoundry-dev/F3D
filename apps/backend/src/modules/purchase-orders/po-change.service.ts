@@ -9,6 +9,8 @@ import {
   AccessTokenPurpose,
   AccessTokenSubject,
   AuditAction,
+  NotificationEntityType,
+  NotificationType,
   PickUpTimeExpectation,
   PoChangeRequestStatus,
   PoChangeType,
@@ -24,6 +26,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { AuditService } from '../audit/audit.service';
 import { BrandingService } from '../export/branding.service';
+import { NotificationService } from '../notification-feed/notification.service';
 import { EmailService } from '../notifications/email.service';
 
 import { CreatePoChangeRequestDto, RejectPoChangeRequestDto } from './po-change.dto';
@@ -160,6 +163,7 @@ export class PoChangeService {
     private readonly accessTokens: AccessTokensService,
     config: ConfigService,
     private readonly branding: BrandingService,
+    private readonly notifications: NotificationService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
   }
@@ -227,9 +231,10 @@ export class PoChangeService {
 
     // Notify the other party (fire-and-forget).
     const proposedBy = changeRequest.requestedBy?.name ?? 'A user';
-    this.notifyChangeProposed(po, user.role === UserRole.VENDOR, user.id, proposedBy).catch(
-      () => {},
-    );
+    this.notifyChangeProposed(po, user.role === UserRole.VENDOR, user.id, proposedBy, {
+      changeType: changeRequest.changeType,
+      comment: changeRequest.message,
+    }).catch(() => {});
 
     return this.toChangeRequestResponse(changeRequest);
   }
@@ -296,20 +301,27 @@ export class PoChangeService {
 
     // A guest proposal is always vendor→contractor: notify the contractor admins
     // (they have accounts, so the authenticated link is right; nothing to mint).
-    this.notifyChangeProposed(po, true, null, vendorLabel).catch(() => {});
+    this.notifyChangeProposed(po, true, null, vendorLabel, {
+      changeType: changeRequest.changeType,
+      comment: changeRequest.message,
+    }).catch(() => {});
 
     return this.toChangeRequestResponse(changeRequest);
   }
 
   /**
-   * Email the counterparty about a freshly proposed change. A vendor's proposal
-   * goes to the contractor's COMPANY_ADMINs — contractors always have accounts,
-   * so the authenticated link is right. A contractor's proposal is vendor-bound
-   * and follows the same contract as the PO issue email (CONTEXT.md): the sales
-   * reps selected on the source RFQ win (falling back to the vendor's users /
-   * contact email), and the "View" link is chosen per recipient (ADR-0001) —
-   * unactivated recipients get the tokenised PO portal link, re-minted here
-   * because the 30-day issue token may have lapsed (ADR-0002 R1 amendment).
+   * Email the counterparty about a freshly proposed change, and mirror it into
+   * their in-app feed. A vendor's proposal goes to the contractor's
+   * COMPANY_ADMINs — contractors always have accounts, so the authenticated link
+   * is right. A contractor's proposal is vendor-bound and follows the same
+   * contract as the PO issue email (CONTEXT.md): the sales reps selected on the
+   * source RFQ win (falling back to the vendor's users / contact email), and the
+   * "View" link is chosen per recipient (ADR-0001) — unactivated recipients get
+   * the tokenised PO portal link, re-minted here because the 30-day issue token
+   * may have lapsed (ADR-0002 R1 amendment).
+   *
+   * An INTERNAL change carries no approval ask, so it sends the "PO updated"
+   * pair instead of the change-request pair.
    */
   private async notifyChangeProposed(
     po: {
@@ -330,26 +342,56 @@ export class PoChangeService {
     // vendor-recipient branch (their proposal notifies the contractor).
     proposerUserId: string | null,
     proposedBy: string,
+    change: { changeType: PoChangeType; comment: string | null },
   ): Promise<void> {
     const authenticatedUrl = `${this.webAppUrl}/purchase-orders/${po.id}`;
+    const isInternal = change.changeType === PoChangeType.INTERNAL;
 
     // The issuing (buyer) company's logo + name, shown atop the change-request
     // email (FOR-288). Resolved once here, inside the fire-and-forget helper, so a
     // branding failure can never break the notification.
     const brand = await this.branding.getEmailBrand(po.companyId);
+    const log = {
+      companyId: po.companyId,
+      purchaseOrderId: po.id,
+      ...(proposerUserId ? { sentByUserId: proposerUserId } : {}),
+    };
+
+    const send = (email: string, url: string) =>
+      isInternal
+        ? this.emailService.sendPoInternalChangeEmail(email, po.poNumber, proposedBy, url, {
+            brand,
+            log,
+          })
+        : this.emailService.sendPoChangeProposedEmail(email, po.poNumber, proposedBy, url, {
+            comment: change.comment,
+            brand,
+            log,
+          });
+
+    const feed = isInternal
+      ? {
+          type: NotificationType.PO_INTERNAL_CHANGE,
+          title: 'Purchase order updated',
+          body: `${proposedBy} saved an internal update to purchase order ${po.poNumber}.`,
+        }
+      : {
+          type: NotificationType.CHANGE_REQUEST_PROPOSED,
+          title: 'Change request submitted',
+          body: `${proposedBy} requested changes to purchase order ${po.poNumber}.`,
+        };
+
+    const notify = (emails: string[]) =>
+      this.notifications.createForEmails(emails, {
+        ...feed,
+        entityType: NotificationEntityType.PURCHASE_ORDER,
+        entityId: po.id,
+      });
 
     if (proposerIsVendor) {
-      await Promise.all(
-        (po.company?.users ?? []).map((u) =>
-          this.emailService.sendChangeRequestProposedEmail(
-            u.email,
-            po.poNumber,
-            proposedBy,
-            authenticatedUrl,
-            brand,
-          ),
-        ),
-      );
+      const admins = po.company?.users ?? [];
+      await Promise.all(admins.map((u) => send(u.email, authenticatedUrl)));
+      await notify(admins.map((u) => u.email));
       return;
     }
 
@@ -377,15 +419,11 @@ export class PoChangeService {
 
     await Promise.all(
       recipients.map((r) =>
-        this.emailService.sendChangeRequestProposedEmail(
-          r.email,
-          po.poNumber,
-          proposedBy,
-          !r.activated && tokenisedUrl ? tokenisedUrl : authenticatedUrl,
-          brand,
-        ),
+        send(r.email, !r.activated && tokenisedUrl ? tokenisedUrl : authenticatedUrl),
       ),
     );
+    // Only activated reps have an inbox; createForEmails drops the rest.
+    await notify(recipients.map((r) => r.email));
   }
 
   /**
@@ -559,8 +597,12 @@ export class PoChangeService {
       },
     });
 
-    // Notify the requester that their change was approved (fire-and-forget)
-    this.notifyChangeRequestRequester(cr.requestedById, poId, 'approved', user.id).catch(() => {});
+    // Notify the requester and the other party (fire-and-forget). Approving
+    // captures no comment of its own, so the requester's original message is
+    // what carries through as the user comment.
+    this.notifyChangeResolved(cr.requestedById, poId, 'approved', user.id, cr.message).catch(
+      () => {},
+    );
 
     return { approved: true };
   }
@@ -621,8 +663,15 @@ export class PoChangeService {
       },
     });
 
-    // Notify the requester that their change was rejected (fire-and-forget)
-    this.notifyChangeRequestRequester(cr.requestedById, poId, 'rejected', user.id).catch(() => {});
+    // Notify the requester and the other party (fire-and-forget), carrying the
+    // rejecter's reason as the user comment.
+    this.notifyChangeResolved(
+      cr.requestedById,
+      poId,
+      'rejected',
+      user.id,
+      dto.reason ?? null,
+    ).catch(() => {});
 
     return { rejected: true };
   }
@@ -682,26 +731,37 @@ export class PoChangeService {
   }
 
   /**
-   * Tell the change-request requester the outcome (approved/rejected). An
-   * authenticated requester (contractor, or a vendor with an account) is emailed
-   * directly with the authenticated link. A guest (tokenised) requester has no
-   * account (`requestedById` is null), so the vendor's recipients are notified
-   * instead, with a tokenised portal link for anyone not yet activated —
-   * `resolverUserId` is the approver/rejecter, used to mint that link.
+   * Tell both parties the outcome of a change request (approved/rejected) — the
+   * matrix routes the resolution to the requester *and* the other party, so this
+   * fans out across the contractor's COMPANY_ADMINs, the authenticated requester
+   * (who need not be an admin), and the vendor's recipients.
+   *
+   * The vendor side mirrors `notifyChangeProposed`: RFQ sales reps win, else the
+   * vendor's users / contact email, and anyone not yet activated gets a fresh
+   * tokenised portal link — `resolverUserId` is the approver/rejecter, used to
+   * mint it. A guest (tokenised) requester has no account (`requestedById` is
+   * null) and is reached through that same vendor set.
    */
-  private async notifyChangeRequestRequester(
+  private async notifyChangeResolved(
     requestedById: string | null,
     poId: string,
     outcome: 'approved' | 'rejected',
     resolverUserId: string,
+    comment: string | null,
   ): Promise<void> {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id: poId },
       select: {
+        id: true,
         poNumber: true,
         companyId: true,
         vendorId: true,
         rfqId: true,
+        company: {
+          select: {
+            users: { where: { role: UserRole.COMPANY_ADMIN }, select: { email: true } },
+          },
+        },
         vendor: {
           select: {
             contactEmail: true,
@@ -716,27 +776,36 @@ export class PoChangeService {
     // email (FOR-288). Resolved inside this fire-and-forget helper so a branding
     // failure never breaks the notification.
     const brand = await this.branding.getEmailBrand(po.companyId);
+    const log = { companyId: po.companyId, purchaseOrderId: poId, sentByUserId: resolverUserId };
 
     const authenticatedUrl = `${this.webAppUrl}/purchase-orders/${poId}`;
     const send = (email: string, url: string) =>
       outcome === 'approved'
-        ? this.emailService.sendChangeRequestApprovedEmail(email, po.poNumber, url, brand)
-        : this.emailService.sendChangeRequestRejectedEmail(email, po.poNumber, url, brand);
+        ? this.emailService.sendPoChangeApprovedEmail(email, po.poNumber, url, {
+            comment,
+            brand,
+            log,
+          })
+        : this.emailService.sendPoChangeRejectedEmail(email, po.poNumber, url, {
+            comment,
+            brand,
+            log,
+          });
 
-    // Authenticated requester → email them directly.
+    // ── Contractor side: company admins + the authenticated requester ──────────
+    const contractorEmails = new Set((po.company?.users ?? []).map((u) => u.email));
     if (requestedById) {
       const requester = await this.prisma.user.findUnique({
         where: { id: requestedById },
         select: { email: true },
       });
-      if (!requester) return;
-      await send(requester.email, authenticatedUrl);
-      return;
+      // A vendor-side requester is already covered by the vendor fan-out below;
+      // adding them here is harmless because the two sets are de-duplicated
+      // per-recipient before sending.
+      if (requester) contractorEmails.add(requester.email);
     }
 
-    // Guest (tokenised) requester → notify the vendor's recipients. Mirrors the
-    // vendor branch of notifyChangeProposed: RFQ sales reps win, else vendor
-    // users / contact email; unactivated recipients get a fresh tokenised link.
+    // ── Vendor side ───────────────────────────────────────────────────────────
     const selectedReps =
       po.rfqId && po.vendorId
         ? (
@@ -747,22 +816,42 @@ export class PoChangeService {
           ).map((c) => c.user)
         : [];
 
-    const recipients = resolveVendorRecipientsWithState(
+    const vendorRecipients = resolveVendorRecipientsWithState(
       selectedReps,
       po.vendor?.users ?? [],
       po.vendor?.contactEmail,
     );
-    if (recipients.length === 0) return;
 
-    const tokenisedUrl = recipients.some((r) => !r.activated)
+    const tokenisedUrl = vendorRecipients.some((r) => !r.activated)
       ? await this.mintPoViewUrl(poId, resolverUserId)
       : null;
 
-    await Promise.all(
-      recipients.map((r) =>
-        send(r.email, !r.activated && tokenisedUrl ? tokenisedUrl : authenticatedUrl),
-      ),
-    );
+    // One email per address, contractor links taking precedence — an address on
+    // both sides is a contractor user and should get the authenticated link.
+    const urlByEmail = new Map<string, string>();
+    for (const r of vendorRecipients) {
+      urlByEmail.set(r.email, !r.activated && tokenisedUrl ? tokenisedUrl : authenticatedUrl);
+    }
+    for (const email of contractorEmails) {
+      urlByEmail.set(email, authenticatedUrl);
+    }
+    if (urlByEmail.size === 0) return;
+
+    await Promise.all([...urlByEmail].map(([email, url]) => send(email, url)));
+
+    await this.notifications.createForEmails([...urlByEmail.keys()], {
+      type:
+        outcome === 'approved'
+          ? NotificationType.CHANGE_REQUEST_APPROVED
+          : NotificationType.CHANGE_REQUEST_REJECTED,
+      title: outcome === 'approved' ? 'Change request approved' : 'Change request rejected',
+      body:
+        outcome === 'approved'
+          ? `The change request for purchase order ${po.poNumber} was approved.`
+          : `The change request for purchase order ${po.poNumber} was rejected.`,
+      entityType: NotificationEntityType.PURCHASE_ORDER,
+      entityId: poId,
+    });
   }
 
   private validateAccess(
