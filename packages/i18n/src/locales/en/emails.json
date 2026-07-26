@@ -81,21 +81,24 @@
     "greeting": "Hi,",
     "heading": "A change request has been submitted for bulk order {{bulkId}}.",
     "body": "{{proposedBy}} has proposed changes to the bulk agreement. Please review the proposed changes and approve or reject them.",
-    "buttonLabel": "Review Changes"
+    "buttonLabel": "Review Changes",
+    "commentLabel": "Comment"
   },
   "changeRequestApproved": {
     "subject": "Forethread — Change Request Approved ({{bulkId}})",
     "greeting": "Hi,",
     "heading": "Your change request for bulk order {{bulkId}} has been approved.",
     "body": "The proposed changes have been applied and the agreement has been updated to a new version. Both parties now operate under the updated terms.",
-    "buttonLabel": "View Agreement"
+    "buttonLabel": "View Agreement",
+    "commentLabel": "Comment"
   },
   "changeRequestRejected": {
     "subject": "Forethread — Change Request Rejected ({{bulkId}})",
     "greeting": "Hi,",
     "heading": "Your change request for bulk order {{bulkId}} has been rejected.",
     "body": "The other party has rejected the proposed changes. The current version of the agreement remains active.",
-    "buttonLabel": "View Agreement"
+    "buttonLabel": "View Agreement",
+    "commentLabel": "Reason"
   },
   "materialChangeApproved": {
     "subject": "Forethread — Catalogue Change Approved ({{materialName}})",
@@ -116,21 +119,24 @@
     "subject": "Forethread — Bulk Order Cancelled ({{bulkId}})",
     "greeting": "Hi,",
     "heading": "Bulk order {{bulkId}} has been cancelled.",
-    "body": "{{cancelledBy}} has cancelled the bulk agreement. No further drawdowns can be made against this agreement."
+    "body": "{{cancelledBy}} has cancelled the bulk agreement. No further drawdowns can be made against this agreement.",
+    "commentLabel": "Comment"
   },
   "quoteUpdated": {
     "subject": "Forethread — Quote Updated for RFQ {{rfqNumber}}",
     "greeting": "Hi,",
     "heading": "A vendor has updated their quote response.",
     "body": "{{vendorName}} has made changes to their quote for RFQ {{rfqNumber}}. Please review the updated response.",
-    "buttonLabel": "View RFQ"
+    "buttonLabel": "View RFQ",
+    "commentLabel": "Comment"
   },
   "quoteSubmitted": {
     "subject": "Forethread — New Quote for RFQ {{rfqNumber}}",
     "greeting": "Hi,",
     "heading": "A new quote has been submitted.",
     "body": "{{vendorName}} has submitted a quote response for RFQ {{rfqNumber}}. Please review their offer.",
-    "buttonLabel": "View RFQ"
+    "buttonLabel": "View RFQ",
+    "commentLabel": "Comment"
   },
   "poDeclinedByVendor": {
     "subject": "Forethread — Purchase Order Declined ({{poNumber}})",
@@ -162,5 +168,66 @@
     "expiry": "This code expires in <strong>{{expiresMinutes}} minutes</strong>.",
     "ignore": "If you did not request this code, you can safely ignore this email.",
     "plainText": "Your delivery confirmation code for purchase order {{poNumber}} is: {{code}}\n\nThis code expires in {{expiresMinutes}} minutes.\n\nIf you did not request this code, you can safely ignore this email."
+  },
+  "accountActivated": {
+    "subject": "Forethread — Your account is active",
+    "greeting": "Hi {{name}},",
+    "heading": "Your Forethread account is now active.",
+    "body": "You have completed activation and can sign in with your email address and the password you just set. Every sign-in is confirmed with a one-time code sent to this address.",
+    "buttonLabel": "Sign in",
+    "securityNote": "If you did not activate this account, contact your administrator immediately."
+  },
+  "poChangeProposed": {
+    "subject": "Forethread — Change Request for Purchase Order {{poNumber}}",
+    "greeting": "Hi,",
+    "heading": "A change request has been submitted for purchase order {{poNumber}}.",
+    "body": "{{proposedBy}} has requested changes to this purchase order. Open the document in Forethread to review the full change request and approve or reject it.",
+    "commentLabel": "Comment",
+    "buttonLabel": "Review change request"
+  },
+  "poChangeApproved": {
+    "subject": "Forethread — Change Request Approved (Purchase Order {{poNumber}})",
+    "greeting": "Hi,",
+    "heading": "The change request for purchase order {{poNumber}} has been approved.",
+    "body": "The requested changes have been applied and the purchase order has been updated. Open the document in Forethread to see the current version.",
+    "commentLabel": "Comment",
+    "buttonLabel": "Open purchase order"
+  },
+  "poChangeRejected": {
+    "subject": "Forethread — Change Request Rejected (Purchase Order {{poNumber}})",
+    "greeting": "Hi,",
+    "heading": "The change request for purchase order {{poNumber}} has been rejected.",
+    "body": "The requested changes were not applied and the purchase order remains unchanged. Open the document in Forethread to review the full change request.",
+    "commentLabel": "Reason",
+    "buttonLabel": "Review change request"
+  },
+  "poInternalChange": {
+    "subject": "Forethread — Purchase Order {{poNumber}} Updated",
+    "greeting": "Hi,",
+    "heading": "Purchase order {{poNumber}} has been updated.",
+    "body": "{{updatedBy}} saved an internal update to this purchase order. No approval is required from you — open the document in Forethread to see the current version.",
+    "buttonLabel": "Open purchase order"
+  },
+  "invoiceRejected": {
+    "subject": "Forethread — Invoice Rejected ({{invoiceReference}})",
+    "greeting": "Hi,",
+    "heading": "Invoice {{invoiceReference}} has been rejected.",
+    "body": "{{companyName}} has raised a discrepancy against this invoice for project {{projectName}}. Open the invoice in Forethread to review the details and respond.",
+    "commentLabel": "Reason",
+    "buttonLabel": "Review invoice"
+  },
+  "paymentDueReminder": {
+    "subject": "Forethread — Payment Due in {{daysUntilDue}} Days ({{invoiceReference}})",
+    "greeting": "Hi,",
+    "heading": "Invoice {{invoiceReference}} is due on {{dueDate}}.",
+    "body": "An approved invoice from {{vendorName}} for {{amount}} is due in {{daysUntilDue}} days. Open it in Forethread to review and arrange payment.",
+    "buttonLabel": "View invoice"
+  },
+  "paymentOverdueReminder": {
+    "subject": "Forethread — Payment Overdue ({{invoiceReference}})",
+    "greeting": "Hi,",
+    "heading": "Invoice {{invoiceReference}} is overdue.",
+    "body": "An approved invoice from {{vendorName}} for {{amount}} was due on {{dueDate}} and has not been marked paid. Open it in Forethread to review and arrange payment.",
+    "buttonLabel": "View invoice"
   }
 }

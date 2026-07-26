@@ -27,6 +27,7 @@ import {
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { invoiceReference } from '../../common/utils/invoice-reference.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { DeliveryDeltaPo, PoStatusService } from '../purchase-orders/po-status.service';
@@ -613,7 +614,7 @@ export class DeliveriesService {
 
   /** Human invoice reference derived from the invoice id (no canonical number column). */
   private invoiceRef(invoiceId: string): string {
-    return `INV-${invoiceId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+    return invoiceReference(invoiceId);
   }
 
   private assertCompanyAccess(user: AuthenticatedUser, companyId: string): void {

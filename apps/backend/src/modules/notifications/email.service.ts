@@ -271,6 +271,25 @@ export class EmailService implements OnModuleInit {
     }
   }
 
+  /**
+   * Confirm to an invited user that activation completed and they can now sign
+   * in. Email only — the account exists but the user is not signed in yet, so
+   * there is no in-app inbox to mirror it into.
+   */
+  async sendAccountActivatedEmail(to: string, name: string, loginUrl: string): Promise<void> {
+    const t = this.getTranslations('accountActivated', { name });
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        html: this.renderEmail(EMAIL_TEMPLATES.ACCOUNT_ACTIVATED, t, { loginUrl }),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
   async sendOtpEmail(to: string, otp: string, expiresAt: Date): Promise<void> {
     const expiresMinutes = Math.round((expiresAt.getTime() - Date.now()) / 60000);
     const t = this.getTranslations('otp', { expiresMinutes });
@@ -497,6 +516,7 @@ export class EmailService implements OnModuleInit {
     proposedBy: string,
     viewUrl: string,
     brand?: EmailBrand,
+    comment?: string | null,
   ): Promise<void> {
     const t = this.getTranslations('changeRequestProposed', { bulkId, proposedBy });
 
@@ -504,7 +524,12 @@ export class EmailService implements OnModuleInit {
       await this.dispatch({
         to,
         subject: t.subject,
-        html: this.renderEmail(EMAIL_TEMPLATES.CHANGE_REQUEST_PROPOSED, t, { viewUrl }, brand),
+        html: this.renderEmail(
+          EMAIL_TEMPLATES.CHANGE_REQUEST_PROPOSED,
+          t,
+          { viewUrl, comment: comment ?? undefined },
+          brand,
+        ),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -516,6 +541,7 @@ export class EmailService implements OnModuleInit {
     bulkId: string,
     viewUrl: string,
     brand?: EmailBrand,
+    comment?: string | null,
   ): Promise<void> {
     const t = this.getTranslations('changeRequestApproved', { bulkId });
 
@@ -523,7 +549,12 @@ export class EmailService implements OnModuleInit {
       await this.dispatch({
         to,
         subject: t.subject,
-        html: this.renderEmail(EMAIL_TEMPLATES.CHANGE_REQUEST_APPROVED, t, { viewUrl }, brand),
+        html: this.renderEmail(
+          EMAIL_TEMPLATES.CHANGE_REQUEST_APPROVED,
+          t,
+          { viewUrl, comment: comment ?? undefined },
+          brand,
+        ),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -535,6 +566,7 @@ export class EmailService implements OnModuleInit {
     bulkId: string,
     viewUrl: string,
     brand?: EmailBrand,
+    comment?: string | null,
   ): Promise<void> {
     const t = this.getTranslations('changeRequestRejected', { bulkId });
 
@@ -542,7 +574,208 @@ export class EmailService implements OnModuleInit {
       await this.dispatch({
         to,
         subject: t.subject,
-        html: this.renderEmail(EMAIL_TEMPLATES.CHANGE_REQUEST_REJECTED, t, { viewUrl }, brand),
+        html: this.renderEmail(
+          EMAIL_TEMPLATES.CHANGE_REQUEST_REJECTED,
+          t,
+          { viewUrl, comment: comment ?? undefined },
+          brand,
+        ),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
+  /**
+   * Purchase-order change-request emails (US 5.12). These are deliberately
+   * separate from the bulk-agreement trio above: the matrix requires the email
+   * to name the document type and the PO reference, and the two flows have
+   * diverged enough (guest proposers, PO email log) that sharing one template
+   * would mean templating the noun.
+   *
+   * Every one carries a short summary only — never a field-by-field preview of
+   * the change and never a PDF. The full diff lives behind `viewUrl`.
+   */
+  async sendPoChangeProposedEmail(
+    to: string,
+    poNumber: string,
+    proposedBy: string,
+    viewUrl: string,
+    options?: { comment?: string | null; brand?: EmailBrand; log?: EmailLogContext },
+  ): Promise<void> {
+    const t = this.getTranslations('poChangeProposed', { poNumber, proposedBy });
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        html: this.renderEmail(
+          EMAIL_TEMPLATES.PO_CHANGE_PROPOSED,
+          t,
+          { viewUrl, comment: options?.comment ?? undefined },
+          options?.brand,
+        ),
+        template: EMAIL_TEMPLATES.PO_CHANGE_PROPOSED,
+        ...(options?.log ? { log: options.log } : {}),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
+  async sendPoChangeApprovedEmail(
+    to: string,
+    poNumber: string,
+    viewUrl: string,
+    options?: { comment?: string | null; brand?: EmailBrand; log?: EmailLogContext },
+  ): Promise<void> {
+    const t = this.getTranslations('poChangeApproved', { poNumber });
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        html: this.renderEmail(
+          EMAIL_TEMPLATES.PO_CHANGE_APPROVED,
+          t,
+          { viewUrl, comment: options?.comment ?? undefined },
+          options?.brand,
+        ),
+        template: EMAIL_TEMPLATES.PO_CHANGE_APPROVED,
+        ...(options?.log ? { log: options.log } : {}),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
+  async sendPoChangeRejectedEmail(
+    to: string,
+    poNumber: string,
+    viewUrl: string,
+    options?: { comment?: string | null; brand?: EmailBrand; log?: EmailLogContext },
+  ): Promise<void> {
+    const t = this.getTranslations('poChangeRejected', { poNumber });
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        html: this.renderEmail(
+          EMAIL_TEMPLATES.PO_CHANGE_REJECTED,
+          t,
+          { viewUrl, comment: options?.comment ?? undefined },
+          options?.brand,
+        ),
+        template: EMAIL_TEMPLATES.PO_CHANGE_REJECTED,
+        ...(options?.log ? { log: options.log } : {}),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
+  /**
+   * An INTERNAL (non-commercial) PO change needs no counterparty approval, so
+   * this tells the other party the document moved rather than asking them to
+   * act. No user comment by matrix decision.
+   */
+  async sendPoInternalChangeEmail(
+    to: string,
+    poNumber: string,
+    updatedBy: string,
+    viewUrl: string,
+    options?: { brand?: EmailBrand; log?: EmailLogContext },
+  ): Promise<void> {
+    const t = this.getTranslations('poInternalChange', { poNumber, updatedBy });
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        html: this.renderEmail(EMAIL_TEMPLATES.PO_INTERNAL_CHANGE, t, { viewUrl }, options?.brand),
+        template: EMAIL_TEMPLATES.PO_INTERNAL_CHANGE,
+        ...(options?.log ? { log: options.log } : {}),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
+  /**
+   * Tell a vendor their invoice was rejected / a discrepancy was raised against
+   * it (US 8.05 / 8.06). Supporting references stay behind `viewUrl` — the
+   * matrix explicitly does not attach them.
+   */
+  async sendInvoiceRejectedEmail(
+    to: string,
+    params: { invoiceReference: string; companyName: string; projectName: string },
+    viewUrl: string,
+    options?: { comment?: string | null; brand?: EmailBrand },
+  ): Promise<void> {
+    const t = this.getTranslations('invoiceRejected', params);
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        html: this.renderEmail(
+          EMAIL_TEMPLATES.INVOICE_REJECTED,
+          t,
+          { viewUrl, comment: options?.comment ?? undefined },
+          options?.brand,
+        ),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
+  /** Approved invoice approaching its due date (US 8.09). */
+  async sendPaymentDueReminderEmail(
+    to: string,
+    params: {
+      invoiceReference: string;
+      vendorName: string;
+      amount: string;
+      dueDate: string;
+      daysUntilDue: number;
+    },
+    viewUrl: string,
+    brand?: EmailBrand,
+  ): Promise<void> {
+    const t = this.getTranslations('paymentDueReminder', params);
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        html: this.renderEmail(EMAIL_TEMPLATES.PAYMENT_DUE_REMINDER, t, { viewUrl }, brand),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
+  /** Approved invoice past its due date and not yet paid (US 8.09). */
+  async sendPaymentOverdueReminderEmail(
+    to: string,
+    params: {
+      invoiceReference: string;
+      vendorName: string;
+      amount: string;
+      dueDate: string;
+    },
+    viewUrl: string,
+    brand?: EmailBrand,
+  ): Promise<void> {
+    const t = this.getTranslations('paymentOverdueReminder', params);
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        html: this.renderEmail(EMAIL_TEMPLATES.PAYMENT_OVERDUE_REMINDER, t, { viewUrl }, brand),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -600,6 +833,7 @@ export class EmailService implements OnModuleInit {
     bulkId: string,
     cancelledBy: string,
     brand?: EmailBrand,
+    comment?: string | null,
   ): Promise<void> {
     const t = this.getTranslations('bulkOrderCancelled', { bulkId, cancelledBy });
 
@@ -607,7 +841,12 @@ export class EmailService implements OnModuleInit {
       await this.dispatch({
         to,
         subject: t.subject,
-        html: this.renderEmail(EMAIL_TEMPLATES.BULK_ORDER_CANCELLED, t, {}, brand),
+        html: this.renderEmail(
+          EMAIL_TEMPLATES.BULK_ORDER_CANCELLED,
+          t,
+          { comment: comment ?? undefined },
+          brand,
+        ),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -620,6 +859,7 @@ export class EmailService implements OnModuleInit {
     vendorName: string,
     viewUrl: string,
     brand?: EmailBrand,
+    comment?: string | null,
   ): Promise<void> {
     const t = this.getTranslations('quoteUpdated', { rfqNumber, vendorName });
 
@@ -627,7 +867,12 @@ export class EmailService implements OnModuleInit {
       await this.dispatch({
         to,
         subject: t.subject,
-        html: this.renderEmail(EMAIL_TEMPLATES.QUOTE_UPDATED, t, { viewUrl }, brand),
+        html: this.renderEmail(
+          EMAIL_TEMPLATES.QUOTE_UPDATED,
+          t,
+          { viewUrl, comment: comment ?? undefined },
+          brand,
+        ),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -640,6 +885,7 @@ export class EmailService implements OnModuleInit {
     vendorName: string,
     viewUrl: string,
     brand?: EmailBrand,
+    comment?: string | null,
   ): Promise<void> {
     const t = this.getTranslations('quoteSubmitted', { rfqNumber, vendorName });
 
@@ -647,7 +893,12 @@ export class EmailService implements OnModuleInit {
       await this.dispatch({
         to,
         subject: t.subject,
-        html: this.renderEmail(EMAIL_TEMPLATES.QUOTE_SUBMITTED, t, { viewUrl }, brand),
+        html: this.renderEmail(
+          EMAIL_TEMPLATES.QUOTE_SUBMITTED,
+          t,
+          { viewUrl, comment: comment ?? undefined },
+          brand,
+        ),
       });
     } catch {
       // fire-and-forget: email failures are non-critical

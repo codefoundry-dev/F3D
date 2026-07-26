@@ -41,9 +41,15 @@ const mockPrisma = {
 const mockAuditService = { log: jest.fn() };
 
 const mockEmailService = {
-  sendChangeRequestProposedEmail: jest.fn(),
-  sendChangeRequestApprovedEmail: jest.fn(),
-  sendChangeRequestRejectedEmail: jest.fn(),
+  sendPoChangeProposedEmail: jest.fn(),
+  sendPoChangeApprovedEmail: jest.fn(),
+  sendPoChangeRejectedEmail: jest.fn(),
+  sendPoInternalChangeEmail: jest.fn(),
+};
+
+const mockNotifications = {
+  createForEmails: jest.fn().mockResolvedValue(undefined),
+  createForUsers: jest.fn().mockResolvedValue(undefined),
 };
 
 const mockAccessTokensService = {
@@ -71,10 +77,13 @@ describe('PoChangeService', () => {
       mockAccessTokensService as never,
       mockConfig as never,
       mockBranding as never,
+      mockNotifications as never,
     );
-    mockEmailService.sendChangeRequestProposedEmail.mockResolvedValue(undefined);
-    mockEmailService.sendChangeRequestApprovedEmail.mockResolvedValue(undefined);
-    mockEmailService.sendChangeRequestRejectedEmail.mockResolvedValue(undefined);
+    mockEmailService.sendPoChangeProposedEmail.mockResolvedValue(undefined);
+    mockEmailService.sendPoChangeApprovedEmail.mockResolvedValue(undefined);
+    mockEmailService.sendPoChangeRejectedEmail.mockResolvedValue(undefined);
+    mockEmailService.sendPoInternalChangeEmail.mockResolvedValue(undefined);
+    mockNotifications.createForEmails.mockResolvedValue(undefined);
     mockAuditService.log.mockResolvedValue(undefined);
     // Default: no company logo → unbranded email. Re-set every test because
     // clearAllMocks keeps a brand override a FOR-288 test may have installed.
@@ -200,12 +209,60 @@ describe('PoChangeService', () => {
       await service.proposeChange('po-1', dto as never, vendorUser);
       await new Promise((r) => setTimeout(r, 10));
 
-      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+      expect(mockEmailService.sendPoChangeProposedEmail).toHaveBeenCalledWith(
         'admin@contractor.com',
         'PO-0001',
         'Vendor User',
         'http://localhost:5179/purchase-orders/po-1',
-        undefined,
+        expect.objectContaining({ brand: undefined }),
+      );
+    });
+
+    it("includes the proposer's message as the user comment and mirrors into the in-app feed", async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(poWithRelations);
+      mockPrisma.poChangeRequest.create.mockResolvedValue(createdCr());
+
+      await service.proposeChange('po-1', dto as never, vendorUser);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendPoChangeProposedEmail).toHaveBeenCalledWith(
+        'admin@contractor.com',
+        'PO-0001',
+        'Vendor User',
+        'http://localhost:5179/purchase-orders/po-1',
+        expect.objectContaining({
+          comment: 'Please update terms',
+          log: { companyId: 'comp-1', purchaseOrderId: 'po-1', sentByUserId: 'v-u-1' },
+        }),
+      );
+      expect(mockNotifications.createForEmails).toHaveBeenCalledWith(
+        ['admin@contractor.com'],
+        expect.objectContaining({
+          type: 'CHANGE_REQUEST_PROPOSED',
+          entityType: 'PURCHASE_ORDER',
+          entityId: 'po-1',
+        }),
+      );
+    });
+
+    it('sends the "PO updated" pair for an INTERNAL change, which needs no approval', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(poWithRelations);
+      mockPrisma.poChangeRequest.create.mockResolvedValue(createdCr({ changeType: 'INTERNAL' }));
+
+      await service.proposeChange('po-1', { ...dto, changeType: 'INTERNAL' } as never, vendorUser);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendPoInternalChangeEmail).toHaveBeenCalledWith(
+        'admin@contractor.com',
+        'PO-0001',
+        'Vendor User',
+        'http://localhost:5179/purchase-orders/po-1',
+        expect.objectContaining({ brand: undefined }),
+      );
+      expect(mockEmailService.sendPoChangeProposedEmail).not.toHaveBeenCalled();
+      expect(mockNotifications.createForEmails).toHaveBeenCalledWith(
+        ['admin@contractor.com'],
+        expect.objectContaining({ type: 'PO_INTERNAL_CHANGE' }),
       );
     });
 
@@ -220,12 +277,12 @@ describe('PoChangeService', () => {
 
       // Resolved from the PO's own (issuing/buyer) company id.
       expect(mockBranding.getEmailBrand).toHaveBeenCalledWith('comp-1');
-      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+      expect(mockEmailService.sendPoChangeProposedEmail).toHaveBeenCalledWith(
         'admin@contractor.com',
         'PO-0001',
         'Vendor User',
         'http://localhost:5179/purchase-orders/po-1',
-        brand,
+        expect.objectContaining({ brand }),
       );
     });
 
@@ -238,12 +295,12 @@ describe('PoChangeService', () => {
       await service.proposeChange('po-1', dto as never, companyAdmin);
       await new Promise((r) => setTimeout(r, 10));
 
-      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+      expect(mockEmailService.sendPoChangeProposedEmail).toHaveBeenCalledWith(
         'vendor@vendor.com',
         'PO-0001',
         'CA Admin',
         'http://localhost:5179/purchase-orders/po-1',
-        undefined,
+        expect.objectContaining({ brand: undefined }),
       );
     });
 
@@ -270,12 +327,12 @@ describe('PoChangeService', () => {
           ttlMs: 30 * 24 * 60 * 60 * 1000,
         }),
       );
-      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+      expect(mockEmailService.sendPoChangeProposedEmail).toHaveBeenCalledWith(
         'quickadd@vendor.com',
         'PO-0001',
         'CA Admin',
         'http://localhost:5179/po/crtoken1234567890.secretsecretsecret',
-        undefined,
+        expect.objectContaining({ brand: undefined }),
       );
     });
 
@@ -297,20 +354,20 @@ describe('PoChangeService', () => {
       await service.proposeChange('po-1', dto as never, companyAdmin);
       await new Promise((r) => setTimeout(r, 10));
 
-      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledTimes(2);
-      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+      expect(mockEmailService.sendPoChangeProposedEmail).toHaveBeenCalledTimes(2);
+      expect(mockEmailService.sendPoChangeProposedEmail).toHaveBeenCalledWith(
         'active@vendor.com',
         'PO-0001',
         'CA Admin',
         'http://localhost:5179/purchase-orders/po-1',
-        undefined,
+        expect.objectContaining({ brand: undefined }),
       );
-      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+      expect(mockEmailService.sendPoChangeProposedEmail).toHaveBeenCalledWith(
         'rep@vendor.com',
         'PO-0001',
         'CA Admin',
         'http://localhost:5179/po/crtoken1234567890.secretsecretsecret',
-        undefined,
+        expect.objectContaining({ brand: undefined }),
       );
     });
 
@@ -346,13 +403,13 @@ describe('PoChangeService', () => {
           where: { rfqVendor: { rfqId: 'rfq-1', vendorId: 'vendor-comp-1' } },
         }),
       );
-      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledTimes(1);
-      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+      expect(mockEmailService.sendPoChangeProposedEmail).toHaveBeenCalledTimes(1);
+      expect(mockEmailService.sendPoChangeProposedEmail).toHaveBeenCalledWith(
         'chosen-rep@vendor.com',
         'PO-0001',
         'CA Admin',
         'http://localhost:5179/po/crtoken1234567890.secretsecretsecret',
-        undefined,
+        expect.objectContaining({ brand: undefined }),
       );
     });
 
@@ -371,12 +428,12 @@ describe('PoChangeService', () => {
       await service.proposeChange('po-1', dto as never, companyAdmin);
       await new Promise((r) => setTimeout(r, 10));
 
-      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+      expect(mockEmailService.sendPoChangeProposedEmail).toHaveBeenCalledWith(
         'quickadd@vendor.com',
         'PO-0001',
         'CA Admin',
         'http://localhost:5179/purchase-orders/po-1',
-        undefined,
+        expect.objectContaining({ brand: undefined }),
       );
     });
 
@@ -393,19 +450,19 @@ describe('PoChangeService', () => {
       await service.proposeChange('po-1', dto as never, companyAdmin);
       await new Promise((r) => setTimeout(r, 10));
 
-      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+      expect(mockEmailService.sendPoChangeProposedEmail).toHaveBeenCalledWith(
         'only@vendor.com',
         'PO-0001',
         'CA Admin',
         expect.any(String),
-        undefined,
+        expect.objectContaining({ brand: undefined }),
       );
     });
 
     it('does not fail when email sending throws', async () => {
       mockPrisma.purchaseOrder.findUnique.mockResolvedValue(poWithRelations);
       mockPrisma.poChangeRequest.create.mockResolvedValue(createdCr());
-      mockEmailService.sendChangeRequestProposedEmail.mockRejectedValue(new Error('SMTP down'));
+      mockEmailService.sendPoChangeProposedEmail.mockRejectedValue(new Error('SMTP down'));
 
       const result = await service.proposeChange('po-1', dto as never, vendorUser);
       expect(result.id).toBe('cr-1');
@@ -435,7 +492,7 @@ describe('PoChangeService', () => {
       await new Promise((r) => setTimeout(r, 10));
 
       expect(result.id).toBe('cr-1');
-      expect(mockEmailService.sendChangeRequestProposedEmail).not.toHaveBeenCalled();
+      expect(mockEmailService.sendPoChangeProposedEmail).not.toHaveBeenCalled();
     });
 
     it('labels an unnamed requester "A user" and defaults changedFields/message when omitted', async () => {
@@ -454,12 +511,12 @@ describe('PoChangeService', () => {
           data: expect.objectContaining({ changedFields: {}, message: null }),
         }),
       );
-      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+      expect(mockEmailService.sendPoChangeProposedEmail).toHaveBeenCalledWith(
         'admin@contractor.com',
         'PO-0001',
         'A user',
         'http://localhost:5179/purchase-orders/po-1',
-        undefined,
+        expect.objectContaining({ brand: undefined }),
       );
     });
   });
@@ -567,12 +624,12 @@ describe('PoChangeService', () => {
 
       await service.proposeChangeViaToken('po-1', dto as never);
 
-      expect(mockEmailService.sendChangeRequestProposedEmail).toHaveBeenCalledWith(
+      expect(mockEmailService.sendPoChangeProposedEmail).toHaveBeenCalledWith(
         'admin@contractor.com',
         'PO-0001',
         'VendorCo',
         'http://localhost:5179/purchase-orders/po-1',
-        undefined,
+        expect.objectContaining({ brand: undefined }),
       );
       // No tokenised link is minted — the contractor has an account.
       expect(mockAccessTokensService.issueToken).not.toHaveBeenCalled();
@@ -1019,7 +1076,7 @@ describe('PoChangeService', () => {
       await service.approveChange('po-1', 'cr-1', companyAdmin);
       await new Promise((r) => setTimeout(r, 10));
 
-      expect(mockEmailService.sendChangeRequestApprovedEmail).not.toHaveBeenCalled();
+      expect(mockEmailService.sendPoChangeApprovedEmail).not.toHaveBeenCalled();
     });
 
     it('stringifies boolean field values and ignores object field values', async () => {
@@ -1074,11 +1131,11 @@ describe('PoChangeService', () => {
       await service.approveChange('po-1', 'cr-1', companyAdmin);
       await new Promise((r) => setTimeout(r, 10));
 
-      expect(mockEmailService.sendChangeRequestApprovedEmail).toHaveBeenCalledWith(
+      expect(mockEmailService.sendPoChangeApprovedEmail).toHaveBeenCalledWith(
         'vendor@test.com',
         'PO-0001',
         'http://localhost:5179/purchase-orders/po-1',
-        undefined,
+        expect.objectContaining({ brand: undefined }),
       );
     });
 
@@ -1100,11 +1157,11 @@ describe('PoChangeService', () => {
 
       // Resolved from the PO's own (issuing/buyer) company id.
       expect(mockBranding.getEmailBrand).toHaveBeenCalledWith('comp-1');
-      expect(mockEmailService.sendChangeRequestApprovedEmail).toHaveBeenCalledWith(
+      expect(mockEmailService.sendPoChangeApprovedEmail).toHaveBeenCalledWith(
         'vendor@test.com',
         'PO-0001',
         'http://localhost:5179/purchase-orders/po-1',
-        brand,
+        expect.objectContaining({ brand }),
       );
     });
 
@@ -1126,11 +1183,54 @@ describe('PoChangeService', () => {
       await service.approveChange('po-1', 'cr-1', companyAdmin);
       await new Promise((r) => setTimeout(r, 10));
 
-      expect(mockEmailService.sendChangeRequestApprovedEmail).toHaveBeenCalledWith(
+      expect(mockEmailService.sendPoChangeApprovedEmail).toHaveBeenCalledWith(
         'contact@vendor.com',
         'PO-0001',
         'http://localhost:5179/po/crtoken1234567890.secretsecretsecret',
-        undefined,
+        expect.objectContaining({ brand: undefined }),
+      );
+    });
+
+    it('reaches the requester and the other party, once each, and mirrors into the feed', async () => {
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue(pendingCr());
+      mockTx.poLineItem.findMany.mockResolvedValue([]);
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({ name: 'CA Admin' }) // resolver lookup
+        .mockResolvedValueOnce({ email: 'vendor@test.com' }); // requester
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        poNumber: 'PO-0001',
+        companyId: 'comp-1',
+        vendorId: 'vendor-comp-1',
+        rfqId: null,
+        // The contractor admin also appears as a vendor recipient — the fan-out
+        // must not email the same address twice.
+        company: { users: [{ email: 'admin@contractor.com' }] },
+        vendor: {
+          contactEmail: null,
+          users: [
+            { email: 'vendor@test.com', status: 'ACTIVE' },
+            { email: 'admin@contractor.com', status: 'ACTIVE' },
+          ],
+        },
+      });
+
+      await service.approveChange('po-1', 'cr-1', companyAdmin);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendPoChangeApprovedEmail).toHaveBeenCalledTimes(2);
+      const addressed = mockEmailService.sendPoChangeApprovedEmail.mock.calls.map(
+        (c: unknown[]) => c[0],
+      );
+      expect(addressed.sort()).toEqual(['admin@contractor.com', 'vendor@test.com']);
+
+      expect(mockNotifications.createForEmails).toHaveBeenCalledWith(
+        expect.arrayContaining(['admin@contractor.com', 'vendor@test.com']),
+        expect.objectContaining({
+          type: 'CHANGE_REQUEST_APPROVED',
+          entityType: 'PURCHASE_ORDER',
+          entityId: 'po-1',
+        }),
       );
     });
   });
@@ -1218,11 +1318,11 @@ describe('PoChangeService', () => {
       await service.rejectChange('po-1', 'cr-1', { reason: 'No' }, companyAdmin);
       await new Promise((r) => setTimeout(r, 10));
 
-      expect(mockEmailService.sendChangeRequestRejectedEmail).toHaveBeenCalledWith(
+      expect(mockEmailService.sendPoChangeRejectedEmail).toHaveBeenCalledWith(
         'vendor@test.com',
         'PO-0001',
         'http://localhost:5179/purchase-orders/po-1',
-        undefined,
+        expect.objectContaining({ brand: undefined }),
       );
     });
 
@@ -1230,7 +1330,7 @@ describe('PoChangeService', () => {
       mockPrisma.poChangeRequest.findUnique.mockResolvedValue(pendingCr());
       mockPrisma.poChangeRequest.update.mockResolvedValue({});
       mockPrisma.user.findUnique.mockResolvedValue({ name: 'CA Admin' });
-      mockEmailService.sendChangeRequestRejectedEmail.mockRejectedValue(new Error('SMTP down'));
+      mockEmailService.sendPoChangeRejectedEmail.mockRejectedValue(new Error('SMTP down'));
 
       const result = await service.rejectChange('po-1', 'cr-1', { reason: 'No' }, companyAdmin);
       expect(result).toEqual({ rejected: true });

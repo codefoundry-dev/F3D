@@ -1,28 +1,52 @@
 import { randomUUID } from 'crypto';
 import * as path from 'path';
 
-import { InvoiceListQueryDto, buildPaginationMeta } from '@forethread/shared-types';
+import {
+  InvoiceListQueryDto,
+  RejectInvoiceDto,
+  buildPaginationMeta,
+} from '@forethread/shared-types';
 import {
   BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InvoiceStatus as PrismaInvoiceStatus, Prisma, UserRole } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import {
+  NotificationEntityType,
+  NotificationType,
+  InvoiceStatus as PrismaInvoiceStatus,
+  Prisma,
+  UserRole,
+} from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { invoiceReference } from '../../common/utils/invoice-reference.util';
+import { resolveVendorEmailRecipients } from '../../common/utils/vendor-recipients.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BrandingService } from '../export/branding.service';
+import { NotificationService } from '../notification-feed/notification.service';
+import { EmailService } from '../notifications/email.service';
 import { StorageService } from '../storage/storage.service';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 @Injectable()
 export class InvoicesService {
+  private readonly webAppUrl: string;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
-  ) {}
+    private readonly emailService: EmailService,
+    private readonly notifications: NotificationService,
+    private readonly branding: BrandingService,
+    config: ConfigService,
+  ) {
+    this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
+  }
 
   // ── List Invoices ──────────────────────────────────────────────────────────
 
@@ -228,7 +252,7 @@ export class InvoicesService {
 
   // ── Reject Invoice ────────────────────────────────────────────────────────
 
-  async rejectInvoice(id: string, user: AuthenticatedUser) {
+  async rejectInvoice(id: string, dto: RejectInvoiceDto, user: AuthenticatedUser) {
     const inv = await this.prisma.invoice.findUnique({
       where: { id },
       select: { id: true, status: true, companyId: true },
@@ -246,13 +270,22 @@ export class InvoicesService {
 
     const updated = await this.prisma.invoice.update({
       where: { id },
-      data: { status: PrismaInvoiceStatus.REJECTED },
+      data: {
+        status: PrismaInvoiceStatus.REJECTED,
+        rejectionReason: dto.reason ?? null,
+      },
       include: {
         project: { select: { name: true } },
+        company: { select: { legalName: true } },
         vendor: { select: { legalName: true } },
         relatedPo: { select: { id: true } },
       },
     });
+
+    // Tell the vendor their invoice was rejected / a discrepancy was raised
+    // (US 8.05 / 8.06). Fire-and-forget, like every other transactional
+    // notification — the status change is already committed.
+    void this.notifyVendorOfRejection(updated, user.id).catch(() => {});
 
     return {
       id: updated.id,
@@ -264,6 +297,71 @@ export class InvoicesService {
       totalAmount: Number(updated.totalAmount),
       dueDate: updated.dueDate?.toISOString() ?? null,
     };
+  }
+
+  /**
+   * Email the vendor that their invoice was rejected / a discrepancy was raised,
+   * and mirror it into the in-app feed for any vendor rep with an account
+   * (US 8.05 / 8.06). Supporting references stay behind the invoice link — the
+   * matrix explicitly does not attach them.
+   *
+   * Best-effort: the rejection is already committed, so nothing here may throw
+   * back into the request.
+   */
+  private async notifyVendorOfRejection(
+    invoice: {
+      id: string;
+      companyId: string;
+      vendorId: string;
+      rejectionReason: string | null;
+      project: { name: string };
+      company: { legalName: string };
+    },
+    rejectedByUserId: string,
+  ): Promise<void> {
+    const vendor = await this.prisma.company.findUnique({
+      where: { id: invoice.vendorId },
+      select: {
+        contactEmail: true,
+        users: {
+          where: { role: UserRole.VENDOR, status: { not: 'INACTIVE' } },
+          select: { email: true },
+        },
+      },
+    });
+    if (!vendor) return;
+
+    const recipients = resolveVendorEmailRecipients(vendor.users, vendor.contactEmail);
+    if (recipients.length === 0) return;
+
+    const reference = invoiceReference(invoice.id);
+    const viewUrl = `${this.webAppUrl}/invoices/${invoice.id}`;
+    // The rejecting (buyer) company's logo + name, shown atop the email (FOR-288).
+    const brand = await this.branding.getEmailBrand(invoice.companyId);
+
+    await Promise.all(
+      recipients.map((email) =>
+        this.emailService.sendInvoiceRejectedEmail(
+          email,
+          {
+            invoiceReference: reference,
+            companyName: invoice.company.legalName,
+            projectName: invoice.project.name,
+          },
+          viewUrl,
+          { comment: invoice.rejectionReason, brand },
+        ),
+      ),
+    );
+
+    await this.notifications.createForEmails(recipients, {
+      type: NotificationType.INVOICE_REJECTED,
+      title: 'Invoice rejected',
+      body: `${invoice.company.legalName} rejected invoice ${reference} for ${invoice.project.name}.`,
+      entityType: NotificationEntityType.INVOICE,
+      entityId: invoice.id,
+      metadata: { rejectedByUserId },
+    });
   }
 
   // ── Bulk Approve Invoices ──────────────────────────────────────────────────

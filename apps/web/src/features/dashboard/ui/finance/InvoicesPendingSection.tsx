@@ -4,9 +4,12 @@ import { DashboardSection, DashboardSectionSkeleton, InvoiceCard } from '@foreth
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+
+import { RejectInvoiceModal } from './RejectInvoiceModal';
 
 interface InvoicesPendingSectionProps {
   items: InvoicePendingItem[];
@@ -54,9 +57,12 @@ function PendingInvoiceCard({ item }: { item: InvoicePendingItem }) {
     },
   });
 
+  const [isRejecting, setIsRejecting] = useState(false);
+
   const rejectMutation = useMutation({
-    mutationFn: () => rejectInvoice(item.id),
+    mutationFn: (reason: string) => rejectInvoice(item.id, reason),
     onSuccess: () => {
+      setIsRejecting(false);
       void queryClient.invalidateQueries({ queryKey: ['dashboard', 'finance'] });
     },
   });
@@ -64,34 +70,43 @@ function PendingInvoiceCard({ item }: { item: InvoicePendingItem }) {
   const isMutating = approveMutation.isPending || rejectMutation.isPending;
 
   return (
-    <InvoiceCard
-      name={item.vendorName}
-      item={item}
-      onCardClick={() => navigate(invoiceDetailPath(item.id))}
-      onMessageClick={() => navigate(`${invoiceDetailPath(item.id)}?tab=messages`)}
-      onAttachmentClick={() => navigate(`${invoiceDetailPath(item.id)}?tab=attachments`)}
-      actions={
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 h-8 px-3 py-2 border border-foreground rounded-xl text-sm font-medium text-foreground hover:bg-foreground/5 transition-colors disabled:opacity-50"
-            disabled={isMutating}
-            onClick={() => rejectMutation.mutate()}
-          >
-            <CrossInCircleIcon className="w-[18px] h-[18px]" />
-            {t('invoicesPendingApproval.reject')}
-          </button>
-          <button
-            type="button"
-            className="flex items-center gap-1.5 h-8 px-3 py-2 border border-foreground rounded-xl text-sm font-medium text-foreground hover:bg-foreground/5 transition-colors disabled:opacity-50"
-            disabled={isMutating}
-            onClick={() => approveMutation.mutate()}
-          >
-            <CheckCircleIcon className="w-[18px] h-[18px]" />
-            {t('invoicesPendingApproval.approve')}
-          </button>
-        </div>
-      }
-    />
+    <>
+      <InvoiceCard
+        name={item.vendorName}
+        item={item}
+        onCardClick={() => navigate(invoiceDetailPath(item.id))}
+        onMessageClick={() => navigate(`${invoiceDetailPath(item.id)}?tab=messages`)}
+        onAttachmentClick={() => navigate(`${invoiceDetailPath(item.id)}?tab=attachments`)}
+        actions={
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className="flex items-center gap-1.5 h-8 px-3 py-2 border border-foreground rounded-xl text-sm font-medium text-foreground hover:bg-foreground/5 transition-colors disabled:opacity-50"
+              disabled={isMutating}
+              onClick={() => setIsRejecting(true)}
+            >
+              <CrossInCircleIcon className="w-[18px] h-[18px]" />
+              {t('invoicesPendingApproval.reject')}
+            </button>
+            <button
+              type="button"
+              className="flex items-center gap-1.5 h-8 px-3 py-2 border border-foreground rounded-xl text-sm font-medium text-foreground hover:bg-foreground/5 transition-colors disabled:opacity-50"
+              disabled={isMutating}
+              onClick={() => approveMutation.mutate()}
+            >
+              <CheckCircleIcon className="w-[18px] h-[18px]" />
+              {t('invoicesPendingApproval.approve')}
+            </button>
+          </div>
+        }
+      />
+      {isRejecting && (
+        <RejectInvoiceModal
+          onClose={() => setIsRejecting(false)}
+          onConfirm={(reason) => rejectMutation.mutate(reason)}
+          isSubmitting={rejectMutation.isPending}
+        />
+      )}
+    </>
   );
 }

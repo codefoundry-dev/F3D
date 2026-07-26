@@ -10,10 +10,18 @@ enum NotificationType {
   PO_ISSUED
   PO_PENDING_APPROVAL
   PO_DECLINED
+  // The CHANGE_REQUEST_* trio covers both bulk-agreement and PO change requests
+  // — `entityType` (BULK_ORDER vs PURCHASE_ORDER) is what tells them apart.
   CHANGE_REQUEST_PROPOSED
   CHANGE_REQUEST_APPROVED
   CHANGE_REQUEST_REJECTED
+  // An INTERNAL (non-commercial) PO change applies without counterparty
+  // approval, so it notifies rather than asks — hence its own type.
+  PO_INTERNAL_CHANGE
   BULK_ORDER_CANCELLED
+  INVOICE_REJECTED
+  PAYMENT_DUE
+  PAYMENT_OVERDUE
   MESSAGE_RECEIVED
 }
 
@@ -26,6 +34,7 @@ enum NotificationEntityType {
   QUOTE_RESPONSE
   PURCHASE_ORDER
   BULK_ORDER
+  INVOICE
 }
 
 model Notification {

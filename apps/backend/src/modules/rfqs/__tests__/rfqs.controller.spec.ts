@@ -279,6 +279,23 @@ describe('RfqsController', () => {
       expect(mockRfqsService.notifyContractorOfQuoteUpdate).toHaveBeenCalledWith(
         'rfq-1',
         'A vendor',
+        null,
+      );
+    });
+
+    it("forwards the vendor's note on the quote as the user comment", async () => {
+      const dto = { lineItems: [], message: 'Lead time extended to 3 weeks.' };
+      mockQuoteResponseService.updateQuote.mockResolvedValue({
+        id: 'q-1',
+        vendor: { legalName: 'VendorCo' },
+      });
+      mockRfqsService.notifyContractorOfQuoteUpdate.mockResolvedValue(undefined);
+
+      await controller.updateQuote('rfq-1', 'q-1', dto as never, mockUser);
+      expect(mockRfqsService.notifyContractorOfQuoteUpdate).toHaveBeenCalledWith(
+        'rfq-1',
+        'VendorCo',
+        'Lead time extended to 3 weeks.',
       );
     });
   });

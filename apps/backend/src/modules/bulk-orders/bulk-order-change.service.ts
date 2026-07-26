@@ -86,7 +86,13 @@ export class BulkOrderChangeService {
     const bulkId = `BO-${bulkOrderId.slice(0, 8).toUpperCase()}`;
     const proposerName = changeRequest.requestedBy.name;
     if (user.companyId) {
-      void this.notifyCounterpartyOfProposal(bo, bulkId, proposerName, user.companyId);
+      void this.notifyCounterpartyOfProposal(
+        bo,
+        bulkId,
+        proposerName,
+        user.companyId,
+        changeRequest.message ?? null,
+      );
     }
 
     return changeRequest;
@@ -230,7 +236,7 @@ export class BulkOrderChangeService {
 
     // Notify both parties (fire-and-forget)
     const bulkId = `BO-${bulkOrderId.slice(0, 8).toUpperCase()}`;
-    void this.notifyBothPartiesOfResolution(bo, bulkId, 'approved');
+    void this.notifyBothPartiesOfResolution(bo, bulkId, 'approved', { comment: cr.message });
 
     return { approved: true };
   }
@@ -277,7 +283,9 @@ export class BulkOrderChangeService {
 
     // Notify both parties (fire-and-forget)
     const bulkId = `BO-${bulkOrderId.slice(0, 8).toUpperCase()}`;
-    void this.notifyBothPartiesOfResolution(bo, bulkId, 'rejected');
+    void this.notifyBothPartiesOfResolution(bo, bulkId, 'rejected', {
+      comment: dto.reason ?? null,
+    });
 
     return { rejected: true };
   }
@@ -326,12 +334,9 @@ export class BulkOrderChangeService {
       where: { id: user.id },
       select: { name: true },
     });
-    void this.notifyBothPartiesOfResolution(
-      bo,
-      bulkId,
-      'cancelled',
-      cancellerUser?.name ?? user.email,
-    );
+    void this.notifyBothPartiesOfResolution(bo, bulkId, 'cancelled', {
+      cancelledByName: cancellerUser?.name ?? user.email,
+    });
 
     return { cancelled: true };
   }
@@ -390,6 +395,8 @@ export class BulkOrderChangeService {
     bulkId: string,
     proposerName: string,
     requesterCompanyId: string,
+    /** The proposer's free-text note, rendered as the user comment in the email. */
+    comment: string | null,
   ): Promise<void> {
     try {
       const { emails, isVendorCounterparty } = await this.getCounterpartyEmails(
@@ -411,6 +418,7 @@ export class BulkOrderChangeService {
             proposerName,
             viewUrl,
             brand,
+            comment,
           ),
         ),
       );
@@ -431,8 +439,17 @@ export class BulkOrderChangeService {
     bo: { id: string; companyId: string; vendorId: string },
     bulkId: string,
     type: 'approved' | 'rejected' | 'cancelled',
-    cancelledByName?: string,
+    opts: {
+      cancelledByName?: string;
+      /**
+       * The free-text comment this action carries: the requester's original note
+       * on approval (approving captures none of its own), the rejecter's reason
+       * on rejection. Cancelling supports no comment in the flow.
+       */
+      comment?: string | null;
+    } = {},
   ): Promise<void> {
+    const { cancelledByName, comment = null } = opts;
     try {
       const allRoles = [UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR];
 
@@ -458,6 +475,7 @@ export class BulkOrderChangeService {
               bulkId,
               viewUrl,
               brand,
+              comment,
             );
           } else if (type === 'rejected') {
             return this.emailService.sendChangeRequestRejectedEmail(
@@ -465,6 +483,7 @@ export class BulkOrderChangeService {
               bulkId,
               viewUrl,
               brand,
+              comment,
             );
           } else {
             return this.emailService.sendBulkOrderCancelledEmail(
@@ -472,6 +491,7 @@ export class BulkOrderChangeService {
               bulkId,
               cancelledByName ?? '',
               brand,
+              comment,
             );
           }
         }),

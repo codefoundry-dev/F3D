@@ -34,6 +34,12 @@ describe('resolveNotificationLink', () => {
     );
   });
 
+  it('links an invoice notification to the invoice detail page', () => {
+    expect(resolveNotificationLink({ ...base, entityType: 'INVOICE', entityId: 'inv-4' })).toBe(
+      '/invoices/inv-4',
+    );
+  });
+
   it('links a quote-response notification to the nested quote page using metadata.rfqId', () => {
     expect(
       resolveNotificationLink({

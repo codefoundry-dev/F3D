@@ -116,9 +116,20 @@ describe('InvoicesController', () => {
       const expected = { id: 'inv-1', status: 'REJECTED' };
       mockService.rejectInvoice.mockResolvedValue(expected);
 
-      const result = await controller.rejectInvoice('inv-1', mockUser);
-      expect(mockService.rejectInvoice).toHaveBeenCalledWith('inv-1', mockUser);
+      const result = await controller.rejectInvoice('inv-1', {}, mockUser);
+      expect(mockService.rejectInvoice).toHaveBeenCalledWith('inv-1', {}, mockUser);
       expect(result).toEqual(expected);
+    });
+
+    it('forwards the discrepancy reason', async () => {
+      mockService.rejectInvoice.mockResolvedValue({ id: 'inv-1', status: 'REJECTED' });
+
+      await controller.rejectInvoice('inv-1', { reason: 'Wrong quantities' }, mockUser);
+      expect(mockService.rejectInvoice).toHaveBeenCalledWith(
+        'inv-1',
+        { reason: 'Wrong quantities' },
+        mockUser,
+      );
     });
   });
 

@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
 
@@ -120,4 +121,17 @@ export class BulkApproveInvoicesDto {
   @IsArray()
   @IsUUID('4', { each: true })
   ids!: string[];
+}
+
+export class RejectInvoiceDto {
+  /**
+   * Why the invoice was rejected / what the discrepancy is (US 8.05 / 8.06).
+   * Persisted on the invoice and included in the vendor's rejection email as the
+   * user comment, so it must survive the request that set it.
+   */
+  @ApiPropertyOptional({ maxLength: 2000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  reason?: string;
 }

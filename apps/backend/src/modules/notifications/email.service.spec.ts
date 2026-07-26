@@ -100,6 +100,38 @@ jest.mock(
       greeting: 'Hi {{name}},',
       body: '{{invitedUserName}} ({{invitedUserEmail}}) attempted to use their invitation link, which is no longer valid.',
     },
+    accountActivated: {
+      subject: 'Forethread — Your account is active',
+      greeting: 'Hi {{name}},',
+    },
+    poChangeProposed: {
+      subject: 'Forethread — Change Request for Purchase Order {{poNumber}}',
+      greeting: 'Hello,',
+    },
+    poChangeApproved: {
+      subject: 'Forethread — Change Request Approved (Purchase Order {{poNumber}})',
+      greeting: 'Hello,',
+    },
+    poChangeRejected: {
+      subject: 'Forethread — Change Request Rejected (Purchase Order {{poNumber}})',
+      greeting: 'Hello,',
+    },
+    poInternalChange: {
+      subject: 'Forethread — Purchase Order {{poNumber}} Updated',
+      greeting: 'Hello,',
+    },
+    invoiceRejected: {
+      subject: 'Forethread — Invoice Rejected ({{invoiceReference}})',
+      greeting: 'Hello,',
+    },
+    paymentDueReminder: {
+      subject: 'Forethread — Payment Due in {{daysUntilDue}} Days ({{invoiceReference}})',
+      greeting: 'Hello,',
+    },
+    paymentOverdueReminder: {
+      subject: 'Forethread — Payment Overdue ({{invoiceReference}})',
+      greeting: 'Hello,',
+    },
     footer: { privacyPolicy: 'Privacy policy', and: 'and', termsOfService: 'Terms of service' },
   }),
   { virtual: true },
@@ -768,6 +800,177 @@ describe('EmailService', () => {
       expect(layoutFn).not.toHaveBeenCalledWith(
         expect.objectContaining({ brand: expect.anything() }),
       );
+    });
+  });
+
+  // ── Notification-matrix additions ──────────────────────────────────────────
+  // Each of these is a new row of the agreed matrix. The template rendering is
+  // mocked out, so what matters here is that the send happens, the log linkage
+  // is attached only when supplied, and a transport failure never escapes.
+
+  describe('sendAccountActivatedEmail', () => {
+    it('sends the activation confirmation', async () => {
+      await service.sendAccountActivatedEmail('user@test.com', 'Ada', 'https://app.test/login');
+
+      expect(mockSendMail).toHaveBeenCalledWith(expect.objectContaining({ to: 'user@test.com' }));
+    });
+
+    it('does not throw when sendMail fails', async () => {
+      mockSendMail.mockRejectedValue(new Error('SMTP error'));
+
+      await expect(
+        service.sendAccountActivatedEmail('user@test.com', 'Ada', 'https://app.test/login'),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('PO change-request emails', () => {
+    it('sends the proposed email and records it against the PO when a log is given', async () => {
+      await service.sendPoChangeProposedEmail(
+        'vendor@test.com',
+        'PO-0001',
+        'Ada',
+        'https://view.test',
+        {
+          comment: 'Need a later delivery date',
+          log: { companyId: 'comp-1', purchaseOrderId: 'po-1' },
+        },
+      );
+
+      expect(mockSendMail).toHaveBeenCalledWith(expect.objectContaining({ to: 'vendor@test.com' }));
+      expect(emailLogService.recordOutbound).toHaveBeenCalledWith(
+        expect.objectContaining({
+          template: 'po-change-proposed',
+          toEmail: 'vendor@test.com',
+          purchaseOrderId: 'po-1',
+        }),
+      );
+    });
+
+    it('sends the proposed email without a log when none is given', async () => {
+      await service.sendPoChangeProposedEmail(
+        'vendor@test.com',
+        'PO-0001',
+        'Ada',
+        'https://view.test',
+      );
+
+      expect(mockSendMail).toHaveBeenCalled();
+      expect(emailLogService.recordOutbound).not.toHaveBeenCalled();
+    });
+
+    it('sends the approved email', async () => {
+      await service.sendPoChangeApprovedEmail('vendor@test.com', 'PO-0001', 'https://view.test', {
+        comment: 'Agreed',
+        log: { companyId: 'comp-1', purchaseOrderId: 'po-1' },
+      });
+
+      expect(emailLogService.recordOutbound).toHaveBeenCalledWith(
+        expect.objectContaining({ template: 'po-change-approved' }),
+      );
+    });
+
+    it('sends the rejected email', async () => {
+      await service.sendPoChangeRejectedEmail('vendor@test.com', 'PO-0001', 'https://view.test', {
+        comment: 'Price is out of budget',
+      });
+
+      expect(mockSendMail).toHaveBeenCalled();
+    });
+
+    it('sends the internal-change email', async () => {
+      await service.sendPoInternalChangeEmail(
+        'vendor@test.com',
+        'PO-0001',
+        'Ada',
+        'https://view.test',
+        { log: { companyId: 'comp-1', purchaseOrderId: 'po-1' } },
+      );
+
+      expect(emailLogService.recordOutbound).toHaveBeenCalledWith(
+        expect.objectContaining({ template: 'po-internal-change' }),
+      );
+    });
+
+    it('does not throw when any of them fails to send', async () => {
+      mockSendMail.mockRejectedValue(new Error('SMTP error'));
+
+      await expect(
+        service.sendPoChangeProposedEmail('v@test.com', 'PO-1', 'Ada', 'https://v.test'),
+      ).resolves.toBeUndefined();
+      await expect(
+        service.sendPoChangeApprovedEmail('v@test.com', 'PO-1', 'https://v.test'),
+      ).resolves.toBeUndefined();
+      await expect(
+        service.sendPoChangeRejectedEmail('v@test.com', 'PO-1', 'https://v.test'),
+      ).resolves.toBeUndefined();
+      await expect(
+        service.sendPoInternalChangeEmail('v@test.com', 'PO-1', 'Ada', 'https://v.test'),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('sendInvoiceRejectedEmail', () => {
+    it('sends the rejection with the discrepancy comment', async () => {
+      await service.sendInvoiceRejectedEmail(
+        'vendor@test.com',
+        { invoiceReference: 'INV-ABCD1234', companyName: 'BuilderCo', projectName: 'Alpha' },
+        'https://view.test',
+        { comment: 'Quantities do not match' },
+      );
+
+      expect(mockSendMail).toHaveBeenCalledWith(expect.objectContaining({ to: 'vendor@test.com' }));
+    });
+
+    it('does not throw when sendMail fails', async () => {
+      mockSendMail.mockRejectedValue(new Error('SMTP error'));
+
+      await expect(
+        service.sendInvoiceRejectedEmail(
+          'vendor@test.com',
+          { invoiceReference: 'INV-ABCD1234', companyName: 'BuilderCo', projectName: 'Alpha' },
+          'https://view.test',
+        ),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('payment reminder emails', () => {
+    const dueParams = {
+      invoiceReference: 'INV-ABCD1234',
+      vendorName: 'VendorCo',
+      amount: '$1,500.00',
+      dueDate: 'June 1, 2026',
+      daysUntilDue: 3,
+    };
+
+    it('sends the due reminder', async () => {
+      await service.sendPaymentDueReminderEmail('fo@test.com', dueParams, 'https://view.test');
+
+      expect(mockSendMail).toHaveBeenCalledWith(expect.objectContaining({ to: 'fo@test.com' }));
+    });
+
+    it('sends the overdue reminder', async () => {
+      const { daysUntilDue: _unused, ...overdueParams } = dueParams;
+      await service.sendPaymentOverdueReminderEmail(
+        'fo@test.com',
+        overdueParams,
+        'https://view.test',
+      );
+
+      expect(mockSendMail).toHaveBeenCalledWith(expect.objectContaining({ to: 'fo@test.com' }));
+    });
+
+    it('does not throw when sendMail fails', async () => {
+      mockSendMail.mockRejectedValue(new Error('SMTP error'));
+      const { daysUntilDue: _unused, ...overdueParams } = dueParams;
+
+      await expect(
+        service.sendPaymentDueReminderEmail('fo@test.com', dueParams, 'https://view.test'),
+      ).resolves.toBeUndefined();
+      await expect(
+        service.sendPaymentOverdueReminderEmail('fo@test.com', overdueParams, 'https://view.test'),
+      ).resolves.toBeUndefined();
     });
   });
 

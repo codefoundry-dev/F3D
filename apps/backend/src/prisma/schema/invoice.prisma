@@ -15,6 +15,17 @@ model Invoice {
   status          InvoiceStatus @default(PENDING)
   totalAmount     Decimal       @map("total_amount") @db.Decimal(18, 4)
   dueDate         DateTime?     @map("due_date")
+  // Free-text reason captured when a contractor rejects / disputes the invoice
+  // (US 8.05/8.06). Carried into the vendor's rejection email as the user
+  // comment, so it must survive the request that set the status.
+  rejectionReason String?       @map("rejection_reason")
+  // Reminder ledger (US 8.09). The daily sweep claims an invoice by stamping the
+  // column before it sends, so a re-run — or a second container — can never
+  // re-send the same reminder. There is no API that moves `dueDate` after
+  // creation; if one is ever added it must clear these so the new date is
+  // reminded on.
+  dueReminderSentAt     DateTime? @map("due_reminder_sent_at")
+  overdueReminderSentAt DateTime? @map("overdue_reminder_sent_at")
   createdByUserId String        @map("created_by_user_id")
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
@@ -30,6 +41,9 @@ model Invoice {
   @@index([projectId], map: "idx_invoices_project")
   @@index([vendorId], map: "idx_invoices_vendor")
   @@index([status], map: "idx_invoices_status")
+  // Drives the daily payment-reminder sweep, which scans APPROVED invoices by
+  // due date (US 8.09).
+  @@index([status, dueDate], map: "idx_invoices_status_due_date")
   @@map("invoices")
 }
 
