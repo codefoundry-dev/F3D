@@ -196,6 +196,44 @@ describe('QuoteResponseService', () => {
 
       await service.submitQuote('rfq-1', dto as never, vendorUser);
     });
+
+    // The persisted `lineNumber` is what every read orders by; without it the
+    // review table falls back to heap order and reshuffles on status updates.
+    it('should stamp a sequential lineNumber on every persisted line', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue(baseRfq);
+      mockPrisma.quoteResponse.findFirst.mockResolvedValue(null);
+
+      let persisted: Array<{ rfqLineItemId: string; lineNumber: number }> = [];
+
+      mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+        const create = jest.fn().mockImplementation(
+          (args: {
+            data: {
+              lineItems: {
+                createMany: { data: Array<{ rfqLineItemId: string; lineNumber: number }> };
+              };
+            };
+          }) => {
+            persisted = args.data.lineItems.createMany.data;
+            return {
+              id: 'quote-1',
+              rfqId: 'rfq-1',
+              vendorId: 'vendor-co-1',
+              lineItems: persisted,
+              vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
+            };
+          },
+        );
+        return fn(txWith(create));
+      });
+      mockAuditService.log.mockResolvedValue(undefined);
+
+      // Only li-1 is quoted, so li-2 is appended as a NO_QUOTE filler — both
+      // still need a distinct position.
+      await service.submitQuote('rfq-1', { lineItems: [baseLineItemDto] } as never, vendorUser);
+
+      expect(persisted.map((li) => li.lineNumber)).toEqual([0, 1]);
+    });
   });
 
   // ── updateQuote ───────────────────────────────────────────────────────────
@@ -395,6 +433,34 @@ describe('QuoteResponseService', () => {
 
       await expect(service.getQuoteDetail('rfq-1', 'quote-999', vendorUser)).rejects.toThrow(
         NotFoundException,
+      );
+    });
+
+    // Without an explicit order the rows come back in Postgres heap order, which
+    // moves a just-updated line to the end. Approving one line then reshuffled
+    // the review table and looked like the neighbouring line had been approved.
+    it('should order line items deterministically so a status update cannot reshuffle them', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({
+        id: 'quote-1',
+        rfqId: 'rfq-1',
+        vendorId: 'vendor-co-1',
+        lineItems: [],
+        attachments: [],
+        vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
+        rfq: { id: 'rfq-1', companyId: 'contractor-co-1', rfqNumber: 'RFQ-001' },
+        warehouseLocation: null,
+      });
+
+      await service.getQuoteDetail('rfq-1', 'quote-1', vendorUser);
+
+      expect(mockPrisma.quoteResponse.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            lineItems: expect.objectContaining({
+              orderBy: [{ lineNumber: 'asc' }, { id: 'asc' }],
+            }),
+          }),
+        }),
       );
     });
 
