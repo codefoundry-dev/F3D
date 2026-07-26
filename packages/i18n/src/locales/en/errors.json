@@ -156,6 +156,7 @@
     "duplicateName": "A material with this name already exists",
     "referenced": "Material is referenced by {{count}} document(s); archive it instead.",
     "invalidStatusTransition": "Cannot perform this action while the material is {{status}}",
+    "publicReadOnly": "The public catalogue is read-only. You can only archive or delete your own company's materials.",
     "changeRequestNotFound": "Change request not found",
     "changeRequestNotPending": "This change request has already been resolved"
   },

@@ -89,6 +89,7 @@ export class MaterialListsService {
       name: list.name,
       description: list.description,
       itemCount: list._count.items,
+      sourceExtractionId: list.sourceExtractionId,
       updatedAt: list.updatedAt.toISOString(),
     }));
   }
@@ -160,6 +161,7 @@ export class MaterialListsService {
       name: list.name,
       description: list.description,
       itemCount: list._count.items,
+      sourceExtractionId: list.sourceExtractionId,
       updatedAt: list.updatedAt.toISOString(),
     };
   }
@@ -185,6 +187,7 @@ export class MaterialListsService {
       name: list.name,
       description: list.description,
       itemCount: list._count.items,
+      sourceExtractionId: list.sourceExtractionId,
       updatedAt: list.updatedAt.toISOString(),
     };
   }

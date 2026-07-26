@@ -73,6 +73,60 @@ describe('MaterialListsService (CRUD — US 4.03)', () => {
     service = new MaterialListsService(mockPrisma as never, mockMaterials as never);
   });
 
+  // ── listMaterialLists ──────────────────────────────────────────────────────
+
+  describe('listMaterialLists', () => {
+    it('surfaces the item count and upload provenance of each list', async () => {
+      mockPrisma.materialList.findMany.mockResolvedValue([
+        {
+          id: 'list-upload',
+          name: 'ACME Price List 2026',
+          description: null,
+          sourceExtractionId: 'ext-1',
+          updatedAt: new Date('2026-07-26T10:00:00Z'),
+          _count: { items: 142 },
+        },
+        {
+          id: 'list-hand',
+          name: 'Site B rebar',
+          description: 'Curated',
+          sourceExtractionId: null,
+          updatedAt: new Date('2026-07-26T11:00:00Z'),
+          _count: { items: 3 },
+        },
+      ]);
+
+      const res = await service.listMaterialLists({} as never, companyAdmin);
+
+      // sourceExtractionId is what the UI badges as an uploaded catalogue.
+      expect(res).toEqual([
+        {
+          id: 'list-upload',
+          name: 'ACME Price List 2026',
+          description: null,
+          itemCount: 142,
+          sourceExtractionId: 'ext-1',
+          updatedAt: '2026-07-26T10:00:00.000Z',
+        },
+        {
+          id: 'list-hand',
+          name: 'Site B rebar',
+          description: 'Curated',
+          itemCount: 3,
+          sourceExtractionId: null,
+          updatedAt: '2026-07-26T11:00:00.000Z',
+        },
+      ]);
+      expect(mockPrisma.materialList.findMany.mock.calls[0][0].where.companyId).toBe('comp-1');
+    });
+
+    it('throws Forbidden when the user has no company', async () => {
+      await expect(service.listMaterialLists({} as never, noCompanyUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+  });
+
   // ── createList ─────────────────────────────────────────────────────────────
 
   describe('createList', () => {
@@ -81,6 +135,7 @@ describe('MaterialListsService (CRUD — US 4.03)', () => {
         id: 'list-1',
         name: 'My List',
         description: 'desc',
+        sourceExtractionId: null,
         updatedAt: new Date('2026-06-13T10:00:00Z'),
         _count: { items: 0 },
       });
@@ -100,6 +155,8 @@ describe('MaterialListsService (CRUD — US 4.03)', () => {
         name: 'My List',
         description: 'desc',
         itemCount: 0,
+        // Hand-created list: only a catalogue upload sets this.
+        sourceExtractionId: null,
         updatedAt: '2026-06-13T10:00:00.000Z',
       });
     });

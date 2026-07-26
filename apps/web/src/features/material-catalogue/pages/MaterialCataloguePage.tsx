@@ -39,8 +39,22 @@ import {
   useRecentMaterials,
 } from '../hooks/useMaterialSearch';
 
-// SA manages the public catalogue lifecycle; CA / PO contribute + curate lists.
-type Tab = 'public' | 'pending' | 'archived' | 'favorites' | 'materialList';
+// SA manages the public catalogue lifecycle; CA / PO read it and own a private
+// catalogue of their own, which lives under the Material list tab.
+// `companyMaterials` / `companyArchived` are drilldowns OFF that tab (the flat
+// "all company materials" view and its archive), not tabs of their own — hence
+// their absence from `tabs` below.
+type Tab =
+  | 'public'
+  | 'pending'
+  | 'archived'
+  | 'favorites'
+  | 'materialList'
+  | 'companyMaterials'
+  | 'companyArchived';
+
+/** The two company-catalogue drilldowns, which share a heading + Active/Archived toggle. */
+const COMPANY_VIEWS: Tab[] = ['companyMaterials', 'companyArchived'];
 
 const DEFAULT_PAGE_SIZE = 25;
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
@@ -76,7 +90,7 @@ export default function MaterialCataloguePage() {
   // resolution so an out-of-role tab param falls back to 'public'.
   const validTabKeys: Tab[] = showApprovalTabs
     ? ['public', 'pending', 'archived']
-    : ['public', 'favorites', 'materialList'];
+    : ['public', 'favorites', 'materialList', ...COMPANY_VIEWS];
 
   // ── Active tab (?tab=) ──────────────────────────────────────────────
   const tabParam = searchParams.get('tab') as Tab | null;
@@ -183,11 +197,19 @@ export default function MaterialCataloguePage() {
     ],
   );
 
-  // The table-driven tabs (public / archived / favorites) share the filtered
-  // params. Public + Favorite both list PUBLIC materials; Favorite additionally
-  // restricts to the user's favourites. Archived lists archived materials. The
+  // The table-driven views share the filtered params. Public + Favorite both list
+  // PUBLIC materials; Favorite additionally restricts to the user's favourites.
+  // companyMaterials lists the caller's own PRIVATE rows. Both archived views ask
+  // for ARCHIVED — for a contractor the backend ANDs an ownership envelope over
+  // `status`, and a PUBLIC row can never also be ARCHIVED, so ARCHIVED and
+  // PRIVATE alike can only ever resolve to this company's own materials. The
   // pending tab has its own minimal query so it stays a "new submissions" feed.
-  const tableStatus = activeTab === 'archived' ? 'ARCHIVED' : 'PUBLIC';
+  const isArchivedView = activeTab === 'archived' || activeTab === 'companyArchived';
+  const tableStatus = isArchivedView
+    ? 'ARCHIVED'
+    : activeTab === 'companyMaterials'
+      ? 'PRIVATE'
+      : 'PUBLIC';
   const tableQuery = useMaterials({
     ...baseParams,
     status: tableStatus,
@@ -337,29 +359,40 @@ export default function MaterialCataloguePage() {
           onView={(list) => navigate(buildListDetailPath(list.id))}
           onEdit={(list) => setEditList(list)}
           onDelete={(list) => setDeleteList(list)}
+          onViewAllCompanyMaterials={() => setActiveTab('companyMaterials')}
         />
       ) : activeTab === 'pending' ? (
         <div className="space-y-8" data-testid="pending-tab">
-          {/* New material submissions (Phase 1/2). */}
-          <section className="space-y-3" aria-label={t('pending.sections.newSubmissions')}>
-            <h2 className="text-sm font-semibold text-foreground">
-              {t('pending.sections.newSubmissions')}
-            </h2>
-            <PendingApprovalList
-              items={pendingQuery.data?.items ?? []}
-              isLoading={pendingQuery.isLoading}
-              isError={pendingQuery.isError}
-              permissions={{
-                canApprove: has('material.approve'),
-                canReject: has('material.reject'),
-              }}
-              approvingId={mutations.approve.isPending ? mutations.approve.variables : undefined}
-              rejectingId={mutations.reject.isPending ? mutations.reject.variables?.id : undefined}
-              onView={(id) => navigate(buildDetailPath(id))}
-              onApprove={(id) => mutations.approve.mutate(id)}
-              onReject={(id) => mutations.reject.mutate({ id })}
-            />
-          </section>
+          {/* New material submissions (Phase 1/2). Rendered only when the queue
+              actually holds something: a company's own materials are private and
+              no longer queued for publication (contribution deferred to v2), so
+              for most tenants this section would otherwise be permanently empty
+              and imply an approval step that no longer exists. */}
+          {(pendingQuery.isLoading ||
+            pendingQuery.isError ||
+            (pendingQuery.data?.items.length ?? 0) > 0) && (
+            <section className="space-y-3" aria-label={t('pending.sections.newSubmissions')}>
+              <h2 className="text-sm font-semibold text-foreground">
+                {t('pending.sections.newSubmissions')}
+              </h2>
+              <PendingApprovalList
+                items={pendingQuery.data?.items ?? []}
+                isLoading={pendingQuery.isLoading}
+                isError={pendingQuery.isError}
+                permissions={{
+                  canApprove: has('material.approve'),
+                  canReject: has('material.reject'),
+                }}
+                approvingId={mutations.approve.isPending ? mutations.approve.variables : undefined}
+                rejectingId={
+                  mutations.reject.isPending ? mutations.reject.variables?.id : undefined
+                }
+                onView={(id) => navigate(buildDetailPath(id))}
+                onApprove={(id) => mutations.approve.mutate(id)}
+                onReject={(id) => mutations.reject.mutate({ id })}
+              />
+            </section>
+          )}
 
           {/* Edit requests against PUBLIC materials (Phase 3). */}
           {canListChangeRequests && (
@@ -411,6 +444,55 @@ export default function MaterialCataloguePage() {
         </div>
       ) : (
         <>
+          {/* The company-catalogue views are drilldowns off the Material list tab,
+              so they carry their own heading + way back (no tab button is
+              highlighted). Archiving is the only way to retire a material a
+              document already references, so the archive needs to be reachable —
+              otherwise archiving would be one-way. */}
+          {COMPANY_VIEWS.includes(activeTab) && (
+            <div className="space-y-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab('materialList')}
+                className="text-sm text-muted-foreground hover:text-foreground"
+                data-testid="company-materials-back"
+              >
+                ← {t('materialLists.companyMaterials.back')}
+              </button>
+              <h2 className="text-lg font-semibold text-foreground">
+                {t('materialLists.companyMaterials.title')}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {t('materialLists.companyMaterials.hint')}
+              </p>
+              <div className="flex items-center gap-4 pt-2" role="tablist">
+                {COMPANY_VIEWS.map((view) => {
+                  const isActive = activeTab === view;
+                  return (
+                    <button
+                      key={view}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      onClick={() => setActiveTab(view)}
+                      data-testid={`company-view-${view}`}
+                      className={
+                        'pb-1 text-sm font-medium border-b-2 transition-colors ' +
+                        (isActive
+                          ? 'border-foreground text-foreground'
+                          : 'border-transparent text-muted-foreground hover:text-foreground')
+                      }
+                    >
+                      {view === 'companyMaterials'
+                        ? t('materialLists.companyMaterials.viewActive')
+                        : t('materialLists.companyMaterials.viewArchived')}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-3">
             <div
               ref={searchWrapRef}
@@ -512,19 +594,35 @@ export default function MaterialCataloguePage() {
           ) : (
             <>
               <MaterialTable
-                tab={activeTab === 'archived' ? 'archived' : 'public'}
+                tab={isArchivedView ? 'archived' : 'public'}
                 items={tableItems}
                 isLoading={tableQuery.isLoading}
                 isError={tableQuery.isError}
                 searchActive={searchActive}
                 searchQuery={debouncedSearch.trim()}
-                emptyText={activeTab === 'favorites' ? t('favourites.empty') : undefined}
+                emptyText={
+                  activeTab === 'favorites'
+                    ? t('favourites.empty')
+                    : activeTab === 'companyMaterials'
+                      ? t('materialLists.companyMaterials.empty')
+                      : activeTab === 'companyArchived'
+                        ? t('materialLists.companyMaterials.archivedEmpty')
+                        : undefined
+                }
                 permissions={{
                   canEdit: has('material.update'),
                   canArchive: has('material.archive'),
                   canRestore: has('material.restore'),
                   canDelete: has('material.delete'),
                 }}
+                canManage={
+                  // Contractors hold archive/restore/delete for their OWN materials
+                  // only. A non-null companyId means "owned by my company" — the
+                  // backend's visibility envelope never returns another company's
+                  // private rows — so it doubles as the ownership test, and the
+                  // shared public catalogue (companyId null) stays read-only.
+                  showContributorTabs ? (m) => Boolean(m.companyId) : undefined
+                }
                 sortBy={sortBy}
                 sortDir={sortDir}
                 onSort={handleSort}

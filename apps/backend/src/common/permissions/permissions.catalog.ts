@@ -267,6 +267,12 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.detectDuplicates',
     'material.read',
     'material.update',
+    // Scoped by ownership in the service: a company may archive / restore /
+    // delete only its OWN materials. The shared public catalogue stays
+    // read-only for contractors (spec FR-R1-D04) -> 403.
+    'material.archive',
+    'material.restore',
+    'material.delete',
     'material.favourite',
 
     'materialList.list',
@@ -420,6 +426,12 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'material.detectDuplicates',
     'material.read',
     'material.update',
+    // Scoped by ownership in the service: a company may archive / restore /
+    // delete only its OWN materials. The shared public catalogue stays
+    // read-only for contractors (spec FR-R1-D04) -> 403.
+    'material.archive',
+    'material.restore',
+    'material.delete',
     'material.favourite',
 
     'materialList.list',

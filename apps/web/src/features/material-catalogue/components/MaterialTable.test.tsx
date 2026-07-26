@@ -93,3 +93,64 @@ describe('MaterialTable star column', () => {
     expect(screen.getByText('No favourites yet')).toBeInTheDocument();
   });
 });
+
+// A contractor holds archive/restore/delete for its OWN materials only, so the
+// table must not offer those actions on shared public rows — the API would 403.
+describe('MaterialTable canManage ownership gate', () => {
+  const allPermissions = {
+    canEdit: true,
+    canArchive: true,
+    canRestore: true,
+    canDelete: true,
+  };
+
+  it('offers archive + delete on a row the caller owns', () => {
+    renderTable({
+      items: [material({ status: 'PRIVATE', companyId: 'comp-1' })],
+      permissions: allPermissions,
+      canManage: (m) => Boolean(m.companyId),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    expect(screen.getByText('Archive')).toBeInTheDocument();
+    expect(screen.getByText('Delete')).toBeInTheDocument();
+  });
+
+  it('hides archive + delete on a public row the caller does not own', () => {
+    renderTable({
+      items: [material({ status: 'PUBLIC', companyId: null })],
+      permissions: allPermissions,
+      canManage: (m) => Boolean(m.companyId),
+      onAddToList: vi.fn(),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    // Non-destructive actions survive; only the lifecycle ones are gated.
+    expect(screen.getByText('Add to material list')).toBeInTheDocument();
+    expect(screen.queryByText('Archive')).not.toBeInTheDocument();
+    expect(screen.queryByText('Delete')).not.toBeInTheDocument();
+  });
+
+  it('hides restore on an archived row the caller does not own', () => {
+    renderTable({
+      tab: 'archived',
+      items: [material({ status: 'ARCHIVED', companyId: null })],
+      permissions: allPermissions,
+      canManage: (m) => Boolean(m.companyId),
+    });
+
+    // Every kebab action was gated out, so no kebab renders at all.
+    expect(screen.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument();
+  });
+
+  it('keeps every action when no predicate is supplied (Super-Admin view)', () => {
+    renderTable({
+      items: [material({ status: 'PUBLIC', companyId: null })],
+      permissions: allPermissions,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    expect(screen.getByText('Archive')).toBeInTheDocument();
+    expect(screen.getByText('Delete')).toBeInTheDocument();
+  });
+});

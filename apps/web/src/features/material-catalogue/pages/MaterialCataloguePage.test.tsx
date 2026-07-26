@@ -185,7 +185,11 @@ describe('MaterialCataloguePage', () => {
 
   it('opens the archive confirm modal and calls the mutation on confirm', async () => {
     permissionSet.current = new Set(['material.archive']);
-    mockedGetMaterials.mockResolvedValue(page([{ id: 'm-1', name: 'Portland Cement' }]));
+    // companyId set = a row this company owns. A contractor's archive action is
+    // ownership-gated, so a companyId-less (public) row would offer no kebab.
+    mockedGetMaterials.mockResolvedValue(
+      page([{ id: 'm-1', name: 'Portland Cement', companyId: 'comp-1' }]),
+    );
     mockedArchive.mockResolvedValue(listItem({ id: 'm-1', status: 'ARCHIVED' }));
 
     renderPage();
@@ -309,5 +313,110 @@ describe('MaterialCataloguePage', () => {
     expect(empty).toHaveTextContent('matching "zzz"');
     // Table + pagination are replaced by the empty state.
     expect(screen.queryByTestId('material-table')).not.toBeInTheDocument();
+  });
+
+  // The Public Materials tab lists only PUBLIC rows, so a company's own
+  // materials (uploads, create wizard, BOM/RFQ quick-add) are reachable only
+  // through the Material list tab's "All company materials" drilldown.
+  it('drills from the Material list tab into the company PRIVATE catalogue', async () => {
+    mockedGetMaterials.mockImplementation((params?: apiClient.MaterialListQueryParams) => {
+      if (params?.status === 'PRIVATE') {
+        return Promise.resolve(
+          page([{ id: 'm-priv', name: 'Site-mixed Grout', status: 'PRIVATE' }]),
+        );
+      }
+      return Promise.resolve(page([{ name: 'Portland Cement' }]));
+    });
+
+    renderPage();
+    await screen.findByText('Portland Cement');
+
+    fireEvent.click(screen.getByTestId('material-tab-materialList'));
+    fireEvent.click(await screen.findByTestId('material-lists-all-company'));
+
+    expect(await screen.findByText('Site-mixed Grout')).toBeInTheDocument();
+    expect(screen.getByText('All company materials')).toBeInTheDocument();
+    expect(mockedGetMaterials).toHaveBeenCalledWith(expect.objectContaining({ status: 'PRIVATE' }));
+
+    // The drilldown is not a tab — nothing in the tab bar is selected for it, and
+    // the back link returns to the lists.
+    expect(screen.queryByTestId('material-tab-companyMaterials')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('company-materials-back'));
+    expect(await screen.findByTestId('material-lists-panel')).toBeInTheDocument();
+  });
+
+  // Archiving is the only way for a company to retire a material a document
+  // already references, so the archive has to be reachable — otherwise archiving
+  // would be a one-way trip.
+  it('reaches the company archive from the drilldown and offers restore there', async () => {
+    permissionSet.current = new Set(['material.archive', 'material.restore', 'material.delete']);
+    mockedGetMaterials.mockImplementation((params?: apiClient.MaterialListQueryParams) => {
+      if (params?.status === 'PRIVATE') {
+        return Promise.resolve(
+          page([
+            { id: 'm-priv', name: 'Site-mixed Grout', status: 'PRIVATE', companyId: 'comp-1' },
+          ]),
+        );
+      }
+      if (params?.status === 'ARCHIVED') {
+        return Promise.resolve(
+          page([
+            { id: 'm-arch', name: 'Retired Sealant', status: 'ARCHIVED', companyId: 'comp-1' },
+          ]),
+        );
+      }
+      return Promise.resolve(page([{ name: 'Portland Cement' }]));
+    });
+
+    renderPage();
+    await screen.findByText('Portland Cement');
+
+    fireEvent.click(screen.getByTestId('material-tab-materialList'));
+    fireEvent.click(await screen.findByTestId('material-lists-all-company'));
+    await screen.findByText('Site-mixed Grout');
+
+    // Own private row → the destructive actions are offered.
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    expect(screen.getByText('Archive')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('company-view-companyArchived'));
+
+    expect(await screen.findByText('Retired Sealant')).toBeInTheDocument();
+    expect(mockedGetMaterials).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'ARCHIVED' }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    expect(screen.getByText('Restore')).toBeInTheDocument();
+  });
+
+  it('withholds archive/delete from a contractor on the shared public catalogue', async () => {
+    permissionSet.current = new Set(['material.archive', 'material.delete']);
+    // companyId null = the shared public catalogue, read-only for contractors.
+    mockedGetMaterials.mockResolvedValue(
+      page([{ id: 'm-1', name: 'Portland Cement', status: 'PUBLIC', companyId: null }]),
+    );
+
+    renderPage();
+    await screen.findByText('Portland Cement');
+
+    // Every kebab action was gated out, so no kebab renders.
+    expect(screen.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument();
+  });
+
+  it('does not show an empty "New submissions" section on the pending tab', async () => {
+    // Company materials are private and no longer queued for publication, so an
+    // empty queue must not imply an approval step that no longer exists.
+    permissionSet.current = new Set(['material.approve']);
+    mockedGetMaterials.mockImplementation((params?: apiClient.MaterialListQueryParams) => {
+      if (params?.status === 'PENDING_APPROVAL') return Promise.resolve(page([]));
+      return Promise.resolve(page([{ name: 'Portland Cement' }]));
+    });
+
+    renderPage();
+    await screen.findByText('Portland Cement');
+    fireEvent.click(screen.getByTestId('material-tab-pending'));
+
+    await screen.findByTestId('pending-tab');
+    await waitFor(() => expect(screen.queryByText('New submissions')).not.toBeInTheDocument());
   });
 });

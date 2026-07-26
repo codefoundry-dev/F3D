@@ -10,6 +10,7 @@ function list(over: Partial<MaterialListSummaryDto> = {}): MaterialListSummaryDt
     name: 'Steel beams',
     description: 'Structural steel',
     itemCount: 3,
+    sourceExtractionId: null,
     updatedAt: '2026-06-01T00:00:00.000Z',
     ...over,
   };
@@ -27,6 +28,7 @@ function renderPanel(over: Partial<MaterialListsPanelProps> = {}) {
     onView: vi.fn(),
     onEdit: vi.fn(),
     onDelete: vi.fn(),
+    onViewAllCompanyMaterials: vi.fn(),
     ...over,
   };
   render(<MaterialListsPanel {...props} />);
@@ -85,6 +87,7 @@ describe('MaterialListsPanel', () => {
         onView={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
+        onViewAllCompanyMaterials={vi.fn()}
       />,
     );
     expect(screen.getByRole('status')).toBeInTheDocument();
@@ -101,8 +104,41 @@ describe('MaterialListsPanel', () => {
         onView={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
+        onViewAllCompanyMaterials={vi.fn()}
       />,
     );
     expect(screen.getByRole('alert')).toBeInTheDocument();
+  });
+
+  // A company's uploaded catalogues land here as lists; hand-curated lists sit
+  // alongside them, so the badge is the only thing telling them apart.
+  it('badges an upload-derived list and falls back to the item count as the subtitle', () => {
+    renderPanel({
+      lists: [
+        list({
+          id: 'l-2',
+          name: 'ACME Price List 2026',
+          description: null,
+          itemCount: 142,
+          sourceExtractionId: 'ext-1',
+        }),
+      ],
+    });
+    expect(screen.getByTestId('material-list-uploaded-l-2')).toBeInTheDocument();
+    expect(screen.getByText('Uploaded catalogue')).toBeInTheDocument();
+    expect(screen.getByText('142 materials')).toBeInTheDocument();
+  });
+
+  it('does not badge a hand-curated list', () => {
+    renderPanel();
+    expect(screen.queryByTestId('material-list-uploaded-l-1')).not.toBeInTheDocument();
+  });
+
+  // Private materials added outside an upload (create wizard, BOM/RFQ quick-add)
+  // are only reachable through this pinned card.
+  it('always offers the all-company-materials entry point, even with no lists', () => {
+    const props = renderPanel({ lists: [] });
+    fireEvent.click(screen.getByTestId('material-lists-all-company'));
+    expect(props.onViewAllCompanyMaterials).toHaveBeenCalledTimes(1);
   });
 });

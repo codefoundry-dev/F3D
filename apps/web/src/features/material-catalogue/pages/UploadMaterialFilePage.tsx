@@ -207,6 +207,19 @@ export default function UploadMaterialFilePage() {
         setPersisting(false);
       }
       const summary = await importMutation.mutateAsync(extractionId);
+      // A company upload is collected into a material list named after the file —
+      // land the user on it. A Super-Admin upload publishes into the shared public
+      // catalogue instead (no list), so it falls back to the catalogue.
+      if (summary.materialList) {
+        notificationService.success(
+          t('import.successWithList', {
+            total: summary.total.toLocaleString(),
+            list: summary.materialList.name,
+          }),
+        );
+        navigate(ROUTES.materialCatalogueListDetail.replace(':id', summary.materialList.id));
+        return;
+      }
       notificationService.success(
         t('import.success', {
           total: summary.total.toLocaleString(),
