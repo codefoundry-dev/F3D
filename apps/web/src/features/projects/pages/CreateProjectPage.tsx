@@ -21,6 +21,7 @@ import {
   cn,
   DatePicker,
   onDecimalOnly,
+  notificationService,
 } from '@forethread/ui-components';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import FlagIcon from '@forethread/ui-components/assets/icons/flag.svg?react';
@@ -45,9 +46,8 @@ import { ROUTES } from '@/app/route-config';
 import { useAuthStore } from '@/features/auth/state/auth.store';
 
 import { PROJECT_TYPES } from '../constants';
+import { invalidFieldLabels, pickErrors, type TFn } from '../formErrors';
 import { useCreateProject, useCompanyUsers } from '../services/projects.service';
-
-type TFn = (key: string, options?: Record<string, unknown>) => string;
 
 const STATUS_CHIPS = [
   ProjectStatus.PLANNED,
@@ -188,10 +188,52 @@ export default function CreateProjectPage() {
     2: ['startDate', 'expectedEndDate'],
   };
 
+  /**
+   * Name a failing field for the toast. Delivery and storage rows share one
+   * `locations` array, so resolve the row's type to point at the right section.
+   */
+  const labelForPath = (path: string): string | undefined => {
+    const [field, index] = path.split('.');
+    if (field === 'locations') {
+      const row = watchedLocations[Number(index)];
+      return row?.type === LocationType.STORAGE
+        ? t('create.storageLocations')
+        : t('create.locations');
+    }
+    const labels: Record<string, string> = {
+      name: t('create.name'),
+      status: t('create.status'),
+      assignedUserIds: t('create.assignedUsers'),
+      type: t('create.type'),
+      plannedBudget: t('create.plannedBudgetAud'),
+      startDate: t('create.startDate'),
+      expectedEndDate: t('create.expectedEndDate'),
+      pointOfContactId: t('create.pointOfContact'),
+      description: t('create.description'),
+    };
+    return labels[field];
+  };
+
+  const toastInvalidFields = (formErrors: FieldErrors<CreateProjectFormValues>) => {
+    const fields = invalidFieldLabels(formErrors, labelForPath);
+    notificationService.error(
+      fields.length > 0
+        ? t('create.validationToast', { fields: fields.join(', ') })
+        : t('create.validationToastGeneric'),
+    );
+  };
+
   const goNext = async () => {
     setBlockedByValidation(false);
-    const valid = await trigger(STEP_FIELDS[step]);
-    if (valid) setStep((s) => Math.min(3, s + 1));
+    const fields = STEP_FIELDS[step];
+    if (await trigger(fields)) {
+      setStep((s) => Math.min(3, s + 1));
+      return;
+    }
+    // Read through the form (not the destructured `errors`, which is the value
+    // captured at render) so the toast reflects the trigger that just ran.
+    setBlockedByValidation(true);
+    toastInvalidFields(pickErrors(form.formState.errors, fields));
   };
 
   // Step 3 renders no inputs of its own, so a validation failure here would
@@ -201,6 +243,7 @@ export default function CreateProjectPage() {
     const failed = Object.keys(formErrors) as FieldPath<CreateProjectFormValues>[];
     setStep(failed.some((f) => STEP_FIELDS[1].includes(f)) ? 1 : 2);
     setBlockedByValidation(true);
+    toastInvalidFields(formErrors);
   };
 
   const submit = () => {
@@ -235,11 +278,7 @@ export default function CreateProjectPage() {
         </div>
       )}
 
-      <form
-        onSubmit={(e) => e.preventDefault()}
-        className="mt-4"
-        noValidate
-      >
+      <form onSubmit={(e) => e.preventDefault()} className="mt-4" noValidate>
         {step === 1 && (
           <Step1
             form={form}
@@ -380,6 +419,13 @@ function Step1({
   const status = watch('status');
   const [userSearch, setUserSearch] = useState('');
 
+  // Per-row address errors: `errors.locations` is array-shaped when a row fails,
+  // and object-shaped (message/root) when an array-level refine fails.
+  const rows = errors.locations as ({ address?: { message?: string } } | undefined)[] | undefined;
+  const rowError = (index: number) =>
+    Array.isArray(rows) ? rows[index]?.address?.message : undefined;
+  const locationsGroupError = errors.locations?.message ?? errors.locations?.root?.message;
+
   const searchResults = userSearch.trim()
     ? assignableUsers.filter(
         (u) =>
@@ -430,7 +476,9 @@ function Step1({
         locationFields={locationFields}
         watchedLocations={watchedLocations}
         onSetDefault={(i) => setDefaultLocation(i, LocationType.DELIVERY)}
-        onChangeAddress={(i, val) => setValue(`locations.${i}.address`, val, { shouldValidate: true })}
+        onChangeAddress={(i, val) =>
+          setValue(`locations.${i}.address`, val, { shouldValidate: true })
+        }
         onRemove={remove}
         onAdd={() =>
           append({ type: LocationType.DELIVERY, address: '', label: '', isDefault: false })
@@ -439,11 +487,10 @@ function Step1({
         defaultLabel={t('create.default')}
         setDefaultLabel={t('create.setAsDefault')}
         removeLabel={t('create.removeLocation')}
+        rowError={rowError}
       />
-      {errors.locations && (
-        <p className="text-xs text-destructive -mt-2">
-          {errors.locations.message ?? errors.locations.root?.message}
-        </p>
+      {locationsGroupError && (
+        <p className="text-xs text-destructive -mt-2">{locationsGroupError}</p>
       )}
 
       {/* Storage locations */}
@@ -456,7 +503,9 @@ function Step1({
         locationFields={locationFields}
         watchedLocations={watchedLocations}
         onSetDefault={(i) => setDefaultLocation(i, LocationType.STORAGE)}
-        onChangeAddress={(i, val) => setValue(`locations.${i}.address`, val, { shouldValidate: true })}
+        onChangeAddress={(i, val) =>
+          setValue(`locations.${i}.address`, val, { shouldValidate: true })
+        }
         onRemove={remove}
         onAdd={() =>
           append({ type: LocationType.STORAGE, address: '', label: '', isDefault: false })
@@ -465,6 +514,7 @@ function Step1({
         defaultLabel={t('create.default')}
         setDefaultLabel={t('create.setAsDefault')}
         removeLabel={t('create.removeLocation')}
+        rowError={rowError}
       />
 
       {/* Assigned users */}
@@ -547,6 +597,7 @@ function LocationGroup({
   defaultLabel,
   setDefaultLabel,
   removeLabel,
+  rowError,
 }: {
   label: string;
   hint: string;
@@ -563,6 +614,7 @@ function LocationGroup({
   defaultLabel: string;
   setDefaultLabel: string;
   removeLabel: string;
+  rowError: (index: number) => string | undefined;
 }) {
   return (
     <div className="space-y-3">
@@ -571,47 +623,46 @@ function LocationGroup({
       </p>
       {indexes.map((index) => {
         const isDefault = watchedLocations[index]?.isDefault ?? false;
+        const error = rowError(index);
         return (
-          <div key={locationFields[index].id} className="flex items-center gap-2">
-            <div className="flex-1">
-              <AddressInput
-                value={watchedLocations[index]?.address ?? ''}
-                placeholder={placeholder}
-                searchFn={searchFn as never}
-                onChange={(val) => onChangeAddress(index, val)}
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => !isDefault && onSetDefault(index)}
-              className={cn(
-                'shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-                isDefault
-                  ? 'bg-foreground text-background cursor-default'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80',
-              )}
-            >
-              {isDefault ? defaultLabel : setDefaultLabel}
-            </button>
-            {indexes.length > 1 && (
+          <div key={locationFields[index].id}>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <AddressInput
+                  value={watchedLocations[index]?.address ?? ''}
+                  placeholder={placeholder}
+                  searchFn={searchFn as never}
+                  onChange={(val) => onChangeAddress(index, val)}
+                />
+              </div>
               <button
                 type="button"
-                onClick={() => onRemove(index)}
-                aria-label={removeLabel}
-                className="shrink-0 p-2 text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => !isDefault && onSetDefault(index)}
+                className={cn(
+                  'shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                  isDefault
+                    ? 'bg-foreground text-background cursor-default'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80',
+                )}
               >
-                <DeleteIcon className="w-4 h-4" />
+                {isDefault ? defaultLabel : setDefaultLabel}
               </button>
-            )}
+              {indexes.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => onRemove(index)}
+                  aria-label={removeLabel}
+                  className="shrink-0 p-2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <DeleteIcon className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            {error && <p className="mt-1.5 text-xs text-destructive">{error}</p>}
           </div>
         );
       })}
-      <Button
-        type="button"
-        size="md"
-        leftIcon={<PlusIcon className="w-4 h-4" />}
-        onClick={onAdd}
-      >
+      <Button type="button" size="md" leftIcon={<PlusIcon className="w-4 h-4" />} onClick={onAdd}>
         {addLabel}
       </Button>
     </div>
@@ -649,8 +700,10 @@ function Step2({
     <section className="bg-card rounded-lg border border-border p-6 space-y-6">
       <h3 className="text-base font-bold text-foreground">{t('create.projectDetails')}</h3>
 
+      {/* Every field on this step is optional — flagged so the budget and the
+          date pair don't read as compulsory. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <FormField label={t('create.type')}>
+        <FormField label={t('create.type')} optional>
           <Controller
             name="type"
             control={control}
@@ -665,7 +718,11 @@ function Step2({
           />
         </FormField>
 
-        <FormField label={t('create.plannedBudgetAud')} error={errors.plannedBudget?.message}>
+        <FormField
+          label={t('create.plannedBudgetAud')}
+          optional
+          error={errors.plannedBudget?.message}
+        >
           <Input
             inputMode="decimal"
             pattern="[0-9]*\.?[0-9]*"
@@ -677,7 +734,7 @@ function Step2({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <FormField label={t('create.startDate')}>
+        <FormField label={t('create.startDate')} optional error={errors.startDate?.message}>
           <Controller
             control={control}
             name="startDate"
@@ -690,7 +747,11 @@ function Step2({
             )}
           />
         </FormField>
-        <FormField label={t('create.expectedEndDate')} error={errors.expectedEndDate?.message}>
+        <FormField
+          label={t('create.expectedEndDate')}
+          optional
+          error={errors.expectedEndDate?.message}
+        >
           <Controller
             control={control}
             name="expectedEndDate"
@@ -703,7 +764,7 @@ function Step2({
             )}
           />
         </FormField>
-        <FormField label={t('create.pointOfContact')}>
+        <FormField label={t('create.pointOfContact')} optional>
           <Controller
             name="pointOfContactId"
             control={control}
@@ -839,7 +900,10 @@ function Step3({
         </button>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <ReviewField label={t('create.review.name')} value={blankToUndefined(values.name) ?? none} />
+          <ReviewField
+            label={t('create.review.name')}
+            value={blankToUndefined(values.name) ?? none}
+          />
           <ReviewField
             label={t('create.review.status')}
             value={
@@ -853,7 +917,10 @@ function Step3({
           <div className="flex flex-wrap items-center gap-4">
             {selectedUsers.length > 0
               ? selectedUsers.map((u) => (
-                  <span key={u.id} className="inline-flex items-center gap-2 text-sm text-foreground">
+                  <span
+                    key={u.id}
+                    className="inline-flex items-center gap-2 text-sm text-foreground"
+                  >
                     <AvatarWithStatus name={u.name} avatarUrl={u.avatarUrl} size={24} />
                     {u.name}
                   </span>

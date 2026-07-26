@@ -115,16 +115,16 @@ export class UpdateProjectDto {
   @MaxLength(255)
   name?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ nullable: true })
   @IsString()
   @IsOptional()
-  description?: string;
+  description?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ nullable: true })
   @IsString()
   @IsOptional()
   @MaxLength(100)
-  type?: string;
+  type?: string | null;
 
   @ApiPropertyOptional({ enum: ProjectStatus })
   @IsEnum(ProjectStatus)
@@ -144,11 +144,11 @@ export class UpdateProjectDto {
   @IsOptional()
   assignedUserIds?: string[];
 
-  @ApiPropertyOptional({ minimum: 0 })
+  @ApiPropertyOptional({ minimum: 0, nullable: true })
   @IsNumber()
   @Min(0)
   @IsOptional()
-  plannedBudget?: number;
+  plannedBudget?: number | null;
 
   @ApiPropertyOptional()
   @IsString()
@@ -156,20 +156,25 @@ export class UpdateProjectDto {
   @MaxLength(3)
   currency?: string;
 
-  @ApiPropertyOptional({ format: 'uuid' })
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
   @IsUUID()
   @IsOptional()
-  pointOfContactId?: string;
+  pointOfContactId?: string | null;
 
-  @ApiPropertyOptional()
+  /**
+   * `null` clears the stored date; omitting the key leaves it untouched.
+   * `@IsOptional()` skips validation for both `null` and `undefined`, so an
+   * empty string is NOT a valid way to clear it — it fails `@IsDateString()`.
+   */
+  @ApiPropertyOptional({ nullable: true })
   @IsDateString()
   @IsOptional()
-  startDate?: string;
+  startDate?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ nullable: true })
   @IsDateString()
   @IsOptional()
-  expectedEndDate?: string;
+  expectedEndDate?: string | null;
 }
 
 export class AddProjectMembersDto {

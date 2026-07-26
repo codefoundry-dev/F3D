@@ -10,6 +10,7 @@ const mockUseCompanyUsers = vi.hoisted(() => vi.fn());
 const mockUseCreateProject = vi.hoisted(() => vi.fn());
 const mockNavigate = vi.hoisted(() => vi.fn());
 const mockSetPageTitle = vi.hoisted(() => vi.fn());
+const mockNotify = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), info: vi.fn() }));
 
 const USER = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -20,7 +21,10 @@ const USER = {
 };
 
 vi.mock('@forethread/i18n', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, options?: { fields?: string }) =>
+      options?.fields ? `${key}:${options.fields}` : key,
+  }),
 }));
 
 vi.mock('@forethread/rfq-shared', () => ({
@@ -75,6 +79,7 @@ vi.mock('@forethread/ui-components', async () => {
     ),
     cn: (...args: any[]) => args.filter(Boolean).join(' '),
     onDecimalOnly: vi.fn(),
+    notificationService: mockNotify,
   };
 });
 
@@ -152,6 +157,57 @@ describe('CreateProjectPage — real schema validation', () => {
     });
     // Omitted, not NaN — NaN is what silently blocked the wizard.
     expect(mockMutate.mock.calls[0][0].plannedBudget).toBeUndefined();
+  });
+
+  it('will not leave step 1 while the required fields are empty, and names them', async () => {
+    render(<CreateProjectPage />);
+
+    fireEvent.click(screen.getByText('create.continue'));
+
+    await waitFor(() => expect(mockNotify.error).toHaveBeenCalledTimes(1));
+    // Name, both address rows and the team — the two location rows collapse to
+    // their section labels.
+    expect(mockNotify.error.mock.calls[0][0]).toBe(
+      'create.validationToast:create.name, create.locations, create.storageLocations, create.assignedUsers',
+    );
+    expect(screen.getByTestId('stepper')).toHaveTextContent('step-1');
+    expect(screen.queryByText('create.step2Heading')).not.toBeInTheDocument();
+  });
+
+  it('names only the fields still missing after a partial fill', async () => {
+    render(<CreateProjectPage />);
+
+    fireEvent.change(screen.getByPlaceholderText('create.namePlaceholder'), {
+      target: { value: 'Docklands Tower' },
+    });
+    const [delivery] = screen.getAllByTestId('address-input');
+    fireEvent.change(delivery, { target: { value: '1 Collins St, Melbourne' } });
+
+    fireEvent.click(screen.getByText('create.continue'));
+
+    await waitFor(() => expect(mockNotify.error).toHaveBeenCalledTimes(1));
+    expect(mockNotify.error.mock.calls[0][0]).toBe(
+      'create.validationToast:create.storageLocations, create.assignedUsers',
+    );
+    expect(screen.getByTestId('stepper')).toHaveTextContent('step-1');
+  });
+
+  it('blocks step 2 when the end date lands before the start date', async () => {
+    render(<CreateProjectPage />);
+    await completeWizard();
+
+    fireEvent.click(screen.getAllByText('create.editLink')[1]);
+    await screen.findByText('create.step2Heading');
+
+    const [startDate, endDate] = document.querySelectorAll('input[type="date"]');
+    fireEvent.change(startDate, { target: { value: '2026-09-01' } });
+    fireEvent.change(endDate, { target: { value: '2026-08-01' } });
+
+    fireEvent.click(screen.getByText('create.continue'));
+
+    await waitFor(() => expect(mockNotify.error).toHaveBeenCalledTimes(1));
+    expect(mockNotify.error.mock.calls[0][0]).toBe('create.validationToast:create.expectedEndDate');
+    expect(screen.queryByText('create.step3Heading')).not.toBeInTheDocument();
   });
 
   it('submits the planned budget as a number when filled', async () => {

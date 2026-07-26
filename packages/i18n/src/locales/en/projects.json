@@ -120,6 +120,8 @@
     "duplicateNameError": "A project with this name already exists.",
     "createError": "Failed to create project. Please try again.",
     "validationError": "Some details are missing or invalid. We've taken you back to the step that needs attention.",
+    "validationToast": "Please check these required fields: {{fields}}",
+    "validationToastGeneric": "Some required fields are missing or invalid. Please review the highlighted fields.",
     "description": "Description",
     "deliveryLocations": "Delivery Locations",
     "budget": "Planned Budget",
