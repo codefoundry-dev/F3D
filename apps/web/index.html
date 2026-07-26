@@ -2,7 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <!--
+      Brand mark favicon. The SVG is the canonical asset (a copy of
+      packages/ui-components/src/assets/icons/logo.svg) and is what modern
+      browsers pick, so it stays sharp at every size and pixel density. The PNGs
+      are rendered from that same SVG: favicon.png covers browsers without
+      SVG-favicon support, and apple-touch-icon.png the iOS home screen, which
+      takes no SVG and composites transparency onto black — hence its white
+      background.
+    -->
+    <link rel="icon" href="/favicon.png" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Forethread</title>
     <!-- Design-system typeface: Urbanist (see packages/config/tailwind/typography.ts) -->
