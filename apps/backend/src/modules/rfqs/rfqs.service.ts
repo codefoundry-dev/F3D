@@ -58,6 +58,16 @@ import {
 } from './rfq-line-item.util';
 import { VENDOR_STATUS_MAP, VENDOR_STATUS_TO_RFQ } from './vendor-status.constants';
 
+/**
+ * Quote lines are ordered explicitly wherever their order reaches the user — an
+ * unordered scan returns heap order, which puts a just-updated row last. `id`
+ * covers rows written before `lineNumber` existed.
+ */
+const QUOTE_LINE_ITEM_ORDER: Prisma.QuoteResponseLineItemOrderByWithRelationInput[] = [
+  { lineNumber: 'asc' },
+  { id: 'asc' },
+];
+
 /** Prisma includes shared by list & detail queries */
 const RFQ_LIST_INCLUDE = {
   project: { select: { id: true, name: true, code: true } },
@@ -1239,6 +1249,7 @@ export class RfqsService {
           },
         },
         lineItems: {
+          orderBy: QUOTE_LINE_ITEM_ORDER,
           include: {
             rfqLineItem: {
               select: {
@@ -1773,6 +1784,7 @@ export class RfqsService {
         vendor: { select: { id: true, legalName: true } },
         rfq: { select: { id: true, rfqNumber: true } },
         lineItems: {
+          orderBy: QUOTE_LINE_ITEM_ORDER,
           include: {
             rfqLineItem: {
               select: {

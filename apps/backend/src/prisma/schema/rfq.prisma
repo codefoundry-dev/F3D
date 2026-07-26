@@ -283,6 +283,11 @@ model QuoteResponseLineItem {
   id                String                    @id @default(uuid())
   quoteResponseId   String                    @map("quote_response_id")
   rfqLineItemId     String                    @map("rfq_line_item_id")
+  // Display position within the quote, assigned at write time from the RFQ line
+  // order. Without it reads fall back to Postgres heap order, which shifts an
+  // updated row to the end — so approving one line visibly reshuffled the table
+  // and looked like the action had hit the neighbouring line.
+  lineNumber        Int                       @default(0) @map("line_number")
   unitPrice         Decimal                   @map("unit_price") @db.Decimal(18, 4)
   quotedQuantity    Int                       @map("quoted_quantity")
   availability      QuoteLineItemAvailability @default(AVAILABLE)
@@ -307,6 +312,7 @@ model QuoteResponseLineItem {
   substituteItem Material?     @relation("QuoteSubstituteItem", fields: [substituteItemId], references: [id])
 
   @@index([quoteResponseId], map: "idx_quote_line_items_response")
+  @@index([quoteResponseId, lineNumber], map: "idx_quote_line_items_response_order")
   @@index([rfqLineItemId], map: "idx_quote_line_items_rfq_item")
   @@map("quote_response_line_items")
 }

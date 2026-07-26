@@ -39,6 +39,18 @@ const CLOSED_STATUSES: RfqStatus[] = [RfqStatus.CLOSED, RfqStatus.CANCELLED];
 /** Statuses that allow vendor quote submission */
 const OPEN_STATUSES: RfqStatus[] = [RfqStatus.OPEN, RfqStatus.AWAITING_RESPONSE];
 
+/**
+ * Every read of quote lines must be explicitly ordered — an unordered scan
+ * returns them in Postgres heap order, which puts a just-updated row last. That
+ * reshuffled the review table the moment a line was approved, so the action
+ * looked like it had landed on the neighbouring line. `id` is the tie-breaker
+ * for rows written before `lineNumber` existed.
+ */
+const QUOTE_LINE_ITEM_ORDER: Prisma.QuoteResponseLineItemOrderByWithRelationInput[] = [
+  { lineNumber: 'asc' },
+  { id: 'asc' },
+];
+
 @Injectable()
 export class QuoteResponseService {
   constructor(
@@ -52,6 +64,7 @@ export class QuoteResponseService {
   /** Standard relation graph returned by every quote create/update path. */
   private static readonly QUOTE_WRITE_INCLUDE = {
     lineItems: {
+      orderBy: QUOTE_LINE_ITEM_ORDER,
       include: {
         rfqLineItem: {
           include: { material: { select: { id: true, name: true, uom: true } } },
@@ -112,7 +125,13 @@ export class QuoteResponseService {
         lineTotal: 0,
       }));
 
-    const allLineItems = [...lineItemsData, ...noQuoteItems];
+    // `lineNumber` freezes the display order at write time. Reads must never
+    // fall back to heap order: updating a line's status moves its row to the end
+    // of an unordered scan, which reshuffles the review table mid-approval.
+    const allLineItems = [...lineItemsData, ...noQuoteItems].map((li, index) => ({
+      ...li,
+      lineNumber: index,
+    }));
     const sumLineTotals = allLineItems.reduce((sum, li) => sum + Number(li.lineTotal), 0);
     const totalCost = sumLineTotals + (dto.bulkShipment ?? 0);
     const itemsCovered = dto.lineItems.filter(
@@ -420,6 +439,7 @@ export class QuoteResponseService {
       where: { id: quoteId },
       include: {
         lineItems: {
+          orderBy: QUOTE_LINE_ITEM_ORDER,
           include: {
             rfqLineItem: { include: { material: { select: { id: true, name: true, uom: true } } } },
             substituteItem: { select: { id: true, name: true, uom: true } },
@@ -593,6 +613,7 @@ export class QuoteResponseService {
         vendor: { select: { legalName: true } },
         _count: { select: { attachments: true } },
         lineItems: {
+          orderBy: QUOTE_LINE_ITEM_ORDER,
           select: {
             id: true,
             rfqLineItemId: true,
