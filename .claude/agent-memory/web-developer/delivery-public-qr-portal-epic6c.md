@@ -47,10 +47,21 @@ delivery report against a PO via a tokenised link, no login.
   delivery-only token this link 403s (flag for QA). Photo capture uses a hidden
   `<input type=file accept=image>` (mobile browser opens camera) — not verified on a
   real device.
-- Per-line outcome BADGE colors: there's NO shared outcome-color export
-  (`DELIVERY_STATUS_COLORS` is for report STATUS Submitted/Approved/Rejected only).
-  Defined a local `OUTCOME_BADGE` map in PortalLineItem using the same token style
-  (success/10, badge-orange, destructive/10, muted).
+- Per-line outcome BADGE colors: use the SHARED `DELIVERY_OUTCOME_COLORS` export
+  from @forethread/ui-components via `getStatusColor` (added 2026-07-26; it mirrors
+  the delivery entries in PO_STATUS_COLORS, so NOT_DELIVERED is destructive/red, NOT
+  muted/gray). `DELIVERY_STATUS_COLORS` remains the report STATUS map
+  (Submitted/Approved/Rejected) — don't confuse the two. The old portal-local
+  `OUTCOME_BADGE` map is GONE.
+- Outcome LABELS come from the canonical `deliveries` i18n `outcome.*` block in every
+  surface (portal badges + toggle buttons + filter chips + submitted summary + the
+  desktop create dropdown/detail table). The portal-local duplicates
+  (`portal.report.notDelivered|damaged|rejected`, `portal.report.filters.*` except
+  `all`, `portal.submitted.*` outcome rows) were DELETED — don't reintroduce them.
+- Filter chips + `matchesFilter` live in `portalLines.ts` (not the page) so they're
+  unit-tested alongside `resolveOutcome`. `LINE_FILTERS = ['all', ...DELIVERY_OUTCOME_OPTIONS]`
+  → one chip per outcome, 1:1 match. Chip testids are lowercased outcome names
+  (`portal-filter-not_delivered`).
 
 **Verify:** apps/web `npx tsc --noEmit` clean; `npx vitest run --pool=threads
 src/features/deliveries` = 44 pass (19 new: 12 portalLines + 7 step-machine; 25

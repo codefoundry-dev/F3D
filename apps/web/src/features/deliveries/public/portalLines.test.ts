@@ -3,7 +3,9 @@ import type { DeliveryPortalLine } from '@forethread/shared-types/client';
 import { describe, it, expect } from 'vitest';
 
 import {
+  LINE_FILTERS,
   isPortalLineValid,
+  matchesFilter,
   portalLineToInput,
   portalPoLineToDraft,
   resolveOutcome,
@@ -142,6 +144,53 @@ describe('portalLines', () => {
           damageDisposition: DamageDisposition.ACCEPTED,
         }),
       ).toBe(true);
+    });
+  });
+
+  describe('LINE_FILTERS / matchesFilter', () => {
+    it('offers "all" plus a chip for every DeliveryOutcome', () => {
+      expect(LINE_FILTERS).toEqual([
+        'all',
+        DeliveryOutcome.DELIVERED,
+        DeliveryOutcome.PARTIALLY_DELIVERED,
+        DeliveryOutcome.NOT_DELIVERED,
+        DeliveryOutcome.DAMAGED,
+        DeliveryOutcome.REJECTED,
+      ]);
+    });
+
+    it('"all" matches every line', () => {
+      expect(matchesFilter(draft({ quantityReceived: '10' }), 'all')).toBe(true);
+      expect(matchesFilter(draft({ quantityReceived: '0' }), 'all')).toBe(true);
+      expect(matchesFilter(draft({ status: 'REJECTED' }), 'all')).toBe(true);
+    });
+
+    it('matches each line against exactly one outcome chip', () => {
+      const lines: Record<string, PortalLineDraft> = {
+        [DeliveryOutcome.DELIVERED]: draft({ quantityReceived: '10' }),
+        [DeliveryOutcome.PARTIALLY_DELIVERED]: draft({ quantityReceived: '4' }),
+        [DeliveryOutcome.NOT_DELIVERED]: draft({ quantityReceived: '0' }),
+        [DeliveryOutcome.DAMAGED]: draft({ status: 'DAMAGED' }),
+        [DeliveryOutcome.REJECTED]: draft({ status: 'REJECTED' }),
+      };
+
+      for (const [outcome, line] of Object.entries(lines)) {
+        const matching = LINE_FILTERS.filter((f) => f !== 'all' && matchesFilter(line, f));
+        expect(matching).toEqual([outcome]);
+      }
+    });
+
+    it('keeps a partially delivered line off the Delivered chip', () => {
+      const partial = draft({ quantityReceived: '4' });
+      expect(matchesFilter(partial, DeliveryOutcome.DELIVERED)).toBe(false);
+      expect(matchesFilter(partial, DeliveryOutcome.PARTIALLY_DELIVERED)).toBe(true);
+    });
+
+    it('surfaces a not delivered line on its own chip rather than hiding it', () => {
+      const notDelivered = draft({ status: 'NOT_DELIVERED' });
+      expect(matchesFilter(notDelivered, DeliveryOutcome.NOT_DELIVERED)).toBe(true);
+      // Reachable under some chip other than "all" — the old filter list hid it.
+      expect(LINE_FILTERS.some((f) => f !== 'all' && matchesFilter(notDelivered, f))).toBe(true);
     });
   });
 
