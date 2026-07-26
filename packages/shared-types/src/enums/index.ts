@@ -305,8 +305,17 @@ export enum QuoteResponseStatus {
   DECLINED = 'DECLINED',
 }
 
+/**
+ * Where a catalogue material lives. `PUBLIC` is the Super-Admin-owned shared
+ * catalogue every company reads; `PRIVATE` is a single company's own catalogue
+ * (uploaded or hand-added by that company, usable immediately, invisible to
+ * everyone else). `PENDING_APPROVAL` is legacy — the company → public catalogue
+ * contribution flow is deferred to v2 (spec FR-R1-D04), so nothing creates it
+ * any more.
+ */
 export enum MaterialStatus {
   PUBLIC = 'PUBLIC',
+  PRIVATE = 'PRIVATE',
   PENDING_APPROVAL = 'PENDING_APPROVAL',
   ARCHIVED = 'ARCHIVED',
 }

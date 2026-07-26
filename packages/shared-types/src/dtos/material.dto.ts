@@ -66,10 +66,29 @@ export class MaterialListQueryDto extends BasePaginationQueryDto {
   @IsOptional()
   categoryId?: string;
 
-  @ApiPropertyOptional({ enum: MaterialStatus })
-  @IsEnum(MaterialStatus)
+  /**
+   * One status, or a comma-separated list. A list is what the material pickers
+   * need: a company can put both the shared public catalogue and its own PRIVATE
+   * rows on a document, so they ask for `PUBLIC,PRIVATE`. Always AND-ed inside
+   * the caller's ownership envelope, so PRIVATE can only ever match the caller's
+   * own company.
+   */
+  @ApiPropertyOptional({
+    enum: MaterialStatus,
+    isArray: true,
+    description: 'A status, or a comma-separated list (e.g. "PUBLIC,PRIVATE")',
+  })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string'
+      ? value
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean)
+      : value,
+  )
+  @IsEnum(MaterialStatus, { each: true })
   @IsOptional()
-  status?: MaterialStatus;
+  status?: MaterialStatus | MaterialStatus[];
 
   // ── Facet filters (US 4.01) ─────────────────────────────────────────────
   @ApiPropertyOptional()
@@ -539,6 +558,12 @@ export interface MaterialFacetsDto {
   countriesOfOrigin: string[];
 }
 
+/** The material list a company catalogue upload landed in. */
+export interface CatalogueImportListDto {
+  id: string;
+  name: string;
+}
+
 /** Summary returned by the catalogue bulk-import endpoint (FOR-228). */
 export interface CatalogueImportSummaryDto {
   total: number;
@@ -546,6 +571,12 @@ export interface CatalogueImportSummaryDto {
   updated: number;
   skipped: number;
   categoriesCreated: number;
+  /**
+   * The material list the imported rows were collected into, named after the
+   * uploaded file. Null for a Super-Admin import — those rows go straight into
+   * the shared public catalogue, which is not list-scoped.
+   */
+  materialList: CatalogueImportListDto | null;
 }
 
 // ── Duplicate detection responses (US 4.01 Phase 3) ───────────────────────────

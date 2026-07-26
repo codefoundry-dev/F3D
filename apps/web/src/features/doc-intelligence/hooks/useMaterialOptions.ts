@@ -6,13 +6,15 @@ export interface MaterialOption {
   label: string;
 }
 
-const PARAMS = { status: 'PUBLIC', limit: 500 } as const;
+const PARAMS = { status: 'PUBLIC,PRIVATE', limit: 500 } as const;
 
 /**
- * Loads the PUBLIC material catalogue as `{ value, label }` options for the
- * manual catalogue-match picker in the BOM review table. Mirrors the backend
- * matcher, which scores against PUBLIC materials. Cached for a few minutes and
- * only fetched when `enabled` (i.e. the user is editing a BOM extraction).
+ * Loads the material catalogue as `{ value, label }` options for the manual
+ * catalogue-match picker in the BOM review table: the shared PUBLIC catalogue
+ * plus the company's own PRIVATE materials, mirroring the backend matcher's
+ * ownership envelope (a BOM line can be matched to either). Cached for a few
+ * minutes and only fetched when `enabled` (i.e. the user is editing a BOM
+ * extraction).
  */
 export function useMaterialOptions(enabled = true): UseQueryResult<MaterialOption[]> {
   return useQuery<MaterialOption[]>({

@@ -6,9 +6,9 @@ export interface MaterialStatusBadgeProps {
 }
 
 /**
- * Status pill for a material. The catalogue design renders all three states as
- * a neutral gray pill (Public / Pending / Archived), so we keep a single muted
- * style and just swap the label.
+ * Status pill for a material. The catalogue design renders every state as a
+ * neutral gray pill (Public / Private / Pending / Archived), so we keep a single
+ * muted style and just swap the label.
  */
 export function MaterialStatusBadge({ status }: MaterialStatusBadgeProps) {
   const { t } = useTranslation(['materialCatalogue']);
@@ -16,11 +16,13 @@ export function MaterialStatusBadge({ status }: MaterialStatusBadgeProps) {
   const label =
     status === 'PUBLIC'
       ? t('status.public')
-      : status === 'PENDING_APPROVAL'
-        ? t('status.pending')
-        : status === 'ARCHIVED'
-          ? t('status.archived')
-          : status;
+      : status === 'PRIVATE'
+        ? t('status.private')
+        : status === 'PENDING_APPROVAL'
+          ? t('status.pending')
+          : status === 'ARCHIVED'
+            ? t('status.archived')
+            : status;
 
   return <Badge className="bg-muted text-muted-foreground">{label}</Badge>;
 }

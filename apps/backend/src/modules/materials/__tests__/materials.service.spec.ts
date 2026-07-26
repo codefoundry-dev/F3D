@@ -27,7 +27,13 @@ const mockPrisma = {
   rfqLineItem: { count: jest.fn() },
   quoteResponseLineItem: { count: jest.fn() },
   bomItem: { count: jest.fn() },
-  materialListItem: { count: jest.fn() },
+  materialListItem: { count: jest.fn(), createMany: jest.fn(), deleteMany: jest.fn() },
+  materialList: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
   docExtraction: {
     findUnique: jest.fn(),
     update: jest.fn(),
@@ -211,6 +217,35 @@ describe('MaterialsService', () => {
 
       const where = mockPrisma.material.findMany.mock.calls[0][0].where;
       expect(where.status).toBe('PENDING_APPROVAL');
+    });
+
+    // The material pickers (add-to-list, BOM manual match) need the shared public
+    // catalogue AND the company's own private rows in one query.
+    it('accepts a status list and turns it into an IN filter', async () => {
+      await service.listMaterials(
+        {
+          page: 1,
+          take: 25,
+          skip: 0,
+          status: [MaterialStatus.PUBLIC, MaterialStatus.PRIVATE],
+        } as never,
+        companyAdmin,
+      );
+
+      const where = mockPrisma.material.findMany.mock.calls[0][0].where;
+      // Still AND-ed inside the ownership envelope, so PRIVATE can only ever
+      // resolve to this company's own materials.
+      expect(where.AND).toEqual([
+        { OR: [{ status: MaterialStatus.PUBLIC }, { companyId: companyAdmin.companyId }] },
+        { status: { in: [MaterialStatus.PUBLIC, MaterialStatus.PRIVATE] } },
+      ]);
+    });
+
+    it('ignores an empty status list', async () => {
+      await service.listMaterials({ page: 1, take: 25, skip: 0, status: [] } as never, superAdmin);
+
+      const where = mockPrisma.material.findMany.mock.calls[0][0].where;
+      expect(where.status).toBeUndefined();
     });
 
     it('builds the visibility envelope (public OR own company) for a non-SuperAdmin', async () => {
@@ -558,7 +593,7 @@ describe('MaterialsService', () => {
       expect(createData.companyId).toBeNull();
     });
 
-    it('creates material with PENDING_APPROVAL status for non-SuperAdmin', async () => {
+    it('creates material with PRIVATE status for non-SuperAdmin', async () => {
       mockPrisma.material.findFirst.mockResolvedValue(null);
       mockPrisma.materialCategory.findUnique.mockResolvedValue({ id: 'cat-1' });
       mockPrisma.material.create.mockResolvedValue({
@@ -569,7 +604,7 @@ describe('MaterialsService', () => {
         upc: null,
         manufacturer: null,
         description: null,
-        status: MaterialStatus.PENDING_APPROVAL,
+        status: MaterialStatus.PRIVATE,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -577,7 +612,10 @@ describe('MaterialsService', () => {
       await service.createMaterial(dto as never, companyAdmin);
 
       const createData = mockPrisma.material.create.mock.calls[0][0].data;
-      expect(createData.status).toBe(MaterialStatus.PENDING_APPROVAL);
+      // PRIVATE, not PENDING_APPROVAL: the row belongs to the company's own
+      // catalogue and is usable immediately — it is never queued for Super-Admin
+      // publication (public-catalogue contribution deferred to v2).
+      expect(createData.status).toBe(MaterialStatus.PRIVATE);
       // A non-SuperAdmin create is a company-private row scoped to their company.
       expect(createData.companyId).toBe(companyAdmin.companyId);
     });
@@ -715,7 +753,7 @@ describe('MaterialsService', () => {
         createdBy: null,
         uom: 'kg',
         currency: 'AUD',
-        status: MaterialStatus.PENDING_APPROVAL,
+        status: MaterialStatus.PRIVATE,
         createdAt: now,
         updatedAt: now,
       });
@@ -731,7 +769,7 @@ describe('MaterialsService', () => {
       const createData = mockPrisma.material.create.mock.calls[0][0].data;
       expect(createData.categoryId).toBe('uncat-1');
       expect(result.categoryId).toBe('uncat-1');
-      expect(result.status).toBe(MaterialStatus.PENDING_APPROVAL);
+      expect(result.status).toBe(MaterialStatus.PRIVATE);
     });
 
     it('reuses an existing "Uncategorised" category without creating a duplicate', async () => {
@@ -749,7 +787,7 @@ describe('MaterialsService', () => {
         createdBy: null,
         uom: 'ea',
         currency: 'AUD',
-        status: MaterialStatus.PENDING_APPROVAL,
+        status: MaterialStatus.PRIVATE,
         createdAt: now,
         updatedAt: now,
       });
@@ -772,6 +810,23 @@ describe('MaterialsService', () => {
       companyId: null,
       editedResult: { sourceName: 'Sheet1', items, notes: null },
     });
+
+    /** A CATALOGUE extraction owned by companyAdmin's company, with a filename. */
+    const companyExtraction = (items: unknown[]) => ({
+      ...confirmedExtraction(items),
+      createdByUserId: companyAdmin.id,
+      companyId: companyAdmin.companyId,
+      file: { filename: 'ACME Price List 2026.xlsx' },
+    });
+
+    /** Default happy-path mocks for the import -> material-list collection step. */
+    const stubImportList = (list = { id: 'list-new', name: 'ACME Price List 2026' }) => {
+      mockPrisma.materialList.findFirst.mockResolvedValue(null);
+      mockPrisma.materialList.findMany.mockResolvedValue([]);
+      mockPrisma.materialList.create.mockResolvedValue(list);
+      mockPrisma.materialListItem.createMany.mockResolvedValue({ count: 1 });
+      mockPrisma.materialList.update.mockResolvedValue({});
+    };
 
     const line = (over: Record<string, unknown>) => ({
       name: 'Cable',
@@ -848,6 +903,7 @@ describe('MaterialsService', () => {
         updated: 0,
         skipped: 0,
         categoriesCreated: 0,
+        materialList: null,
       });
     });
 
@@ -966,7 +1022,8 @@ describe('MaterialsService', () => {
         createdByUserId: companyAdmin.id,
         companyId: null,
       });
-      mockPrisma.$queryRaw.mockResolvedValue([{ inserted: true }]);
+      mockPrisma.$queryRaw.mockResolvedValue([{ id: 'mat-1', inserted: true }]);
+      stubImportList();
 
       const summary = await service.importCatalogueFromExtraction('ext-1', companyAdmin);
 
@@ -980,11 +1037,155 @@ describe('MaterialsService', () => {
         createdByUserId: 'someone-else',
         companyId: companyAdmin.companyId,
       });
-      mockPrisma.$queryRaw.mockResolvedValue([{ inserted: true }]);
+      mockPrisma.$queryRaw.mockResolvedValue([{ id: 'mat-1', inserted: true }]);
+      stubImportList();
 
       const summary = await service.importCatalogueFromExtraction('ext-1', companyAdmin);
 
       expect(summary.total).toBe(1);
+    });
+
+    // -- Company import -> material list -----------------------------------
+    // A company upload is its own private catalogue, not a submission to the
+    // public one, so the rows land as PRIVATE and are collected into a list named
+    // after the uploaded file (the "Material list" tab is where they show up).
+
+    it('imports a company upload as PRIVATE rows owned by that company', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue(
+        companyExtraction([line({ sku: 'SK-1' })]),
+      );
+      mockPrisma.$queryRaw.mockResolvedValue([{ id: 'mat-1', inserted: true }]);
+      stubImportList();
+
+      await service.importCatalogueFromExtraction('ext-1', companyAdmin);
+
+      // The status + owning company are interpolated into the raw upsert.
+      const sql = mockPrisma.$queryRaw.mock.calls[0][0] as { values: unknown[] };
+      expect(sql.values).toContain(MaterialStatus.PRIVATE);
+      expect(sql.values).toContain(companyAdmin.companyId);
+      expect(sql.values).not.toContain(MaterialStatus.PENDING_APPROVAL);
+    });
+
+    it('collects a company import into a material list named after the uploaded file', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue(
+        companyExtraction([line({ sku: 'SK-1' }), line({ name: 'Switch', sku: 'SK-2' })]),
+      );
+      mockPrisma.$queryRaw.mockResolvedValue([
+        { id: 'mat-1', inserted: true },
+        { id: 'mat-2', inserted: false },
+      ]);
+      stubImportList({ id: 'list-new', name: 'ACME Price List 2026' });
+
+      const summary = await service.importCatalogueFromExtraction('ext-1', companyAdmin);
+
+      const created = mockPrisma.materialList.create.mock.calls[0][0].data;
+      // Extension stripped; the extraction id marks the list as upload-derived.
+      expect(created.name).toBe('ACME Price List 2026');
+      expect(created.companyId).toBe(companyAdmin.companyId);
+      expect(created.sourceExtractionId).toBe('ext-1');
+      // Both touched rows (inserted AND updated) join the list.
+      expect(mockPrisma.materialListItem.createMany).toHaveBeenCalledWith({
+        data: [
+          { listId: 'list-new', materialId: 'mat-1' },
+          { listId: 'list-new', materialId: 'mat-2' },
+        ],
+        skipDuplicates: true,
+      });
+      expect(summary.materialList).toEqual({ id: 'list-new', name: 'ACME Price List 2026' });
+    });
+
+    it('suffixes the list name when the company already has one by that name', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue(
+        companyExtraction([line({ sku: 'SK-1' })]),
+      );
+      mockPrisma.$queryRaw.mockResolvedValue([{ id: 'mat-1', inserted: true }]);
+      stubImportList();
+      mockPrisma.materialList.findMany.mockResolvedValue([
+        { name: 'ACME Price List 2026' },
+        { name: 'ACME Price List 2026 (2)' },
+      ]);
+
+      await service.importCatalogueFromExtraction('ext-1', companyAdmin);
+
+      expect(mockPrisma.materialList.create.mock.calls[0][0].data.name).toBe(
+        'ACME Price List 2026 (3)',
+      );
+    });
+
+    it('tops up the existing list when the same extraction is imported again', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue(
+        companyExtraction([line({ sku: 'SK-1' })]),
+      );
+      mockPrisma.$queryRaw.mockResolvedValue([{ id: 'mat-1', inserted: false }]);
+      stubImportList();
+      mockPrisma.materialList.findFirst.mockResolvedValue({
+        id: 'list-existing',
+        name: 'ACME Price List 2026',
+      });
+
+      const summary = await service.importCatalogueFromExtraction('ext-1', companyAdmin);
+
+      expect(mockPrisma.materialList.create).not.toHaveBeenCalled();
+      expect(mockPrisma.materialListItem.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: [{ listId: 'list-existing', materialId: 'mat-1' }] }),
+      );
+      expect(summary.materialList).toEqual({ id: 'list-existing', name: 'ACME Price List 2026' });
+    });
+
+    it('falls back to a generic list name when the file has no usable name', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue({
+        ...companyExtraction([line({ sku: 'SK-1' })]),
+        file: null,
+        editedResult: { sourceName: null, items: [line({ sku: 'SK-1' })], notes: null },
+      });
+      mockPrisma.$queryRaw.mockResolvedValue([{ id: 'mat-1', inserted: true }]);
+      stubImportList();
+
+      await service.importCatalogueFromExtraction('ext-1', companyAdmin);
+
+      expect(mockPrisma.materialList.create.mock.calls[0][0].data.name).toBe('Imported catalogue');
+    });
+
+    it('keeps an extension-less filename as the list name verbatim', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue({
+        ...companyExtraction([line({ sku: 'SK-1' })]),
+        file: { filename: 'Q3 catalogue' },
+      });
+      mockPrisma.$queryRaw.mockResolvedValue([{ id: 'mat-1', inserted: true }]);
+      stubImportList();
+
+      await service.importCatalogueFromExtraction('ext-1', companyAdmin);
+
+      expect(mockPrisma.materialList.create.mock.calls[0][0].data.name).toBe('Q3 catalogue');
+    });
+
+    it('does NOT create a list for a SuperAdmin import (it publishes to the public catalogue)', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue(
+        confirmedExtraction([line({ sku: 'SK-1' })]),
+      );
+      mockPrisma.$queryRaw.mockResolvedValue([{ id: 'mat-1', inserted: true }]);
+      stubImportList();
+
+      const summary = await service.importCatalogueFromExtraction('ext-1', superAdmin);
+
+      expect(mockPrisma.materialList.create).not.toHaveBeenCalled();
+      expect(mockPrisma.materialListItem.createMany).not.toHaveBeenCalled();
+      expect(summary.materialList).toBeNull();
+    });
+
+    it('creates no list when every row was skipped by the owner guard', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue(
+        companyExtraction([line({ sku: 'SK-1' })]),
+      );
+      // A SKU owned by another company / the public catalogue is neither inserted
+      // nor updated, so the RETURNING clause yields nothing.
+      mockPrisma.$queryRaw.mockResolvedValue([]);
+      stubImportList();
+
+      const summary = await service.importCatalogueFromExtraction('ext-1', companyAdmin);
+
+      expect(mockPrisma.materialList.create).not.toHaveBeenCalled();
+      expect(summary.materialList).toBeNull();
     });
 
     it('returns zeros when the edited result is null', async () => {
@@ -1001,6 +1202,7 @@ describe('MaterialsService', () => {
         updated: 0,
         skipped: 0,
         categoriesCreated: 0,
+        materialList: null,
       });
     });
 
@@ -1192,22 +1394,22 @@ describe('MaterialsService', () => {
       });
     });
 
-    it('lets a company see its own non-public private material (US 4.02)', async () => {
+    it('lets a company see its own PRIVATE material (US 4.02)', async () => {
       mockPrisma.material.findUnique.mockResolvedValue({
         ...publicMaterial,
-        status: MaterialStatus.PENDING_APPROVAL,
+        status: MaterialStatus.PRIVATE,
         companyId: companyAdmin.companyId,
       });
 
       const result = await service.getMaterialById('m-1', companyAdmin);
-      expect(result.status).toBe(MaterialStatus.PENDING_APPROVAL);
+      expect(result.status).toBe(MaterialStatus.PRIVATE);
       expect(result.companyId).toBe(companyAdmin.companyId);
     });
 
-    it('404s a non-public private material owned by another company', async () => {
+    it('404s a PRIVATE material owned by another company', async () => {
       mockPrisma.material.findUnique.mockResolvedValue({
         ...publicMaterial,
-        status: MaterialStatus.PENDING_APPROVAL,
+        status: MaterialStatus.PRIVATE,
         companyId: 'other-co',
       });
       await expect(service.getMaterialById('m-1', companyAdmin)).rejects.toThrow(NotFoundException);
@@ -1313,16 +1515,16 @@ describe('MaterialsService', () => {
       expect(mockPrisma.materialChangeRequest.create).not.toHaveBeenCalled();
     });
 
-    it('applies a non-SuperAdmin edit DIRECTLY to its own company private draft (US 4.02)', async () => {
+    it('applies a non-SuperAdmin edit DIRECTLY to its own PRIVATE material (US 4.02)', async () => {
       // The company's own non-public row is theirs to edit — no approval queue.
       mockPrisma.material.findUnique.mockResolvedValue({
         ...loaded,
-        status: MaterialStatus.PENDING_APPROVAL,
+        status: MaterialStatus.PRIVATE,
         companyId: companyAdmin.companyId,
       });
       mockPrisma.material.update.mockResolvedValue({
         ...loaded,
-        status: MaterialStatus.PENDING_APPROVAL,
+        status: MaterialStatus.PRIVATE,
         companyId: companyAdmin.companyId,
         description: 'Updated',
       });
@@ -1337,7 +1539,7 @@ describe('MaterialsService', () => {
     it('404s (no leak) when a non-SuperAdmin edits another company private material', async () => {
       mockPrisma.material.findUnique.mockResolvedValue({
         ...loaded,
-        status: MaterialStatus.PENDING_APPROVAL,
+        status: MaterialStatus.PRIVATE,
         companyId: 'other-co',
       });
       await expect(
@@ -1516,12 +1718,26 @@ describe('MaterialsService', () => {
       mockPrisma.rfqLineItem.count.mockResolvedValue(0);
       mockPrisma.quoteResponseLineItem.count.mockResolvedValue(0);
       mockPrisma.bomItem.count.mockResolvedValue(0);
-      mockPrisma.materialListItem.count.mockResolvedValue(0);
     };
 
-    it('throws Forbidden for a non-SuperAdmin', async () => {
-      await expect(service.deleteMaterial('m-1', companyAdmin)).rejects.toThrow(ForbiddenException);
-    });
+    /** The delete runs in a transaction: drop list memberships, then the row. */
+    const runTransaction = () => {
+      mockPrisma.$transaction.mockImplementation((cb: (tx: unknown) => unknown) =>
+        cb({
+          materialListItem: mockPrisma.materialListItem,
+          material: mockPrisma.material,
+        }),
+      );
+      mockPrisma.materialListItem.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.material.delete.mockResolvedValue({});
+    };
+
+    const publicRow = { id: 'm-1', status: MaterialStatus.PUBLIC, companyId: null };
+    const ownRow = {
+      id: 'm-1',
+      status: MaterialStatus.PRIVATE,
+      companyId: companyAdmin.companyId,
+    };
 
     it('throws NotFound when the material does not exist', async () => {
       mockPrisma.material.findUnique.mockResolvedValue(null);
@@ -1531,7 +1747,7 @@ describe('MaterialsService', () => {
     });
 
     it('throws Conflict when the material is referenced by any document', async () => {
-      mockPrisma.material.findUnique.mockResolvedValue({ id: 'm-1' });
+      mockPrisma.material.findUnique.mockResolvedValue(publicRow);
       noReferences();
       mockPrisma.rfqLineItem.count.mockResolvedValue(2);
 
@@ -1540,14 +1756,121 @@ describe('MaterialsService', () => {
     });
 
     it('deletes when the material has no references', async () => {
-      mockPrisma.material.findUnique.mockResolvedValue({ id: 'm-1' });
+      mockPrisma.material.findUnique.mockResolvedValue(publicRow);
       noReferences();
-      mockPrisma.material.delete.mockResolvedValue({});
+      runTransaction();
 
       const result = await service.deleteMaterial('m-1', superAdmin);
 
       expect(mockPrisma.material.delete).toHaveBeenCalledWith({ where: { id: 'm-1' } });
       expect(result).toEqual({ success: true });
+    });
+
+    // A company owns its private catalogue and must be able to clear out a bad
+    // upload without asking a Super-Admin.
+    it('lets a company delete its OWN private material', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue(ownRow);
+      noReferences();
+      runTransaction();
+
+      const result = await service.deleteMaterial('m-1', companyAdmin);
+
+      expect(result).toEqual({ success: true });
+      expect(mockPrisma.material.delete).toHaveBeenCalledWith({ where: { id: 'm-1' } });
+    });
+
+    it('403s a contractor deleting a PUBLIC material', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue(publicRow);
+
+      await expect(service.deleteMaterial('m-1', companyAdmin)).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.material.delete).not.toHaveBeenCalled();
+      // Bails before even counting references.
+      expect(mockPrisma.rfqLineItem.count).not.toHaveBeenCalled();
+    });
+
+    it("404s (no leak) a contractor deleting another company's private material", async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({
+        id: 'm-1',
+        status: MaterialStatus.PRIVATE,
+        companyId: 'other-co',
+      });
+
+      await expect(service.deleteMaterial('m-1', companyAdmin)).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.material.delete).not.toHaveBeenCalled();
+    });
+
+    // Every row of an uploaded catalogue belongs to the list that upload created,
+    // so counting list membership as a reference would make a company's own
+    // imported materials permanently undeletable.
+    it('drops material-list memberships instead of treating them as a blocking reference', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue(ownRow);
+      noReferences();
+      runTransaction();
+
+      await service.deleteMaterial('m-1', companyAdmin);
+
+      expect(mockPrisma.materialListItem.count).not.toHaveBeenCalled();
+      expect(mockPrisma.materialListItem.deleteMany).toHaveBeenCalledWith({
+        where: { materialId: 'm-1' },
+      });
+      expect(mockPrisma.material.delete).toHaveBeenCalledWith({ where: { id: 'm-1' } });
+    });
+  });
+
+  // ── assertCanManageMaterial ────────────────────────────────────────────────
+
+  describe('assertCanManageMaterial', () => {
+    it('lets a SuperAdmin manage any row, public or private', () => {
+      expect(() =>
+        service.assertCanManageMaterial(
+          { status: MaterialStatus.PUBLIC, companyId: null },
+          superAdmin,
+        ),
+      ).not.toThrow();
+      expect(() =>
+        service.assertCanManageMaterial(
+          { status: MaterialStatus.PRIVATE, companyId: 'other-co' },
+          superAdmin,
+        ),
+      ).not.toThrow();
+    });
+
+    it("lets a contractor manage its own company's row", () => {
+      expect(() =>
+        service.assertCanManageMaterial(
+          { status: MaterialStatus.PRIVATE, companyId: companyAdmin.companyId },
+          companyAdmin,
+        ),
+      ).not.toThrow();
+    });
+
+    it('403s a contractor on a PUBLIC row — the shared catalogue is read-only', () => {
+      expect(() =>
+        service.assertCanManageMaterial(
+          { status: MaterialStatus.PUBLIC, companyId: null },
+          companyAdmin,
+        ),
+      ).toThrow(ForbiddenException);
+    });
+
+    it("404s a contractor on another company's private row, never confirming it exists", () => {
+      expect(() =>
+        service.assertCanManageMaterial(
+          { status: MaterialStatus.PRIVATE, companyId: 'other-co' },
+          companyAdmin,
+        ),
+      ).toThrow(NotFoundException);
+    });
+
+    it('404s a contractor on an archived public row — it is invisible to them', () => {
+      // An ARCHIVED row with no owning company never appears in a contractor's
+      // catalogue, so acknowledging it with a 403 would leak that it exists.
+      expect(() =>
+        service.assertCanManageMaterial(
+          { status: MaterialStatus.ARCHIVED, companyId: null },
+          companyAdmin,
+        ),
+      ).toThrow(NotFoundException);
     });
   });
 

@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 
 import {
   type CatalogueExtractionResult,
+  type CatalogueImportListDto,
   type CatalogueImportSummaryDto,
   type CatalogueLineItem,
   type DetectMaterialDuplicatesResponseDto,
@@ -47,6 +48,24 @@ import { EmailService } from '../notifications/email.service';
 
 const UNCATEGORISED = 'Uncategorised';
 const IMPORT_BATCH_SIZE = 1000;
+/** Fallback name for an upload-derived material list with no usable filename. */
+const IMPORTED_LIST_FALLBACK_NAME = 'Imported catalogue';
+/** material_lists.name is VARCHAR(255). */
+const LIST_NAME_MAX = 255;
+
+/**
+ * Name the material list a catalogue upload lands in after the uploaded file,
+ * minus its extension ("ACME Price List 2026.xlsx" → "ACME Price List 2026").
+ * Leaves room for the " (2)" de-duplication suffix.
+ */
+function listNameFromFile(fileName: string | null): string {
+  const base = (fileName ?? '').trim();
+  if (base.length === 0) return IMPORTED_LIST_FALLBACK_NAME;
+  const dot = base.lastIndexOf('.');
+  const stem = (dot > 0 ? base.slice(0, dot) : base).trim();
+  if (stem.length === 0) return IMPORTED_LIST_FALLBACK_NAME;
+  return stem.slice(0, LIST_NAME_MAX - 10);
+}
 
 /** A change request loaded with its material + requester/resolver names. */
 type ChangeRequestWithRelations = Prisma.MaterialChangeRequestGetPayload<{
@@ -405,8 +424,11 @@ export class MaterialsService {
       throw new ConflictException(ERR.materials.duplicateName);
     }
 
+    // A Super-Admin publishes into the shared public catalogue; anyone else adds
+    // to their own company's private catalogue, usable immediately and never
+    // queued for publication (spec FR-R1-D04).
     const status =
-      user.role === UserRole.SUPER_ADMIN ? MaterialStatus.PUBLIC : MaterialStatus.PENDING_APPROVAL;
+      user.role === UserRole.SUPER_ADMIN ? MaterialStatus.PUBLIC : MaterialStatus.PRIVATE;
 
     // Resolve the target category. A supplied id must exist; when omitted (the
     // BOM "create private material" quick-add has no category field) the row
@@ -494,6 +516,9 @@ export class MaterialsService {
   ): Promise<CatalogueImportSummaryDto> {
     const extraction = await this.prisma.docExtraction.findUnique({
       where: { id: extractionId },
+      // The uploaded file's name becomes the material list's name for a company
+      // import (see collectImportIntoList).
+      include: { file: { select: { filename: true } } },
     });
     if (!extraction) {
       throw new NotFoundException(ERR.docExtractions.notFound);
@@ -518,7 +543,14 @@ export class MaterialsService {
     const parsed = extraction.editedResult as unknown as CatalogueExtractionResult | null;
     const rawItems = parsed && Array.isArray(parsed.items) ? parsed.items : [];
     if (rawItems.length === 0) {
-      return { total: 0, created: 0, updated: 0, skipped: 0, categoriesCreated: 0 };
+      return {
+        total: 0,
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        categoriesCreated: 0,
+        materialList: null,
+      };
     }
 
     // Partition into importable rows (have a name) and skipped rows (no name).
@@ -529,17 +561,21 @@ export class MaterialsService {
     const { categoryMap, uncategorisedId, categoriesCreated } =
       await this.upsertCatalogueCategories(items);
 
-    // Import scope (US 4.02): a SuperAdmin import publishes directly to the
-    // shared PUBLIC catalogue (companyId null), so it is immediately visible and
-    // matchable by the BOM pipeline. A Company-Admin / Procurement-Officer import
-    // lands as PENDING_APPROVAL company-private rows (companyId = their company),
-    // visible only to that company until a catalogue Super-Admin approves them.
+    // Import scope: a SuperAdmin import publishes directly to the shared PUBLIC
+    // catalogue (companyId null), so it is immediately visible to every company
+    // and matchable by the BOM pipeline. A Company-Admin / Procurement-Officer
+    // import lands as PRIVATE rows owned by their company — usable straight away,
+    // invisible to everyone else, and never queued for Super-Admin publication
+    // (the contribution flow is deferred to v2, spec FR-R1-D04).
     const isSuperAdmin = user.role === UserRole.SUPER_ADMIN;
-    const status = isSuperAdmin ? MaterialStatus.PUBLIC : MaterialStatus.PENDING_APPROVAL;
+    const status = isSuperAdmin ? MaterialStatus.PUBLIC : MaterialStatus.PRIVATE;
     const companyId = isSuperAdmin ? null : (user.companyId ?? null);
 
     let created = 0;
     let updated = 0;
+    // Ids of every row this import touched, so a company import can collect them
+    // into one material list (see collectImportIntoList).
+    const importedIds: string[] = [];
 
     // ── SKU rows: batched raw upsert ───────────────────────────────────────
     const withSku = items.filter((i) => i.sku !== null && i.sku.trim().length > 0);
@@ -555,12 +591,13 @@ export class MaterialsService {
       );
       created += affected.created;
       updated += affected.updated;
+      importedIds.push(...affected.ids);
     }
 
     // ── SKU-less rows: name-based dedupe (the minority) ─────────────────────
     const withoutSku = items.filter((i) => i.sku === null || i.sku.trim().length === 0);
     for (const item of withoutSku) {
-      const wasUpdated = await this.upsertByName(
+      const outcome = await this.upsertByName(
         item,
         categoryMap,
         uncategorisedId,
@@ -568,9 +605,23 @@ export class MaterialsService {
         companyId,
         user,
       );
-      if (wasUpdated) updated += 1;
+      if (outcome.wasUpdated) updated += 1;
       else created += 1;
+      importedIds.push(outcome.id);
     }
+
+    // A company import becomes a material list named after the uploaded file, so
+    // the rows have a home in the "Material list" tab instead of disappearing
+    // into a catalogue view that only shows PUBLIC rows.
+    const materialList = companyId
+      ? await this.collectImportIntoList({
+          extractionId,
+          companyId,
+          userId: user.id,
+          fileName: extraction.file?.filename ?? parsed?.sourceName ?? null,
+          materialIds: importedIds,
+        })
+      : null;
 
     // Lock the extraction now that its rows have landed in the catalogue.
     if (extraction.status !== DocExtractionStatus.CONFIRMED) {
@@ -590,7 +641,74 @@ export class MaterialsService {
       updated,
       skipped,
       categoriesCreated,
+      materialList,
     };
+  }
+
+  /**
+   * Collect the rows a company import touched into one material list named after
+   * the uploaded file. Re-importing the same extraction tops up the list it
+   * already created rather than making a second one; a name already taken by
+   * another list gets a " (2)" suffix so two uploads of the same filename stay
+   * distinguishable.
+   */
+  private async collectImportIntoList(input: {
+    extractionId: string;
+    companyId: string;
+    userId: string;
+    fileName: string | null;
+    materialIds: string[];
+  }): Promise<CatalogueImportListDto | null> {
+    const { extractionId, companyId, userId, fileName, materialIds } = input;
+    if (materialIds.length === 0) return null;
+
+    const existing = await this.prisma.materialList.findFirst({
+      where: { companyId, sourceExtractionId: extractionId },
+      select: { id: true, name: true },
+    });
+
+    const list =
+      existing ??
+      (await this.prisma.materialList.create({
+        data: {
+          name: await this.uniqueListName(companyId, listNameFromFile(fileName)),
+          description: null,
+          companyId,
+          sourceExtractionId: extractionId,
+          createdById: userId,
+        },
+        select: { id: true, name: true },
+      }));
+
+    await this.prisma.materialListItem.createMany({
+      // De-duplicated because one uploaded file can carry the same SKU twice.
+      data: [...new Set(materialIds)].map((materialId) => ({ listId: list.id, materialId })),
+      skipDuplicates: true,
+    });
+
+    // createMany leaves updatedAt untouched; the list did change.
+    await this.prisma.materialList.update({
+      where: { id: list.id },
+      data: { updatedAt: new Date() },
+    });
+
+    return list;
+  }
+
+  /** Suffix `base` with " (2)", " (3)"… until the company has no list by that name. */
+  private async uniqueListName(companyId: string, base: string): Promise<string> {
+    const taken = await this.prisma.materialList.findMany({
+      where: { companyId, name: { startsWith: base } },
+      select: { name: true },
+    });
+    const names = new Set(taken.map((l) => l.name));
+    if (!names.has(base)) return base;
+
+    for (let n = 2; n < 1000; n += 1) {
+      const candidate = `${base} (${n})`;
+      if (!names.has(candidate)) return candidate;
+    }
+    return base;
   }
 
   /** Resolve the main-category id for a catalogue line (Uncategorised fallback). */
@@ -646,7 +764,9 @@ export class MaterialsService {
 
   /**
    * Multi-row `INSERT ... ON CONFLICT (sku) DO UPDATE` for a batch of SKU rows.
-   * Returns created/updated counts (xmax=0 ⇒ inserted, else updated).
+   * Returns created/updated counts (xmax=0 ⇒ inserted, else updated) plus the ids
+   * of the affected rows — rows skipped by the owner guard below are absent from
+   * both.
    */
   private async upsertSkuBatch(
     batch: CatalogueLineItem[],
@@ -655,7 +775,7 @@ export class MaterialsService {
     status: MaterialStatus,
     companyId: string | null,
     user: AuthenticatedUser,
-  ): Promise<{ created: number; updated: number }> {
+  ): Promise<{ created: number; updated: number; ids: string[] }> {
     const now = new Date();
     const rows = batch.map((item) => {
       const categoryId = this.resolveCategoryId(item, categoryMap, uncategorisedId);
@@ -671,7 +791,7 @@ export class MaterialsService {
     });
 
     const result = await this.prisma.$transaction(async (tx) => {
-      return tx.$queryRaw<Array<{ inserted: boolean }>>(Prisma.sql`
+      return tx.$queryRaw<Array<{ id: string; inserted: boolean }>>(Prisma.sql`
         INSERT INTO materials (
           id, name, category_id, uom, upc, manufacturer, description,
           sku, brand, manufacturer_part_number, sub_category, image_url,
@@ -696,22 +816,25 @@ export class MaterialsService {
         -- another company's private row that happens to share the SKU; those
         -- conflicting rows are skipped (neither insert nor update). US 4.02.
         WHERE materials.company_id IS NOT DISTINCT FROM ${companyId}
-        RETURNING (xmax = 0) AS inserted
+        RETURNING id, (xmax = 0) AS inserted
       `);
     });
 
     let created = 0;
     let updated = 0;
+    const ids: string[] = [];
     for (const row of result) {
       if (row.inserted) created += 1;
       else updated += 1;
+      ids.push(row.id);
     }
-    return { created, updated };
+    return { created, updated, ids };
   }
 
   /**
    * SKU-less fallback: find a material by case-insensitive name + status, update
-   * it if present, otherwise insert. Returns true when an existing row was updated.
+   * it if present, otherwise insert. Returns the affected row's id and whether it
+   * already existed.
    */
   private async upsertByName(
     item: CatalogueLineItem,
@@ -720,7 +843,7 @@ export class MaterialsService {
     status: MaterialStatus,
     companyId: string | null,
     user: AuthenticatedUser,
-  ): Promise<boolean> {
+  ): Promise<{ id: string; wasUpdated: boolean }> {
     const name = item.name.trim();
     const categoryId = this.resolveCategoryId(item, categoryMap, uncategorisedId);
     const brand = nullableTrim(item.brand);
@@ -748,11 +871,14 @@ export class MaterialsService {
 
     if (existing) {
       await this.prisma.material.update({ where: { id: existing.id }, data });
-      return true;
+      return { id: existing.id, wasUpdated: true };
     }
 
-    await this.prisma.material.create({ data: { ...data, createdById: user.id } });
-    return false;
+    const created = await this.prisma.material.create({
+      data: { ...data, createdById: user.id },
+      select: { id: true },
+    });
+    return { id: created.id, wasUpdated: false };
   }
 
   /** Mirror of DocIntelligenceService.canAccess for extraction ownership. */
@@ -790,6 +916,20 @@ export class MaterialsService {
     };
   }
 
+  /**
+   * Normalise the `status` query (one value or a list) into a Prisma filter.
+   * A single value stays a scalar equality so the emitted SQL is unchanged for
+   * every existing caller; a list becomes `IN (…)`.
+   */
+  private static buildStatusFilter(
+    status: MaterialStatus | MaterialStatus[] | undefined,
+  ): MaterialStatus | Prisma.EnumMaterialStatusFilter | undefined {
+    if (status === undefined) return undefined;
+    const values = Array.isArray(status) ? status : [status];
+    if (values.length === 0) return undefined;
+    return values.length === 1 ? values[0] : { in: values };
+  }
+
   private buildListWhere(
     query: MaterialListQueryDto,
     user: AuthenticatedUser,
@@ -797,17 +937,18 @@ export class MaterialsService {
     const where: Prisma.MaterialWhereInput = {};
 
     // Status + ownership visibility (see buildVisibilityWhere). An explicit
-    // `status` query is AND-ed inside that envelope, so e.g. the PENDING /
-    // ARCHIVED tabs show only the company's own unpublished rows (public rows
-    // are always PUBLIC).
+    // `status` query is AND-ed inside that envelope, so e.g. the PRIVATE /
+    // ARCHIVED views show only the company's own rows (public rows are always
+    // PUBLIC).
+    const statusFilter = MaterialsService.buildStatusFilter(query.status);
     if (user.role === UserRole.SUPER_ADMIN) {
-      if (query.status) {
-        where.status = query.status as MaterialStatus;
+      if (statusFilter) {
+        where.status = statusFilter;
       }
     } else {
       where.AND = [
         this.buildVisibilityWhere(user),
-        ...(query.status ? [{ status: query.status as MaterialStatus }] : []),
+        ...(statusFilter ? [{ status: statusFilter }] : []),
       ];
     }
 
@@ -936,6 +1077,30 @@ export class MaterialsService {
     if (material.status === MaterialStatus.PUBLIC) return true;
     if (user.role === UserRole.SUPER_ADMIN) return true;
     return material.companyId !== null && material.companyId === user.companyId;
+  }
+
+  /**
+   * Assert the caller may run a destructive lifecycle action (archive / restore /
+   * delete) on this material. A Super-Admin owns the whole catalogue. Anyone else
+   * may only touch rows their OWN company owns: the shared public catalogue is
+   * read-only for contractors (spec FR-R1-D04) → 403, while another company's
+   * private row is invisible → 404, never confirming that it exists.
+   *
+   * Public (not private) because MaterialStatusService shares it.
+   */
+  assertCanManageMaterial(
+    material: { status: MaterialStatus; companyId: string | null },
+    user: AuthenticatedUser,
+  ): void {
+    if (user.role === UserRole.SUPER_ADMIN) return;
+
+    if (!this.isMaterialVisible(material, user)) {
+      throw new NotFoundException(ERR.materials.notFound);
+    }
+
+    if (material.companyId === null || material.companyId !== user.companyId) {
+      throw new ForbiddenException(ERR.materials.publicReadOnly);
+    }
   }
 
   // ── Update Material ─────────────────────────────────────────────────────────
@@ -1149,39 +1314,43 @@ export class MaterialsService {
   // ── Delete Material ─────────────────────────────────────────────────────────
 
   async deleteMaterial(id: string, user: AuthenticatedUser): Promise<{ success: true }> {
-    // SuperAdmin-only. The controller's `material.delete` permission already
-    // gates this; the service stays defensive in case it is called elsewhere.
-    if (user.role !== UserRole.SUPER_ADMIN) {
-      throw new ForbiddenException(ERR.general.accessDenied);
-    }
-
     const existing = await this.prisma.material.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, status: true, companyId: true },
     });
     if (!existing) {
       throw new NotFoundException(ERR.materials.notFound);
     }
 
+    // A Super-Admin may delete anything; a company only its own rows (403 on the
+    // shared public catalogue, 404 on another company's private row).
+    this.assertCanManageMaterial(existing, user);
+
     // A material referenced by any procurement document cannot be hard-deleted —
     // it must be archived instead so historical documents keep their link.
-    const [poLineItems, rfqLineItems, quoteResponseLineItems, bomItems, materialListItems] =
-      await Promise.all([
-        this.prisma.poLineItem.count({ where: { materialId: id } }),
-        this.prisma.rfqLineItem.count({ where: { materialId: id } }),
-        this.prisma.quoteResponseLineItem.count({ where: { substituteItemId: id } }),
-        this.prisma.bomItem.count({ where: { matchedMaterialId: id } }),
-        this.prisma.materialListItem.count({ where: { materialId: id } }),
-      ]);
+    // Material-list membership is deliberately NOT a reference: a list is a
+    // convenience collection, not a historical record, and every row of an
+    // uploaded catalogue belongs to the list that upload created — counting it
+    // would make a company's own imported materials undeletable.
+    const [poLineItems, rfqLineItems, quoteResponseLineItems, bomItems] = await Promise.all([
+      this.prisma.poLineItem.count({ where: { materialId: id } }),
+      this.prisma.rfqLineItem.count({ where: { materialId: id } }),
+      this.prisma.quoteResponseLineItem.count({ where: { substituteItemId: id } }),
+      this.prisma.bomItem.count({ where: { matchedMaterialId: id } }),
+    ]);
 
-    const references =
-      poLineItems + rfqLineItems + quoteResponseLineItems + bomItems + materialListItems;
+    const references = poLineItems + rfqLineItems + quoteResponseLineItems + bomItems;
 
     if (references > 0) {
       throw new ConflictException(ERR.materials.referenced(references));
     }
 
-    await this.prisma.material.delete({ where: { id } });
+    await this.prisma.$transaction(async (tx) => {
+      // material_list_items.material_id is ON DELETE RESTRICT, so drop the
+      // memberships first. Favourites and usage rows cascade on their own.
+      await tx.materialListItem.deleteMany({ where: { materialId: id } });
+      await tx.material.delete({ where: { id } });
+    });
 
     return { success: true };
   }

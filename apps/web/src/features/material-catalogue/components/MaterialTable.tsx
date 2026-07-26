@@ -34,6 +34,14 @@ export interface MaterialTableProps {
   /** Overrides the default "no materials yet" empty-state copy (e.g. favourites). */
   emptyText?: string;
   permissions: MaterialTablePermissions;
+  /**
+   * Per-row ownership gate for the destructive kebab actions (archive / restore /
+   * delete). Omitted means "every row", which is right for the catalogue
+   * Super-Admin. The contributor view passes a predicate so a company only sees
+   * those actions on materials it owns — the shared public catalogue is read-only
+   * for contractors, and offering an action the API would 403 is a dead end.
+   */
+  canManage?: (material: MaterialListItemDto) => boolean;
   sortBy?: string;
   sortDir?: SortDir;
   /** null toggles the column off; a key sets it ascending then descending. */
@@ -114,6 +122,7 @@ export function MaterialTable({
   searchQuery,
   emptyText,
   permissions,
+  canManage,
   sortBy,
   sortDir,
   onSort,
@@ -169,6 +178,10 @@ export function MaterialTable({
 
   function rowActions(material: MaterialListItemDto): DotAction[] {
     const actions: DotAction[] = [];
+    // Ownership gate for the destructive actions only — "Add to list" and Edit
+    // stay available on the public catalogue (a contractor edit becomes a change
+    // request rather than a direct write).
+    const manageable = canManage ? canManage(material) : true;
     if (onAddToList) {
       actions.push({
         key: 'add-to-list',
@@ -176,21 +189,21 @@ export function MaterialTable({
         onClick: () => onAddToList(material),
       });
     }
-    if (tab === 'public' && permissions.canArchive) {
+    if (tab === 'public' && permissions.canArchive && manageable) {
       actions.push({
         key: 'archive',
         label: t('actions.archive'),
         onClick: () => onArchive(material),
       });
     }
-    if (tab === 'archived' && permissions.canRestore) {
+    if (tab === 'archived' && permissions.canRestore && manageable) {
       actions.push({
         key: 'restore',
         label: t('actions.restore'),
         onClick: () => onRestore(material),
       });
     }
-    if (permissions.canDelete) {
+    if (permissions.canDelete && manageable) {
       actions.push({
         key: 'delete',
         label: t('actions.delete'),

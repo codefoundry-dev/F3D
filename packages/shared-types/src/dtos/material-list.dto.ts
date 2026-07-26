@@ -59,6 +59,12 @@ export interface MaterialListSummaryDto {
   name: string;
   description: string | null;
   itemCount: number;
+  /**
+   * Non-null when the list was created by a catalogue upload (the id of the
+   * extraction it imported) — the UI badges those as uploaded catalogues rather
+   * than hand-curated lists.
+   */
+  sourceExtractionId: string | null;
   updatedAt: string;
 }
 

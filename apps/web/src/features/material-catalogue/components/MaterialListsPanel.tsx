@@ -1,6 +1,6 @@
 import { type MaterialListSummaryDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Button, DotActionsMenu, type DotAction, Input } from '@forethread/ui-components';
+import { Badge, Button, DotActionsMenu, type DotAction, Input } from '@forethread/ui-components';
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
@@ -24,12 +24,23 @@ export interface MaterialListsPanelProps {
   onView: (list: MaterialListSummaryDto) => void;
   onEdit: (list: MaterialListSummaryDto) => void;
   onDelete: (list: MaterialListSummaryDto) => void;
+  /**
+   * Opens the flat "all company materials" view. Pinned above the list cards so
+   * materials added outside an upload (create wizard, BOM/RFQ quick-add) are
+   * reachable — they are private to the company, so the Public Materials tab
+   * never shows them.
+   */
+  onViewAllCompanyMaterials: () => void;
 }
 
 /**
  * The catalogue "Material list" tab (US 4.03): a "Create material list" button +
  * search, then a stack of list cards (package icon, name, description, view +
  * edit icons, optional delete kebab). Matches the Figma material-list tab.
+ *
+ * This is also where a company's own catalogue lives: each catalogue upload
+ * creates a list named after the uploaded file (badged "Uploaded catalogue"),
+ * while the public catalogue stays Super-Admin-owned and read-only.
  */
 export function MaterialListsPanel({
   lists,
@@ -42,6 +53,7 @@ export function MaterialListsPanel({
   onView,
   onEdit,
   onDelete,
+  onViewAllCompanyMaterials,
 }: MaterialListsPanelProps) {
   const { t } = useTranslation(['materialCatalogue']);
   const searchActive = Boolean(search.trim());
@@ -84,6 +96,28 @@ export function MaterialListsPanel({
         </div>
       </div>
 
+      {/* Pinned entry point to the company's whole private catalogue. Always
+          available — a company can have private materials without any list. */}
+      <button
+        type="button"
+        onClick={onViewAllCompanyMaterials}
+        data-testid="material-lists-all-company"
+        className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:bg-muted/30"
+      >
+        <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+          <PackageIcon className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium text-foreground">
+            {t('materialLists.companyMaterials.title')}
+          </p>
+          <p className="truncate text-sm text-muted-foreground">
+            {t('materialLists.companyMaterials.hint')}
+          </p>
+        </div>
+        <EyeIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" aria-hidden />
+      </button>
+
       {isLoading ? (
         <p role="status" className="py-12 text-center text-muted-foreground">
           {t('materialLists.loading')}
@@ -105,6 +139,12 @@ export function MaterialListsPanel({
         <div className="space-y-3">
           {lists.map((list) => {
             const actions = cardActions(list);
+            // Upload-derived lists carry no description, so the item count stands
+            // in as the subtitle — an empty string counts as "no description".
+            const subtitle =
+              list.description !== null && list.description.trim().length > 0
+                ? list.description
+                : t('materialLists.itemCount', { count: list.itemCount });
             return (
               <div
                 key={list.id}
@@ -115,10 +155,20 @@ export function MaterialListsPanel({
                   <PackageIcon className="w-5 h-5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-foreground truncate">{list.name}</p>
-                  {list.description && (
-                    <p className="text-sm text-muted-foreground truncate">{list.description}</p>
-                  )}
+                  <div className="flex min-w-0 items-center gap-2">
+                    <p className="truncate font-medium text-foreground">{list.name}</p>
+                    {list.sourceExtractionId && (
+                      <span
+                        className="flex-shrink-0"
+                        data-testid={`material-list-uploaded-${list.id}`}
+                      >
+                        <Badge className="bg-muted text-muted-foreground">
+                          {t('materialLists.uploadedBadge')}
+                        </Badge>
+                      </span>
+                    )}
+                  </div>
+                  <p className="truncate text-sm text-muted-foreground">{subtitle}</p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button

@@ -12,6 +12,12 @@ export interface MaterialListSummaryDto {
   name: string;
   description: string | null;
   itemCount: number;
+  /**
+   * Non-null when the list was created by a catalogue upload (the id of the
+   * extraction it imported), which the UI badges as an uploaded catalogue rather
+   * than a hand-curated list.
+   */
+  sourceExtractionId: string | null;
   updatedAt: string;
 }
 
@@ -23,7 +29,7 @@ export interface MaterialListMaterialDto {
   manufacturer: string | null;
   description: string | null;
   // Catalogue columns surfaced for the US 4.03 single-list table.
-  status: 'PUBLIC' | 'PENDING_APPROVAL' | 'ARCHIVED';
+  status: 'PUBLIC' | 'PRIVATE' | 'PENDING_APPROVAL' | 'ARCHIVED';
   materialType: string | null;
   upc: string | null;
   pricePerUnit: string | null;

@@ -12,7 +12,7 @@ export interface MaterialListQueryParams {
   limit?: number;
   search?: string;
   categoryId?: string;
-  /** 'PUBLIC' | 'PENDING_APPROVAL' | 'ARCHIVED' */
+  /** 'PUBLIC' | 'PRIVATE' | 'PENDING_APPROVAL' | 'ARCHIVED' */
   status?: string;
   /** Facet filters (US 4.01) — backend matches these on the materials list. */
   manufacturer?: string;
@@ -245,6 +245,12 @@ export interface CatalogueImportSummary {
   updated: number;
   skipped: number;
   categoriesCreated: number;
+  /**
+   * The material list the imported rows were collected into, named after the
+   * uploaded file. Null for a Super-Admin import — those rows publish straight
+   * into the shared public catalogue, which is not list-scoped.
+   */
+  materialList: { id: string; name: string } | null;
 }
 
 // ── Duplicate detection (US 4.01 Phase 3) ─────────────────────────────────────

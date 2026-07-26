@@ -118,7 +118,11 @@ export function AddMaterialsToListModal({
   const { data, isLoading, isError } = useMaterials({
     page: 1,
     limit: 25,
-    status: 'PUBLIC',
+    // The shared public catalogue PLUS the company's own materials — a list is
+    // company-scoped, so its own private catalogue must be pickable too. The
+    // backend AND-s an ownership envelope over this, so PRIVATE can only resolve
+    // to this company's rows.
+    status: 'PUBLIC,PRIVATE',
     search: debouncedSearch.trim() || undefined,
     categoryId: categoryId || undefined,
     manufacturer: manufacturer || undefined,

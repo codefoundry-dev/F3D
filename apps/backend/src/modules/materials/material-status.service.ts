@@ -14,9 +14,10 @@ import { MaterialsService } from './materials.service';
  * the transition, and returns the refreshed material detail.
  *
  * Permission gating (`material.approve` / `material.reject` / `material.archive`
- * / `material.restore`) is enforced on the controller; these methods are
- * SuperAdmin-only by virtue of those permissions and stay focused on the
- * state-machine rules.
+ * / `material.restore`) is enforced on the controller. Approve / reject stay
+ * SuperAdmin-only by virtue of their permissions; archive / restore are also
+ * granted to Company-Admin / Procurement-Officer, so those two additionally run
+ * `assertCanManageMaterial` — a company may only archive or restore rows it owns.
  */
 @Injectable()
 export class MaterialStatusService {
@@ -51,35 +52,46 @@ export class MaterialStatusService {
     return this.materialsService.getMaterialById(id, user);
   }
 
-  // ── Archive (PUBLIC → ARCHIVED) ──────────────────────────────────────────
+  // ── Archive (PUBLIC or PRIVATE → ARCHIVED) ───────────────────────────────
 
   async archive(id: string, user: AuthenticatedUser): Promise<MaterialDetailDto> {
-    await this.transition(id, MaterialStatus.PUBLIC, MaterialStatus.ARCHIVED);
+    // Both a published row and a company's own PRIVATE row can be archived — a
+    // company needs this to retire a material a document already references (and
+    // which therefore cannot be hard-deleted). Ownership is enforced below: a
+    // contractor archiving a PUBLIC row gets a 403.
+    const material = await this.load(id);
+
+    if (material.status !== MaterialStatus.PUBLIC && material.status !== MaterialStatus.PRIVATE) {
+      throw new BadRequestException(ERR.materials.invalidStatusTransition(material.status));
+    }
+
+    this.materialsService.assertCanManageMaterial(material, user);
+
+    await this.prisma.material.update({
+      where: { id },
+      data: { status: MaterialStatus.ARCHIVED },
+    });
+
     return this.materialsService.getMaterialById(id, user);
   }
 
-  // ── Restore (ARCHIVED → PUBLIC or PENDING_APPROVAL) ───────────────────────
+  // ── Restore (ARCHIVED → PUBLIC or PRIVATE) ───────────────────────────────
 
   async restore(id: string, user: AuthenticatedUser): Promise<MaterialDetailDto> {
-    // An archived row's destination depends on its ownership (US 4.02): a
-    // company-private row (company_id set) restores back to PENDING_APPROVAL —
-    // it still needs catalogue approval to go public — while a public row
-    // (company_id null) restores straight to PUBLIC.
-    const material = await this.prisma.material.findUnique({
-      where: { id },
-      select: { id: true, status: true, companyId: true },
-    });
-
-    if (!material) {
-      throw new NotFoundException(ERR.materials.notFound);
-    }
+    // An archived row's destination depends on its ownership: a company-owned row
+    // (company_id set) restores to PRIVATE, back into that company's own
+    // catalogue, while a public row (company_id null) restores straight to PUBLIC.
+    const material = await this.load(id);
 
     if (material.status !== MaterialStatus.ARCHIVED) {
       throw new BadRequestException(ERR.materials.invalidStatusTransition(material.status));
     }
 
-    const to =
-      material.companyId !== null ? MaterialStatus.PENDING_APPROVAL : MaterialStatus.PUBLIC;
+    // An ARCHIVED row is invisible to a contractor unless it is their own, so the
+    // guard runs on ownership alone: a company restores only what it owns.
+    this.materialsService.assertCanManageMaterial(material, user);
+
+    const to = material.companyId !== null ? MaterialStatus.PRIVATE : MaterialStatus.PUBLIC;
 
     await this.prisma.material.update({
       where: { id },
@@ -90,6 +102,22 @@ export class MaterialStatusService {
   }
 
   // ── Shared transition guard ──────────────────────────────────────────────
+
+  /** Load the status + owning company of a material, 404-ing when it is missing. */
+  private async load(
+    id: string,
+  ): Promise<{ id: string; status: MaterialStatus; companyId: string | null }> {
+    const material = await this.prisma.material.findUnique({
+      where: { id },
+      select: { id: true, status: true, companyId: true },
+    });
+
+    if (!material) {
+      throw new NotFoundException(ERR.materials.notFound);
+    }
+
+    return material;
+  }
 
   /**
    * Load the material, assert it is in `from`, then move it to `to`. `extraData`

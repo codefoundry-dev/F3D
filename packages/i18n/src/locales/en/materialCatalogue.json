@@ -54,6 +54,7 @@
   },
   "status": {
     "public": "Public",
+    "private": "Private",
     "pending": "Pending",
     "archived": "Archived"
   },
@@ -327,6 +328,7 @@
     "processing": "Extracting catalogue items…",
     "empty": "No items were extracted from this file.",
     "failed": "Extraction failed. {{message}}",
+    "successWithList": "Imported {{total}} materials into \"{{list}}\" under your material lists.",
     "success": "Imported {{total}} materials — {{created}} new, {{updated}} updated, {{categories}} categories created.",
     "actions": {
       "cancel": "Cancel",
@@ -473,6 +475,19 @@
     "view": "View list",
     "edit": "Edit list",
     "delete": "Delete list",
+    "uploadedBadge": "Uploaded catalogue",
+    "itemCount_one": "{{count}} material",
+    "itemCount_other": "{{count}} materials",
+    "companyMaterials": {
+      "title": "All company materials",
+      "hint": "Every material your company has added, across all uploads",
+      "back": "Back to material lists",
+      "viewActive": "Active",
+      "viewArchived": "Archived",
+      "empty": "Your company has not added any materials yet.",
+      "emptyHint": "Upload a catalogue or add a material to build your private catalogue.",
+      "archivedEmpty": "None of your company's materials are archived."
+    },
     "deleteConfirm": {
       "title": "Delete material list",
       "body": "Are you sure you want to delete this material list? This action cannot be undone.",

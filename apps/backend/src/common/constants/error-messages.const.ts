@@ -217,6 +217,7 @@ export const ERR = {
       t(errors.materials.invalidStatusTransition, { status }),
     changeRequestNotFound: errors.materials.changeRequestNotFound,
     changeRequestNotPending: errors.materials.changeRequestNotPending,
+    publicReadOnly: errors.materials.publicReadOnly,
   },
 
   // ── Material lists (US 5.05) ───────────────────────────────

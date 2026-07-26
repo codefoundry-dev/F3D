@@ -189,6 +189,8 @@ describe('UploadMaterialFilePage', () => {
       updated: 0,
       skipped: 0,
       categoriesCreated: 1,
+      // Super-Admin import: published to the shared catalogue, no list.
+      materialList: null,
     });
 
     renderPage();
@@ -223,6 +225,8 @@ describe('UploadMaterialFilePage', () => {
       updated: 0,
       skipped: 0,
       categoriesCreated: 1,
+      // Super-Admin import: published to the shared catalogue, no list.
+      materialList: null,
     });
 
     renderPage();
@@ -247,5 +251,38 @@ describe('UploadMaterialFilePage', () => {
     renderPage();
     fireEvent.click(screen.getByTestId('upload-cancel'));
     expect(mockNavigate).toHaveBeenCalledWith('/material-catalogue');
+  });
+
+  // A company upload is collected into a material list named after the file, so
+  // the rows have a home instead of vanishing from a catalogue view that only
+  // lists PUBLIC materials.
+  it('lands on the created material list when the import returned one', async () => {
+    mockedCreate.mockResolvedValue(buildJob({ status: 'PROCESSING', editedResult: null }));
+    mockedGet.mockResolvedValue(buildJob());
+    mockedImport.mockResolvedValue({
+      total: 2,
+      created: 2,
+      updated: 0,
+      skipped: 0,
+      categoriesCreated: 1,
+      materialList: { id: 'list-9', name: 'ACME Price List 2026' },
+    });
+
+    renderPage();
+    selectFile('catalogue.xlsx');
+    fireEvent.click(screen.getByTestId('upload-proceed'));
+
+    await screen.findByTestId('map-table');
+    fireEvent.click(screen.getByTestId('upload-continue'));
+    await screen.findByTestId('review-list');
+    fireEvent.click(screen.getByTestId('upload-add'));
+
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith('/material-catalogue/lists/list-9'),
+    );
+    // The toast names the list so the destination is not a surprise.
+    expect(notificationService.success).toHaveBeenCalledWith(
+      expect.stringContaining('ACME Price List 2026'),
+    );
   });
 });

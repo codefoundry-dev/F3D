@@ -1,5 +1,17 @@
 enum MaterialStatus {
+  /// Super-Admin-owned shared catalogue row (company_id NULL): the "public
+  /// catalogue" every company reads.
   PUBLIC
+  /// A company's own catalogue row (company_id set): immediately usable by that
+  /// company, never visible to another. Created by a Company-Admin /
+  /// Procurement-Officer via the catalogue upload, the create wizard, or a
+  /// BOM/RFQ quick-add.
+  PRIVATE
+  /// Legacy: a company contribution awaiting Super-Admin publication. Nothing
+  /// creates this any more — the public-catalogue contribution flow is deferred
+  /// to v2 (spec FR-R1-D04), so a company upload stays PRIVATE. The value and
+  /// the approve/reject transitions are kept for the rows that predate that
+  /// decision and for Super-Admin-drafted rows.
   PENDING_APPROVAL
   ARCHIVED
 }
@@ -62,11 +74,12 @@ model Material {
   dimensions               Json?
   // Open-ended, category-specific "Specific data".
   properties               Json?
-  status                 MaterialStatus @default(PENDING_APPROVAL)
+  status                 MaterialStatus @default(PRIVATE)
   // Owning company for a company-private material (US 4.02). NULL ⇒ a PUBLIC,
-  // shared catalogue row (Super-Admin or approved). A non-null company_id scopes
-  // visibility to that company until the row is approved (promoted to PUBLIC,
-  // company_id → NULL). Existing rows default to NULL (public), no backfill.
+  // shared catalogue row uploaded by a Super-Admin. A non-null company_id scopes
+  // visibility to that company for good: a company's own catalogue is PRIVATE and
+  // is never promoted into the public catalogue (contribution deferred to v2,
+  // spec FR-R1-D04). Existing rows default to NULL (public), no backfill.
   companyId              String?        @map("company_id")
   createdById            String         @map("created_by_id")
   createdAt              DateTime       @default(now()) @map("created_at")
@@ -126,12 +139,20 @@ model MaterialChangeRequest {
 }
 
 /// A reusable, company-scoped collection of catalogue materials (US 5.05).
-/// Buyers pick a saved list during RFQ creation to pre-fill line items.
+/// Buyers pick a saved list during RFQ creation to pre-fill line items. Also the
+/// landing place for a company catalogue upload: each import creates (or reuses)
+/// one list named after the uploaded file, holding the rows it imported.
 model MaterialList {
   id          String   @id @default(uuid())
   name        String   @db.VarChar(255)
   description String?
   companyId   String   @map("company_id")
+  // Set when the list was created by a catalogue upload, to the DocExtraction it
+  // imported. Marks the list as upload-derived in the UI and makes re-importing
+  // the same extraction top up that list instead of creating a duplicate. Plain
+  // scalar (no relation) to keep material-lists decoupled from doc-intelligence,
+  // mirroring DocExtraction.rfqId.
+  sourceExtractionId String? @map("source_extraction_id")
   createdById String   @map("created_by_id")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -141,6 +162,7 @@ model MaterialList {
   items     MaterialListItem[]
 
   @@index([companyId], map: "idx_material_lists_company")
+  @@index([sourceExtractionId], map: "idx_material_lists_source_extraction")
   @@map("material_lists")
 }
 
