@@ -38,14 +38,18 @@ function lineItem(over: Partial<apiClient.MaterialDetailDto> & { name: string })
     sku: null,
     materialCode: null,
     brand: 'LafargeHolcim',
+    manufacturer: 'Eaton',
     manufacturerPartNumber: null,
     upc: '123456789',
     uom: 'units',
     description: 'Lorem',
     mainCategory: 'Concrete & cement',
     subCategory: null,
-    countryOfOrigin: null,
-    pricePerUnit: null,
+    materialType: 'Industrial',
+    countryOfOrigin: 'Australia',
+    pricePerUnit: 12.5,
+    costCode: 'CC-400',
+    taxCode: 'GST',
     imageUrl: null,
     confidence: 1,
   };
@@ -245,6 +249,57 @@ describe('UploadMaterialFilePage', () => {
     await waitFor(() => expect(mockedUpdate).toHaveBeenCalledTimes(1));
     expect(mockedUpdate.mock.calls[0][0]).toBe('job-1');
     await waitFor(() => expect(mockedImport).toHaveBeenCalled());
+  });
+
+  // Material type, manufacturer, country, price and the accounting codes are
+  // extracted now — the wizard must show them and carry edits through to the
+  // draft it PATCHes back (the Material-type cell used to be a hardcoded "—").
+  it('shows and persists material type, manufacturer and the accounting codes', async () => {
+    mockedCreate.mockResolvedValue(buildJob({ status: 'PROCESSING', editedResult: null }));
+    mockedGet.mockResolvedValue(buildJob());
+    mockedUpdate.mockResolvedValue(buildJob());
+    mockedImport.mockResolvedValue({
+      total: 2,
+      created: 2,
+      updated: 0,
+      skipped: 0,
+      categoriesCreated: 1,
+      materialList: null,
+    });
+
+    renderPage();
+    selectFile('catalogue.xlsx');
+    fireEvent.click(screen.getByTestId('upload-proceed'));
+
+    await screen.findByTestId('map-table');
+
+    const materialTypeInputs = screen.getAllByLabelText('Material type');
+    expect(materialTypeInputs[0]).toHaveValue('Industrial');
+    // Manufacturer reads its own field, not the brand.
+    expect(screen.getAllByLabelText('Manufacturer')[0]).toHaveValue('Eaton');
+
+    fireEvent.change(materialTypeInputs[0], { target: { value: 'Commercial' } });
+
+    fireEvent.click(screen.getByTestId('upload-continue'));
+    const review = await screen.findByTestId('review-list');
+    // The review cards surface every field the import will write.
+    expect(review).toHaveTextContent('Commercial');
+    expect(review).toHaveTextContent('Australia');
+    expect(review).toHaveTextContent('CC-400');
+    expect(review).toHaveTextContent('GST');
+
+    fireEvent.click(screen.getByTestId('upload-add'));
+
+    await waitFor(() => expect(mockedUpdate).toHaveBeenCalledTimes(1));
+    const patched = mockedUpdate.mock.calls[0][1] as { items: Array<Record<string, unknown>> };
+    expect(patched.items[0]).toMatchObject({
+      materialType: 'Commercial',
+      manufacturer: 'Eaton',
+      countryOfOrigin: 'Australia',
+      pricePerUnit: 12.5,
+      costCode: 'CC-400',
+      taxCode: 'GST',
+    });
   });
 
   it('cancel navigates back to the catalogue', () => {

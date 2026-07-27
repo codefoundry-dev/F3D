@@ -431,7 +431,11 @@
         "category": "Category",
         "materialType": "Material type",
         "manufacturer": "Manufacturer",
-        "upc": "UPC"
+        "upc": "UPC",
+        "countryOfOrigin": "Country of origin",
+        "pricePerUnit": "Price per unit",
+        "costCode": "Cost code",
+        "taxCode": "Tax code"
       },
       "view": "View",
       "edit": "Edit",

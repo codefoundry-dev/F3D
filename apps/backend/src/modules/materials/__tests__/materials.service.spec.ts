@@ -983,6 +983,126 @@ describe('MaterialsService', () => {
       expect(createArg.categoryId).toBe('cat-1');
     });
 
+    // -- Rich catalogue attributes -----------------------------------------
+    // Material type, country of origin, price and the accounting codes are
+    // extracted from the sheet; before FOR-228 follow-up they were parsed and
+    // then silently dropped, leaving those catalogue columns permanently blank.
+
+    it('carries material type, country, price and cost/tax codes into the raw upsert', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue(
+        confirmedExtraction([
+          line({
+            sku: 'SK-1',
+            materialType: 'Industrial',
+            countryOfOrigin: 'Australia',
+            pricePerUnit: 12.5,
+            costCode: 'CC-400',
+            taxCode: 'GST',
+          }),
+        ]),
+      );
+      mockPrisma.$queryRaw.mockResolvedValue([{ id: 'mat-1', inserted: true }]);
+
+      await service.importCatalogueFromExtraction('ext-1', superAdmin);
+
+      const sql = mockPrisma.$queryRaw.mock.calls[0][0] as {
+        values: unknown[];
+        strings: string[];
+      };
+      expect(sql.values).toEqual(
+        expect.arrayContaining(['Industrial', 'Australia', 12.5, 'CC-400', 'GST']),
+      );
+      const text = sql.strings.join(' ');
+      expect(text).toContain('material_type');
+      expect(text).toContain('country_of_origin');
+      expect(text).toContain('price_per_unit');
+      expect(text).toContain('cost_code');
+      expect(text).toContain('tax_code');
+      // A re-import from a file without the column must not wipe a curated value.
+      expect(text).toContain('COALESCE(EXCLUDED.cost_code, materials.cost_code)');
+    });
+
+    it('prefers an explicit manufacturer over the brand, falling back to brand', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue(
+        confirmedExtraction([
+          line({ sku: 'SK-1', brand: 'Acme', manufacturer: 'Eaton' }),
+          line({ name: 'Switch', sku: 'SK-2', brand: 'Acme', manufacturer: null }),
+        ]),
+      );
+      mockPrisma.$queryRaw.mockResolvedValue([{ inserted: true }, { inserted: true }]);
+
+      await service.importCatalogueFromExtraction('ext-1', superAdmin);
+
+      const sql = mockPrisma.$queryRaw.mock.calls[0][0] as { values: unknown[] };
+      expect(sql.values).toContain('Eaton');
+      // Row 2 has no manufacturer, so brand fills both columns.
+      expect(sql.values.filter((v) => v === 'Acme').length).toBeGreaterThanOrEqual(3);
+    });
+
+    it('falls back to the material code as the SKU when the sheet has no SKU column', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue(
+        confirmedExtraction([line({ sku: null, materialCode: 'MAT-9' })]),
+      );
+      mockPrisma.$queryRaw.mockResolvedValue([{ id: 'mat-1', inserted: true }]);
+
+      await service.importCatalogueFromExtraction('ext-1', superAdmin);
+
+      // It takes the SKU upsert path (not the fuzzy name dedupe) with MAT-9.
+      expect(mockPrisma.material.findFirst).not.toHaveBeenCalled();
+      const sql = mockPrisma.$queryRaw.mock.calls[0][0] as { values: unknown[] };
+      expect(sql.values).toContain('MAT-9');
+    });
+
+    it('keeps an explicit SKU when the row also carries a material code', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue(
+        confirmedExtraction([line({ sku: 'SK-1', materialCode: 'MAT-9' })]),
+      );
+      mockPrisma.$queryRaw.mockResolvedValue([{ id: 'mat-1', inserted: true }]);
+
+      await service.importCatalogueFromExtraction('ext-1', superAdmin);
+
+      const sql = mockPrisma.$queryRaw.mock.calls[0][0] as { values: unknown[] };
+      expect(sql.values).toContain('SK-1');
+      expect(sql.values).not.toContain('MAT-9');
+    });
+
+    it('writes the rich attributes on the sku-less create path', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue(
+        confirmedExtraction([
+          line({ sku: null, materialType: 'Industrial', pricePerUnit: 9.99, taxCode: 'GST' }),
+        ]),
+      );
+      mockPrisma.material.findFirst.mockResolvedValue(null);
+      mockPrisma.material.create.mockResolvedValue({});
+
+      await service.importCatalogueFromExtraction('ext-1', superAdmin);
+
+      expect(mockPrisma.material.create.mock.calls[0][0].data).toMatchObject({
+        materialType: 'Industrial',
+        pricePerUnit: 9.99,
+        taxCode: 'GST',
+        countryOfOrigin: null,
+        costCode: null,
+      });
+    });
+
+    it('omits null rich attributes when updating a sku-less row, preserving curated values', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue(
+        confirmedExtraction([line({ sku: null, materialType: 'Industrial' })]),
+      );
+      mockPrisma.material.findFirst.mockResolvedValue({ id: 'mat-existing' });
+      mockPrisma.material.update.mockResolvedValue({});
+
+      await service.importCatalogueFromExtraction('ext-1', superAdmin);
+
+      const data = mockPrisma.material.update.mock.calls[0][0].data;
+      expect(data.materialType).toBe('Industrial');
+      // The file carried no cost/tax code — don't null out what the row has.
+      expect(data).not.toHaveProperty('costCode');
+      expect(data).not.toHaveProperty('taxCode');
+      expect(data).not.toHaveProperty('pricePerUnit');
+    });
+
     it('counts name-less rows as skipped', async () => {
       mockPrisma.docExtraction.findUnique.mockResolvedValue(
         confirmedExtraction([line({ sku: 'SK-1' }), line({ name: '   ', sku: 'SK-2' })]),

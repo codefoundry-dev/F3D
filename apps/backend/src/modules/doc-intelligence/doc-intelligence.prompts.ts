@@ -140,16 +140,23 @@ For each item:
 - "name": the product name / material description as written (trim whitespace).
 - "sku": the supplier's stock-keeping unit / item code / product code. Null if absent.
 - "materialCode": the supplier's internal material code, when distinct from the SKU. Null if absent.
-- "brand": the brand or make name. Null if absent.
+- "brand": the brand name. Null if absent.
+- "manufacturer": the manufacturer / maker / supplier name, when the catalogue names it
+  separately from the brand. Null if absent.
 - "manufacturerPartNumber": the manufacturer part number / MPN. Null if absent.
 - "upc": the barcode / UPC / EAN / GTIN. Null if absent.
 - "uom": unit of measure (e.g. "ea", "m", "box", "pack"). Lowercase. Null if absent.
 - "description": a longer descriptive blurb when present and distinct from the name. Null otherwise.
 - "mainCategory": the top-level category the product belongs to. Null if absent.
-- "subCategory": the secondary / sub category (a.k.a. material type). Null if absent.
+- "subCategory": the secondary / sub category. Null if absent.
+- "materialType": the material type / product type ("Mat. type"), when the catalogue
+  carries it as its own attribute. Null if absent.
 - "countryOfOrigin": the country of manufacture / origin. Null if absent.
 - "pricePerUnit": the list / unit price as a plain number. Strip currency symbols and
   thousand separators. Null if absent.
+- "costCode": the accounting cost code / GL code. Null if absent.
+- "taxCode": the tax code / tax class (e.g. "GST", "S1"). Null if absent.
+- "imageUrl": the product image URL, when the catalogue carries one. Null if absent.
 
 Drop rows that have no product name (header / section / blank rows).
 
@@ -161,14 +168,19 @@ Return JSON shaped exactly like:
     "sku": string | null,
     "materialCode": string | null,
     "brand": string | null,
+    "manufacturer": string | null,
     "manufacturerPartNumber": string | null,
     "upc": string | null,
     "uom": string | null,
     "description": string | null,
     "mainCategory": string | null,
     "subCategory": string | null,
+    "materialType": string | null,
     "countryOfOrigin": string | null,
-    "pricePerUnit": number | null
+    "pricePerUnit": number | null,
+    "costCode": string | null,
+    "taxCode": string | null,
+    "imageUrl": string | null
   }>,
   "notes": string | null
 }`,

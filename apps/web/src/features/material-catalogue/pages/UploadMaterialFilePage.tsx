@@ -587,15 +587,24 @@ function MapStep({
                           }
                         />
                       </td>
-                      {/* Material type has no backing field on CatalogueLineItem,
-                          so it is read-only here ("—") until the extraction schema
-                          carries it. */}
-                      <td className="p-3 text-muted-foreground">—</td>
+                      <td className="p-1.5">
+                        <Input
+                          aria-label={t('upload.step2.columns.materialType')}
+                          value={item.materialType ?? ''}
+                          onChange={(e) =>
+                            onUpdate(index, { materialType: e.target.value || null })
+                          }
+                        />
+                      </td>
                       <td className="p-1.5">
                         <Input
                           aria-label={t('upload.step2.columns.manufacturer')}
-                          value={item.brand ?? ''}
-                          onChange={(e) => onUpdate(index, { brand: e.target.value || null })}
+                          // A sheet may name only one of the two; the import
+                          // falls back to brand, so show whichever we have.
+                          value={item.manufacturer ?? item.brand ?? ''}
+                          onChange={(e) =>
+                            onUpdate(index, { manufacturer: e.target.value || null })
+                          }
                         />
                       </td>
                       <td className="p-1.5">
@@ -760,20 +769,19 @@ function ReviewStep({
                   editing={isEditing}
                   onChange={(v) => onUpdate(index, { mainCategory: v || null })}
                 />
-                {/* Material type is not on CatalogueLineItem (read-only). */}
                 <ReviewField
                   label={t('upload.step3.meta.materialType')}
                   field="materialType"
-                  value={null}
-                  editing={false}
-                  onChange={() => {}}
+                  value={item.materialType}
+                  editing={isEditing}
+                  onChange={(v) => onUpdate(index, { materialType: v || null })}
                 />
                 <ReviewField
                   label={t('upload.step3.meta.manufacturer')}
                   field="manufacturer"
-                  value={item.brand}
+                  value={item.manufacturer ?? item.brand}
                   editing={isEditing}
-                  onChange={(v) => onUpdate(index, { brand: v || null })}
+                  onChange={(v) => onUpdate(index, { manufacturer: v || null })}
                 />
                 <ReviewField
                   label={t('upload.step3.meta.uom')}
@@ -788,6 +796,41 @@ function ReviewStep({
                   value={item.upc}
                   editing={isEditing}
                   onChange={(v) => onUpdate(index, { upc: v || null })}
+                />
+                <ReviewField
+                  label={t('upload.step3.meta.countryOfOrigin')}
+                  field="countryOfOrigin"
+                  value={item.countryOfOrigin}
+                  editing={isEditing}
+                  onChange={(v) => onUpdate(index, { countryOfOrigin: v || null })}
+                />
+                <ReviewField
+                  label={t('upload.step3.meta.pricePerUnit')}
+                  field="pricePerUnit"
+                  value={item.pricePerUnit === null ? null : String(item.pricePerUnit)}
+                  editing={isEditing}
+                  // NaN would silently drop the row's price on import, so an
+                  // unparseable edit clears it instead (see [[rhf-valueasnumber-nan-silent-submit]]).
+                  onChange={(v) => {
+                    const parsed = Number(v);
+                    onUpdate(index, {
+                      pricePerUnit: v.trim() === '' || Number.isNaN(parsed) ? null : parsed,
+                    });
+                  }}
+                />
+                <ReviewField
+                  label={t('upload.step3.meta.costCode')}
+                  field="costCode"
+                  value={item.costCode}
+                  editing={isEditing}
+                  onChange={(v) => onUpdate(index, { costCode: v || null })}
+                />
+                <ReviewField
+                  label={t('upload.step3.meta.taxCode')}
+                  field="taxCode"
+                  value={item.taxCode}
+                  editing={isEditing}
+                  onChange={(v) => onUpdate(index, { taxCode: v || null })}
                 />
               </div>
 

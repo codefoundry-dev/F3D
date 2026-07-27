@@ -17,16 +17,32 @@ export interface CatalogueLineItem {
   /** Supplier's internal material code — distinct from sku / mpn / upc (US 4.01). */
   materialCode: string | null;
   brand: string | null;
+  /**
+   * Manufacturer / make, when the catalogue names it separately from the brand.
+   * Falls back to `brand` at import time — many supplier exports carry only one
+   * of the two.
+   */
+  manufacturer: string | null;
   manufacturerPartNumber: string | null;
   upc: string | null;
   uom: string | null;
   description: string | null;
   mainCategory: string | null;
   subCategory: string | null;
+  /**
+   * Material type (a.k.a. "Mat. type") — its own catalogue attribute, distinct
+   * from the sub-category. Lands in `Material.materialType`, which backs the
+   * catalogue table's Material-type column and its facet filter.
+   */
+  materialType: string | null;
   /** Country of manufacture / origin, when the catalogue states it. */
   countryOfOrigin: string | null;
   /** List / unit price as a plain number, when the catalogue carries pricing. */
   pricePerUnit: number | null;
+  /** Accounting cost code carried into every line item built from this material. */
+  costCode: string | null;
+  /** Tax classification code for the material. */
+  taxCode: string | null;
   imageUrl: string | null;
   /**
    * 0–1 extraction confidence. Direct Excel parsing is deterministic (1); the

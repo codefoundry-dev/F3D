@@ -85,13 +85,17 @@ type CatalogueField =
   | 'sku'
   | 'materialCode'
   | 'brand'
+  | 'manufacturer'
   | 'manufacturerPartNumber'
   | 'upc'
   | 'uom'
   | 'mainCategory'
   | 'subCategory'
+  | 'materialType'
   | 'countryOfOrigin'
   | 'pricePerUnit'
+  | 'costCode'
+  | 'taxCode'
   | 'imageUrl'
   | 'status';
 
@@ -102,6 +106,19 @@ const SYNONYMS: Record<Exclude<CatalogueField, 'name'>, string[]> = {
   sku: ['sku', 'code', 'item code', 'product code', 'stock code'],
   materialCode: ['material code', 'materialcode', 'mat code', 'material id', 'material no'],
   brand: ['brandname', 'brand'],
+  // Distinct from `brand`: a distributor export often carries both (brand =
+  // marketing name, manufacturer = who made it). "supplier" is last-resort — in
+  // a single-supplier catalogue it is the closest thing to a maker.
+  manufacturer: [
+    'manufacturer',
+    'manufacturer name',
+    'mfr',
+    'mfr.',
+    'mfg',
+    'make',
+    'supplier',
+    'supplier name',
+  ],
   manufacturerPartNumber: [
     'manufacturer part numbr',
     'manufacturer part number',
@@ -113,9 +130,15 @@ const SYNONYMS: Record<Exclude<CatalogueField, 'name'>, string[]> = {
   upc: ['upc', 'barcode', 'ean', 'gtin'],
   uom: ['uom', 'unit', 'unit of measure', 'units'],
   mainCategory: ['main category', 'category'],
-  subCategory: ['sub category', 'subcategory', 'sub-category', 'material type', 'mat. type'],
+  subCategory: ['sub category', 'subcategory', 'sub-category'],
+  // "Material type" is its OWN column on Material (and its own catalogue filter)
+  // — it used to be folded into subCategory, which left the catalogue table's
+  // Material-type column permanently blank.
+  materialType: ['material type', 'materialtype', 'mat. type', 'mat type', 'product type'],
   countryOfOrigin: ['country of origin', 'country', 'origin', 'made in'],
   pricePerUnit: ['price per unit', 'unit price', 'price', 'list price', 'rrp'],
+  costCode: ['cost code', 'costcode', 'cost centre code', 'cost center code', 'gl code'],
+  taxCode: ['tax code', 'taxcode', 'gst code', 'vat code', 'tax class'],
   imageUrl: ['imageurl', 'image url', 'image', 'image link'],
   status: ['status'],
 };
@@ -128,13 +151,17 @@ interface ColumnMap {
   sku: number | undefined;
   materialCode: number | undefined;
   brand: number | undefined;
+  manufacturer: number | undefined;
   manufacturerPartNumber: number | undefined;
   upc: number | undefined;
   uom: number | undefined;
   mainCategory: number | undefined;
   subCategory: number | undefined;
+  materialType: number | undefined;
   countryOfOrigin: number | undefined;
   pricePerUnit: number | undefined;
+  costCode: number | undefined;
+  taxCode: number | undefined;
   imageUrl: number | undefined;
   status: number | undefined;
 }
@@ -176,13 +203,17 @@ function buildColumnMap(headerCells: string[]): ColumnMap {
     sku: find(SYNONYMS.sku),
     materialCode: find(SYNONYMS.materialCode),
     brand: find(SYNONYMS.brand),
+    manufacturer: find(SYNONYMS.manufacturer),
     manufacturerPartNumber: find(SYNONYMS.manufacturerPartNumber),
     upc: find(SYNONYMS.upc),
     uom: find(SYNONYMS.uom),
     mainCategory: find(SYNONYMS.mainCategory),
     subCategory: find(SYNONYMS.subCategory),
+    materialType: find(SYNONYMS.materialType),
     countryOfOrigin: find(SYNONYMS.countryOfOrigin),
     pricePerUnit: find(SYNONYMS.pricePerUnit),
+    costCode: find(SYNONYMS.costCode),
+    taxCode: find(SYNONYMS.taxCode),
     imageUrl: find(SYNONYMS.imageUrl),
     status: find(SYNONYMS.status),
   };
@@ -251,14 +282,18 @@ export async function spreadsheetToCatalogue(buffer: Buffer): Promise<CatalogueE
       sku: cellAt(cells, columns.sku),
       materialCode: cellAt(cells, columns.materialCode),
       brand: cellAt(cells, columns.brand),
+      manufacturer: cellAt(cells, columns.manufacturer),
       manufacturerPartNumber: cellAt(cells, columns.manufacturerPartNumber),
       upc: cellAt(cells, columns.upc),
       uom: canonicalizeUnit(cellAt(cells, columns.uom)),
       description: cellAt(cells, columns.description),
       mainCategory: cellAt(cells, columns.mainCategory),
       subCategory: cellAt(cells, columns.subCategory),
+      materialType: cellAt(cells, columns.materialType),
       countryOfOrigin: cellAt(cells, columns.countryOfOrigin),
       pricePerUnit: parseNumber(cellAt(cells, columns.pricePerUnit)),
+      costCode: cellAt(cells, columns.costCode),
+      taxCode: cellAt(cells, columns.taxCode),
       imageUrl: cellAt(cells, columns.imageUrl),
       confidence: 1,
     });
@@ -301,6 +336,7 @@ function normalizeCatalogueItem(raw: unknown): CatalogueLineItem | null {
     sku: normalizeString(v.sku ?? v.code ?? v.itemCode ?? v.productCode),
     materialCode: normalizeString(v.materialCode ?? v.material_code ?? v.matCode),
     brand: normalizeString(v.brand ?? v.brandName),
+    manufacturer: normalizeString(v.manufacturer ?? v.mfr ?? v.make),
     manufacturerPartNumber: normalizeString(
       v.manufacturerPartNumber ?? v.mpn ?? v.partNumber ?? v.manufacturerPartNumbr,
     ),
@@ -309,10 +345,13 @@ function normalizeCatalogueItem(raw: unknown): CatalogueLineItem | null {
     description: normalizeString(v.description ?? v.longDescription),
     mainCategory: normalizeString(v.mainCategory ?? v.category),
     subCategory: normalizeString(v.subCategory ?? v.subcategory),
+    materialType: normalizeString(v.materialType ?? v.material_type ?? v.productType),
     countryOfOrigin: normalizeString(
       v.countryOfOrigin ?? v.country ?? v.origin ?? v.country_of_origin,
     ),
     pricePerUnit: parseNumber(v.pricePerUnit ?? v.price ?? v.unitPrice ?? v.listPrice),
+    costCode: normalizeString(v.costCode ?? v.cost_code ?? v.glCode),
+    taxCode: normalizeString(v.taxCode ?? v.tax_code ?? v.taxClass),
     imageUrl: normalizeString(v.imageUrl ?? v.image ?? v.imageLink),
     confidence: asNullableNumber(v.confidence),
   };
