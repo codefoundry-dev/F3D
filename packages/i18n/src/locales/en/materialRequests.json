@@ -281,7 +281,7 @@
       "notes": "Notes"
     },
     "actions": {
-      "approve": "Approve",
+      "approve": "Acknowledge",
       "decline": "Decline",
       "convertToRfq": "Convert to RFQ",
       "convertToPo": "Convert to PO",
