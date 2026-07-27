@@ -2,7 +2,7 @@ import type { RfqDetail, BulkOrderDetail, PoDetail } from '@forethread/api-clien
 import { PickUpTimeExpectation } from '@forethread/shared-types/client';
 
 import type { FormValues, LockedField } from '../schemas/create-po.schema';
-import { EMPTY_LINE_ITEM } from '../schemas/create-po.schema';
+import { EMPTY_DELIVERY_ROW, EMPTY_LINE_ITEM } from '../schemas/create-po.schema';
 
 interface SourceFormDefaults {
   defaultValues: Partial<FormValues>;
@@ -114,11 +114,19 @@ function toPickUpTimeExpectation(value: string | null): FormValues['pickUpTimeEx
 
 /**
  * FLOW 3 — convert an existing {@link PoDetail} into PO-wizard form defaults for
- * change mode. Every field the change diff can touch is pre-filled, and each
- * line carries its existing PO line `id` (as `lineItemId`) so the diff can match
- * edited rows against the original PO. Line-level delivery location is left
- * blank because the detail only exposes the location *name* (not its id) and
- * that field is not part of the per-line change allowlist anyway.
+ * change mode. *Every* field the change form renders is pre-filled — PO-level
+ * attributes, the header delivery schedule (FOR-210), and each line item, which
+ * additionally carries its existing PO line `id` (as `lineItemId`) so the diff
+ * can match edited rows against the original PO.
+ *
+ * Prefilling deliberately covers more than the change *diff* allowlist: a field
+ * left blank here reads as "this PO has no value" and invites the user to refill
+ * data that is actually already set, so the form must mirror the PO in full even
+ * where an edit would not currently be submitted.
+ *
+ * Naming trap: `PoLineItemDetail.deliveryLocation` carries the location **id**,
+ * not its name (the backend maps `deliveryLocation: li.deliveryLocationId`), so
+ * it binds straight to the form's location dropdown.
  *
  * The document name is returned pre-filled; the wizard locks it in change mode.
  */
@@ -139,8 +147,17 @@ export function poToFormDefaults(po: PoDetail): { defaultValues: Partial<FormVal
     unitPrice: li.unitPrice,
     quantityOrdered: li.quantityOrdered,
     expectedDeliveryDate: li.expectedDeliveryDate ? li.expectedDeliveryDate.slice(0, 10) : '',
+    deliveryLocationId: li.deliveryLocation ?? '',
     description: li.description ?? '',
     notes: li.notes ?? '',
+  }));
+
+  // FOR-210 header delivery schedule. A PO with no rows still gets one blank
+  // card so the section renders its "Delivery 1" placeholder as in create mode.
+  const deliveries: NonNullable<FormValues['deliveries']> = (po.deliveries ?? []).map((d) => ({
+    deliveryLocationId: d.deliveryLocationId ?? '',
+    deliveryDate: d.deliveryDate ? d.deliveryDate.slice(0, 10) : '',
+    notes: d.notes ?? '',
   }));
 
   const defaultValues: Partial<FormValues> = {
@@ -155,6 +172,7 @@ export function poToFormDefaults(po: PoDetail): { defaultValues: Partial<FormVal
     holdForRelease: po.holdForRelease ?? false,
     message: po.message ?? '',
     lineItems: lineItems.length > 0 ? lineItems : [{ ...EMPTY_LINE_ITEM }],
+    deliveries: deliveries.length > 0 ? deliveries : [{ ...EMPTY_DELIVERY_ROW }],
   };
 
   return { defaultValues };

@@ -146,10 +146,39 @@ export function CreatePoWizard({
     formState: { errors },
   } = form;
 
+  // Change mode: seed the project / vendor / locations this PO already points at
+  // so the prefilled dropdowns render their real label even before the fetched
+  // lists land — or if the PO's values fall outside them (paginated project
+  // list, a delivery location since removed from the project). The PO detail is
+  // the only place these names are available; line-level locations ship as a
+  // bare id, so those still resolve from the project list alone.
+  const existingPoProjects = useMemo(
+    () => (existingPo ? [{ id: existingPo.projectId, name: existingPo.projectName }] : undefined),
+    [existingPo],
+  );
+  const existingPoVendors = useMemo(
+    () =>
+      existingPo?.vendor ? [{ id: existingPo.vendor.id, name: existingPo.vendor.name }] : undefined,
+    [existingPo],
+  );
+  const existingPoLocations = useMemo(() => {
+    if (!existingPo) return undefined;
+    return [
+      { id: existingPo.deliveryLocationId, name: existingPo.deliveryLocationName },
+      ...(existingPo.deliveries ?? []).map((d) => ({
+        id: d.deliveryLocationId,
+        name: d.deliveryLocationName,
+      })),
+    ];
+  }, [existingPo]);
+
   const { projectOptions, vendorOptions, locationOptions } = usePoDropdownOptions({
     projectsData,
     vendorsData,
     projectDetail,
+    extraProjects: existingPoProjects,
+    extraVendors: existingPoVendors,
+    extraLocations: existingPoLocations,
   });
 
   const watchedProjectId = watch('projectId');

@@ -508,4 +508,53 @@ describe('poToFormDefaults', () => {
     const { defaultValues } = poToFormDefaults(makePoDetail({ documentName: null }));
     expect(defaultValues.documentName).toBe('PO-2024-008');
   });
+
+  it('prefills the line-level delivery location from the detail id', () => {
+    const po = makePoDetail();
+    po.lineItems[0].deliveryLocation = 'loc-9';
+    const { defaultValues } = poToFormDefaults(po);
+    expect(defaultValues.lineItems![0].deliveryLocationId).toBe('loc-9');
+  });
+
+  it('leaves the line-level delivery location blank when the PO has none', () => {
+    const { defaultValues } = poToFormDefaults(makePoDetail());
+    expect(defaultValues.lineItems![0].deliveryLocationId).toBe('');
+  });
+
+  it('prefills the FOR-210 delivery schedule and trims delivery dates to yyyy-MM-dd', () => {
+    const { defaultValues } = poToFormDefaults(
+      makePoDetail({
+        deliveries: [
+          {
+            id: 'd-1',
+            deliveryLocationId: 'loc-1',
+            deliveryLocationName: 'Site A',
+            deliveryDate: '2025-02-05T00:00:00.000Z',
+            notes: 'Gate 3',
+            sequence: 0,
+          },
+          {
+            id: 'd-2',
+            deliveryLocationId: 'loc-2',
+            deliveryLocationName: 'Site B',
+            deliveryDate: null,
+            notes: null,
+            sequence: 1,
+          },
+        ],
+      }),
+    );
+
+    expect(defaultValues.deliveries).toEqual([
+      { deliveryLocationId: 'loc-1', deliveryDate: '2025-02-05', notes: 'Gate 3' },
+      { deliveryLocationId: 'loc-2', deliveryDate: '', notes: '' },
+    ]);
+  });
+
+  it('keeps one blank delivery row when the PO has no delivery schedule', () => {
+    const { defaultValues } = poToFormDefaults(makePoDetail({ deliveries: [] }));
+    expect(defaultValues.deliveries).toEqual([
+      { deliveryLocationId: '', deliveryDate: '', notes: '' },
+    ]);
+  });
 });
