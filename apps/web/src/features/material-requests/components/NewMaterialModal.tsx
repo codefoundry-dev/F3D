@@ -11,6 +11,12 @@ export interface NewMaterialDraft {
   unit: string;
   quantity: number;
   description?: string;
+  /**
+   * Catalogue material linked from the inline manual row's name search. Set
+   * only when the name was picked from the suggestions popup, so the request is
+   * raised against the real material instead of a loose name.
+   */
+  materialId?: string;
 }
 
 export interface NewMaterialModalProps {

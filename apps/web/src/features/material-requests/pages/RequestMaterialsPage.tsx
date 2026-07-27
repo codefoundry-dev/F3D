@@ -107,6 +107,9 @@ export default function RequestMaterialsPage() {
         {
           key: nextLineKey(),
           source: 'MANUAL',
+          // Set when the inline row's name was picked from the catalogue — the
+          // line is then raised against the real material, not a loose name.
+          materialId: draft.materialId,
           materialName: draft.materialName,
           description: draft.description,
           unit: draft.unit,
@@ -214,6 +217,7 @@ export default function RequestMaterialsPage() {
             onToggleLine={toggleLine}
             onAddManual={addManual}
             onRemoveLine={removeLine}
+            onPatchLine={patchLine}
           />
         )}
         {step === 1 && (
