@@ -141,7 +141,10 @@ export interface RfqDetail {
   paymentTerms: string | null;
   pickUp: boolean;
   pickUpDate: string | null;
+  /** Display label/address of the RFQ-level delivery location. */
   deliveryLocation: string | null;
+  /** The underlying ProjectLocation id — needed to prefill the create/edit form. */
+  deliveryLocationId: string | null;
   pickUpLocation: string | null;
   deadlineStart: string | null;
   deadlineEnd: string | null;

@@ -64,6 +64,7 @@ const MOCK_RFQ = {
   pickUp: true,
   pickUpDate: null,
   deliveryLocation: '123 Main St',
+  deliveryLocationId: 'loc-1',
   pickUpLocation: null,
   deadlineStart: '2024-03-01',
   deadlineEnd: '2024-03-15',

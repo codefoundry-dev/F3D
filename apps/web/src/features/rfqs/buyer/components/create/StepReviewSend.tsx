@@ -10,6 +10,8 @@ import NoteIcon from '@forethread/ui-components/assets/icons/note.svg?react';
 import PaperclipIcon from '@forethread/ui-components/assets/icons/paperclip.svg?react';
 import { useMemo, useRef, useState } from 'react';
 
+import { useProjectDeliveryLocations } from '../../services/rfqs.service';
+
 import { TABLE_BODY_ROW, TABLE_HEADER_ROW, TABLE_TH } from './tableStyles';
 import type { WizardBasicInfo, WizardLineItem } from './wizard-types';
 
@@ -108,6 +110,17 @@ export function StepReviewSend({
     projects.find((project) => project.id === projectId)?.name ?? '—';
 
   const selectedProjects = projects.filter((project) => basicInfo.projectIds.includes(project.id));
+
+  // Resolve the chosen delivery location to a readable address (the wizard
+  // only carries its id). Served from the same cache step 1 populated.
+  const { data: deliveryLocations = [] } = useProjectDeliveryLocations(basicInfo.projectIds[0]);
+  const deliveryLocation = deliveryLocations.find((loc) => loc.id === basicInfo.deliveryLocationId);
+  const deliveryLocationLabel = deliveryLocation
+    ? deliveryLocation.label
+      ? `${deliveryLocation.label} — ${deliveryLocation.address}`
+      : deliveryLocation.address
+    : '—';
+
   const selectedVendors = vendors.filter((vendor) => selectedVendorIds.includes(vendor.companyId));
   const repSet = useMemo(() => new Set(selectedRepIds), [selectedRepIds]);
 
@@ -179,7 +192,7 @@ export function StepReviewSend({
                   : '—'}
               </dd>
             </div>
-            {basicInfo.isPickUp && (
+            {basicInfo.isPickUp ? (
               <div>
                 <dt className="text-xs text-muted-foreground">
                   {t('create.review.pickUpLocation')}
@@ -187,6 +200,13 @@ export function StepReviewSend({
                 <dd className="text-foreground mt-1 space-y-0.5">
                   {basicInfo.pickUpLocation || '—'}
                 </dd>
+              </div>
+            ) : (
+              <div data-testid="review-delivery-location">
+                <dt className="text-xs text-muted-foreground">
+                  {t('create.review.deliveryLocation')}
+                </dt>
+                <dd className="text-foreground mt-1 space-y-0.5">{deliveryLocationLabel}</dd>
               </div>
             )}
           </div>

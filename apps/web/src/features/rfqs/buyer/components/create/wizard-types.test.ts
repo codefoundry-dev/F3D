@@ -14,6 +14,7 @@ const validInfo: WizardBasicInfo = {
   documentName: 'Structural steel package',
   responseDeadline: '2026-07-01',
   projectIds: ['p1'],
+  deliveryLocationId: 'loc-1',
 };
 
 const vendor = ['v1'];
@@ -48,6 +49,18 @@ describe('validateBasicInfo', () => {
     expect(
       validateBasicInfo({ ...pickUp, pickUpLocation: 'Vendor yard, Detroit' }, vendor),
     ).toEqual({});
+  });
+
+  it('requires a delivery location for delivered orders but not pick-up orders', () => {
+    const noLocation = { ...validInfo, deliveryLocationId: '' };
+    expect(validateBasicInfo(noLocation, vendor).deliveryLocationId).toBeDefined();
+    // A pick-up order is collected from the vendor, so it needs no delivery location.
+    expect(
+      validateBasicInfo(
+        { ...noLocation, isPickUp: true, pickUpLocation: 'Vendor yard, Detroit' },
+        vendor,
+      ).deliveryLocationId,
+    ).toBeUndefined();
   });
 
   it('requires the earliest allowed delivery date only when holding for release', () => {

@@ -84,6 +84,9 @@ function buildPayload(
     name: basicInfo.documentName || undefined,
     isPickUp: basicInfo.isPickUp || undefined,
     pickUpLocation: basicInfo.isPickUp ? basicInfo.pickUpLocation || undefined : undefined,
+    // Pick-up orders are collected, not delivered — `null` clears a location
+    // chosen before the draft was switched over.
+    deliveryLocationId: basicInfo.isPickUp ? null : basicInfo.deliveryLocationId || undefined,
     holdForRelease: basicInfo.holdForRelease || undefined,
   } as SaveRfqDraftValues;
 
@@ -136,8 +139,8 @@ function withServerIds(items: WizardLineItem[], detail: RfqDetail): WizardLineIt
  * consolidated first step (RFQ basic information + a Select-Vendors accordion +
  * an Add-Line-Items accordion with inline bulk-order coverage), then Review &
  * Send. Drafts save as you go, bulk-order coverage can short-circuit to the
- * No-RFQ-Required terminal state. Delivery is captured per line item, not at
- * the RFQ level.
+ * No-RFQ-Required terminal state. Delivery location is captured on the RFQ
+ * itself; line items may override it individually.
  */
 export default function CreateRfqPage() {
   const { t } = useTranslation('rfqs');

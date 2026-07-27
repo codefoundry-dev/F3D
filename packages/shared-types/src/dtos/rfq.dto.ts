@@ -232,7 +232,7 @@ export class UpdateRfqDto {
 
   @IsUUID()
   @IsOptional()
-  deliveryLocationId?: string;
+  deliveryLocationId?: string | null;
 
   @IsDateString()
   @IsOptional()
@@ -325,7 +325,7 @@ export class SaveRfqDraftDto {
 
   @IsUUID()
   @IsOptional()
-  deliveryLocationId?: string;
+  deliveryLocationId?: string | null;
 
   @IsDateString()
   @IsOptional()
@@ -610,6 +610,9 @@ export class RfqResponseDto {
 
   @ApiPropertyOptional()
   deliveryLocation!: string | null;
+
+  @ApiPropertyOptional({ description: 'ProjectLocation id behind `deliveryLocation`.' })
+  deliveryLocationId!: string | null;
 
   @ApiPropertyOptional()
   pickUpLocation!: string | null;
