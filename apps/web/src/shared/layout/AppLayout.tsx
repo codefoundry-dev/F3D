@@ -4,6 +4,7 @@ import { usePageTitleStore } from '@forethread/rfq-shared';
 import {
   AvatarWithStatus,
   Breadcrumbs,
+  ConfirmDialog,
   Sidebar,
   type BreadcrumbItem,
   type WorkStatusType,
@@ -11,6 +12,7 @@ import {
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 import HomeIcon from '@forethread/ui-components/assets/icons/home.svg?react';
 import LogoIcon from '@forethread/ui-components/assets/icons/logo.svg?react';
+import { useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -25,6 +27,7 @@ export function AppLayout() {
   const { t } = useTranslation(['common', 'nav', 'auth']);
   const currentUser = useAuthStore((s) => s.currentUser);
   const logoutMutation = useLogout();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const role = useUserRole();
@@ -119,7 +122,7 @@ export function AppLayout() {
                   <button
                     type="button"
                     className="w-full text-left px-4 py-2 text-sm text-destructive hover:bg-destructive/10"
-                    onClick={() => logoutMutation.mutate()}
+                    onClick={() => setShowLogoutConfirm(true)}
                     disabled={logoutMutation.isPending}
                   >
                     {t('auth:logout')}
@@ -134,6 +137,24 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      {showLogoutConfirm && (
+        <ConfirmDialog
+          title={t('auth:logoutConfirmTitle', { defaultValue: 'Log out' })}
+          message={t('auth:logoutConfirmMessage', {
+            defaultValue:
+              'Are you sure you want to log out? You will need to sign in again to access your account.',
+          })}
+          confirmLabel={t('auth:logout')}
+          cancelLabel={t('common:cancel', { defaultValue: 'Cancel' })}
+          confirmVariant="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          onConfirm={() => {
+            setShowLogoutConfirm(false);
+            logoutMutation.mutate();
+          }}
+          onCancel={() => setShowLogoutConfirm(false)}
+        />
+      )}
     </div>
   );
 }
