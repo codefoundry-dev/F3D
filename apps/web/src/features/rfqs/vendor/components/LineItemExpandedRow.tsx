@@ -1,5 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
-import { DatePicker, StepperInput, Textarea } from '@forethread/ui-components';
+import { DatePicker, StepperInput, Textarea, todayIso } from '@forethread/ui-components';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 
 import type { LineItemFormState } from '../hooks/useRfqResponse';
@@ -90,7 +90,7 @@ export function LineItemExpandedRow({
             value={item.backOrderDeliveryDate}
             onChange={(v) => onUpdateItem(index, 'backOrderDeliveryDate', v)}
             className="h-12"
-            minDate={new Date().toISOString().slice(0, 10)}
+            minDate={todayIso()}
           />
         </div>
       </div>

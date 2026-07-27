@@ -1,5 +1,12 @@
 import { useTranslation } from '@forethread/i18n';
-import { Button, FormField, CustomDropdown, DatePicker, Textarea } from '@forethread/ui-components';
+import {
+  Button,
+  FormField,
+  CustomDropdown,
+  DatePicker,
+  Textarea,
+  todayIso,
+} from '@forethread/ui-components';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import {
   type Control,
@@ -101,11 +108,7 @@ export function PoDeliveriesSection({
                   name={`deliveries.${index}.deliveryDate`}
                   control={control}
                   render={({ field: f }) => (
-                    <DatePicker
-                      value={f.value ?? ''}
-                      onChange={f.onChange}
-                      minDate={new Date().toISOString().split('T')[0]}
-                    />
+                    <DatePicker value={f.value ?? ''} onChange={f.onChange} minDate={todayIso()} />
                   )}
                 />
               </FormField>

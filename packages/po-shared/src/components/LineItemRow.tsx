@@ -6,6 +6,7 @@ import {
   MaterialSearchPanel,
   onDigitsOnly,
   onDecimalOnly,
+  todayIso,
 } from '@forethread/ui-components';
 import type { MaterialItem, SelectedMaterial, MaterialFilters } from '@forethread/ui-components';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
@@ -274,7 +275,7 @@ export function LineItemRow({
                 value={f.value ?? ''}
                 onChange={f.onChange}
                 borderless
-                minDate={new Date().toISOString().slice(0, 10)}
+                minDate={todayIso()}
               />
             )}
           />

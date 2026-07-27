@@ -181,6 +181,7 @@ vi.mock('../components/StepReview', () => ({
 }));
 vi.mock('../components/NewMaterialModal', () => ({ NewMaterialModal: () => null }));
 vi.mock('@forethread/ui-components', () => ({
+  todayIso: () => new Date().toISOString().slice(0, 10),
   StatusErrorModal: ({ title }: { title: string }) => <div data-testid="error-modal">{title}</div>,
 }));
 

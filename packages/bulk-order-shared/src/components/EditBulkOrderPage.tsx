@@ -8,6 +8,7 @@ import {
   CustomDropdown,
   DatePicker,
   notificationService,
+  todayIso,
 } from '@forethread/ui-components';
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -114,11 +115,7 @@ export function EditBulkOrderPage() {
           <label className="text-sm font-medium text-foreground mb-1 block">
             {t('modals.endDateLabel')}
           </label>
-          <DatePicker
-            value={endDate}
-            onChange={setEndDate}
-            minDate={new Date().toISOString().slice(0, 10)}
-          />
+          <DatePicker value={endDate} onChange={setEndDate} minDate={todayIso()} />
         </div>
       </div>
 

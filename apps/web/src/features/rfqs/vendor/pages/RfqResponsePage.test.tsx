@@ -89,6 +89,7 @@ vi.mock('../hooks/useCanRespond', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  todayIso: () => new Date().toISOString().slice(0, 10),
   Alert: ({ children }: { children: React.ReactNode }) => <div data-testid="alert">{children}</div>,
   Button: ({
     children,

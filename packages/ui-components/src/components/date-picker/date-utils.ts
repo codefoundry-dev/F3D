@@ -11,6 +11,21 @@ export function isDateDisabled(dateStr: string, minDate?: string, maxDate?: stri
   return false;
 }
 
+/**
+ * Today as a YYYY-MM-DD string in the user's **local** calendar — the canonical
+ * `minDate` for any field that names a future event (need-by, delivery,
+ * deadlines). Derived from local date parts rather than `toISOString()`, which
+ * yields the UTC day and so drifts by one either side of midnight — blocking a
+ * genuine "today" west of UTC, or admitting yesterday east of it. The calendar
+ * grid builds its cells from local parts too, so both sides agree.
+ */
+export function todayIso(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
 export const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export function getDaysInMonth(year: number, month: number) {

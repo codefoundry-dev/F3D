@@ -10,6 +10,7 @@ import {
   Spinner,
   formatCurrency,
   notificationService,
+  todayIso,
 } from '@forethread/ui-components';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
@@ -156,7 +157,7 @@ export function CreateBulkOrderPage({ isVendorView = false }: CreateBulkOrderPag
               value={endDate}
               onChange={setEndDate}
               placeholder={t('create.datePlaceholder')}
-              minDate={new Date().toISOString().slice(0, 10)}
+              minDate={todayIso()}
             />
           </FormField>
         </div>

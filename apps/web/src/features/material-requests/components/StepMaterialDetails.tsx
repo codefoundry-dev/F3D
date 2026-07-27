@@ -1,5 +1,12 @@
 import { useTranslation } from '@forethread/i18n';
-import { DatePicker, Input, Textarea, Select, SelectDropdown } from '@forethread/ui-components';
+import {
+  DatePicker,
+  Input,
+  Textarea,
+  Select,
+  SelectDropdown,
+  todayIso,
+} from '@forethread/ui-components';
 import { Fragment, useState } from 'react';
 
 import {
@@ -203,6 +210,7 @@ export function StepMaterialDetails({
                         value={line.expectedDeliveryDate ?? ''}
                         onChange={(date) => onPatchLine(line.key, { expectedDeliveryDate: date })}
                         placeholder={t('materialDetails.pickDate')}
+                        minDate={todayIso()}
                         editable
                       />
                     </td>

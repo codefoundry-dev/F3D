@@ -8,6 +8,7 @@ import {
   Input,
   onDecimalOnly,
   onDigitsOnly,
+  todayIso,
 } from '@forethread/ui-components';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 
@@ -147,7 +148,7 @@ export function BulkLevelDefaults({
               <DatePicker
                 value={bulkDefaults.bulkDeliveryTime}
                 onChange={(date) => onFieldChange('bulkDeliveryTime', date)}
-                minDate={new Date().toISOString().slice(0, 10)}
+                minDate={todayIso()}
               />
             </div>
           </div>

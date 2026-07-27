@@ -39,6 +39,7 @@ vi.mock('@forethread/api-client', () => ({ searchAddresses: vi.fn() }));
 vi.mock('@forethread/ui-components', async () => {
   const { forwardRef } = await import('react');
   return {
+    todayIso: () => new Date().toISOString().slice(0, 10),
     Input: forwardRef((props: any, ref: any) => <input ref={ref} {...props} />),
     AddressInput: (props: any) => (
       <input

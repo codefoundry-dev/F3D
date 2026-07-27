@@ -9,6 +9,7 @@ import {
   onDecimalOnly,
   StepperInput,
   ToggleSwitch,
+  todayIso,
 } from '@forethread/ui-components';
 import CircleReloadIcon from '@forethread/ui-components/assets/icons/circle-reload.svg?react';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
@@ -376,7 +377,7 @@ function LineItemRow({
             onChange={(v) => onUpdateItem(index, 'deliveryDate', v)}
             borderless
             disabled={!item.included}
-            minDate={new Date().toISOString().slice(0, 10)}
+            minDate={todayIso()}
           />
         </td>
 

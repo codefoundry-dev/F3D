@@ -17,6 +17,7 @@ import {
   formatDate,
   onDecimalOnly,
   onDigitsOnly,
+  todayIso,
 } from '@forethread/ui-components';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
@@ -334,11 +335,7 @@ export function ProposeChangePage({ isVendorView = false }: ProposeChangePagePro
               )}
             </FormField>
             <FormField label={t('changeRequests.proposePage.expirationDate')}>
-              <DatePicker
-                value={endDate}
-                onChange={setEndDate}
-                minDate={new Date().toISOString().slice(0, 10)}
-              />
+              <DatePicker value={endDate} onChange={setEndDate} minDate={todayIso()} />
             </FormField>
             <FormField label={t('changeRequests.proposePage.changeReason')}>
               <Input

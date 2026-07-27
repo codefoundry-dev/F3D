@@ -1,5 +1,12 @@
 import { useTranslation } from '@forethread/i18n';
-import { Button, DatePicker, GridModal, Input, Textarea } from '@forethread/ui-components';
+import {
+  Button,
+  DatePicker,
+  GridModal,
+  Input,
+  Textarea,
+  todayIso,
+} from '@forethread/ui-components';
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import { useState } from 'react';
 
@@ -115,6 +122,7 @@ export function EditMaterialModal({ item, onConfirm, onClose }: EditMaterialModa
           value={expectedDate}
           onChange={setExpectedDate}
           editable
+          minDate={todayIso()}
           placeholder="mm/dd/yyyy"
         />
       </div>

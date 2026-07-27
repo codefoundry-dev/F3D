@@ -315,6 +315,7 @@ export type { BreadcrumbsProps, BreadcrumbItem } from './components/Breadcrumbs'
 
 export { DatePicker } from './components/DatePicker';
 export type { DatePickerProps } from './components/DatePicker';
+export { todayIso } from './components/date-picker/date-utils';
 
 export { FilterPanel } from './components/FilterPanel';
 export type { FilterPanelProps } from './components/FilterPanel';

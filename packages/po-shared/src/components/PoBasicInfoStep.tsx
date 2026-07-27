@@ -7,6 +7,7 @@ import {
   DatePicker,
   Checkbox,
   onDigitsOnly,
+  todayIso,
 } from '@forethread/ui-components';
 import {
   type Control,
@@ -198,7 +199,7 @@ export function PoBasicInfoStep({
                     <DatePicker
                       value={field.value}
                       onChange={field.onChange}
-                      minDate={new Date().toISOString().split('T')[0]}
+                      minDate={todayIso()}
                       disabled={isLocked('plannedDeliveryDate', field.value)}
                     />
                   )}
