@@ -258,7 +258,7 @@ function LineItemsTab({ lineItems }: { lineItems: PoDetail['lineItems'] }) {
               {t('lineItemsTab.materialName')}
             </th>
             <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
-              {t('lineItemsTab.qtyOrdered')}
+              {t('lineItemsTab.qty')}
             </th>
             <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
               {t('lineItemsTab.unitPrice')}

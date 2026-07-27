@@ -333,7 +333,7 @@
     "mpn": "MPN",
     "taxCode": "Tax code",
     "description": "Description",
-    "qtyOrdered": "Qty. Ordered",
+    "qty": "Qty",
     "qtyDelivered": "Qty Delivered",
     "uom": "UoM",
     "unitPrice": "Unit Price",

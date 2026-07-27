@@ -153,9 +153,12 @@ const RFQ_DETAIL_INCLUDE = {
 
 export interface UpdateLineItemDto {
   materialId?: string;
+  /** Only honoured on free-text / BOM lines — see `updateLineItem`. */
+  materialName?: string;
   quantity?: number;
   unit?: string;
   description?: string | null;
+  costCode?: string | null;
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -1868,13 +1871,22 @@ export class RfqsService {
 
     this.assertCompanyAccess(user, lineItem.rfq.companyId);
 
+    // `materialName` belongs to free-text / BOM lines only: a catalogue line
+    // reads its display name from the Material relation, so a copy stored next
+    // to a materialId would go stale. Same invariant `normalizeRfqLineItem`
+    // keeps at create time.
+    const nextMaterialId = dto.materialId ?? lineItem.materialId;
+
     const updated = await this.prisma.rfqLineItem.update({
       where: { id: lineItemId },
       data: {
         ...(dto.materialId !== undefined && { materialId: dto.materialId }),
+        ...(dto.materialName !== undefined &&
+          !nextMaterialId && { materialName: dto.materialName }),
         ...(dto.quantity !== undefined && { quantity: dto.quantity }),
         ...(dto.unit !== undefined && { unit: dto.unit }),
         ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.costCode !== undefined && { costCode: dto.costCode }),
       },
       include: { material: { select: { id: true, name: true, uom: true } } },
     });
@@ -1888,6 +1900,7 @@ export class RfqsService {
       description: updated.description,
       quantity: updated.quantity,
       unit: updated.unit,
+      costCode: updated.costCode,
     };
   }
 

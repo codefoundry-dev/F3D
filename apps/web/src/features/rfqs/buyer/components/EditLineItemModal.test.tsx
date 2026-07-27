@@ -74,6 +74,7 @@ const lineItem = {
   materialName: 'Cement',
   quantity: 100,
   unit: 'bags',
+  costCode: 'CC-100',
   description: 'Portland cement',
 };
 
@@ -102,8 +103,9 @@ describe('EditLineItemModal', () => {
       wrapper,
     });
     expect(screen.getByText('lineItemsTab.materialName')).toBeInTheDocument();
-    expect(screen.getByText('lineItemsTab.qtyOrdered')).toBeInTheDocument();
+    expect(screen.getByText('lineItemsTab.qty')).toBeInTheDocument();
     expect(screen.getByText('lineItemsTab.uom')).toBeInTheDocument();
+    expect(screen.getByText('lineItemsTab.costCode')).toBeInTheDocument();
   });
 
   it('renders submit and cancel buttons', () => {
@@ -134,6 +136,7 @@ describe('EditLineItemModal', () => {
         materialName: 'Cement',
         quantity: 100,
         unit: 'bags',
+        costCode: 'CC-100',
         description: 'Portland cement',
       });
     });
@@ -176,13 +179,70 @@ describe('EditLineItemModal', () => {
       wrapper,
     });
     const textInputs = screen.getAllByTestId('input-text');
-    fireEvent.change(textInputs[2], { target: { value: '' } });
+    // text inputs: 0 = material name, 1 = UoM, 2 = cost code, 3 = description
+    fireEvent.change(textInputs[3], { target: { value: '' } });
     fireEvent.click(screen.getByText('lineItemsTab.editModal.submitChanges'));
     await vi.waitFor(() => {
       expect(updateLineItem).toHaveBeenCalledWith(
         'rfq-1',
         'li-1',
         expect.objectContaining({ description: null }),
+      );
+    });
+  });
+
+  it('submits an edited cost code', async () => {
+    const { updateLineItem } = await import('@forethread/api-client');
+    (updateLineItem as ReturnType<typeof vi.fn>).mockResolvedValue({});
+    render(<EditLineItemModal rfqId="rfq-1" lineItem={lineItem as never} onClose={onClose} />, {
+      wrapper,
+    });
+    const textInputs = screen.getAllByTestId('input-text');
+    expect(textInputs[2]).toHaveValue('CC-100');
+    fireEvent.change(textInputs[2], { target: { value: 'CC-200' } });
+    fireEvent.click(screen.getByText('lineItemsTab.editModal.submitChanges'));
+    await vi.waitFor(() => {
+      expect(updateLineItem).toHaveBeenCalledWith(
+        'rfq-1',
+        'li-1',
+        expect.objectContaining({ costCode: 'CC-200' }),
+      );
+    });
+  });
+
+  it('locks the material name and omits it for a catalogue-backed line', async () => {
+    const { updateLineItem } = await import('@forethread/api-client');
+    (updateLineItem as ReturnType<typeof vi.fn>).mockResolvedValue({});
+    const catalogueItem = { ...lineItem, materialId: 'mat-1' } as never;
+    render(<EditLineItemModal rfqId="rfq-1" lineItem={catalogueItem} onClose={onClose} />, {
+      wrapper,
+    });
+    const textInputs = screen.getAllByTestId('input-text');
+    expect(textInputs[0]).toBeDisabled();
+    fireEvent.click(screen.getByText('lineItemsTab.editModal.submitChanges'));
+    await vi.waitFor(() => {
+      expect(updateLineItem).toHaveBeenCalledWith(
+        'rfq-1',
+        'li-1',
+        expect.not.objectContaining({ materialName: expect.anything() }),
+      );
+    });
+  });
+
+  it('submits an empty cost code as null', async () => {
+    const { updateLineItem } = await import('@forethread/api-client');
+    (updateLineItem as ReturnType<typeof vi.fn>).mockResolvedValue({});
+    render(<EditLineItemModal rfqId="rfq-1" lineItem={lineItem as never} onClose={onClose} />, {
+      wrapper,
+    });
+    const textInputs = screen.getAllByTestId('input-text');
+    fireEvent.change(textInputs[2], { target: { value: '' } });
+    fireEvent.click(screen.getByText('lineItemsTab.editModal.submitChanges'));
+    await vi.waitFor(() => {
+      expect(updateLineItem).toHaveBeenCalledWith(
+        'rfq-1',
+        'li-1',
+        expect.objectContaining({ costCode: null }),
       );
     });
   });

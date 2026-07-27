@@ -26,19 +26,13 @@ export function RfqLineItemsTab({ lineItems, layout = 'panel' }: RfqLineItemsTab
           <thead>
             <tr className="border-b border-foreground/10 text-left">
               <th className="pb-2 pr-3 font-medium text-muted-foreground text-xs">
-                {t('lineItemsTab.project')}
-              </th>
-              <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
                 {t('lineItemsTab.lineItemId')}
               </th>
               <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
                 {t('lineItemsTab.materialName')}
               </th>
               <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
-                {t('lineItemsTab.description')}
-              </th>
-              <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
-                {t('lineItemsTab.qtyOrdered')}
+                {t('lineItemsTab.qty')}
               </th>
               <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
                 {t('lineItemsTab.uom')}
@@ -57,12 +51,8 @@ export function RfqLineItemsTab({ lineItems, layout = 'panel' }: RfqLineItemsTab
           <tbody>
             {lineItems.map((item) => (
               <tr key={item.id} className="border-b border-foreground/10">
-                <td className="py-2.5 pr-3 text-foreground">{item.projectName}</td>
-                <td className="py-2.5 px-3 text-foreground">{item.id}</td>
+                <td className="py-2.5 pr-3 text-foreground">{item.id}</td>
                 <td className="py-2.5 px-3 text-foreground">{item.materialName}</td>
-                <td className="py-2.5 px-3 text-muted-foreground truncate max-w-[160px]">
-                  {item.description ?? '-'}
-                </td>
                 <td className="py-2.5 px-3 text-foreground">{item.quantity}</td>
                 <td className="py-2.5 px-3 text-muted-foreground">{item.unit}</td>
                 <td className="py-2.5 px-3 text-muted-foreground">

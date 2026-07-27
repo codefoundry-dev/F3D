@@ -311,11 +311,10 @@
   "lineItemsTab": {
     "title": "Line Items",
     "edit": "Edit",
-    "project": "Project",
     "lineItemId": "Line Item ID",
     "materialName": "Material Name",
     "description": "Description",
-    "qtyOrdered": "Qty. Ordered",
+    "qty": "Qty",
     "uom": "UoM",
     "costCode": "Cost code",
     "upc": "UPC",

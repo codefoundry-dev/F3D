@@ -58,7 +58,7 @@ export function PoLineItemsTab({
 
   const isPageLayout = layout === 'page';
   const showActions = isPageLayout && Boolean(poId) && !readOnly;
-  const columnCount = (isPageLayout ? 13 : 6) + (showActions ? 1 : 0);
+  const columnCount = (isPageLayout ? 12 : 5) + (showActions ? 1 : 0);
 
   return (
     <div className="rounded-lg border border-border bg-background">
@@ -91,8 +91,7 @@ export function PoLineItemsTab({
               {isPageLayout && <th className={TH}>{t('lineItemsTab.upc')}</th>}
               {isPageLayout && <th className={TH}>{t('lineItemsTab.mpn')}</th>}
               {isPageLayout && <th className={TH}>{t('lineItemsTab.taxCode')}</th>}
-              <th className={TH}>{t('lineItemsTab.description')}</th>
-              <th className={TH}>{t('lineItemsTab.qtyOrdered')}</th>
+              <th className={TH}>{t('lineItemsTab.qty')}</th>
               <th className={TH}>{t('lineItemsTab.uom')}</th>
               {isPageLayout && <th className={TH}>{t('lineItemsTab.expDeliveryDate')}</th>}
               {isPageLayout && <th className={TH}>{t('lineItemsTab.deliveryTime')}</th>}
@@ -139,9 +138,6 @@ export function PoLineItemsTab({
                       {item.taxCode ?? '-'}
                     </td>
                   )}
-                  <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
-                    {item.description ?? '-'}
-                  </td>
                   <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
                     {item.quantityOrdered}
                   </td>
@@ -317,7 +313,7 @@ function EditPoLineItemModal({ poId, lineItem, allLineItems, onClose }: EditPoLi
 
       {/* Quantity + UoM */}
       <div className="grid grid-cols-2 gap-3">
-        <FormField label={t('lineItemsTab.qtyOrdered')} required>
+        <FormField label={t('lineItemsTab.qty')} required>
           <Input
             inputMode="numeric"
             pattern="[0-9]*"

@@ -491,6 +491,7 @@ export interface UpdateLineItemPayload {
   quantity?: number;
   unit?: string;
   description?: string | null;
+  costCode?: string | null;
 }
 
 export async function updateLineItem(
