@@ -398,6 +398,8 @@
         "description": "Description"
       },
       "autoMapNote": "The system will attempt to auto-map columns and flag unrecognised values for your review before importing.",
+      "destinationCompany": "Materials you import are added to your company's private catalogue and grouped into a material list named after your file. They're visible only to your company — nothing is published to the public catalogue.",
+      "destinationPublic": "Materials you import are published to the shared public catalogue and become visible to every company.",
       "proceed": "Proceed file",
       "uploading": "Uploading…",
       "processing": "Extracting material file…"
