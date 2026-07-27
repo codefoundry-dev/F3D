@@ -11,7 +11,7 @@ const DASH = '—';
 /**
  * Detail line-items table (US 2.08), columns sourced from Figma node 5914:85044:
  * Line Item ID / Material name / Description / Qty ordered / UoM /
- * Exp. delivery date / Delivery location / Notes.
+ * Exp. delivery date / Delivery time / Delivery location / Notes.
  */
 export function MrLineItemsTable({ lineItems }: MrLineItemsTableProps) {
   const { t } = useTranslation('materialRequests');
@@ -29,6 +29,7 @@ export function MrLineItemsTable({ lineItems }: MrLineItemsTableProps) {
     quantity: 'detail.columns.quantity',
     unit: 'detail.columns.unit',
     expectedDelivery: 'detail.columns.expectedDelivery',
+    deliveryTime: 'detail.columns.deliveryTime',
     deliveryLocation: 'detail.columns.deliveryLocation',
     notes: 'detail.columns.notes',
   } as const;
@@ -63,6 +64,7 @@ export function MrLineItemsTable({ lineItems }: MrLineItemsTableProps) {
               <td className="whitespace-nowrap px-3 py-3">
                 {li.expectedDeliveryDate ? formatDate(li.expectedDeliveryDate) : DASH}
               </td>
+              <td className="whitespace-nowrap px-3 py-3">{li.deliveryTime ?? DASH}</td>
               <td className="px-3 py-3">{li.deliveryLocation ?? DASH}</td>
               <td className="max-w-[220px] truncate px-3 py-3 text-muted-foreground">
                 {li.notes ?? DASH}

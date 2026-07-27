@@ -116,6 +116,8 @@ export interface RfqLineItem {
   manufacturerPartNumber?: string | null;
   taxCode?: string | null;
   expectedDeliveryDate: string | null;
+  /** Wanted delivery time of day, 24-hour "HH:MM". */
+  deliveryTime?: string | null;
   deliveryLocation: string | null;
   hasNotes?: boolean;
 }
@@ -139,7 +141,10 @@ export interface RfqDetail {
   paymentTerms: string | null;
   pickUp: boolean;
   pickUpDate: string | null;
+  /** Display label/address of the RFQ-level delivery location. */
   deliveryLocation: string | null;
+  /** The underlying ProjectLocation id — needed to prefill the create/edit form. */
+  deliveryLocationId: string | null;
   pickUpLocation: string | null;
   deadlineStart: string | null;
   deadlineEnd: string | null;
@@ -489,6 +494,7 @@ export interface UpdateLineItemPayload {
   quantity?: number;
   unit?: string;
   description?: string | null;
+  costCode?: string | null;
 }
 
 export async function updateLineItem(

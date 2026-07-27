@@ -1,5 +1,12 @@
 import { useTranslation } from '@forethread/i18n';
-import { DatePicker, Input, Textarea, Select, SelectDropdown } from '@forethread/ui-components';
+import {
+  DatePicker,
+  Input,
+  Textarea,
+  Select,
+  SelectDropdown,
+  todayIso,
+} from '@forethread/ui-components';
 import { Fragment, useState } from 'react';
 
 import {
@@ -90,8 +97,9 @@ function NoteGlyph() {
  * Step 2 — "Material Details" (Figma 2002:176 frame 14:331). Lays the selected
  * lines out as a single editable table styled like the RFQ/PO list views: a
  * bold letter-spaced header bar with divider rows, one row per material, and the
- * required per-line inputs (Quantity Needed*, Priority, Need-by date*, Delivery
- * Time*, Delivery Address*) inline in the cells. The optional free-text fields
+ * per-line inputs (Quantity Needed*, Priority, Need-by date, Delivery Time,
+ * Delivery Address*) inline in the cells — the two delivery-timing fields are
+ * optional prefills that follow the line into its RFQ / PO. The free-text fields
  * (CC team, Instructions, Internal notes) live in an expandable per-row drawer
  * so the table itself stays compact. Renders inside the wizard's DS card.
  */
@@ -121,14 +129,8 @@ export function StepMaterialDetails({
                 <RequiredMark />
               </th>
               <th className={`${TH} w-[170px]`}>{t('materialDetails.priority')}</th>
-              <th className={`${TH} w-[160px]`}>
-                {t('materialDetails.needByDate')}
-                <RequiredMark />
-              </th>
-              <th className={`${TH} w-[130px]`}>
-                {t('materialDetails.deliveryTime')}
-                <RequiredMark />
-              </th>
+              <th className={`${TH} w-[160px]`}>{t('materialDetails.needByDate')}</th>
+              <th className={`${TH} w-[130px]`}>{t('materialDetails.deliveryTime')}</th>
               <th className={`${TH} w-[210px]`}>
                 {t('materialDetails.deliveryAddress')}
                 <RequiredMark />
@@ -208,13 +210,9 @@ export function StepMaterialDetails({
                         value={line.expectedDeliveryDate ?? ''}
                         onChange={(date) => onPatchLine(line.key, { expectedDeliveryDate: date })}
                         placeholder={t('materialDetails.pickDate')}
+                        minDate={todayIso()}
                         editable
                       />
-                      {lineErrors.expectedDeliveryDate && (
-                        <p className="mt-1 text-xs text-destructive">
-                          {t('materialDetails.needByDate')}
-                        </p>
-                      )}
                     </td>
 
                     {/* Delivery time */}
@@ -226,11 +224,6 @@ export function StepMaterialDetails({
                         aria-label={t('materialDetails.deliveryTime')}
                         data-testid={`mr-time-${line.key}`}
                       />
-                      {lineErrors.deliveryTime && (
-                        <p className="mt-1 text-xs text-destructive">
-                          {t('materialDetails.deliveryTime')}
-                        </p>
-                      )}
                     </td>
 
                     {/* Delivery Address */}

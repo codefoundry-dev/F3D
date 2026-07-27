@@ -1,14 +1,27 @@
 import {
+  applyDocExtractionItemOps,
   confirmDocExtraction,
   createDocExtraction,
   deleteDocExtraction,
+  type DocExtractionItemOp,
+  type DocExtractionItemOpsResult,
+  type DocExtractionItemsResponse,
   type DocExtractionResponse,
   type DocExtractionType,
   getDocExtraction,
+  getDocExtractionItems,
+  getDocExtractionSummary,
   queryKeys,
   updateDocExtraction,
 } from '@forethread/api-client';
-import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseMutationResult,
+  type UseQueryResult,
+} from '@tanstack/react-query';
 
 const TERMINAL_STATUSES: ReadonlySet<DocExtractionResponse['status']> = new Set([
   'COMPLETED',
@@ -42,6 +55,66 @@ export function useDocExtractionQuery(id: string | null): UseQueryResult<DocExtr
       if (!data) return POLL_INTERVAL_MS;
       return TERMINAL_STATUSES.has(data.status) ? false : POLL_INTERVAL_MS;
     },
+    // The poll interval owns freshness. A window-focus refetch would re-download
+    // the terminal payload — tens of MB for a large catalogue — and re-diff it
+    // on the main thread, janking the page every time the tab regains focus.
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * Poll variant for flows that must never download the result payload — the
+ * COMPLETED response for a 62k-row catalogue is ~50MB while the summary view
+ * stays a few hundred bytes. Same polling cadence as {@link useDocExtractionQuery}.
+ */
+export function useDocExtractionSummaryQuery(
+  id: string | null,
+): UseQueryResult<DocExtractionResponse> {
+  return useQuery<DocExtractionResponse>({
+    queryKey: queryKeys.docExtractions.summary(id ?? ''),
+    queryFn: () => getDocExtractionSummary(id as string),
+    enabled: Boolean(id),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return POLL_INTERVAL_MS;
+      return TERMINAL_STATUSES.has(data.status) ? false : POLL_INTERVAL_MS;
+    },
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * One window of a stored result's items, sliced server-side. `indexes` mode
+ * fetches scattered absolute positions (the duplicates-only filter); page mode
+ * a contiguous slice. Disabled until `enabled` so Step 1 never fetches.
+ */
+export function useDocExtractionItemsQuery<TItem = Record<string, unknown>>(
+  id: string | null,
+  params: { page?: number; limit?: number; indexes?: number[] },
+  enabled: boolean,
+): UseQueryResult<DocExtractionItemsResponse<TItem>> {
+  return useQuery<DocExtractionItemsResponse<TItem>>({
+    queryKey: queryKeys.docExtractions.items(id ?? '', params),
+    queryFn: () => getDocExtractionItems<TItem>(id as string, params),
+    enabled: Boolean(id) && enabled,
+    // Keep the previous window on screen while the next page loads.
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * Sparse row edits applied server-side (see applyDocExtractionItemOps). The
+ * caller owns cache invalidation — a flush of buffered cell edits must NOT
+ * refetch (the client already shows the edited values), while structural ops
+ * (remove/duplicate) must.
+ */
+export function useApplyDocExtractionItemOps(
+  id: string | null,
+): UseMutationResult<DocExtractionItemOpsResult, Error, DocExtractionItemOp[]> {
+  return useMutation<DocExtractionItemOpsResult, Error, DocExtractionItemOp[]>({
+    mutationFn: (ops) =>
+      applyDocExtractionItemOps(id as string, ops, { skipErrorHandler: true, timeout: 120_000 }),
   });
 }
 

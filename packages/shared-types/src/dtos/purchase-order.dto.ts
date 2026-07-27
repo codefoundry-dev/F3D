@@ -10,6 +10,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   Min,
   ValidateNested,
@@ -24,6 +25,7 @@ import {
   PoStatus,
   PoType,
 } from '../enums';
+import { DELIVERY_TIME_REGEX } from '../validation';
 
 import { BasePaginationQueryDto, PaginationMetaDto } from './pagination.dto';
 
@@ -124,6 +126,11 @@ export class CreatePoLineItemDto {
   @IsDateString()
   @IsOptional()
   expectedDeliveryDate?: string;
+
+  @ApiPropertyOptional({ description: 'Per-line wanted delivery time of day ("HH:MM", 24h)' })
+  @Matches(DELIVERY_TIME_REGEX, { message: 'deliveryTime must be a 24-hour HH:MM time' })
+  @IsOptional()
+  deliveryTime?: string;
 
   @IsUUID()
   @IsOptional()
@@ -554,6 +561,9 @@ export class PoLineItemResponseDto {
 
   @ApiPropertyOptional()
   expectedDeliveryDate!: string | null;
+
+  @ApiPropertyOptional()
+  deliveryTime!: string | null;
 
   @ApiPropertyOptional()
   deliveryLocationId!: string | null;

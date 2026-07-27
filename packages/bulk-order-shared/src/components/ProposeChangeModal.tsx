@@ -14,6 +14,7 @@ import {
   DatePicker,
   onDecimalOnly,
   onDigitsOnly,
+  todayIso,
 } from '@forethread/ui-components';
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
@@ -140,11 +141,7 @@ export function ProposeChangeModal({
               <Input type="text" value={projectName} disabled />
             </FormField>
             <FormField label={t('changeRequests.proposeModal.endDate')}>
-              <DatePicker
-                value={endDate}
-                onChange={setEndDate}
-                minDate={new Date().toISOString().slice(0, 10)}
-              />
+              <DatePicker value={endDate} onChange={setEndDate} minDate={todayIso()} />
             </FormField>
             <FormField label={t('changeRequests.proposeModal.message')}>
               <Input

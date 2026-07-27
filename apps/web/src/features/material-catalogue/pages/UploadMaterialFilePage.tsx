@@ -1,24 +1,32 @@
-import { updateDocExtraction, type MaterialDuplicateMatch } from '@forethread/api-client';
+import { queryKeys, type MaterialDuplicateMatch } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
+import { type CatalogueLineItem } from '@forethread/shared-types/client';
 import {
-  type CatalogueExtractionResult,
-  type CatalogueLineItem,
-  isCatalogueExtractionResult,
-} from '@forethread/shared-types/client';
-import { Alert, Button, Input, notificationService, useDebounce } from '@forethread/ui-components';
+  Alert,
+  Button,
+  Input,
+  notificationService,
+  TablePagination,
+} from '@forethread/ui-components';
 import CopyIcon from '@forethread/ui-components/assets/icons/copy.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import FileTextIcon from '@forethread/ui-components/assets/icons/file-text.svg?react';
 import WarningIcon from '@forethread/ui-components/assets/icons/info-in-triangle.svg?react';
 import InfoIcon from '@forethread/ui-components/assets/icons/info.svg?react';
 import SpinnerIcon from '@forethread/ui-components/assets/icons/spinner.svg?react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 
-import { useCreateDocExtraction, useDocExtractionQuery } from '../../doc-intelligence';
+import {
+  useApplyDocExtractionItemOps,
+  useCreateDocExtraction,
+  useDocExtractionItemsQuery,
+  useDocExtractionSummaryQuery,
+} from '../../doc-intelligence';
 import { WizardStepper } from '../components/WizardStepper';
 import { useCatalogueImport } from '../hooks/useCatalogueImport';
 import { mapDuplicateResults, useDetectDuplicates } from '../hooks/useDetectDuplicates';
@@ -42,19 +50,48 @@ const XLSX_EXT = '.xlsx';
 const MAX_XLSX_BYTES = 30 * 1024 * 1024;
 const MAX_OTHER_BYTES = 10 * 1024 * 1024;
 
-const EMPTY_RESULT: CatalogueExtractionResult = { sourceName: null, items: [], notes: null };
+// A real distributor catalogue can be 60k+ rows. The result lives server-side;
+// the wizard only ever fetches one page of rows (and PATCHes sparse row ops
+// back), so neither the network nor the DOM ever carries the whole draft.
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
+const DEFAULT_PAGE_SIZE = 50;
+/** Buffered cell edits flush to the server this long after the last keystroke. */
+const FLUSH_DEBOUNCE_MS = 600;
+
+/** One rendered row: the item plus its absolute index in the stored result. */
+interface WizardRow {
+  index: number;
+  item: CatalogueLineItem;
+}
 
 function extensionOf(filename: string): string {
   const dot = filename.lastIndexOf('.');
   return dot === -1 ? '' : filename.slice(dot).toLowerCase();
 }
 
+/** Shift the numeric keys of an index-keyed map after a structural row op. */
+function shiftIndexKeys<T>(map: Map<number, T>, after: number, delta: number): Map<number, T> {
+  const next = new Map<number, T>();
+  for (const [key, value] of map) {
+    if (key > after) next.set(key + delta, value);
+    else next.set(key, value);
+  }
+  return next;
+}
+
+function shiftIndexSet(set: ReadonlySet<number>, after: number, delta: number): Set<number> {
+  const next = new Set<number>();
+  for (const key of set) next.add(key > after ? key + delta : key);
+  return next;
+}
+
 /**
  * 3-step catalogue upload wizard (US 4.02 "Contribute to material catalogue").
  * Reuses the doc-intelligence upload + poll pipeline (`useCreateDocExtraction`,
- * `useDocExtractionQuery`, `type: 'CATALOGUE'`) — the same flow the FOR-228
- * `CatalogueImportModal` runs — but as a full page with column mapping and
- * duplicate detection.
+ * `useDocExtractionSummaryQuery`, `type: 'CATALOGUE'`) — but the result stays
+ * server-side: the poll carries only a row count, Steps 2/3 window the rows
+ * through `useDocExtractionItemsQuery`, edits flush as sparse row ops, and
+ * duplicate detection runs against the stored result by extractionId.
  *
  * Step transitions are driven by explicit onClick handlers in the header, NOT an
  * implicit `<form>` submit, to avoid the button-morph foot-gun (see
@@ -63,6 +100,7 @@ function extensionOf(filename: string): string {
 export default function UploadMaterialFilePage() {
   const { t } = useTranslation(['materialCatalogue']);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // App-bar breadcrumb: Material Catalogue › Upload new material.
@@ -80,52 +118,89 @@ export default function UploadMaterialFilePage() {
   const [fileError, setFileError] = useState<string | null>(null);
   const [extractionId, setExtractionId] = useState<string | null>(null);
 
-  // Canonical edited draft; edits update a single index immutably (no whole-array
-  // deep clone per keystroke). `dirty` gates whether we PATCH the result back.
-  const [draft, setDraft] = useState<CatalogueExtractionResult | null>(null);
-  const [dirty, setDirty] = useState(false);
+  // Server-owned row count; kept in sync from the summary poll, ops results and
+  // page metas. Gates the header buttons and drives pagination.
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  // Steps 2+3 can narrow the window to the duplicate rows only.
+  const [dupOnly, setDupOnly] = useState(false);
+  // Local view of edited rows (absolute index → row). Rendered over the fetched
+  // window so typing is instant; flushed entries stay as a refetch-flicker
+  // shield (the server already has their values).
+  const [overlay, setOverlay] = useState<ReadonlyMap<number, CatalogueLineItem>>(new Map());
   const [persisting, setPersisting] = useState(false);
-  // Cards in inline-edit mode on Step 3 (by row index).
+  // Cards in inline-edit mode on Step 3 (by absolute row index).
   const [editingCards, setEditingCards] = useState<ReadonlySet<number>>(new Set());
 
   const create = useCreateDocExtraction();
-  const query = useDocExtractionQuery(extractionId);
+  const summaryQuery = useDocExtractionSummaryQuery(extractionId);
+  const applyOps = useApplyDocExtractionItemOps(extractionId);
   const importMutation = useCatalogueImport();
   const detect = useDetectDuplicates();
-  const job = query.data;
-
-  const items = useMemo(() => draft?.items ?? [], [draft]);
-
-  // ── Upload + poll → seed the draft, advance to Step 2 ───────────────────
-  useEffect(() => {
-    if (job?.status === 'COMPLETED' && job.editedResult && draft === null) {
-      const result = isCatalogueExtractionResult(job.editedResult)
-        ? job.editedResult
-        : EMPTY_RESULT;
-      setDraft(result);
-      setStep(2);
-    }
-  }, [job?.status, job?.editedResult, draft]);
-
-  // ── Duplicate detection (debounced) ─────────────────────────────────────
-  const candidateSignature = useMemo(
-    () => items.map((i) => `${i.name}|${i.sku ?? ''}|${i.upc ?? ''}`).join('\n'),
-    [items],
-  );
-  const debouncedSignature = useDebounce(candidateSignature, 400);
-  const detectMutate = detect.mutate;
-
-  useEffect(() => {
-    if (step === 1 || items.length === 0) return;
-    detectMutate(items.map((i) => ({ name: i.name, sku: i.sku, upc: i.upc })));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSignature, step, detectMutate]);
+  const job = summaryQuery.data;
 
   const { duplicateIndexes, matchesByIndex } = useMemo(
     () => mapDuplicateResults(detect.data),
     [detect.data],
   );
   const hasDuplicates = duplicateIndexes.size > 0;
+  const sortedDupIndexes = useMemo(
+    () => [...duplicateIndexes].sort((a, b) => a - b),
+    [duplicateIndexes],
+  );
+
+  // ── Row window ──────────────────────────────────────────────────────────
+  const visibleTotal = dupOnly ? sortedDupIndexes.length : total;
+  const totalPages = Math.max(1, Math.ceil(visibleTotal / pageSize));
+  // Deleting the last rows of the last page shrinks totalPages under `page`;
+  // clamp instead of resetting so the user stays where they were.
+  const safePage = Math.min(page, totalPages);
+  const dupPageIndexes = useMemo(
+    () => (dupOnly ? sortedDupIndexes.slice((safePage - 1) * pageSize, safePage * pageSize) : []),
+    [dupOnly, sortedDupIndexes, safePage, pageSize],
+  );
+  const itemsParams = useMemo(
+    () => (dupOnly ? { indexes: dupPageIndexes } : { page: safePage, limit: pageSize }),
+    [dupOnly, dupPageIndexes, safePage, pageSize],
+  );
+  const itemsQuery = useDocExtractionItemsQuery<CatalogueLineItem>(
+    extractionId,
+    itemsParams,
+    step !== 1 && (!dupOnly || dupPageIndexes.length > 0),
+  );
+
+  const rows = useMemo<WizardRow[]>(() => {
+    const data = itemsQuery.data;
+    if (!data || (dupOnly && dupPageIndexes.length === 0)) return [];
+    return data.items.map((item, i) => {
+      const index = data.indexes[i];
+      return { index, item: overlay.get(index) ?? item };
+    });
+  }, [itemsQuery.data, overlay, dupOnly, dupPageIndexes.length]);
+
+  // Current rendered rows by absolute index — read by the edit callbacks.
+  const rowsByIndexRef = useRef<Map<number, CatalogueLineItem>>(new Map());
+  rowsByIndexRef.current = new Map(rows.map((r) => [r.index, r.item]));
+
+  // The page meta is the authoritative count after refetches (normal mode only —
+  // the indexes-mode meta is scoped to the requested rows).
+  const metaTotal = !dupOnly ? itemsQuery.data?.meta.total : undefined;
+  useEffect(() => {
+    if (metaTotal !== undefined) setTotal(metaTotal);
+  }, [metaTotal]);
+
+  // ── Upload + poll → step 2 the moment the count is known ────────────────
+  const detectMutate = detect.mutate;
+  useEffect(() => {
+    if (step === 1 && job?.status === 'COMPLETED' && extractionId) {
+      setTotal(job.resultSummary?.itemCount ?? 0);
+      setPage(1);
+      setStep(2);
+      // Detection runs server-side over the stored result — no candidate upload.
+      detectMutate({ extractionId });
+    }
+  }, [step, job?.status, job?.resultSummary, extractionId, detectMutate]);
 
   // ── File selection / upload ─────────────────────────────────────────────
   const onFileSelected = useCallback(
@@ -158,33 +233,121 @@ export default function UploadMaterialFilePage() {
     );
   }, [create, file, t]);
 
-  // ── Draft mutators ──────────────────────────────────────────────────────
-  const updateItem = useCallback((index: number, patch: Partial<CatalogueLineItem>) => {
-    setDraft((prev) =>
-      prev
-        ? { ...prev, items: prev.items.map((it, i) => (i === index ? { ...it, ...patch } : it)) }
-        : prev,
-    );
-    setDirty(true);
-  }, []);
+  // ── Edit flushing ───────────────────────────────────────────────────────
+  // Cell edits buffer in `pendingRef` and flush as one ops batch shortly after
+  // the last keystroke. Structural ops (remove/duplicate) flush the buffer
+  // first so their indexes line up with the server's array.
+  const pendingRef = useRef<Map<number, CatalogueLineItem>>(new Map());
+  const identityTouchedRef = useRef(false);
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushChainRef = useRef<Promise<void>>(Promise.resolve());
+  const applyOpsMutateAsync = applyOps.mutateAsync;
 
-  const removeItem = useCallback((index: number) => {
-    setDraft((prev) =>
-      prev ? { ...prev, items: prev.items.filter((_, i) => i !== index) } : prev,
-    );
-    setDirty(true);
-  }, []);
+  const doFlush = useCallback(async () => {
+    const entries = [...pendingRef.current.entries()];
+    if (entries.length === 0) return;
+    pendingRef.current.clear();
+    const identityTouched = identityTouchedRef.current;
+    identityTouchedRef.current = false;
+    try {
+      const result = await applyOpsMutateAsync(
+        entries.map(([index, item]) => ({
+          op: 'update' as const,
+          index,
+          item: item as unknown as Record<string, unknown>,
+        })),
+      );
+      setTotal(result.itemCount);
+      // A name/SKU/UPC change can create or clear a collision — re-check
+      // server-side now that the rows are persisted.
+      if (identityTouched && extractionId) detectMutate({ extractionId });
+    } catch {
+      // Put the rows back so the next flush retries them (unless newer edits
+      // already superseded them).
+      for (const [index, item] of entries) {
+        if (!pendingRef.current.has(index)) pendingRef.current.set(index, item);
+      }
+      identityTouchedRef.current = identityTouchedRef.current || identityTouched;
+      notificationService.error(t('upload.errors.saveFailed'));
+    }
+  }, [applyOpsMutateAsync, detectMutate, extractionId, t]);
 
-  const duplicateItem = useCallback((index: number) => {
-    setDraft((prev) => {
-      if (!prev) return prev;
-      const clone = { ...prev.items[index] };
-      const next = [...prev.items];
-      next.splice(index + 1, 0, clone);
-      return { ...prev, items: next };
+  const queueFlush = useCallback(() => {
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    flushTimerRef.current = setTimeout(() => {
+      flushTimerRef.current = null;
+      flushChainRef.current = flushChainRef.current.then(doFlush);
+    }, FLUSH_DEBOUNCE_MS);
+  }, [doFlush]);
+
+  /** Flush everything buffered and wait for it — structural ops + import gate on this. */
+  const flushNow = useCallback(async () => {
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+    flushChainRef.current = flushChainRef.current.then(doFlush);
+    await flushChainRef.current;
+    if (pendingRef.current.size > 0) throw new Error('flush failed');
+  }, [doFlush]);
+
+  const invalidateItemWindows = useCallback(() => {
+    if (!extractionId) return;
+    void queryClient.invalidateQueries({
+      queryKey: [...queryKeys.docExtractions.all(), extractionId, 'items'],
     });
-    setDirty(true);
-  }, []);
+  }, [queryClient, extractionId]);
+
+  // ── Row mutators (absolute indexes) ─────────────────────────────────────
+  const updateItem = useCallback(
+    (index: number, patch: Partial<CatalogueLineItem>) => {
+      const base = rowsByIndexRef.current.get(index);
+      if (!base) return;
+      const next = { ...base, ...patch };
+      setOverlay((prev) => new Map(prev).set(index, next));
+      pendingRef.current.set(index, next);
+      if ('name' in patch || 'sku' in patch || 'upc' in patch) identityTouchedRef.current = true;
+      queueFlush();
+    },
+    [queueFlush],
+  );
+
+  const runStructuralOp = useCallback(
+    async (op: 'remove' | 'duplicate', index: number) => {
+      if (!extractionId) return;
+      try {
+        await flushNow();
+        const result = await applyOpsMutateAsync([{ op, index }]);
+        setTotal(result.itemCount);
+        const delta = op === 'remove' ? -1 : 1;
+        setOverlay((prev) => {
+          const next = new Map(prev);
+          if (op === 'remove') next.delete(index);
+          return shiftIndexKeys(next, index, delta);
+        });
+        setEditingCards((prev) => {
+          const next = new Set(prev);
+          if (op === 'remove') next.delete(index);
+          return shiftIndexSet(next, index, delta);
+        });
+        invalidateItemWindows();
+        // Row positions moved — refresh the duplicate indexes to match.
+        detectMutate({ extractionId });
+      } catch {
+        notificationService.error(t('upload.errors.saveFailed'));
+      }
+    },
+    [extractionId, flushNow, applyOpsMutateAsync, invalidateItemWindows, detectMutate, t],
+  );
+
+  const removeItem = useCallback(
+    (index: number) => void runStructuralOp('remove', index),
+    [runStructuralOp],
+  );
+  const duplicateItem = useCallback(
+    (index: number) => void runStructuralOp('duplicate', index),
+    [runStructuralOp],
+  );
 
   const toggleCardEdit = useCallback((index: number) => {
     setEditingCards((prev) => {
@@ -195,17 +358,21 @@ export default function UploadMaterialFilePage() {
     });
   }, []);
 
+  const toggleDupOnly = useCallback(() => {
+    setDupOnly((prev) => !prev);
+    setPage(1);
+  }, []);
+
   // ── Import ──────────────────────────────────────────────────────────────
   const onAddMaterials = useCallback(async () => {
-    if (!extractionId || !draft) return;
+    if (!extractionId) return;
     try {
-      if (dirty) {
-        setPersisting(true);
-        await updateDocExtraction(extractionId, draft as unknown as Record<string, unknown>, {
-          timeout: 300_000,
-        });
-        setPersisting(false);
-      }
+      setPersisting(true);
+      // The server already holds every flushed edit; this only drains the
+      // last debounce window. No whole-draft PATCH — the import reads the
+      // stored result directly.
+      await flushNow();
+      setPersisting(false);
       const summary = await importMutation.mutateAsync(extractionId);
       // A company upload is collected into a material list named after the file —
       // land the user on it. A Super-Admin upload publishes into the shared public
@@ -233,7 +400,7 @@ export default function UploadMaterialFilePage() {
       setPersisting(false);
       notificationService.error(t('upload.errors.importFailed'));
     }
-  }, [extractionId, draft, dirty, importMutation, t, navigate]);
+  }, [extractionId, flushNow, importMutation, t, navigate]);
 
   const onViewMatch = useCallback(
     (matches: MaterialDuplicateMatch[]) => {
@@ -256,6 +423,19 @@ export default function UploadMaterialFilePage() {
     { label: t('upload.steps.map'), icon: <GitDiffIcon className="size-[18px]" /> },
     { label: t('upload.steps.review'), icon: <SealCheckIcon className="size-[18px]" /> },
   ];
+
+  const pagination = (
+    <WizardPagination
+      page={safePage}
+      totalItems={visibleTotal}
+      pageSize={pageSize}
+      onPageChange={setPage}
+      onPageSizeChange={(size) => {
+        setPageSize(size);
+        setPage(1);
+      }}
+    />
+  );
 
   return (
     <div className="p-8" data-testid="upload-material-page">
@@ -287,7 +467,7 @@ export default function UploadMaterialFilePage() {
           {step === 2 && (
             <Button
               rightIcon={<ArrowCircleRightIcon className="size-[18px]" />}
-              disabled={items.length === 0}
+              disabled={total === 0}
               onClick={() => setStep(3)}
               data-testid="upload-continue"
             >
@@ -297,7 +477,7 @@ export default function UploadMaterialFilePage() {
           {step === 3 && (
             <Button
               rightIcon={<PlusCircleIcon className="size-[18px]" />}
-              disabled={items.length === 0 || isImporting}
+              disabled={total === 0 || isImporting}
               isLoading={isImporting}
               onClick={() => void onAddMaterials()}
               data-testid="upload-add"
@@ -329,29 +509,122 @@ export default function UploadMaterialFilePage() {
 
         {step === 2 && (
           <MapStep
-            items={items}
+            rows={rows}
+            loading={itemsQuery.isLoading}
             duplicateIndexes={duplicateIndexes}
             hasDuplicates={hasDuplicates}
+            dupOnly={dupOnly}
+            dupCount={sortedDupIndexes.length}
+            onToggleDupOnly={toggleDupOnly}
             onUpdate={updateItem}
             onRemove={removeItem}
             onDuplicate={duplicateItem}
+            pagination={pagination}
           />
         )}
 
         {step === 3 && (
           <ReviewStep
-            items={items}
+            rows={rows}
+            loading={itemsQuery.isLoading}
             duplicateIndexes={duplicateIndexes}
             matchesByIndex={matchesByIndex}
             hasDuplicates={hasDuplicates}
+            dupOnly={dupOnly}
+            dupCount={sortedDupIndexes.length}
+            onToggleDupOnly={toggleDupOnly}
             editingCards={editingCards}
             onToggleEdit={toggleCardEdit}
             onUpdate={updateItem}
             onRemove={removeItem}
             onViewMatch={onViewMatch}
+            pagination={pagination}
           />
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Shared row pagination + duplicate banner (Steps 2 + 3) ────────────────────
+
+function WizardPagination({
+  page,
+  totalItems,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  page: number;
+  totalItems: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+}) {
+  const { t } = useTranslation(['materialCatalogue']);
+  if (totalItems <= 0) return null;
+  return (
+    <div data-testid="upload-pagination">
+      <TablePagination
+        page={page}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
+        rowsPerPageLabel={t('pagination.rowsPerPage')}
+        showingLabel={({ from, to, total }) => t('pagination.showing', { from, to, total })}
+        backLabel={t('pagination.back')}
+        nextLabel={t('pagination.next')}
+      />
+    </div>
+  );
+}
+
+function DuplicateBanner({
+  testId,
+  message,
+  dupOnly,
+  dupCount,
+  onToggleDupOnly,
+}: {
+  testId: string;
+  message: string;
+  dupOnly: boolean;
+  dupCount: number;
+  onToggleDupOnly: () => void;
+}) {
+  const { t } = useTranslation(['materialCatalogue']);
+  return (
+    <div data-testid={testId}>
+      <Alert variant="destructive">{message}</Alert>
+      <div className="mt-2 flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          data-testid="upload-dup-filter"
+          onClick={onToggleDupOnly}
+        >
+          {dupOnly
+            ? t('upload.dupFilter.showAll')
+            : t('upload.dupFilter.showOnly', { count: dupCount })}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function LoadingRows() {
+  const { t } = useTranslation(['materialCatalogue']);
+  return (
+    <div
+      className="flex items-center justify-center gap-2 p-6 text-sm text-muted-foreground"
+      role="status"
+      data-testid="upload-rows-loading"
+    >
+      <SpinnerIcon className="size-4 animate-spin" aria-hidden />
+      {t('upload.loadingRows')}
     </div>
   );
 }
@@ -502,30 +775,45 @@ function UploadStep({
 // ── Step 2: Map and validate columns ──────────────────────────────────────────
 
 interface MapStepProps {
-  items: CatalogueLineItem[];
+  /** The rendered window — each row carries its absolute index in the result. */
+  rows: WizardRow[];
+  loading: boolean;
   duplicateIndexes: Set<number>;
   hasDuplicates: boolean;
+  dupOnly: boolean;
+  dupCount: number;
+  onToggleDupOnly: () => void;
   onUpdate: (index: number, patch: Partial<CatalogueLineItem>) => void;
   onRemove: (index: number) => void;
   onDuplicate: (index: number) => void;
+  pagination: React.ReactNode;
 }
 
 function MapStep({
-  items,
+  rows,
+  loading,
   duplicateIndexes,
   hasDuplicates,
+  dupOnly,
+  dupCount,
+  onToggleDupOnly,
   onUpdate,
   onRemove,
   onDuplicate,
+  pagination,
 }: MapStepProps) {
   const { t } = useTranslation(['materialCatalogue']);
 
   return (
     <>
-      {hasDuplicates ? (
-        <div data-testid="map-duplicate-banner">
-          <Alert variant="destructive">{t('upload.step2.duplicateBanner')}</Alert>
-        </div>
+      {hasDuplicates || dupOnly ? (
+        <DuplicateBanner
+          testId="map-duplicate-banner"
+          message={t('upload.step2.duplicateBanner')}
+          dupOnly={dupOnly}
+          dupCount={dupCount}
+          onToggleDupOnly={onToggleDupOnly}
+        />
       ) : null}
 
       <section className="rounded-2xl border border-border bg-card p-6">
@@ -547,14 +835,14 @@ function MapStep({
               </tr>
             </thead>
             <tbody>
-              {items.length === 0 ? (
+              {rows.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-4 text-center text-muted-foreground">
-                    {t('upload.step2.emptyRows')}
+                    {loading ? <LoadingRows /> : t('upload.step2.emptyRows')}
                   </td>
                 </tr>
               ) : (
-                items.map((item, index) => {
+                rows.map(({ index, item }) => {
                   const isDuplicate = duplicateIndexes.has(index);
                   return (
                     <tr
@@ -587,15 +875,24 @@ function MapStep({
                           }
                         />
                       </td>
-                      {/* Material type has no backing field on CatalogueLineItem,
-                          so it is read-only here ("—") until the extraction schema
-                          carries it. */}
-                      <td className="p-3 text-muted-foreground">—</td>
+                      <td className="p-1.5">
+                        <Input
+                          aria-label={t('upload.step2.columns.materialType')}
+                          value={item.materialType ?? ''}
+                          onChange={(e) =>
+                            onUpdate(index, { materialType: e.target.value || null })
+                          }
+                        />
+                      </td>
                       <td className="p-1.5">
                         <Input
                           aria-label={t('upload.step2.columns.manufacturer')}
-                          value={item.brand ?? ''}
-                          onChange={(e) => onUpdate(index, { brand: e.target.value || null })}
+                          // A sheet may name only one of the two; the import
+                          // falls back to brand, so show whichever we have.
+                          value={item.manufacturer ?? item.brand ?? ''}
+                          onChange={(e) =>
+                            onUpdate(index, { manufacturer: e.target.value || null })
+                          }
                         />
                       </td>
                       <td className="p-1.5">
@@ -647,6 +944,7 @@ function MapStep({
             </tbody>
           </table>
         </div>
+        <div className="mt-4">{pagination}</div>
       </section>
     </>
   );
@@ -655,40 +953,56 @@ function MapStep({
 // ── Step 3: Review & import ───────────────────────────────────────────────────
 
 interface ReviewStepProps {
-  items: CatalogueLineItem[];
+  /** The rendered window — each row carries its absolute index in the result. */
+  rows: WizardRow[];
+  loading: boolean;
   duplicateIndexes: Set<number>;
   matchesByIndex: Map<number, MaterialDuplicateMatch[]>;
   hasDuplicates: boolean;
+  dupOnly: boolean;
+  dupCount: number;
+  onToggleDupOnly: () => void;
   editingCards: ReadonlySet<number>;
   onToggleEdit: (index: number) => void;
   onUpdate: (index: number, patch: Partial<CatalogueLineItem>) => void;
   onRemove: (index: number) => void;
   onViewMatch: (matches: MaterialDuplicateMatch[]) => void;
+  pagination: React.ReactNode;
 }
 
 function ReviewStep({
-  items,
+  rows,
+  loading,
   duplicateIndexes,
   matchesByIndex,
   hasDuplicates,
+  dupOnly,
+  dupCount,
+  onToggleDupOnly,
   editingCards,
   onToggleEdit,
   onUpdate,
   onRemove,
   onViewMatch,
+  pagination,
 }: ReviewStepProps) {
   const { t } = useTranslation(['materialCatalogue']);
 
   return (
     <>
-      {hasDuplicates ? (
-        <div data-testid="review-duplicate-banner">
-          <Alert variant="destructive">{t('upload.step3.duplicateBanner')}</Alert>
-        </div>
+      {hasDuplicates || dupOnly ? (
+        <DuplicateBanner
+          testId="review-duplicate-banner"
+          message={t('upload.step3.duplicateBanner')}
+          dupOnly={dupOnly}
+          dupCount={dupCount}
+          onToggleDupOnly={onToggleDupOnly}
+        />
       ) : null}
 
       <div className="space-y-4" data-testid="review-list">
-        {items.map((item, index) => {
+        {rows.length === 0 && loading ? <LoadingRows /> : null}
+        {rows.map(({ index, item }) => {
           const matches = matchesByIndex.get(index);
           const isDuplicate = duplicateIndexes.has(index);
           const isEditing = editingCards.has(index);
@@ -760,20 +1074,19 @@ function ReviewStep({
                   editing={isEditing}
                   onChange={(v) => onUpdate(index, { mainCategory: v || null })}
                 />
-                {/* Material type is not on CatalogueLineItem (read-only). */}
                 <ReviewField
                   label={t('upload.step3.meta.materialType')}
                   field="materialType"
-                  value={null}
-                  editing={false}
-                  onChange={() => {}}
+                  value={item.materialType}
+                  editing={isEditing}
+                  onChange={(v) => onUpdate(index, { materialType: v || null })}
                 />
                 <ReviewField
                   label={t('upload.step3.meta.manufacturer')}
                   field="manufacturer"
-                  value={item.brand}
+                  value={item.manufacturer ?? item.brand}
                   editing={isEditing}
-                  onChange={(v) => onUpdate(index, { brand: v || null })}
+                  onChange={(v) => onUpdate(index, { manufacturer: v || null })}
                 />
                 <ReviewField
                   label={t('upload.step3.meta.uom')}
@@ -788,6 +1101,41 @@ function ReviewStep({
                   value={item.upc}
                   editing={isEditing}
                   onChange={(v) => onUpdate(index, { upc: v || null })}
+                />
+                <ReviewField
+                  label={t('upload.step3.meta.countryOfOrigin')}
+                  field="countryOfOrigin"
+                  value={item.countryOfOrigin}
+                  editing={isEditing}
+                  onChange={(v) => onUpdate(index, { countryOfOrigin: v || null })}
+                />
+                <ReviewField
+                  label={t('upload.step3.meta.pricePerUnit')}
+                  field="pricePerUnit"
+                  value={item.pricePerUnit === null ? null : String(item.pricePerUnit)}
+                  editing={isEditing}
+                  // NaN would silently drop the row's price on import, so an
+                  // unparseable edit clears it instead (see [[rhf-valueasnumber-nan-silent-submit]]).
+                  onChange={(v) => {
+                    const parsed = Number(v);
+                    onUpdate(index, {
+                      pricePerUnit: v.trim() === '' || Number.isNaN(parsed) ? null : parsed,
+                    });
+                  }}
+                />
+                <ReviewField
+                  label={t('upload.step3.meta.costCode')}
+                  field="costCode"
+                  value={item.costCode}
+                  editing={isEditing}
+                  onChange={(v) => onUpdate(index, { costCode: v || null })}
+                />
+                <ReviewField
+                  label={t('upload.step3.meta.taxCode')}
+                  field="taxCode"
+                  value={item.taxCode}
+                  editing={isEditing}
+                  onChange={(v) => onUpdate(index, { taxCode: v || null })}
                 />
               </div>
 
@@ -820,6 +1168,7 @@ function ReviewStep({
           );
         })}
       </div>
+      {pagination}
     </>
   );
 }

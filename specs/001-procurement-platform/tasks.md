@@ -5872,10 +5872,9 @@ PO/RFQ fields, implement PO create/update/issue endpoints.
       `apps/backend/src/prisma/schema/rfq.prisma` (already implemented via T336/T345)
 - [x] T747 [US-5.19] Add quote line-level approval tracking: approvalStatus enum, approvedQuantity
       per vendor per RFQ line item. — `apps/backend/src/prisma/schema/rfq.prisma` — DONE
-      (2026-06-11): tracked via the existing `QuoteLineItemStatus` enum
-      (PENDING/APPROVED/DECLINED) on `QuoteResponseLineItem` + the new line-items/status endpoint;
-      order quantities stay client-side until PO/bulk-order draft creation (no approvedQuantity
-      column needed).
+      (2026-06-11): tracked via the existing `QuoteLineItemStatus` enum (PENDING/APPROVED/DECLINED)
+      on `QuoteResponseLineItem` + the new line-items/status endpoint; order quantities stay
+      client-side until PO/bulk-order draft creation (no approvedQuantity column needed).
 - [ ] T748 [US-5.12] Add `status` enum (Pending/Approved/Rejected) + `message` field to
       PoChangeRequest model. — `apps/backend/src/prisma/schema/purchase-order.prisma`
 - [x] T749 [US-5.18] Add `pickUp Boolean @default(false)` to PoLineItem (preserve RFQ→PO pick-up
@@ -6543,3 +6542,28 @@ approved RFQs and bulk orders, in addition to manual creation.
       `editResponse`, `update`, `updating`, `updateSuccessTitle`, `updateSuccessDescription`,
       `updateErrorTitle`, `updateErrorDescription`. **Tests**: 24 frontend tests (7 new edit-mode
       tests), 35 backend tests (all green).
+- [x] T898 [US-4.02] Server-windowed upload wizard for huge catalogue drafts (62k rows): **Backend
+      (doc-intelligence)**: `GET /doc-extractions/:id?resultView=summary` returns a tiny
+      `resultSummary` {itemCount, sourceName, notes} with raw/edited results nulled, so the wizard's
+      completion poll never downloads/parses the ~48MB result payload.
+      `GET /doc-extractions/:id/items` windows the stored result's items by page/limit or by
+      absolute `indexes` csv (max 500; response carries a parallel `indexes` array).
+      `PATCH /doc-extractions/:id/items` applies ordered sparse row ops (update/remove/duplicate,
+      max 200/batch) server-side — the full result never round-trips the network again. **Backend
+      (materials)**: detect-duplicates accepts `{ extractionId }` as an alternative to inline
+      candidates and reads only name/sku/upc per row via `jsonb_array_elements` — identity fields
+      are all that leave Postgres. **Frontend**: `useDocExtraction` polls the summary variant; Steps
+      2+3 fetch windowed rows keyed by absolute index; debounced cell edits flush as sparse ops
+      (identity-field edits re-run duplicate detection, others don't); the duplicate banner gains a
+      "Show duplicates only (N)" / "Show all rows" toggle that narrows the window to the flagged
+      rows via `indexes`. i18n: `upload.loadingRows`, `upload.dupFilter.*`,
+      `upload.errors.saveFailed`. **Tests**: backend doc-intelligence+materials 318 green (11
+      suites); web UploadMaterialFilePage 12 green.
+- [x] T924 [US-4.02] Detect-duplicates chunked under the Postgres bind-variable cap: the single
+      catalogue `findMany` OR'd three IN lists (nameCi/sku/upc), so a 62k-row upload produced
+      165,376 bind params against Postgres's 32,767 prepared-statement max and the wizard's
+      duplicate check 500'd. Each identity field now queries in chunks of 10,000 values (the
+      public-or-own-company visibility envelope AND-ed per chunk, chunks run via Promise.all),
+      merged and deduped by material id before the in-memory match maps — downstream matching
+      unchanged. **Tests**: +1 materials.service.spec regression (10,001 names split into 2 chunked
+      calls); 130 green.

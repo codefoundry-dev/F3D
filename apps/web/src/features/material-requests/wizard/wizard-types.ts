@@ -42,9 +42,10 @@ export interface MrWizardLine {
   maxAvailable?: number;
   /** Per-line priority toggle (maps to LOW/MEDIUM/HIGH/URGENT on submit). */
   priority: MrPriorityToggle;
-  /** YYYY-MM-DD */
+  /** YYYY-MM-DD — optional; the request can be raised without a firm date. */
   expectedDeliveryDate?: string;
-  /** Free-text delivery time expectation (display/notes only — no API field). */
+  /** Wanted delivery time of day, 24-hour "HH:MM". Persisted as a real API field
+   * and carried through to the RFQ / PO created from this request. */
   deliveryTime?: string;
   /** Per-line delivery location id (project DELIVERY location). */
   deliveryLocationId?: string;
@@ -84,8 +85,6 @@ export function priorityToToggle(priority: string | null | undefined): MrPriorit
 
 export interface MrLineErrors {
   quantity?: string;
-  expectedDeliveryDate?: string;
-  deliveryTime?: string;
   deliveryLocationId?: string;
 }
 
@@ -98,10 +97,13 @@ export function validateSelection(lines: MrWizardLine[]): boolean {
 }
 
 /**
- * Validate the Material Details step. Per the design, every line requires a
- * Quantity, a Need-by date, a Delivery Time and a Delivery Address. Quantity may
- * not exceed the known stock ceiling. Returns a per-line error map keyed by the
- * line's client key; an empty map means the step is valid.
+ * Validate the Material Details step. Every line requires a Quantity and a
+ * Delivery Address; quantity may not exceed the known stock ceiling. The Need-by
+ * date and Delivery Time are optional — a requester who does not yet know when
+ * the materials are wanted should still be able to raise the request, and both
+ * values are prefills the Procurement Officer can set later on the RFQ or PO.
+ * Returns a per-line error map keyed by the line's client key; an empty map
+ * means the step is valid.
  */
 export function validateDetails(lines: MrWizardLine[]): MrDetailsErrors {
   const errors: MrDetailsErrors = {};
@@ -112,8 +114,6 @@ export function validateDetails(lines: MrWizardLine[]): MrDetailsErrors {
     } else if (typeof line.maxAvailable === 'number' && line.quantity > line.maxAvailable) {
       lineErrors.quantity = 'exceedsStock';
     }
-    if (!line.expectedDeliveryDate) lineErrors.expectedDeliveryDate = 'required';
-    if (!line.deliveryTime?.trim()) lineErrors.deliveryTime = 'required';
     if (!line.deliveryLocationId) lineErrors.deliveryLocationId = 'required';
     if (Object.keys(lineErrors).length > 0) errors[line.key] = lineErrors;
   }
@@ -133,12 +133,13 @@ function toIsoDate(date: string | undefined): string | undefined {
 }
 
 /** Compose the per-line notes blob from instructions + internal notes + the
- * pieces the API has no dedicated field for (delivery time, CC team). */
+ * pieces the API has no dedicated field for (CC team). Delivery time used to be
+ * folded in here too; it now has its own column and travels to the RFQ / PO as a
+ * field, so encoding it into free text would only duplicate it. */
 export function composeLineNotes(line: MrWizardLine): string | undefined {
   const parts: string[] = [];
   if (line.instructions?.trim()) parts.push(line.instructions.trim());
   if (line.internalNotes?.trim()) parts.push(`Internal: ${line.internalNotes.trim()}`);
-  if (line.deliveryTime?.trim()) parts.push(`Delivery time: ${line.deliveryTime.trim()}`);
   if (line.ccTeamMembers?.length) parts.push(`CC: ${line.ccTeamMembers.join(', ')}`);
   return parts.length > 0 ? parts.join('\n') : undefined;
 }
@@ -158,6 +159,7 @@ function toLineInput(line: MrWizardLine): CreateMrLineItemInput {
   }
   if (line.description?.trim()) input.description = line.description.trim();
   if (line.expectedDeliveryDate) input.expectedDeliveryDate = toIsoDate(line.expectedDeliveryDate);
+  if (line.deliveryTime?.trim()) input.deliveryTime = line.deliveryTime.trim();
   if (line.deliveryLocationId) input.deliveryLocationId = line.deliveryLocationId;
   const notes = composeLineNotes(line);
   if (notes) input.notes = notes;

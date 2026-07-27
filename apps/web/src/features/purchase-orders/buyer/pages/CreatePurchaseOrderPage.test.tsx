@@ -40,6 +40,7 @@ vi.mock('@forethread/shared-types/client', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  todayIso: () => new Date().toISOString().slice(0, 10),
   Button: ({
     children,
     onClick,

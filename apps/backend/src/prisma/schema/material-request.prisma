@@ -79,6 +79,11 @@ model MaterialRequestLineItem {
   // when null.
   priority             MaterialRequestPriority?
   expectedDeliveryDate DateTime?                @map("expected_delivery_date")
+  // Time-of-day the delivery is wanted, as a 24h "HH:MM" string. Deliberately not
+  // folded into expectedDeliveryDate: the date is a calendar deadline the
+  // requester commits to, while the time is a soft preference that must survive
+  // the MR → RFQ → PO hops without dragging timezone semantics along with it.
+  deliveryTime         String?                  @map("delivery_time") @db.VarChar(5)
   deliveryLocationId   String?                  @map("delivery_location_id")
   notes                String?
 

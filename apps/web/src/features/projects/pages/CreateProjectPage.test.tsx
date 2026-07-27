@@ -49,6 +49,7 @@ vi.mock('@forethread/shared-types/client', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  todayIso: () => new Date().toISOString().slice(0, 10),
   Input: (props: any) => <input data-testid="input" {...props} />,
   AddressInput: (props: any) => (
     <input

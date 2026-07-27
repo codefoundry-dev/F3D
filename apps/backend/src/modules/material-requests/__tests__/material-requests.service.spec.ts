@@ -133,7 +133,8 @@ function makeMr(overrides: Record<string, unknown> = {}) {
         quantity: 50,
         unit: 'pcs',
         priority: null,
-        expectedDeliveryDate: null,
+        expectedDeliveryDate: new Date('2026-07-05T00:00:00.000Z'),
+        deliveryTime: '09:30',
         deliveryLocationId: null,
         notes: null,
         material: null,
@@ -801,6 +802,20 @@ describe('MaterialRequestsService', () => {
       expect(audit.log.mock.calls[0][0].metadata).toMatchObject({ target: 'RFQ', rfqId: 'rfq-1' });
     });
 
+    it('carries the needed-by date and the per-line delivery date/time onto the RFQ', async () => {
+      const { service, prisma, tx } = makeService();
+      prisma.materialRequest.findUnique.mockResolvedValue(
+        makeMr({ status: MaterialRequestStatus.APPROVED }),
+      );
+      await service.convertToRfq('mr-1', officer);
+      const { data } = tx.rfq.create.mock.calls[0][0];
+      expect(data.needByDate).toEqual(new Date('2026-07-01T00:00:00.000Z'));
+      expect(data.lineItems.create[0].expectedDeliveryDate).toEqual(
+        new Date('2026-07-05T00:00:00.000Z'),
+      );
+      expect(data.lineItems.create[0].deliveryTime).toBe('09:30');
+    });
+
     it('defaults the RFQ name to null when not supplied', async () => {
       const { service, prisma, tx } = makeService();
       prisma.materialRequest.findUnique.mockResolvedValue(
@@ -860,6 +875,22 @@ describe('MaterialRequestsService', () => {
         }),
       });
       expect(audit.log.mock.calls[0][0].metadata).toMatchObject({ target: 'PO', poId: 'po-9' });
+    });
+
+    it('carries the needed-by date and the per-line delivery date/time onto the PO', async () => {
+      const { service, prisma, tx } = makeService();
+      prisma.materialRequest.findUnique.mockResolvedValue(
+        makeMr({ status: MaterialRequestStatus.APPROVED }),
+      );
+      await service.convertToPo('mr-1', officer, { vendorId: 'vendor-1' });
+      const { data } = tx.purchaseOrder.create.mock.calls[0][0];
+      // The PO has no "need by" of its own — the MR's date lands on the header's
+      // planned delivery date rather than being dropped.
+      expect(data.plannedDeliveryDate).toEqual(new Date('2026-07-01T00:00:00.000Z'));
+      expect(data.lineItems.create[0].expectedDeliveryDate).toEqual(
+        new Date('2026-07-05T00:00:00.000Z'),
+      );
+      expect(data.lineItems.create[0].deliveryTime).toBe('09:30');
     });
 
     it('falls back to the material name for the PO line description', async () => {

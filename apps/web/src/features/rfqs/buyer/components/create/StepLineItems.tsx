@@ -13,6 +13,7 @@ import {
   Textarea,
   cn,
   type MaterialItem,
+  todayIso,
 } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
@@ -705,6 +706,7 @@ function LineItemRow({
             value={item.expectedDeliveryDate ?? ''}
             onChange={(date) => onChange({ expectedDeliveryDate: date || undefined })}
             placeholder="mm/dd/yyyy"
+            minDate={todayIso()}
             borderless
             editable
           />

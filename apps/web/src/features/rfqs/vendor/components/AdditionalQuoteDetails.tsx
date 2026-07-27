@@ -1,5 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
-import { DatePicker, FileChip, FileDropzone, Input } from '@forethread/ui-components';
+import { DatePicker, FileChip, FileDropzone, Input, todayIso } from '@forethread/ui-components';
 import { useCallback } from 'react';
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.xlsx', '.docx', '.jpg', '.jpeg', '.csv'];
@@ -66,7 +66,7 @@ export function AdditionalQuoteDetails({
             value={validityPeriod}
             onChange={onValidityPeriodChange}
             editable
-            minDate={new Date().toISOString().slice(0, 10)}
+            minDate={todayIso()}
           />
         </div>
 

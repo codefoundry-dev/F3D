@@ -6,6 +6,7 @@ import {
   type CatalogueImportSummaryDto,
   type CatalogueLineItem,
   type DetectMaterialDuplicatesResponseDto,
+  type DuplicateCandidateDto,
   type DuplicateMatchField,
   type MaterialChangeRequestDto,
   type MaterialDetailDto,
@@ -81,6 +82,40 @@ function nullableTrim(raw: string | null | undefined): string | null {
   if (raw === null || raw === undefined) return null;
   const trimmed = raw.trim();
   return trimmed.length === 0 ? null : trimmed;
+}
+
+/** The rich catalogue attributes an import carries onto Material, normalized. */
+interface CatalogueRichFields {
+  materialType: string | null;
+  countryOfOrigin: string | null;
+  pricePerUnit: number | null;
+  costCode: string | null;
+  taxCode: string | null;
+}
+
+/**
+ * Pull the rich attributes off a catalogue line. Extractions written before
+ * these fields existed simply have no key, hence the `?? null` on each — the
+ * import must stay backwards-compatible with a stored `editedResult`.
+ */
+function catalogueRichFields(item: CatalogueLineItem): CatalogueRichFields {
+  const price = item.pricePerUnit;
+  return {
+    materialType: nullableTrim(item.materialType),
+    countryOfOrigin: nullableTrim(item.countryOfOrigin),
+    pricePerUnit: typeof price === 'number' && Number.isFinite(price) ? price : null,
+    costCode: nullableTrim(item.costCode),
+    taxCode: nullableTrim(item.taxCode),
+  };
+}
+
+/** Drop null-valued keys, so a Prisma update leaves those columns untouched. */
+function dropNullValues<T extends object>(source: T): Partial<T> {
+  const out: Partial<T> = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (value !== null && value !== undefined) out[key as keyof T] = value as T[keyof T];
+  }
+  return out;
 }
 
 @Injectable()
@@ -554,7 +589,17 @@ export class MaterialsService {
     }
 
     // Partition into importable rows (have a name) and skipped rows (no name).
-    const items = rawItems.filter((i) => typeof i.name === 'string' && i.name.trim().length > 0);
+    // The catalogue model has no dedicated material-code column — the SKU IS the
+    // material's code (the detail page surfaces `sku` under "Material code"), so
+    // a sheet carrying only a "Material Code" column would otherwise lose that
+    // identifier and fall back to fuzzy name dedupe.
+    const items = rawItems
+      .filter((i) => typeof i.name === 'string' && i.name.trim().length > 0)
+      .map((i) =>
+        nullableTrim(i.sku) === null && nullableTrim(i.materialCode) !== null
+          ? { ...i, sku: nullableTrim(i.materialCode) }
+          : i,
+      );
     const skipped = rawItems.length - items.length;
 
     // ── Categories ─────────────────────────────────────────────────────────
@@ -780,12 +825,17 @@ export class MaterialsService {
     const rows = batch.map((item) => {
       const categoryId = this.resolveCategoryId(item, categoryMap, uncategorisedId);
       const brand = nullableTrim(item.brand);
+      // Many exports carry only one of the two; either one fills `manufacturer`.
+      const manufacturer = nullableTrim(item.manufacturer) ?? brand;
       const sku = nullableTrim(item.sku) ?? '';
+      const rich = catalogueRichFields(item);
       return Prisma.sql`(
         ${randomUUID()}, ${item.name.trim()}, ${categoryId}::uuid,
-        ${canonicalizeUnit(item.uom) ?? ''}, ${item.upc ?? null}, ${brand},
+        ${canonicalizeUnit(item.uom) ?? ''}, ${item.upc ?? null}, ${manufacturer},
         ${item.description ?? null}, ${sku}, ${brand},
         ${item.manufacturerPartNumber ?? null}, ${item.subCategory ?? null}, ${item.imageUrl ?? null},
+        ${rich.materialType}, ${rich.countryOfOrigin}, ${rich.pricePerUnit}::numeric,
+        ${rich.costCode}, ${rich.taxCode},
         ${status}::"MaterialStatus", ${companyId}, ${user.id}, ${now}, ${now}
       )`;
     });
@@ -795,6 +845,7 @@ export class MaterialsService {
         INSERT INTO materials (
           id, name, category_id, uom, upc, manufacturer, description,
           sku, brand, manufacturer_part_number, sub_category, image_url,
+          material_type, country_of_origin, price_per_unit, cost_code, tax_code,
           status, company_id, created_by_id, created_at, updated_at
         )
         VALUES ${Prisma.join(rows)}
@@ -809,6 +860,15 @@ export class MaterialsService {
           manufacturer_part_number = EXCLUDED.manufacturer_part_number,
           sub_category = EXCLUDED.sub_category,
           image_url = EXCLUDED.image_url,
+          -- COALESCE, not EXCLUDED: these five are curated in-app as well as
+          -- uploaded (price, cost/tax codes especially). A re-import from a file
+          -- that simply lacks the column must not wipe what is already there —
+          -- it can only set or change a value.
+          material_type = COALESCE(EXCLUDED.material_type, materials.material_type),
+          country_of_origin = COALESCE(EXCLUDED.country_of_origin, materials.country_of_origin),
+          price_per_unit = COALESCE(EXCLUDED.price_per_unit, materials.price_per_unit),
+          cost_code = COALESCE(EXCLUDED.cost_code, materials.cost_code),
+          tax_code = COALESCE(EXCLUDED.tax_code, materials.tax_code),
           status = EXCLUDED.status,
           updated_at = EXCLUDED.updated_at
         -- Only update a row that already belongs to the SAME owner. A company
@@ -847,12 +907,13 @@ export class MaterialsService {
     const name = item.name.trim();
     const categoryId = this.resolveCategoryId(item, categoryMap, uncategorisedId);
     const brand = nullableTrim(item.brand);
+    const rich = catalogueRichFields(item);
     const data = {
       name,
       categoryId,
       uom: canonicalizeUnit(item.uom) ?? '',
       upc: item.upc ?? null,
-      manufacturer: brand,
+      manufacturer: nullableTrim(item.manufacturer) ?? brand,
       description: item.description ?? null,
       brand,
       manufacturerPartNumber: item.manufacturerPartNumber ?? null,
@@ -870,18 +931,52 @@ export class MaterialsService {
     });
 
     if (existing) {
-      await this.prisma.material.update({ where: { id: existing.id }, data });
+      await this.prisma.material.update({
+        where: { id: existing.id },
+        // Mirrors the COALESCE in upsertSkuBatch: a null rich field means "the
+        // file didn't say", so leave whatever the row already carries.
+        data: { ...data, ...dropNullValues(rich) },
+      });
       return { id: existing.id, wasUpdated: true };
     }
 
     const created = await this.prisma.material.create({
-      data: { ...data, createdById: user.id },
+      data: { ...data, ...rich, createdById: user.id },
       select: { id: true },
     });
     return { id: created.id, wasUpdated: false };
   }
 
   /** Mirror of DocIntelligenceService.canAccess for extraction ownership. */
+  /**
+   * Candidate rows straight from a stored extraction result. Only the three
+   * identity fields leave Postgres — the (multi-MB at 60k rows) full items are
+   * never materialised, which is the point of the extractionId variant.
+   * Result index == array position, matching the wizard's absolute row indexes.
+   */
+  private async loadExtractionCandidates(
+    extractionId: string,
+    user: AuthenticatedUser,
+  ): Promise<DuplicateCandidateDto[]> {
+    const extraction = await this.prisma.docExtraction.findUnique({
+      where: { id: extractionId },
+      select: { id: true, createdByUserId: true, companyId: true },
+    });
+    if (!extraction || !this.canAccessExtraction(extraction, user)) {
+      throw new NotFoundException(ERR.docExtractions.notFound);
+    }
+    const rows = await this.prisma.$queryRaw<
+      { name: string | null; sku: string | null; upc: string | null }[]
+    >`
+      SELECT t.elem->>'name' AS name, t.elem->>'sku' AS sku, t.elem->>'upc' AS upc
+      FROM doc_extractions,
+           jsonb_array_elements(edited_result->'items') WITH ORDINALITY AS t(elem, ord)
+      WHERE id = ${extractionId} AND jsonb_typeof(edited_result->'items') = 'array'
+      ORDER BY t.ord
+    `;
+    return rows.map((r) => ({ name: r.name ?? '', sku: r.sku, upc: r.upc }));
+  }
+
   private canAccessExtraction(
     extraction: { createdByUserId: string; companyId: string | null },
     user: AuthenticatedUser,
@@ -1367,7 +1462,9 @@ export class MaterialsService {
     dto: DetectMaterialDuplicatesDto,
     user: AuthenticatedUser,
   ): Promise<DetectMaterialDuplicatesResponseDto> {
-    const candidates = dto.candidates ?? [];
+    const candidates = dto.extractionId
+      ? await this.loadExtractionCandidates(dto.extractionId, user)
+      : (dto.candidates ?? []);
     if (candidates.length === 0) return { results: [] };
 
     const lowerNames = new Set<string>();
@@ -1382,26 +1479,49 @@ export class MaterialsService {
       if (u) upcs.add(u);
     }
 
-    const or: Prisma.MaterialWhereInput[] = [];
-    if (lowerNames.size) or.push({ nameCi: { in: [...lowerNames] } });
-    if (skus.size) or.push({ sku: { in: [...skus] } });
-    if (upcs.size) or.push({ upc: { in: [...upcs] } });
-    if (or.length === 0) return { results: [] };
+    if (lowerNames.size + skus.size + upcs.size === 0) return { results: [] };
 
-    const existing = await this.prisma.material.findMany({
-      // Check against the public catalogue PLUS the user's own company-private
-      // rows (US 4.02): the candidate's own envelope. AND-ed with the name/sku/upc
-      // OR so we never surface another company's private rows as a "duplicate".
-      where: {
-        AND: [
-          { OR: or },
-          {
-            OR: [{ status: MaterialStatus.PUBLIC }, { companyId: user.companyId ?? '__none__' }],
-          },
-        ],
-      },
-      select: { id: true, name: true, nameCi: true, sku: true, upc: true, status: true },
-    });
+    // Check against the public catalogue PLUS the user's own company-private
+    // rows (US 4.02): the candidate's own envelope. AND-ed with the name/sku/upc
+    // filter so we never surface another company's private rows as a "duplicate".
+    const envelope: Prisma.MaterialWhereInput = {
+      OR: [{ status: MaterialStatus.PUBLIC }, { companyId: user.companyId ?? '__none__' }],
+    };
+    const select = { id: true, name: true, nameCi: true, sku: true, upc: true, status: true };
+
+    // Postgres caps a prepared statement at 32,767 bind variables; a large
+    // upload (60k+ rows) blows through that with a single IN list per field.
+    // Query each field in chunks and merge, deduping by material id.
+    const chunks = <T>(values: Set<string>, field: (batch: string[]) => T): T[] => {
+      const CHUNK = 10_000;
+      const all = [...values];
+      const out: T[] = [];
+      for (let i = 0; i < all.length; i += CHUNK) out.push(field(all.slice(i, i + CHUNK)));
+      return out;
+    };
+    const queries = [
+      ...chunks(lowerNames, (batch) =>
+        this.prisma.material.findMany({
+          where: { AND: [{ nameCi: { in: batch } }, envelope] },
+          select,
+        }),
+      ),
+      ...chunks(skus, (batch) =>
+        this.prisma.material.findMany({
+          where: { AND: [{ sku: { in: batch } }, envelope] },
+          select,
+        }),
+      ),
+      ...chunks(upcs, (batch) =>
+        this.prisma.material.findMany({
+          where: { AND: [{ upc: { in: batch } }, envelope] },
+          select,
+        }),
+      ),
+    ];
+
+    const existingById = new Map((await Promise.all(queries)).flat().map((m) => [m.id, m]));
+    const existing = [...existingById.values()];
 
     type ExistingMatch = (typeof existing)[number];
     const byName = new Map<string, ExistingMatch[]>();

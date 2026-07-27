@@ -7,6 +7,7 @@ vi.mock('@forethread/i18n', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  todayIso: () => new Date().toISOString().slice(0, 10),
   Textarea: (props: any) => <textarea {...props} />,
 }));
 

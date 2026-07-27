@@ -14,6 +14,7 @@ const MAT = vi.hoisted(() => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  todayIso: () => new Date().toISOString().slice(0, 10),
   Input: (p: Record<string, unknown>) => <input data-testid="cell-input" name={String(p.name)} />,
   CustomDropdown: () => <div data-testid="dropdown" />,
   DatePicker: () => <input data-testid="date" readOnly />,

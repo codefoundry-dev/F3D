@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { DELIVERY_TIME_REGEX } from '../validation';
+
 export const rfqListQuerySchema = z.object({
   page: z.coerce.number().min(1).optional().default(1),
   limit: z.coerce.number().min(1).max(100).optional().default(25),
@@ -53,6 +55,7 @@ export const createRfqLineItemSchema = z
     projectId: z.string().uuid().optional(),
     deliveryLocationId: z.string().uuid().optional(),
     expectedDeliveryDate: z.string().datetime().optional(),
+    deliveryTime: z.string().regex(DELIVERY_TIME_REGEX).optional(),
   })
   .refine((li) => Boolean(li.materialId) || Boolean(li.materialName), {
     message: 'A line item needs a catalog material or a material name',
@@ -83,7 +86,10 @@ export const createRfqSchema = z.object({
 
 export type CreateRfqValues = z.infer<typeof createRfqSchema>;
 
-export const updateRfqSchema = createRfqSchema.partial();
+export const updateRfqSchema = createRfqSchema.partial().extend({
+  /** `null` clears a previously chosen location — see the draft schema below. */
+  deliveryLocationId: z.string().uuid().nullable().optional(),
+});
 
 export type UpdateRfqValues = z.infer<typeof updateRfqSchema>;
 
@@ -99,7 +105,9 @@ export const saveRfqDraftSchema = z.object({
   isPickUp: z.boolean().optional(),
   pickUpLocation: z.string().optional(),
   deadlineEnd: z.string().datetime().optional(),
-  deliveryLocationId: z.string().uuid().optional(),
+  /** `null` clears a previously chosen location — e.g. the draft was switched
+   * to a pick-up order, which is collected rather than delivered. */
+  deliveryLocationId: z.string().uuid().nullable().optional(),
   needByDate: z.string().datetime().optional(),
   holdForRelease: z.boolean().optional(),
   earliestDeliveryDate: z.string().datetime().optional(),

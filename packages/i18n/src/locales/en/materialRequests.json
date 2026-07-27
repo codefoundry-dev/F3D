@@ -8,7 +8,6 @@
     "projectLabel": "Project: {{code}}",
     "jobId": "Job ID",
     "statusActive": "Active",
-    "procurementStatus": "Procurement Status",
     "jobDetails": "Job Details",
     "location": "Location",
     "projectManager": "Project Manager",
@@ -27,15 +26,6 @@
     "noJobsHint": "You are not assigned to any jobs yet. Contact your project manager to request access.",
     "notProvided": "Not provided",
     "loadFailed": "Failed to load job. Please try again."
-  },
-  "procurement": {
-    "rfqCreated": "RFQ Created",
-    "rfqApproved": "RFQ Approved",
-    "poIssued": "PO Issued",
-    "expectedDelivery": "Expected Delivery",
-    "materialInTransit": "Material In Transit",
-    "delivered": "Delivered",
-    "received": "Received"
   },
   "requestMaterials": {
     "title": "Request Materials",
@@ -62,11 +52,29 @@
     "manualEmptyTitle": "There is no materials yet",
     "manualEmptyHint": "Add a material that is needed",
     "addMaterial": "Add Material",
+    "addMaterialDetailed": "Add material with photo & details",
     "unitLabel": "Unit: {{unit}}",
     "itemsSelected": "{{count}} items selected",
     "clearAll": "Clear all",
     "next": "Next",
-    "removeItem": "Remove {{name}}"
+    "removeItem": "Remove {{name}}",
+    "remove": "Remove",
+    "colMaterialName": "Material name",
+    "colDescription": "Description",
+    "colQty": "Qty",
+    "colUnit": "Unit",
+    "colActions": "Actions",
+    "manualNamePlaceholder": "Search or type a material name",
+    "manualDescriptionPlaceholder": "Add a description",
+    "manualNameRequired": "Enter a material name",
+    "manualQtyRequired": "Enter a quantity greater than 0",
+    "manualHint": "Type a name to search the catalogue — pick a match to link it, or keep your own wording for an off-catalogue item.",
+    "addRow": "Add material",
+    "suggestionsLabel": "Material suggestions",
+    "suggestionsLoading": "Searching…",
+    "suggestionsEmpty": "No catalogue match for \"{{query}}\" — it will be added as a new material.",
+    "suggestionsFrequent": "Frequently used",
+    "suggestionsRecent": "Recently used"
   },
   "newMaterial": {
     "title": "New Material",
@@ -268,11 +276,12 @@
       "quantity": "Qty ordered",
       "unit": "UoM",
       "expectedDelivery": "Exp. delivery date",
+      "deliveryTime": "Delivery time",
       "deliveryLocation": "Delivery location",
       "notes": "Notes"
     },
     "actions": {
-      "approve": "Approve",
+      "approve": "Acknowledge",
       "decline": "Decline",
       "convertToRfq": "Convert to RFQ",
       "convertToPo": "Convert to PO",

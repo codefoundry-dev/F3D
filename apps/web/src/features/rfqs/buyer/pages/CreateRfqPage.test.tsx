@@ -19,6 +19,7 @@ const mockSendRfq = vi.hoisted(() => ({
   isError: false,
 }));
 const mockUseRfqProjects = vi.hoisted(() => vi.fn());
+const mockUseProjectDeliveryLocations = vi.hoisted(() => vi.fn());
 const mockUseRfqMaterials = vi.hoisted(() => vi.fn());
 const mockUseAssignedVendors = vi.hoisted(() => vi.fn());
 const mockUseConfirmedBoms = vi.hoisted(() => vi.fn());
@@ -63,6 +64,7 @@ vi.mock('../services/rfqs.service', () => ({
   useUpdateRfq: () => mockUpdateDraft,
   useSendRfq: () => mockSendRfq,
   useRfqProjects: mockUseRfqProjects,
+  useProjectDeliveryLocations: mockUseProjectDeliveryLocations,
   useRfqMaterials: mockUseRfqMaterials,
   useRfqMaterialSuggestions: () => ({ data: undefined, isLoading: false }),
   useAssignedVendors: mockUseAssignedVendors,
@@ -87,26 +89,44 @@ vi.mock('@forethread/ui-components', async (importOriginal) => {
       />
     ),
     SelectDropdown: (props: {
+      value?: string;
+      onChange?: (v: string) => void;
       selected?: string[];
       onSelectedChange?: (s: string[]) => void;
       options: Array<{ value: string; label: string }>;
       placeholder?: string;
-    }) => (
-      <select
-        multiple
-        aria-label={props.placeholder}
-        value={props.selected ?? []}
-        onChange={(e) =>
-          props.onSelectedChange?.(Array.from(e.target.selectedOptions).map((o) => o.value))
-        }
-      >
-        {props.options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    ),
+    }) =>
+      // The real component is single-select when given value/onChange
+      // (delivery location) and multi-select otherwise (projects).
+      props.onSelectedChange ? (
+        <select
+          multiple
+          aria-label={props.placeholder}
+          value={props.selected ?? []}
+          onChange={(e) =>
+            props.onSelectedChange?.(Array.from(e.target.selectedOptions).map((o) => o.value))
+          }
+        >
+          {props.options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <select
+          aria-label={props.placeholder}
+          value={props.value ?? ''}
+          onChange={(e) => props.onChange?.(e.target.value)}
+        >
+          <option value="">{props.placeholder}</option>
+          {props.options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      ),
     MaterialSearchPanel: (props: {
       onSelect: (item: { id: string; name: string; unit?: string; description?: string }) => void;
     }) => (
@@ -158,6 +178,12 @@ function setupData() {
     id: PROJECT_ID,
     name: 'Tower 5',
     locations: [{ id: LOCATION_ID, type: 'DELIVERY', address: '1 Site Rd', label: 'Dock A' }],
+  });
+  mockUseProjectDeliveryLocations.mockReturnValue({
+    data: [
+      { id: LOCATION_ID, type: 'DELIVERY', address: '1 Site Rd', label: 'Dock A', isDefault: true },
+    ],
+    isLoading: false,
   });
   mockApi.checkRfqAvailability.mockResolvedValue({ vendors: [], items: [] });
   mockSaveDraft.mutateAsync.mockResolvedValue({
@@ -255,19 +281,30 @@ describe('CreateRfqPage', () => {
       name: 'Structural steel package',
       deadlineEnd: '2026-07-01T00:00:00.000Z',
       vendorIds: [VENDOR_COMPANY_ID],
+      // Defaulted from the project's default DELIVERY location.
+      deliveryLocationId: LOCATION_ID,
     });
-    expect(payload).not.toHaveProperty('deliveryLocationId');
     expect(payload.lineItems).toHaveLength(1);
     expect(await screen.findByText(/create\.headings\.step4Title/)).toBeInTheDocument();
   });
 
-  it('reveals a pick-up location field only on pick-up orders (no delivery location field)', () => {
+  it('swaps the delivery-location field for a pick-up location on pick-up orders', () => {
     renderPage();
+    expect(screen.getByTestId('rfq-delivery-location')).toBeInTheDocument();
     expect(screen.queryByTestId('rfq-pickup-location')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('rfq-delivery-location')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('create.basicInfo.pickUpOrder'));
     expect(screen.getByTestId('rfq-pickup-location')).toBeInTheDocument();
     expect(screen.queryByTestId('rfq-delivery-location')).not.toBeInTheDocument();
+  });
+
+  it("defaults the delivery location to the project's default once a project is picked", async () => {
+    renderPage();
+    fillBasics();
+    await waitFor(() =>
+      expect(screen.getByLabelText('create.basicInfo.deliveryLocationPlaceholder')).toHaveValue(
+        LOCATION_ID,
+      ),
+    );
   });
 
   it('reveals the earliest allowed delivery date only when holding for release', () => {

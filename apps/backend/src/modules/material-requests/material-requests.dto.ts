@@ -1,4 +1,8 @@
-import { MaterialRequestPriority, MaterialRequestStatus } from '@forethread/shared-types';
+import {
+  DELIVERY_TIME_REGEX,
+  MaterialRequestPriority,
+  MaterialRequestStatus,
+} from '@forethread/shared-types';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
@@ -12,6 +16,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -57,6 +62,11 @@ export class CreateMrLineItemDto {
   @IsOptional()
   @IsDateString()
   expectedDeliveryDate?: string;
+
+  @ApiPropertyOptional({ description: 'Wanted delivery time of day for this line ("HH:MM", 24h)' })
+  @IsOptional()
+  @Matches(DELIVERY_TIME_REGEX, { message: 'deliveryTime must be a 24-hour HH:MM time' })
+  deliveryTime?: string;
 
   @ApiPropertyOptional({ description: 'Per-line delivery location (a ProjectLocation id)' })
   @IsOptional()

@@ -167,9 +167,6 @@
       "lineItems": "Line Items",
       "ordered": "Ordered: {{count}} {{uom}}",
       "deliveredQty": "Delivered qty:",
-      "notDelivered": "Not Delivered",
-      "damaged": "Damaged",
-      "rejected": "Rejected",
       "changeStatus": "Change status",
       "damageQty": "Damage qty:",
       "damageType": "Damage type:",
@@ -185,10 +182,7 @@
       "showContact": "Show email",
       "submitFailed": "Couldn't submit your delivery report. Please try again.",
       "filters": {
-        "all": "All",
-        "delivered": "Delivered",
-        "damaged": "Damaged",
-        "rejected": "Rejected"
+        "all": "All"
       },
       "poDetails": {
         "title": "Purchase order",
@@ -203,11 +197,6 @@
     "submitted": {
       "title": "Report submitted",
       "subtitle": "Your delivery report for {{poNumber}} has been received.",
-      "delivered": "Delivered",
-      "notDelivered": "Not Delivered",
-      "partialDelivered": "Partial Delivered",
-      "damage": "Damage",
-      "rejected": "Rejected",
       "items": "{{count}} items",
       "logOut": "Log Out"
     }

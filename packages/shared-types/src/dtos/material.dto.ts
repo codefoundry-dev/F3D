@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
@@ -445,15 +445,26 @@ export class DuplicateCandidateDto {
 }
 
 /**
- * Bulk duplicate check for the upload/import wizard. The candidates keep their
- * submitted order so the response can refer back to each by index.
+ * Bulk duplicate check for the upload/import wizard. Either submit the
+ * candidate rows inline (kept in order so the response can refer back to each
+ * by index), or pass `extractionId` to check every row of a stored extraction
+ * result server-side — a 60k-row upload never round-trips the candidates.
+ * Exactly one of the two must be provided.
  */
 export class DetectMaterialDuplicatesDto {
-  @ApiProperty({ type: [DuplicateCandidateDto] })
+  @ApiPropertyOptional({ type: [DuplicateCandidateDto] })
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => DuplicateCandidateDto)
-  candidates!: DuplicateCandidateDto[];
+  candidates?: DuplicateCandidateDto[];
+
+  @ApiPropertyOptional({
+    description: 'Check the items of this doc-extraction result instead of inline candidates.',
+  })
+  @IsOptional()
+  @IsUUID()
+  extractionId?: string;
 }
 
 // ── Material change requests (US 4.01 Phase 3) ────────────────────────────────

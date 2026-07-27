@@ -36,9 +36,14 @@ vi.mock('@forethread/ui-components', () => ({
       {children as ReactNode}
     </button>
   ),
+  Badge: ({ children, className }: Record<string, unknown>) => (
+    <span className={className as string}>{children as ReactNode}</span>
+  ),
   Spinner: () => <div data-testid="spinner" />,
   cn: (...c: unknown[]) => c.filter(Boolean).join(' '),
   formatDate: (d: string | null) => d ?? '-',
+  getStatusColor: (map: Record<string, string>, s: string) => map[s] ?? '',
+  DELIVERY_OUTCOME_COLORS: {},
   notificationService: { success: vi.fn(), error: vi.fn() },
 }));
 vi.mock('@forethread/ui-components/assets/icons/checkcircle-icon.svg?react', () => ({

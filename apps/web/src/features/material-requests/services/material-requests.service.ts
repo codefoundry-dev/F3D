@@ -167,6 +167,22 @@ export function useMrMaterialSuggestions(search: string) {
   });
 }
 
+/**
+ * Grouped catalogue suggestions for the Manual tab's material-name autocomplete
+ * (same endpoint as the Catalog tab, but keeping the frequently/recently-used
+ * groups so the popup mirrors the RFQ manual row — FOR-274). Only fetches once
+ * something has been typed.
+ */
+export function useMrMaterialSuggestionGroups(search: string) {
+  const term = search.trim();
+  return useQuery({
+    queryKey: queryKeys.materials.suggestions(term),
+    queryFn: () => getMaterialSuggestions({ q: term }),
+    enabled: term.length > 0,
+    staleTime: 30 * 1000,
+  });
+}
+
 /** The active BOM for the selected project (BOM tab source). */
 export function useMrProjectBoms(projectId: string | undefined) {
   return useQuery({

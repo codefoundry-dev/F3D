@@ -32,11 +32,13 @@ import { useParams } from 'react-router-dom';
 
 import { PortalLineItem } from './PortalLineItem';
 import {
+  LINE_FILTERS,
   isPortalLineValid,
+  matchesFilter,
   portalLineToInput,
   portalPoLineToDraft,
-  resolveOutcome,
   summarisePortalLines,
+  type LineFilter,
   type PortalLineDraft,
 } from './portalLines';
 
@@ -605,13 +607,13 @@ function ReportFormStep({
               role="tab"
               aria-selected={filter === f}
               onClick={() => setFilter(f)}
-              data-testid={`portal-filter-${f}`}
+              data-testid={`portal-filter-${f.toLowerCase()}`}
               className={cn(
                 'rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
                 filter === f ? 'bg-foreground text-background' : 'bg-muted text-foreground',
               )}
             >
-              {t(`portal.report.filters.${f}`)}
+              {f === 'all' ? t('portal.report.filters.all') : t(`outcome.${f}`)}
             </button>
           ))}
         </div>
@@ -725,12 +727,14 @@ function SubmittedStep({
   const { t } = useTranslation('deliveries');
   const summary = useMemo(() => summarisePortalLines(lines), [lines]);
 
-  const rows: { key: keyof typeof summary; label: string }[] = [
-    { key: 'delivered', label: t('portal.submitted.delivered') },
-    { key: 'notDelivered', label: t('portal.submitted.notDelivered') },
-    { key: 'partialDelivered', label: t('portal.submitted.partialDelivered') },
-    { key: 'damage', label: t('portal.submitted.damage') },
-    { key: 'rejected', label: t('portal.submitted.rejected') },
+  // Labelled from the canonical `outcome.*` block (same strings as the line badges,
+  // the filter chips and the internal report pages) rather than portal-local copy.
+  const rows: { key: keyof typeof summary; outcome: DeliveryOutcome }[] = [
+    { key: 'delivered', outcome: DeliveryOutcome.DELIVERED },
+    { key: 'partialDelivered', outcome: DeliveryOutcome.PARTIALLY_DELIVERED },
+    { key: 'notDelivered', outcome: DeliveryOutcome.NOT_DELIVERED },
+    { key: 'damage', outcome: DeliveryOutcome.DAMAGED },
+    { key: 'rejected', outcome: DeliveryOutcome.REJECTED },
   ];
 
   return (
@@ -745,7 +749,7 @@ function SubmittedStep({
       <dl className="mt-6 flex flex-col gap-3" data-testid="portal-summary">
         {rows.map((row) => (
           <div key={row.key} className="flex items-center justify-between">
-            <dt className="text-foreground">{row.label}</dt>
+            <dt className="text-foreground">{t(`outcome.${row.outcome}`)}</dt>
             <dd className="text-muted-foreground" data-testid={`portal-summary-${row.key}`}>
               {t('portal.submitted.items', { count: summary[row.key] })}
             </dd>
@@ -773,18 +777,6 @@ const PORTAL_INPUT_CLASS = 'h-12 rounded-lg border-black/15 bg-card text-base';
 
 function PortalCard({ children }: { children: React.ReactNode }) {
   return <div className="rounded-2xl border border-black/10 bg-card p-6 shadow-sm">{children}</div>;
-}
-
-const LINE_FILTERS = ['all', 'delivered', 'damaged', 'rejected'] as const;
-type LineFilter = (typeof LINE_FILTERS)[number];
-
-function matchesFilter(line: PortalLineDraft, filter: LineFilter): boolean {
-  if (filter === 'all') return true;
-  const outcome = resolveOutcome(line);
-  if (filter === 'delivered')
-    return outcome === DeliveryOutcome.DELIVERED || outcome === DeliveryOutcome.PARTIALLY_DELIVERED;
-  if (filter === 'damaged') return outcome === DeliveryOutcome.DAMAGED;
-  return outcome === DeliveryOutcome.REJECTED;
 }
 
 function initials(name: string): string {

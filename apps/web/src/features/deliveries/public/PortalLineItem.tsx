@@ -1,6 +1,14 @@
 import { useTranslation } from '@forethread/i18n';
 import { DamageDisposition, DamageType, DeliveryOutcome } from '@forethread/shared-types/client';
-import { Badge, Button, RadioGroup, Select, cn } from '@forethread/ui-components';
+import {
+  Badge,
+  Button,
+  DELIVERY_OUTCOME_COLORS,
+  RadioGroup,
+  Select,
+  cn,
+  getStatusColor,
+} from '@forethread/ui-components';
 import CircleReloadIcon from '@forethread/ui-components/assets/icons/circle-reload.svg?react';
 import CrossCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
 import ImageIcon from '@forethread/ui-components/assets/icons/image.svg?react';
@@ -11,16 +19,6 @@ import { useRef } from 'react';
 import { DAMAGE_TYPE_OPTIONS, DELIVERY_ATTACHMENT_ACCEPT } from '../constants';
 
 import { resolveOutcome, type PortalLineDraft, type PortalLineStatus } from './portalLines';
-
-/** Per-line outcome badge colours (mirrors the token style of the report-status badges). */
-const OUTCOME_BADGE: Record<DeliveryOutcome, string> = {
-  [DeliveryOutcome.DELIVERED]: 'bg-success/10 text-success',
-  [DeliveryOutcome.PARTIALLY_DELIVERED]:
-    'bg-[hsl(var(--badge-orange))] text-[hsl(var(--badge-orange-text))]',
-  [DeliveryOutcome.DAMAGED]: 'bg-[hsl(var(--badge-orange))] text-[hsl(var(--badge-orange-text))]',
-  [DeliveryOutcome.NOT_DELIVERED]: 'bg-muted text-muted-foreground',
-  [DeliveryOutcome.REJECTED]: 'bg-destructive/10 text-destructive',
-};
 
 interface PortalLineItemProps {
   line: PortalLineDraft;
@@ -63,7 +61,7 @@ export function PortalLineItem({ line, onChange }: PortalLineItemProps) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold text-foreground">{line.materialName}</span>
-            <Badge className={cn('shrink-0', OUTCOME_BADGE[outcome])}>
+            <Badge className={cn('shrink-0', getStatusColor(DELIVERY_OUTCOME_COLORS, outcome))}>
               {t(`outcome.${outcome}` as never)}
             </Badge>
           </div>
@@ -198,7 +196,7 @@ export function PortalLineItem({ line, onChange }: PortalLineItemProps) {
           )}
         </div>
       ) : (
-        /* ── Default → Delivered qty + Not Delivered (row 1), Damaged + Rejected (row 2) ── */
+        /* ── Default → Delivered qty + Not delivered (row 1), Damaged + Rejected (row 2) ── */
         <>
           {isNotDelivered ? (
             <div className="mt-4">
@@ -209,7 +207,7 @@ export function PortalLineItem({ line, onChange }: PortalLineItemProps) {
                 testId={`portal-line-not-delivered-${line.id}`}
                 icon={<CrossCircleIcon className="h-4 w-4" />}
               >
-                {t('portal.report.notDelivered')}
+                {t(`outcome.${DeliveryOutcome.NOT_DELIVERED}`)}
               </ToggleButton>
             </div>
           ) : (
@@ -232,7 +230,7 @@ export function PortalLineItem({ line, onChange }: PortalLineItemProps) {
                   testId={`portal-line-not-delivered-${line.id}`}
                   icon={<CrossCircleIcon className="h-4 w-4" />}
                 >
-                  {t('portal.report.notDelivered')}
+                  {t(`outcome.${DeliveryOutcome.NOT_DELIVERED}`)}
                 </ToggleButton>
               </div>
             </div>
@@ -245,7 +243,7 @@ export function PortalLineItem({ line, onChange }: PortalLineItemProps) {
               testId={`portal-line-damaged-${line.id}`}
               icon={<ImageIcon className="h-4 w-4" />}
             >
-              {t('portal.report.damaged')}
+              {t(`outcome.${DeliveryOutcome.DAMAGED}`)}
             </ToggleButton>
             <ToggleButton
               active={false}
@@ -255,7 +253,7 @@ export function PortalLineItem({ line, onChange }: PortalLineItemProps) {
               testId={`portal-line-reject-${line.id}`}
               icon={<CrossCircleIcon className="h-4 w-4" />}
             >
-              {t('portal.report.rejected')}
+              {t(`outcome.${DeliveryOutcome.REJECTED}`)}
             </ToggleButton>
           </div>
         </>

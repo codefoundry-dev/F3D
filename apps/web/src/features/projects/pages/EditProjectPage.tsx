@@ -21,6 +21,7 @@ import {
   DatePicker,
   onDecimalOnly,
   notificationService,
+  todayIso,
 } from '@forethread/ui-components';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -351,11 +352,7 @@ export default function EditProjectPage() {
                 control={control}
                 name="expectedEndDate"
                 render={({ field }) => (
-                  <DatePicker
-                    value={field.value}
-                    onChange={field.onChange}
-                    minDate={new Date().toISOString().slice(0, 10)}
-                  />
+                  <DatePicker value={field.value} onChange={field.onChange} minDate={todayIso()} />
                 )}
               />
             </FormField>

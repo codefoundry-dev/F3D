@@ -62,6 +62,14 @@ function toIsoDate(date: string | undefined): string | undefined {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date}T00:00:00.000Z` : date;
 }
 
+/** A cleared `<input type="time">` yields '', which would fail the API's HH:MM
+ * check — send nothing instead. */
+function toDeliveryTime(time: string | undefined): string | undefined {
+  const trimmed = time?.trim();
+  if (!trimmed) return undefined;
+  return trimmed;
+}
+
 /** Build the SaveRfqDraft / UpdateRfq payload from the wizard state. */
 function buildPayload(
   basicInfo: WizardBasicInfo,
@@ -76,6 +84,9 @@ function buildPayload(
     name: basicInfo.documentName || undefined,
     isPickUp: basicInfo.isPickUp || undefined,
     pickUpLocation: basicInfo.isPickUp ? basicInfo.pickUpLocation || undefined : undefined,
+    // Pick-up orders are collected, not delivered — `null` clears a location
+    // chosen before the draft was switched over.
+    deliveryLocationId: basicInfo.isPickUp ? null : basicInfo.deliveryLocationId || undefined,
     holdForRelease: basicInfo.holdForRelease || undefined,
   } as SaveRfqDraftValues;
 
@@ -96,6 +107,7 @@ function buildPayload(
         notes: item.notes,
         projectId: item.projectId,
         expectedDeliveryDate: toIsoDate(item.expectedDeliveryDate),
+        deliveryTime: toDeliveryTime(item.deliveryTime),
         description: item.description,
       };
       if (item.materialId) {
@@ -127,8 +139,8 @@ function withServerIds(items: WizardLineItem[], detail: RfqDetail): WizardLineIt
  * consolidated first step (RFQ basic information + a Select-Vendors accordion +
  * an Add-Line-Items accordion with inline bulk-order coverage), then Review &
  * Send. Drafts save as you go, bulk-order coverage can short-circuit to the
- * No-RFQ-Required terminal state. Delivery is captured per line item, not at
- * the RFQ level.
+ * No-RFQ-Required terminal state. Delivery location is captured on the RFQ
+ * itself; line items may override it individually.
  */
 export default function CreateRfqPage() {
   const { t } = useTranslation('rfqs');

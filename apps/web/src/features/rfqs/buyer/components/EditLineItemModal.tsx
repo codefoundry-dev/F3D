@@ -26,7 +26,12 @@ export function EditLineItemModal({ rfqId, lineItem, onClose }: EditLineItemModa
   const [materialName, setMaterialName] = useState(lineItem.materialName);
   const [quantity, setQuantity] = useState(String(lineItem.quantity));
   const [unit, setUnit] = useState(lineItem.unit);
+  const [costCode, setCostCode] = useState(lineItem.costCode ?? '');
   const [description, setDescription] = useState(lineItem.description ?? '');
+
+  // Catalogue-backed lines take their name from the material, so it is read-only
+  // here; only free-text / BOM lines own an editable name.
+  const isCatalogueLine = Boolean(lineItem.materialId);
 
   const mutation = useMutation({
     mutationFn: (payload: UpdateLineItemPayload) => updateLineItem(rfqId, lineItem.id, payload),
@@ -39,9 +44,10 @@ export function EditLineItemModal({ rfqId, lineItem, onClose }: EditLineItemModa
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     mutation.mutate({
-      materialName,
+      ...(isCatalogueLine ? {} : { materialName }),
       quantity: Number(quantity),
       unit,
+      costCode: costCode ? costCode : null,
       description: description ? description : null,
     });
   };
@@ -67,11 +73,16 @@ export function EditLineItemModal({ rfqId, lineItem, onClose }: EditLineItemModa
       }
     >
       <FormField label={t('lineItemsTab.materialName')} required>
-        <Input type="text" value={materialName} onChange={(e) => setMaterialName(e.target.value)} />
+        <Input
+          type="text"
+          value={materialName}
+          onChange={(e) => setMaterialName(e.target.value)}
+          disabled={isCatalogueLine}
+        />
       </FormField>
 
       <div className="grid grid-cols-2 gap-3">
-        <FormField label={t('lineItemsTab.qtyOrdered')} required>
+        <FormField label={t('lineItemsTab.qty')} required>
           <Input
             inputMode="numeric"
             pattern="[0-9]*"
@@ -84,6 +95,16 @@ export function EditLineItemModal({ rfqId, lineItem, onClose }: EditLineItemModa
         <FormField label={t('lineItemsTab.uom')} required>
           <Input type="text" value={unit} onChange={(e) => setUnit(e.target.value)} />
         </FormField>
+      </div>
+
+      <div>
+        <label className="block mb-1.5">
+          <span className="text-sm font-medium text-card-foreground">
+            {t('lineItemsTab.costCode')}&nbsp;
+            <span className="text-muted-foreground font-normal">({t('common:optional')})</span>
+          </span>
+        </label>
+        <Input type="text" value={costCode} onChange={(e) => setCostCode(e.target.value)} />
       </div>
 
       <div>

@@ -2,7 +2,16 @@ import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import type { DeliveryReportLineResponse } from '@forethread/shared-types/client';
 import { DeliveryOutcome, DeliveryReportStatus } from '@forethread/shared-types/client';
-import { Button, Spinner, cn, formatDate, notificationService } from '@forethread/ui-components';
+import {
+  Badge,
+  Button,
+  DELIVERY_OUTCOME_COLORS,
+  Spinner,
+  cn,
+  formatDate,
+  getStatusColor,
+  notificationService,
+} from '@forethread/ui-components';
 import CheckIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
@@ -198,7 +207,11 @@ function LineRow({ line }: { line: DeliveryReportLineResponse }) {
         <td className="px-3 py-2.5 text-foreground">{line.uom}</td>
         <td className="px-3 py-2.5 text-foreground">{line.quantityOrdered}</td>
         <td className="px-3 py-2.5 text-foreground">{line.quantityReceived}</td>
-        <td className="px-3 py-2.5 text-foreground">{t(`outcome.${line.outcome}` as never)}</td>
+        <td className="px-3 py-2.5">
+          <Badge className={getStatusColor(DELIVERY_OUTCOME_COLORS, line.outcome)}>
+            {t(`outcome.${line.outcome}` as never)}
+          </Badge>
+        </td>
         <td className="px-3 py-2.5">
           <span
             aria-hidden

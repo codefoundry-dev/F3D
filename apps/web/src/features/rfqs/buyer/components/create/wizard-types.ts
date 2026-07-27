@@ -28,6 +28,9 @@ export interface WizardLineItem {
   projectId?: string;
   /** YYYY-MM-DD */
   expectedDeliveryDate?: string;
+  /** Wanted delivery time of day, 24-hour "HH:MM". Prefilled from the source
+   * Material Request line when the RFQ was converted from one. */
+  deliveryTime?: string;
   notes?: string;
 }
 
@@ -40,6 +43,9 @@ export interface WizardBasicInfo {
   projectIds: string[];
   /** YYYY-MM-DD */
   needByDate: string;
+  /** ProjectLocation id (type DELIVERY) on the primary project — the RFQ-level
+   * default; line items may override it. Empty for pick-up orders. */
+  deliveryLocationId: string;
   isPickUp: boolean;
   pickUpLocation: string;
   holdForRelease: boolean;
@@ -52,6 +58,7 @@ export const EMPTY_BASIC_INFO: WizardBasicInfo = {
   responseDeadline: '',
   projectIds: [],
   needByDate: '',
+  deliveryLocationId: '',
   isPickUp: false,
   pickUpLocation: '',
   holdForRelease: false,
@@ -84,6 +91,7 @@ export interface WizardFieldErrors {
   documentName?: string;
   responseDeadline?: string;
   projectIds?: string;
+  deliveryLocationId?: string;
   pickUpLocation?: string;
   earliestDeliveryDate?: string;
   vendorIds?: string;
@@ -98,6 +106,10 @@ export function validateBasicInfo(values: WizardBasicInfo, vendorIds: string[]):
   if (values.projectIds.length === 0) errors.projectIds = 'required';
   if (values.isPickUp && !values.pickUpLocation.trim()) {
     errors.pickUpLocation = 'required';
+  }
+  // A delivered order needs somewhere to deliver to; a pick-up order doesn't.
+  if (!values.isPickUp && !values.deliveryLocationId) {
+    errors.deliveryLocationId = 'required';
   }
   if (values.holdForRelease && !values.earliestDeliveryDate) {
     errors.earliestDeliveryDate = 'required';

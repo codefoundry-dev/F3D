@@ -44,6 +44,8 @@ export interface CreatePoLineItemInput {
   taxCode?: string;
   notes?: string;
   expectedDeliveryDate?: string;
+  /** Wanted delivery time of day, 24-hour "HH:MM". */
+  deliveryTime?: string;
   deliveryLocationId?: string;
   pickUp?: boolean;
 }
@@ -160,6 +162,8 @@ export interface PoLineItemDetail {
   manufacturerPartNumber?: string | null;
   taxCode?: string | null;
   expectedDeliveryDate: string | null;
+  /** Wanted delivery time of day, 24-hour "HH:MM". */
+  deliveryTime?: string | null;
   deliveryLocation: string | null;
   notes: string | null;
   pickUp: boolean;

@@ -52,6 +52,9 @@ export function LineItemsTableHeader({ isDrawdownMode = false }: LineItemsTableH
         <th className={TH_CLASS} style={{ width: '10%' }}>
           {t('create.expDeliveryDate')}
         </th>
+        <th className={TH_CLASS} style={{ width: '8%' }}>
+          {t('create.deliveryTimeCol')}
+        </th>
         <th className={TH_CLASS} style={{ width: '10%' }}>
           {t('create.deliveryLocationCol')}
         </th>

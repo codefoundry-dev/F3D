@@ -41,6 +41,7 @@ vi.mock('@forethread/rfq-shared', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  todayIso: () => new Date().toISOString().slice(0, 10),
   Spinner: () => <div data-testid="spinner" />,
   Alert: ({ children }: { children: React.ReactNode }) => <div role="alert">{children}</div>,
 }));

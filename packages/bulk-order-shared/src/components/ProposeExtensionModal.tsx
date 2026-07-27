@@ -8,6 +8,7 @@ import {
   Textarea,
   formatDate,
   notificationService,
+  todayIso,
 } from '@forethread/ui-components';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock.svg?react';
 import InfoIcon from '@forethread/ui-components/assets/icons/info-in-triangle.svg?react';
@@ -87,11 +88,7 @@ export function ProposeExtensionModal({
       </Alert>
 
       <FormField label={t('extension.newEndDate')} required>
-        <DatePicker
-          value={endDate}
-          onChange={setEndDate}
-          minDate={new Date().toISOString().slice(0, 10)}
-        />
+        <DatePicker value={endDate} onChange={setEndDate} minDate={todayIso()} />
       </FormField>
 
       <div>

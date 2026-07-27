@@ -58,7 +58,7 @@ export function PoLineItemsTab({
 
   const isPageLayout = layout === 'page';
   const showActions = isPageLayout && Boolean(poId) && !readOnly;
-  const columnCount = (isPageLayout ? 12 : 6) + (showActions ? 1 : 0);
+  const columnCount = (isPageLayout ? 12 : 5) + (showActions ? 1 : 0);
 
   return (
     <div className="rounded-lg border border-border bg-background">
@@ -91,10 +91,10 @@ export function PoLineItemsTab({
               {isPageLayout && <th className={TH}>{t('lineItemsTab.upc')}</th>}
               {isPageLayout && <th className={TH}>{t('lineItemsTab.mpn')}</th>}
               {isPageLayout && <th className={TH}>{t('lineItemsTab.taxCode')}</th>}
-              <th className={TH}>{t('lineItemsTab.description')}</th>
-              <th className={TH}>{t('lineItemsTab.qtyOrdered')}</th>
+              <th className={TH}>{t('lineItemsTab.qty')}</th>
               <th className={TH}>{t('lineItemsTab.uom')}</th>
               {isPageLayout && <th className={TH}>{t('lineItemsTab.expDeliveryDate')}</th>}
+              {isPageLayout && <th className={TH}>{t('lineItemsTab.deliveryTime')}</th>}
               <th className={TH}>{t('lineItemsTab.pricePerUnit')}</th>
               <th className={TH}>{t('lineItemsTab.lineTotal')}</th>
               {showActions && (
@@ -139,9 +139,6 @@ export function PoLineItemsTab({
                     </td>
                   )}
                   <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
-                    {item.description ?? '-'}
-                  </td>
-                  <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
                     {item.quantityOrdered}
                   </td>
                   <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
@@ -150,6 +147,11 @@ export function PoLineItemsTab({
                   {isPageLayout && (
                     <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
                       {item.expectedDeliveryDate ? formatDate(item.expectedDeliveryDate) : '-'}
+                    </td>
+                  )}
+                  {isPageLayout && (
+                    <td className={`px-3 py-2.5 text-foreground whitespace-nowrap ${cellBorder}`}>
+                      {item.deliveryTime ?? '-'}
                     </td>
                   )}
                   <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
@@ -248,6 +250,9 @@ function EditPoLineItemModal({ poId, lineItem, allLineItems, onClose }: EditPoLi
           taxCode: li.taxCode ?? undefined,
           notes: li.notes ?? undefined,
           expectedDeliveryDate: li.expectedDeliveryDate ?? undefined,
+          // Every line is resent on save, so an omitted field here would blank
+          // itself on the untouched lines too.
+          deliveryTime: li.deliveryTime ?? undefined,
           deliveryLocationId: li.deliveryLocation ?? undefined,
         };
         if (li.id === lineItem.id) {
@@ -308,7 +313,7 @@ function EditPoLineItemModal({ poId, lineItem, allLineItems, onClose }: EditPoLi
 
       {/* Quantity + UoM */}
       <div className="grid grid-cols-2 gap-3">
-        <FormField label={t('lineItemsTab.qtyOrdered')} required>
+        <FormField label={t('lineItemsTab.qty')} required>
           <Input
             inputMode="numeric"
             pattern="[0-9]*"

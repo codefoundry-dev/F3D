@@ -24,6 +24,7 @@ import {
   StatusErrorModal,
   StatusSuccessModal,
   Textarea,
+  todayIso,
 } from '@forethread/ui-components';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
@@ -163,7 +164,11 @@ function GuestChangeForm({ po, token }: { po: PoDetail; token: string }) {
                 control={control}
                 name="plannedDeliveryDate"
                 render={({ field }) => (
-                  <DatePicker value={field.value ?? ''} onChange={field.onChange} />
+                  <DatePicker
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    minDate={todayIso()}
+                  />
                 )}
               />
             </FormField>
@@ -218,7 +223,11 @@ function GuestChangeForm({ po, token }: { po: PoDetail; token: string }) {
                           control={control}
                           name={`lineItems.${index}.expectedDeliveryDate`}
                           render={({ field: f }) => (
-                            <DatePicker value={f.value ?? ''} onChange={f.onChange} />
+                            <DatePicker
+                              value={f.value ?? ''}
+                              onChange={f.onChange}
+                              minDate={todayIso()}
+                            />
                           )}
                         />
                       </td>

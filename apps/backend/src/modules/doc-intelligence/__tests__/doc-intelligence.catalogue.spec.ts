@@ -41,14 +41,18 @@ describe('spreadsheetToCatalogue', () => {
       sku: 'CT-100',
       materialCode: null,
       brand: 'Acme',
+      manufacturer: null,
       manufacturerPartNumber: 'MPN-1',
       upc: '012345678905',
       uom: 'ea',
       description: null,
       mainCategory: 'Electrical',
       subCategory: 'Fixings',
+      materialType: null,
       countryOfOrigin: null,
       pricePerUnit: null,
+      costCode: null,
+      taxCode: null,
       imageUrl: null,
       confidence: 1,
     });
@@ -68,6 +72,57 @@ describe('spreadsheetToCatalogue', () => {
       countryOfOrigin: 'Australia',
       pricePerUnit: 12.5,
     });
+  });
+
+  it('maps a "Manufacturer" header (not just "Brand") and keeps the two distinct', async () => {
+    const buffer = await makeXlsx([
+      ['Name', 'Brand', 'Manufacturer', 'Manufacturer Part Number'],
+      ['Contactor', 'Acme', 'Eaton', 'MPN-7'],
+    ]);
+
+    const result = await spreadsheetToCatalogue(buffer);
+
+    expect(result.items[0]).toMatchObject({
+      brand: 'Acme',
+      manufacturer: 'Eaton',
+      manufacturerPartNumber: 'MPN-7',
+    });
+  });
+
+  it('falls back to Mfr / Make / Supplier headers for the manufacturer', async () => {
+    for (const header of ['Mfr', 'Make', 'Supplier']) {
+      const buffer = await makeXlsx([
+        ['Name', header],
+        ['Conduit', 'Clipsal'],
+      ]);
+      const result = await spreadsheetToCatalogue(buffer);
+      expect(result.items[0].manufacturer).toBe('Clipsal');
+    }
+  });
+
+  it('maps "Material type" to materialType, NOT subCategory', async () => {
+    const buffer = await makeXlsx([
+      ['Name', 'Material type', 'Sub Category'],
+      ['Cable Tray', 'Industrial', 'Cable Management'],
+    ]);
+
+    const result = await spreadsheetToCatalogue(buffer);
+
+    expect(result.items[0]).toMatchObject({
+      materialType: 'Industrial',
+      subCategory: 'Cable Management',
+    });
+  });
+
+  it('maps cost code and tax code columns', async () => {
+    const buffer = await makeXlsx([
+      ['Name', 'Cost Code', 'Tax Code'],
+      ['Junction Box', 'CC-400', 'GST'],
+    ]);
+
+    const result = await spreadsheetToCatalogue(buffer);
+
+    expect(result.items[0]).toMatchObject({ costCode: 'CC-400', taxCode: 'GST' });
   });
 
   it('treats "Material Description" as the name and a separate "description" as the long blurb', async () => {
@@ -194,16 +249,43 @@ describe('normalizeCatalogueResult', () => {
       sku: 'SW-1',
       materialCode: null,
       brand: 'Acme',
+      manufacturer: null,
       manufacturerPartNumber: 'MPN-9',
       upc: '111',
       uom: 'ea',
       description: 'A long blurb',
       mainCategory: 'Electrical',
       subCategory: 'Switches',
+      materialType: null,
       countryOfOrigin: null,
       pricePerUnit: null,
+      costCode: null,
+      taxCode: null,
       imageUrl: null,
       confidence: 0.9,
+    });
+  });
+
+  it('normalizes the manufacturer, material type and accounting-code keys', () => {
+    const result = normalizeCatalogueResult({
+      items: [
+        {
+          name: 'Breaker 20A',
+          mfr: ' Schneider ',
+          material_type: 'Industrial',
+          costCode: ' CC-1 ',
+          taxClass: 'GST',
+          image: 'https://cdn.example/x.png',
+        },
+      ],
+    });
+
+    expect(result.items[0]).toMatchObject({
+      manufacturer: 'Schneider',
+      materialType: 'Industrial',
+      costCode: 'CC-1',
+      taxCode: 'GST',
+      imageUrl: 'https://cdn.example/x.png',
     });
   });
 

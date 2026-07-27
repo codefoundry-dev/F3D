@@ -996,33 +996,58 @@ T923)
 
 ### US-5.05 — RFQ Creation Wizard (T752) — added 2026-06-11
 
-| Test File                         | Tests | Description                                                | Status |
-| --------------------------------- | ----- | ---------------------------------------------------------- | ------ |
-| CreateRfqPage.test.tsx            | —     | 4-step wizard: steps, validation, draft save, send         | PASS   |
-| wizard-types.test.ts              | —     | Wizard state/line-item derivation helpers                  | PASS   |
-| availability.test.ts              | —     | Bulk-coverage availability step logic                      | PASS   |
-| rfq-availability.service.spec.ts  | 9     | Backend check-availability + confirm-coverage (drawdowns)  | PASS   |
-| rfq-line-item.util.spec.ts        | —     | Per-line project/delivery field mapping (US 5.05)          | PASS   |
+| Test File                        | Tests | Description                                               | Status |
+| -------------------------------- | ----- | --------------------------------------------------------- | ------ |
+| CreateRfqPage.test.tsx           | —     | 4-step wizard: steps, validation, draft save, send        | PASS   |
+| wizard-types.test.ts             | —     | Wizard state/line-item derivation helpers                 | PASS   |
+| availability.test.ts             | —     | Bulk-coverage availability step logic                     | PASS   |
+| rfq-availability.service.spec.ts | 9     | Backend check-availability + confirm-coverage (drawdowns) | PASS   |
+| rfq-line-item.util.spec.ts       | —     | Per-line project/delivery field mapping (US 5.05)         | PASS   |
 
 Backend suite: 94 suites / 1716 tests green. Web suite: 157 suites / 1578 tests green (full runs
 2026-06-11).
 
-**Lint fixes (pre-commit baseline):** material-lists.service.ts (unnecessary type assertion +
-unused type alias removed), rfq-availability.service.ts (4 non-null assertions → guarded lookups).
+**Lint fixes (pre-commit baseline):** material-lists.service.ts (unnecessary type assertion + unused
+type alias removed), rfq-availability.service.ts (4 non-null assertions → guarded lookups).
 
 ### US-5.06 / US-5.19 — Review Quotes (T407, T747, T753) — added 2026-06-11
 
-| Test File                            | Tests | Description                                                      | Status |
-| ------------------------------------ | ----- | ---------------------------------------------------------------- | ------ |
-| QuoteComparisonTable.test.tsx        | 11    | Vendor groups, not-quoted, footer totals, line approve, hide     | PASS   |
-|                                      |       | vendor, grouping+subtotals, declined restore/select, approved    |        |
-|                                      |       | order column + Create PO modal, table management, approve prompt |        |
-| QuoteResponseDetailShared.test.tsx   | 6     | Quote lines pricing, suggestion-replace render + approve, totals | PASS   |
-|                                      |       | footer, attachments tab, panel back navigation                   |        |
-| quote-comparison.spec.ts (backend)   | 13    | Extended builder: line totals, projects, statuses, substitutes,  | PASS   |
-|                                      |       | vendor footer fields (rewritten fixtures)                        |        |
-| quote-response.service.spec.ts       | +6    | updateQuoteLineItemStatuses: update+audit, scoping, access       | PASS   |
-| rfqs.service.spec.ts                 | +1    | approveQuote accepts SUBMITTED quotes (US 5.06 review path)      | PASS   |
+| Test File                          | Tests | Description                                                      | Status |
+| ---------------------------------- | ----- | ---------------------------------------------------------------- | ------ |
+| QuoteComparisonTable.test.tsx      | 11    | Vendor groups, not-quoted, footer totals, line approve, hide     | PASS   |
+|                                    |       | vendor, grouping+subtotals, declined restore/select, approved    |        |
+|                                    |       | order column + Create PO modal, table management, approve prompt |        |
+| QuoteResponseDetailShared.test.tsx | 6     | Quote lines pricing, suggestion-replace render + approve, totals | PASS   |
+|                                    |       | footer, attachments tab, panel back navigation                   |        |
+| quote-comparison.spec.ts (backend) | 13    | Extended builder: line totals, projects, statuses, substitutes,  | PASS   |
+|                                    |       | vendor footer fields (rewritten fixtures)                        |        |
+| quote-response.service.spec.ts     | +6    | updateQuoteLineItemStatuses: update+audit, scoping, access       | PASS   |
+| rfqs.service.spec.ts               | +1    | approveQuote accepts SUBMITTED quotes (US 5.06 review path)      | PASS   |
 
 Visual verification: 17-shot Playwright harness vs Figma 5.06 frames (route-mocked, buyer role) —
 list/table views, declined/approved filters, modals, panel drill-in all match.
+
+### US-4.02 — Server-windowed upload wizard (T898) — added 2026-07-27
+
+| Test File                           | Tests | Description                                                   | Status |
+| ----------------------------------- | ----- | ------------------------------------------------------------- | ------ |
+| doc-intelligence.service.spec.ts    | +11   | Summary view mapping, items window (page + absolute indexes), | PASS   |
+|                                     |       | sparse ops apply/shift/validation, ownership guards           |        |
+| doc-intelligence.controller.spec.ts | +3    | resultView=summary passthrough, items GET/PATCH routes        | PASS   |
+| materials.service.spec.ts           | +3    | detect-duplicates by extractionId: jsonb identity-field read, | PASS   |
+|                                     |       | ownership guard, empty-result short-circuit                   |        |
+| UploadMaterialFilePage.test.tsx     | 12    | Windowed paging with absolute indexes, page-2 edit routed to  | PASS   |
+|                                     |       | right absolute row, duplicates-only narrowing + back, sparse  |        |
+|                                     |       | edit flush, identity-edit re-detection                        |        |
+
+Scoped runs 2026-07-27: backend doc-intelligence + materials modules 11 suites / 318 tests green;
+web UploadMaterialFilePage 12/12 green; `tsc --noEmit` clean on api-client and apps/web.
+
+### US-4.02 — Detect-duplicates bind-variable cap fix (T924) — added 2026-07-27
+
+| Test File                 | Tests | Description                                                 | Status |
+| ------------------------- | ----- | ----------------------------------------------------------- | ------ |
+| materials.service.spec.ts | +1    | Identity IN lists chunked at 10k values: 10,001-name upload | PASS   |
+|                           |       | splits into 2 findMany calls (Postgres bind cap is 32,767)  |        |
+
+Scoped run 2026-07-27: materials.service.spec 130/130 green after the chunking change.

@@ -5,6 +5,7 @@ vi.mock('@forethread/i18n', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  todayIso: () => new Date().toISOString().slice(0, 10),
   DatePicker: ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
     <input data-testid="date-picker" value={value} onChange={(e) => onChange(e.target.value)} />
   ),

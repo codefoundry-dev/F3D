@@ -1,12 +1,10 @@
-import {
-  DamageDisposition,
-  DamageType,
-  DeliveryOutcome,
-} from '@forethread/shared-types/client';
+import { DamageDisposition, DamageType, DeliveryOutcome } from '@forethread/shared-types/client';
 import type {
   CreateDeliveryReportLineInput,
   DeliveryPortalLine,
 } from '@forethread/shared-types/client';
+
+import { DELIVERY_OUTCOME_OPTIONS } from '../constants';
 
 /**
  * Per-line draft state for the public mobile delivery form (screenshots 12/13).
@@ -110,6 +108,25 @@ export function portalLineToInput(line: PortalLineDraft): CreateDeliveryReportLi
     };
   }
   return base;
+}
+
+/* ─── Line filter chips ───────────────────────────────────────────────────── */
+
+/** "All" plus one chip per DeliveryOutcome. */
+export type LineFilter = 'all' | DeliveryOutcome;
+
+/**
+ * Filter chips shown above the line list, ordered to match the internal create
+ * page's Outcome dropdown (DELIVERY_OUTCOME_OPTIONS). Every outcome gets its own
+ * chip so no line can hide: Partially delivered used to be folded into
+ * "Delivered" and Not delivered had no chip at all, so a line marked not
+ * delivered vanished under every filter except "All".
+ */
+export const LINE_FILTERS: readonly LineFilter[] = ['all', ...DELIVERY_OUTCOME_OPTIONS];
+
+/** One chip ↔ one outcome; "all" matches everything. */
+export function matchesFilter(line: PortalLineDraft, filter: LineFilter): boolean {
+  return filter === 'all' || resolveOutcome(line) === filter;
 }
 
 /** Counts shown on the "Report submitted" screen (screenshot 14), keyed by outcome. */

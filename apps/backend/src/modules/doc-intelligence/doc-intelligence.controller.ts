@@ -1,6 +1,9 @@
 import {
+  ApplyDocExtractionItemOpsDto,
   ConfirmDocExtractionDto,
   CreateDocExtractionDto,
+  DocExtractionGetQueryDto,
+  DocExtractionItemsQueryDto,
   DocExtractionListQueryDto,
   UpdateDocExtractionDto,
 } from '@forethread/shared-types';
@@ -25,7 +28,7 @@ import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/permissions';
 
-import { toExtractionResponse } from './doc-intelligence.mapper';
+import { toExtractionResponse, toExtractionSummaryResponse } from './doc-intelligence.mapper';
 import { DocIntelligenceService } from './doc-intelligence.service';
 
 @ApiTags('Document Intelligence')
@@ -99,9 +102,51 @@ export class DocIntelligenceController {
   @ApiOperation({ summary: 'Get a single extraction job (poll endpoint)' })
   @ApiResponse({ status: 200, description: 'Extraction detail' })
   @ApiResponse({ status: 404, description: 'Extraction not found' })
-  async get(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  async get(
+    @Param('id') id: string,
+    @Query() query: DocExtractionGetQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (query.resultView === 'summary') {
+      const { job, summary } = await this.service.getExtractionSummary(id, user);
+      return toExtractionSummaryResponse(job, summary);
+    }
     const job = await this.service.getExtraction(id, user);
     return toExtractionResponse(job);
+  }
+
+  // ── GET /v1/doc-extractions/:id/items ───────────────────────────────────
+
+  @Get(':id/items')
+  @RequirePermissions('docExtraction.read')
+  @ApiOperation({
+    summary: 'Window into the stored result items (page/limit, or explicit indexes)',
+  })
+  @ApiResponse({ status: 200, description: 'Items window with absolute indexes' })
+  @ApiResponse({ status: 404, description: 'Extraction not found' })
+  async getItems(
+    @Param('id') id: string,
+    @Query() query: DocExtractionItemsQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.getExtractionItems(id, query, user);
+  }
+
+  // ── PATCH /v1/doc-extractions/:id/items ─────────────────────────────────
+
+  @Patch(':id/items')
+  @RequirePermissions('docExtraction.update')
+  @ApiOperation({
+    summary: 'Apply ordered sparse row ops (update/remove/duplicate) to the stored result',
+  })
+  @ApiResponse({ status: 200, description: 'Ops applied; new item count returned' })
+  @ApiResponse({ status: 400, description: 'Job not editable or an op is invalid' })
+  async applyItemOps(
+    @Param('id') id: string,
+    @Body() dto: ApplyDocExtractionItemOpsDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.applyExtractionItemOps(id, dto.ops, user);
   }
 
   // ── PATCH /v1/doc-extractions/:id ───────────────────────────────────────

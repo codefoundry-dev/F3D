@@ -227,6 +227,7 @@ export function usePoWizardForm({
           expectedDeliveryDate: item.expectedDeliveryDate
             ? new Date(item.expectedDeliveryDate).toISOString()
             : undefined,
+          deliveryTime: item.deliveryTime || undefined,
           deliveryLocationId: item.deliveryLocationId || undefined,
           // Drawdown: link this PO line to its bulk-order line so the backend
           // can decrement qtyRemaining and write the Drawdown row.

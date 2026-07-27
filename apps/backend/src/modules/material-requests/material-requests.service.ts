@@ -472,6 +472,7 @@ export class MaterialRequestsService {
                 manufacturerPartNumber: snapshot.manufacturerPartNumber,
                 taxCode: snapshot.taxCode,
                 expectedDeliveryDate: li.expectedDeliveryDate,
+                deliveryTime: li.deliveryTime,
                 deliveryLocationId: li.deliveryLocationId,
                 notes: li.notes,
               };
@@ -542,6 +543,10 @@ export class MaterialRequestsService {
           poType: PoType.STANDARD,
           sourceOfCreation: PoSourceOfCreation.MATERIAL_REQUEST,
           deliveryLocationId: mr.deliveryLocationId,
+          // The requester's needed-by date becomes the PO's planned delivery
+          // date — the PO has no separate "need by", and without this the date
+          // the MR was raised against was silently lost on conversion.
+          plannedDeliveryDate: mr.neededByDate,
           subtotal: 0,
           totalAmount: 0,
           lineItemCount: mr.lineItems.length,
@@ -566,6 +571,7 @@ export class MaterialRequestsService {
                 manufacturerPartNumber: snapshot.manufacturerPartNumber,
                 taxCode: snapshot.taxCode,
                 expectedDeliveryDate: li.expectedDeliveryDate,
+                deliveryTime: li.deliveryTime,
                 deliveryLocationId: li.deliveryLocationId,
                 notes: li.notes,
               };
@@ -725,6 +731,7 @@ export class MaterialRequestsService {
       unit: li.unit,
       priority: li.priority ?? null,
       expectedDeliveryDate: li.expectedDeliveryDate ? new Date(li.expectedDeliveryDate) : null,
+      deliveryTime: li.deliveryTime ?? null,
       deliveryLocation: li.deliveryLocationId
         ? { connect: { id: li.deliveryLocationId } }
         : undefined,
@@ -774,6 +781,7 @@ export class MaterialRequestsService {
         unit: li.unit,
         priority: li.priority,
         expectedDeliveryDate: li.expectedDeliveryDate?.toISOString() ?? null,
+        deliveryTime: li.deliveryTime,
         deliveryLocationId: li.deliveryLocationId,
         deliveryLocation: li.deliveryLocation
           ? (li.deliveryLocation.label ?? li.deliveryLocation.address)

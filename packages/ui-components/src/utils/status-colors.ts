@@ -53,6 +53,24 @@ export const DELIVERY_STATUS_COLORS: Record<string, string> = {
   REJECTED: 'bg-destructive/10 text-destructive',
 };
 
+/**
+ * Per-line `DeliveryOutcome` colours. Distinct from DELIVERY_STATUS_COLORS above,
+ * which colours the *report's* review state (Submitted/Approved/Rejected).
+ *
+ * Deliberately mirrors the delivery-related entries in PO_STATUS_COLORS so a line
+ * outcome and the PO status it rolls up into read the same colour app-wide — a
+ * partially delivered line and a PARTIALLY_DELIVERED PO are both orange, a not
+ * delivered line and a NOT_DELIVERED PO are both red. DAMAGED has no PO
+ * counterpart and takes the shared "needs attention" orange.
+ */
+export const DELIVERY_OUTCOME_COLORS: Record<string, string> = {
+  DELIVERED: 'bg-success/10 text-success',
+  PARTIALLY_DELIVERED: 'bg-[hsl(var(--badge-orange))] text-[hsl(var(--badge-orange-text))]',
+  NOT_DELIVERED: 'bg-destructive/10 text-destructive',
+  DAMAGED: 'bg-[hsl(var(--badge-orange))] text-[hsl(var(--badge-orange-text))]',
+  REJECTED: 'bg-destructive/10 text-destructive',
+};
+
 export const BULK_ORDER_STATUS_COLORS: Record<string, string> = {
   ACTIVE: 'bg-success/10 text-success',
   EXPIRED: 'bg-destructive/10 text-destructive',

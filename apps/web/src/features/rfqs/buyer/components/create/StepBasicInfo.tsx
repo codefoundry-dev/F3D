@@ -1,6 +1,9 @@
 import type { ProjectListItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Checkbox, DatePicker, Input, SelectDropdown } from '@forethread/ui-components';
+import { Checkbox, DatePicker, Input, SelectDropdown, todayIso } from '@forethread/ui-components';
+import { useEffect } from 'react';
+
+import { useProjectDeliveryLocations } from '../../services/rfqs.service';
 
 import type { WizardBasicInfo, WizardFieldErrors } from './wizard-types';
 
@@ -35,8 +38,8 @@ function FieldLabel({
  * Consolidated step 1 — "Fulfill information" card (Figma 5.05, frame
  * "1.3. RFQ manually - 1"). Two-column field grid; pick-up reveals a pick-up
  * location field, and "Hold for release" reveals the earliest allowed delivery
- * date (both per the design annotations). Delivery location is captured per
- * line item, not here.
+ * date (both per the design annotations). Delivery location is the RFQ-level
+ * default — line items may still override it individually.
  */
 export function StepBasicInfo({
   values,
@@ -50,6 +53,40 @@ export function StepBasicInfo({
   const projectOptions = projects.map((p) => ({ value: p.id, label: p.name }));
 
   const requiredMsg = t('create.errors.required');
+  // Every date here names a future event, so today is the floor (FOR: no back-dating).
+  const minDate = todayIso();
+
+  // Delivery locations belong to the primary project; the API rejects a
+  // location outside the RFQ's projects.
+  const primaryProjectId = values.projectIds[0];
+  const { data: deliveryLocations = [], isLoading: locationsLoading } =
+    useProjectDeliveryLocations(primaryProjectId);
+
+  const locationOptions = deliveryLocations.map((loc) => ({
+    value: loc.id,
+    label: loc.label ? `${loc.label} — ${loc.address}` : loc.address,
+  }));
+
+  // Keep the selection valid as the project changes: default to the project's
+  // default delivery location, and drop a stale id belonging to a project that
+  // is no longer selected. Every write is guarded by a value comparison — the
+  // parent's setState always produces a new object, so an unconditional
+  // `onChange` here would re-render forever (e.g. a project with no delivery
+  // locations, where the desired value stays '').
+  useEffect(() => {
+    if (locationsLoading) return;
+    const current = values.deliveryLocationId;
+    if (!primaryProjectId) {
+      if (current) onChange({ deliveryLocationId: '' });
+      return;
+    }
+    if (deliveryLocations.some((loc) => loc.id === current)) return;
+    const fallback = deliveryLocations.find((loc) => loc.isDefault) ?? deliveryLocations[0];
+    const next = fallback?.id ?? '';
+    if (next !== current) onChange({ deliveryLocationId: next });
+    // `onChange` is a fresh closure each render — depending on it would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [primaryProjectId, deliveryLocations, locationsLoading, values.deliveryLocationId]);
 
   return (
     <section className="bg-card rounded-lg border border-border p-6">
@@ -85,6 +122,7 @@ export function StepBasicInfo({
             value={values.responseDeadline}
             onChange={(date) => onChange({ responseDeadline: date })}
             placeholder="mm/dd/yyyy"
+            minDate={minDate}
             editable
           />
           {errors.responseDeadline && <p className="text-xs text-destructive">{requiredMsg}</p>}
@@ -116,11 +154,13 @@ export function StepBasicInfo({
             value={values.needByDate}
             onChange={(date) => onChange({ needByDate: date })}
             placeholder="mm/dd/yyyy"
+            minDate={minDate}
             editable
           />
         </div>
 
-        {/* Row 3 — pick-up location (pick-up orders) / order flags */}
+        {/* Row 3 — where the materials go (pick-up location vs delivery
+            location, mutually exclusive) / order flags */}
         {values.isPickUp ? (
           <div className="flex flex-col gap-1.5">
             <FieldLabel label={t('create.basicInfo.pickUpLocation')} required />
@@ -133,7 +173,27 @@ export function StepBasicInfo({
             {errors.pickUpLocation && <p className="text-xs text-destructive">{requiredMsg}</p>}
           </div>
         ) : (
-          <div className="hidden md:block" aria-hidden />
+          <div className="flex flex-col gap-1.5" data-testid="rfq-delivery-location">
+            <FieldLabel label={t('create.basicInfo.deliveryLocation')} required />
+            <SelectDropdown
+              value={values.deliveryLocationId}
+              onChange={(locationId) => onChange({ deliveryLocationId: locationId })}
+              options={locationOptions}
+              placeholder={t('create.basicInfo.deliveryLocationPlaceholder')}
+              emptyMessage={
+                primaryProjectId
+                  ? t('create.basicInfo.noDeliveryLocations')
+                  : t('create.basicInfo.selectProjectFirst')
+              }
+            />
+            {errors.deliveryLocationId ? (
+              <p className="text-xs text-destructive">{requiredMsg}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {t('create.basicInfo.deliveryLocationHint')}
+              </p>
+            )}
+          </div>
         )}
 
         <div className="flex flex-col gap-4 pt-1">
@@ -162,6 +222,7 @@ export function StepBasicInfo({
               value={values.earliestDeliveryDate}
               onChange={(date) => onChange({ earliestDeliveryDate: date })}
               placeholder="mm/dd/yyyy"
+              minDate={minDate}
               editable
             />
             {errors.earliestDeliveryDate && (

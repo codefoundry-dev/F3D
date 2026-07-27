@@ -13,6 +13,7 @@ import {
 } from '../services/material-requests.service';
 import { nextLineKey, type MrWizardLine } from '../wizard/wizard-types';
 
+import { ManualLineItems } from './ManualLineItems';
 import { NewMaterialModal, type NewMaterialDraft } from './NewMaterialModal';
 
 type SourceTab = 'BOM' | 'CATALOG' | 'MANUAL';
@@ -26,6 +27,8 @@ export interface StepSelectMaterialsProps {
   onAddManual: (draft: NewMaterialDraft) => void;
   /** Remove a single manual line by key. */
   onRemoveLine: (key: string) => void;
+  /** Inline edit of an already-added line (manual rows stay editable). */
+  onPatchLine: (key: string, patch: Partial<MrWizardLine>) => void;
 }
 
 /** A pickable catalogue/BOM row, normalised across the two data sources. */
@@ -122,6 +125,7 @@ export function StepSelectMaterials({
   onToggleLine,
   onAddManual,
   onRemoveLine,
+  onPatchLine,
 }: StepSelectMaterialsProps) {
   const { t } = useTranslation('materialRequests');
   const [tab, setTab] = useState<SourceTab>('CATALOG');
@@ -257,10 +261,12 @@ export function StepSelectMaterials({
           />
         )}
         {tab === 'MANUAL' && (
-          <ManualList
+          <ManualTab
             lines={manualLines}
+            onAddManual={onAddManual}
+            onPatchLine={onPatchLine}
             onRemove={onRemoveLine}
-            onAdd={() => setShowNewModal(true)}
+            onOpenModal={() => setShowNewModal(true)}
           />
         )}
       </div>
@@ -347,68 +353,43 @@ function BomList({
   );
 }
 
-function ManualList({
+/**
+ * Manual tab: inline line-item entry (the RFQ/PO "manually add a line item"
+ * pattern) plus the full New Material form for the extras the inline row has no
+ * room for (photo, long description).
+ */
+function ManualTab({
   lines,
+  onAddManual,
+  onPatchLine,
   onRemove,
-  onAdd,
+  onOpenModal,
 }: {
   lines: MrWizardLine[];
+  onAddManual: (draft: NewMaterialDraft) => void;
+  onPatchLine: (key: string, patch: Partial<MrWizardLine>) => void;
   onRemove: (key: string) => void;
-  onAdd: () => void;
+  onOpenModal: () => void;
 }) {
   const { t } = useTranslation('materialRequests');
   return (
-    <div className="flex flex-col gap-3 px-4">
+    <div className="flex flex-col gap-4 px-4">
+      <ManualLineItems
+        lines={lines}
+        onAdd={onAddManual}
+        onPatch={onPatchLine}
+        onRemove={onRemove}
+      />
+
       <button
         type="button"
-        onClick={onAdd}
-        className="flex w-full items-center justify-center gap-2 rounded-lg border border-foreground py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent/50"
+        onClick={onOpenModal}
+        className="flex w-full items-center justify-center gap-2 rounded-lg border border-foreground py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent/50 sm:w-auto sm:self-start sm:px-4"
         data-testid="mr-manual-add"
       >
         <PlusIcon className="size-4" />
-        {t('requestMaterials.addMaterial')}
+        {t('requestMaterials.addMaterialDetailed')}
       </button>
-
-      {lines.length === 0 ? (
-        <div className="flex flex-col items-center gap-1 py-12 text-center">
-          <span className="mb-2 flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-            <PackageIcon className="size-6" />
-          </span>
-          <p className="text-sm font-medium text-foreground">
-            {t('requestMaterials.manualEmptyTitle')}
-          </p>
-          <p className="text-xs text-muted-foreground">{t('requestMaterials.manualEmptyHint')}</p>
-        </div>
-      ) : (
-        <ul className="flex flex-col gap-2" data-testid="mr-manual-list">
-          {lines.map((line) => (
-            <li
-              key={line.key}
-              className="flex items-center gap-3 rounded-lg border border-border px-3 py-3"
-            >
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                <PackageIcon className="size-4" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-foreground">
-                  {line.materialName}
-                </span>
-                <span className="block truncate text-xs text-muted-foreground">
-                  {t('requestMaterials.unitLabel', { unit: line.unit })}
-                </span>
-              </span>
-              <button
-                type="button"
-                onClick={() => onRemove(line.key)}
-                aria-label={t('requestMaterials.removeItem', { name: line.materialName })}
-                className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              >
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }

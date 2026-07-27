@@ -30,6 +30,7 @@ export interface NormalizedRfqLineItem {
   projectId: string | null;
   deliveryLocationId: string | null;
   expectedDeliveryDate: Date | null;
+  deliveryTime: string | null;
 }
 
 /** Trim a possibly-blank string, collapsing empty/whitespace results to null. */
@@ -78,6 +79,7 @@ export function normalizeRfqLineItem(
     projectId: blankToNull(li.projectId),
     deliveryLocationId: blankToNull(li.deliveryLocationId),
     expectedDeliveryDate: li.expectedDeliveryDate ? new Date(li.expectedDeliveryDate) : null,
+    deliveryTime: blankToNull(li.deliveryTime),
   };
 }
 

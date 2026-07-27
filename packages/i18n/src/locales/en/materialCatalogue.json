@@ -431,7 +431,11 @@
         "category": "Category",
         "materialType": "Material type",
         "manufacturer": "Manufacturer",
-        "upc": "UPC"
+        "upc": "UPC",
+        "countryOfOrigin": "Country of origin",
+        "pricePerUnit": "Price per unit",
+        "costCode": "Cost code",
+        "taxCode": "Tax code"
       },
       "view": "View",
       "edit": "Edit",
@@ -442,13 +446,19 @@
       "add": "Add material",
       "adding": "Adding materials…"
     },
+    "loadingRows": "Loading rows…",
+    "dupFilter": {
+      "showOnly": "Show duplicates only ({{count}})",
+      "showAll": "Show all rows"
+    },
     "errors": {
       "unsupportedType": "Unsupported file type. Use .xlsx, .pdf, .png, .jpg, .jpeg, or .webp.",
       "tooLarge": "File is too large. Max 30MB for spreadsheets, 10MB for PDFs and images.",
       "uploadFailed": "Could not start the upload. Please try again.",
       "extractionFailed": "Extraction failed. {{message}}",
       "empty": "No items were extracted from this file.",
-      "importFailed": "Could not import the materials. Please try again."
+      "importFailed": "Could not import the materials. Please try again.",
+      "saveFailed": "Could not save your row changes. Edit the row again to retry."
     }
   },
   "favourites": {

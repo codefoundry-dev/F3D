@@ -86,10 +86,17 @@ describe('RfqLineItemsTab', () => {
 
   it('renders column headers', () => {
     render(<RfqLineItemsTab lineItems={MOCK_LINE_ITEMS} layout="panel" />);
-    expect(screen.getByText('lineItemsTab.project')).toBeInTheDocument();
     expect(screen.getByText('lineItemsTab.materialName')).toBeInTheDocument();
-    expect(screen.getByText('lineItemsTab.qtyOrdered')).toBeInTheDocument();
+    expect(screen.getByText('lineItemsTab.qty')).toBeInTheDocument();
     expect(screen.getByText('lineItemsTab.uom')).toBeInTheDocument();
+  });
+
+  it('does not render the project or description columns', () => {
+    renderWithQuery(<RfqLineItemsTab rfqId="rfq-1" lineItems={MOCK_LINE_ITEMS} layout="page" />);
+    expect(screen.queryByText('lineItemsTab.project')).not.toBeInTheDocument();
+    expect(screen.queryByText('lineItemsTab.description')).not.toBeInTheDocument();
+    expect(screen.queryByText('Project Alpha')).not.toBeInTheDocument();
+    expect(screen.queryByText('W10x22 beam')).not.toBeInTheDocument();
   });
 
   it('renders total items footer', () => {

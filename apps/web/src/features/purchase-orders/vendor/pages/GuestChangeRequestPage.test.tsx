@@ -55,6 +55,7 @@ vi.mock('@forethread/po-shared', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  todayIso: () => new Date().toISOString().slice(0, 10),
   Button: ({
     children,
     onClick,

@@ -49,19 +49,13 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
           <thead>
             <tr className="bg-foreground/5">
               <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
-                {t('lineItemsTab.project')}
-              </th>
-              <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
                 {t('lineItemsTab.lineItemId')}
               </th>
               <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
                 {t('lineItemsTab.materialName')}
               </th>
               <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
-                {t('lineItemsTab.description')}
-              </th>
-              <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
-                {t('lineItemsTab.qtyOrdered')}
+                {t('lineItemsTab.qty')}
               </th>
               <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
                 {t('lineItemsTab.uom')}
@@ -82,6 +76,9 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
                 {t('lineItemsTab.expDeliveryDate')}
               </th>
               <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
+                {t('lineItemsTab.deliveryTime')}
+              </th>
+              <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
                 {t('lineItemsTab.deliveryLocation')}
               </th>
               <th className="p-3 text-center text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))]">
@@ -92,14 +89,8 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
           <tbody>
             {lineItems.map((item) => (
               <tr key={item.id} className="border-t border-border">
-                <td className="p-3 text-foreground border border-border truncate max-w-[120px]">
-                  {item.projectName}
-                </td>
                 <td className="p-3 text-foreground border border-border">{item.id}</td>
                 <td className="p-3 text-foreground border border-border">{item.materialName}</td>
-                <td className="p-3 text-foreground border border-border truncate max-w-[200px]">
-                  {item.description ?? '-'}
-                </td>
                 <td className="p-3 text-foreground border border-border">{item.quantity}</td>
                 <td className="p-3 text-foreground border border-border">{item.unit}</td>
                 <td className="p-3 text-foreground border border-border">{item.costCode ?? '-'}</td>
@@ -110,6 +101,9 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
                 <td className="p-3 text-foreground border border-border">{item.taxCode ?? '-'}</td>
                 <td className="p-3 text-foreground border border-border">
                   {formatDate(item.expectedDeliveryDate)}
+                </td>
+                <td className="p-3 text-foreground border border-border whitespace-nowrap">
+                  {item.deliveryTime ?? '-'}
                 </td>
                 <td className="p-3 text-foreground border border-border truncate max-w-[160px]">
                   {item.deliveryLocation ?? '-'}
@@ -139,7 +133,7 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
           </tbody>
           <tfoot>
             <tr className="border-t border-border bg-muted/50">
-              <td colSpan={13} className="px-6 py-3">
+              <td colSpan={12} className="px-6 py-3">
                 <span className="text-sm text-muted-foreground">
                   {t('lineItemsTab.totalItems')}:{' '}
                   <span className="text-foreground">{lineItems.length}</span>
@@ -182,16 +176,13 @@ function LineItemsPanelLayout({ lineItems }: { lineItems: RfqLineItem[] }) {
           <thead>
             <tr className="border-b border-foreground/10 text-left">
               <th className="pb-2 pr-3 font-medium text-muted-foreground text-xs">
-                {t('lineItemsTab.project')}
-              </th>
-              <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
                 {t('lineItemsTab.lineItemId')}
               </th>
               <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
                 {t('lineItemsTab.materialName')}
               </th>
               <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
-                {t('lineItemsTab.qtyOrdered')}
+                {t('lineItemsTab.qty')}
               </th>
               <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
                 {t('lineItemsTab.uom')}
@@ -201,8 +192,7 @@ function LineItemsPanelLayout({ lineItems }: { lineItems: RfqLineItem[] }) {
           <tbody>
             {lineItems.map((item) => (
               <tr key={item.id} className="border-b border-foreground/10">
-                <td className="py-2.5 pr-3 text-foreground">{item.projectName}</td>
-                <td className="py-2.5 px-3 text-foreground">{item.id}</td>
+                <td className="py-2.5 pr-3 text-foreground">{item.id}</td>
                 <td className="py-2.5 px-3 text-foreground">{item.materialName}</td>
                 <td className="py-2.5 px-3 text-foreground">{item.quantity}</td>
                 <td className="py-2.5 px-3 text-muted-foreground">{item.unit}</td>
