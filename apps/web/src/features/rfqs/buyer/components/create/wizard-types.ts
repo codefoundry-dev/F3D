@@ -28,6 +28,9 @@ export interface WizardLineItem {
   projectId?: string;
   /** YYYY-MM-DD */
   expectedDeliveryDate?: string;
+  /** Wanted delivery time of day, 24-hour "HH:MM". Prefilled from the source
+   * Material Request line when the RFQ was converted from one. */
+  deliveryTime?: string;
   notes?: string;
 }
 

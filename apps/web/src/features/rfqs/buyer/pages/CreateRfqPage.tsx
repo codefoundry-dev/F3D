@@ -62,6 +62,14 @@ function toIsoDate(date: string | undefined): string | undefined {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date}T00:00:00.000Z` : date;
 }
 
+/** A cleared `<input type="time">` yields '', which would fail the API's HH:MM
+ * check — send nothing instead. */
+function toDeliveryTime(time: string | undefined): string | undefined {
+  const trimmed = time?.trim();
+  if (!trimmed) return undefined;
+  return trimmed;
+}
+
 /** Build the SaveRfqDraft / UpdateRfq payload from the wizard state. */
 function buildPayload(
   basicInfo: WizardBasicInfo,
@@ -96,6 +104,7 @@ function buildPayload(
         notes: item.notes,
         projectId: item.projectId,
         expectedDeliveryDate: toIsoDate(item.expectedDeliveryDate),
+        deliveryTime: toDeliveryTime(item.deliveryTime),
         description: item.description,
       };
       if (item.materialId) {

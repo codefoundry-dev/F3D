@@ -196,6 +196,9 @@ export function PoReviewStep({
                 <th className={TH_CLASS} style={{ width: '10%' }}>
                   {t('create.expDeliveryDate')}
                 </th>
+                <th className={TH_CLASS} style={{ width: '8%' }}>
+                  {t('create.deliveryTimeCol')}
+                </th>
                 <th className={TH_CLASS} style={{ width: '12%' }}>
                   {t('create.deliveryLocationCol')}
                 </th>
@@ -217,6 +220,7 @@ export function PoReviewStep({
                     <td className={TD_CLASS}>{formatCurrency(item.unitPrice)}</td>
                     <td className={TD_CLASS}>{formatCurrency(lineTotal)}</td>
                     <td className={TD_CLASS}>{item.expectedDeliveryDate ?? '-'}</td>
+                    <td className={TD_CLASS}>{item.deliveryTime || '-'}</td>
                     <td className={TD_CLASS}>
                       {locationOptions.find((l) => l.value === item.deliveryLocationId)?.label ??
                         '-'}

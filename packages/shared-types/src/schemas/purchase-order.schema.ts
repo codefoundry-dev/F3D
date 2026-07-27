@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { PickUpTimeExpectation, PoPriority, PoSourceOfCreation, PoStatus, PoType } from '../enums';
+import { DELIVERY_TIME_REGEX } from '../validation';
 
 export const poListQuerySchema = z.object({
   page: z.coerce.number().min(1).optional().default(1),
@@ -29,6 +30,7 @@ export const createPoLineItemSchema = z.object({
   taxCode: z.string().optional(),
   notes: z.string().optional(),
   expectedDeliveryDate: z.string().datetime().optional(),
+  deliveryTime: z.string().regex(DELIVERY_TIME_REGEX).optional(),
   deliveryLocationId: z.string().uuid().optional(),
 });
 

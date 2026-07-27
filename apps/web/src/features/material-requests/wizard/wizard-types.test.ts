@@ -82,16 +82,16 @@ describe('validateDetails', () => {
     expect(errors[line.key]?.quantity).toBeUndefined();
   });
 
-  it('flags missing need-by date, delivery time and delivery location', () => {
-    const line = makeLine({
-      expectedDeliveryDate: undefined,
-      deliveryTime: '',
-      deliveryLocationId: undefined,
-    });
+  it('flags a missing delivery location', () => {
+    const line = makeLine({ deliveryLocationId: undefined });
     const errors = validateDetails([line]);
-    expect(errors[line.key].expectedDeliveryDate).toBe('required');
-    expect(errors[line.key].deliveryTime).toBe('required');
     expect(errors[line.key].deliveryLocationId).toBe('required');
+  });
+
+  it('accepts a line with no need-by date and no delivery time — both are optional', () => {
+    const line = makeLine({ expectedDeliveryDate: undefined, deliveryTime: '' });
+    const errors = validateDetails([line]);
+    expect(hasDetailsErrors(errors)).toBe(false);
   });
 
   it('only reports lines that have errors', () => {
@@ -104,19 +104,29 @@ describe('validateDetails', () => {
 });
 
 describe('composeLineNotes', () => {
-  it('joins instructions, internal notes, delivery time and CC', () => {
+  it('joins instructions, internal notes and CC', () => {
     const notes = composeLineNotes(
       makeLine({
         instructions: 'Deliver to gate B',
         internalNotes: 'Foreman: Joe',
-        deliveryTime: '09:30',
         ccTeamMembers: ['Jane Doe'],
       }),
     );
     expect(notes).toContain('Deliver to gate B');
     expect(notes).toContain('Internal: Foreman: Joe');
-    expect(notes).toContain('Delivery time: 09:30');
     expect(notes).toContain('CC: Jane Doe');
+  });
+
+  it('keeps delivery time out of the notes — it is its own API field now', () => {
+    const notes = composeLineNotes(
+      makeLine({
+        instructions: 'Gate B',
+        internalNotes: '',
+        ccTeamMembers: [],
+        deliveryTime: '09:30',
+      }),
+    );
+    expect(notes).toBe('Gate B');
   });
 
   it('returns undefined when there is nothing to note', () => {
@@ -180,6 +190,19 @@ describe('buildCreateInput', () => {
     expect(input.lineItems[0].expectedDeliveryDate).toBe('2026-07-01T00:00:00.000Z');
     expect(input.neededByDate).toBe('2026-07-01T00:00:00.000Z');
     expect(input.deliveryLocationId).toBe('loc-9');
+  });
+
+  it('sends the delivery time as its own field', () => {
+    const input = buildCreateInput({
+      projectId: 'p',
+      lines: [makeLine({ deliveryTime: '09:30' })],
+    });
+    expect(input.lineItems[0].deliveryTime).toBe('09:30');
+  });
+
+  it('omits the delivery time when the line has none', () => {
+    const input = buildCreateInput({ projectId: 'p', lines: [makeLine({ deliveryTime: '' })] });
+    expect(input.lineItems[0].deliveryTime).toBeUndefined();
   });
 
   it('honours submit:false for a draft', () => {

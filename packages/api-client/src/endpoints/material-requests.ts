@@ -32,6 +32,8 @@ export interface CreateMrLineItemInput {
   unit: string;
   priority?: string;
   expectedDeliveryDate?: string;
+  /** Wanted delivery time of day, 24-hour "HH:MM". */
+  deliveryTime?: string;
   deliveryLocationId?: string;
   notes?: string;
 }
@@ -81,6 +83,8 @@ export interface MrLineItemDetail {
   unit: string;
   priority: string | null;
   expectedDeliveryDate: string | null;
+  /** Wanted delivery time of day, 24-hour "HH:MM". */
+  deliveryTime?: string | null;
   deliveryLocationId: string | null;
   /** Resolved location label/address, or null. */
   deliveryLocation: string | null;

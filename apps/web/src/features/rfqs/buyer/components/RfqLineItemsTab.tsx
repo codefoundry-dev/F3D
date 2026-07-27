@@ -82,6 +82,9 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
                 {t('lineItemsTab.expDeliveryDate')}
               </th>
               <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
+                {t('lineItemsTab.deliveryTime')}
+              </th>
+              <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
                 {t('lineItemsTab.deliveryLocation')}
               </th>
               <th className="p-3 text-center text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))]">
@@ -111,6 +114,9 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
                 <td className="p-3 text-foreground border border-border">
                   {formatDate(item.expectedDeliveryDate)}
                 </td>
+                <td className="p-3 text-foreground border border-border whitespace-nowrap">
+                  {item.deliveryTime ?? '-'}
+                </td>
                 <td className="p-3 text-foreground border border-border truncate max-w-[160px]">
                   {item.deliveryLocation ?? '-'}
                 </td>
@@ -139,7 +145,7 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
           </tbody>
           <tfoot>
             <tr className="border-t border-border bg-muted/50">
-              <td colSpan={13} className="px-6 py-3">
+              <td colSpan={14} className="px-6 py-3">
                 <span className="text-sm text-muted-foreground">
                   {t('lineItemsTab.totalItems')}:{' '}
                   <span className="text-foreground">{lineItems.length}</span>

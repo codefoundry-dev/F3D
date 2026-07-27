@@ -280,6 +280,23 @@ export function LineItemRow({
           />
         </td>
 
+        {/* Delivery time — optional, always editable */}
+        <td className={`${cell} ${cellBorder}`}>
+          <Controller
+            name={`lineItems.${index}.deliveryTime`}
+            control={control}
+            render={({ field: f }) => (
+              <input
+                type="time"
+                value={f.value ?? ''}
+                onChange={f.onChange}
+                aria-label="Delivery time"
+                className="h-9 w-full bg-transparent px-1 text-sm text-foreground outline-none"
+              />
+            )}
+          />
+        </td>
+
         {/* Delivery location — always editable */}
         <td className={`${cell} ${cellBorder}`}>
           <Controller
@@ -324,7 +341,7 @@ export function LineItemRow({
       {hasNotes && (
         <tr>
           <td
-            colSpan={isDrawdownMode ? 10 : 11}
+            colSpan={isDrawdownMode ? 11 : 12}
             className={`px-3 py-3 ${isLast ? '' : 'border-b'} border-border`}
           >
             <div className="flex flex-col gap-2">

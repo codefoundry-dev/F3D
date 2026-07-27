@@ -165,6 +165,10 @@ model RfqLineItem {
   projectId            String?   @map("project_id")
   deliveryLocationId   String?   @map("delivery_location_id")
   expectedDeliveryDate DateTime? @map("expected_delivery_date")
+  // Wanted time-of-day for the delivery ("HH:MM", 24h). Carried over from the
+  // source MR line when the RFQ is created by conversion; see
+  // MaterialRequestLineItem.deliveryTime.
+  deliveryTime         String?   @map("delivery_time") @db.VarChar(5)
 
   rfq                Rfq                     @relation(fields: [rfqId], references: [id], onDelete: Cascade)
   material           Material?               @relation(fields: [materialId], references: [id])

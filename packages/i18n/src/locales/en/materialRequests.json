@@ -276,6 +276,7 @@
       "quantity": "Qty ordered",
       "unit": "UoM",
       "expectedDelivery": "Exp. delivery date",
+      "deliveryTime": "Delivery time",
       "deliveryLocation": "Delivery location",
       "notes": "Notes"
     },

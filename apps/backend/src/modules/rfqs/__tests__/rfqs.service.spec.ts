@@ -1279,6 +1279,7 @@ describe('RfqsService', () => {
         projectId: 'proj-1',
         currency: 'AUD',
         deliveryLocationId: 'loc-1',
+        needByDate: new Date('2026-06-25'),
         holdForRelease: false,
         deadlineStart: null,
         deadlineEnd: null,
@@ -1300,6 +1301,7 @@ describe('RfqsService', () => {
             taxCode: 'GST',
             description: null,
             pickUp: false,
+            deliveryTime: '09:30',
           },
         },
         {
@@ -1318,6 +1320,7 @@ describe('RfqsService', () => {
             taxCode: null,
             description: null,
             pickUp: false,
+            deliveryTime: null,
           },
         },
       ],
@@ -1400,6 +1403,20 @@ describe('RfqsService', () => {
 
       const poData = mockPrisma.purchaseOrder.create.mock.calls[0][0].data;
       expect(poData.status).toBe('DRAFT');
+    });
+
+    it("carries the RFQ's need-by date and per-line delivery time onto the awarded PO", async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue(awardableQuote);
+      primeAwardTransaction();
+
+      await service.awardQuote('rfq-1', 'quote-1', companyAdmin);
+
+      const poData = mockPrisma.purchaseOrder.create.mock.calls[0][0].data;
+      expect(poData.plannedDeliveryDate).toEqual(new Date('2026-06-25'));
+      // The vendor's committed date wins for the line date; the wanted time of
+      // day has no vendor equivalent so it comes straight from the RFQ line.
+      expect(poData.lineItems.create[0].expectedDeliveryDate).toEqual(new Date('2026-07-01'));
+      expect(poData.lineItems.create[0].deliveryTime).toBe('09:30');
     });
 
     it('derives PO line items from the quote, dropping NO_QUOTE lines', async () => {

@@ -41,6 +41,7 @@ describe('normalizeRfqLineItem', () => {
       projectId: null,
       deliveryLocationId: null,
       expectedDeliveryDate: null,
+      deliveryTime: null,
     });
   });
 
@@ -60,6 +61,7 @@ describe('normalizeRfqLineItem', () => {
       projectId: null,
       deliveryLocationId: null,
       expectedDeliveryDate: null,
+      deliveryTime: null,
     });
   });
 
@@ -69,10 +71,12 @@ describe('normalizeRfqLineItem', () => {
       projectId: '22222222-2222-2222-2222-222222222222',
       deliveryLocationId: '33333333-3333-3333-3333-333333333333',
       expectedDeliveryDate: '2026-07-01T00:00:00.000Z',
+      deliveryTime: '09:30',
     });
     expect(result.projectId).toBe('22222222-2222-2222-2222-222222222222');
     expect(result.deliveryLocationId).toBe('33333333-3333-3333-3333-333333333333');
     expect(result.expectedDeliveryDate).toEqual(new Date('2026-07-01T00:00:00.000Z'));
+    expect(result.deliveryTime).toBe('09:30');
   });
 
   it('produces the same shape regardless of source (single normalized schema)', () => {

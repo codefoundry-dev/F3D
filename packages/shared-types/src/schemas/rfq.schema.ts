@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { DELIVERY_TIME_REGEX } from '../validation';
+
 export const rfqListQuerySchema = z.object({
   page: z.coerce.number().min(1).optional().default(1),
   limit: z.coerce.number().min(1).max(100).optional().default(25),
@@ -53,6 +55,7 @@ export const createRfqLineItemSchema = z
     projectId: z.string().uuid().optional(),
     deliveryLocationId: z.string().uuid().optional(),
     expectedDeliveryDate: z.string().datetime().optional(),
+    deliveryTime: z.string().regex(DELIVERY_TIME_REGEX).optional(),
   })
   .refine((li) => Boolean(li.materialId) || Boolean(li.materialName), {
     message: 'A line item needs a catalog material or a material name',

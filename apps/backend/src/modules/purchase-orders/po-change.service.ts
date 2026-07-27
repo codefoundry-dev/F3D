@@ -126,6 +126,9 @@ const PO_LINE_FIELD_APPLIERS: Record<
   expectedDeliveryDate: (to, data) => {
     data.expectedDeliveryDate = toNullableDate(to);
   },
+  deliveryTime: (to, data) => {
+    data.deliveryTime = toNullableString(to);
+  },
   description: (to, data) => {
     data.description = toNullableString(to);
   },

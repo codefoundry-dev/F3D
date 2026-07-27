@@ -29,6 +29,7 @@ export function rfqToFormDefaults(rfq: RfqDetail): SourceFormDefaults {
     unitOfMeasure: li.unit,
     quantityOrdered: li.quantity,
     expectedDeliveryDate: li.expectedDeliveryDate ?? '',
+    deliveryTime: li.deliveryTime ?? '',
     deliveryLocationId: '',
   }));
 
@@ -147,6 +148,7 @@ export function poToFormDefaults(po: PoDetail): { defaultValues: Partial<FormVal
     unitPrice: li.unitPrice,
     quantityOrdered: li.quantityOrdered,
     expectedDeliveryDate: li.expectedDeliveryDate ? li.expectedDeliveryDate.slice(0, 10) : '',
+    deliveryTime: li.deliveryTime ?? '',
     deliveryLocationId: li.deliveryLocation ?? '',
     description: li.description ?? '',
     notes: li.notes ?? '',

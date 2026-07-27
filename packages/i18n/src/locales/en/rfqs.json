@@ -322,6 +322,7 @@
     "mpn": "MPN",
     "taxCode": "Tax code",
     "expDeliveryDate": "Exp. delivery date",
+    "deliveryTime": "Delivery time",
     "deliveryLocation": "Delivery location",
     "actions": "Actions",
     "totalItems": "Total Items",

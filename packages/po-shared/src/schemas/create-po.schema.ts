@@ -25,6 +25,9 @@ export const lineItemSchema = z.object({
   unitPrice: z.coerce.number().min(0, 'Must be >= 0'),
   quantityOrdered: z.coerce.number().int().min(1, 'Must be >= 1'),
   expectedDeliveryDate: z.string().optional(),
+  // Wanted delivery time of day, 24-hour "HH:MM" — prefilled from the source MR
+  // / RFQ line and editable here.
+  deliveryTime: z.string().optional(),
   deliveryLocationId: z.string().optional(),
   description: z.string().optional(),
   notes: z.string().optional(),
@@ -125,6 +128,7 @@ export const EMPTY_LINE_ITEM = {
   unitPrice: 0,
   quantityOrdered: 0,
   expectedDeliveryDate: '',
+  deliveryTime: '',
   deliveryLocationId: '',
   description: '',
   notes: '',

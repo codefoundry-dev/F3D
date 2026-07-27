@@ -116,6 +116,8 @@ export interface RfqLineItem {
   manufacturerPartNumber?: string | null;
   taxCode?: string | null;
   expectedDeliveryDate: string | null;
+  /** Wanted delivery time of day, 24-hour "HH:MM". */
+  deliveryTime?: string | null;
   deliveryLocation: string | null;
   hasNotes?: boolean;
 }

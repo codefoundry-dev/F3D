@@ -460,6 +460,7 @@ export class RfqsService {
           expectedDeliveryDate: liAny.expectedDeliveryDate
             ? (liAny.expectedDeliveryDate as Date).toISOString()
             : null,
+          deliveryTime: (liAny.deliveryTime as string | null | undefined) ?? null,
           deliveryLocationId:
             (liAny.deliveryLocationId as string | null | undefined) ??
             rfqAny.deliveryLocationId ??
@@ -640,6 +641,7 @@ export class RfqsService {
             deliveryLocationId: (li as Record<string, unknown>).deliveryLocationId as string | null,
             expectedDeliveryDate: (li as Record<string, unknown>)
               .expectedDeliveryDate as Date | null,
+            deliveryTime: (li as Record<string, unknown>).deliveryTime as string | null,
           })),
         },
       } as never,
@@ -1243,6 +1245,7 @@ export class RfqsService {
             projectId: true,
             currency: true,
             deliveryLocationId: true,
+            needByDate: true,
             holdForRelease: true,
             deadlineStart: true,
             deadlineEnd: true,
@@ -1262,6 +1265,7 @@ export class RfqsService {
                 taxCode: true,
                 description: true,
                 pickUp: true,
+                deliveryTime: true,
               },
             },
           },
@@ -1293,7 +1297,11 @@ export class RfqsService {
           upc: li.rfqLineItem.upc,
           manufacturerPartNumber: li.rfqLineItem.manufacturerPartNumber,
           taxCode: li.rfqLineItem.taxCode,
+          // The date is the vendor's committed delivery date (it supersedes the
+          // buyer's requested one); the wanted time of day has no vendor
+          // equivalent, so the RFQ line's value carries straight through.
           expectedDeliveryDate: li.deliveryDate,
+          deliveryTime: li.rfqLineItem.deliveryTime,
           notes: li.notes,
           pickUp: li.rfqLineItem.pickUp,
         };
@@ -1346,6 +1354,9 @@ export class RfqsService {
           sourceOfCreation: PoSourceOfCreation.RFQ,
           currency: quote.rfq.currency,
           deliveryLocationId: quote.rfq.deliveryLocationId,
+          // The buyer's need-by date follows the award onto the PO — it is the
+          // PO's planned delivery date until the contractor edits the draft.
+          plannedDeliveryDate: quote.rfq.needByDate,
           holdForRelease: quote.rfq.holdForRelease,
           deadlineStart: quote.rfq.deadlineStart,
           deadlineEnd: quote.rfq.deadlineEnd,
@@ -1399,6 +1410,7 @@ export class RfqsService {
         taxCode: string | null;
         pickUp: boolean;
         deliveryLocationId: string | null;
+        deliveryTime: string | null;
       };
     }[],
   ) {
@@ -1419,6 +1431,7 @@ export class RfqsService {
         manufacturerPartNumber: a.rfqLineItem.manufacturerPartNumber,
         taxCode: a.rfqLineItem.taxCode,
         expectedDeliveryDate: a.deliveryDate,
+        deliveryTime: a.rfqLineItem.deliveryTime,
         deliveryLocationId: a.rfqLineItem.deliveryLocationId,
         notes: a.notes,
         pickUp: a.rfqLineItem.pickUp,
@@ -1458,6 +1471,7 @@ export class RfqsService {
         projectId: true,
         currency: true,
         deliveryLocationId: true,
+        needByDate: true,
         holdForRelease: true,
         deadlineStart: true,
         deadlineEnd: true,
@@ -1495,6 +1509,7 @@ export class RfqsService {
             pickUp: true,
             projectId: true,
             deliveryLocationId: true,
+            deliveryTime: true,
           },
         },
       },
@@ -1639,6 +1654,7 @@ export class RfqsService {
           sourceOfCreation: PoSourceOfCreation.RFQ,
           currency: rfq.currency,
           deliveryLocationId: rfq.deliveryLocationId,
+          plannedDeliveryDate: rfq.needByDate,
           holdForRelease: rfq.holdForRelease,
           deadlineStart: rfq.deadlineStart,
           deadlineEnd: rfq.deadlineEnd,
@@ -1676,6 +1692,7 @@ export class RfqsService {
             sourceOfCreation: PoSourceOfCreation.RFQ,
             currency: rfq.currency,
             deliveryLocationId: rfq.deliveryLocationId,
+            plannedDeliveryDate: rfq.needByDate,
             holdForRelease: rfq.holdForRelease,
             deadlineStart: rfq.deadlineStart,
             deadlineEnd: rfq.deadlineEnd,
