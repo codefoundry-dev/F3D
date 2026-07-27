@@ -2075,6 +2075,66 @@ describe('MaterialsService', () => {
       // No SKU → derived MAT- code.
       expect(second.matches[0].code).toMatch(/^MAT-/);
     });
+
+    // ── extractionId variant — candidates never leave the server ────────────
+
+    it('loads candidates from a stored extraction result by id', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue({
+        id: 'ext-1',
+        createdByUserId: companyAdmin.id,
+        companyId: companyAdmin.companyId,
+      });
+      // Identity triples straight from Postgres; a row with no name maps to ''.
+      mockPrisma.$queryRaw.mockResolvedValue([
+        { name: 'Portland Cement', sku: 'CEM-001', upc: null },
+        { name: null, sku: null, upc: '999' },
+      ]);
+      mockPrisma.material.findMany.mockResolvedValue([
+        {
+          id: 'mat-1',
+          name: 'Portland Cement',
+          nameCi: 'portland cement',
+          sku: 'CEM-001',
+          upc: null,
+          status: MaterialStatus.PUBLIC,
+        },
+      ]);
+
+      const res = await service.detectDuplicates({ extractionId: 'ext-1' } as never, companyAdmin);
+
+      // Result indexes are the array positions inside the stored result.
+      expect(res.results).toHaveLength(1);
+      expect(res.results[0].index).toBe(0);
+      expect(res.results[0].matches[0].id).toBe('mat-1');
+      // Only the identity fields were queried — never the full rows.
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects an extraction the user cannot access as not-found', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue({
+        id: 'ext-1',
+        createdByUserId: 'someone-else',
+        companyId: 'other-company',
+      });
+
+      await expect(
+        service.detectDuplicates({ extractionId: 'ext-1' } as never, companyAdmin),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
+    });
+
+    it('returns empty results when the stored result has no items', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue({
+        id: 'ext-1',
+        createdByUserId: companyAdmin.id,
+        companyId: companyAdmin.companyId,
+      });
+      mockPrisma.$queryRaw.mockResolvedValue([]);
+
+      const res = await service.detectDuplicates({ extractionId: 'ext-1' } as never, companyAdmin);
+      expect(res).toEqual({ results: [] });
+      expect(mockPrisma.material.findMany).not.toHaveBeenCalled();
+    });
   });
 
   // ── change requests ─────────────────────────────────────────────────────────

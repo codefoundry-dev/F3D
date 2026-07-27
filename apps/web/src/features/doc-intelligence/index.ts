@@ -3,10 +3,13 @@ export type { DocExtractionReviewProps } from './components/DocExtractionReview'
 export { BomReviewTable } from './components/BomReviewTable';
 export type { BomReviewTableProps } from './components/BomReviewTable';
 export {
+  useApplyDocExtractionItemOps,
   useConfirmDocExtraction,
   useCreateDocExtraction,
   useDeleteDocExtraction,
+  useDocExtractionItemsQuery,
   useDocExtractionQuery,
+  useDocExtractionSummaryQuery,
   useUpdateDocExtraction,
 } from './hooks/useDocExtraction';
 export { useConfirmedBoms } from './hooks/useConfirmedBoms';

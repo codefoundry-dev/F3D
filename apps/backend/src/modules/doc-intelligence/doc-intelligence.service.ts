@@ -2,7 +2,12 @@ import { randomUUID } from 'crypto';
 import * as path from 'path';
 
 import {
+  DocExtractionItemOpDto,
+  DocExtractionItemOpsResultDto,
+  DocExtractionItemsQueryDto,
+  DocExtractionItemsResponseDto,
   DocExtractionListQueryDto,
+  DocExtractionResultSummaryDto,
   EMPTY_BOM_RESULT,
   buildPaginationMeta,
   type BomExtractionResult,
@@ -92,6 +97,38 @@ export interface CreateExtractionInput {
 export interface ExtractionWithFile extends DocExtraction {
   file: PrismaFile;
 }
+
+/**
+ * Every scalar EXCEPT the jsonb result columns. The summary/items/ops paths use
+ * this so a completed catalogue result (tens of MB) is never materialised in
+ * Node — counting and slicing happen inside Postgres.
+ */
+const EXTRACTION_SANS_RESULTS_SELECT = {
+  id: true,
+  type: true,
+  status: true,
+  fileId: true,
+  errorCode: true,
+  errorMessage: true,
+  model: true,
+  promptTokens: true,
+  completionTokens: true,
+  createdByUserId: true,
+  lastEditedByUserId: true,
+  lastEditedAt: true,
+  confirmedByUserId: true,
+  companyId: true,
+  rfqId: true,
+  createdAt: true,
+  updatedAt: true,
+  completedAt: true,
+  confirmedAt: true,
+  file: true,
+} satisfies Prisma.DocExtractionSelect;
+
+export type ExtractionMetaWithFile = Prisma.DocExtractionGetPayload<{
+  select: typeof EXTRACTION_SANS_RESULTS_SELECT;
+}>;
 
 @Injectable()
 export class DocIntelligenceService {
@@ -523,6 +560,201 @@ ${fileBuffer.toString('utf-8')}`;
     return job;
   }
 
+  // ── Summary + windowed items (large results stay server-side) ───────────
+
+  /** Load the row minus its jsonb results, with the same visibility rules as getExtraction. */
+  private async getExtractionMeta(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<ExtractionMetaWithFile> {
+    const job = await this.prisma.docExtraction.findUnique({
+      where: { id },
+      select: EXTRACTION_SANS_RESULTS_SELECT,
+    });
+    if (!job || !this.canAccess(job, user)) {
+      throw new NotFoundException(ERR.docExtractions.notFound);
+    }
+    return job;
+  }
+
+  /**
+   * Poll variant that never ships (or even loads) the result payload: counts
+   * and the small header fields are computed inside Postgres.
+   */
+  async getExtractionSummary(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<{ job: ExtractionMetaWithFile; summary: DocExtractionResultSummaryDto }> {
+    const job = await this.getExtractionMeta(id, user);
+    const [row] = await this.prisma.$queryRaw<
+      { item_count: number | null; source_name: string | null; notes: string | null }[]
+    >`
+      SELECT
+        CASE WHEN jsonb_typeof(edited_result->'items') = 'array'
+             THEN jsonb_array_length(edited_result->'items') END AS item_count,
+        edited_result->>'sourceName' AS source_name,
+        edited_result->>'notes' AS notes
+      FROM doc_extractions
+      WHERE id = ${id}
+    `;
+    return {
+      job,
+      summary: {
+        itemCount: row?.item_count ?? null,
+        sourceName: row?.source_name ?? null,
+        notes: row?.notes ?? null,
+      },
+    };
+  }
+
+  /**
+   * Window into editedResult.items, sliced by Postgres. `indexes` mode serves
+   * scattered rows (e.g. the duplicate rows detect-duplicates flagged);
+   * otherwise plain page/limit. `indexes` in the response are the rows'
+   * absolute positions in the stored array, parallel to `items`.
+   */
+  async getExtractionItems(
+    id: string,
+    query: DocExtractionItemsQueryDto,
+    user: AuthenticatedUser,
+  ): Promise<DocExtractionItemsResponseDto> {
+    await this.getExtractionMeta(id, user);
+    const total = await this.countResultItems(this.prisma, id);
+
+    if (query.indexes?.length) {
+      const wanted = [...new Set(query.indexes)].sort((a, b) => a - b).filter((i) => i < total);
+      if (wanted.length === 0) {
+        return { items: [], indexes: [], meta: buildPaginationMeta(1, query.indexes.length, 0) };
+      }
+      const rows = await this.prisma.$queryRaw<
+        { idx: number; elem: Record<string, unknown> }[]
+      >(Prisma.sql`
+        SELECT (t.ord - 1)::int AS idx, t.elem AS elem
+        FROM doc_extractions,
+             jsonb_array_elements(edited_result->'items') WITH ORDINALITY AS t(elem, ord)
+        WHERE id = ${id} AND (t.ord - 1) IN (${Prisma.join(wanted)})
+        ORDER BY t.ord
+      `);
+      return {
+        items: rows.map((r) => r.elem),
+        indexes: rows.map((r) => r.idx),
+        meta: buildPaginationMeta(1, wanted.length, rows.length),
+      };
+    }
+
+    const page = query.page ?? 1;
+    const limit = query.take;
+    const rows = await this.prisma.$queryRaw<{ idx: number; elem: Record<string, unknown> }[]>`
+      SELECT (t.ord - 1)::int AS idx, t.elem AS elem
+      FROM doc_extractions,
+           jsonb_array_elements(edited_result->'items') WITH ORDINALITY AS t(elem, ord)
+      WHERE id = ${id}
+      ORDER BY t.ord
+      OFFSET ${query.skip} LIMIT ${limit}
+    `;
+    return {
+      items: rows.map((r) => r.elem),
+      indexes: rows.map((r) => r.idx),
+      meta: buildPaginationMeta(page, limit, total),
+    };
+  }
+
+  /**
+   * Apply ordered sparse row ops (update / remove / duplicate) to
+   * editedResult.items entirely inside Postgres, so editing a 62k-row result
+   * never round-trips the payload. Ops use the index AT THE TIME THEY APPLY —
+   * a remove shifts later rows left, a duplicate shifts them right — and run
+   * under a row lock so concurrent flushes serialise.
+   */
+  async applyExtractionItemOps(
+    id: string,
+    ops: DocExtractionItemOpDto[],
+    user: AuthenticatedUser,
+  ): Promise<DocExtractionItemOpsResultDto> {
+    const job = await this.getExtractionMeta(id, user);
+    if (
+      job.status !== DocExtractionStatus.COMPLETED &&
+      job.status !== DocExtractionStatus.CONFIRMED
+    ) {
+      throw new BadRequestException(ERR.docExtractions.notReadyForEdit);
+    }
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const [lockRow] = await tx.$queryRaw<{ total: number | null }[]>`
+          SELECT CASE WHEN jsonb_typeof(edited_result->'items') = 'array'
+                      THEN jsonb_array_length(edited_result->'items') END AS total
+          FROM doc_extractions
+          WHERE id = ${id}
+          FOR UPDATE
+        `;
+        let count = lockRow?.total ?? null;
+        if (count === null) {
+          throw new BadRequestException(ERR.docExtractions.notReadyForEdit);
+        }
+
+        for (const op of ops) {
+          if (op.index >= count) {
+            throw new BadRequestException(
+              `Item op index ${op.index} is out of bounds (${count} items)`,
+            );
+          }
+          if (op.op === 'update') {
+            if (!op.item) {
+              throw new BadRequestException("An 'update' item op requires an item body");
+            }
+            await tx.$executeRaw`
+              UPDATE doc_extractions
+              SET edited_result = jsonb_set(
+                edited_result, ARRAY['items', ${String(op.index)}],
+                ${JSON.stringify(op.item)}::jsonb, false)
+              WHERE id = ${id}
+            `;
+          } else if (op.op === 'remove') {
+            await tx.$executeRaw`
+              UPDATE doc_extractions
+              SET edited_result = edited_result #- ARRAY['items', ${String(op.index)}]
+              WHERE id = ${id}
+            `;
+            count -= 1;
+          } else {
+            await tx.$executeRaw`
+              UPDATE doc_extractions
+              SET edited_result = jsonb_insert(
+                edited_result, ARRAY['items', ${String(op.index)}],
+                edited_result->'items'->(${op.index}::int), true)
+              WHERE id = ${id}
+            `;
+            count += 1;
+          }
+        }
+
+        await tx.docExtraction.update({
+          where: { id },
+          data: { lastEditedByUserId: user.id, lastEditedAt: new Date() },
+          select: { id: true },
+        });
+        return { itemCount: count };
+      },
+      // Each op rewrites the whole jsonb value (~50MB for a real catalogue);
+      // the default 5s interactive-transaction budget is too tight for a batch.
+      { timeout: 60_000 },
+    );
+  }
+
+  private async countResultItems(
+    db: Pick<PrismaService, '$queryRaw'>,
+    id: string,
+  ): Promise<number> {
+    const [row] = await db.$queryRaw<{ total: number | null }[]>`
+      SELECT CASE WHEN jsonb_typeof(edited_result->'items') = 'array'
+                  THEN jsonb_array_length(edited_result->'items') END AS total
+      FROM doc_extractions
+      WHERE id = ${id}
+    `;
+    return row?.total ?? 0;
+  }
+
   async listExtractions(query: DocExtractionListQueryDto, user: AuthenticatedUser) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
@@ -637,7 +869,10 @@ ${fileBuffer.toString('utf-8')}`;
 
   // ── Access control ──────────────────────────────────────────────────────
 
-  private canAccess(job: DocExtraction, user: AuthenticatedUser): boolean {
+  private canAccess(
+    job: Pick<DocExtraction, 'createdByUserId' | 'companyId'>,
+    user: AuthenticatedUser,
+  ): boolean {
     if (user.role === 'SUPER_ADMIN') return true;
     if (job.createdByUserId === user.id) return true;
     if (job.companyId && user.companyId && job.companyId === user.companyId) return true;

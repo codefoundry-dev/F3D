@@ -811,4 +811,224 @@ describe('DocIntelligenceService', () => {
       expect(prisma.file.delete).toHaveBeenCalledWith({ where: { id: 'file-1' } });
     });
   });
+
+  // ── Summary + windowed items (the large-result endpoints) ─────────────────
+
+  /** The row shape getExtractionMeta selects — everything but the jsonb results. */
+  function metaJob(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'job-1',
+      type: DocExtractionType.CATALOGUE,
+      status: DocExtractionStatus.COMPLETED,
+      fileId: 'file-1',
+      errorCode: null,
+      errorMessage: null,
+      model: null,
+      promptTokens: null,
+      completionTokens: null,
+      createdByUserId: 'user-1',
+      lastEditedByUserId: null,
+      lastEditedAt: null,
+      confirmedByUserId: null,
+      companyId: 'company-1',
+      rfqId: null,
+      createdAt: new Date('2026-07-27T10:00:00Z'),
+      updatedAt: new Date('2026-07-27T10:00:00Z'),
+      completedAt: new Date('2026-07-27T10:00:15Z'),
+      confirmedAt: null,
+      file: { id: 'file-1', filename: 'catalogue.xlsx', mimeType: 'application/x', size: 9 },
+      ...overrides,
+    };
+  }
+
+  type RawCapable = { $queryRaw: jest.Mock; $executeRaw: jest.Mock; $transaction: jest.Mock };
+
+  describe('getExtractionSummary', () => {
+    it('returns counts computed in Postgres without selecting the result columns', async () => {
+      const { service, prisma } = makeService();
+      prisma.docExtraction.findUnique.mockResolvedValue(metaJob());
+      (prisma as unknown as RawCapable).$queryRaw = jest
+        .fn()
+        .mockResolvedValue([{ item_count: 61735, source_name: 'Electrical Items', notes: null }]);
+
+      const { job, summary } = await service.getExtractionSummary('job-1', baseUser);
+
+      expect(job.id).toBe('job-1');
+      expect(summary).toEqual({ itemCount: 61735, sourceName: 'Electrical Items', notes: null });
+      // The meta load must use a select (sans results), never include-everything.
+      const args = prisma.docExtraction.findUnique.mock.calls[0][0];
+      expect(args.select).toBeDefined();
+      expect(args.select.rawResult).toBeUndefined();
+      expect(args.select.editedResult).toBeUndefined();
+    });
+
+    it('nulls the summary fields when the job has no result yet', async () => {
+      const { service, prisma } = makeService();
+      prisma.docExtraction.findUnique.mockResolvedValue(
+        metaJob({ status: DocExtractionStatus.PROCESSING, completedAt: null }),
+      );
+      (prisma as unknown as RawCapable).$queryRaw = jest
+        .fn()
+        .mockResolvedValue([{ item_count: null, source_name: null, notes: null }]);
+
+      const { summary } = await service.getExtractionSummary('job-1', baseUser);
+      expect(summary).toEqual({ itemCount: null, sourceName: null, notes: null });
+    });
+
+    it('hides inaccessible jobs as not-found', async () => {
+      const { service, prisma } = makeService();
+      prisma.docExtraction.findUnique.mockResolvedValue(metaJob());
+
+      await expect(service.getExtractionSummary('job-1', otherCompanyUser)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('getExtractionItems', () => {
+    it('serves a page window with absolute indexes', async () => {
+      const { service, prisma } = makeService();
+      prisma.docExtraction.findUnique.mockResolvedValue(metaJob());
+      const raw = jest
+        .fn()
+        // 1st call: countResultItems; 2nd: the window rows.
+        .mockResolvedValueOnce([{ total: 120 }])
+        .mockResolvedValueOnce([
+          { idx: 50, elem: { name: 'Item 50' } },
+          { idx: 51, elem: { name: 'Item 51' } },
+        ]);
+      (prisma as unknown as RawCapable).$queryRaw = raw;
+
+      const query = { page: 2, limit: 50 } as never;
+      // BasePaginationQueryDto getters are class-bound; emulate them on the literal.
+      Object.defineProperty(query, 'skip', { get: () => 50 });
+      Object.defineProperty(query, 'take', { get: () => 50 });
+
+      const res = await service.getExtractionItems('job-1', query, baseUser);
+
+      expect(res.items).toEqual([{ name: 'Item 50' }, { name: 'Item 51' }]);
+      expect(res.indexes).toEqual([50, 51]);
+      expect(res.meta.total).toBe(120);
+      expect(res.meta.page).toBe(2);
+    });
+
+    it('serves scattered rows by explicit indexes, deduped and bounds-filtered', async () => {
+      const { service, prisma } = makeService();
+      prisma.docExtraction.findUnique.mockResolvedValue(metaJob());
+      const raw = jest
+        .fn()
+        .mockResolvedValueOnce([{ total: 10 }])
+        .mockResolvedValueOnce([
+          { idx: 3, elem: { name: 'C' } },
+          { idx: 7, elem: { name: 'H' } },
+        ]);
+      (prisma as unknown as RawCapable).$queryRaw = raw;
+
+      const res = await service.getExtractionItems(
+        'job-1',
+        // 99 is out of bounds and 3 repeats — both must be dropped before SQL.
+        { indexes: [7, 3, 3, 99] } as never,
+        baseUser,
+      );
+
+      expect(res.items).toEqual([{ name: 'C' }, { name: 'H' }]);
+      expect(res.indexes).toEqual([3, 7]);
+      expect(raw).toHaveBeenCalledTimes(2);
+    });
+
+    it('short-circuits when every requested index is out of bounds', async () => {
+      const { service, prisma } = makeService();
+      prisma.docExtraction.findUnique.mockResolvedValue(metaJob());
+      const raw = jest.fn().mockResolvedValueOnce([{ total: 5 }]);
+      (prisma as unknown as RawCapable).$queryRaw = raw;
+
+      const res = await service.getExtractionItems('job-1', { indexes: [8, 9] } as never, baseUser);
+
+      expect(res.items).toEqual([]);
+      expect(res.indexes).toEqual([]);
+      // Only the count query ran.
+      expect(raw).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('applyExtractionItemOps', () => {
+    function makeOpsHarness(
+      initialCount: number | null,
+      status: DocExtractionStatus = DocExtractionStatus.COMPLETED,
+    ) {
+      const made = makeService();
+      const { prisma } = made;
+      prisma.docExtraction.findUnique.mockResolvedValue(metaJob({ status }));
+      const tx = {
+        $queryRaw: jest.fn().mockResolvedValue([{ total: initialCount }]),
+        $executeRaw: jest.fn().mockResolvedValue(1),
+        docExtraction: { update: jest.fn().mockResolvedValue({ id: 'job-1' }) },
+      };
+      (prisma as unknown as RawCapable).$transaction = jest
+        .fn()
+        .mockImplementation((cb: (t: unknown) => unknown) => cb(tx));
+      return { ...made, tx };
+    }
+
+    it('applies ordered ops in one locked transaction and returns the new count', async () => {
+      const { service, tx } = makeOpsHarness(100);
+
+      const res = await service.applyExtractionItemOps(
+        'job-1',
+        [
+          { op: 'update', index: 5, item: { name: 'Edited' } },
+          { op: 'duplicate', index: 5 },
+          { op: 'remove', index: 99 },
+        ],
+        baseUser,
+      );
+
+      expect(res).toEqual({ itemCount: 100 }); // +1 duplicate, -1 remove
+      expect(tx.$executeRaw).toHaveBeenCalledTimes(3);
+      // The edit is attributed once, after the ops.
+      expect(tx.docExtraction.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'job-1' },
+          data: expect.objectContaining({ lastEditedByUserId: 'user-1' }),
+        }),
+      );
+    });
+
+    it('tracks the shifting count across ops when validating bounds', async () => {
+      const { service } = makeOpsHarness(2);
+
+      // remove drops the count to 1, so index 1 is now out of bounds.
+      await expect(
+        service.applyExtractionItemOps(
+          'job-1',
+          [
+            { op: 'remove', index: 0 },
+            { op: 'update', index: 1, item: { name: 'X' } },
+          ],
+          baseUser,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("rejects an 'update' op without an item body", async () => {
+      const { service } = makeOpsHarness(10);
+      await expect(
+        service.applyExtractionItemOps('job-1', [{ op: 'update', index: 0 }], baseUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects ops while the job is still processing', async () => {
+      const { service } = makeOpsHarness(10, DocExtractionStatus.PROCESSING);
+      await expect(
+        service.applyExtractionItemOps('job-1', [{ op: 'remove', index: 0 }], baseUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects ops when the stored result has no items array', async () => {
+      const { service } = makeOpsHarness(null);
+      await expect(
+        service.applyExtractionItemOps('job-1', [{ op: 'remove', index: 0 }], baseUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
 });

@@ -7,6 +7,9 @@ const mockService = {
   listSheets: jest.fn(),
   listExtractions: jest.fn(),
   getExtraction: jest.fn(),
+  getExtractionSummary: jest.fn(),
+  getExtractionItems: jest.fn(),
+  applyExtractionItemOps: jest.fn(),
   updateExtraction: jest.fn(),
   confirmExtraction: jest.fn(),
   deleteExtraction: jest.fn(),
@@ -173,7 +176,7 @@ describe('DocIntelligenceController', () => {
     it('returns the mapped extraction', async () => {
       mockService.getExtraction.mockResolvedValue(fullJob());
 
-      const result = await controller.get('ext-1', user);
+      const result = await controller.get('ext-1', {} as never, user);
 
       expect(mockService.getExtraction).toHaveBeenCalledWith('ext-1', user);
       expect(result.id).toBe('ext-1');
@@ -192,10 +195,61 @@ describe('DocIntelligenceController', () => {
         editedResult: { items: [{ name: 'Hammer' }] },
       } as never);
 
-      const result = await controller.get('ext-1', user);
+      const result = await controller.get('ext-1', {} as never, user);
 
       expect(result.rawResult).toBeNull();
       expect(result.editedResult).toEqual({ items: [{ name: 'Hammer' }] });
+    });
+
+    it('serves resultView=summary without the result payload', async () => {
+      const job = fullJob() as unknown as Record<string, unknown>;
+      delete job.rawResult;
+      delete job.editedResult;
+      mockService.getExtractionSummary.mockResolvedValue({
+        job,
+        summary: { itemCount: 61735, sourceName: 'Electrical Items', notes: null },
+      });
+
+      const result = await controller.get('ext-1', { resultView: 'summary' } as never, user);
+
+      expect(mockService.getExtractionSummary).toHaveBeenCalledWith('ext-1', user);
+      expect(mockService.getExtraction).not.toHaveBeenCalled();
+      expect(result.rawResult).toBeNull();
+      expect(result.editedResult).toBeNull();
+      expect(result.resultSummary).toEqual({
+        itemCount: 61735,
+        sourceName: 'Electrical Items',
+        notes: null,
+      });
+    });
+  });
+
+  describe('getItems', () => {
+    it('passes the window query through to the service', async () => {
+      const window = {
+        items: [{ name: 'Item 50' }],
+        indexes: [50],
+        meta: { page: 2, limit: 50, total: 120, totalPages: 3 },
+      };
+      mockService.getExtractionItems.mockResolvedValue(window);
+
+      const query = { page: 2, limit: 50 } as never;
+      const result = await controller.getItems('ext-1', query, user);
+
+      expect(mockService.getExtractionItems).toHaveBeenCalledWith('ext-1', query, user);
+      expect(result).toBe(window);
+    });
+  });
+
+  describe('applyItemOps', () => {
+    it('passes the ordered ops through and returns the new count', async () => {
+      mockService.applyExtractionItemOps.mockResolvedValue({ itemCount: 99 });
+      const ops = [{ op: 'remove', index: 3 }];
+
+      const result = await controller.applyItemOps('ext-1', { ops } as never, user);
+
+      expect(mockService.applyExtractionItemOps).toHaveBeenCalledWith('ext-1', ops, user);
+      expect(result).toEqual({ itemCount: 99 });
     });
   });
 

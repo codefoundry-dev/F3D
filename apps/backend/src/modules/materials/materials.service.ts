@@ -6,6 +6,7 @@ import {
   type CatalogueImportSummaryDto,
   type CatalogueLineItem,
   type DetectMaterialDuplicatesResponseDto,
+  type DuplicateCandidateDto,
   type DuplicateMatchField,
   type MaterialChangeRequestDto,
   type MaterialDetailDto,
@@ -947,6 +948,35 @@ export class MaterialsService {
   }
 
   /** Mirror of DocIntelligenceService.canAccess for extraction ownership. */
+  /**
+   * Candidate rows straight from a stored extraction result. Only the three
+   * identity fields leave Postgres — the (multi-MB at 60k rows) full items are
+   * never materialised, which is the point of the extractionId variant.
+   * Result index == array position, matching the wizard's absolute row indexes.
+   */
+  private async loadExtractionCandidates(
+    extractionId: string,
+    user: AuthenticatedUser,
+  ): Promise<DuplicateCandidateDto[]> {
+    const extraction = await this.prisma.docExtraction.findUnique({
+      where: { id: extractionId },
+      select: { id: true, createdByUserId: true, companyId: true },
+    });
+    if (!extraction || !this.canAccessExtraction(extraction, user)) {
+      throw new NotFoundException(ERR.docExtractions.notFound);
+    }
+    const rows = await this.prisma.$queryRaw<
+      { name: string | null; sku: string | null; upc: string | null }[]
+    >`
+      SELECT t.elem->>'name' AS name, t.elem->>'sku' AS sku, t.elem->>'upc' AS upc
+      FROM doc_extractions,
+           jsonb_array_elements(edited_result->'items') WITH ORDINALITY AS t(elem, ord)
+      WHERE id = ${extractionId} AND jsonb_typeof(edited_result->'items') = 'array'
+      ORDER BY t.ord
+    `;
+    return rows.map((r) => ({ name: r.name ?? '', sku: r.sku, upc: r.upc }));
+  }
+
   private canAccessExtraction(
     extraction: { createdByUserId: string; companyId: string | null },
     user: AuthenticatedUser,
@@ -1432,7 +1462,9 @@ export class MaterialsService {
     dto: DetectMaterialDuplicatesDto,
     user: AuthenticatedUser,
   ): Promise<DetectMaterialDuplicatesResponseDto> {
-    const candidates = dto.candidates ?? [];
+    const candidates = dto.extractionId
+      ? await this.loadExtractionCandidates(dto.extractionId, user)
+      : (dto.candidates ?? []);
     if (candidates.length === 0) return { results: [] };
 
     const lowerNames = new Set<string>();

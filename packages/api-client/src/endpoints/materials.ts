@@ -510,12 +510,15 @@ export async function deleteMaterial(
  * catalogue, returning the colliding materials per candidate index.
  */
 export async function detectMaterialDuplicates(
-  candidates: DuplicateCandidateInput[],
+  // Inline candidate rows, or { extractionId } to have the backend check every
+  // row of a stored extraction result — a 60k-row upload never round-trips.
+  input: DuplicateCandidateInput[] | { extractionId: string },
   config?: AxiosRequestConfig,
 ): Promise<DetectMaterialDuplicatesResponse> {
+  const body = Array.isArray(input) ? { candidates: input } : input;
   const { data } = await getApiClient().post<{ data: DetectMaterialDuplicatesResponse }>(
     MATERIALS_PATHS.DETECT_DUPLICATES,
-    { candidates },
+    body,
     config,
   );
   return data.data;

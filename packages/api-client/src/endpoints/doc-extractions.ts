@@ -25,6 +25,13 @@ export interface DocExtractionUsage {
   completionTokens: number | null;
 }
 
+/** Lightweight stand-in for the result payload under resultView=summary. */
+export interface DocExtractionResultSummary {
+  itemCount: number | null;
+  sourceName: string | null;
+  notes: string | null;
+}
+
 export interface DocExtractionResponse {
   id: string;
   type: DocExtractionType;
@@ -32,6 +39,8 @@ export interface DocExtractionResponse {
   file: DocExtractionFile;
   rawResult: Record<string, unknown> | null;
   editedResult: Record<string, unknown> | null;
+  /** Present (and results null) when fetched with resultView=summary. */
+  resultSummary?: DocExtractionResultSummary | null;
   errorCode: string | null;
   errorMessage: string | null;
   model: string | null;
@@ -45,6 +54,27 @@ export interface DocExtractionResponse {
   completedAt: string | null;
   lastEditedAt: string | null;
   confirmedAt: string | null;
+}
+
+/** Window into a stored result's items (GET /doc-extractions/:id/items). */
+export interface DocExtractionItemsResponse<TItem = Record<string, unknown>> {
+  items: TItem[];
+  /** Absolute index of each row in `items` (parallel arrays). */
+  indexes: number[];
+  meta: { page: number; limit: number; total: number; totalPages: number };
+}
+
+/** One ordered mutation of the stored result's items array. */
+export interface DocExtractionItemOp {
+  op: 'update' | 'remove' | 'duplicate';
+  /** Absolute index at the time this op applies (earlier ops shift indexes). */
+  index: number;
+  /** Full replacement row — required for 'update'. */
+  item?: Record<string, unknown>;
+}
+
+export interface DocExtractionItemOpsResult {
+  itemCount: number;
 }
 
 export interface DocExtractionListParams {
@@ -117,6 +147,61 @@ export async function getDocExtraction(
 ): Promise<DocExtractionResponse> {
   const { data } = await getApiClient().get<{ data: DocExtractionResponse }>(
     DOC_EXTRACTIONS_PATHS.byId(id),
+    config,
+  );
+  return data.data;
+}
+
+/**
+ * Poll variant whose response stays tiny even when the completed result is
+ * tens of MB: results come back null, with counts in `resultSummary`.
+ */
+export async function getDocExtractionSummary(
+  id: string,
+  config?: AxiosRequestConfig,
+): Promise<DocExtractionResponse> {
+  return getDocExtraction(id, {
+    ...config,
+    params: { ...(config?.params as Record<string, unknown> | undefined), resultView: 'summary' },
+  });
+}
+
+/**
+ * Fetch a window of the stored result's items. Pass page/limit for a
+ * contiguous window, or `indexes` (absolute positions, max 500) for scattered
+ * rows — e.g. the duplicates flagged by detect-duplicates.
+ */
+export async function getDocExtractionItems<TItem = Record<string, unknown>>(
+  id: string,
+  params: { page?: number; limit?: number; indexes?: number[] },
+  config?: AxiosRequestConfig,
+): Promise<DocExtractionItemsResponse<TItem>> {
+  const { indexes, ...rest } = params;
+  const { data } = await getApiClient().get<{ data: DocExtractionItemsResponse<TItem> }>(
+    `${DOC_EXTRACTIONS_PATHS.byId(id)}/items`,
+    {
+      ...config,
+      params: {
+        ...rest,
+        ...(indexes && indexes.length > 0 ? { indexes: indexes.join(',') } : {}),
+      },
+    },
+  );
+  return data.data;
+}
+
+/**
+ * Apply ordered sparse row ops (update / remove / duplicate) to the stored
+ * result server-side — the full result never round-trips the network.
+ */
+export async function applyDocExtractionItemOps(
+  id: string,
+  ops: DocExtractionItemOp[],
+  config?: AxiosRequestConfig,
+): Promise<DocExtractionItemOpsResult> {
+  const { data } = await getApiClient().patch<{ data: DocExtractionItemOpsResult }>(
+    `${DOC_EXTRACTIONS_PATHS.byId(id)}/items`,
+    { ops },
     config,
   );
   return data.data;
