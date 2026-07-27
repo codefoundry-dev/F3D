@@ -11,7 +11,6 @@ import { ROUTES } from '@/app/route-config';
 import { PrimaryButton } from '../components/MobileButtons';
 import { MobileHeader } from '../components/MobileHeader';
 import { MobileShell } from '../components/MobileShell';
-import { ProcurementStatusBar, type ProcurementStage } from '../components/ProcurementStatusBar';
 import { useMrProjectDetail } from '../services/material-requests.service';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -37,9 +36,9 @@ function StatTile({ value, label }: { value: string; label: string }) {
 /**
  * Job Overview (Figma 2002:176 frame 14:4), rebuilt on the desktop design
  * system to read like the officer Material Request detail page: a header card
- * with the job meta grid + stat tiles, a procurement-status timeline card, and
- * the "Request Materials" CTA in the page header. Fields not exposed by the
- * projects API (% complete, days-left) fall back to placeholders.
+ * with the job meta grid + stat tiles and the "Request Materials" CTA in the
+ * page header. Fields not exposed by the projects API (% complete, days-left)
+ * fall back to placeholders.
  */
 export default function JobOverviewPage() {
   const { t } = useTranslation('materialRequests');
@@ -63,23 +62,6 @@ export default function JobOverviewPage() {
       (project?.locations ?? []).find((l) => l.type === 'DELIVERY'),
     [project?.locations],
   );
-
-  // Derived procurement timeline. The projects API exposes counts (rfqCount,
-  // poCount) but not per-stage delivery state, so we light up the early stages
-  // from those counts and leave the delivery stages pending.
-  const stages: ProcurementStage[] = useMemo(() => {
-    const rfqDone = (project?.rfqCount ?? 0) > 0;
-    const poDone = (project?.poCount ?? 0) > 0;
-    return [
-      { key: 'rfqCreated', label: t('procurement.rfqCreated'), done: rfqDone },
-      { key: 'rfqApproved', label: t('procurement.rfqApproved'), done: rfqDone },
-      { key: 'poIssued', label: t('procurement.poIssued'), done: poDone },
-      { key: 'expectedDelivery', label: t('procurement.expectedDelivery'), done: false },
-      { key: 'materialInTransit', label: t('procurement.materialInTransit'), done: false },
-      { key: 'delivered', label: t('procurement.delivered'), done: false },
-      { key: 'received', label: t('procurement.received'), done: false },
-    ];
-  }, [project?.rfqCount, project?.poCount, t]);
 
   if (isLoading) return <PageLoader />;
 
@@ -166,11 +148,6 @@ export default function JobOverviewPage() {
             <StatTile value="—" label={t('jobOverview.statDaysLeft')} />
             <StatTile value={String(project.poCount ?? 0)} label={t('jobOverview.statPending')} />
           </div>
-        </div>
-
-        {/* Procurement status timeline */}
-        <div className="rounded-xl border border-border bg-card p-5 sm:p-6">
-          <ProcurementStatusBar stages={stages} />
         </div>
       </div>
     </MobileShell>

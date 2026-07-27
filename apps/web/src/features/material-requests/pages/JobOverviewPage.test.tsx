@@ -95,11 +95,6 @@ vi.mock('../components/MobileButtons', () => ({
     </button>
   ),
 }));
-vi.mock('../components/ProcurementStatusBar', () => ({
-  ProcurementStatusBar: ({ stages }: { stages: Array<{ key: string; done: boolean }> }) => (
-    <div data-testid="status-bar" data-done={stages.filter((s) => s.done).length} />
-  ),
-}));
 vi.mock('../services/material-requests.service', () => ({
   useMrProjectDetail: () => mockUseProjectDetail(),
 }));
@@ -137,14 +132,13 @@ describe('JobOverviewPage', () => {
     expect(screen.getByText('jobOverview.loadFailed')).toBeInTheDocument();
   });
 
-  it('renders the job header, manager, dates and a status bar with the early stages done', () => {
+  it('renders the job header, manager and dates without a procurement status section', () => {
     mockUseProjectDetail.mockReturnValue({ isLoading: false, isError: false, data: PROJECT });
     render(<JobOverviewPage />);
     expect(screen.getAllByText('JOB-2847').length).toBeGreaterThan(0);
     expect(screen.getByText('Sarah Mitchell')).toBeInTheDocument();
     expect(screen.getByText('1250 Commerce St')).toBeInTheDocument();
-    // rfqCount > 0 and poCount > 0 → 3 stages lit (RFQ Created, RFQ Approved, PO Issued).
-    expect(screen.getByTestId('status-bar').getAttribute('data-done')).toBe('3');
+    expect(screen.queryByText('jobOverview.procurementStatus')).not.toBeInTheDocument();
   });
 
   it('navigates to the wizard when Request Materials is tapped', () => {

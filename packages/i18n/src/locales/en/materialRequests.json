@@ -8,7 +8,6 @@
     "projectLabel": "Project: {{code}}",
     "jobId": "Job ID",
     "statusActive": "Active",
-    "procurementStatus": "Procurement Status",
     "jobDetails": "Job Details",
     "location": "Location",
     "projectManager": "Project Manager",
@@ -27,15 +26,6 @@
     "noJobsHint": "You are not assigned to any jobs yet. Contact your project manager to request access.",
     "notProvided": "Not provided",
     "loadFailed": "Failed to load job. Please try again."
-  },
-  "procurement": {
-    "rfqCreated": "RFQ Created",
-    "rfqApproved": "RFQ Approved",
-    "poIssued": "PO Issued",
-    "expectedDelivery": "Expected Delivery",
-    "materialInTransit": "Material In Transit",
-    "delivered": "Delivered",
-    "received": "Received"
   },
   "requestMaterials": {
     "title": "Request Materials",
