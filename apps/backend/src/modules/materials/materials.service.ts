@@ -1479,26 +1479,49 @@ export class MaterialsService {
       if (u) upcs.add(u);
     }
 
-    const or: Prisma.MaterialWhereInput[] = [];
-    if (lowerNames.size) or.push({ nameCi: { in: [...lowerNames] } });
-    if (skus.size) or.push({ sku: { in: [...skus] } });
-    if (upcs.size) or.push({ upc: { in: [...upcs] } });
-    if (or.length === 0) return { results: [] };
+    if (lowerNames.size + skus.size + upcs.size === 0) return { results: [] };
 
-    const existing = await this.prisma.material.findMany({
-      // Check against the public catalogue PLUS the user's own company-private
-      // rows (US 4.02): the candidate's own envelope. AND-ed with the name/sku/upc
-      // OR so we never surface another company's private rows as a "duplicate".
-      where: {
-        AND: [
-          { OR: or },
-          {
-            OR: [{ status: MaterialStatus.PUBLIC }, { companyId: user.companyId ?? '__none__' }],
-          },
-        ],
-      },
-      select: { id: true, name: true, nameCi: true, sku: true, upc: true, status: true },
-    });
+    // Check against the public catalogue PLUS the user's own company-private
+    // rows (US 4.02): the candidate's own envelope. AND-ed with the name/sku/upc
+    // filter so we never surface another company's private rows as a "duplicate".
+    const envelope: Prisma.MaterialWhereInput = {
+      OR: [{ status: MaterialStatus.PUBLIC }, { companyId: user.companyId ?? '__none__' }],
+    };
+    const select = { id: true, name: true, nameCi: true, sku: true, upc: true, status: true };
+
+    // Postgres caps a prepared statement at 32,767 bind variables; a large
+    // upload (60k+ rows) blows through that with a single IN list per field.
+    // Query each field in chunks and merge, deduping by material id.
+    const chunks = <T>(values: Set<string>, field: (batch: string[]) => T): T[] => {
+      const CHUNK = 10_000;
+      const all = [...values];
+      const out: T[] = [];
+      for (let i = 0; i < all.length; i += CHUNK) out.push(field(all.slice(i, i + CHUNK)));
+      return out;
+    };
+    const queries = [
+      ...chunks(lowerNames, (batch) =>
+        this.prisma.material.findMany({
+          where: { AND: [{ nameCi: { in: batch } }, envelope] },
+          select,
+        }),
+      ),
+      ...chunks(skus, (batch) =>
+        this.prisma.material.findMany({
+          where: { AND: [{ sku: { in: batch } }, envelope] },
+          select,
+        }),
+      ),
+      ...chunks(upcs, (batch) =>
+        this.prisma.material.findMany({
+          where: { AND: [{ upc: { in: batch } }, envelope] },
+          select,
+        }),
+      ),
+    ];
+
+    const existingById = new Map((await Promise.all(queries)).flat().map((m) => [m.id, m]));
+    const existing = [...existingById.values()];
 
     type ExistingMatch = (typeof existing)[number];
     const byName = new Map<string, ExistingMatch[]>();

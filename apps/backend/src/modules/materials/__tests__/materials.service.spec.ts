@@ -2029,6 +2029,20 @@ describe('MaterialsService', () => {
       });
     });
 
+    it('chunks the catalogue lookup so a huge upload stays under the Postgres bind-variable cap', async () => {
+      mockPrisma.material.findMany.mockResolvedValue([]);
+      // 10,001 distinct names → two nameCi chunks of ≤10,000 each.
+      const candidates = Array.from({ length: 10_001 }, (_, i) => ({ name: `Material ${i}` }));
+      await service.detectDuplicates({ candidates } as never, companyAdmin);
+
+      expect(mockPrisma.material.findMany).toHaveBeenCalledTimes(2);
+      const sizes = mockPrisma.material.findMany.mock.calls.map(
+        (call: [{ where: { AND: [{ nameCi: { in: string[] } }] } }]) =>
+          call[0].where.AND[0].nameCi.in.length,
+      );
+      expect(sizes).toEqual([10_000, 1]);
+    });
+
     it('matches on case-insensitive name (via nameCi), sku and upc, keyed by index', async () => {
       mockPrisma.material.findMany.mockResolvedValue([
         {

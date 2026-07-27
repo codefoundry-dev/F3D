@@ -1042,3 +1042,12 @@ list/table views, declined/approved filters, modals, panel drill-in all match.
 
 Scoped runs 2026-07-27: backend doc-intelligence + materials modules 11 suites / 318 tests green;
 web UploadMaterialFilePage 12/12 green; `tsc --noEmit` clean on api-client and apps/web.
+
+### US-4.02 — Detect-duplicates bind-variable cap fix (T924) — added 2026-07-27
+
+| Test File                 | Tests | Description                                                 | Status |
+| ------------------------- | ----- | ----------------------------------------------------------- | ------ |
+| materials.service.spec.ts | +1    | Identity IN lists chunked at 10k values: 10,001-name upload | PASS   |
+|                           |       | splits into 2 findMany calls (Postgres bind cap is 32,767)  |        |
+
+Scoped run 2026-07-27: materials.service.spec 130/130 green after the chunking change.

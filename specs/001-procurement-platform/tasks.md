@@ -6559,3 +6559,11 @@ approved RFQs and bulk orders, in addition to manual creation.
       rows via `indexes`. i18n: `upload.loadingRows`, `upload.dupFilter.*`,
       `upload.errors.saveFailed`. **Tests**: backend doc-intelligence+materials 318 green (11
       suites); web UploadMaterialFilePage 12 green.
+- [x] T924 [US-4.02] Detect-duplicates chunked under the Postgres bind-variable cap: the single
+      catalogue `findMany` OR'd three IN lists (nameCi/sku/upc), so a 62k-row upload produced
+      165,376 bind params against Postgres's 32,767 prepared-statement max and the wizard's
+      duplicate check 500'd. Each identity field now queries in chunks of 10,000 values (the
+      public-or-own-company visibility envelope AND-ed per chunk, chunks run via Promise.all),
+      merged and deduped by material id before the in-memory match maps — downstream matching
+      unchanged. **Tests**: +1 materials.service.spec regression (10,001 names split into 2 chunked
+      calls); 130 green.
