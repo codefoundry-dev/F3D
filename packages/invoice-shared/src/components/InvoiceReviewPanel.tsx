@@ -44,6 +44,9 @@ interface ReviewLineForm {
   unit: string;
   unitPrice: string;
   lineTotal: string;
+  /** Buyer-side accounting coding (FOR-295) — reviewer-entered, never extracted. */
+  costCode: string;
+  glAccount: string;
 }
 
 interface ReviewFormState {
@@ -151,6 +154,8 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
         unit: line.unit ?? '',
         unitPrice: numToStr(line.unitPrice),
         lineTotal: numToStr(line.lineTotal),
+        costCode: line.costCode ?? '',
+        glAccount: line.glAccount ?? '',
       })),
     });
 
@@ -171,6 +176,9 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
         unit: item.unit ?? '',
         unitPrice: numToStr(item.unitPrice),
         lineTotal: numToStr(item.lineTotal),
+        // Accounting coding is internal to the buyer — never on the document.
+        costCode: '',
+        glAccount: '',
       })),
     });
 
@@ -288,6 +296,8 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
                 unit: '',
                 unitPrice: '',
                 lineTotal: '',
+                costCode: '',
+                glAccount: '',
               },
             ],
           }
@@ -322,6 +332,8 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
           unit: line.unit.trim() || null,
           unitPrice: parseNum(line.unitPrice),
           lineTotal: parseNum(line.lineTotal),
+          costCode: line.costCode.trim() || null,
+          glAccount: line.glAccount.trim() || null,
         })),
     };
     reviewMutation.mutate(
@@ -669,7 +681,7 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
           </p>
         ) : (
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[960px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
                   <th className="w-16 pb-2 pr-2 font-medium">
@@ -689,6 +701,13 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
                   </th>
                   <th className="w-28 pb-2 pr-2 font-medium">
                     {t('review.line.lineTotal', { defaultValue: 'Line total' })}
+                  </th>
+                  {/* Buyer-side accounting coding (FOR-295) */}
+                  <th className="w-28 pb-2 pr-2 font-medium">
+                    {t('review.line.costCode', { defaultValue: 'Cost code' })}
+                  </th>
+                  <th className="w-28 pb-2 pr-2 font-medium">
+                    {t('review.line.glAccount', { defaultValue: 'GL account' })}
                   </th>
                   {showLineFlags && (
                     <th className="w-32 pb-2 pr-2 font-medium">
@@ -750,6 +769,22 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
                         value={line.lineTotal}
                         onChange={(e) => updateLine(line.key, { lineTotal: e.target.value })}
                         aria-label={t('review.line.lineTotal', { defaultValue: 'Line total' })}
+                      />
+                    </td>
+                    <td className="py-1.5 pr-2 align-top">
+                      <Input
+                        inputSize="sm"
+                        value={line.costCode}
+                        onChange={(e) => updateLine(line.key, { costCode: e.target.value })}
+                        aria-label={t('review.line.costCode', { defaultValue: 'Cost code' })}
+                      />
+                    </td>
+                    <td className="py-1.5 pr-2 align-top">
+                      <Input
+                        inputSize="sm"
+                        value={line.glAccount}
+                        onChange={(e) => updateLine(line.key, { glAccount: e.target.value })}
+                        aria-label={t('review.line.glAccount', { defaultValue: 'GL account' })}
                       />
                     </td>
                     {showLineFlags && (

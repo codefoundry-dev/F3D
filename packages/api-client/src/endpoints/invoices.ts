@@ -86,6 +86,10 @@ export interface InvoiceLine {
   unit: string | null;
   unitPrice: number | null;
   lineTotal: number | null;
+  /** Buyer-side cost code, entered by the reviewer (FOR-295). */
+  costCode: string | null;
+  /** Buyer-side GL account, entered by the reviewer (FOR-295). */
+  glAccount: string | null;
 }
 
 // project/vendor/totalAmount are null on intake-created invoices that haven't
@@ -202,6 +206,9 @@ export interface ReviewInvoicePayload {
     unit?: string | null;
     unitPrice?: number | null;
     lineTotal?: number | null;
+    /** Buyer-side accounting coding (FOR-295). */
+    costCode?: string | null;
+    glAccount?: string | null;
   }[];
 }
 

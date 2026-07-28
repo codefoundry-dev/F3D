@@ -174,9 +174,13 @@ export class InvoiceExportService {
       });
     }
 
-    // CSV / XLSX for single invoice
+    // CSV / XLSX for single invoice: one row per billed line so the reviewer's
+    // accounting coding (cost code + GL account, FOR-295) exports in a shape an
+    // accounting system can ingest later. Invoice-level columns repeat per row;
+    // an invoice with no lines still exports as a single header-only row.
     const headers = [
       'Invoice ID',
+      'Invoice #',
       'Project Name',
       'Vendor Name',
       'Status',
@@ -184,20 +188,42 @@ export class InvoiceExportService {
       'Total Amount',
       'Due Date',
       'Created At',
+      'Line #',
+      'Description',
+      'Qty',
+      'Unit',
+      'Unit Price',
+      'Line Total',
+      'Cost Code',
+      'GL Account',
     ];
 
-    const rows = [
-      [
-        invoice.id,
-        invoice.projectName ?? '',
-        invoice.vendorName ?? '',
-        invoice.status,
-        invoice.relatedPo ?? '',
-        invoice.totalAmount === null ? '' : String(invoice.totalAmount),
-        invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('en-US') : '',
-        createdDate,
-      ],
+    const invoiceCols = [
+      invoice.id,
+      invoice.invoiceNumber ?? '',
+      invoice.projectName ?? '',
+      invoice.vendorName ?? '',
+      invoice.status,
+      invoice.relatedPoNumber ?? invoice.relatedPo ?? '',
+      invoice.totalAmount === null ? '' : String(invoice.totalAmount),
+      invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('en-US') : '',
+      createdDate,
     ];
+
+    const rows =
+      invoice.lines.length === 0
+        ? [[...invoiceCols, '', '', '', '', '', '', '', '']]
+        : invoice.lines.map((line, index) => [
+            ...invoiceCols,
+            line.lineId ?? String(index + 1),
+            line.description,
+            line.quantity === null ? '' : String(line.quantity),
+            line.unit ?? '',
+            line.unitPrice === null ? '' : String(line.unitPrice),
+            line.lineTotal === null ? '' : String(line.lineTotal),
+            line.costCode ?? '',
+            line.glAccount ?? '',
+          ]);
 
     if (normalized === 'CSV') {
       return this.pdfExportService.exportToCSV({

@@ -40,10 +40,13 @@ const mockInvoiceDetail = {
   vendorName: 'VendorCo',
   status: 'PENDING',
   relatedPo: 'po-1',
+  relatedPoNumber: 'PO-00042',
   totalAmount: 12500.75,
   dueDate: '2026-04-15T00:00:00.000Z',
+  invoiceNumber: 'INV-42',
   createdAt: '2026-03-01T00:00:00.000Z',
   updatedAt: '2026-03-01T00:00:00.000Z',
+  lines: [],
   documents: [],
 };
 
@@ -300,6 +303,7 @@ describe('InvoiceExportService', () => {
       mockInvoicesService.getInvoice.mockResolvedValue({
         ...mockInvoiceDetail,
         relatedPo: null,
+        relatedPoNumber: null,
         dueDate: null,
       });
       mockPdfExportService.exportToCSV.mockResolvedValue({ url: 'https://cdn/inv.csv' });
@@ -309,9 +313,72 @@ describe('InvoiceExportService', () => {
       const csvCall = mockPdfExportService.exportToCSV.mock.calls[0][0];
       const row = csvCall.rows[0];
       // relatedPo null -> ''
-      expect(row[4]).toBe('');
+      expect(row[5]).toBe('');
       // dueDate null -> ''
-      expect(row[6]).toBe('');
+      expect(row[7]).toBe('');
+    });
+
+    it('exports one CSV row per line item with cost code and GL account (FOR-295)', async () => {
+      mockInvoicesService.getInvoice.mockResolvedValue({
+        ...mockInvoiceDetail,
+        lines: [
+          {
+            id: 'il-1',
+            lineId: '1',
+            description: 'DN100 PVC pipe',
+            quantity: 12,
+            unit: 'm',
+            unitPrice: 8.5,
+            lineTotal: 102,
+            costCode: '03-100',
+            glAccount: '5010',
+          },
+          {
+            id: 'il-2',
+            lineId: null,
+            description: 'Delivery fee',
+            quantity: null,
+            unit: null,
+            unitPrice: null,
+            lineTotal: 50,
+            costCode: null,
+            glAccount: null,
+          },
+        ],
+      });
+      mockPdfExportService.exportToCSV.mockResolvedValue({ url: 'https://cdn/inv.csv' });
+
+      await service.exportSingleInvoice('inv-1', 'csv', companyAdmin);
+
+      const csvCall = mockPdfExportService.exportToCSV.mock.calls[0][0];
+      expect(csvCall.headers).toEqual(
+        expect.arrayContaining(['Line #', 'Description', 'Cost Code', 'GL Account']),
+      );
+      expect(csvCall.rows).toHaveLength(2);
+      // Invoice-level columns repeat on every row; line columns follow.
+      expect(csvCall.rows[0]).toEqual([
+        'inv-1',
+        'INV-42',
+        'Alpha',
+        'VendorCo',
+        'PENDING',
+        'PO-00042',
+        '12500.75',
+        new Date('2026-04-15T00:00:00.000Z').toLocaleDateString('en-US'),
+        expect.any(String),
+        '1',
+        'DN100 PVC pipe',
+        '12',
+        'm',
+        '8.5',
+        '102',
+        '03-100',
+        '5010',
+      ]);
+      // A line with no printed line id falls back to its 1-based position.
+      expect(csvCall.rows[1][9]).toBe('2');
+      expect(csvCall.rows[1][15]).toBe('');
+      expect(csvCall.rows[1][16]).toBe('');
     });
 
     it('exports single invoice as XLSX', async () => {
@@ -333,6 +400,7 @@ describe('InvoiceExportService', () => {
       mockInvoicesService.getInvoice.mockResolvedValue({
         ...mockInvoiceDetail,
         relatedPo: null,
+        relatedPoNumber: null,
         dueDate: null,
       });
       mockPdfExportService.exportToXLSX.mockResolvedValue({ url: 'https://cdn/inv.xlsx' });
@@ -341,8 +409,8 @@ describe('InvoiceExportService', () => {
 
       const xlsxCall = mockPdfExportService.exportToXLSX.mock.calls[0][0];
       const row = xlsxCall.rows[0];
-      expect(row[4]).toBe('');
-      expect(row[6]).toBe('');
+      expect(row[5]).toBe('');
+      expect(row[7]).toBe('');
     });
 
     it('throws BadRequestException for invalid format', async () => {

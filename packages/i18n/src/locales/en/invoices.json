@@ -184,6 +184,8 @@
       "unit": "Unit",
       "unitPrice": "Unit price",
       "lineTotal": "Line total",
+      "costCode": "Cost code",
+      "glAccount": "GL account",
       "poMatch": "PO match"
     },
     "match": {

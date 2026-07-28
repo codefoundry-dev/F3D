@@ -94,6 +94,10 @@ model InvoiceLineItem {
   unit        String?  @db.VarChar(32)
   unitPrice   Decimal? @map("unit_price") @db.Decimal(18, 4)
   lineTotal   Decimal? @map("line_total") @db.Decimal(18, 4)
+  // Buyer-side accounting coding (FOR-295): set by the reviewer, not extracted
+  // from the document. Export-ready — no accounting-system posting this phase.
+  costCode    String?  @map("cost_code") @db.VarChar(64)
+  glAccount   String?  @map("gl_account") @db.VarChar(64)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

@@ -232,7 +232,7 @@ function InvoiceDetailsTab({ invoice }: { invoice: InvoiceDetail | undefined }) 
             {t('invoiceDetail.lineItems', { defaultValue: 'Line Items' })}
           </h3>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm" data-testid="invoice-detail-lines">
+            <table className="w-full min-w-[800px] text-sm" data-testid="invoice-detail-lines">
               <thead>
                 <tr className="border-b border-border text-left text-muted-foreground">
                   <th className="pb-3 pr-3 font-medium">
@@ -247,8 +247,15 @@ function InvoiceDetailsTab({ invoice }: { invoice: InvoiceDetail | undefined }) 
                   <th className="pb-3 pr-3 font-medium text-right">
                     {t('review.line.unitPrice', { defaultValue: 'Unit price' })}
                   </th>
-                  <th className="pb-3 font-medium text-right">
+                  <th className="pb-3 pr-3 font-medium text-right">
                     {t('review.line.lineTotal', { defaultValue: 'Line total' })}
+                  </th>
+                  {/* Buyer-side accounting coding captured at review (FOR-295) */}
+                  <th className="pb-3 pr-3 font-medium">
+                    {t('review.line.costCode', { defaultValue: 'Cost code' })}
+                  </th>
+                  <th className="pb-3 font-medium">
+                    {t('review.line.glAccount', { defaultValue: 'GL account' })}
                   </th>
                 </tr>
               </thead>
@@ -263,11 +270,13 @@ function InvoiceDetailsTab({ invoice }: { invoice: InvoiceDetail | undefined }) 
                         ? '—'
                         : `$${line.unitPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
                     </td>
-                    <td className="py-3 text-right text-muted-foreground">
+                    <td className="py-3 pr-3 text-right text-muted-foreground">
                       {line.lineTotal === null
                         ? '—'
                         : `$${line.lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
                     </td>
+                    <td className="py-3 pr-3 text-muted-foreground">{line.costCode ?? '—'}</td>
+                    <td className="py-3 text-muted-foreground">{line.glAccount ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>

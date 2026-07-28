@@ -247,8 +247,54 @@ describe('InvoiceReviewPanel', () => {
         unit: 'm',
         unitPrice: 8.5,
         lineTotal: 102,
+        // Accounting coding is reviewer-entered, never extracted (FOR-295).
+        costCode: null,
+        glAccount: null,
       },
     ]);
+  });
+
+  // ── Cost code + GL account per line (FOR-295) ──────────────────────────────
+
+  it('saves reviewer-entered cost code and GL account per line', async () => {
+    render(<InvoiceReviewPanel invoice={makeInvoice()} />, { wrapper });
+    await screen.findByTestId('invoice-review-panel');
+
+    fireEvent.change(screen.getByLabelText('Cost code'), { target: { value: ' 03-100 ' } });
+    fireEvent.change(screen.getByLabelText('GL account'), { target: { value: '5010' } });
+    fireEvent.click(screen.getByTestId('invoice-review-save'));
+
+    await waitFor(() => expect(mockReviewInvoice).toHaveBeenCalledTimes(1));
+    const [, payload] = mockReviewInvoice.mock.calls[0] as [string, Record<string, unknown>];
+    expect(payload.lines).toMatchObject([{ costCode: '03-100', glAccount: '5010' }]);
+  });
+
+  it('seeds cost code and GL account from the saved lines', async () => {
+    render(
+      <InvoiceReviewPanel
+        invoice={makeInvoice({
+          reviewedAt: '2026-07-28T10:00:00.000Z',
+          lines: [
+            {
+              id: 'il-1',
+              lineId: '1',
+              description: 'DN100 PVC pipe',
+              quantity: 10,
+              unit: 'm',
+              unitPrice: 8.5,
+              lineTotal: 85,
+              costCode: '03-100',
+              glAccount: '5010',
+            },
+          ],
+        })}
+      />,
+      { wrapper },
+    );
+    await screen.findByTestId('invoice-review-panel');
+
+    expect(screen.getByLabelText('Cost code')).toHaveValue('03-100');
+    expect(screen.getByLabelText('GL account')).toHaveValue('5010');
   });
 
   it('adds and removes line rows', async () => {
@@ -315,6 +361,8 @@ describe('InvoiceReviewPanel', () => {
           unit: 'm',
           unitPrice: 8.5,
           lineTotal: 85,
+          costCode: null,
+          glAccount: null,
         },
         {
           id: 'il-2',
@@ -324,6 +372,8 @@ describe('InvoiceReviewPanel', () => {
           unit: 'ea',
           unitPrice: 500,
           lineTotal: 500,
+          costCode: null,
+          glAccount: null,
         },
       ],
     });
@@ -404,6 +454,8 @@ describe('InvoiceReviewPanel', () => {
           unit: 'm',
           unitPrice: 8.5,
           lineTotal: 85,
+          costCode: null,
+          glAccount: null,
         },
       ],
     });

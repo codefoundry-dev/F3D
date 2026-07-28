@@ -274,6 +274,8 @@ export class InvoicesService {
         unit: line.unit,
         unitPrice: line.unitPrice === null ? null : Number(line.unitPrice),
         lineTotal: line.lineTotal === null ? null : Number(line.lineTotal),
+        costCode: line.costCode,
+        glAccount: line.glAccount,
       })),
       extraction: extraction
         ? {
@@ -391,6 +393,8 @@ export class InvoicesService {
           unit: trimmedOrNull(line.unit),
           unitPrice: line.unitPrice ?? null,
           lineTotal: line.lineTotal ?? null,
+          costCode: trimmedOrNull(line.costCode),
+          glAccount: trimmedOrNull(line.glAccount),
         })),
       }),
       // A human has signed off on the extracted values — the completed

@@ -165,6 +165,23 @@ export class ReviewInvoiceLineDto {
   @IsOptional()
   @IsNumber()
   lineTotal?: number | null;
+
+  /**
+   * Buyer-side cost code for the line (FOR-295). Reviewer-entered accounting
+   * coding, not extracted from the document — export-ready, no posting.
+   */
+  @ApiPropertyOptional({ maxLength: 64 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  costCode?: string | null;
+
+  /** Buyer-side GL account for the line (FOR-295). */
+  @ApiPropertyOptional({ maxLength: 64 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  glAccount?: string | null;
 }
 
 /**

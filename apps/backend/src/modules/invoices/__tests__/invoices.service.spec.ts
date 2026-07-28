@@ -367,6 +367,8 @@ describe('InvoicesService', () => {
             unit: 'm',
             unitPrice: 8.5,
             lineTotal: 102,
+            costCode: '03-100',
+            glAccount: null,
           },
         ],
         documents: [],
@@ -382,7 +384,12 @@ describe('InvoicesService', () => {
       const result = await service.getInvoice('inv-1', companyAdmin);
 
       expect(result.invoiceNumber).toBe('INV-42');
-      expect(result.lines[0]).toMatchObject({ description: 'DN100 PVC pipe', quantity: 12 });
+      expect(result.lines[0]).toMatchObject({
+        description: 'DN100 PVC pipe',
+        quantity: 12,
+        costCode: '03-100',
+        glAccount: null,
+      });
       expect(result.extraction).toEqual({
         id: 'ext-1',
         status: 'COMPLETED',
@@ -497,6 +504,9 @@ describe('InvoicesService', () => {
           unit: 'm',
           unitPrice: 8.5,
           lineTotal: 102,
+          // Buyer-side accounting coding (FOR-295), whitespace-trimmed on save.
+          costCode: ' 03-100 ',
+          glAccount: '5010',
         },
         { description: 'Delivery fee' },
       ],
@@ -564,6 +574,8 @@ describe('InvoicesService', () => {
           unit: 'm',
           unitPrice: 8.5,
           lineTotal: 102,
+          costCode: '03-100',
+          glAccount: '5010',
         },
         {
           invoiceId: 'inv-1',
@@ -574,6 +586,8 @@ describe('InvoicesService', () => {
           unit: null,
           unitPrice: null,
           lineTotal: null,
+          costCode: null,
+          glAccount: null,
         },
       ]);
 

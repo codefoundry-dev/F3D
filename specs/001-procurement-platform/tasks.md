@@ -6613,3 +6613,18 @@ approved RFQs and bulk orders, in addition to manual creation.
       Migration `20260728140000_invoice_audit_actions` (enum values only). **Tests**: backend
       invoices suites 190 green (+7 audit/trail specs, +1 controller); web InvoiceDecisionModal 4 +
       InvoiceHistoryTab 2 green.
+- [x] T928 [FOR-295] Cost code + GL account per invoice line (export-ready, no QuickBooks posting):
+      `invoice_line_items` gains nullable `cost_code` + `gl_account` VARCHAR(64) — buyer-side
+      accounting coding entered by the reviewer, never extracted from the document.
+      `ReviewInvoiceLineDto` accepts optional `costCode`/`glAccount` (trimmed-or-null on save,
+      replace semantics unchanged); invoice detail returns them per line. Export-ready:
+      single-invoice CSV/XLSX restructured to one row per billed line (invoice-level columns — now
+      incl. Invoice # and the human PO number — repeat per row; Line #, Description, Qty, Unit, Unit
+      Price, Line Total, Cost Code, GL Account follow; a lineless invoice still emits one
+      header-only row). No QuickBooks posting; list-level export and single-invoice PDF unchanged.
+      `InvoiceReviewPanel` line table gains editable Cost code / GL account columns (extraction
+      seeding leaves them blank); the frozen `InvoiceDetailsTab` lines table shows both read-only.
+      i18n `review.line.costCode`/`glAccount`. Migration
+      `20260728150000_invoice_line_accounting_codes`. **Tests**: backend invoices suites 191 green
+      (+1 export line-level spec, review/getInvoice specs extended); web invoices 26 green (+2
+      InvoiceReviewPanel).
