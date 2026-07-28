@@ -19,12 +19,14 @@ import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import EyeOpenedIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 
 import { INVOICE_ROUTES } from '../constants/routes';
 import { useInvoice, useApproveInvoice, useRejectInvoice } from '../hooks/useInvoices';
 
+import { InvoiceDecisionModal } from './InvoiceDecisionModal';
+import { InvoiceHistoryTab } from './InvoiceHistoryTab';
 import { InvoiceReviewPanel } from './InvoiceReviewPanel';
 
 export interface InvoiceDetailPageProps {
@@ -33,9 +35,9 @@ export interface InvoiceDetailPageProps {
   canReview?: boolean;
 }
 
-type Tab = 'details' | 'attachments';
+type Tab = 'details' | 'attachments' | 'history';
 
-const TABS: Tab[] = ['details', 'attachments'];
+const TABS: Tab[] = ['details', 'attachments', 'history'];
 
 export function InvoiceDetailPage({
   canApprove = false,
@@ -51,6 +53,8 @@ export function InvoiceDetailPage({
   const approveMutation = useApproveInvoice();
   const rejectMutation = useRejectInvoice();
   const setTitle = usePageTitleStore((s) => s.setTitle);
+  // Which decision modal is open (FOR-294) — both capture a reason for the trail.
+  const [decision, setDecision] = useState<'approve' | 'decline' | null>(null);
 
   // Surface the title + Invoices breadcrumb in the app bar (back → list).
   useEffect(() => {
@@ -78,6 +82,10 @@ export function InvoiceDetailPage({
         count: docCount,
       }),
     },
+    {
+      value: 'history',
+      label: t('invoiceDetail.tabs.history', { defaultValue: 'History' }),
+    },
   ];
 
   const isPending = invoice?.status === 'PENDING';
@@ -100,7 +108,10 @@ export function InvoiceDetailPage({
               variant="secondary"
               disabled={isActioning}
               leftIcon={<CrossInCircleIcon className="size-4" />}
-              onClick={() => id && rejectMutation.mutate(id)}
+              onClick={() => {
+                rejectMutation.reset();
+                setDecision('decline');
+              }}
             >
               {t('invoiceDetail.decline', { defaultValue: 'Decline' })}
             </Button>
@@ -108,7 +119,10 @@ export function InvoiceDetailPage({
               variant="primary"
               disabled={isActioning}
               leftIcon={<CheckCircleIcon className="size-4" />}
-              onClick={() => id && approveMutation.mutate(id)}
+              onClick={() => {
+                approveMutation.reset();
+                setDecision('approve');
+              }}
             >
               {t('invoiceDetail.approve', { defaultValue: 'Approve' })}
             </Button>
@@ -127,7 +141,22 @@ export function InvoiceDetailPage({
             <InvoiceDetailsTab invoice={invoice} />
           ))}
         {activeTab === 'attachments' && <AttachmentsTab documents={invoice?.documents ?? []} />}
+        {activeTab === 'history' && invoice && <InvoiceHistoryTab invoice={invoice} />}
       </div>
+
+      {/* Approve / decline confirmation with the reason for the trail (FOR-294) */}
+      {decision && id && (
+        <InvoiceDecisionModal
+          mode={decision}
+          isPending={isActioning}
+          isError={decision === 'approve' ? approveMutation.isError : rejectMutation.isError}
+          onClose={() => setDecision(null)}
+          onConfirm={(reason) => {
+            const mutation = decision === 'approve' ? approveMutation : rejectMutation;
+            mutation.mutate({ id, reason }, { onSuccess: () => setDecision(null) });
+          }}
+        />
+      )}
     </div>
   );
 }

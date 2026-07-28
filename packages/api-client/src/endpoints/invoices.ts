@@ -294,13 +294,22 @@ export async function getInvoicePoMatch(
   return data.data;
 }
 
-export async function approveInvoice(id: string, config?: AxiosRequestConfig): Promise<void> {
-  await getApiClient().patch(INVOICES_PATHS.approve(id), undefined, config);
+/**
+ * Approve an invoice. The optional reason/note is recorded on the invoice's
+ * audit trail (FOR-294).
+ */
+export async function approveInvoice(
+  id: string,
+  reason?: string,
+  config?: AxiosRequestConfig,
+): Promise<void> {
+  await getApiClient().patch(INVOICES_PATHS.approve(id), reason ? { reason } : {}, config);
 }
 
 /**
  * Reject an invoice / raise a discrepancy. The optional reason is persisted on
- * the invoice and quoted back to the vendor in the rejection email.
+ * the invoice, quoted back to the vendor in the rejection email, and recorded
+ * on the audit trail (FOR-294).
  */
 export async function rejectInvoice(
   id: string,
@@ -308,6 +317,31 @@ export async function rejectInvoice(
   config?: AxiosRequestConfig,
 ): Promise<void> {
   await getApiClient().patch(INVOICES_PATHS.reject(id), reason ? { reason } : {}, config);
+}
+
+/**
+ * One entry in an invoice's audit/state history (FOR-294). `action` is an
+ * AuditAction enum value (e.g. 'INVOICE_APPROVED'); `metadata` carries
+ * transition context such as `{ from, to, reason }`.
+ */
+export interface InvoiceAuditEntry {
+  id: string;
+  action: string;
+  metadata: Record<string, unknown> | null;
+  performedBy: { id: string; name: string; email: string } | null;
+  createdAt: string;
+}
+
+/** Fetch an invoice's audit/state history (oldest event first). FOR-294. */
+export async function getInvoiceAuditTrail(
+  id: string,
+  config?: AxiosRequestConfig,
+): Promise<InvoiceAuditEntry[]> {
+  const { data } = await getApiClient().get<{ data: InvoiceAuditEntry[] }>(
+    INVOICES_PATHS.audit(id),
+    config,
+  );
+  return data.data;
 }
 
 export async function bulkApproveInvoices(

@@ -227,7 +227,20 @@ export class RejectInvoiceDto {
   /**
    * Why the invoice was rejected / what the discrepancy is (US 8.05 / 8.06).
    * Persisted on the invoice and included in the vendor's rejection email as the
-   * user comment, so it must survive the request that set it.
+   * user comment, so it must survive the request that set it. Also recorded on
+   * the audit trail (FOR-294).
+   */
+  @ApiPropertyOptional({ maxLength: 2000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  reason?: string;
+}
+
+export class ApproveInvoiceDto {
+  /**
+   * Optional note explaining the approval (FOR-294). Not persisted on the
+   * invoice row — it lives on the audit trail entry for the transition.
    */
   @ApiPropertyOptional({ maxLength: 2000 })
   @IsOptional()

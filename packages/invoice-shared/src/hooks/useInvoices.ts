@@ -1,6 +1,7 @@
 import {
   getInvoices,
   getInvoice,
+  getInvoiceAuditTrail,
   getInvoiceIntakeAddress,
   getInvoicePoMatch,
   approveInvoice,
@@ -104,14 +105,29 @@ export function useExportSingleInvoice() {
 }
 
 /**
+ * State history for an invoice (FOR-294): transitions with reasons, oldest
+ * first. Keyed under ['invoices'] so the approve/reject invalidations below
+ * refresh it too.
+ */
+export function useInvoiceAuditTrail(id: string | undefined) {
+  return useQuery({
+    queryKey: ['invoices', id, 'audit'],
+    queryFn: () => getInvoiceAuditTrail(id as string),
+    enabled: !!id,
+  });
+}
+
+/**
  * Create invoice mutation hooks with optional extra cache invalidation keys.
  * FO app passes `extraInvalidateKeys: [['dashboard', 'finance']]`
+ * The optional reason is recorded on the invoice's audit trail (FOR-294);
+ * a reject reason is additionally quoted in the vendor's rejection email.
  */
 export function useApproveInvoice(extraInvalidateKeys?: string[][]) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => approveInvoice(id),
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) => approveInvoice(id, reason),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['invoices'] });
       extraInvalidateKeys?.forEach((key) => {
@@ -125,7 +141,7 @@ export function useRejectInvoice(extraInvalidateKeys?: string[][]) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => rejectInvoice(id),
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) => rejectInvoice(id, reason),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['invoices'] });
       extraInvalidateKeys?.forEach((key) => {

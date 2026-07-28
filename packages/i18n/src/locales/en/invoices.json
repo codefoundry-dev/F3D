@@ -34,7 +34,7 @@
     "actions": "Actions"
   },
   "status": {
-    "PENDING": "Pending",
+    "PENDING": "To Review",
     "APPROVED": "Approved",
     "DISPUTED": "Disputed",
     "PAID": "Paid",
@@ -103,7 +103,8 @@
   "invoiceDetail": {
     "tabs": {
       "details": "Invoice Details",
-      "attachments": "Attachments ({{count}})"
+      "attachments": "Attachments ({{count}})",
+      "history": "History"
     },
     "approve": "Approve",
     "decline": "Decline",
@@ -128,6 +129,30 @@
     "invoiceNumber": "Invoice #",
     "issuedDate": "Invoice Date",
     "lineItems": "Line Items"
+  },
+  "decision": {
+    "approveTitle": "Approve invoice",
+    "approveDescription": "Approving confirms this invoice is correct and ready for payment.",
+    "approveNoteLabel": "Note (optional)",
+    "approveNotePlaceholder": "Add a note for the record…",
+    "approveConfirm": "Approve invoice",
+    "declineTitle": "Decline invoice",
+    "declineDescription": "Declining rejects this invoice; your reason is recorded and shared with the vendor.",
+    "declineReasonLabel": "Reason",
+    "declineReasonPlaceholder": "Explain why this invoice is being declined…",
+    "declineConfirm": "Decline invoice",
+    "cancel": "Cancel",
+    "error": "Something went wrong. Please try again."
+  },
+  "history": {
+    "title": "Invoice History",
+    "received": "Invoice received",
+    "receivedEmail": "From {{email}}",
+    "reviewed": "Details reviewed",
+    "approved": "Invoice approved",
+    "rejected": "Invoice rejected",
+    "performedBy": "By {{name}}",
+    "reason": "Reason: {{reason}}"
   },
   "review": {
     "extracting": "Reading the invoice… extracted details will appear here shortly.",

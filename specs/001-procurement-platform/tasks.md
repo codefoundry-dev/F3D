@@ -6585,15 +6585,31 @@ approved RFQs and bulk orders, in addition to manual creation.
       the production prompt/schema.
 - [x] T926 [FOR-293] Invoice ↔ PO matching + per-line variance flags: new on-demand
       `GET /v1/invoices/:id/po-match` (permission `invoice.review`) recomputes the reconciliation
-      report from the saved invoice lines on every call — PO resolution (LINKED explicit link →
-      AUTO*MATCHED when the extracted references cite exactly one of the company's POs → AMBIGUOUS /
-      NOT_FOUND / NO_REFERENCE) with loose reference matching ("P/O 0042" cites "PO-00042"), greedy
-      one-to-one line pairing scored on material-code echo, description overlap, line number, and
-      price/qty agreement (pure `invoice-matching.util.ts`), per-line PRICE_VARIANCE / QTY_VARIANCE
-      flags against configurable tolerances (±2% price, exact qty via
-      `INVOICE_MATCH*\*`env), NOT_ON_PO for unexpected lines, unbilled PO lines, vendor-mismatch     warning, and a reviewer summary.`PATCH
-      /v1/invoices/:id/review`now persists`relatedPoId`    (validated against the invoice's company);`InvoiceReviewPanel`
-      gains a Related PO selector seeded from the auto-match, per-resolution banner, per-line
-      match/variance chips, and a save-to-refresh hint. No migration. **Tests**: backend
-      invoice-matching.util 12 + invoice-matching.service 15 + invoices.service +3 + controller +1
-      green; web InvoiceReviewPanel +5 green.
+      report from the saved invoice lines on every call — PO resolution (`LINKED` explicit link →
+      `AUTO_MATCHED` when the extracted references cite exactly one of the company's POs →
+      `AMBIGUOUS` / `NOT_FOUND` / `NO_REFERENCE`) with loose reference matching ("P/O 0042" cites
+      "PO-00042"), greedy one-to-one line pairing scored on material-code echo, description overlap,
+      line number, and price/qty agreement (pure `invoice-matching.util.ts`), per-line
+      `PRICE_VARIANCE` / `QTY_VARIANCE` flags against configurable tolerances (±2% price, exact qty
+      via `INVOICE_MATCH_*` env), `NOT_ON_PO` for unexpected lines, unbilled PO lines,
+      vendor-mismatch warning, and a reviewer summary. `PATCH /v1/invoices/:id/review` now persists
+      `relatedPoId` (validated against the invoice's company); `InvoiceReviewPanel` gains a Related
+      PO selector seeded from the auto-match, per-resolution banner, per-line match/variance chips,
+      and a save-to-refresh hint. No migration. **Tests**: backend invoice-matching.util 12 +
+      invoice-matching.service 15 + invoices.service +3 + controller +1 green; web
+      InvoiceReviewPanel +5 green.
+- [x] T927 [FOR-294] Invoice states with reasons + audit trail: approve / reject transitions now
+      land on the audit trail — new `AuditAction` values `INVOICE_APPROVED` / `INVOICE_REJECTED`
+      written via `AuditService` with `{from, to, reason}` metadata (best-effort, never fails the
+      transition); bulk-approve resolves the qualifying rows first so every invoice gets its own
+      entry. `PATCH /v1/invoices/:id/approve` accepts an optional reason (`ApproveInvoiceDto`,
+      trail-only); reject's reason stays on `rejection_reason` + the vendor email and is mirrored to
+      the trail. New `GET /v1/invoices/:id/audit` (permission `invoice.read`; owning company, billed
+      vendor, SA) mirrors the PO audit endpoint. Frontend: `InvoiceDecisionModal` (GridModal) —
+      approve captures an optional note, decline REQUIRES a reason before enabling; new History tab
+      (`InvoiceHistoryTab`) renders received (with intake sender) / reviewed stamps from the invoice
+      row plus the audited transitions with actor + reason; `useApproveInvoice`/`useRejectInvoice`
+      mutate with `{id, reason}`. i18n `status.PENDING` label renamed "Pending" → "To Review".
+      Migration `20260728140000_invoice_audit_actions` (enum values only). **Tests**: backend
+      invoices suites 190 green (+7 audit/trail specs, +1 controller); web InvoiceDecisionModal 4 +
+      InvoiceHistoryTab 2 green.

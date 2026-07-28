@@ -69,6 +69,9 @@ const mockPrisma = {
     findFirst: jest.fn(),
     updateMany: jest.fn(),
   },
+  auditLog: {
+    findMany: jest.fn(),
+  },
   $transaction: jest.fn(),
 };
 
@@ -93,6 +96,10 @@ const mockBranding = {
   getEmailBrand: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockAudit = {
+  log: jest.fn().mockResolvedValue(undefined),
+};
+
 const mockConfig = { get: jest.fn(() => 'http://localhost:5179') };
 
 describe('InvoicesService', () => {
@@ -110,12 +117,14 @@ describe('InvoicesService', () => {
     mockPrisma.docExtraction.findFirst.mockResolvedValue(null);
     // The review transaction just resolves; each op is asserted individually.
     mockPrisma.$transaction.mockResolvedValue([]);
+    mockAudit.log.mockResolvedValue(undefined);
     service = new InvoicesService(
       mockPrisma as never,
       mockStorageService as never,
       mockEmailService as never,
       mockNotifications as never,
       mockBranding as never,
+      mockAudit as never,
       mockConfig as never,
     );
   });
@@ -702,7 +711,7 @@ describe('InvoicesService', () => {
         relatedPo: null,
       });
 
-      const result = await service.approveInvoice('inv-1', companyAdmin);
+      const result = await service.approveInvoice('inv-1', {}, companyAdmin);
       expect(result.status).toBe('APPROVED');
       expect(mockPrisma.invoice.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -710,11 +719,71 @@ describe('InvoicesService', () => {
           data: { status: 'APPROVED' },
         }),
       );
+      // FOR-294 — the transition lands on the audit trail without a reason.
+      expect(mockAudit.log).toHaveBeenCalledWith({
+        action: 'INVOICE_APPROVED',
+        performedById: companyAdmin.id,
+        targetType: 'Invoice',
+        targetId: 'inv-1',
+        metadata: { from: 'PENDING', to: 'APPROVED' },
+      });
+    });
+
+    it('records the approval note on the audit trail (FOR-294)', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue({
+        id: 'inv-1',
+        status: 'PENDING',
+        companyId: 'comp-1',
+      });
+      mockPrisma.invoice.update.mockResolvedValue({
+        id: 'inv-1',
+        projectId: 'proj-1',
+        status: 'APPROVED',
+        totalAmount: 12500,
+        dueDate: null,
+        project: { name: 'Alpha' },
+        vendor: { legalName: 'VendorCo' },
+        relatedPo: null,
+      });
+
+      await service.approveInvoice(
+        'inv-1',
+        { reason: '  Verified against the PO.  ' },
+        companyAdmin,
+      );
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'INVOICE_APPROVED',
+          metadata: { from: 'PENDING', to: 'APPROVED', reason: 'Verified against the PO.' },
+        }),
+      );
+    });
+
+    it('does not fail the approval when the audit write throws', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue({
+        id: 'inv-1',
+        status: 'PENDING',
+        companyId: 'comp-1',
+      });
+      mockPrisma.invoice.update.mockResolvedValue({
+        id: 'inv-1',
+        projectId: 'proj-1',
+        status: 'APPROVED',
+        totalAmount: 12500,
+        dueDate: null,
+        project: { name: 'Alpha' },
+        vendor: { legalName: 'VendorCo' },
+        relatedPo: null,
+      });
+      mockAudit.log.mockRejectedValue(new Error('audit down'));
+
+      const result = await service.approveInvoice('inv-1', {}, companyAdmin);
+      expect(result.status).toBe('APPROVED');
     });
 
     it('throws NotFoundException for missing invoice', async () => {
       mockPrisma.invoice.findUnique.mockResolvedValue(null);
-      await expect(service.approveInvoice('missing', companyAdmin)).rejects.toThrow(
+      await expect(service.approveInvoice('missing', {}, companyAdmin)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -725,7 +794,7 @@ describe('InvoicesService', () => {
         status: 'APPROVED',
         companyId: 'comp-1',
       });
-      await expect(service.approveInvoice('inv-1', companyAdmin)).rejects.toThrow(
+      await expect(service.approveInvoice('inv-1', {}, companyAdmin)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -736,7 +805,7 @@ describe('InvoicesService', () => {
         status: 'PENDING',
         companyId: 'other-comp',
       });
-      await expect(service.approveInvoice('inv-1', financialOfficer)).rejects.toThrow(
+      await expect(service.approveInvoice('inv-1', {}, financialOfficer)).rejects.toThrow(
         ForbiddenException,
       );
     });
@@ -758,7 +827,7 @@ describe('InvoicesService', () => {
         relatedPo: null,
       });
 
-      const result = await service.approveInvoice('inv-1', superAdmin);
+      const result = await service.approveInvoice('inv-1', {}, superAdmin);
       expect(result.status).toBe('APPROVED');
     });
   });
@@ -832,6 +901,19 @@ describe('InvoicesService', () => {
           },
         }),
       );
+
+      // FOR-294 — the rejection and its reason land on the audit trail.
+      expect(mockAudit.log).toHaveBeenCalledWith({
+        action: 'INVOICE_REJECTED',
+        performedById: companyAdmin.id,
+        targetType: 'Invoice',
+        targetId: 'inv-9',
+        metadata: {
+          from: 'PENDING',
+          to: 'REJECTED',
+          reason: 'Quantities do not match the delivery note.',
+        },
+      });
 
       // Vendor users win over the company contact email.
       expect(mockEmailService.sendInvoiceRejectedEmail).toHaveBeenCalledTimes(1);
@@ -1129,11 +1211,33 @@ describe('InvoicesService', () => {
 
   describe('bulkApproveInvoices', () => {
     it('bulk approves invoices', async () => {
+      mockPrisma.invoice.findMany.mockResolvedValue([
+        { id: 'inv-1' },
+        { id: 'inv-2' },
+        { id: 'inv-3' },
+      ]);
       mockPrisma.invoice.updateMany.mockResolvedValue({ count: 3 });
 
       const result = await service.bulkApproveInvoices(['inv-1', 'inv-2', 'inv-3'], companyAdmin);
       expect(result.approvedCount).toBe(3);
       expect(result.requestedCount).toBe(3);
+    });
+
+    it('records each approval on the audit trail (FOR-294)', async () => {
+      mockPrisma.invoice.findMany.mockResolvedValue([{ id: 'inv-1' }, { id: 'inv-2' }]);
+      mockPrisma.invoice.updateMany.mockResolvedValue({ count: 2 });
+
+      await service.bulkApproveInvoices(['inv-1', 'inv-2', 'inv-3'], companyAdmin);
+      expect(mockAudit.log).toHaveBeenCalledTimes(2);
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'INVOICE_APPROVED',
+          performedById: companyAdmin.id,
+          targetType: 'Invoice',
+          targetId: 'inv-2',
+          metadata: { from: 'PENDING', to: 'APPROVED' },
+        }),
+      );
     });
 
     it('throws BadRequestException for empty array', async () => {
@@ -1143,6 +1247,7 @@ describe('InvoicesService', () => {
     });
 
     it('scopes by company for non-SuperAdmin', async () => {
+      mockPrisma.invoice.findMany.mockResolvedValue([{ id: 'inv-1' }]);
       mockPrisma.invoice.updateMany.mockResolvedValue({ count: 1 });
 
       await service.bulkApproveInvoices(['inv-1'], companyAdmin);
@@ -1151,11 +1256,72 @@ describe('InvoicesService', () => {
     });
 
     it('does not scope by company for SuperAdmin', async () => {
+      mockPrisma.invoice.findMany.mockResolvedValue([{ id: 'inv-1' }]);
       mockPrisma.invoice.updateMany.mockResolvedValue({ count: 1 });
 
       await service.bulkApproveInvoices(['inv-1'], superAdmin);
       const where = mockPrisma.invoice.updateMany.mock.calls[0][0].where;
       expect(where).not.toHaveProperty('companyId');
+    });
+  });
+
+  // ── FOR-294: invoice audit trail ──────────────────────────────────────────
+  describe('getAuditTrail', () => {
+    const invoiceRow = { id: 'inv-1', companyId: 'comp-1', vendorId: 'vendor-comp-1' };
+    const logRow = {
+      id: 'log-1',
+      action: 'INVOICE_REJECTED',
+      metadata: { from: 'PENDING', to: 'REJECTED', reason: 'Wrong amount' },
+      performedBy: { id: 'ca-1', name: 'Casey Admin', email: 'ca@test.com' },
+      performedByLabel: null,
+      createdAt: new Date('2026-07-28T10:00:00.000Z'),
+    };
+
+    it('returns mapped entries, oldest first, for the owning company', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow);
+      mockPrisma.auditLog.findMany.mockResolvedValue([logRow]);
+
+      const result = await service.getAuditTrail('inv-1', companyAdmin);
+      expect(mockPrisma.auditLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { targetType: 'Invoice', targetId: 'inv-1' },
+          orderBy: { createdAt: 'asc' },
+        }),
+      );
+      expect(result).toEqual([
+        {
+          id: 'log-1',
+          action: 'INVOICE_REJECTED',
+          metadata: { from: 'PENDING', to: 'REJECTED', reason: 'Wrong amount' },
+          performedBy: { id: 'ca-1', name: 'Casey Admin', email: 'ca@test.com' },
+          createdAt: '2026-07-28T10:00:00.000Z',
+        },
+      ]);
+    });
+
+    it('allows the billed vendor company to read the trail', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow);
+      mockPrisma.auditLog.findMany.mockResolvedValue([]);
+
+      await expect(service.getAuditTrail('inv-1', vendor)).resolves.toEqual([]);
+    });
+
+    it('throws NotFoundException for a missing invoice', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(null);
+      await expect(service.getAuditTrail('missing', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws ForbiddenException for an unrelated company', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue({
+        id: 'inv-1',
+        companyId: 'other-comp',
+        vendorId: null,
+      });
+      await expect(service.getAuditTrail('inv-1', companyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 });

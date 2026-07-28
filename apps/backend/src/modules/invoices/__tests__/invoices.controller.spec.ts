@@ -10,6 +10,7 @@ import { InvoicesService } from '../invoices.service';
 const mockService = {
   listInvoices: jest.fn(),
   getInvoice: jest.fn(),
+  getAuditTrail: jest.fn(),
   reviewInvoice: jest.fn(),
   approveInvoice: jest.fn(),
   rejectInvoice: jest.fn(),
@@ -103,13 +104,25 @@ describe('InvoicesController', () => {
     });
   });
 
-  describe('approveInvoice', () => {
+  describe('getInvoiceAudit', () => {
     it('delegates to service', async () => {
+      const expected = [{ id: 'log-1', action: 'INVOICE_APPROVED' }];
+      mockService.getAuditTrail.mockResolvedValue(expected);
+
+      const result = await controller.getInvoiceAudit('inv-1', mockUser);
+      expect(mockService.getAuditTrail).toHaveBeenCalledWith('inv-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('approveInvoice', () => {
+    it('delegates to service with the optional reason (FOR-294)', async () => {
       const expected = { id: 'inv-1', status: 'APPROVED' };
       mockService.approveInvoice.mockResolvedValue(expected);
 
-      const result = await controller.approveInvoice('inv-1', mockUser);
-      expect(mockService.approveInvoice).toHaveBeenCalledWith('inv-1', mockUser);
+      const dto = { reason: 'Checked against the PO.' };
+      const result = await controller.approveInvoice('inv-1', dto, mockUser);
+      expect(mockService.approveInvoice).toHaveBeenCalledWith('inv-1', dto, mockUser);
       expect(result).toEqual(expected);
     });
   });

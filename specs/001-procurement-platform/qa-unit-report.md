@@ -1101,3 +1101,20 @@ production prompt/responseSchema — vendor, invoice #, dates, totals, and line 
 | InvoiceReviewPanel.test.tsx      | +5    | PO selector pre-seeded from the auto-match and saved as      | PASS   |
 |                                  |       | relatedPoId, no-reference / not-found banners, per-line      |        |
 |                                  |       | variance chips + issues summary, all-clear summary           |        |
+
+### FOR-294 — Invoice states with reasons + audit trail — added 2026-07-28
+
+| Test File                     | Tests | Description                                                  | Status |
+| ----------------------------- | ----- | ------------------------------------------------------------ | ------ |
+| invoices.service.spec.ts      | +7    | Approve/reject write INVOICE_APPROVED / INVOICE_REJECTED     | PASS   |
+|                               |       | audit entries with from/to/reason metadata (note trimmed,    |        |
+|                               |       | audit failure never fails the transition); bulk-approve      |        |
+|                               |       | audits per invoice; getAuditTrail maps entries oldest-first  |        |
+|                               |       | with owning-company / billed-vendor / SA access guards       |        |
+| invoices.controller.spec.ts   | +1    | GET :id/audit delegates; approve passes the reason DTO       | PASS   |
+| InvoiceDecisionModal.test.tsx | 4     | Approve confirms without a note and trims a given one;       | PASS   |
+|                               |       | decline disabled until a non-whitespace reason is typed;     |        |
+|                               |       | error alert on mutation failure                              |        |
+| InvoiceHistoryTab.test.tsx    | 2     | Timeline renders received (intake sender) / reviewed stamps  | PASS   |
+|                               |       | + audited transitions with actor and reason; unknown actions |        |
+|                               |       | ignored, reviewed stamp omitted when never reviewed          |        |

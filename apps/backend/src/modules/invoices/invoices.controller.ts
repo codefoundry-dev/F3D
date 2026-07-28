@@ -1,4 +1,5 @@
 import {
+  ApproveInvoiceDto,
   BulkApproveInvoicesDto,
   InvoiceListQueryDto,
   RejectInvoiceDto,
@@ -153,16 +154,33 @@ export class InvoicesController {
     return this.invoicesService.reviewInvoice(id, dto, user);
   }
 
+  // ── GET /v1/invoices/:id/audit ─────────────────────────────────────────────
+
+  @Get(':id/audit')
+  @RequirePermissions('invoice.read')
+  @ApiOperation({
+    summary: 'State history for the invoice — transitions with reasons (FOR-294)',
+  })
+  @ApiResponse({ status: 200, description: 'Chronological audit entries for the invoice' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  async getInvoiceAudit(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.invoicesService.getAuditTrail(id, user);
+  }
+
   // ── PATCH /v1/invoices/:id/approve ─────────────────────────────────────────
 
   @Patch(':id/approve')
   @RequirePermissions('invoice.approve')
-  @ApiOperation({ summary: 'Approve a pending invoice' })
+  @ApiOperation({ summary: 'Approve a pending invoice (optional reason recorded on the trail)' })
   @ApiResponse({ status: 200, description: 'Invoice approved' })
   @ApiResponse({ status: 400, description: 'Invoice is not in Pending status' })
   @ApiResponse({ status: 404, description: 'Invoice not found' })
-  async approveInvoice(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.invoicesService.approveInvoice(id, user);
+  async approveInvoice(
+    @Param('id') id: string,
+    @Body() dto: ApproveInvoiceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.invoicesService.approveInvoice(id, dto, user);
   }
 
   // ── PATCH /v1/invoices/:id/reject ──────────────────────────────────────────

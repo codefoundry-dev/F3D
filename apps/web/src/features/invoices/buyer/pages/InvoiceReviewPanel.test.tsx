@@ -30,6 +30,7 @@ vi.mock('@forethread/api-client', () => ({
   // Pulled in by the rest of the invoice-shared barrel.
   getInvoices: vi.fn(),
   getInvoice: vi.fn(),
+  getInvoiceAuditTrail: vi.fn(),
   getInvoiceIntakeAddress: vi.fn(),
   approveInvoice: vi.fn(),
   rejectInvoice: vi.fn(),

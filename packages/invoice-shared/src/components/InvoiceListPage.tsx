@@ -618,7 +618,7 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
                               className="flex size-7 shrink-0 items-center justify-center rounded-[8px] border border-gray-100 bg-gradient-to-b from-[#F9F9FA] to-white text-gray-600 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)] transition-colors hover:bg-none hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50"
                               title={t('actions.approve')}
                               disabled={approveMutation.isPending || invoice.status !== 'PENDING'}
-                              onClick={() => approveMutation.mutate(invoice.id)}
+                              onClick={() => approveMutation.mutate({ id: invoice.id })}
                             >
                               <CheckCircleIcon className="size-3.5" />
                             </button>
@@ -631,7 +631,7 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
                                       {
                                         key: 'approve',
                                         label: t('actions.approve'),
-                                        onClick: () => approveMutation.mutate(invoice.id),
+                                        onClick: () => approveMutation.mutate({ id: invoice.id }),
                                       },
                                     ]
                                   : []),

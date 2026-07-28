@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import * as path from 'path';
 
 import {
+  ApproveInvoiceDto,
   InvoiceListQueryDto,
   RejectInvoiceDto,
   ReviewInvoiceDto,
@@ -12,6 +13,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -31,6 +33,7 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
 import { invoiceReference } from '../../common/utils/invoice-reference.util';
 import { resolveVendorEmailRecipients } from '../../common/utils/vendor-recipients.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditAction, AuditService } from '../audit/audit.service';
 import { BrandingService } from '../export/branding.service';
 import { NotificationService } from '../notification-feed/notification.service';
 import { EmailService } from '../notifications/email.service';
@@ -46,6 +49,7 @@ function trimmedOrNull(value: string | null | undefined): string | null {
 
 @Injectable()
 export class InvoicesService {
+  private readonly logger = new Logger(InvoicesService.name);
   private readonly webAppUrl: string;
 
   constructor(
@@ -54,9 +58,41 @@ export class InvoicesService {
     private readonly emailService: EmailService,
     private readonly notifications: NotificationService,
     private readonly branding: BrandingService,
+    private readonly audit: AuditService,
     config: ConfigService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
+  }
+
+  /**
+   * Record an invoice state transition on the audit trail (FOR-294), with the
+   * reviewer's reason when one was given. Best-effort: the transition is
+   * already committed, so an audit failure must never throw back into the
+   * request.
+   */
+  private async auditTransition(
+    action: AuditAction,
+    invoiceId: string,
+    user: AuthenticatedUser,
+    from: PrismaInvoiceStatus,
+    to: PrismaInvoiceStatus,
+    reason?: string | null,
+  ): Promise<void> {
+    try {
+      await this.audit.log({
+        action,
+        performedById: user.id,
+        targetType: 'Invoice',
+        targetId: invoiceId,
+        metadata: { from, to, ...(reason ? { reason } : {}) },
+      });
+    } catch (err) {
+      this.logger.debug(
+        `Failed to audit invoice transition ${from}→${to}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   // ── List Invoices ──────────────────────────────────────────────────────────
@@ -378,7 +414,7 @@ export class InvoicesService {
 
   // ── Approve Invoice ────────────────────────────────────────────────────────
 
-  async approveInvoice(id: string, user: AuthenticatedUser) {
+  async approveInvoice(id: string, dto: ApproveInvoiceDto, user: AuthenticatedUser) {
     const inv = await this.prisma.invoice.findUnique({
       where: { id },
       select: {
@@ -417,6 +453,15 @@ export class InvoicesService {
         relatedPo: { select: { id: true } },
       },
     });
+
+    await this.auditTransition(
+      AuditAction.INVOICE_APPROVED,
+      id,
+      user,
+      inv.status,
+      PrismaInvoiceStatus.APPROVED,
+      trimmedOrNull(dto.reason),
+    );
 
     return {
       id: updated.id,
@@ -461,6 +506,15 @@ export class InvoicesService {
         relatedPo: { select: { id: true } },
       },
     });
+
+    await this.auditTransition(
+      AuditAction.INVOICE_REJECTED,
+      id,
+      user,
+      inv.status,
+      PrismaInvoiceStatus.REJECTED,
+      trimmedOrNull(dto.reason),
+    );
 
     // Tell the vendor their invoice was rejected / a discrepancy was raised
     // (US 8.05 / 8.06). Fire-and-forget, like every other transactional
@@ -573,15 +627,71 @@ export class InvoicesService {
       where.companyId = user.companyId;
     }
 
+    // Resolve the qualifying rows first so each approval lands on the audit
+    // trail (FOR-294); the updateMany keeps the same guard so a row that
+    // changed in between is not silently approved.
+    const qualifying = await this.prisma.invoice.findMany({ where, select: { id: true } });
+
     const result = await this.prisma.invoice.updateMany({
       where,
       data: { status: PrismaInvoiceStatus.APPROVED },
     });
 
+    await Promise.all(
+      qualifying.map((q) =>
+        this.auditTransition(
+          AuditAction.INVOICE_APPROVED,
+          q.id,
+          user,
+          PrismaInvoiceStatus.PENDING,
+          PrismaInvoiceStatus.APPROVED,
+        ),
+      ),
+    );
+
     return {
       approvedCount: result.count,
       requestedCount: ids.length,
     };
+  }
+
+  // ── Invoice audit trail (FOR-294) ─────────────────────────────────────────
+
+  /**
+   * Chronological state history for an invoice: who moved it, when, and why
+   * (approve note / rejection reason travel in `metadata.reason`). Visibility
+   * mirrors the list scoping — the owning (buyer) company, the billed vendor,
+   * and SUPER_ADMIN.
+   */
+  async getAuditTrail(id: string, user: AuthenticatedUser) {
+    const inv = await this.prisma.invoice.findUnique({
+      where: { id },
+      select: { id: true, companyId: true, vendorId: true },
+    });
+
+    if (!inv) throw new NotFoundException(ERR.invoices.notFound);
+
+    const hasAccess =
+      user.role === UserRole.SUPER_ADMIN ||
+      user.companyId === inv.companyId ||
+      (inv.vendorId !== null && user.companyId === inv.vendorId);
+    if (!hasAccess) throw new ForbiddenException(ERR.general.accessDenied);
+
+    const logs = await this.prisma.auditLog.findMany({
+      where: { targetType: 'Invoice', targetId: id },
+      orderBy: { createdAt: 'asc' },
+      include: { performedBy: { select: { id: true, name: true, email: true } } },
+    });
+
+    return logs.map((log) => ({
+      id: log.id,
+      action: log.action,
+      metadata: log.metadata,
+      performedBy: log.performedBy
+        ? { id: log.performedBy.id, name: log.performedBy.name, email: log.performedBy.email }
+        : null,
+      createdAt: log.createdAt.toISOString(),
+    }));
   }
 
   // ── Upload Invoice Document ─────────────────────────────────────────────────
