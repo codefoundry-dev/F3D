@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { usePermissions } from '@/shared/role';
 
 import {
   useApplyDocExtractionItemOps,
@@ -102,6 +103,11 @@ export default function UploadMaterialFilePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { has } = usePermissions();
+  // Where the import lands mirrors the backend's role split (FR-R1-D04): the
+  // catalogue approver (SA) publishes into the shared public catalogue; anyone
+  // else contributes PRIVATE rows to their own company's catalogue.
+  const publishesToPublic = has('material.approve');
 
   // App-bar breadcrumb: Material Catalogue › Upload new material.
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
@@ -504,6 +510,7 @@ export default function UploadMaterialFilePage() {
             failedMessage={job?.errorMessage ?? job?.errorCode ?? ''}
             fileInputRef={fileInputRef}
             onFileSelected={onFileSelected}
+            publishesToPublic={publishesToPublic}
           />
         )}
 
@@ -640,6 +647,8 @@ interface UploadStepProps {
   failedMessage: string;
   fileInputRef: React.RefObject<HTMLInputElement>;
   onFileSelected: (file: File | undefined) => void;
+  /** True when the caller's import publishes into the shared public catalogue. */
+  publishesToPublic: boolean;
 }
 
 const REQUIRED_COLUMN_KEYS = [
@@ -661,31 +670,49 @@ function UploadStep({
   failedMessage,
   fileInputRef,
   onFileSelected,
+  publishesToPublic,
 }: UploadStepProps) {
   const { t } = useTranslation(['materialCatalogue']);
+
+  // The wizard is reached from the Public Materials tab, so say up front where
+  // the rows will actually land — a company import never touches the public
+  // catalogue.
+  const destinationNote = (
+    <div data-testid="upload-destination">
+      <Alert variant="info" icon={<InfoIcon className="h-4 w-4" />}>
+        {publishesToPublic
+          ? t('upload.step1.destinationPublic')
+          : t('upload.step1.destinationCompany')}
+      </Alert>
+    </div>
+  );
 
   // Extracting / uploading → a centred spinner replaces the dropzone.
   if (isProcessing) {
     return (
-      <section className="rounded-2xl border border-border bg-card p-6">
-        <h3 className="text-base font-semibold text-foreground">{t('upload.step1.cardTitle')}</h3>
-        <div
-          className="mt-4 flex flex-col items-center justify-center gap-3 rounded-xl border border-border px-6 py-20 text-center"
-          role="status"
-          data-testid="upload-processing"
-        >
-          <SpinnerIcon className="size-9 animate-spin text-muted-foreground" aria-hidden />
-          <p className="text-sm font-semibold text-foreground">
-            {isUploading ? t('upload.step1.uploading') : t('upload.step1.processingTitle')}
-          </p>
-          <p className="text-xs text-muted-foreground">{t('upload.step1.processingHint')}</p>
-        </div>
-      </section>
+      <>
+        {destinationNote}
+        <section className="rounded-2xl border border-border bg-card p-6">
+          <h3 className="text-base font-semibold text-foreground">{t('upload.step1.cardTitle')}</h3>
+          <div
+            className="mt-4 flex flex-col items-center justify-center gap-3 rounded-xl border border-border px-6 py-20 text-center"
+            role="status"
+            data-testid="upload-processing"
+          >
+            <SpinnerIcon className="size-9 animate-spin text-muted-foreground" aria-hidden />
+            <p className="text-sm font-semibold text-foreground">
+              {isUploading ? t('upload.step1.uploading') : t('upload.step1.processingTitle')}
+            </p>
+            <p className="text-xs text-muted-foreground">{t('upload.step1.processingHint')}</p>
+          </div>
+        </section>
+      </>
     );
   }
 
   return (
     <>
+      {destinationNote}
       <section className="rounded-2xl border border-border bg-card p-6">
         <h3 className="text-base font-semibold text-foreground">{t('upload.step1.cardTitle')}</h3>
 

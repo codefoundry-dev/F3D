@@ -28,6 +28,16 @@ vi.mock('react-router-dom', async (importOriginal) => {
   return { ...actual, useNavigate: () => mockNavigate };
 });
 
+const permissionSet = { current: new Set<string>() };
+vi.mock('@/shared/role', () => ({
+  usePermissions: () => ({
+    permissions: permissionSet.current,
+    has: (k: string) => permissionSet.current.has(k),
+    hasAll: (keys: string[]) => keys.every((k) => permissionSet.current.has(k)),
+    hasAny: (keys: string[]) => keys.some((k) => permissionSet.current.has(k)),
+  }),
+}));
+
 const mockedCreate = apiClient.createDocExtraction as unknown as ReturnType<typeof vi.fn>;
 const mockedSummary = apiClient.getDocExtractionSummary as unknown as ReturnType<typeof vi.fn>;
 const mockedItems = apiClient.getDocExtractionItems as unknown as ReturnType<typeof vi.fn>;
@@ -166,6 +176,7 @@ describe('UploadMaterialFilePage', () => {
     mockedImport.mockReset();
     mockedDetect.mockReset();
     mockNavigate.mockReset();
+    permissionSet.current = new Set();
     mockedCreate.mockResolvedValue(summaryJob(0, { status: 'PROCESSING', resultSummary: null }));
     mockedSummary.mockResolvedValue(summaryJob(TWO_ITEMS.length));
     mockedDetect.mockResolvedValue({ results: [] });
@@ -173,6 +184,24 @@ describe('UploadMaterialFilePage', () => {
     serveItemsFrom(TWO_ITEMS);
     vi.spyOn(notificationService, 'success').mockImplementation(() => 'id');
     vi.spyOn(notificationService, 'error').mockImplementation(() => 'id');
+  });
+
+  it('tells a company user their import lands in the private company catalogue', () => {
+    renderPage();
+
+    expect(screen.getByTestId('upload-destination')).toHaveTextContent(
+      "your company's private catalogue",
+    );
+    expect(screen.getByTestId('upload-destination')).not.toHaveTextContent(
+      'shared public catalogue',
+    );
+  });
+
+  it('tells the catalogue approver their import publishes to the public catalogue', () => {
+    permissionSet.current = new Set(['material.approve']);
+    renderPage();
+
+    expect(screen.getByTestId('upload-destination')).toHaveTextContent('shared public catalogue');
   });
 
   it('rejects an unsupported file type client-side without uploading', () => {
