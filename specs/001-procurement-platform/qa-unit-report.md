@@ -1075,3 +1075,11 @@ Full-repo run 2026-07-28: `turbo test` green (backend invoices + doc-intelligenc
 tests; web invoices 13/13); `tsc --noEmit` clean on backend, api-client, invoice-shared, apps/web.
 Live extraction validated against 3 real sample invoices (DAMOS, Blackwoods, Officeworks) using the
 production prompt/responseSchema — vendor, invoice #, dates, totals, and line items all correct.
+
+### FOR-290 — UploadInvoicePage stale test rewrite — added 2026-07-28
+
+| Test File                  | Tests | Description                                                    | Status |
+| -------------------------- | ----- | -------------------------------------------------------------- | ------ |
+| UploadInvoicePage.test.tsx | 3     | Rewrote the pre-FOR-290 "under development" placeholder test   | PASS   |
+|                            |       | (was failing): dropzone + disabled submit, intake email panel  |        |
+|                            |       | with copy button, panel hidden when inbound email unconfigured |        |
