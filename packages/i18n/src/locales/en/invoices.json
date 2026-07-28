@@ -139,6 +139,8 @@
     "selectVendor": "Select vendor",
     "project": "Project",
     "selectProject": "Select project",
+    "relatedPo": "Related PO",
+    "selectPo": "Select purchase order",
     "invoiceNumber": "Invoice #",
     "invoiceNumberPlaceholder": "e.g. INV-1024",
     "issuedDate": "Invoice date",
@@ -156,7 +158,25 @@
       "quantity": "Qty",
       "unit": "Unit",
       "unitPrice": "Unit price",
-      "lineTotal": "Line total"
+      "lineTotal": "Line total",
+      "poMatch": "PO match"
+    },
+    "match": {
+      "autoMatched": "This invoice cites {{poNumber}} — confirmed automatically from the document. Save to link it.",
+      "noReference": "No PO reference was found on this invoice. Select the purchase order manually if one exists.",
+      "notFound": "The document cites \"{{refs}}\", but no matching purchase order was found.",
+      "ambiguous": "The document's PO references match several purchase orders — select the right one.",
+      "vendorMismatch": "The selected vendor differs from the vendor on {{poNumber}}.",
+      "summaryClean": "All {{count}} line(s) match {{poNumber}} — no variances.",
+      "summaryIssues": "Checked against {{poNumber}}: {{matched}} of {{count}} line(s) matched, {{price}} price variance(s), {{qty}} quantity variance(s), {{unexpected}} not on the PO.",
+      "unbilled": "{{count}} PO line(s) are not billed on this invoice.",
+      "saveToRefresh": "Variance flags are checked against the saved lines — save to refresh them.",
+      "flag": {
+        "matched": "Matched",
+        "price": "Price {{pct}}%",
+        "qty": "Qty {{delta}}",
+        "notOnPo": "Not on PO"
+      }
     }
   }
 }

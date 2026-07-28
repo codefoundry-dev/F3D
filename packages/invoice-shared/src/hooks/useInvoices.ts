@@ -2,6 +2,7 @@ import {
   getInvoices,
   getInvoice,
   getInvoiceIntakeAddress,
+  getInvoicePoMatch,
   approveInvoice,
   rejectInvoice,
   reviewInvoice,
@@ -33,6 +34,19 @@ export function useInvoice(id: string | undefined) {
       const status = query.state.data?.extraction?.status;
       return status === 'PENDING' || status === 'PROCESSING' ? 3000 : false;
     },
+  });
+}
+
+/**
+ * Invoice ↔ PO reconciliation report (FOR-293): PO resolution plus per-line
+ * price/quantity variance flags, recomputed from the saved invoice lines.
+ * Lives under the ['invoices'] key so review/approve saves refresh it.
+ */
+export function useInvoicePoMatch(id: string | undefined) {
+  return useQuery({
+    queryKey: ['invoices', id, 'po-match'],
+    queryFn: () => getInvoicePoMatch(id as string),
+    enabled: !!id,
   });
 }
 

@@ -26,6 +26,7 @@ import { RequirePermissions } from '../../common/permissions';
 
 import { InvoiceExportService } from './invoice-export.service';
 import { InvoiceIntakeService } from './invoice-intake.service';
+import { InvoiceMatchingService } from './invoice-matching.service';
 import { InvoicesService } from './invoices.service';
 
 @ApiTags('Invoices')
@@ -36,6 +37,7 @@ export class InvoicesController {
     private readonly invoicesService: InvoicesService,
     private readonly invoiceExportService: InvoiceExportService,
     private readonly invoiceIntakeService: InvoiceIntakeService,
+    private readonly invoiceMatchingService: InvoiceMatchingService,
   ) {}
 
   // ── POST /v1/invoices/upload ───────────────────────────────────────────────
@@ -117,6 +119,20 @@ export class InvoicesController {
   @ApiResponse({ status: 404, description: 'Invoice not found' })
   async getInvoice(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.invoicesService.getInvoice(id, user);
+  }
+
+  // ── GET /v1/invoices/:id/po-match ──────────────────────────────────────────
+
+  @Get(':id/po-match')
+  @RequirePermissions('invoice.review')
+  @ApiOperation({
+    summary:
+      'Reconcile the invoice against its PO: per-line price/quantity variance and unexpected-line flags (FOR-293)',
+  })
+  @ApiResponse({ status: 200, description: 'Match report for the reviewer' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  async getPoMatch(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.invoiceMatchingService.getPoMatch(id, user);
   }
 
   // ── PATCH /v1/invoices/:id/review ──────────────────────────────────────────

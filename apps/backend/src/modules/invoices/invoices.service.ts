@@ -186,7 +186,7 @@ export class InvoicesService {
       include: {
         project: { select: { name: true } },
         vendor: { select: { legalName: true } },
-        relatedPo: { select: { id: true } },
+        relatedPo: { select: { id: true, poNumber: true } },
         lines: { orderBy: { position: 'asc' } },
         documents: {
           include: {
@@ -224,6 +224,7 @@ export class InvoicesService {
       source: inv.source,
       senderEmail: inv.senderEmail,
       relatedPo: inv.relatedPo?.id ?? null,
+      relatedPoNumber: inv.relatedPo?.poNumber ?? null,
       totalAmount: inv.totalAmount === null ? null : Number(inv.totalAmount),
       dueDate: inv.dueDate?.toISOString() ?? null,
       invoiceNumber: inv.invoiceNumber,
@@ -311,6 +312,16 @@ export class InvoicesService {
       if (!project) throw new BadRequestException(ERR.invoices.reviewProjectNotFound);
     }
 
+    // The PO the invoice bills against (FOR-293) — must be one of the buying
+    // company's own POs.
+    if (dto.relatedPoId) {
+      const po = await this.prisma.purchaseOrder.findFirst({
+        where: { id: dto.relatedPoId, companyId: inv.companyId },
+        select: { id: true },
+      });
+      if (!po) throw new BadRequestException(ERR.invoices.reviewPoNotFound);
+    }
+
     const now = new Date();
     await this.prisma.$transaction([
       this.prisma.invoice.update({
@@ -318,6 +329,7 @@ export class InvoicesService {
         data: {
           vendorId: dto.vendorId ?? null,
           projectId: dto.projectId ?? null,
+          relatedPoId: dto.relatedPoId ?? null,
           invoiceNumber: trimmedOrNull(dto.invoiceNumber),
           issuedDate: dto.issuedDate ? new Date(dto.issuedDate) : null,
           dueDate: dto.dueDate ? new Date(dto.dueDate) : null,

@@ -194,6 +194,7 @@ export const ERR = {
     cannotReview: (status: string) => t(errors.invoices.cannotReview, { status }),
     reviewVendorNotFound: errors.invoices.reviewVendorNotFound,
     reviewProjectNotFound: errors.invoices.reviewProjectNotFound,
+    reviewPoNotFound: errors.invoices.reviewPoNotFound,
   },
 
   // ── Storage / Files ──────────────────────────────────────

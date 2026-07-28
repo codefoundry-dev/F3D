@@ -184,6 +184,16 @@ export class ReviewInvoiceDto {
   @IsUUID()
   projectId?: string | null;
 
+  /**
+   * The purchase order the invoice bills against (FOR-293). Prefilled by the
+   * invoice↔PO reconciler's suggestion; saving persists the reviewer's
+   * confirmed link.
+   */
+  @ApiPropertyOptional({ description: 'The purchase order (id) the invoice bills against' })
+  @IsOptional()
+  @IsUUID()
+  relatedPoId?: string | null;
+
   @ApiPropertyOptional({ maxLength: 100, description: "The vendor's own invoice number" })
   @IsOptional()
   @IsString()

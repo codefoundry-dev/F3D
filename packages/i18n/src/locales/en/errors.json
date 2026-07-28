@@ -141,7 +141,8 @@
     "notReviewed": "This invoice hasn't been reviewed yet. Set the vendor, project, and amount before approving.",
     "cannotReview": "Cannot review invoice with status \"{{status}}\". Only Pending invoices can be reviewed.",
     "reviewVendorNotFound": "The selected vendor was not found",
-    "reviewProjectNotFound": "The selected project was not found"
+    "reviewProjectNotFound": "The selected project was not found",
+    "reviewPoNotFound": "The selected purchase order was not found"
   },
   "storage": {
     "noFileProvided": "No file provided",

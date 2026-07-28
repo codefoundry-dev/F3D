@@ -3,6 +3,7 @@ import { UserRole } from '@prisma/client';
 
 import { InvoiceExportService } from '../invoice-export.service';
 import { InvoiceIntakeService } from '../invoice-intake.service';
+import { InvoiceMatchingService } from '../invoice-matching.service';
 import { InvoicesController } from '../invoices.controller';
 import { InvoicesService } from '../invoices.service';
 
@@ -27,6 +28,10 @@ const mockIntakeService = {
   getIntakeAddress: jest.fn(),
 };
 
+const mockMatchingService = {
+  getPoMatch: jest.fn(),
+};
+
 const mockUser = {
   id: 'ca-1',
   email: 'ca@test.com',
@@ -46,6 +51,7 @@ describe('InvoicesController', () => {
         { provide: InvoicesService, useValue: mockService },
         { provide: InvoiceExportService, useValue: mockExportService },
         { provide: InvoiceIntakeService, useValue: mockIntakeService },
+        { provide: InvoiceMatchingService, useValue: mockMatchingService },
       ],
     }).compile();
 
@@ -70,6 +76,17 @@ describe('InvoicesController', () => {
 
       const result = await controller.getInvoice('inv-1', mockUser);
       expect(mockService.getInvoice).toHaveBeenCalledWith('inv-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('getPoMatch', () => {
+    it('delegates to the matching service', async () => {
+      const expected = { resolution: 'AUTO_MATCHED', lines: [] };
+      mockMatchingService.getPoMatch.mockResolvedValue(expected);
+
+      const result = await controller.getPoMatch('inv-1', mockUser);
+      expect(mockMatchingService.getPoMatch).toHaveBeenCalledWith('inv-1', mockUser);
       expect(result).toEqual(expected);
     });
   });

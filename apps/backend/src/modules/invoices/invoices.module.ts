@@ -9,6 +9,7 @@ import { StorageModule } from '../storage/storage.module';
 
 import { InvoiceExportService } from './invoice-export.service';
 import { InvoiceIntakeService } from './invoice-intake.service';
+import { InvoiceMatchingService } from './invoice-matching.service';
 import { InvoicesController } from './invoices.controller';
 import { InvoicesService } from './invoices.service';
 import { PaymentReminderService } from './payment-reminder.service';
@@ -23,7 +24,13 @@ import { ResendInboundController } from './resend-inbound.controller';
     MulterModule.register({ storage: multer.memoryStorage() }),
   ],
   controllers: [InvoicesController, ResendInboundController],
-  providers: [InvoicesService, InvoiceExportService, InvoiceIntakeService, PaymentReminderService],
+  providers: [
+    InvoicesService,
+    InvoiceExportService,
+    InvoiceIntakeService,
+    InvoiceMatchingService,
+    PaymentReminderService,
+  ],
   exports: [InvoicesService],
 })
 export class InvoicesModule {}

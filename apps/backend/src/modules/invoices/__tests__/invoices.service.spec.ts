@@ -49,6 +49,9 @@ const mockPrisma = {
   project: {
     findFirst: jest.fn(),
   },
+  purchaseOrder: {
+    findFirst: jest.fn(),
+  },
   file: {
     create: jest.fn(),
     delete: jest.fn(),
@@ -642,6 +645,32 @@ describe('InvoicesService', () => {
       );
       const findArg = mockPrisma.project.findFirst.mock.calls[0][0];
       expect(findArg.where).toEqual({ id: 'proj-1', companyId: 'comp-1' });
+    });
+
+    it('persists the reviewer-confirmed PO link (FOR-293)', async () => {
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue({ id: 'po-1' });
+
+      await service.reviewInvoice('inv-1', { ...reviewDto, relatedPoId: 'po-1' }, companyAdmin);
+
+      // The PO must be one of the buying company's own.
+      const findArg = mockPrisma.purchaseOrder.findFirst.mock.calls[0][0];
+      expect(findArg.where).toEqual({ id: 'po-1', companyId: 'comp-1' });
+      const updateArg = mockPrisma.invoice.update.mock.calls[0][0];
+      expect(updateArg.data.relatedPoId).toBe('po-1');
+    });
+
+    it('clears the PO link when the reviewer removes it', async () => {
+      await service.reviewInvoice('inv-1', reviewDto, companyAdmin);
+      const updateArg = mockPrisma.invoice.update.mock.calls[0][0];
+      expect(updateArg.data.relatedPoId).toBeNull();
+      expect(mockPrisma.purchaseOrder.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("rejects a PO outside the invoice's company", async () => {
+      mockPrisma.purchaseOrder.findFirst.mockResolvedValue(null);
+      await expect(
+        service.reviewInvoice('inv-1', { ...reviewDto, relatedPoId: 'po-x' }, companyAdmin),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('allows SuperAdmin to review without a company check', async () => {

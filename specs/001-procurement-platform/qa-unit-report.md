@@ -1083,3 +1083,21 @@ production prompt/responseSchema — vendor, invoice #, dates, totals, and line 
 | UploadInvoicePage.test.tsx | 3     | Rewrote the pre-FOR-290 "under development" placeholder test   | PASS   |
 |                            |       | (was failing): dropzone + disabled submit, intake email panel  |        |
 |                            |       | with copy button, panel hidden when inbound email unconfigured |        |
+
+### FOR-293 — Invoice ↔ PO matching + variance flags — added 2026-07-28
+
+| Test File                        | Tests | Description                                                  | Status |
+| -------------------------------- | ----- | ------------------------------------------------------------ | ------ |
+| invoice-matching.util.spec.ts    | 12    | Reference normalization + loose PO-number citation matching  | PASS   |
+|                                  |       | (digit cores, leading zeros), line-pair scoring signals,     |        |
+|                                  |       | greedy one-to-one pairing with score floor                   |        |
+| invoice-matching.service.spec.ts | 15    | PO resolution per state (linked / auto-matched / ambiguous / | PASS   |
+|                                  |       | not-found / no-reference), vendor mismatch, per-line price/  |        |
+|                                  |       | qty variance vs tolerances, NOT_ON_PO + unbilled lines,      |        |
+|                                  |       | summary counts, access guards                                |        |
+| invoices.service.spec.ts         | +3    | Review persists / clears relatedPoId; rejects a PO outside   | PASS   |
+|                                  |       | the invoice's company                                        |        |
+| invoices.controller.spec.ts      | +1    | GET :id/po-match delegates to the matching service           | PASS   |
+| InvoiceReviewPanel.test.tsx      | +5    | PO selector pre-seeded from the auto-match and saved as      | PASS   |
+|                                  |       | relatedPoId, no-reference / not-found banners, per-line      |        |
+|                                  |       | variance chips + issues summary, all-clear summary           |        |

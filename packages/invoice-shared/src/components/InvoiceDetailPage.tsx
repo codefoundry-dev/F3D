@@ -179,7 +179,9 @@ function InvoiceDetailsTab({ invoice }: { invoice: InvoiceDetail | undefined }) 
           {invoice.invoiceNumber ?? '—'}
         </InfoRow>
         <InfoRow label={t('invoiceDetail.relatedPo', { defaultValue: 'Related PO' })}>
-          {invoice.relatedPo ?? t('invoiceDetail.noPo', { defaultValue: 'None' })}
+          {invoice.relatedPoNumber ??
+            invoice.relatedPo ??
+            t('invoiceDetail.noPo', { defaultValue: 'None' })}
         </InfoRow>
         <InfoRow label={t('invoiceDetail.issuedDate', { defaultValue: 'Invoice Date' })}>
           {invoice.issuedDate ? new Date(invoice.issuedDate).toLocaleDateString('en-AU') : '—'}

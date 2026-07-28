@@ -6583,3 +6583,17 @@ approved RFQs and bulk orders, in addition to manual creation.
       backend invoices + doc-intelligence suites green (+19 specs); web invoices 13 green;
       extraction validated against 3 real sample invoice PDFs (DAMOS/Blackwoods/Officeworks) with
       the production prompt/schema.
+- [x] T926 [FOR-293] Invoice ↔ PO matching + per-line variance flags: new on-demand
+      `GET /v1/invoices/:id/po-match` (permission `invoice.review`) recomputes the reconciliation
+      report from the saved invoice lines on every call — PO resolution (LINKED explicit link →
+      AUTO*MATCHED when the extracted references cite exactly one of the company's POs → AMBIGUOUS /
+      NOT_FOUND / NO_REFERENCE) with loose reference matching ("P/O 0042" cites "PO-00042"), greedy
+      one-to-one line pairing scored on material-code echo, description overlap, line number, and
+      price/qty agreement (pure `invoice-matching.util.ts`), per-line PRICE_VARIANCE / QTY_VARIANCE
+      flags against configurable tolerances (±2% price, exact qty via
+      `INVOICE_MATCH*\*`env), NOT_ON_PO for unexpected lines, unbilled PO lines, vendor-mismatch     warning, and a reviewer summary.`PATCH
+      /v1/invoices/:id/review`now persists`relatedPoId`    (validated against the invoice's company);`InvoiceReviewPanel`
+      gains a Related PO selector seeded from the auto-match, per-resolution banner, per-line
+      match/variance chips, and a save-to-refresh hint. No migration. **Tests**: backend
+      invoice-matching.util 12 + invoice-matching.service 15 + invoices.service +3 + controller +1
+      green; web InvoiceReviewPanel +5 green.
