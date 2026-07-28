@@ -124,6 +124,39 @@
     "actions": "Actions",
     "noAttachments": "No attachments yet.",
     "view": "View",
-    "download": "Download"
+    "download": "Download",
+    "invoiceNumber": "Invoice #",
+    "issuedDate": "Invoice Date",
+    "lineItems": "Line Items"
+  },
+  "review": {
+    "extracting": "Reading the invoice… extracted details will appear here shortly.",
+    "extractionFailed": "The invoice could not be read automatically. Enter the details manually.",
+    "confirmHint": "These details were read from the document automatically. Confirm or correct each field, then save.",
+    "reviewedOn": "Reviewed on {{date}}. You can still correct the details until approval.",
+    "extractedValue": "Extracted: {{value}}",
+    "vendor": "Vendor",
+    "selectVendor": "Select vendor",
+    "project": "Project",
+    "selectProject": "Select project",
+    "invoiceNumber": "Invoice #",
+    "invoiceNumberPlaceholder": "e.g. INV-1024",
+    "issuedDate": "Invoice date",
+    "dueDate": "Due date",
+    "totalAmount": "Total amount",
+    "lineItems": "Line items",
+    "addLine": "Add line",
+    "removeLine": "Remove line",
+    "noLines": "No line items yet. Add the billed lines from the document.",
+    "save": "Save details",
+    "savedToast": "Invoice details saved.",
+    "line": {
+      "lineId": "#",
+      "description": "Description",
+      "quantity": "Qty",
+      "unit": "Unit",
+      "unitPrice": "Unit price",
+      "lineTotal": "Line total"
+    }
   }
 }

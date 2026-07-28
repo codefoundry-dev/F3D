@@ -9,6 +9,7 @@ import { InvoicesService } from '../invoices.service';
 const mockService = {
   listInvoices: jest.fn(),
   getInvoice: jest.fn(),
+  reviewInvoice: jest.fn(),
   approveInvoice: jest.fn(),
   rejectInvoice: jest.fn(),
   bulkApproveInvoices: jest.fn(),
@@ -69,6 +70,18 @@ describe('InvoicesController', () => {
 
       const result = await controller.getInvoice('inv-1', mockUser);
       expect(mockService.getInvoice).toHaveBeenCalledWith('inv-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('reviewInvoice', () => {
+    it('delegates to service', async () => {
+      const dto = { vendorId: 'vendor-1', lines: [] } as never;
+      const expected = { id: 'inv-1', reviewedAt: '2026-07-28T00:00:00.000Z' };
+      mockService.reviewInvoice.mockResolvedValue(expected);
+
+      const result = await controller.reviewInvoice('inv-1', dto, mockUser);
+      expect(mockService.reviewInvoice).toHaveBeenCalledWith('inv-1', dto, mockUser);
       expect(result).toEqual(expected);
     });
   });

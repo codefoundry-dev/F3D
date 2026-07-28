@@ -26,6 +26,15 @@ model Invoice {
   source          InvoiceSource @default(MANUAL)
   totalAmount     Decimal?      @map("total_amount") @db.Decimal(18, 4)
   dueDate         DateTime?     @map("due_date")
+  // Extracted-then-reviewed header fields (FOR-291): the vendor's own invoice
+  // number and issue date, as printed on the document.
+  invoiceNumber   String?       @map("invoice_number") @db.VarChar(100)
+  issuedDate      DateTime?     @map("issued_date")
+  // Stamped when a human confirmed/corrected the extracted fields (FOR-291).
+  // Provenance only — approvability is still gated on vendor/project/total
+  // being present, not on this stamp.
+  reviewedByUserId String?      @map("reviewed_by_user_id")
+  reviewedAt       DateTime?    @map("reviewed_at")
   // Email-intake provenance (FOR-290): the address the invoice came from, and
   // the provider's received-email id — the idempotency key that stops webhook
   // retries from creating the same invoices twice.
@@ -47,12 +56,14 @@ model Invoice {
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
-  project   Project?       @relation(fields: [projectId], references: [id])
-  company   Company        @relation("InvoiceCompany", fields: [companyId], references: [id])
-  vendor    Company?       @relation("InvoiceVendor", fields: [vendorId], references: [id])
-  relatedPo PurchaseOrder? @relation("InvoiceRelatedPo", fields: [relatedPoId], references: [id])
-  createdBy User?          @relation("InvoiceCreatedBy", fields: [createdByUserId], references: [id])
-  documents InvoiceDocument[]
+  project    Project?       @relation(fields: [projectId], references: [id])
+  company    Company        @relation("InvoiceCompany", fields: [companyId], references: [id])
+  vendor     Company?       @relation("InvoiceVendor", fields: [vendorId], references: [id])
+  relatedPo  PurchaseOrder? @relation("InvoiceRelatedPo", fields: [relatedPoId], references: [id])
+  createdBy  User?          @relation("InvoiceCreatedBy", fields: [createdByUserId], references: [id])
+  reviewedBy User?          @relation("InvoiceReviewedBy", fields: [reviewedByUserId], references: [id])
+  documents  InvoiceDocument[]
+  lines      InvoiceLineItem[]
 
   @@index([companyId], map: "idx_invoices_company")
   @@index([projectId], map: "idx_invoices_project")
@@ -64,6 +75,32 @@ model Invoice {
   // Webhook-retry idempotency lookups (FOR-290).
   @@index([intakeEmailId], map: "idx_invoices_intake_email")
   @@map("invoices")
+}
+
+// The invoice's billed lines as confirmed at review (FOR-291). Seeded from the
+// Gemini extraction, then corrected by the reviewer; the review save replaces
+// the full set. PO-line matching (FOR-293) and cost/GL coding (FOR-295) build
+// on these rows.
+model InvoiceLineItem {
+  id          String   @id @default(uuid())
+  invoiceId   String   @map("invoice_id")
+  // Order the lines appear on the document; review saves rewrite the set, so
+  // positions are always 0..n-1.
+  position    Int
+  // The invoice's own printed line number / line item ID, when it has one.
+  lineId      String?  @map("line_id") @db.VarChar(64)
+  description String
+  quantity    Decimal? @db.Decimal(18, 4)
+  unit        String?  @db.VarChar(32)
+  unitPrice   Decimal? @map("unit_price") @db.Decimal(18, 4)
+  lineTotal   Decimal? @map("line_total") @db.Decimal(18, 4)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId], map: "idx_invoice_line_items_invoice")
+  @@map("invoice_line_items")
 }
 
 model InvoiceDocument {

@@ -4,7 +4,9 @@ import * as path from 'path';
 import {
   InvoiceListQueryDto,
   RejectInvoiceDto,
+  ReviewInvoiceDto,
   buildPaginationMeta,
+  type InvoiceExtractionResult,
 } from '@forethread/shared-types';
 import {
   BadRequestException,
@@ -14,6 +16,9 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  CompanyType,
+  DocExtractionStatus,
+  DocExtractionType,
   NotificationEntityType,
   NotificationType,
   InvoiceStatus as PrismaInvoiceStatus,
@@ -32,6 +37,12 @@ import { EmailService } from '../notifications/email.service';
 import { StorageService } from '../storage/storage.service';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
+/** Reviewed text fields collapse to null when blank — '' is never stored. */
+function trimmedOrNull(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed === undefined || trimmed === '' ? null : trimmed;
+}
 
 @Injectable()
 export class InvoicesService {
@@ -104,6 +115,7 @@ export class InvoicesService {
     if (query.search) {
       where.OR = [
         { id: { contains: query.search, mode: 'insensitive' } },
+        { invoiceNumber: { contains: query.search, mode: 'insensitive' } },
         { project: { name: { contains: query.search, mode: 'insensitive' } } },
         { vendor: { legalName: { contains: query.search, mode: 'insensitive' } } },
       ];
@@ -160,6 +172,7 @@ export class InvoicesService {
         relatedPo: inv.relatedPo?.id ?? null,
         totalAmount: inv.totalAmount === null ? null : Number(inv.totalAmount),
         dueDate: inv.dueDate?.toISOString() ?? null,
+        invoiceNumber: inv.invoiceNumber,
       })),
       meta: buildPaginationMeta(query.page ?? 1, query.take, total),
     };
@@ -174,6 +187,7 @@ export class InvoicesService {
         project: { select: { name: true } },
         vendor: { select: { legalName: true } },
         relatedPo: { select: { id: true } },
+        lines: { orderBy: { position: 'asc' } },
         documents: {
           include: {
             file: {
@@ -187,6 +201,20 @@ export class InvoicesService {
 
     if (!inv) throw new NotFoundException(ERR.invoices.notFound);
 
+    // The latest extraction for this invoice (FOR-291) — the review UI's
+    // prefill source and processing/failure indicator.
+    const extraction = await this.prisma.docExtraction.findFirst({
+      where: { invoiceId: id, type: DocExtractionType.INVOICE },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        errorCode: true,
+        editedResult: true,
+        completedAt: true,
+      },
+    });
+
     return {
       id: inv.id,
       projectName: inv.project?.name ?? null,
@@ -198,6 +226,31 @@ export class InvoicesService {
       relatedPo: inv.relatedPo?.id ?? null,
       totalAmount: inv.totalAmount === null ? null : Number(inv.totalAmount),
       dueDate: inv.dueDate?.toISOString() ?? null,
+      invoiceNumber: inv.invoiceNumber,
+      issuedDate: inv.issuedDate?.toISOString() ?? null,
+      reviewedAt: inv.reviewedAt?.toISOString() ?? null,
+      lines: inv.lines.map((line) => ({
+        id: line.id,
+        lineId: line.lineId,
+        description: line.description,
+        quantity: line.quantity === null ? null : Number(line.quantity),
+        unit: line.unit,
+        unitPrice: line.unitPrice === null ? null : Number(line.unitPrice),
+        lineTotal: line.lineTotal === null ? null : Number(line.lineTotal),
+      })),
+      extraction: extraction
+        ? {
+            id: extraction.id,
+            status: extraction.status,
+            errorCode: extraction.errorCode,
+            completedAt: extraction.completedAt?.toISOString() ?? null,
+            result:
+              extraction.status === DocExtractionStatus.COMPLETED ||
+              extraction.status === DocExtractionStatus.CONFIRMED
+                ? (extraction.editedResult as unknown as InvoiceExtractionResult | null)
+                : null,
+          }
+        : null,
       createdAt: inv.createdAt.toISOString(),
       updatedAt: inv.updatedAt.toISOString(),
       documents: inv.documents.map((doc) => ({
@@ -215,6 +268,100 @@ export class InvoicesService {
         uploadedAt: doc.createdAt.toISOString(),
       })),
     };
+  }
+
+  // ── Review Invoice (FOR-291) ───────────────────────────────────────────────
+
+  /**
+   * Persist the reviewer's confirmed/corrected fields onto the invoice.
+   * Replace semantics: every save writes the full set of reviewed fields and
+   * swaps the line items wholesale, so the record always reflects the
+   * reviewer's latest statement of what the document says. Only Pending
+   * invoices are reviewable — approval freezes the record.
+   */
+  async reviewInvoice(id: string, dto: ReviewInvoiceDto, user: AuthenticatedUser) {
+    const inv = await this.prisma.invoice.findUnique({
+      where: { id },
+      select: { id: true, status: true, companyId: true },
+    });
+
+    if (!inv) throw new NotFoundException(ERR.invoices.notFound);
+
+    if (user.role !== UserRole.SUPER_ADMIN && user.companyId !== inv.companyId) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
+
+    if (inv.status !== PrismaInvoiceStatus.PENDING) {
+      throw new BadRequestException(ERR.invoices.cannotReview(inv.status));
+    }
+
+    if (dto.vendorId) {
+      const vendor = await this.prisma.company.findFirst({
+        where: { id: dto.vendorId, type: CompanyType.VENDOR },
+        select: { id: true },
+      });
+      if (!vendor) throw new BadRequestException(ERR.invoices.reviewVendorNotFound);
+    }
+
+    if (dto.projectId) {
+      const project = await this.prisma.project.findFirst({
+        where: { id: dto.projectId, companyId: inv.companyId },
+        select: { id: true },
+      });
+      if (!project) throw new BadRequestException(ERR.invoices.reviewProjectNotFound);
+    }
+
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.invoice.update({
+        where: { id },
+        data: {
+          vendorId: dto.vendorId ?? null,
+          projectId: dto.projectId ?? null,
+          invoiceNumber: trimmedOrNull(dto.invoiceNumber),
+          issuedDate: dto.issuedDate ? new Date(dto.issuedDate) : null,
+          dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+          totalAmount: dto.totalAmount ?? null,
+          reviewedByUserId: user.id,
+          reviewedAt: now,
+          // Review moves dueDate, so the reminder ledger (US 8.09) must reset —
+          // the new date is what should be reminded on. Reviews only happen
+          // while Pending (reminders sweep Approved), so nothing has fired yet.
+          dueReminderSentAt: null,
+          overdueReminderSentAt: null,
+        },
+        select: { id: true },
+      }),
+      this.prisma.invoiceLineItem.deleteMany({ where: { invoiceId: id } }),
+      this.prisma.invoiceLineItem.createMany({
+        data: dto.lines.map((line, position) => ({
+          invoiceId: id,
+          position,
+          lineId: trimmedOrNull(line.lineId),
+          description: line.description.trim(),
+          quantity: line.quantity ?? null,
+          unit: trimmedOrNull(line.unit),
+          unitPrice: line.unitPrice ?? null,
+          lineTotal: line.lineTotal ?? null,
+        })),
+      }),
+      // A human has signed off on the extracted values — the completed
+      // extraction job graduates to Confirmed.
+      this.prisma.docExtraction.updateMany({
+        where: {
+          invoiceId: id,
+          type: DocExtractionType.INVOICE,
+          status: DocExtractionStatus.COMPLETED,
+        },
+        data: {
+          status: DocExtractionStatus.CONFIRMED,
+          confirmedByUserId: user.id,
+          confirmedAt: now,
+        },
+      }),
+    ]);
+
+    return this.getInvoice(id, user);
   }
 
   // ── Approve Invoice ────────────────────────────────────────────────────────

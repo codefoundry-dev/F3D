@@ -2,6 +2,7 @@ import {
   BulkApproveInvoicesDto,
   InvoiceListQueryDto,
   RejectInvoiceDto,
+  ReviewInvoiceDto,
 } from '@forethread/shared-types';
 import {
   Body,
@@ -116,6 +117,24 @@ export class InvoicesController {
   @ApiResponse({ status: 404, description: 'Invoice not found' })
   async getInvoice(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.invoicesService.getInvoice(id, user);
+  }
+
+  // ── PATCH /v1/invoices/:id/review ──────────────────────────────────────────
+
+  @Patch(':id/review')
+  @RequirePermissions('invoice.review')
+  @ApiOperation({
+    summary: 'Persist reviewer-confirmed/corrected invoice fields and line items (FOR-291)',
+  })
+  @ApiResponse({ status: 200, description: 'Invoice updated with the reviewed fields' })
+  @ApiResponse({ status: 400, description: 'Invoice is not Pending, or a reference is invalid' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  async reviewInvoice(
+    @Param('id') id: string,
+    @Body() dto: ReviewInvoiceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.invoicesService.reviewInvoice(id, dto, user);
   }
 
   // ── PATCH /v1/invoices/:id/approve ─────────────────────────────────────────

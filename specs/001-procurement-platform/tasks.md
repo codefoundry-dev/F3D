@@ -6567,3 +6567,19 @@ approved RFQs and bulk orders, in addition to manual creation.
       merged and deduped by material id before the in-memory match maps — downstream matching
       unchanged. **Tests**: +1 materials.service.spec regression (10,001 names split into 2 chunked
       calls); 130 green.
+- [x] T925 [FOR-291] Invoice extraction + human review/correct: intake (manual upload + email inbox)
+      fire-and-forgets a Gemini INVOICE extraction over the stored file(s) — multi-image invoices
+      send every page in one call (`runExtraction` extraDocuments); `doc_extractions` gains
+      `invoice_id` (mirrors rfqId decoupling) and a nullable `created_by_user_id` (email intake has
+      no user). New `PATCH /v1/invoices/:id/review` (permission `invoice.review`, CA/PO/FO) persists
+      the reviewer's confirmed/corrected vendor/project/invoice #/issued date/due date/total with
+      replace semantics and swaps the new `invoice_line_items` rows wholesale (FOR-293 matching +
+      FOR-295 coding build on them); resets the US 8.09 reminder ledger (review moves dueDate);
+      marks the COMPLETED extraction CONFIRMED. Invoice detail returns `lines[]` + extraction
+      status/result; `useInvoice` polls 3s while extracting. `InvoiceReviewPanel` replaces the
+      details tab for Pending invoices (buyer + finance): fields seeded from saved review →
+      completed extraction → blank, vendor auto-matched from the extracted name, editable line
+      table, "Extracted: …" hints for unparseable dates/terms. Migration 20260728130000. **Tests**:
+      backend invoices + doc-intelligence suites green (+19 specs); web invoices 13 green;
+      extraction validated against 3 real sample invoice PDFs (DAMOS/Blackwoods/Officeworks) with
+      the production prompt/schema.

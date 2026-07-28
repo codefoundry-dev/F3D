@@ -43,6 +43,7 @@ export const PERMISSIONS = {
   'invoice.uploadDocument': 'Upload a document to an invoice',
   'invoice.deleteDocument': 'Delete an invoice document',
   'invoice.upload': 'Upload a new invoice / view the intake inbox address',
+  'invoice.review': 'Confirm or correct the extracted fields of an intake invoice',
 
   // ── Materials ───────────────────────────────────────────────────────────
   'material.list': 'List materials',
@@ -260,6 +261,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'invoice.uploadDocument',
     'invoice.deleteDocument',
     'invoice.upload',
+    'invoice.review',
 
     'material.list',
     'material.listCategories',
@@ -420,6 +422,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'invoice.uploadDocument',
     'invoice.deleteDocument',
     'invoice.upload',
+    'invoice.review',
 
     'material.list',
     'material.listCategories',
@@ -565,6 +568,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'invoice.uploadDocument',
     'invoice.deleteDocument',
     'invoice.upload',
+    'invoice.review',
 
     'material.list',
     'material.listCategories',

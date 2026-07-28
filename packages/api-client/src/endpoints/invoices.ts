@@ -40,6 +40,54 @@ export interface InvoiceDocument {
   uploadedAt: string;
 }
 
+/** One line item extracted from the invoice document (FOR-291), mirroring shared-types. */
+export interface InvoiceExtractionLine {
+  lineId: string | null;
+  description: string;
+  quantity: number | null;
+  unit: string | null;
+  unitPrice: number | null;
+  lineTotal: number | null;
+}
+
+/** The Gemini extraction result for an invoice (FOR-291), mirroring shared-types. */
+export interface InvoiceExtractionResult {
+  vendorName: string | null;
+  invoiceNumber: string | null;
+  poReferences: string[];
+  issuedDate: string | null;
+  dueDate: string | null;
+  paymentTerms: string | null;
+  currency: string | null;
+  subTotal: number | null;
+  taxLabel: string | null;
+  taxRate: number | null;
+  taxAmount: number | null;
+  totalAmount: number | null;
+  items: InvoiceExtractionLine[];
+  notes: string | null;
+}
+
+/** The latest extraction job for an invoice; result is null until COMPLETED. */
+export interface InvoiceExtractionInfo {
+  id: string;
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CONFIRMED' | 'FAILED';
+  errorCode: string | null;
+  completedAt: string | null;
+  result: InvoiceExtractionResult | null;
+}
+
+/** A billed line as saved at review (FOR-291). */
+export interface InvoiceLine {
+  id: string;
+  lineId: string | null;
+  description: string;
+  quantity: number | null;
+  unit: string | null;
+  unitPrice: number | null;
+  lineTotal: number | null;
+}
+
 // project/vendor/totalAmount are null on intake-created invoices that haven't
 // been reviewed yet (FOR-290).
 export interface InvoiceDetail {
@@ -54,9 +102,34 @@ export interface InvoiceDetail {
   relatedPo: string | null;
   totalAmount: number | null;
   dueDate: string | null;
+  /** The vendor's own invoice number, set at review (FOR-291). */
+  invoiceNumber: string | null;
+  issuedDate: string | null;
+  /** When a human confirmed/corrected the extracted fields; null until reviewed. */
+  reviewedAt: string | null;
+  lines: InvoiceLine[];
+  extraction: InvoiceExtractionInfo | null;
   createdAt: string;
   updatedAt: string;
   documents: InvoiceDocument[];
+}
+
+/** The reviewer's confirmed/corrected fields (FOR-291). Replace semantics. */
+export interface ReviewInvoicePayload {
+  vendorId?: string | null;
+  projectId?: string | null;
+  invoiceNumber?: string | null;
+  issuedDate?: string | null;
+  dueDate?: string | null;
+  totalAmount?: number | null;
+  lines: {
+    lineId?: string | null;
+    description: string;
+    quantity?: number | null;
+    unit?: string | null;
+    unitPrice?: number | null;
+    lineTotal?: number | null;
+  }[];
 }
 
 export interface InvoiceListItem {
@@ -71,6 +144,8 @@ export interface InvoiceListItem {
   relatedPo: string | null;
   totalAmount: number | null;
   dueDate: string | null;
+  /** The vendor's own invoice number, set at review (FOR-291). */
+  invoiceNumber: string | null;
 }
 
 /** Result of POST /invoices/upload — the invoice created from the file (FOR-290). */
@@ -108,6 +183,23 @@ export async function getInvoices(
 export async function getInvoice(id: string, config?: AxiosRequestConfig): Promise<InvoiceDetail> {
   const { data } = await getApiClient().get<{ data: InvoiceDetail }>(
     INVOICES_PATHS.byId(id),
+    config,
+  );
+  return data.data;
+}
+
+/**
+ * Persist the reviewer's confirmed/corrected fields and line items (FOR-291).
+ * Replace semantics: every save writes the full set of reviewed fields.
+ */
+export async function reviewInvoice(
+  id: string,
+  payload: ReviewInvoicePayload,
+  config?: AxiosRequestConfig,
+): Promise<InvoiceDetail> {
+  const { data } = await getApiClient().patch<{ data: InvoiceDetail }>(
+    INVOICES_PATHS.review(id),
+    payload,
     config,
   );
   return data.data;

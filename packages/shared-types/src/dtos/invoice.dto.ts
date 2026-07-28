@@ -2,7 +2,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsDateString,
   IsEnum,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -126,6 +128,89 @@ export class BulkApproveInvoicesDto {
   @IsArray()
   @IsUUID('4', { each: true })
   ids!: string[];
+}
+
+/** One billed line as confirmed/corrected by the reviewer (FOR-291). */
+export class ReviewInvoiceLineDto {
+  /** The invoice's own printed line number / line item ID, when it has one. */
+  @ApiPropertyOptional({ maxLength: 64 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  lineId?: string | null;
+
+  @ApiProperty({ maxLength: 2000 })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2000)
+  description!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  quantity?: number | null;
+
+  @ApiPropertyOptional({ maxLength: 32 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  unit?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  unitPrice?: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  lineTotal?: number | null;
+}
+
+/**
+ * The reviewer's confirmed/corrected invoice fields (FOR-291). Replace
+ * semantics: every save writes the full set of reviewed fields — an omitted or
+ * null field means "not identified on this invoice" — and `lines` replaces the
+ * invoice's line items wholesale.
+ */
+export class ReviewInvoiceDto {
+  @ApiPropertyOptional({ description: 'The vendor (company id) the invoice is from' })
+  @IsOptional()
+  @IsUUID()
+  vendorId?: string | null;
+
+  @ApiPropertyOptional({ description: 'The project the invoice bills against' })
+  @IsOptional()
+  @IsUUID()
+  projectId?: string | null;
+
+  @ApiPropertyOptional({ maxLength: 100, description: "The vendor's own invoice number" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  invoiceNumber?: string | null;
+
+  @ApiPropertyOptional({ description: 'Invoice issue date (ISO)' })
+  @IsOptional()
+  @IsDateString()
+  issuedDate?: string | null;
+
+  @ApiPropertyOptional({ description: 'Payment due date (ISO)' })
+  @IsOptional()
+  @IsDateString()
+  dueDate?: string | null;
+
+  // Unbounded: credit/adjustment notes carry negative totals.
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  totalAmount?: number | null;
+
+  @ApiProperty({ type: [ReviewInvoiceLineDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ReviewInvoiceLineDto)
+  lines!: ReviewInvoiceLineDto[];
 }
 
 export class RejectInvoiceDto {

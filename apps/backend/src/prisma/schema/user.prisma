@@ -62,6 +62,7 @@ model User {
   createdBulkOrders    BulkOrder[]       @relation("BulkOrderCreatedBy")
   createdDrawdowns     Drawdown[]        @relation("DrawdownCreatedBy")
   createdInvoices      Invoice[]         @relation("InvoiceCreatedBy")
+  reviewedInvoices     Invoice[]         @relation("InvoiceReviewedBy")
   createdMaterials     Material[]        @relation("MaterialCreatedBy")
   materialChangeRequests  MaterialChangeRequest[] @relation("MaterialChangeRequestedBy")
   materialChangeApprovals MaterialChangeRequest[] @relation("MaterialChangeResolvedBy")

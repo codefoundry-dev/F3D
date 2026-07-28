@@ -1051,3 +1051,27 @@ web UploadMaterialFilePage 12/12 green; `tsc --noEmit` clean on api-client and a
 |                           |       | splits into 2 findMany calls (Postgres bind cap is 32,767)  |        |
 
 Scoped run 2026-07-27: materials.service.spec 130/130 green after the chunking change.
+
+### FOR-291 — Invoice extraction + human review/correct (T925) — added 2026-07-28
+
+| Test File                        | Tests | Description                                                  | Status |
+| -------------------------------- | ----- | ------------------------------------------------------------ | ------ |
+| invoice-intake.service.spec.ts   | +3    | Extraction kicked off on manual upload (user-attributed) and | PASS   |
+|                                  |       | per email invoice (unattributed, image pages grouped);       |        |
+|                                  |       | extraction failure never fails intake                        |        |
+| doc-intelligence.service.spec.ts | +4    | createInvoiceExtraction: INVOICE job linked to invoice, null |        |
+|                                  |       | user, skip when Gemini unconfigured / no readable file;      | PASS   |
+|                                  |       | runExtraction sends extra page documents in one Gemini call  |        |
+| invoices.service.spec.ts         | +11   | getInvoice maps lines + extraction (result withheld until    | PASS   |
+|                                  |       | COMPLETED); reviewInvoice: field persistence + line replace, |        |
+|                                  |       | reviewer stamp, extraction CONFIRMED, clears empty fields,   |        |
+|                                  |       | status/company guards, vendor/project reference validation   |        |
+| invoices.controller.spec.ts      | +1    | PATCH :id/review delegates to service                        | PASS   |
+| InvoiceReviewPanel.test.tsx      | 5     | Prefill from completed extraction, processing-only banner,   | PASS   |
+|                                  |       | failed→manual entry, save payload (vendor auto-match, parsed |        |
+|                                  |       | numbers), add/remove line rows                               |        |
+
+Full-repo run 2026-07-28: `turbo test` green (backend invoices + doc-intelligence 14 suites / 308+
+tests; web invoices 13/13); `tsc --noEmit` clean on backend, api-client, invoice-shared, apps/web.
+Live extraction validated against 3 real sample invoices (DAMOS, Blackwoods, Officeworks) using the
+production prompt/responseSchema — vendor, invoice #, dates, totals, and line items all correct.

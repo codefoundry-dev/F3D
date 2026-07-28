@@ -119,6 +119,7 @@ const EXTRACTION_SANS_RESULTS_SELECT = {
   confirmedByUserId: true,
   companyId: true,
   rfqId: true,
+  invoiceId: true,
   createdAt: true,
   updatedAt: true,
   completedAt: true,
@@ -287,6 +288,55 @@ export class DocIntelligenceService {
     return extraction;
   }
 
+  // ── Intake invoice extraction (FOR-291) ───────────────────────────────────
+
+  /**
+   * Create an INVOICE extraction for an intake invoice (FOR-290 manual upload
+   * or email inbox) whose files are already persisted. Multi-file invoices
+   * (several photographed pages grouped into one email-intake invoice) send
+   * every page to Gemini in a single call. Email-intake invoices have no
+   * creating user, so `createdByUserId` is nullable.
+   *
+   * Best-effort by design: when Gemini isn't configured, no job is created —
+   * the review UI falls back to manual entry rather than showing a job stuck
+   * in PENDING forever.
+   */
+  async createInvoiceExtraction(input: {
+    invoiceId: string;
+    companyId: string;
+    createdByUserId: string | null;
+    files: { fileId: string; mimeType: string; data: Buffer }[];
+  }): Promise<void> {
+    if (!this.gemini.isConfigured()) {
+      this.logger.warn(
+        `Skipping extraction for invoice ${input.invoiceId}: Gemini is not configured`,
+      );
+      return;
+    }
+    const [primary, ...rest] = input.files.filter((f) => GEMINI_NATIVE_MIME_TYPES.has(f.mimeType));
+    if (!primary) return;
+
+    const extraction = await this.prisma.docExtraction.create({
+      data: {
+        type: DocExtractionType.INVOICE,
+        status: DocExtractionStatus.PENDING,
+        fileId: primary.fileId,
+        createdByUserId: input.createdByUserId,
+        companyId: input.companyId,
+        invoiceId: input.invoiceId,
+      },
+    });
+
+    void this.runExtraction(
+      extraction.id,
+      primary.data,
+      primary.mimeType,
+      undefined,
+      undefined,
+      rest.map((f) => ({ mimeType: f.mimeType as GeminiMimeType, data: f.data })),
+    );
+  }
+
   /**
    * Fetch a guest quote extraction for the public poll endpoint. Scoped to
    * QUOTE jobs created via the vendor portal (`rfqId` set) so the token-less,
@@ -314,6 +364,9 @@ export class DocIntelligenceService {
     mimeType: string,
     promptHint?: string,
     sheetNames?: string[],
+    // Further pages of the same document (multi-image intake invoices,
+    // FOR-291); sent to Gemini in the same call as the primary file.
+    extraDocuments?: { mimeType: GeminiMimeType; data: Buffer }[],
   ): Promise<void> {
     const job = await this.prisma.docExtraction.findUnique({ where: { id: extractionId } });
     if (!job) return;
@@ -370,7 +423,10 @@ export class DocIntelligenceService {
           })
         : await this.gemini.generate({
             prompt,
-            documents: [{ mimeType: mimeType as GeminiMimeType, data: fileBuffer }],
+            documents: [
+              { mimeType: mimeType as GeminiMimeType, data: fileBuffer },
+              ...(extraDocuments ?? []),
+            ],
             generationConfig,
           });
 

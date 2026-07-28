@@ -138,7 +138,10 @@
     "cannotApprove": "Cannot approve invoice with status \"{{status}}\". Only Pending invoices can be approved.",
     "cannotReject": "Cannot reject invoice with status \"{{status}}\". Only Pending invoices can be rejected.",
     "noIdsProvided": "No invoice IDs provided",
-    "notReviewed": "This invoice hasn't been reviewed yet. Set the vendor, project, and amount before approving."
+    "notReviewed": "This invoice hasn't been reviewed yet. Set the vendor, project, and amount before approving.",
+    "cannotReview": "Cannot review invoice with status \"{{status}}\". Only Pending invoices can be reviewed.",
+    "reviewVendorNotFound": "The selected vendor was not found",
+    "reviewProjectNotFound": "The selected project was not found"
   },
   "storage": {
     "noFileProvided": "No file provided",

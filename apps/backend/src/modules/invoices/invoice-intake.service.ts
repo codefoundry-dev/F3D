@@ -8,6 +8,7 @@ import { InvoiceSource, Prisma } from '@prisma/client';
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { DocIntelligenceService } from '../doc-intelligence/doc-intelligence.service';
 import { StorageService } from '../storage/storage.service';
 
 import { ParsedInboundEmail } from './resend-inbound.types';
@@ -52,6 +53,7 @@ export class InvoiceIntakeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
+    private readonly docIntelligence: DocIntelligenceService,
     config: ConfigService,
   ) {
     this.inboundDomain = config.get<string>('INVOICE_INBOUND_DOMAIN', '').toLowerCase();
@@ -102,6 +104,12 @@ export class InvoiceIntakeService {
         documents: { include: { file: { select: { id: true, filename: true } } } },
       },
     });
+
+    // Read the invoice automatically (FOR-291); review shows the result for
+    // the reviewer to confirm or correct.
+    this.startExtraction(invoice.id, user.companyId, user.id, [
+      { fileId: invoice.documents[0].file.id, mimeType: file.mimetype, data: file.buffer },
+    ]);
 
     return {
       id: invoice.id,
@@ -267,24 +275,30 @@ export class InvoiceIntakeService {
     const invoiceId = randomUUID();
 
     const files: {
+      id: string;
       bucket: string;
       key: string;
       filename: string;
       mimeType: string;
       size: number;
     }[] = [];
+    // Attachment payloads, kept alongside their pre-generated file ids so the
+    // extraction (FOR-291) can send them to Gemini without re-downloading.
+    const buffers: Buffer[] = [];
     for (const att of attachments) {
       const buffer = await this.downloadAttachment(att);
       const ext = path.extname(att.filename) || this.extensionFor(att.content_type);
       const key = `invoice-documents/${invoiceId}/${randomUUID()}${ext}`;
       const stored = await this.storageService.upload(key, buffer, att.content_type);
       files.push({
+        id: randomUUID(),
         bucket: stored.bucket,
         key: stored.key,
         filename: att.filename,
         mimeType: att.content_type,
         size: buffer.length,
       });
+      buffers.push(buffer);
     }
 
     await this.prisma.invoice.create({
@@ -299,6 +313,36 @@ export class InvoiceIntakeService {
         },
       },
     });
+
+    // Read the invoice automatically (FOR-291). Email intake has no acting
+    // user, so the extraction is unattributed.
+    this.startExtraction(
+      invoiceId,
+      companyId,
+      null,
+      files.map((file, i) => ({ fileId: file.id, mimeType: file.mimeType, data: buffers[i] })),
+    );
+  }
+
+  /**
+   * Kick off the Gemini extraction for a just-created intake invoice.
+   * Fire-and-forget: intake has already committed the invoice, so extraction
+   * problems must never fail the upload or make the email webhook retry.
+   */
+  private startExtraction(
+    invoiceId: string,
+    companyId: string,
+    createdByUserId: string | null,
+    files: { fileId: string; mimeType: string; data: Buffer }[],
+  ): void {
+    void this.docIntelligence
+      .createInvoiceExtraction({ invoiceId, companyId, createdByUserId, files })
+      .catch((error: unknown) => {
+        this.logger.error(
+          `Failed to start extraction for invoice ${invoiceId}`,
+          error instanceof Error ? error.stack : String(error),
+        );
+      });
   }
 
   // ── Resend receiving API ───────────────────────────────────────────────────

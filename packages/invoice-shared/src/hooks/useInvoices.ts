@@ -4,11 +4,13 @@ import {
   getInvoiceIntakeAddress,
   approveInvoice,
   rejectInvoice,
+  reviewInvoice,
   bulkApproveInvoices,
   exportInvoices,
   exportSingleInvoice,
   uploadInvoice,
   type InvoiceListParams,
+  type ReviewInvoicePayload,
 } from '@forethread/api-client';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 
@@ -25,6 +27,25 @@ export function useInvoice(id: string | undefined) {
     queryKey: ['invoices', id],
     queryFn: () => getInvoice(id as string),
     enabled: !!id,
+    // While the intake extraction is still reading the document (FOR-291),
+    // poll until it completes or fails so the review form fills itself in.
+    refetchInterval: (query) => {
+      const status = query.state.data?.extraction?.status;
+      return status === 'PENDING' || status === 'PROCESSING' ? 3000 : false;
+    },
+  });
+}
+
+/** Persist the reviewer's confirmed/corrected invoice fields (FOR-291). */
+export function useReviewInvoice() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: ReviewInvoicePayload }) =>
+      reviewInvoice(id, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    },
   });
 }
 

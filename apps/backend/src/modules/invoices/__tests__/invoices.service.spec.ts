@@ -44,6 +44,10 @@ const mockPrisma = {
   },
   company: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
+  },
+  project: {
+    findFirst: jest.fn(),
   },
   file: {
     create: jest.fn(),
@@ -54,6 +58,15 @@ const mockPrisma = {
     findFirst: jest.fn(),
     delete: jest.fn(),
   },
+  invoiceLineItem: {
+    deleteMany: jest.fn(),
+    createMany: jest.fn(),
+  },
+  docExtraction: {
+    findFirst: jest.fn(),
+    updateMany: jest.fn(),
+  },
+  $transaction: jest.fn(),
 };
 
 const mockStorageService = {
@@ -90,6 +103,10 @@ describe('InvoicesService', () => {
     mockConfig.get.mockReturnValue('http://localhost:5179');
     // No vendor company by default — the rejection notification simply no-ops.
     mockPrisma.company.findUnique.mockResolvedValue(null);
+    // No extraction by default (pre-FOR-291 invoices).
+    mockPrisma.docExtraction.findFirst.mockResolvedValue(null);
+    // The review transaction just resolves; each op is asserted individually.
+    mockPrisma.$transaction.mockResolvedValue([]);
     service = new InvoicesService(
       mockPrisma as never,
       mockStorageService as never,
@@ -130,10 +147,10 @@ describe('InvoicesService', () => {
       expect(where.status).toBe('PENDING');
     });
 
-    it('applies search', async () => {
+    it('applies search across id, invoice number, project and vendor names', async () => {
       await service.listInvoices(q({ search: 'test' }), companyAdmin);
       const where = mockPrisma.invoice.findMany.mock.calls[0][0].where;
-      expect(where.OR).toHaveLength(3);
+      expect(where.OR).toHaveLength(4);
     });
 
     it('returns paginated response', async () => {
@@ -303,12 +320,98 @@ describe('InvoicesService', () => {
         project: { name: 'Alpha' },
         vendor: { legalName: 'VendorCo' },
         relatedPo: null,
+        lines: [],
         documents: [],
       });
 
       const result = await service.getInvoice('inv-1', companyAdmin);
       expect(result.id).toBe('inv-1');
       expect(result.relatedPo).toBeNull();
+      expect(result.extraction).toBeNull();
+      expect(result.lines).toEqual([]);
+    });
+
+    it('maps saved line items and the completed extraction result (FOR-291)', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue({
+        id: 'inv-1',
+        projectId: null,
+        status: 'PENDING',
+        totalAmount: null,
+        dueDate: null,
+        invoiceNumber: 'INV-42',
+        issuedDate: new Date('2026-07-01'),
+        reviewedAt: new Date('2026-07-28'),
+        createdAt: new Date('2026-03-01'),
+        updatedAt: new Date('2026-03-01'),
+        project: null,
+        vendor: null,
+        relatedPo: null,
+        lines: [
+          {
+            id: 'line-1',
+            lineId: '1',
+            description: 'DN100 PVC pipe',
+            quantity: 12,
+            unit: 'm',
+            unitPrice: 8.5,
+            lineTotal: 102,
+          },
+        ],
+        documents: [],
+      });
+      mockPrisma.docExtraction.findFirst.mockResolvedValue({
+        id: 'ext-1',
+        status: 'COMPLETED',
+        errorCode: null,
+        completedAt: new Date('2026-07-28T09:00:00Z'),
+        editedResult: { vendorName: 'VendorCo', items: [] },
+      });
+
+      const result = await service.getInvoice('inv-1', companyAdmin);
+
+      expect(result.invoiceNumber).toBe('INV-42');
+      expect(result.lines[0]).toMatchObject({ description: 'DN100 PVC pipe', quantity: 12 });
+      expect(result.extraction).toEqual({
+        id: 'ext-1',
+        status: 'COMPLETED',
+        errorCode: null,
+        completedAt: '2026-07-28T09:00:00.000Z',
+        result: { vendorName: 'VendorCo', items: [] },
+      });
+    });
+
+    it('withholds the extraction result until the job completes', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue({
+        id: 'inv-1',
+        projectId: null,
+        status: 'PENDING',
+        totalAmount: null,
+        dueDate: null,
+        createdAt: new Date('2026-03-01'),
+        updatedAt: new Date('2026-03-01'),
+        project: null,
+        vendor: null,
+        relatedPo: null,
+        lines: [],
+        documents: [],
+      });
+      mockPrisma.docExtraction.findFirst.mockResolvedValue({
+        id: 'ext-1',
+        status: 'PROCESSING',
+        errorCode: null,
+        completedAt: null,
+        editedResult: null,
+      });
+
+      const result = await service.getInvoice('inv-1', companyAdmin);
+
+      expect(result.extraction).toEqual({
+        id: 'ext-1',
+        status: 'PROCESSING',
+        errorCode: null,
+        completedAt: null,
+        result: null,
+      });
     });
 
     it('throws NotFoundException', async () => {
@@ -328,6 +431,7 @@ describe('InvoicesService', () => {
         project: { name: 'Beta' },
         vendor: { legalName: 'SupplierCo' },
         relatedPo: { id: 'po-99' },
+        lines: [],
         documents: [
           {
             id: 'doc-1',
@@ -362,6 +466,192 @@ describe('InvoicesService', () => {
       expect(result.documents[1].name).toBe('scan.png');
       expect(result.relatedPo).toBe('po-99');
       expect(result.dueDate).toBe(new Date('2026-06-01').toISOString());
+    });
+  });
+
+  describe('reviewInvoice', () => {
+    const reviewDto = {
+      vendorId: 'vendor-comp-1',
+      projectId: 'proj-1',
+      invoiceNumber: ' INV-42 ',
+      issuedDate: '2026-07-01',
+      dueDate: '2026-07-31',
+      totalAmount: 1234.5,
+      lines: [
+        {
+          lineId: '1',
+          description: '  DN100 PVC pipe ',
+          quantity: 12,
+          unit: 'm',
+          unitPrice: 8.5,
+          lineTotal: 102,
+        },
+        { description: 'Delivery fee' },
+      ],
+    };
+
+    const pendingInvoice = { id: 'inv-1', status: 'PENDING', companyId: 'comp-1' };
+
+    /** Detail row for the getInvoice re-read the review returns. */
+    const detailRow = {
+      id: 'inv-1',
+      projectId: 'proj-1',
+      status: 'PENDING',
+      totalAmount: 1234.5,
+      dueDate: new Date('2026-07-31'),
+      invoiceNumber: 'INV-42',
+      issuedDate: new Date('2026-07-01'),
+      reviewedAt: new Date('2026-07-28'),
+      createdAt: new Date('2026-03-01'),
+      updatedAt: new Date('2026-03-01'),
+      project: { name: 'Alpha' },
+      vendor: { legalName: 'VendorCo' },
+      relatedPo: null,
+      lines: [],
+      documents: [],
+    };
+
+    beforeEach(() => {
+      mockPrisma.invoice.findUnique
+        .mockResolvedValueOnce(pendingInvoice)
+        .mockResolvedValue(detailRow);
+      mockPrisma.company.findFirst.mockResolvedValue({ id: 'vendor-comp-1' });
+      mockPrisma.project.findFirst.mockResolvedValue({ id: 'proj-1' });
+    });
+
+    it('persists the reviewed fields, replaces the lines, and stamps the reviewer', async () => {
+      const result = await service.reviewInvoice('inv-1', reviewDto, companyAdmin);
+
+      const updateArg = mockPrisma.invoice.update.mock.calls[0][0];
+      expect(updateArg.where).toEqual({ id: 'inv-1' });
+      expect(updateArg.data).toMatchObject({
+        vendorId: 'vendor-comp-1',
+        projectId: 'proj-1',
+        invoiceNumber: 'INV-42',
+        issuedDate: new Date('2026-07-01'),
+        dueDate: new Date('2026-07-31'),
+        totalAmount: 1234.5,
+        reviewedByUserId: 'ca-1',
+        // Review moves dueDate → the reminder ledger resets.
+        dueReminderSentAt: null,
+        overdueReminderSentAt: null,
+      });
+      expect(updateArg.data.reviewedAt).toBeInstanceOf(Date);
+
+      expect(mockPrisma.invoiceLineItem.deleteMany).toHaveBeenCalledWith({
+        where: { invoiceId: 'inv-1' },
+      });
+      const created = mockPrisma.invoiceLineItem.createMany.mock.calls[0][0].data;
+      expect(created).toEqual([
+        {
+          invoiceId: 'inv-1',
+          position: 0,
+          lineId: '1',
+          description: 'DN100 PVC pipe',
+          quantity: 12,
+          unit: 'm',
+          unitPrice: 8.5,
+          lineTotal: 102,
+        },
+        {
+          invoiceId: 'inv-1',
+          position: 1,
+          lineId: null,
+          description: 'Delivery fee',
+          quantity: null,
+          unit: null,
+          unitPrice: null,
+          lineTotal: null,
+        },
+      ]);
+
+      expect(result.id).toBe('inv-1');
+    });
+
+    it('marks the completed extraction Confirmed with the reviewing user', async () => {
+      await service.reviewInvoice('inv-1', reviewDto, companyAdmin);
+
+      const confirmArg = mockPrisma.docExtraction.updateMany.mock.calls[0][0];
+      expect(confirmArg.where).toEqual({
+        invoiceId: 'inv-1',
+        type: 'INVOICE',
+        status: 'COMPLETED',
+      });
+      expect(confirmArg.data).toMatchObject({
+        status: 'CONFIRMED',
+        confirmedByUserId: 'ca-1',
+      });
+    });
+
+    it('clears fields the reviewer left empty', async () => {
+      await service.reviewInvoice('inv-1', { lines: [] }, companyAdmin);
+
+      const updateArg = mockPrisma.invoice.update.mock.calls[0][0];
+      expect(updateArg.data).toMatchObject({
+        vendorId: null,
+        projectId: null,
+        invoiceNumber: null,
+        issuedDate: null,
+        dueDate: null,
+        totalAmount: null,
+      });
+      // No references given — nothing to validate.
+      expect(mockPrisma.company.findFirst).not.toHaveBeenCalled();
+      expect(mockPrisma.project.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException for a missing invoice', async () => {
+      mockPrisma.invoice.findUnique.mockReset().mockResolvedValue(null);
+      await expect(service.reviewInvoice('missing', reviewDto, companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws ForbiddenException for the wrong company', async () => {
+      mockPrisma.invoice.findUnique
+        .mockReset()
+        .mockResolvedValue({ id: 'inv-1', status: 'PENDING', companyId: 'other-comp' });
+      await expect(service.reviewInvoice('inv-1', reviewDto, companyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('rejects reviewing a non-Pending invoice', async () => {
+      mockPrisma.invoice.findUnique
+        .mockReset()
+        .mockResolvedValue({ id: 'inv-1', status: 'APPROVED', companyId: 'comp-1' });
+      await expect(service.reviewInvoice('inv-1', reviewDto, companyAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('rejects an unknown or non-vendor vendorId', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue(null);
+      await expect(service.reviewInvoice('inv-1', reviewDto, companyAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+      // The vendor lookup is restricted to VENDOR companies.
+      const findArg = mockPrisma.company.findFirst.mock.calls[0][0];
+      expect(findArg.where).toEqual({ id: 'vendor-comp-1', type: 'VENDOR' });
+    });
+
+    it("rejects a project outside the invoice's company", async () => {
+      mockPrisma.project.findFirst.mockResolvedValue(null);
+      await expect(service.reviewInvoice('inv-1', reviewDto, companyAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+      const findArg = mockPrisma.project.findFirst.mock.calls[0][0];
+      expect(findArg.where).toEqual({ id: 'proj-1', companyId: 'comp-1' });
+    });
+
+    it('allows SuperAdmin to review without a company check', async () => {
+      mockPrisma.invoice.findUnique
+        .mockReset()
+        .mockResolvedValueOnce({ id: 'inv-1', status: 'PENDING', companyId: 'any-comp' })
+        .mockResolvedValue(detailRow);
+
+      const result = await service.reviewInvoice('inv-1', reviewDto, superAdmin);
+      expect(result.id).toBe('inv-1');
     });
   });
 

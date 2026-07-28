@@ -272,7 +272,98 @@ describe('DocIntelligenceService', () => {
     });
   });
 
+  describe('createInvoiceExtraction', () => {
+    const files = [
+      { fileId: 'file-1', mimeType: 'image/jpeg', data: Buffer.from('page-1') },
+      { fileId: 'file-2', mimeType: 'image/jpeg', data: Buffer.from('page-2') },
+    ];
+
+    it('creates an INVOICE job linked to the invoice and extracts every page', async () => {
+      const { service, prisma } = makeService();
+      prisma.docExtraction.create.mockResolvedValue({ id: 'job-1' });
+      const run = jest.spyOn(service, 'runExtraction').mockResolvedValue(undefined);
+
+      await service.createInvoiceExtraction({
+        invoiceId: 'inv-1',
+        companyId: 'comp-1',
+        createdByUserId: null,
+        files,
+      });
+
+      // Email intake has no acting user — createdByUserId persists as null.
+      expect(prisma.docExtraction.create).toHaveBeenCalledWith({
+        data: {
+          type: DocExtractionType.INVOICE,
+          status: DocExtractionStatus.PENDING,
+          fileId: 'file-1',
+          createdByUserId: null,
+          companyId: 'comp-1',
+          invoiceId: 'inv-1',
+        },
+      });
+      // First file is the primary document; the rest ride along as extra pages.
+      expect(run).toHaveBeenCalledWith('job-1', files[0].data, 'image/jpeg', undefined, undefined, [
+        { mimeType: 'image/jpeg', data: files[1].data },
+      ]);
+    });
+
+    it('creates no job when Gemini is not configured', async () => {
+      const { service, prisma, gemini } = makeService();
+      gemini.isConfigured.mockReturnValue(false);
+
+      await service.createInvoiceExtraction({
+        invoiceId: 'inv-1',
+        companyId: 'comp-1',
+        createdByUserId: 'user-1',
+        files,
+      });
+
+      expect(prisma.docExtraction.create).not.toHaveBeenCalled();
+    });
+
+    it('creates no job when no file is Gemini-readable', async () => {
+      const { service, prisma } = makeService();
+
+      await service.createInvoiceExtraction({
+        invoiceId: 'inv-1',
+        companyId: 'comp-1',
+        createdByUserId: 'user-1',
+        files: [{ fileId: 'file-1', mimeType: 'application/zip', data: Buffer.from('zip') }],
+      });
+
+      expect(prisma.docExtraction.create).not.toHaveBeenCalled();
+    });
+  });
+
   describe('runExtraction', () => {
+    it('sends extra page documents (multi-image invoices) to Gemini in one call', async () => {
+      const { service, prisma, gemini } = makeService();
+      prisma.docExtraction.findUnique.mockResolvedValue({
+        id: 'job-1',
+        type: DocExtractionType.INVOICE,
+      });
+      gemini.generate.mockResolvedValue({
+        text: '{"vendorName":"VendorCo","items":[]}',
+        model: 'gemini-2.5-flash',
+      });
+
+      await service.runExtraction(
+        'job-1',
+        Buffer.from('page-1'),
+        'image/jpeg',
+        undefined,
+        undefined,
+        [{ mimeType: 'image/jpeg', data: Buffer.from('page-2') }],
+      );
+
+      const generateArg = gemini.generate.mock.calls[0][0];
+      expect(generateArg.documents).toHaveLength(2);
+      const completed = prisma.docExtraction.update.mock.calls
+        .map((c) => c[0])
+        .find((u) => u.data.status === DocExtractionStatus.COMPLETED);
+      expect(completed?.data.editedResult).toMatchObject({ vendorName: 'VendorCo' });
+    });
+
     it('updates job to COMPLETED with parsed JSON on success', async () => {
       const { service, prisma, gemini } = makeService();
       prisma.docExtraction.findUnique.mockResolvedValue({

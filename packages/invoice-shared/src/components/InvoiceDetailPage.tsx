@@ -25,15 +25,22 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { INVOICE_ROUTES } from '../constants/routes';
 import { useInvoice, useApproveInvoice, useRejectInvoice } from '../hooks/useInvoices';
 
+import { InvoiceReviewPanel } from './InvoiceReviewPanel';
+
 export interface InvoiceDetailPageProps {
   canApprove?: boolean;
+  /** Show the review/correct form on Pending invoices (FOR-291). */
+  canReview?: boolean;
 }
 
 type Tab = 'details' | 'attachments';
 
 const TABS: Tab[] = ['details', 'attachments'];
 
-export function InvoiceDetailPage({ canApprove = false }: InvoiceDetailPageProps) {
+export function InvoiceDetailPage({
+  canApprove = false,
+  canReview = false,
+}: InvoiceDetailPageProps) {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation('invoices');
   const [searchParams, setSearchParams] = useSearchParams();
@@ -111,7 +118,14 @@ export function InvoiceDetailPage({ canApprove = false }: InvoiceDetailPageProps
 
       {/* Tab content */}
       <div className="flex-1 overflow-auto rounded-[14px] border border-gray-100 bg-white shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
-        {activeTab === 'details' && <InvoiceDetailsTab invoice={invoice} />}
+        {activeTab === 'details' &&
+          // Pending invoices show the review/correct form (FOR-291); once the
+          // invoice leaves Pending the details freeze into the read-only view.
+          (canReview && isPending && invoice ? (
+            <InvoiceReviewPanel invoice={invoice} />
+          ) : (
+            <InvoiceDetailsTab invoice={invoice} />
+          ))}
         {activeTab === 'attachments' && <AttachmentsTab documents={invoice?.documents ?? []} />}
       </div>
     </div>
@@ -161,8 +175,14 @@ function InvoiceDetailsTab({ invoice }: { invoice: InvoiceDetail | undefined }) 
             ? '—'
             : `$${invoice.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
         </InfoRow>
+        <InfoRow label={t('invoiceDetail.invoiceNumber', { defaultValue: 'Invoice #' })}>
+          {invoice.invoiceNumber ?? '—'}
+        </InfoRow>
         <InfoRow label={t('invoiceDetail.relatedPo', { defaultValue: 'Related PO' })}>
           {invoice.relatedPo ?? t('invoiceDetail.noPo', { defaultValue: 'None' })}
+        </InfoRow>
+        <InfoRow label={t('invoiceDetail.issuedDate', { defaultValue: 'Invoice Date' })}>
+          {invoice.issuedDate ? new Date(invoice.issuedDate).toLocaleDateString('en-AU') : '—'}
         </InfoRow>
         <InfoRow label={t('invoiceDetail.dueDate', { defaultValue: 'Due Date' })}>
           {invoice.dueDate
@@ -173,6 +193,57 @@ function InvoiceDetailsTab({ invoice }: { invoice: InvoiceDetail | undefined }) 
           {new Date(invoice.createdAt).toLocaleDateString('en-AU')}
         </InfoRow>
       </div>
+
+      {/* Billed lines confirmed at review (FOR-291) */}
+      {invoice.lines && invoice.lines.length > 0 ? (
+        <div className="mt-8">
+          <h3 className="text-base font-semibold text-foreground mb-4">
+            {t('invoiceDetail.lineItems', { defaultValue: 'Line Items' })}
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm" data-testid="invoice-detail-lines">
+              <thead>
+                <tr className="border-b border-border text-left text-muted-foreground">
+                  <th className="pb-3 pr-3 font-medium">
+                    {t('review.line.description', { defaultValue: 'Description' })}
+                  </th>
+                  <th className="pb-3 pr-3 font-medium">
+                    {t('review.line.quantity', { defaultValue: 'Qty' })}
+                  </th>
+                  <th className="pb-3 pr-3 font-medium">
+                    {t('review.line.unit', { defaultValue: 'Unit' })}
+                  </th>
+                  <th className="pb-3 pr-3 font-medium text-right">
+                    {t('review.line.unitPrice', { defaultValue: 'Unit price' })}
+                  </th>
+                  <th className="pb-3 font-medium text-right">
+                    {t('review.line.lineTotal', { defaultValue: 'Line total' })}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoice.lines.map((line) => (
+                  <tr key={line.id} className="border-b border-border last:border-b-0">
+                    <td className="py-3 pr-3 text-foreground">{line.description}</td>
+                    <td className="py-3 pr-3 text-muted-foreground">{line.quantity ?? '—'}</td>
+                    <td className="py-3 pr-3 text-muted-foreground">{line.unit ?? '—'}</td>
+                    <td className="py-3 pr-3 text-right text-muted-foreground">
+                      {line.unitPrice === null
+                        ? '—'
+                        : `$${line.unitPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+                    </td>
+                    <td className="py-3 text-right text-muted-foreground">
+                      {line.lineTotal === null
+                        ? '—'
+                        : `$${line.lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -191,6 +191,9 @@ export const ERR = {
     cannotReject: (status: string) => t(errors.invoices.cannotReject, { status }),
     noIdsProvided: errors.invoices.noIdsProvided,
     notReviewed: errors.invoices.notReviewed,
+    cannotReview: (status: string) => t(errors.invoices.cannotReview, { status }),
+    reviewVendorNotFound: errors.invoices.reviewVendorNotFound,
+    reviewProjectNotFound: errors.invoices.reviewProjectNotFound,
   },
 
   // ── Storage / Files ──────────────────────────────────────

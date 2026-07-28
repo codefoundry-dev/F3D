@@ -221,6 +221,7 @@ export const INVOICES_PATHS = {
   INTAKE_ADDRESS: '/invoices/intake-address',
   approve: (id: string) => `/invoices/${id}/approve`,
   reject: (id: string) => `/invoices/${id}/reject`,
+  review: (id: string) => `/invoices/${id}/review`,
   BULK_APPROVE: '/invoices/bulk-approve',
   export: (format: 'csv' | 'xlsx' | 'pdf') => `/invoices/export/${format}`,
   exportSingle: (id: string, format: 'csv' | 'xlsx' | 'pdf') => `/invoices/${id}/export/${format}`,

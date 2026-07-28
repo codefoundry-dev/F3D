@@ -978,7 +978,8 @@ export class MaterialsService {
   }
 
   private canAccessExtraction(
-    extraction: { createdByUserId: string; companyId: string | null },
+    // createdByUserId is null for user-less intake extractions (FOR-291).
+    extraction: { createdByUserId: string | null; companyId: string | null },
     user: AuthenticatedUser,
   ): boolean {
     if (user.role === UserRole.SUPER_ADMIN) return true;

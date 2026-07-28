@@ -4,6 +4,7 @@ import { Prisma, UserRole } from '@prisma/client';
 
 import { AuthenticatedUser } from '../../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { DocIntelligenceService } from '../../doc-intelligence/doc-intelligence.service';
 import { StorageService } from '../../storage/storage.service';
 import { InvoiceIntakeService } from '../invoice-intake.service';
 import { ParsedInboundEmail } from '../resend-inbound.types';
@@ -24,6 +25,10 @@ const mockStorage = {
   upload: jest.fn(),
 };
 
+const mockDocIntelligence = {
+  createInvoiceExtraction: jest.fn(),
+};
+
 const buildConfig = (overrides: Record<string, string> = {}): ConfigService => {
   const values: Record<string, string> = {
     INVOICE_INBOUND_DOMAIN: 'in.test.com',
@@ -39,6 +44,7 @@ const buildService = (overrides: Record<string, string> = {}) =>
   new InvoiceIntakeService(
     mockPrisma as unknown as PrismaService,
     mockStorage as unknown as StorageService,
+    mockDocIntelligence as unknown as DocIntelligenceService,
     buildConfig(overrides),
   );
 
@@ -95,6 +101,7 @@ describe('InvoiceIntakeService', () => {
     jest.clearAllMocks();
     global.fetch = jest.fn();
     mockStorage.upload.mockResolvedValue({ bucket: 'test-bucket', key: 'some/key' });
+    mockDocIntelligence.createInvoiceExtraction.mockResolvedValue(undefined);
   });
 
   // ── uploadInvoice ──────────────────────────────────────────────────────────
@@ -166,6 +173,28 @@ describe('InvoiceIntakeService', () => {
         createdAt: '2026-07-28T10:00:00.000Z',
         documents: [{ id: 'doc-1', name: 'invoice.pdf', fileId: 'file-1' }],
       });
+    });
+
+    it('kicks off an extraction for the uploaded file (FOR-291)', async () => {
+      mockPrisma.invoice.create.mockResolvedValue(createdInvoice);
+
+      await buildService().uploadInvoice(pdfFile(), mockUser);
+
+      expect(mockDocIntelligence.createInvoiceExtraction).toHaveBeenCalledWith({
+        invoiceId: 'inv-1',
+        companyId: 'comp-1',
+        createdByUserId: 'user-1',
+        files: [{ fileId: 'file-1', mimeType: 'application/pdf', data: expect.any(Buffer) }],
+      });
+    });
+
+    it('still succeeds when starting the extraction fails', async () => {
+      mockPrisma.invoice.create.mockResolvedValue(createdInvoice);
+      mockDocIntelligence.createInvoiceExtraction.mockRejectedValue(new Error('gemini down'));
+
+      const result = await buildService().uploadInvoice(pdfFile(), mockUser);
+
+      expect(result.id).toBe('inv-1');
     });
   });
 
@@ -314,6 +343,28 @@ describe('InvoiceIntakeService', () => {
       expect(result).toEqual({ handled: true, invoicesCreated: 2 });
       const imageCreate = mockPrisma.invoice.create.mock.calls[1][0];
       expect(imageCreate.data.documents.create).toHaveLength(2);
+    });
+
+    it('kicks off an unattributed extraction per created invoice (FOR-291)', async () => {
+      mockFetchRoutes([
+        attachment({ id: 'att-1', filename: 'inv-a.pdf' }),
+        attachment({ id: 'att-2', filename: 'page-1.jpg', content_type: 'image/jpeg' }),
+        attachment({ id: 'att-3', filename: 'page-2.jpg', content_type: 'image/jpeg' }),
+      ]);
+
+      await buildService().processInboundEmail(inboundEmail());
+
+      expect(mockDocIntelligence.createInvoiceExtraction).toHaveBeenCalledTimes(2);
+      // Email intake has no acting user; the image-group invoice sends every
+      // page to the same extraction.
+      const calls = mockDocIntelligence.createInvoiceExtraction.mock.calls.map((c) => c[0]);
+      expect(calls[0]).toMatchObject({ createdByUserId: null, companyId: 'comp-1' });
+      expect(calls[0].files).toHaveLength(1);
+      expect(calls[1].files).toHaveLength(2);
+      expect(calls[1].files.map((f: { mimeType: string }) => f.mimeType)).toEqual([
+        'image/jpeg',
+        'image/jpeg',
+      ]);
     });
 
     it('throws when every attachment group fails, so the provider retries', async () => {
