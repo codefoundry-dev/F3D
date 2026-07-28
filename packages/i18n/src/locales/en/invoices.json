@@ -71,7 +71,34 @@
   },
   "upload": {
     "title": "Upload Invoice",
-    "comingSoon": "This page is under development. Invoice upload will be available soon."
+    "cardTitle": "Upload invoice files",
+    "dropTitle": "Drag & drop invoice files here or",
+    "browse": "browse",
+    "dropFormats": "PDF, PNG, JPG or WEBP — max 10MB each",
+    "uploadCount": "Upload ({{count}})",
+    "uploading": "Uploading…",
+    "goToInvoices": "Go to invoices",
+    "viewInvoice": "View invoice",
+    "removeFile": "Remove {{name}}",
+    "status": {
+      "queued": "Ready to upload",
+      "uploading": "Uploading…",
+      "done": "Invoice created — pending review",
+      "failed": "Upload failed"
+    },
+    "successToast": "{{count}} invoice(s) created and pending review",
+    "partialToast": "{{done}} of {{total}} files uploaded — the rest failed",
+    "hint": "Each uploaded file becomes its own invoice in Pending. Review it to set the vendor, project, and amount.",
+    "errors": {
+      "unsupportedType": "Unsupported file type. Use PDF, PNG, JPG or WEBP.",
+      "tooLarge": "File is too large (max 10MB)."
+    },
+    "inbox": {
+      "title": "Or email invoices in",
+      "description": "Vendors can send invoices straight to your company's intake address — every attachment arrives here as an invoice to review.",
+      "copy": "Copy address",
+      "copied": "Address copied"
+    }
   },
   "invoiceDetail": {
     "tabs": {

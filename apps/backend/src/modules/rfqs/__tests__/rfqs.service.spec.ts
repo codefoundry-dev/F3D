@@ -1028,7 +1028,7 @@ describe('RfqsService', () => {
       const result = await service.getRfq('rfq-doc', companyAdmin);
       expect(result.documents).toHaveLength(1);
       expect(result.documents[0].name).toBe('spec.pdf');
-      expect(result.documents[0].uploadedBy.name).toBe('PO User');
+      expect(result.documents[0].uploadedBy?.name).toBe('PO User');
       expect(result.approvedBy).toEqual({ id: 'ca-1', name: 'CA User' });
     });
   });

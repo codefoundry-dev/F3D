@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UserRole } from '@prisma/client';
 
 import { InvoiceExportService } from '../invoice-export.service';
+import { InvoiceIntakeService } from '../invoice-intake.service';
 import { InvoicesController } from '../invoices.controller';
 import { InvoicesService } from '../invoices.service';
 
@@ -18,6 +19,11 @@ const mockService = {
 const mockExportService = {
   exportInvoices: jest.fn(),
   exportSingleInvoice: jest.fn(),
+};
+
+const mockIntakeService = {
+  uploadInvoice: jest.fn(),
+  getIntakeAddress: jest.fn(),
 };
 
 const mockUser = {
@@ -38,6 +44,7 @@ describe('InvoicesController', () => {
       providers: [
         { provide: InvoicesService, useValue: mockService },
         { provide: InvoiceExportService, useValue: mockExportService },
+        { provide: InvoiceIntakeService, useValue: mockIntakeService },
       ],
     }).compile();
 
@@ -130,6 +137,29 @@ describe('InvoicesController', () => {
         { reason: 'Wrong quantities' },
         mockUser,
       );
+    });
+  });
+
+  describe('uploadInvoice', () => {
+    it('delegates to the intake service', async () => {
+      const expected = { id: 'inv-9', status: 'PENDING', source: 'MANUAL' };
+      mockIntakeService.uploadInvoice.mockResolvedValue(expected);
+      const file = { originalname: 'invoice.pdf' } as Express.Multer.File;
+
+      const result = await controller.uploadInvoice(file, mockUser);
+      expect(mockIntakeService.uploadInvoice).toHaveBeenCalledWith(file, mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('getIntakeAddress', () => {
+    it('delegates to the intake service', async () => {
+      const expected = { email: 'invoices-abc@in.example.com' };
+      mockIntakeService.getIntakeAddress.mockResolvedValue(expected);
+
+      const result = await controller.getIntakeAddress(mockUser);
+      expect(mockIntakeService.getIntakeAddress).toHaveBeenCalledWith(mockUser);
+      expect(result).toEqual(expected);
     });
   });
 

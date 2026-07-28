@@ -554,19 +554,21 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
                             {invoice.id.slice(0, 8)}
                           </span>
                         </td>
+                        {/* project/vendor/amount are empty on intake invoices
+                            awaiting review (FOR-290) */}
                         <td className="max-w-[180px] px-2 align-middle">
                           <span className="block truncate px-1 font-medium text-gray-800">
-                            {invoice.projectName}
+                            {invoice.projectName ?? '—'}
                           </span>
                         </td>
                         <td className="px-2 align-middle">
                           <span className="block px-1 font-medium text-gray-800">
-                            {invoice.projectCode}
+                            {invoice.projectCode ?? '—'}
                           </span>
                         </td>
                         <td className="max-w-[180px] px-2 align-middle">
                           <span className="block truncate px-1 font-medium text-gray-800">
-                            {invoice.vendorName}
+                            {invoice.vendorName ?? '—'}
                           </span>
                         </td>
                         <td className="px-2 align-middle">
@@ -581,10 +583,11 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
                         </td>
                         <td className="px-2 align-middle">
                           <span className="block px-1 font-medium text-gray-800">
-                            $
-                            {invoice.totalAmount.toLocaleString('en-US', {
-                              minimumFractionDigits: 2,
-                            })}
+                            {invoice.totalAmount === null
+                              ? '—'
+                              : `$${invoice.totalAmount.toLocaleString('en-US', {
+                                  minimumFractionDigits: 2,
+                                })}`}
                           </span>
                         </td>
                         <td className="px-2 align-middle">

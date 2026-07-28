@@ -24,6 +24,7 @@ import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-
 import { RequirePermissions } from '../../common/permissions';
 
 import { InvoiceExportService } from './invoice-export.service';
+import { InvoiceIntakeService } from './invoice-intake.service';
 import { InvoicesService } from './invoices.service';
 
 @ApiTags('Invoices')
@@ -33,7 +34,36 @@ export class InvoicesController {
   constructor(
     private readonly invoicesService: InvoicesService,
     private readonly invoiceExportService: InvoiceExportService,
+    private readonly invoiceIntakeService: InvoiceIntakeService,
   ) {}
+
+  // ── POST /v1/invoices/upload ───────────────────────────────────────────────
+
+  @Post('upload')
+  @UseInterceptors(FileInterceptor('file'))
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('invoice.upload')
+  @ApiOperation({ summary: 'Upload an invoice file, creating a new Pending invoice (FOR-290)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiResponse({ status: 201, description: 'Invoice created from the uploaded file' })
+  @ApiResponse({ status: 400, description: 'Missing, oversized, or unsupported file' })
+  async uploadInvoice(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.invoiceIntakeService.uploadInvoice(file, user);
+  }
+
+  // ── GET /v1/invoices/intake-address ────────────────────────────────────────
+  // NOTE: Must be before :id route to avoid NestJS matching "intake-address" as an id
+
+  @Get('intake-address')
+  @RequirePermissions('invoice.upload')
+  @ApiOperation({ summary: "Get the company's invoice-intake email address (FOR-290)" })
+  @ApiResponse({ status: 200, description: 'Intake address, or email: null when not configured' })
+  async getIntakeAddress(@CurrentUser() user: AuthenticatedUser) {
+    return this.invoiceIntakeService.getIntakeAddress(user);
+  }
 
   // ── GET /v1/invoices/export/:format ─────────────────────────────────────
   // NOTE: Must be before :id route to avoid NestJS matching "export" as an id

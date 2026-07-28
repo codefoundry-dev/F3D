@@ -47,6 +47,10 @@ model Company {
   logoUrl       String?       @map("logo_url") @db.VarChar(500)
   status        CompanyStatus @default(ACTIVE)
   specialisations String[]    @map("specialisations")
+  // Local-part key of the company's invoice-intake inbox (FOR-290):
+  // invoices-<key>@INVOICE_INBOUND_DOMAIN. Generated lazily the first time the
+  // team views their intake address.
+  invoiceInboxKey String?     @unique @map("invoice_inbox_key") @db.VarChar(32)
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 

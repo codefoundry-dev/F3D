@@ -11,7 +11,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-import { InvoiceStatus } from '../enums';
+import { InvoiceSource, InvoiceStatus } from '../enums';
 
 import { BasePaginationQueryDto, PaginationMetaDto } from './pagination.dto';
 
@@ -79,23 +79,28 @@ export class InvoiceListItemDto {
   @ApiProperty()
   id!: string;
 
-  @ApiProperty()
-  projectName!: string;
+  // project/vendor/totalAmount are null on intake-created invoices that
+  // haven't been reviewed yet (FOR-290).
+  @ApiPropertyOptional()
+  projectName!: string | null;
 
-  @ApiProperty()
-  projectId!: string;
+  @ApiPropertyOptional()
+  projectId!: string | null;
 
-  @ApiProperty()
-  vendorName!: string;
+  @ApiPropertyOptional()
+  vendorName!: string | null;
 
   @ApiProperty({ enum: InvoiceStatus })
   status!: InvoiceStatus;
 
+  @ApiProperty({ enum: InvoiceSource })
+  source!: InvoiceSource;
+
   @ApiPropertyOptional()
   relatedPo!: string | null;
 
-  @ApiProperty()
-  totalAmount!: number;
+  @ApiPropertyOptional()
+  totalAmount!: number | null;
 
   @ApiPropertyOptional()
   dueDate!: string | null;

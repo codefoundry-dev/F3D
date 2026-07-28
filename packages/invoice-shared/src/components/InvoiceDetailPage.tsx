@@ -149,14 +149,17 @@ function InvoiceDetailsTab({ invoice }: { invoice: InvoiceDetail | undefined }) 
             {t(`status.${invoice.status}` as never)}
           </Badge>
         </InfoRow>
+        {/* project/vendor/amount are empty on intake invoices awaiting review (FOR-290) */}
         <InfoRow label={t('invoiceDetail.project', { defaultValue: 'Project' })}>
-          {invoice.projectName}
+          {invoice.projectName ?? '—'}
         </InfoRow>
         <InfoRow label={t('invoiceDetail.vendor', { defaultValue: 'Vendor' })}>
-          {invoice.vendorName}
+          {invoice.vendorName ?? invoice.senderEmail ?? '—'}
         </InfoRow>
         <InfoRow label={t('invoiceDetail.totalAmount', { defaultValue: 'Total Amount' })}>
-          ${invoice.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          {invoice.totalAmount === null
+            ? '—'
+            : `$${invoice.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
         </InfoRow>
         <InfoRow label={t('invoiceDetail.relatedPo', { defaultValue: 'Related PO' })}>
           {invoice.relatedPo ?? t('invoiceDetail.noPo', { defaultValue: 'None' })}
@@ -218,12 +221,17 @@ function AttachmentsTab({ documents }: { documents: InvoiceDocument[] }) {
               <tr key={doc.id} className="border-b border-border last:border-b-0">
                 <td className="py-3 font-medium text-foreground">{doc.name}</td>
                 <td className="py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-medium">
-                      {doc.uploadedBy.email.charAt(0).toUpperCase()}
+                  {/* Email-intake documents have no uploading user (FOR-290) */}
+                  {doc.uploadedBy ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-medium">
+                        {doc.uploadedBy.email.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-muted-foreground">{doc.uploadedBy.email}</span>
                     </div>
-                    <span className="text-muted-foreground">{doc.uploadedBy.email}</span>
-                  </div>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </td>
                 <td className="py-3 text-muted-foreground">
                   {new Date(doc.uploadedAt).toLocaleDateString('en-AU')}

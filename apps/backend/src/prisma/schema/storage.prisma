@@ -5,10 +5,12 @@ model File {
   filename       String   @db.VarChar(255)
   mimeType       String   @map("mime_type") @db.VarChar(100)
   size           Int
-  uploadedById   String   @map("uploaded_by_id")
+  // Nullable since FOR-290: files that arrive on the invoice-intake email inbox
+  // have no uploading user.
+  uploadedById   String?  @map("uploaded_by_id")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  uploadedBy          User                @relation(fields: [uploadedById], references: [id])
+  uploadedBy          User?               @relation(fields: [uploadedById], references: [id])
   documents           CompanyDocument[]
   rfqDocuments        RfqDocument[]
   invoiceDocuments    InvoiceDocument[]

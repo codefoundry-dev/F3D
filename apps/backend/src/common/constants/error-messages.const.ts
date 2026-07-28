@@ -190,6 +190,7 @@ export const ERR = {
     cannotApprove: (status: string) => t(errors.invoices.cannotApprove, { status }),
     cannotReject: (status: string) => t(errors.invoices.cannotReject, { status }),
     noIdsProvided: errors.invoices.noIdsProvided,
+    notReviewed: errors.invoices.notReviewed,
   },
 
   // ── Storage / Files ──────────────────────────────────────

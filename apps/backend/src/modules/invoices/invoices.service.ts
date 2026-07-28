@@ -147,15 +147,18 @@ export class InvoicesService {
     ]);
 
     return {
+      // project/vendor/totalAmount are null on intake-created invoices that
+      // haven't been reviewed yet (FOR-290).
       items: items.map((inv) => ({
         id: inv.id,
-        projectName: inv.project.name,
+        projectName: inv.project?.name ?? null,
         projectId: inv.projectId,
-        projectCode: inv.project.code,
-        vendorName: inv.vendor.legalName,
+        projectCode: inv.project?.code ?? null,
+        vendorName: inv.vendor?.legalName ?? null,
         status: inv.status,
+        source: inv.source,
         relatedPo: inv.relatedPo?.id ?? null,
-        totalAmount: Number(inv.totalAmount),
+        totalAmount: inv.totalAmount === null ? null : Number(inv.totalAmount),
         dueDate: inv.dueDate?.toISOString() ?? null,
       })),
       meta: buildPaginationMeta(query.page ?? 1, query.take, total),
@@ -186,12 +189,14 @@ export class InvoicesService {
 
     return {
       id: inv.id,
-      projectName: inv.project.name,
+      projectName: inv.project?.name ?? null,
       projectId: inv.projectId,
-      vendorName: inv.vendor.legalName,
+      vendorName: inv.vendor?.legalName ?? null,
       status: inv.status,
+      source: inv.source,
+      senderEmail: inv.senderEmail,
       relatedPo: inv.relatedPo?.id ?? null,
-      totalAmount: Number(inv.totalAmount),
+      totalAmount: inv.totalAmount === null ? null : Number(inv.totalAmount),
       dueDate: inv.dueDate?.toISOString() ?? null,
       createdAt: inv.createdAt.toISOString(),
       updatedAt: inv.updatedAt.toISOString(),
@@ -199,11 +204,14 @@ export class InvoicesService {
         id: doc.id,
         name: doc.file.filename,
         fileId: doc.fileId,
-        uploadedBy: {
-          name: doc.file.uploadedBy.name,
-          email: doc.file.uploadedBy.email,
-          avatarUrl: null,
-        },
+        // Email-intake documents have no uploading user (FOR-290).
+        uploadedBy: doc.file.uploadedBy
+          ? {
+              name: doc.file.uploadedBy.name,
+              email: doc.file.uploadedBy.email,
+              avatarUrl: null,
+            }
+          : null,
         uploadedAt: doc.createdAt.toISOString(),
       })),
     };
@@ -214,7 +222,14 @@ export class InvoicesService {
   async approveInvoice(id: string, user: AuthenticatedUser) {
     const inv = await this.prisma.invoice.findUnique({
       where: { id },
-      select: { id: true, status: true, companyId: true },
+      select: {
+        id: true,
+        status: true,
+        companyId: true,
+        projectId: true,
+        vendorId: true,
+        totalAmount: true,
+      },
     });
 
     if (!inv) throw new NotFoundException(ERR.invoices.notFound);
@@ -226,6 +241,12 @@ export class InvoicesService {
 
     if (inv.status !== PrismaInvoiceStatus.PENDING) {
       throw new BadRequestException(ERR.invoices.cannotApprove(inv.status));
+    }
+
+    // Intake-created invoices (FOR-290) stay unapprovable until review
+    // (FOR-291) has filled in who it's from, what it's for, and how much.
+    if (inv.vendorId === null || inv.projectId === null || inv.totalAmount === null) {
+      throw new BadRequestException(ERR.invoices.notReviewed);
     }
 
     const updated = await this.prisma.invoice.update({
@@ -240,12 +261,12 @@ export class InvoicesService {
 
     return {
       id: updated.id,
-      projectName: updated.project.name,
+      projectName: updated.project?.name ?? null,
       projectId: updated.projectId,
-      vendorName: updated.vendor.legalName,
+      vendorName: updated.vendor?.legalName ?? null,
       status: updated.status,
       relatedPo: updated.relatedPo?.id ?? null,
-      totalAmount: Number(updated.totalAmount),
+      totalAmount: updated.totalAmount === null ? null : Number(updated.totalAmount),
       dueDate: updated.dueDate?.toISOString() ?? null,
     };
   }
@@ -289,12 +310,12 @@ export class InvoicesService {
 
     return {
       id: updated.id,
-      projectName: updated.project.name,
+      projectName: updated.project?.name ?? null,
       projectId: updated.projectId,
-      vendorName: updated.vendor.legalName,
+      vendorName: updated.vendor?.legalName ?? null,
       status: updated.status,
       relatedPo: updated.relatedPo?.id ?? null,
-      totalAmount: Number(updated.totalAmount),
+      totalAmount: updated.totalAmount === null ? null : Number(updated.totalAmount),
       dueDate: updated.dueDate?.toISOString() ?? null,
     };
   }
@@ -312,13 +333,16 @@ export class InvoicesService {
     invoice: {
       id: string;
       companyId: string;
-      vendorId: string;
+      vendorId: string | null;
       rejectionReason: string | null;
-      project: { name: string };
+      project: { name: string } | null;
       company: { legalName: string };
     },
     rejectedByUserId: string,
   ): Promise<void> {
+    // Intake invoices that review never linked to a vendor have no one to tell.
+    if (!invoice.vendorId) return;
+
     const vendor = await this.prisma.company.findUnique({
       where: { id: invoice.vendorId },
       select: {
@@ -336,6 +360,8 @@ export class InvoicesService {
 
     const reference = invoiceReference(invoice.id);
     const viewUrl = `${this.webAppUrl}/invoices/${invoice.id}`;
+    // Intake invoices may be rejected before review linked them to a project.
+    const projectName = invoice.project?.name ?? null;
     // The rejecting (buyer) company's logo + name, shown atop the email (FOR-288).
     const brand = await this.branding.getEmailBrand(invoice.companyId);
 
@@ -346,7 +372,7 @@ export class InvoicesService {
           {
             invoiceReference: reference,
             companyName: invoice.company.legalName,
-            projectName: invoice.project.name,
+            projectName: projectName ?? '',
           },
           viewUrl,
           { comment: invoice.rejectionReason, brand },
@@ -357,7 +383,9 @@ export class InvoicesService {
     await this.notifications.createForEmails(recipients, {
       type: NotificationType.INVOICE_REJECTED,
       title: 'Invoice rejected',
-      body: `${invoice.company.legalName} rejected invoice ${reference} for ${invoice.project.name}.`,
+      body: projectName
+        ? `${invoice.company.legalName} rejected invoice ${reference} for ${projectName}.`
+        : `${invoice.company.legalName} rejected invoice ${reference}.`,
       entityType: NotificationEntityType.INVOICE,
       entityId: invoice.id,
       metadata: { rejectedByUserId },
@@ -374,6 +402,11 @@ export class InvoicesService {
     const where: Prisma.InvoiceWhereInput = {
       id: { in: ids },
       status: PrismaInvoiceStatus.PENDING,
+      // Unreviewed intake invoices (FOR-290) are skipped, mirroring the
+      // single-approve guard; approvedCount reflects how many qualified.
+      vendorId: { not: null },
+      projectId: { not: null },
+      totalAmount: { not: null },
     };
 
     // Scope by company
@@ -435,11 +468,15 @@ export class InvoicesService {
       id: doc.id,
       name: doc.file.filename,
       fileId: doc.fileId,
-      uploadedBy: {
-        name: doc.file.uploadedBy.name,
-        email: doc.file.uploadedBy.email,
-        avatarUrl: null,
-      },
+      // Always present on this path (the file was just created with an
+      // uploader); typed nullable since FOR-290 email-intake files.
+      uploadedBy: doc.file.uploadedBy
+        ? {
+            name: doc.file.uploadedBy.name,
+            email: doc.file.uploadedBy.email,
+            avatarUrl: null,
+          }
+        : null,
       uploadedAt: doc.createdAt.toISOString(),
     };
   }

@@ -1,11 +1,13 @@
 import {
   getInvoices,
   getInvoice,
+  getInvoiceIntakeAddress,
   approveInvoice,
   rejectInvoice,
   bulkApproveInvoices,
   exportInvoices,
   exportSingleInvoice,
+  uploadInvoice,
   type InvoiceListParams,
 } from '@forethread/api-client';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
@@ -23,6 +25,27 @@ export function useInvoice(id: string | undefined) {
     queryKey: ['invoices', id],
     queryFn: () => getInvoice(id as string),
     enabled: !!id,
+  });
+}
+
+/** Upload an invoice file, creating a new Pending invoice (FOR-290). */
+export function useUploadInvoice() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (file: File) => uploadInvoice(file, { skipErrorHandler: true }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    },
+  });
+}
+
+/** The company's invoice-intake email address; email is null when not configured. */
+export function useInvoiceIntakeAddress() {
+  return useQuery({
+    queryKey: ['invoices', 'intake-address'],
+    queryFn: () => getInvoiceIntakeAddress(),
+    staleTime: Infinity,
   });
 }
 

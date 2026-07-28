@@ -572,11 +572,15 @@ export class RfqsService {
         id: doc.id,
         name: doc.file.filename,
         fileId: doc.fileId,
-        uploadedBy: {
-          name: doc.file.uploadedBy.name,
-          email: doc.file.uploadedBy.email,
-          avatarUrl: null,
-        },
+        // RFQ files always have an uploader; typed nullable since FOR-290
+        // email-intake files share the File model.
+        uploadedBy: doc.file.uploadedBy
+          ? {
+              name: doc.file.uploadedBy.name,
+              email: doc.file.uploadedBy.email,
+              avatarUrl: null,
+            }
+          : null,
         uploadedAt: doc.createdAt.toISOString(),
       })),
       createdAt: rfq.createdAt.toISOString(),
@@ -1963,11 +1967,14 @@ export class RfqsService {
       id: doc.id,
       name: doc.file.filename,
       fileId: doc.fileId,
-      uploadedBy: {
-        name: doc.file.uploadedBy.name,
-        email: doc.file.uploadedBy.email,
-        avatarUrl: null,
-      },
+      // Always present on this path; typed nullable since FOR-290.
+      uploadedBy: doc.file.uploadedBy
+        ? {
+            name: doc.file.uploadedBy.name,
+            email: doc.file.uploadedBy.email,
+            avatarUrl: null,
+          }
+        : null,
       uploadedAt: doc.createdAt.toISOString(),
     };
   }

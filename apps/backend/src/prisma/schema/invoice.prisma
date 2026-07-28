@@ -6,15 +6,31 @@ enum InvoiceStatus {
   REJECTED
 }
 
+// How an invoice entered the system (FOR-290): uploaded by the buyer team or
+// received on the company's invoice-intake email inbox.
+enum InvoiceSource {
+  MANUAL
+  EMAIL
+}
+
 model Invoice {
   id              String        @id @default(uuid())
-  projectId       String        @map("project_id")
+  // projectId/vendorId/totalAmount are nullable since FOR-290: intake creates
+  // the record before review (FOR-291) has identified them. approveInvoice
+  // refuses invoices where they are still null.
+  projectId       String?       @map("project_id")
   companyId       String        @map("company_id")
-  vendorId        String        @map("vendor_id")
+  vendorId        String?       @map("vendor_id")
   relatedPoId     String?       @map("related_po_id")
   status          InvoiceStatus @default(PENDING)
-  totalAmount     Decimal       @map("total_amount") @db.Decimal(18, 4)
+  source          InvoiceSource @default(MANUAL)
+  totalAmount     Decimal?      @map("total_amount") @db.Decimal(18, 4)
   dueDate         DateTime?     @map("due_date")
+  // Email-intake provenance (FOR-290): the address the invoice came from, and
+  // the provider's received-email id — the idempotency key that stops webhook
+  // retries from creating the same invoices twice.
+  senderEmail     String?       @map("sender_email") @db.VarChar(255)
+  intakeEmailId   String?       @map("intake_email_id") @db.VarChar(255)
   // Free-text reason captured when a contractor rejects / disputes the invoice
   // (US 8.05/8.06). Carried into the vendor's rejection email as the user
   // comment, so it must survive the request that set the status.
@@ -26,15 +42,16 @@ model Invoice {
   // reminded on.
   dueReminderSentAt     DateTime? @map("due_reminder_sent_at")
   overdueReminderSentAt DateTime? @map("overdue_reminder_sent_at")
-  createdByUserId String        @map("created_by_user_id")
+  // Nullable since FOR-290: email-intake invoices have no creating user.
+  createdByUserId String?       @map("created_by_user_id")
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
-  project   Project        @relation(fields: [projectId], references: [id])
+  project   Project?       @relation(fields: [projectId], references: [id])
   company   Company        @relation("InvoiceCompany", fields: [companyId], references: [id])
-  vendor    Company        @relation("InvoiceVendor", fields: [vendorId], references: [id])
+  vendor    Company?       @relation("InvoiceVendor", fields: [vendorId], references: [id])
   relatedPo PurchaseOrder? @relation("InvoiceRelatedPo", fields: [relatedPoId], references: [id])
-  createdBy User           @relation("InvoiceCreatedBy", fields: [createdByUserId], references: [id])
+  createdBy User?          @relation("InvoiceCreatedBy", fields: [createdByUserId], references: [id])
   documents InvoiceDocument[]
 
   @@index([companyId], map: "idx_invoices_company")
@@ -44,6 +61,8 @@ model Invoice {
   // Drives the daily payment-reminder sweep, which scans APPROVED invoices by
   // due date (US 8.09).
   @@index([status, dueDate], map: "idx_invoices_status_due_date")
+  // Webhook-retry idempotency lookups (FOR-290).
+  @@index([intakeEmailId], map: "idx_invoices_intake_email")
   @@map("invoices")
 }
 

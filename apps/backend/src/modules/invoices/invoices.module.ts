@@ -7,9 +7,11 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { StorageModule } from '../storage/storage.module';
 
 import { InvoiceExportService } from './invoice-export.service';
+import { InvoiceIntakeService } from './invoice-intake.service';
 import { InvoicesController } from './invoices.controller';
 import { InvoicesService } from './invoices.service';
 import { PaymentReminderService } from './payment-reminder.service';
+import { ResendInboundController } from './resend-inbound.controller';
 
 @Module({
   imports: [
@@ -18,8 +20,8 @@ import { PaymentReminderService } from './payment-reminder.service';
     NotificationsModule,
     MulterModule.register({ storage: multer.memoryStorage() }),
   ],
-  controllers: [InvoicesController],
-  providers: [InvoicesService, InvoiceExportService, PaymentReminderService],
+  controllers: [InvoicesController, ResendInboundController],
+  providers: [InvoicesService, InvoiceExportService, InvoiceIntakeService, PaymentReminderService],
   exports: [InvoicesService],
 })
 export class InvoicesModule {}

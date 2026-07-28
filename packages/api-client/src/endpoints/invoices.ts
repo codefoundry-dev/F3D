@@ -24,26 +24,35 @@ export interface InvoiceListParams {
 
 // ── Response interfaces ──────────────────────────────────────────────────────
 
+/** How an invoice entered the system (FOR-290). */
+export type InvoiceSource = 'MANUAL' | 'EMAIL';
+
 export interface InvoiceDocument {
   id: string;
   name: string;
   fileId: string;
+  /** Null for documents that arrived on the intake email inbox (FOR-290). */
   uploadedBy: {
     name: string;
     email: string;
     avatarUrl: string | null;
-  };
+  } | null;
   uploadedAt: string;
 }
 
+// project/vendor/totalAmount are null on intake-created invoices that haven't
+// been reviewed yet (FOR-290).
 export interface InvoiceDetail {
   id: string;
-  projectName: string;
-  projectId: string;
-  vendorName: string;
+  projectName: string | null;
+  projectId: string | null;
+  vendorName: string | null;
   status: string;
+  source: InvoiceSource;
+  /** The address an email-intake invoice came from; null for manual uploads. */
+  senderEmail: string | null;
   relatedPo: string | null;
-  totalAmount: number;
+  totalAmount: number | null;
   dueDate: string | null;
   createdAt: string;
   updatedAt: string;
@@ -52,15 +61,30 @@ export interface InvoiceDetail {
 
 export interface InvoiceListItem {
   id: string;
-  projectName: string;
-  projectId: string;
+  projectName: string | null;
+  projectId: string | null;
   /** Human-readable project code (PRJ-YYYY-NNN); shown wherever a "Project ID" is labelled. */
-  projectCode: string;
-  vendorName: string;
+  projectCode: string | null;
+  vendorName: string | null;
   status: string;
+  source: InvoiceSource;
   relatedPo: string | null;
-  totalAmount: number;
+  totalAmount: number | null;
   dueDate: string | null;
+}
+
+/** Result of POST /invoices/upload — the invoice created from the file (FOR-290). */
+export interface UploadedInvoice {
+  id: string;
+  status: string;
+  source: InvoiceSource;
+  createdAt: string;
+  documents: { id: string; name: string; fileId: string }[];
+}
+
+/** The company's invoice-intake inbox; email is null when not configured. */
+export interface InvoiceIntakeAddress {
+  email: string | null;
 }
 
 export interface PaginatedInvoicesResponse {
@@ -133,6 +157,34 @@ export async function exportSingleInvoice(
 ): Promise<{ url: string }> {
   const { data } = await getApiClient().get<{ data: { url: string } }>(
     INVOICES_PATHS.exportSingle(id, format),
+    config,
+  );
+  return data.data;
+}
+
+// ── Intake (FOR-290) ─────────────────────────────────────────────────────
+
+/** Upload an invoice file, creating a new Pending invoice with it attached. */
+export async function uploadInvoice(
+  file: File,
+  config?: AxiosRequestConfig,
+): Promise<UploadedInvoice> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const { data } = await getApiClient().post<{ data: UploadedInvoice }>(
+    INVOICES_PATHS.UPLOAD,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' }, ...config },
+  );
+  return data.data;
+}
+
+/** The company's invoice-intake email address (null when not configured). */
+export async function getInvoiceIntakeAddress(
+  config?: AxiosRequestConfig,
+): Promise<InvoiceIntakeAddress> {
+  const { data } = await getApiClient().get<{ data: InvoiceIntakeAddress }>(
+    INVOICES_PATHS.INTAKE_ADDRESS,
     config,
   );
   return data.data;

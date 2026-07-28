@@ -282,15 +282,16 @@ export class DashboardService {
       invoicesPendingApproval: pendingInvoices.map((inv, idx) => {
         const year = inv.createdAt.getFullYear();
         const seq = String(idx + 1).padStart(4, '0');
+        // vendor/project/totalAmount are null on unreviewed intake invoices (FOR-290).
         return {
           id: inv.id,
-          vendorName: inv.vendor.legalName,
-          vendorCountry: inv.vendor.legalAddress,
+          vendorName: inv.vendor?.legalName ?? null,
+          vendorCountry: inv.vendor?.legalAddress ?? null,
           invoiceId: `INV-${year}-${seq}`,
-          projectName: inv.project.name,
+          projectName: inv.project?.name ?? null,
           poReference: inv.relatedPo?.poNumber ?? null,
           date: inv.createdAt.toISOString(),
-          totalCost: Number(inv.totalAmount),
+          totalCost: inv.totalAmount === null ? null : Number(inv.totalAmount),
           itemCount: inv.relatedPo?.lineItemCount ?? 0,
           status: inv.status,
         };
@@ -371,10 +372,10 @@ export class DashboardService {
           status: inv.status,
           companyCountry: inv.company.legalAddress,
           invoiceId: `INV-${year}-${seq}`,
-          projectName: inv.project.name,
+          projectName: inv.project?.name ?? null,
           poReference: inv.relatedPo?.poNumber ?? null,
           date: inv.createdAt.toISOString(),
-          totalCost: Number(inv.totalAmount),
+          totalCost: inv.totalAmount === null ? null : Number(inv.totalAmount),
           itemCount: inv.relatedPo?.lineItemCount ?? 0,
         };
       }),
@@ -462,15 +463,16 @@ export class DashboardService {
     const mapInvoice = (inv: (typeof invoicesPending)[number], idx: number) => {
       const year = inv.createdAt.getFullYear();
       const seq = String(idx + 1).padStart(3, '0');
+      // vendor/project/totalAmount are null on unreviewed intake invoices (FOR-290).
       return {
         id: inv.id,
-        vendorName: inv.vendor.legalName,
-        vendorCountry: inv.vendor.legalAddress,
+        vendorName: inv.vendor?.legalName ?? null,
+        vendorCountry: inv.vendor?.legalAddress ?? null,
         invoiceId: `INV-${year}-${seq}`,
-        projectName: inv.project.name,
+        projectName: inv.project?.name ?? null,
         poReference: inv.relatedPo?.poNumber ?? null,
         date: inv.createdAt.toISOString(),
-        totalCost: Number(inv.totalAmount),
+        totalCost: inv.totalAmount === null ? null : Number(inv.totalAmount),
         itemCount: inv.relatedPo?.lineItemCount ?? 0,
         status: inv.status,
         hasAttachments: !!inv.relatedPo,

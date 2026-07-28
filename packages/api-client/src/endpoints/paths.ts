@@ -217,6 +217,8 @@ export const BULK_ORDERS_PATHS = {
 export const INVOICES_PATHS = {
   ROOT: '/invoices',
   byId: (id: string) => `/invoices/${id}`,
+  UPLOAD: '/invoices/upload',
+  INTAKE_ADDRESS: '/invoices/intake-address',
   approve: (id: string) => `/invoices/${id}/approve`,
   reject: (id: string) => `/invoices/${id}/reject`,
   BULK_APPROVE: '/invoices/bulk-approve',

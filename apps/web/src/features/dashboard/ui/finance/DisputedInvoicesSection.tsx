@@ -37,7 +37,7 @@ export function DisputedInvoicesSection({
         items.map((item) => (
           <InvoiceCard
             key={item.id}
-            name={item.vendorName}
+            name={item.vendorName ?? '—'}
             item={item}
             onCardClick={() => navigate(invoiceDetailPath(item.id))}
             onMessageClick={() => navigate(`${invoiceDetailPath(item.id)}?tab=messages`)}

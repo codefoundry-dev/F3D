@@ -42,6 +42,7 @@ export const PERMISSIONS = {
   'invoice.bulkApprove': 'Bulk-approve invoices',
   'invoice.uploadDocument': 'Upload a document to an invoice',
   'invoice.deleteDocument': 'Delete an invoice document',
+  'invoice.upload': 'Upload a new invoice / view the intake inbox address',
 
   // ── Materials ───────────────────────────────────────────────────────────
   'material.list': 'List materials',
@@ -258,6 +259,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'invoice.bulkApprove',
     'invoice.uploadDocument',
     'invoice.deleteDocument',
+    'invoice.upload',
 
     'material.list',
     'material.listCategories',
@@ -417,6 +419,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'invoice.bulkApprove',
     'invoice.uploadDocument',
     'invoice.deleteDocument',
+    'invoice.upload',
 
     'material.list',
     'material.listCategories',
@@ -561,6 +564,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'invoice.bulkApprove',
     'invoice.uploadDocument',
     'invoice.deleteDocument',
+    'invoice.upload',
 
     'material.list',
     'material.listCategories',

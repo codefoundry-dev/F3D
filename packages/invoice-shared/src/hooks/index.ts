@@ -1,6 +1,8 @@
 export {
   useInvoices,
   useInvoice,
+  useUploadInvoice,
+  useInvoiceIntakeAddress,
   useExportInvoices,
   useExportSingleInvoice,
   useApproveInvoice,

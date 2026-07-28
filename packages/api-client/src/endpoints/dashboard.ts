@@ -65,12 +65,13 @@ export interface PendingPoItem {
   hasAttachments?: boolean;
 }
 
+// vendorName/projectName are null on intake invoices awaiting review (FOR-290).
 export interface InvoicePendingItem {
   id: string;
-  vendorName: string;
+  vendorName: string | null;
   vendorCountry: string | null;
   invoiceId: string;
-  projectName: string;
+  projectName: string | null;
   poReference: string | null;
   date: string;
   totalCost: number | null;
@@ -114,7 +115,8 @@ export interface VendorInvoiceItem {
   status: string;
   companyCountry: string | null;
   invoiceId: string;
-  projectName: string;
+  /** Null on intake invoices awaiting review (FOR-290). */
+  projectName: string | null;
   poReference: string | null;
   date: string;
   totalCost: number | null;
