@@ -50,8 +50,10 @@ export const AUDIT_PATHS = {
 export const ROLES_PATHS = {
   ROOT: '/roles',
   CATALOG: '/roles/permissions/catalog',
+  CUSTOM: '/roles/custom',
   byRole: (role: string) => `/roles/${role}`,
   permissions: (role: string) => `/roles/${role}/permissions`,
+  customById: (id: string) => `/roles/custom/${id}`,
 } as const;
 
 export const STORAGE_PATHS = {

@@ -179,8 +179,10 @@ export const PERMISSIONS = {
   'delivery.generateLink': 'Generate a public QR delivery-submission link for a PO',
 
   // ── Roles & permissions (admin) ─────────────────────────────────────────
-  'role.list': 'List built-in roles and the permissions granted to each',
-  'role.update': 'Grant or revoke permissions on a built-in role',
+  'role.list': 'List roles and the permissions granted to each',
+  'role.update': 'Grant or revoke permissions on a role',
+  'role.create': 'Create custom roles',
+  'role.delete': 'Delete a custom role',
 
   // ── Document intelligence ────────────────────────────────────────────────
   'docExtraction.create': 'Upload a document for AI extraction',
@@ -381,6 +383,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
 
     'role.list',
     'role.update',
+    'role.create',
+    'role.delete',
 
     'user.list',
     'user.create',

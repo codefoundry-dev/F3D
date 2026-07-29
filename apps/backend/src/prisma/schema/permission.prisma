@@ -7,7 +7,8 @@ model Permission {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  rolePermissions RolePermission[]
+  rolePermissions       RolePermission[]
+  customRolePermissions CustomRolePermission[]
 
   @@map("permissions")
 }
@@ -34,4 +35,47 @@ model RolePermission {
   @@unique([role, permissionId], map: "uq_role_permissions_role_permission")
   @@index([role], map: "idx_role_permissions_role")
   @@map("role_permissions")
+}
+
+/// Admin-defined role (FOR-252). Unlike the built-in UserRole enum, custom
+/// roles are data: a Company Admin creates them for their own company
+/// (companyId = their company); a Super Admin's roles are platform-level
+/// (companyId null). Assigning a custom role to a user is FOR-253 — until
+/// then a custom role only defines a named permission bundle.
+///
+/// Name uniqueness per company is enforced in RolesService (case-insensitive)
+/// rather than by the DB constraint alone, because Postgres treats NULL
+/// company_id values as distinct in the unique index.
+model CustomRole {
+  id          String   @id @default(uuid())
+  companyId   String?  @map("company_id")
+  name        String   @db.VarChar(100)
+  description String?  @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company     Company?               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  permissions CustomRolePermission[]
+
+  @@unique([companyId, name], map: "uq_custom_roles_company_name")
+  @@index([companyId], map: "idx_custom_roles_company")
+  @@map("custom_roles")
+}
+
+/// Permission granted to a custom role. Mirrors RolePermission, including the
+/// optional approval-threshold cap, so custom roles are drop-in equivalents of
+/// built-in roles once user assignment (FOR-253) lands.
+model CustomRolePermission {
+  id              String   @id @default(uuid())
+  customRoleId    String   @map("custom_role_id")
+  permissionId    String   @map("permission_id")
+  thresholdAmount Decimal? @map("threshold_amount") @db.Decimal(18, 4)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  customRole CustomRole @relation(fields: [customRoleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([customRoleId, permissionId], map: "uq_custom_role_permissions_role_permission")
+  @@index([customRoleId], map: "idx_custom_role_permissions_role")
+  @@map("custom_role_permissions")
 }

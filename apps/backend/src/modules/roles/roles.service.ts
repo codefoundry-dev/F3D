@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
-import { IsArray, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import {
@@ -33,9 +33,68 @@ export class UpdateRolePermissionsDto {
   thresholds?: Record<string, number | null>;
 }
 
+export class CreateCustomRoleDto {
+  @IsString()
+  @MaxLength(100)
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  description?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  permissionKeys?: string[];
+
+  /** Same dynamic-key shape (and caveats) as UpdateRolePermissionsDto.thresholds. */
+  @IsOptional()
+  @IsObject()
+  thresholds?: Record<string, number | null>;
+}
+
+export class UpdateCustomRoleDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  description?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  permissionKeys?: string[];
+
+  @IsOptional()
+  @IsObject()
+  thresholds?: Record<string, number | null>;
+}
+
 export interface RoleSummary {
   role: UserRole;
   permissionCount: number;
+}
+
+export interface CustomRoleSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  permissionCount: number;
+  createdAt: Date;
+}
+
+export interface CustomRoleDetail {
+  id: string;
+  name: string;
+  description: string | null;
+  permissionKeys: PermissionKey[];
+  /** Sparse — only granted threshold-aware permissions with a finite cap. */
+  thresholds: Record<string, number>;
 }
 
 export interface RoleDetail {
@@ -63,6 +122,13 @@ function isUserRole(value: string): value is UserRole {
 
 function toNumber(value: Prisma.Decimal | null): number | null {
   return value === null ? null : Number(value);
+}
+
+/** Blank or whitespace-only descriptions are stored as null, not ''. */
+function normalizeDescription(raw: string | undefined): string | null {
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
+  return trimmed;
 }
 
 @Injectable()
@@ -224,6 +290,246 @@ export class RolesService {
     }
 
     return this.getRoleDetail(role);
+  }
+
+  // ── Custom roles (FOR-252) ────────────────────────────────────────────────
+  // Scoped to the actor's company: a Company Admin manages the roles of their
+  // own company, a Super Admin (companyId null) manages platform-level roles.
+
+  async listCustomRoles(companyId: string | null): Promise<CustomRoleSummary[]> {
+    const rows = await this.prisma.customRole.findMany({
+      where: { companyId },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        createdAt: true,
+        _count: { select: { permissions: true } },
+      },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      permissionCount: r._count.permissions,
+      createdAt: r.createdAt,
+    }));
+  }
+
+  async createCustomRole(
+    companyId: string | null,
+    dto: CreateCustomRoleDto,
+    actorId: string,
+    ipAddress?: string,
+  ): Promise<CustomRoleDetail> {
+    const name = this.parseCustomRoleName(dto.name);
+    await this.assertCustomRoleNameAvailable(name, companyId);
+
+    const requested = this.parsePermissionKeys(dto.permissionKeys ?? []);
+    const sanitizedThresholds = this.parseThresholds(dto.thresholds, new Set<string>(requested));
+    const grants = await this.buildGrantRows(requested, sanitizedThresholds);
+
+    const created = await this.prisma.customRole.create({
+      data: {
+        companyId,
+        name,
+        description: normalizeDescription(dto.description),
+        permissions: { create: grants },
+      },
+      select: { id: true },
+    });
+
+    await this.audit.log({
+      action: AuditAction.CUSTOM_ROLE_CREATED,
+      performedById: actorId,
+      targetType: 'CustomRole',
+      targetId: created.id,
+      targetLabel: name,
+      metadata: { name, companyId, permissionKeys: requested },
+      ipAddress,
+    });
+
+    return this.getCustomRoleDetail(created.id, companyId);
+  }
+
+  async getCustomRoleDetail(id: string, companyId: string | null): Promise<CustomRoleDetail> {
+    const role = await this.prisma.customRole.findFirst({
+      where: { id, companyId },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        permissions: {
+          select: {
+            thresholdAmount: true,
+            permission: { select: { key: true } },
+          },
+        },
+      },
+    });
+    if (!role) throw new NotFoundException(ERR.roles.customRoleNotFound);
+
+    const permissionKeys = role.permissions
+      .map((r) => r.permission.key)
+      .filter((k): k is PermissionKey => KNOWN_PERMISSION_KEYS.has(k))
+      .sort();
+
+    const thresholds: Record<string, number> = {};
+    for (const row of role.permissions) {
+      const numeric = toNumber(row.thresholdAmount);
+      if (numeric !== null && isThresholdAware(row.permission.key)) {
+        thresholds[row.permission.key] = numeric;
+      }
+    }
+
+    return {
+      id: role.id,
+      name: role.name,
+      description: role.description,
+      permissionKeys,
+      thresholds,
+    };
+  }
+
+  async updateCustomRole(
+    id: string,
+    companyId: string | null,
+    dto: UpdateCustomRoleDto,
+    actorId: string,
+    ipAddress?: string,
+  ): Promise<CustomRoleDetail> {
+    const existing = await this.prisma.customRole.findFirst({
+      where: { id, companyId },
+      select: {
+        id: true,
+        name: true,
+        permissions: { select: { permission: { select: { key: true } } } },
+      },
+    });
+    if (!existing) throw new NotFoundException(ERR.roles.customRoleNotFound);
+
+    const name = dto.name !== undefined ? this.parseCustomRoleName(dto.name) : existing.name;
+    if (name.toLowerCase() !== existing.name.toLowerCase()) {
+      await this.assertCustomRoleNameAvailable(name, companyId);
+    }
+
+    // Replace-semantics on the grant set: the role wholly owns its rows, so a
+    // wipe-and-recreate inside the transaction is simpler than the surgical
+    // diff the built-in roles need (their seeded rows must survive deploys).
+    const requested =
+      dto.permissionKeys !== undefined
+        ? this.parsePermissionKeys(dto.permissionKeys)
+        : existing.permissions
+            .map((p) => p.permission.key)
+            .filter((k): k is PermissionKey => KNOWN_PERMISSION_KEYS.has(k));
+    const sanitizedThresholds = this.parseThresholds(dto.thresholds, new Set<string>(requested));
+    const grants = await this.buildGrantRows(requested, sanitizedThresholds);
+
+    await this.prisma.$transaction([
+      this.prisma.customRole.update({
+        where: { id },
+        data: {
+          name,
+          ...(dto.description !== undefined
+            ? { description: normalizeDescription(dto.description) }
+            : {}),
+        },
+      }),
+      this.prisma.customRolePermission.deleteMany({ where: { customRoleId: id } }),
+      this.prisma.customRolePermission.createMany({
+        data: grants.map((g) => ({ ...g, customRoleId: id })),
+      }),
+    ]);
+
+    const previousKeys = new Set(existing.permissions.map((p) => p.permission.key));
+    const added = requested.filter((k) => !previousKeys.has(k));
+    const removed = [...previousKeys].filter((k) => !(requested as string[]).includes(k));
+    await this.audit.log({
+      action: AuditAction.CUSTOM_ROLE_UPDATED,
+      performedById: actorId,
+      targetType: 'CustomRole',
+      targetId: id,
+      targetLabel: name,
+      metadata: {
+        name,
+        previousName: existing.name,
+        added,
+        removed,
+        thresholds: sanitizedThresholds,
+      },
+      ipAddress,
+    });
+
+    return this.getCustomRoleDetail(id, companyId);
+  }
+
+  async deleteCustomRole(
+    id: string,
+    companyId: string | null,
+    actorId: string,
+    ipAddress?: string,
+  ): Promise<{ message: string }> {
+    const existing = await this.prisma.customRole.findFirst({
+      where: { id, companyId },
+      select: { id: true, name: true },
+    });
+    if (!existing) throw new NotFoundException(ERR.roles.customRoleNotFound);
+
+    await this.prisma.customRole.delete({ where: { id } });
+
+    await this.audit.log({
+      action: AuditAction.CUSTOM_ROLE_DELETED,
+      performedById: actorId,
+      targetType: 'CustomRole',
+      targetId: id,
+      targetLabel: existing.name,
+      metadata: { name: existing.name, companyId },
+      ipAddress,
+    });
+
+    return { message: 'Custom role deleted' };
+  }
+
+  private parseCustomRoleName(raw: string): string {
+    const name = raw.trim();
+    if (!name) throw new BadRequestException(ERR.roles.emptyCustomRoleName);
+    return name;
+  }
+
+  private async assertCustomRoleNameAvailable(
+    name: string,
+    companyId: string | null,
+  ): Promise<void> {
+    // Case-insensitive service-side check — the DB unique index treats NULL
+    // company_id values as distinct rows, so it cannot cover the platform scope.
+    const clash = await this.prisma.customRole.findFirst({
+      where: { companyId, name: { equals: name, mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (clash) throw new BadRequestException(ERR.roles.duplicateCustomRoleName(name));
+  }
+
+  private async buildGrantRows(
+    keys: PermissionKey[],
+    thresholds: Record<string, number | null>,
+  ): Promise<Array<{ permissionId: string; thresholdAmount: number | null }>> {
+    if (keys.length === 0) return [];
+    const permissions = await this.prisma.permission.findMany({
+      where: { key: { in: keys } },
+      select: { id: true, key: true },
+    });
+    const idByKey = new Map(permissions.map((p) => [p.key, p.id]));
+    const rows: Array<{ permissionId: string; thresholdAmount: number | null }> = [];
+    for (const key of keys) {
+      const permissionId = idByKey.get(key);
+      if (!permissionId) continue;
+      rows.push({
+        permissionId,
+        thresholdAmount: isThresholdAware(key) ? (thresholds[key] ?? null) : null,
+      });
+    }
+    return rows;
   }
 
   private parseRole(value: string): UserRole {

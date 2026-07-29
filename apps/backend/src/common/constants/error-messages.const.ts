@@ -290,6 +290,9 @@ export const ERR = {
     thresholdNotSupported: (key: string) => t(errors.roles.thresholdNotSupported, { key }),
     thresholdRequiresGrant: (key: string) => t(errors.roles.thresholdRequiresGrant, { key }),
     invalidThreshold: (key: string) => t(errors.roles.invalidThreshold, { key }),
+    customRoleNotFound: errors.roles.customRoleNotFound,
+    duplicateCustomRoleName: (name: string) => t(errors.roles.duplicateCustomRoleName, { name }),
+    emptyCustomRoleName: errors.roles.emptyCustomRoleName,
   },
 
   // ── Document extractions ─────────────────────────────────

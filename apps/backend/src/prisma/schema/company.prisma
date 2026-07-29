@@ -93,6 +93,9 @@ model Company {
   // Delivery reports (Epic 6) — vendor on a delivery report
   deliveryReportsAsVendor DeliveryReport[] @relation("DeliveryReportVendor")
 
+  // Admin-defined custom roles (FOR-252)
+  customRoles           CustomRole[]
+
   @@index([type], map: "idx_companies_type")
   @@index([legalName], map: "idx_companies_legal_name")
   @@map("companies")

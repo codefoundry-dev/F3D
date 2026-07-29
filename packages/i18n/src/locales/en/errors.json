@@ -216,7 +216,10 @@
     "cannotModifySuperAdmin": "The SUPER_ADMIN role has every permission and cannot be edited",
     "thresholdNotSupported": "Permission \"{{key}}\" does not support a monetary threshold",
     "thresholdRequiresGrant": "Cannot set a threshold for \"{{key}}\" — the permission must also be granted",
-    "invalidThreshold": "Threshold for \"{{key}}\" must be a non-negative number or null"
+    "invalidThreshold": "Threshold for \"{{key}}\" must be a non-negative number or null",
+    "customRoleNotFound": "Custom role not found",
+    "duplicateCustomRoleName": "A custom role named \"{{name}}\" already exists",
+    "emptyCustomRoleName": "Custom role name cannot be empty"
   },
   "boms": {
     "notFound": "BOM not found"
