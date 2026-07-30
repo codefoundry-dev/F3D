@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, UserRole } from '@prisma/client';
+import { Prisma, UserRole, UserStatus } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -73,5 +73,71 @@ export class ApprovalAuthorizationService {
     }
 
     return { outcome: 'allowed', threshold };
+  }
+
+  /**
+   * Emails of the ACTIVE users in `companyId` whose effective `permissionKey`
+   * grant covers `amount` — the recipients an over-limit document should be
+   * routed to (FOR-286). "Effective" follows the same custom-role-first rule
+   * as `evaluate`: a user with an assigned custom role is judged solely by
+   * that role's grant (their built-in role's grant is replaced), everyone
+   * else by their built-in role's. Batch-resolved in three queries so callers
+   * can fan out notifications without a per-user `evaluate` loop.
+   */
+  async findEligibleApproverEmails(
+    companyId: string,
+    permissionKey: string,
+    amount: Prisma.Decimal | number | null | undefined,
+  ): Promise<string[]> {
+    const users = await this.prisma.user.findMany({
+      where: { companyId, status: UserStatus.ACTIVE },
+      select: { email: true, role: true, customRoleId: true },
+    });
+    if (users.length === 0) return [];
+
+    const roleGrants = await this.prisma.rolePermission.findMany({
+      where: { permission: { key: permissionKey } },
+      select: { role: true, thresholdAmount: true },
+    });
+    const roleThresholds = new Map<string, Prisma.Decimal | null>(
+      roleGrants.map((g) => [g.role, g.thresholdAmount]),
+    );
+
+    const customRoleIds = [
+      ...new Set(users.map((u) => u.customRoleId).filter((id): id is string => Boolean(id))),
+    ];
+    const customGrants =
+      customRoleIds.length > 0
+        ? await this.prisma.customRolePermission.findMany({
+            where: { customRoleId: { in: customRoleIds }, permission: { key: permissionKey } },
+            select: { customRoleId: true, thresholdAmount: true },
+          })
+        : [];
+    const customThresholds = new Map<string, Prisma.Decimal | null>(
+      customGrants.map((g) => [g.customRoleId, g.thresholdAmount]),
+    );
+
+    const amountDecimal =
+      amount === null || amount === undefined
+        ? null
+        : amount instanceof Prisma.Decimal
+          ? amount
+          : new Prisma.Decimal(amount);
+    // A null amount is within every cap (matches `evaluate`'s missing-amount rule).
+    const covers = (threshold: Prisma.Decimal | null): boolean =>
+      !isThresholdAware(permissionKey) ||
+      threshold === null ||
+      !amountDecimal?.greaterThan(threshold);
+
+    const emails = users
+      .filter((u) => {
+        const useCustomRole = Boolean(u.customRoleId) && u.role !== UserRole.SUPER_ADMIN;
+        const grants = useCustomRole ? customThresholds : roleThresholds;
+        const grantKey = useCustomRole ? (u.customRoleId as string) : u.role;
+        return grants.has(grantKey) && covers(grants.get(grantKey) ?? null);
+      })
+      .map((u) => u.email);
+
+    return [...new Set(emails)];
   }
 }

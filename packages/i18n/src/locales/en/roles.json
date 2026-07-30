@@ -54,7 +54,8 @@
   "approval": {
     "listSubtitle": "Set approval spend limits",
     "editorHint": "Set the maximum amount this role can approve before a document escalates to a higher-tier approver. Leave a field blank for no limit.",
-    "empty": "No approval-aware permissions are enabled for this role yet. Enable them under Role permissions first."
+    "empty": "No approval-aware permissions are enabled for this role yet. Enable them under Role permissions first.",
+    "customEmpty": "This custom role has no approval-aware permissions yet. Grant them (e.g. Approve purchase orders) under Role permissions first."
   },
   "domains": {
     "dashboard": "Dashboards",

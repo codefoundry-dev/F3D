@@ -1327,8 +1327,9 @@ export class PoStatusService {
   /**
    * Email the company users entitled to approve a PO that has been routed to
    * PENDING_APPROVAL (Week-3 approver notification). "Entitled" = an ACTIVE user
-   * in the PO's company whose role holds `po.approve` with a threshold that
-   * covers the PO total (null threshold = unlimited). Best-effort.
+   * in the PO's company whose effective `po.approve` grant covers the PO total
+   * (custom-role-first per FOR-253/FOR-286: an assigned custom role's cap
+   * replaces the built-in role's). Best-effort.
    */
   private async notifyApproversOfPendingPo(
     poId: string,
@@ -1336,7 +1337,11 @@ export class PoStatusService {
     totalAmount: Prisma.Decimal | null,
     currency: string,
   ): Promise<void> {
-    const recipients = await this.findApproverEmails(companyId, totalAmount);
+    const recipients = await this.approvalAuth.findEligibleApproverEmails(
+      companyId,
+      'po.approve',
+      totalAmount,
+    );
     if (recipients.length === 0) return;
 
     const po = await this.prisma.purchaseOrder.findUnique({
@@ -1373,38 +1378,5 @@ export class PoStatusService {
       entityType: NotificationEntityType.PURCHASE_ORDER,
       entityId: poId,
     });
-  }
-
-  /**
-   * Resolve the ACTIVE users in `companyId` whose role can approve a PO of
-   * `totalAmount`. A role qualifies when its `po.approve` grant exists and its
-   * threshold is null (unlimited) or ≥ the amount.
-   */
-  private async findApproverEmails(
-    companyId: string,
-    totalAmount: Prisma.Decimal | null,
-  ): Promise<string[]> {
-    const grants = await this.prisma.rolePermission.findMany({
-      where: { permission: { key: 'po.approve' } },
-      select: { role: true, thresholdAmount: true },
-    });
-
-    const amount = totalAmount === null ? null : new Prisma.Decimal(totalAmount);
-    const eligibleRoles = grants
-      .filter((g) => g.thresholdAmount === null || !amount?.greaterThan(g.thresholdAmount))
-      .map((g) => g.role);
-
-    if (eligibleRoles.length === 0) return [];
-
-    const users = await this.prisma.user.findMany({
-      where: {
-        companyId,
-        status: 'ACTIVE',
-        role: { in: eligibleRoles },
-      },
-      select: { email: true },
-    });
-
-    return [...new Set(users.map((u) => u.email))];
   }
 }

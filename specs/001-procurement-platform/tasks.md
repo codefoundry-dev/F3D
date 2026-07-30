@@ -6650,3 +6650,25 @@ approved RFQs and bulk orders, in addition to manual creation.
       2613 green incl. coverage gate (+~20 specs: user-level resolution, guard pass-through,
       custom-role threshold evaluate, assignment validation/audit, delete guard; jwt.strategy select
       assertion updated); web 270 green in touched features (+5 modal/hook specs).
+- [x] T930 [FOR-286] Approval routing & per-role/per-user approval limits (builds on
+      FOR-196/210/253): approver notification for a PENDING_APPROVAL PO is now custom-role-aware —
+      new `ApprovalAuthorizationService.findEligibleApproverEmails(companyId, key, amount)` resolves
+      every ACTIVE company user's effective `po.approve` grant custom-role-FIRST (an assigned custom
+      role's cap replaces the built-in role's) in 3 batched queries; replaces the
+      built-in-roles-only `findApproverEmails` in po-status (custom-role approvers were never
+      notified, users restricted by a custom role were over-notified). Web: company-admin User
+      Management tabs now cover custom roles — "Approval configuration" lists the company's custom
+      roles and edits their caps via a thresholds-only `PUT /roles/custom/:id` (grants preserved:
+      `permissionKeys` omitted), "Role permissions" lists + edits custom-role grants and can create
+      one inline (reuses `CreateCustomRoleModal`); shared `RoleConfigList` gained the custom
+      section, both tab editors were parameterised into shared forms. PO detail: an over-limit
+      viewer (`me.poApprovalThreshold` below the PO total, via po-shared `requiresApproval`) sees
+      Approve disabled with an explanatory left-side tooltip (`send.overApprovalLimit`), and approve
+      failures surface the backend 403 message (with the configured cap) instead of the generic
+      toast. No migration. **Tests**: backend approval-authorization spec +7 (custom-role
+      included/excluded, replacement semantics, inclusive boundary, dedupe, short-circuit),
+      po-status notification specs reworked to the new seam, full suites + coverage gate green; web
+      2169 green incl. PoApprovalActions +4 (over-limit disable/tooltip, backend-message toast,
+      decline stays available). Runtime verified via Playwright route-mock harness
+      (`.tmp/for286/shot_for286.mjs`): custom-role threshold editor hydrates + saves
+      `{"thresholds":{"po.approve":10000}}`, over-limit Approve disabled with tooltip.
