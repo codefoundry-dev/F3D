@@ -122,11 +122,15 @@ export default function VendorUserListPage() {
 
   const handleStatusAction = () => {
     if (!statusActionUserId || !statusActionType || !statusActionUserEmail) return;
-    if (statusActionType === 'resendInvitation') {
+    // send + resend share the endpoint: it mints (or re-mints) the token and
+    // emails the activation link either way (FOR-289).
+    if (statusActionType === 'sendInvitation' || statusActionType === 'resendInvitation') {
+      const successKey =
+        statusActionType === 'sendInvitation' ? 'sendInvitationSuccess' : 'resendInvitationSuccess';
       resendMutation.mutate(statusActionUserId, {
         onSuccess: () => {
           closeStatusActionModal();
-          notificationService.success(t('resendInvitationSuccess'));
+          notificationService.success(t(successKey as 'resendInvitationSuccess'));
         },
       });
       return;
@@ -141,10 +145,22 @@ export default function VendorUserListPage() {
     }
   };
 
-  // Vendors can only manage invitations (resend / cancel) on pending invites —
-  // they cannot edit or deactivate users. Mirrors VendorUserDetailPage. (US 3.10)
+  // Vendors can only manage invitations (send / resend / cancel) on pending
+  // invites — they cannot edit or deactivate users. Mirrors
+  // VendorUserDetailPage. (US 3.10)
+  // Contact-only reps (INVITED without a sent invite, FOR-272) get "send"
+  // instead of resend/cancel — cancelling a never-sent invite 404s (FOR-289).
   const getRowActions = (user: UserResponse): DotAction[] => {
     if (user.status !== UserStatus.INVITED) return [];
+    if (!user.invitePending) {
+      return [
+        {
+          key: 'sendInvitation',
+          label: t('actions.sendInvitation'),
+          onClick: () => openStatusActionModal('sendInvitation', user.id, user.email),
+        },
+      ];
+    }
     return [
       {
         key: 'resendInvitation',

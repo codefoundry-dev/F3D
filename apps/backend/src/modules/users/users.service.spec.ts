@@ -200,6 +200,21 @@ describe('UsersService', () => {
       const result = await service.listUsers({ page: 1, limit: 25 }, superAdmin);
       expect(result.meta).toEqual({ page: 1, limit: 25, total: 50, totalPages: 2 });
     });
+
+    it('derives invitePending and strips the raw invitationToken (FOR-289)', async () => {
+      mockPrisma.user.findMany.mockResolvedValue([
+        { id: 'u-1', status: UserStatus.INVITED, invitationToken: 'hashed' },
+        { id: 'u-2', status: UserStatus.INVITED, invitationToken: null }, // contact-only rep
+        { id: 'u-3', status: UserStatus.ACTIVE, invitationToken: null },
+      ]);
+      mockPrisma.user.count.mockResolvedValue(3);
+
+      const result = await service.listUsers({}, superAdmin);
+      expect(result.items.map((i) => i.invitePending)).toEqual([true, false, false]);
+      for (const item of result.items) {
+        expect(item).not.toHaveProperty('invitationToken');
+      }
+    });
   });
 
   // ── createUser ─────────────────────────────────────────────────────────
@@ -307,6 +322,17 @@ describe('UsersService', () => {
       const result = await service.getUser('u-1', companyAdmin);
       expect(result.projects).toEqual([{ id: 'p-1', name: 'Project 1' }]);
       expect(result.projectMemberships).toBeUndefined();
+    });
+
+    it('derives invitePending and never returns the raw invitationToken (FOR-289)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...userRecord,
+        status: UserStatus.INVITED,
+        invitationToken: 'hashed',
+      });
+      const result = await service.getUser('u-1', companyAdmin);
+      expect(result.invitePending).toBe(true);
+      expect(result).not.toHaveProperty('invitationToken');
     });
 
     it('throws NotFoundException when user not found', async () => {
@@ -619,17 +645,18 @@ describe('UsersService', () => {
   // ── resendInvitation ───────────────────────────────────────────────────
 
   describe('resendInvitation', () => {
-    it('resends invitation for an invited user', async () => {
+    it('resends invitation for an invited user in the admin company', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'u-1',
         email: 'invited@test.com',
         name: 'INVITED',
         status: UserStatus.INVITED,
         role: UserRole.PROCUREMENT_OFFICER,
+        companyId: 'comp-1',
       });
       mockPrisma.user.update.mockResolvedValue({});
 
-      const result = await service.resendInvitation('u-1');
+      const result = await service.resendInvitation('u-1', companyAdmin);
       expect(mockPrisma.user.update).toHaveBeenCalled();
       expect(mockEmailService.sendInvitationEmail).toHaveBeenCalledWith(
         'invited@test.com',
@@ -641,17 +668,49 @@ describe('UsersService', () => {
 
     it('throws NotFoundException when user not found', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      await expect(service.resendInvitation('bad-id')).rejects.toThrow(NotFoundException);
+      await expect(service.resendInvitation('bad-id', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('throws when user is not in Invited status', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'u-1',
         status: UserStatus.ACTIVE,
+        companyId: 'comp-1',
       });
-      await expect(service.resendInvitation('u-1')).rejects.toThrow(
+      await expect(service.resendInvitation('u-1', companyAdmin)).rejects.toThrow(
         'User has already activated their account',
       );
+    });
+
+    it('rejects a target outside the requesting admin company (FOR-289 IDOR guard)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u-1',
+        status: UserStatus.INVITED,
+        companyId: 'comp-other',
+      });
+      await expect(service.resendInvitation('u-1', companyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockEmailService.sendInvitationEmail).not.toHaveBeenCalled();
+    });
+
+    it('SuperAdmin can resend for any company', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u-1',
+        email: 'invited@test.com',
+        name: 'INVITED',
+        status: UserStatus.INVITED,
+        role: UserRole.PROCUREMENT_OFFICER,
+        companyId: 'comp-other',
+      });
+      mockPrisma.user.update.mockResolvedValue({});
+
+      await expect(service.resendInvitation('u-1', superAdmin)).resolves.toEqual({
+        message: 'Invitation resent successfully',
+      });
     });
   });
 
@@ -707,12 +766,13 @@ describe('UsersService', () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'u-1',
         status: UserStatus.INVITED,
+        companyId: 'comp-1',
       });
       mockPrisma.user.update.mockResolvedValue({});
       mockPrisma.emailVerification.deleteMany.mockResolvedValue({ count: 0 });
       mockPrisma.user.delete.mockResolvedValue({});
 
-      const result = await service.cancelInvitation('u-1');
+      const result = await service.cancelInvitation('u-1', companyAdmin);
       expect(mockPrisma.$transaction).toHaveBeenCalled();
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 'u-1' },
@@ -727,15 +787,18 @@ describe('UsersService', () => {
 
     it('throws NotFoundException when user not found', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      await expect(service.cancelInvitation('bad-id')).rejects.toThrow(NotFoundException);
+      await expect(service.cancelInvitation('bad-id', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('throws when user is Active', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'u-1',
         status: UserStatus.ACTIVE,
+        companyId: 'comp-1',
       });
-      await expect(service.cancelInvitation('u-1')).rejects.toThrow(
+      await expect(service.cancelInvitation('u-1', companyAdmin)).rejects.toThrow(
         'Cannot cancel invitation for an active or inactive user',
       );
     });
@@ -744,10 +807,24 @@ describe('UsersService', () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'u-1',
         status: UserStatus.INACTIVE,
+        companyId: 'comp-1',
       });
-      await expect(service.cancelInvitation('u-1')).rejects.toThrow(
+      await expect(service.cancelInvitation('u-1', companyAdmin)).rejects.toThrow(
         'Cannot cancel invitation for an active or inactive user',
       );
+    });
+
+    it('rejects a target outside the requesting admin company (FOR-289 IDOR guard)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u-1',
+        status: UserStatus.INVITED,
+        companyId: 'comp-other',
+      });
+      await expect(service.cancelInvitation('u-1', companyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+      expect(mockPrisma.user.delete).not.toHaveBeenCalled();
     });
   });
 

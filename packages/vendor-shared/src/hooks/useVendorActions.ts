@@ -25,6 +25,7 @@ export function useVendorActions(options?: UseVendorActionsOptions) {
     actionUserId,
     actionUserEmail,
     actionUserName,
+    actionCompanyId,
     openActionModal,
     closeActionModal,
     isSuccessModalOpen,
@@ -41,20 +42,28 @@ export function useVendorActions(options?: UseVendorActionsOptions) {
   const handleActionConfirm = useCallback(() => {
     if (!actionUserId || !actionType || !actionUserEmail) return;
 
-    if (actionType === 'cancelInvitation') {
-      cancelMutation.mutate(actionUserId, {
-        onSuccess: () => {
-          closeActionModal();
-          notificationService.success(t('cancelInvitationSuccess'));
+    // resend/cancel go through the company-scoped invitation endpoints, so
+    // they need the vendor companyId captured when the modal opened (FOR-289).
+    if (actionType === 'cancelInvitation' && actionCompanyId) {
+      cancelMutation.mutate(
+        { companyId: actionCompanyId, userId: actionUserId },
+        {
+          onSuccess: () => {
+            closeActionModal();
+            notificationService.success(t('cancelInvitationSuccess'));
+          },
         },
-      });
-    } else if (actionType === 'resetInvitation') {
-      resendMutation.mutate(actionUserId, {
-        onSuccess: () => {
-          closeActionModal();
-          notificationService.success(t('resetInvitationSuccess'));
+      );
+    } else if (actionType === 'resetInvitation' && actionCompanyId) {
+      resendMutation.mutate(
+        { companyId: actionCompanyId, userId: actionUserId },
+        {
+          onSuccess: () => {
+            closeActionModal();
+            notificationService.success(t('resetInvitationSuccess'));
+          },
         },
-      });
+      );
     } else if (actionType === 'deactivateVendor') {
       deactivateMutation.mutate(actionUserId, {
         onSuccess: () => {
@@ -67,6 +76,7 @@ export function useVendorActions(options?: UseVendorActionsOptions) {
     actionUserId,
     actionType,
     actionUserEmail,
+    actionCompanyId,
     cancelMutation,
     resendMutation,
     deactivateMutation,
@@ -116,6 +126,7 @@ export function useVendorActions(options?: UseVendorActionsOptions) {
                 vendor.userId!,
                 vendor.contactEmail ?? '',
                 vendor.contactName ?? '',
+                vendor.companyId,
               ),
           },
           {
@@ -127,6 +138,7 @@ export function useVendorActions(options?: UseVendorActionsOptions) {
                 vendor.userId!,
                 vendor.contactEmail ?? '',
                 vendor.contactName ?? '',
+                vendor.companyId,
               ),
           },
         ];

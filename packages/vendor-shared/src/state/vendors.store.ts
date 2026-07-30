@@ -16,7 +16,16 @@ interface VendorsState {
   actionUserEmail: string | null;
   actionUserName: string | null;
   actionCompanyName: string | null;
-  openActionModal: (type: VendorAction, userId: string, email: string, name: string) => void;
+  /** Vendor company the target user belongs to — required by the
+   *  company-scoped invitation endpoints (FOR-289). */
+  actionCompanyId: string | null;
+  openActionModal: (
+    type: VendorAction,
+    userId: string,
+    email: string,
+    name: string,
+    companyId?: string,
+  ) => void;
   openBulkActionModal: (type: VendorAction, userIds: string[], companyName: string) => void;
   closeActionModal: () => void;
 
@@ -45,7 +54,8 @@ export const useVendorsStore = create<VendorsState>((set) => ({
   actionUserEmail: null,
   actionUserName: null,
   actionCompanyName: null,
-  openActionModal: (type, userId, email, name) =>
+  actionCompanyId: null,
+  openActionModal: (type, userId, email, name, companyId) =>
     set({
       isActionModalOpen: true,
       actionType: type,
@@ -54,6 +64,7 @@ export const useVendorsStore = create<VendorsState>((set) => ({
       actionUserEmail: email,
       actionUserName: name,
       actionCompanyName: null,
+      actionCompanyId: companyId ?? null,
     }),
   openBulkActionModal: (type, userIds, companyName) =>
     set({
@@ -64,6 +75,7 @@ export const useVendorsStore = create<VendorsState>((set) => ({
       actionUserEmail: null,
       actionUserName: null,
       actionCompanyName: companyName,
+      actionCompanyId: null,
     }),
   closeActionModal: () =>
     set({
@@ -74,6 +86,7 @@ export const useVendorsStore = create<VendorsState>((set) => ({
       actionUserEmail: null,
       actionUserName: null,
       actionCompanyName: null,
+      actionCompanyId: null,
     }),
 
   // Edit vendor user modal

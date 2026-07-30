@@ -76,6 +76,12 @@ export interface UserResponse {
   lastLoginAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * True when the user is INVITED and an activation invitation has been sent
+   * (and not yet accepted/cancelled). INVITED users without it are contact-only
+   * records (added without an invite, FOR-272) — offer "send", not "cancel".
+   */
+  invitePending?: boolean;
   company: { id: string; legalName: string; type: string } | null;
   projects?: { id: string; name: string }[];
   /**

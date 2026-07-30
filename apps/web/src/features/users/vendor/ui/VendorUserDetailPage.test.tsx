@@ -146,6 +146,7 @@ describe('VendorUserDetailPage', () => {
         name: 'Bob',
         email: 'bob@test.com',
         status: 'INVITED',
+        invitePending: true,
         role: 'VENDOR',
         createdAt: '2024-01-01',
         avatarUrl: null,
@@ -159,6 +160,35 @@ describe('VendorUserDetailPage', () => {
     expect(screen.getByTestId('dot-menu')).toBeInTheDocument();
     expect(screen.getByTestId('action-resendInvitation')).toBeInTheDocument();
     expect(screen.getByTestId('action-cancelInvitation')).toBeInTheDocument();
+  });
+
+  it('offers only Send invitation for a contact-only rep (no pending invite, FOR-289)', () => {
+    mockUseVendorUser.mockReturnValue({
+      data: {
+        id: 'user-1',
+        name: 'Dana',
+        email: 'dana@test.com',
+        status: 'INVITED',
+        invitePending: false,
+        role: 'VENDOR',
+        createdAt: '2024-01-01',
+        avatarUrl: null,
+        position: null,
+        phone: null,
+      },
+      isLoading: false,
+      isError: false,
+    });
+    render(<VendorUserDetailPage />);
+    expect(screen.getByTestId('action-sendInvitation')).toBeInTheDocument();
+    expect(screen.queryByTestId('action-resendInvitation')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('action-cancelInvitation')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('action-sendInvitation'));
+    expect(mockResendMutate).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
   });
 
   it('does not show dot actions menu for ACTIVE users', () => {
@@ -188,6 +218,7 @@ describe('VendorUserDetailPage', () => {
         name: 'Bob',
         email: 'bob@test.com',
         status: 'INVITED',
+        invitePending: true,
         role: 'VENDOR',
         createdAt: '2024-01-01',
         avatarUrl: null,
@@ -212,6 +243,7 @@ describe('VendorUserDetailPage', () => {
         name: 'Bob',
         email: 'bob@test.com',
         status: 'INVITED',
+        invitePending: true,
         role: 'VENDOR',
         createdAt: '2024-01-01',
         avatarUrl: null,
@@ -237,6 +269,7 @@ describe('VendorUserDetailPage', () => {
         name: 'Bob',
         email: 'bob@test.com',
         status: 'INVITED',
+        invitePending: true,
         role: 'VENDOR',
         createdAt: '2024-01-01',
         avatarUrl: null,
@@ -261,6 +294,7 @@ describe('VendorUserDetailPage', () => {
         name: 'Bob',
         email: 'bob@test.com',
         status: 'INVITED',
+        invitePending: true,
         role: 'VENDOR',
         createdAt: '2024-01-01',
         avatarUrl: null,
@@ -289,6 +323,7 @@ describe('VendorUserDetailPage', () => {
         name: 'Bob',
         email: 'bob@test.com',
         status: 'INVITED',
+        invitePending: true,
         role: 'VENDOR',
         createdAt: '2024-01-01',
         avatarUrl: null,

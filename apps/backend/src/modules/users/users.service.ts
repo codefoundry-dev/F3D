@@ -265,13 +265,20 @@ export class UsersService {
             return SORT_FIELD_ALIASES[field] ?? field;
           })()]: query.sortDir ?? 'desc',
         },
-        select: USER_SELECT,
+        // invitationToken is selected only to derive invitePending; the raw
+        // hash never leaves the service. Contact-only reps (added without an
+        // invite, FOR-272) are INVITED with no token — the UI needs the
+        // distinction to offer "send" vs "resend/cancel" (FOR-289).
+        select: { ...USER_SELECT, invitationToken: true },
       }),
       this.prisma.user.count({ where }),
     ]);
 
     return {
-      items,
+      items: items.map(({ invitationToken, ...item }) => ({
+        ...item,
+        invitePending: item.status === UserStatus.INVITED && invitationToken !== null,
+      })),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -349,7 +356,9 @@ export class UsersService {
   async getUser(id: string, requestingUser: AuthUser) {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      select: USER_DETAIL_SELECT,
+      // invitationToken only derives invitePending (see listUsers) — stripped
+      // before returning.
+      select: { ...USER_DETAIL_SELECT, invitationToken: true },
     });
 
     if (!user) throw new NotFoundException(ERR.users.notFound);
@@ -380,9 +389,11 @@ export class UsersService {
       }
     }
 
+    const { invitationToken, ...rest } = user;
     return {
-      ...user,
-      projects: user.projectMemberships.map((m) => m.project),
+      ...rest,
+      invitePending: rest.status === UserStatus.INVITED && invitationToken !== null,
+      projects: rest.projectMemberships.map((m) => m.project),
       projectMemberships: undefined,
     };
   }
@@ -535,9 +546,25 @@ export class UsersService {
     return updatedUser;
   }
 
-  async resendInvitation(id: string) {
+  /**
+   * Invitation lifecycle via /users is company-internal (FOR-289): vendor-rep
+   * invitations go through the vendor-scoped endpoints (ADR-0016), so anything
+   * outside the requester's own company — including assigned vendors — is out
+   * of reach here. Without this, any COMPANY_ADMIN could mint or revoke
+   * activation tokens for any INVITED user on the platform.
+   */
+  private assertOwnCompanyScope(user: { companyId: string | null }, requestingUser: AuthUser) {
+    if (requestingUser.role === UserRole.SUPER_ADMIN) return;
+    if (!user.companyId || user.companyId !== requestingUser.companyId) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
+  }
+
+  async resendInvitation(id: string, requestingUser: AuthUser) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException(ERR.users.notFound);
+
+    this.assertOwnCompanyScope(user, requestingUser);
 
     if (user.status !== UserStatus.INVITED) {
       throw new BadRequestException(ERR.users.alreadyActivated);
@@ -585,9 +612,11 @@ export class UsersService {
     return { message: 'Password reset email sent successfully' };
   }
 
-  async cancelInvitation(id: string) {
+  async cancelInvitation(id: string, requestingUser: AuthUser) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException(ERR.users.notFound);
+
+    this.assertOwnCompanyScope(user, requestingUser);
 
     if (user.status !== UserStatus.INVITED) {
       throw new BadRequestException(ERR.users.cannotCancelInvitation);

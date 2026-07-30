@@ -85,7 +85,7 @@ describe('useInviteVendorUserForm', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it('does not set showUserExists on non-409 error', async () => {
+  it('surfaces non-409 errors via showError instead of swallowing them (FOR-289)', async () => {
     mockMutate.mockImplementation((_data: any, opts: any) => opts.onError({ statusCode: 500 }));
     const onClose = vi.fn();
     const { result } = renderHook(() => useInviteVendorUserForm(onClose));
@@ -100,9 +100,10 @@ describe('useInviteVendorUserForm', () => {
     });
 
     expect(result.current.showUserExists).toBe(false);
+    expect(result.current.showError).toBe(true);
   });
 
-  it('sends empty string for position when not provided', async () => {
+  it('omits position when not provided — the API rejects an empty string (FOR-289)', async () => {
     const onClose = vi.fn();
     const { result } = renderHook(() => useInviteVendorUserForm(onClose));
 
@@ -116,7 +117,27 @@ describe('useInviteVendorUserForm', () => {
     });
 
     expect(mockMutate).toHaveBeenCalledWith(
-      expect.objectContaining({ position: '' }),
+      { name: 'Test', email: 'test@e.com', position: undefined },
+      expect.anything(),
+    );
+  });
+
+  it('omits a whitespace-only position', async () => {
+    const onClose = vi.fn();
+    const { result } = renderHook(() => useInviteVendorUserForm(onClose));
+
+    act(() => {
+      result.current.form.setValue('name', 'Test');
+      result.current.form.setValue('email', 'test@e.com');
+      result.current.form.setValue('position', '   ');
+    });
+
+    await act(async () => {
+      await result.current.handleSubmit();
+    });
+
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ position: undefined }),
       expect.anything(),
     );
   });

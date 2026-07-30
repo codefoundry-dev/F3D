@@ -248,20 +248,20 @@ describe('UsersController', () => {
   // ── resendInvitation ─────────────────────────────────────────────────────
 
   describe('resendInvitation', () => {
-    it('delegates to usersService.resendInvitation', async () => {
+    it('delegates to usersService.resendInvitation with the requesting user', async () => {
       mockUsersService.resendInvitation.mockResolvedValue({ message: 'ok' });
-      await controller.resendInvitation('user-2');
-      expect(mockUsersService.resendInvitation).toHaveBeenCalledWith('user-2');
+      await controller.resendInvitation('user-2', authUser);
+      expect(mockUsersService.resendInvitation).toHaveBeenCalledWith('user-2', authUser);
     });
   });
 
   // ── cancelInvitation ─────────────────────────────────────────────────────
 
   describe('cancelInvitation', () => {
-    it('delegates to usersService.cancelInvitation', async () => {
+    it('delegates to usersService.cancelInvitation with the requesting user', async () => {
       mockUsersService.cancelInvitation.mockResolvedValue({ message: 'ok' });
-      await controller.cancelInvitation('user-2');
-      expect(mockUsersService.cancelInvitation).toHaveBeenCalledWith('user-2');
+      await controller.cancelInvitation('user-2', authUser);
+      expect(mockUsersService.cancelInvitation).toHaveBeenCalledWith('user-2', authUser);
     });
   });
 });

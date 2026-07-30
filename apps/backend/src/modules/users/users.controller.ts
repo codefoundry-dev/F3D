@@ -192,8 +192,8 @@ export class UsersController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Resend invitation email to pending user' })
   @ApiResponse({ status: 200, description: 'Invitation resent' })
-  resendInvitation(@Param('id') id: string) {
-    return this.usersService.resendInvitation(id);
+  resendInvitation(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.usersService.resendInvitation(id, user);
   }
 
   @Delete(':id/invitation')
@@ -201,8 +201,8 @@ export class UsersController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Cancel pending invitation and remove user' })
   @ApiResponse({ status: 200, description: 'Invitation cancelled' })
-  cancelInvitation(@Param('id') id: string) {
-    return this.usersService.cancelInvitation(id);
+  cancelInvitation(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.usersService.cancelInvitation(id, user);
   }
 
   /** Convert the S3 key stored in `avatarUrl` to a short-lived presigned GET URL.

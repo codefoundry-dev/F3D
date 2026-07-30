@@ -30,8 +30,11 @@ import { WarehouseLocationFields } from './WarehouseLocationFields';
 
 // Invite-user flow is lazy-loaded so the (svg-heavy) modal tree is only pulled
 // in when the vendor opens it — keeps the profile page's test/render light.
-const InviteVendorModal = lazy(() =>
-  import('./InviteVendorModal').then((m) => ({ default: m.InviteVendorModal })),
+// This is the company-scoped invite-USER modal, not the buyer-only
+// invite-a-vendor-company flow (FOR-289): it invites a user to THIS vendor,
+// and both the vendor's own admins and buyers hold vendor.user.invite.
+const InviteVendorUserModal = lazy(() =>
+  import('./InviteVendorUserModal').then((m) => ({ default: m.InviteVendorUserModal })),
 );
 const VendorInviteSuccessModal = lazy(() =>
   import('./VendorInviteSuccessModal').then((m) => ({ default: m.VendorInviteSuccessModal })),
@@ -395,7 +398,8 @@ export default function VendorProfilePage({
       {(isInviteUserOpen || inviteSuccessEmail) && (
         <Suspense fallback={null}>
           {isInviteUserOpen && (
-            <InviteVendorModal
+            <InviteVendorUserModal
+              vendorId={vendorId}
               onClose={() => setIsInviteUserOpen(false)}
               onSuccess={(email) => {
                 setIsInviteUserOpen(false);
