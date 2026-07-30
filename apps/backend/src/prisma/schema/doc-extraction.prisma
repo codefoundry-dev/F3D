@@ -12,6 +12,7 @@ enum DocExtractionType {
   INVOICE
   GENERIC
   CATALOGUE
+  VENDOR_DOCUMENT
 }
 
 model DocExtraction {
@@ -42,6 +43,13 @@ model DocExtraction {
   // Same decoupling rationale as rfqId: plain scalar, no relation, so
   // doc-intelligence stays independent of the invoices module.
   invoiceId           String?             @map("invoice_id")
+  // Set when the extraction was kicked off for an uploaded company/vendor
+  // document (FOR-259). Same decoupling rationale as rfqId/invoiceId.
+  companyDocumentId   String?             @map("company_document_id")
+  // OCR observability (FOR-259): the page-averaged confidence Google Vision
+  // reported, and whether the OCR text (vs the raw document) reached the LLM.
+  ocrConfidence       Float?              @map("ocr_confidence")
+  ocrUsed             Boolean             @default(false) @map("ocr_used")
   createdAt           DateTime            @default(now()) @map("created_at")
   updatedAt           DateTime            @updatedAt @map("updated_at")
   completedAt         DateTime?           @map("completed_at")
@@ -58,5 +66,6 @@ model DocExtraction {
   @@index([type, status], map: "idx_doc_extractions_type_status")
   @@index([rfqId], map: "idx_doc_extractions_rfq")
   @@index([invoiceId], map: "idx_doc_extractions_invoice")
+  @@index([companyDocumentId], map: "idx_doc_extractions_company_document")
   @@map("doc_extractions")
 }

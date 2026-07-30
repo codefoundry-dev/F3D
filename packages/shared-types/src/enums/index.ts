@@ -382,6 +382,7 @@ export enum DocExtractionType {
   INVOICE = 'INVOICE',
   GENERIC = 'GENERIC',
   CATALOGUE = 'CATALOGUE',
+  VENDOR_DOCUMENT = 'VENDOR_DOCUMENT',
 }
 
 export enum DocExtractionStatus {

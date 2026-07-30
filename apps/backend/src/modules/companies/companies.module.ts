@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { PrismaModule } from '../../prisma/prisma.module';
 import { AuditModule } from '../audit/audit.module';
+import { DocIntelligenceModule } from '../doc-intelligence/doc-intelligence.module';
 import { ExportModule } from '../export/export.module';
 import { StorageModule } from '../storage/storage.module';
 
@@ -10,7 +11,7 @@ import { CompaniesService } from './companies.service';
 import { CompanyExportService } from './company-export.service';
 
 @Module({
-  imports: [PrismaModule, StorageModule, AuditModule, ExportModule],
+  imports: [PrismaModule, StorageModule, AuditModule, ExportModule, DocIntelligenceModule],
   controllers: [CompaniesController],
   providers: [CompaniesService, CompanyExportService],
   exports: [CompaniesService],

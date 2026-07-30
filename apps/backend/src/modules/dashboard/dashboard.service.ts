@@ -671,15 +671,16 @@ export class DashboardService {
       errorInfo: googleConfigured ? null : 'API key not configured',
     });
 
-    // 5. OCR Processing — placeholder (not yet implemented)
+    // 5. OCR Processing (FOR-259) — Google Vision OCR for vendor documents
+    const ocrConfigured = !!process.env.GOOGLE_VISION_API_KEY;
     components.push({
       id: 'ocr-processing',
       name: 'OCR Processing',
-      status: 'Disabled',
+      status: ocrConfigured ? 'Healthy' : 'Warning',
       category: 'backgroundJob',
-      lastSuccessfulRun: null,
-      lastError: null,
-      errorInfo: 'Not yet implemented',
+      lastSuccessfulRun: ocrConfigured ? new Date().toISOString() : null,
+      lastError: ocrConfigured ? null : new Date().toISOString(),
+      errorInfo: ocrConfigured ? null : 'Google Vision API key not configured',
     });
 
     // 6. In-app notifications — check recent audit log activity as proxy

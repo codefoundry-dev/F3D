@@ -19,6 +19,7 @@ import {
   MaterialStatus,
   Prisma,
   type DocExtraction,
+  type DocumentType,
   type File as PrismaFile,
 } from '@prisma/client';
 
@@ -27,6 +28,8 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
 import { PrismaService } from '../../prisma/prisma.service';
 import { GeminiService } from '../gemini/gemini.service';
 import { GeminiError, type GeminiMimeType } from '../gemini/gemini.types';
+import { OcrService } from '../ocr/ocr.service';
+import { OcrError } from '../ocr/ocr.types';
 import { StorageService } from '../storage/storage.service';
 
 import { normalizeBomResult } from './doc-intelligence.bom';
@@ -37,10 +40,15 @@ import {
   dropUnmatchedBomLines,
   type CatalogueMaterial,
 } from './doc-intelligence.match';
-import { buildExtractionPrompt } from './doc-intelligence.prompts';
+import { buildExtractionPrompt, buildOcrTextPrompt } from './doc-intelligence.prompts';
 import { normalizeQuoteResult } from './doc-intelligence.quote';
 import { buildResponseSchema } from './doc-intelligence.schemas';
 import { listSpreadsheetSheets, spreadsheetToText } from './doc-intelligence.spreadsheet';
+import {
+  normalizeVendorDocumentResult,
+  parseIsoDate,
+  type VendorDocumentExtractionResult,
+} from './doc-intelligence.vendor-document';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 // Catalogue spreadsheets are large (a real Rexel export is ~11.7 MB / 62k rows);
@@ -71,6 +79,18 @@ const ACCEPTED_MIME_TYPES: ReadonlySet<string> = new Set([
   ...SPREADSHEET_MIME_TYPES,
   ...CSV_MIME_TYPES,
 ]);
+
+// FOR-259: below this many characters the OCR pass clearly failed to read the
+// document (a real vendor document yields hundreds), so fall back to the LLM.
+const MIN_OCR_TEXT_CHARS = 20;
+
+/** Outcome of the OCR-first attempt on a vendor document (FOR-259). */
+interface OcrOutcome {
+  /** The OCR text when it was confident enough to send to the LLM; else null. */
+  text: string | null;
+  confidence: number | null;
+  used: boolean;
+}
 
 /**
  * Browsers (notably on Windows) report `.csv` files as
@@ -120,6 +140,9 @@ const EXTRACTION_SANS_RESULTS_SELECT = {
   companyId: true,
   rfqId: true,
   invoiceId: true,
+  companyDocumentId: true,
+  ocrConfidence: true,
+  ocrUsed: true,
   createdAt: true,
   updatedAt: true,
   completedAt: true,
@@ -139,6 +162,7 @@ export class DocIntelligenceService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly gemini: GeminiService,
+    private readonly ocr: OcrService,
   ) {}
 
   // ── Create extraction ────────────────────────────────────────────────────
@@ -337,6 +361,116 @@ export class DocIntelligenceService {
     );
   }
 
+  // ── Vendor document extraction (FOR-259) ──────────────────────────────────
+
+  /**
+   * Create a VENDOR_DOCUMENT extraction for an uploaded company document
+   * (insurance / license / certification) whose file is already persisted.
+   * OCR-first: Google Vision extracts the text and the LLM structures it; the
+   * multimodal LLM path is the fallback when OCR is unavailable, fails, or
+   * reports low confidence (see `tryOcrFirst`).
+   *
+   * Best-effort like the invoice intake: when Gemini isn't configured (it is
+   * needed to structure the OCR text too) or the file type has no extraction
+   * path (e.g. .docx), no job is created and the upload is unaffected.
+   */
+  async createVendorDocumentExtraction(input: {
+    companyId: string;
+    companyDocumentId: string;
+    createdByUserId: string;
+    fileId: string;
+    mimeType: string;
+    data: Buffer;
+    /** Autofill only the CompanyDocument fields the uploader left blank. */
+    autofillType: boolean;
+    autofillExpiresAt: boolean;
+  }): Promise<void> {
+    if (!this.gemini.isConfigured()) {
+      this.logger.warn(
+        `Skipping extraction for company document ${input.companyDocumentId}: Gemini is not configured`,
+      );
+      return;
+    }
+    if (!GEMINI_NATIVE_MIME_TYPES.has(input.mimeType)) return;
+
+    const extraction = await this.prisma.docExtraction.create({
+      data: {
+        type: DocExtractionType.VENDOR_DOCUMENT,
+        status: DocExtractionStatus.PENDING,
+        fileId: input.fileId,
+        createdByUserId: input.createdByUserId,
+        companyId: input.companyId,
+        companyDocumentId: input.companyDocumentId,
+      },
+    });
+
+    void this.runVendorDocumentExtraction(extraction.id, input.data, input.mimeType, {
+      type: input.autofillType,
+      expiresAt: input.autofillExpiresAt,
+    });
+  }
+
+  /**
+   * Run the extraction, then write the extracted document type / expiry date
+   * back onto the CompanyDocument fields the uploader left blank. Public so
+   * tests can await it; in production it is only ever fired-and-forgotten.
+   */
+  async runVendorDocumentExtraction(
+    extractionId: string,
+    fileBuffer: Buffer,
+    mimeType: string,
+    autofill: { type: boolean; expiresAt: boolean },
+  ): Promise<void> {
+    await this.runExtraction(extractionId, fileBuffer, mimeType);
+    await this.applyVendorDocumentAutofill(extractionId, autofill);
+  }
+
+  /**
+   * Best-effort write-back (FOR-259): copy the extracted document type and
+   * expiry date onto the CompanyDocument — but only onto fields the uploader
+   * left blank, so a human's explicit choice is never overwritten. Any failure
+   * (document deleted meanwhile, malformed result) logs and moves on; the
+   * extraction record itself is already saved.
+   */
+  private async applyVendorDocumentAutofill(
+    extractionId: string,
+    autofill: { type: boolean; expiresAt: boolean },
+  ): Promise<void> {
+    if (!autofill.type && !autofill.expiresAt) return;
+    try {
+      const job = await this.prisma.docExtraction.findUnique({ where: { id: extractionId } });
+      if (
+        job?.status !== DocExtractionStatus.COMPLETED ||
+        !job.companyDocumentId ||
+        !job.editedResult ||
+        typeof job.editedResult !== 'object'
+      ) {
+        return;
+      }
+      const result = job.editedResult as unknown as VendorDocumentExtractionResult;
+
+      const data: Prisma.CompanyDocumentUncheckedUpdateInput = {};
+      // OTHER is already the column default, so writing it adds nothing.
+      if (autofill.type && result.documentType && result.documentType !== 'OTHER') {
+        data.type = result.documentType as DocumentType;
+      }
+      if (autofill.expiresAt) {
+        const expiresAt = parseIsoDate(result.expiryDate);
+        if (expiresAt) data.expiresAt = expiresAt;
+      }
+      if (Object.keys(data).length === 0) return;
+
+      await this.prisma.companyDocument.update({
+        where: { id: job.companyDocumentId },
+        data,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Vendor-document autofill for extraction ${extractionId} failed: ${String(err)}`,
+      );
+    }
+  }
+
   /**
    * Fetch a guest quote extraction for the public poll endpoint. Scoped to
    * QUOTE jobs created via the vendor portal (`rfqId` set) so the token-less,
@@ -376,6 +510,9 @@ export class DocIntelligenceService {
       data: { status: DocExtractionStatus.PROCESSING },
     });
 
+    // Outside the try so the failure path can persist the OCR telemetry too.
+    let ocrOutcome: OcrOutcome | null = null;
+
     try {
       // ── Catalogue spreadsheet: parse Excel directly, no Gemini ──────────────
       if (this.isDirectCatalogueParse(job.type, mimeType)) {
@@ -411,11 +548,19 @@ export class DocIntelligenceService {
         responseMimeType: 'application/json' as const,
         ...(responseSchema ? { responseSchema } : {}),
       };
-      const inlinePrompt = SPREADSHEET_MIME_TYPES.has(mimeType)
-        ? await this.buildSpreadsheetPrompt(prompt, fileBuffer, sheetNames)
-        : CSV_MIME_TYPES.has(mimeType)
-          ? this.buildCsvPrompt(prompt, fileBuffer)
-          : null;
+      // FOR-259: vendor documents go through Google OCR first; when the OCR
+      // text is confident, the LLM gets a cheap text-only call instead of the
+      // raw document. Low confidence / failure falls through to multimodal.
+      if (job.type === DocExtractionType.VENDOR_DOCUMENT) {
+        ocrOutcome = await this.tryOcrFirst(extractionId, fileBuffer, mimeType);
+      }
+      const inlinePrompt = ocrOutcome?.text
+        ? buildOcrTextPrompt(prompt, ocrOutcome.text)
+        : SPREADSHEET_MIME_TYPES.has(mimeType)
+          ? await this.buildSpreadsheetPrompt(prompt, fileBuffer, sheetNames)
+          : CSV_MIME_TYPES.has(mimeType)
+            ? this.buildCsvPrompt(prompt, fileBuffer)
+            : null;
       const result = inlinePrompt
         ? await this.gemini.generate({
             prompt: inlinePrompt,
@@ -450,6 +595,7 @@ export class DocIntelligenceService {
           promptTokens: result.usage?.promptTokenCount ?? null,
           completionTokens: result.usage?.candidatesTokenCount ?? null,
           completedAt: new Date(),
+          ...(ocrOutcome ? { ocrConfidence: ocrOutcome.confidence, ocrUsed: ocrOutcome.used } : {}),
         },
       });
     } catch (err) {
@@ -462,8 +608,50 @@ export class DocIntelligenceService {
           errorCode: code,
           errorMessage: message,
           completedAt: new Date(),
+          ...(ocrOutcome ? { ocrConfidence: ocrOutcome.confidence, ocrUsed: ocrOutcome.used } : {}),
         },
       });
+    }
+  }
+
+  /**
+   * FOR-259: attempt Google OCR before the LLM. Never throws — any failure or
+   * low-confidence result reports `used: false`, sending the raw document
+   * down the existing multimodal LLM path (the acceptance criteria's
+   * "LLM acts as fallback").
+   */
+  private async tryOcrFirst(
+    extractionId: string,
+    fileBuffer: Buffer,
+    mimeType: string,
+  ): Promise<OcrOutcome> {
+    if (!this.ocr.isConfigured() || !this.ocr.supports(mimeType)) {
+      return { text: null, confidence: null, used: false };
+    }
+    try {
+      const result = await this.ocr.extractText(fileBuffer, mimeType);
+      const enoughText = result.text.trim().length >= MIN_OCR_TEXT_CHARS;
+      // A null confidence (Vision omitted it) with real text is trusted; only
+      // an explicit low score falls back.
+      const confident =
+        result.confidence === null || result.confidence >= this.ocr.confidenceThreshold;
+      if (!enoughText || !confident) {
+        this.logger.warn(
+          `Extraction ${extractionId}: OCR ${
+            enoughText
+              ? `confidence ${result.confidence?.toFixed(2)} below ${this.ocr.confidenceThreshold}`
+              : 'returned no usable text'
+          }; falling back to the multimodal LLM`,
+        );
+        return { text: null, confidence: result.confidence, used: false };
+      }
+      return { text: result.text, confidence: result.confidence, used: true };
+    } catch (err) {
+      const detail = err instanceof OcrError ? `${err.code}: ${err.message}` : String(err);
+      this.logger.warn(
+        `Extraction ${extractionId}: OCR failed (${detail}); falling back to the multimodal LLM`,
+      );
+      return { text: null, confidence: null, used: false };
     }
   }
 
@@ -517,6 +705,9 @@ ${fileBuffer.toString('utf-8')}`;
     }
     if (type === DocExtractionType.INVOICE) {
       return normalizeInvoiceResult(parsed) as unknown as Record<string, unknown>;
+    }
+    if (type === DocExtractionType.VENDOR_DOCUMENT) {
+      return normalizeVendorDocumentResult(parsed) as unknown as Record<string, unknown>;
     }
     return parsed;
   }

@@ -12,6 +12,7 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  Logger,
   UploadedFile,
   UseInterceptors,
   BadRequestException,
@@ -25,6 +26,7 @@ import { ERR } from '../../common/constants/error-messages.const';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/permissions';
 import { PrismaService } from '../../prisma/prisma.service';
+import { DocIntelligenceService } from '../doc-intelligence/doc-intelligence.service';
 import { StorageService } from '../storage/storage.service';
 
 import {
@@ -71,16 +73,29 @@ const DOCUMENT_ALLOWED_MIME_TYPES = [
  *  (e.g. Windows reports CSV as text/plain or application/octet-stream),
  *  so a generic mimetype falls back to the extension check alone. */
 const GENERIC_MIME_TYPES = ['application/octet-stream', 'text/plain', ''];
+/** FOR-259: extraction needs the real content type, but the validation above
+ *  deliberately accepts generic mimetypes when the extension is valid —
+ *  recover the type from the extension so those uploads still reach OCR. */
+const DOCUMENT_EXTENSION_MIME_TYPES: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+};
 
 @ApiTags('companies')
 @ApiBearerAuth()
 @Controller('companies')
 export class CompaniesController {
+  private readonly logger = new Logger(CompaniesController.name);
+
   constructor(
     private readonly companiesService: CompaniesService,
     private readonly companyExportService: CompanyExportService,
     private readonly storageService: StorageService,
     private readonly prisma: PrismaService,
+    private readonly docIntelligence: DocIntelligenceService,
   ) {}
 
   @Get()
@@ -268,7 +283,7 @@ export class CompaniesController {
       },
     });
 
-    return this.prisma.companyDocument.create({
+    const document = await this.prisma.companyDocument.create({
       data: {
         companyId: id,
         type: body.type ?? 'OTHER',
@@ -277,6 +292,57 @@ export class CompaniesController {
       },
       include: { file: true },
     });
+
+    // FOR-259: OCR-first data extraction for the uploaded document.
+    // Fire-and-forget — the upload response never waits on the pipeline.
+    this.startDocumentExtraction({
+      companyId: id,
+      companyDocumentId: document.id,
+      fileId: fileRecord.id,
+      mimeType: GENERIC_MIME_TYPES.includes(file.mimetype ?? '')
+        ? (DOCUMENT_EXTENSION_MIME_TYPES[ext] ?? file.mimetype)
+        : file.mimetype,
+      data: file.buffer,
+      userId: user.id,
+      body,
+    });
+
+    return document;
+  }
+
+  /**
+   * Kick off the Google-OCR + LLM extraction for a just-uploaded company
+   * document (FOR-259). Fire-and-forget, mirroring the invoice intake: the
+   * document row is already committed, so extraction problems must never
+   * fail the upload. The autofill flags let the pipeline fill in only the
+   * fields the uploader left blank (document type, expiry date).
+   */
+  private startDocumentExtraction(input: {
+    companyId: string;
+    companyDocumentId: string;
+    fileId: string;
+    mimeType: string;
+    data: Buffer;
+    userId: string;
+    body: UploadCompanyDocumentDto;
+  }): void {
+    void this.docIntelligence
+      .createVendorDocumentExtraction({
+        companyId: input.companyId,
+        companyDocumentId: input.companyDocumentId,
+        createdByUserId: input.userId,
+        fileId: input.fileId,
+        mimeType: input.mimeType,
+        data: input.data,
+        autofillType: !input.body.type,
+        autofillExpiresAt: !input.body.expiresAt,
+      })
+      .catch((error: unknown) => {
+        this.logger.error(
+          `Failed to start extraction for company document ${input.companyDocumentId}`,
+          error instanceof Error ? error.stack : String(error),
+        );
+      });
   }
 
   // ── Company Documents Export ─────────────────────────────────────────────

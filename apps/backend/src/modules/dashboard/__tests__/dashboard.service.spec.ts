@@ -930,16 +930,36 @@ describe('DashboardService', () => {
       mockPrisma.auditLog.findFirst.mockResolvedValue(null);
 
       const result = await service.getAdminPanelState();
-      const ocr = result.components.find((c: { id: string }) => c.id === 'ocr-processing');
       const erp = result.components.find((c: { id: string }) => c.id === 'erp-integration');
       const accounting = result.components.find(
         (c: { id: string }) => c.id === 'accounting-integration',
       );
 
-      expect(ocr!.status).toBe('Disabled');
-      expect(ocr!.category).toBe('backgroundJob');
       expect(erp!.status).toBe('Disabled');
       expect(accounting!.status).toBe('Disabled');
+    });
+
+    it('marks OCR processing as Healthy when the Vision API key is set (FOR-259)', async () => {
+      process.env.GOOGLE_VISION_API_KEY = 'test-key';
+      mockPrisma.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
+      mockPrisma.auditLog.findFirst.mockResolvedValue(null);
+
+      const result = await service.getAdminPanelState();
+      const ocr = result.components.find((c: { id: string }) => c.id === 'ocr-processing');
+      expect(ocr!.status).toBe('Healthy');
+      expect(ocr!.category).toBe('backgroundJob');
+      expect(ocr!.errorInfo).toBeNull();
+    });
+
+    it('marks OCR processing as Warning when no Vision API key', async () => {
+      delete process.env.GOOGLE_VISION_API_KEY;
+      mockPrisma.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
+      mockPrisma.auditLog.findFirst.mockResolvedValue(null);
+
+      const result = await service.getAdminPanelState();
+      const ocr = result.components.find((c: { id: string }) => c.id === 'ocr-processing');
+      expect(ocr!.status).toBe('Warning');
+      expect(ocr!.errorInfo).toContain('not configured');
     });
 
     it('includes in-app notifications with audit log timestamp', async () => {

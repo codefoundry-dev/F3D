@@ -191,11 +191,40 @@ const CATALOGUE_SCHEMA: GeminiSchema = {
   propertyOrdering: ['sourceName', 'items', 'notes'],
 };
 
+const VENDOR_DOCUMENT_SCHEMA: GeminiSchema = {
+  type: 'object',
+  properties: {
+    documentType: {
+      type: 'string',
+      enum: ['INSURANCE', 'LICENSE', 'CERTIFICATION', 'OTHER'],
+      nullable: true,
+    },
+    title: NULLABLE_STRING,
+    issuer: NULLABLE_STRING,
+    documentNumber: NULLABLE_STRING,
+    holderName: NULLABLE_STRING,
+    issuedDate: NULLABLE_STRING,
+    expiryDate: NULLABLE_STRING,
+    summary: NULLABLE_STRING,
+  },
+  propertyOrdering: [
+    'documentType',
+    'title',
+    'issuer',
+    'documentNumber',
+    'holderName',
+    'issuedDate',
+    'expiryDate',
+    'summary',
+  ],
+};
+
 const SCHEMAS: Partial<Record<DocExtractionType, GeminiSchema>> = {
   BOM: BOM_SCHEMA,
   QUOTE: QUOTE_SCHEMA,
   INVOICE: INVOICE_SCHEMA,
   CATALOGUE: CATALOGUE_SCHEMA,
+  VENDOR_DOCUMENT: VENDOR_DOCUMENT_SCHEMA,
 };
 
 /** Response schema for the given type, or undefined for free-form (GENERIC). */

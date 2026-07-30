@@ -30,6 +30,7 @@ describe('CompaniesController', () => {
       delete: jest.Mock;
     };
   };
+  let docIntelligence: { createVendorDocumentExtraction: jest.Mock };
 
   const superAdmin = { id: 'u1', role: 'SUPER_ADMIN', companyId: null };
   const companyAdmin = { id: 'u2', role: 'COMPANY_ADMIN', companyId: 'c1' };
@@ -70,11 +71,16 @@ describe('CompaniesController', () => {
       },
     };
 
+    docIntelligence = {
+      createVendorDocumentExtraction: jest.fn().mockResolvedValue(undefined),
+    };
+
     controller = new CompaniesController(
       companiesService,
       companyExportService as unknown as CompanyExportService,
       storageService as never,
       prisma as never,
+      docIntelligence as never,
     );
   });
 
@@ -439,6 +445,73 @@ describe('CompaniesController', () => {
           }),
         }),
       );
+    });
+
+    // ── FOR-259: OCR-first extraction trigger ────────────────────────────────
+
+    it('should fire the extraction with autofill flags for the fields left blank', async () => {
+      const file = makeFile();
+      storageService.upload.mockResolvedValue({ bucket: 'b', key: 'documents/c1/uuid.pdf' });
+      prisma.file.create.mockResolvedValue({ id: 'f1' });
+      prisma.companyDocument.create.mockResolvedValue({ id: 'd1', fileId: 'f1' });
+
+      await controller.uploadDocument('c1', file, superAdmin, {});
+
+      expect(docIntelligence.createVendorDocumentExtraction).toHaveBeenCalledWith({
+        companyId: 'c1',
+        companyDocumentId: 'd1',
+        createdByUserId: 'u1',
+        fileId: 'f1',
+        mimeType: 'application/pdf',
+        data: file.buffer,
+        autofillType: true,
+        autofillExpiresAt: true,
+      });
+    });
+
+    it('should not autofill the fields the uploader provided', async () => {
+      const file = makeFile();
+      storageService.upload.mockResolvedValue({ bucket: 'b', key: 'documents/c1/uuid.pdf' });
+      prisma.file.create.mockResolvedValue({ id: 'f1' });
+      prisma.companyDocument.create.mockResolvedValue({ id: 'd1', fileId: 'f1' });
+
+      await controller.uploadDocument('c1', file, superAdmin, {
+        type: 'INSURANCE',
+        expiresAt: '2027-01-01',
+      });
+
+      expect(docIntelligence.createVendorDocumentExtraction).toHaveBeenCalledWith(
+        expect.objectContaining({ autofillType: false, autofillExpiresAt: false }),
+      );
+    });
+
+    it('should recover the real mimetype from the extension for generic uploads', async () => {
+      // Windows browsers report application/octet-stream for valid PDFs; the
+      // extraction must still see application/pdf or it would be skipped.
+      const file = makeFile({ mimetype: 'application/octet-stream' });
+      storageService.upload.mockResolvedValue({ bucket: 'b', key: 'documents/c1/uuid.pdf' });
+      prisma.file.create.mockResolvedValue({ id: 'f1' });
+      prisma.companyDocument.create.mockResolvedValue({ id: 'd1', fileId: 'f1' });
+
+      await controller.uploadDocument('c1', file, superAdmin, {});
+
+      expect(docIntelligence.createVendorDocumentExtraction).toHaveBeenCalledWith(
+        expect.objectContaining({ mimeType: 'application/pdf' }),
+      );
+    });
+
+    it('should succeed even when starting the extraction fails', async () => {
+      const file = makeFile();
+      storageService.upload.mockResolvedValue({ bucket: 'b', key: 'documents/c1/uuid.pdf' });
+      prisma.file.create.mockResolvedValue({ id: 'f1' });
+      prisma.companyDocument.create.mockResolvedValue({ id: 'd1', fileId: 'f1' });
+      docIntelligence.createVendorDocumentExtraction.mockRejectedValue(new Error('boom'));
+
+      const result = await controller.uploadDocument('c1', file, superAdmin, {});
+
+      expect(result).toEqual({ id: 'd1', fileId: 'f1' });
+      // Flush the fire-and-forget rejection so its .catch runs inside the test.
+      await new Promise(process.nextTick);
     });
   });
 
