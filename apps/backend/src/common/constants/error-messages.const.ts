@@ -293,6 +293,9 @@ export const ERR = {
     customRoleNotFound: errors.roles.customRoleNotFound,
     duplicateCustomRoleName: (name: string) => t(errors.roles.duplicateCustomRoleName, { name }),
     emptyCustomRoleName: errors.roles.emptyCustomRoleName,
+    customRoleInUse: (name: string, count: number) =>
+      t(errors.roles.customRoleInUse, { name, count }),
+    customRoleSuperAdmin: errors.roles.customRoleSuperAdmin,
   },
 
   // ── Document extractions ─────────────────────────────────

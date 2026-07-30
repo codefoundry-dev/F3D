@@ -5,6 +5,7 @@
   "custom": {
     "heading": "Custom roles",
     "subtitle": "Roles you define for your company, with their own permission sets.",
+    "assignedCount": "{{count}} assigned",
     "create": "Create custom role",
     "empty": "No custom roles yet. Create one to bundle a tailored set of permissions.",
     "loadError": "Failed to load custom roles",

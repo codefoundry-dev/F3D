@@ -60,14 +60,16 @@ export async function updateRolePermissions(
 }
 
 // ── Custom roles (FOR-252) ───────────────────────────────────────────────────
-// Admin-defined roles scoped to the caller's company. Assigning them to users
-// arrives with FOR-253.
+// Admin-defined roles scoped to the caller's company. Users are assigned one
+// via PATCH /users/:id { customRoleId } (FOR-253).
 
 export interface CustomRoleSummary {
   id: string;
   name: string;
   description: string | null;
   permissionCount: number;
+  /** Users currently holding this role (FOR-253). */
+  assignedUserCount: number;
   createdAt: string;
 }
 
@@ -78,6 +80,8 @@ export interface CustomRoleDetail {
   permissionKeys: string[];
   /** Sparse map: only granted threshold-aware permissions with a finite cap. */
   thresholds: Record<string, number>;
+  /** Users currently holding this role (FOR-253) — non-zero blocks deletion. */
+  assignedUserCount: number;
 }
 
 export interface CreateCustomRoleDto {

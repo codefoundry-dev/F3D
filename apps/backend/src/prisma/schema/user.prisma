@@ -26,6 +26,13 @@ model User {
   passwordHash              String?    @map("password_hash") @db.VarChar(255)
   role                      UserRole
   status                    UserStatus @default(INVITED)
+  // Custom-role assignment (FOR-253). When set, the custom role's permission
+  // grants REPLACE the built-in role's for this user (resolved per-request in
+  // PermissionsService). `role` stays authoritative for company/scope logic and
+  // SUPER_ADMIN users can never hold one. SetNull keeps company-cascade deletes
+  // of custom_roles from failing; RolesService.deleteCustomRole additionally
+  // refuses to delete a role that is still assigned.
+  customRoleId              String?    @map("custom_role_id")
   companyId                 String?    @map("company_id")
   invitedByUserId           String?    @map("invited_by_user_id")
   invitationToken           String?    @unique @map("invitation_token") @db.VarChar(255)
@@ -40,6 +47,7 @@ model User {
 
   // Relations
   company              Company?           @relation(fields: [companyId], references: [id])
+  customRole           CustomRole?        @relation("UserCustomRole", fields: [customRoleId], references: [id], onDelete: SetNull)
   invitedBy            User?              @relation("UserInvitations", fields: [invitedByUserId], references: [id])
   invitedUsers         User[]             @relation("UserInvitations")
   emailVerifications   EmailVerification[]
@@ -98,6 +106,7 @@ model User {
   // Vendor reps chosen as RFQ recipients (US 5.05)
   rfqVendorContacts RfqVendorContact[]
 
+  @@index([customRoleId], map: "idx_users_custom_role")
   @@index([companyId, status], map: "idx_users_company_status")
   @@index([companyId, role], map: "idx_users_company_role")
   @@index([invitationToken], map: "idx_users_invitation_token")

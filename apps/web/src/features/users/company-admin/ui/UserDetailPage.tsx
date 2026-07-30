@@ -138,6 +138,7 @@ export default function UserDetailPage() {
           phone={user.phone}
           status={user.status}
           role={user.role}
+          roleLabel={user.customRole?.name}
           createdAt={user.createdAt}
           position={user.position}
           projects={user.projects}

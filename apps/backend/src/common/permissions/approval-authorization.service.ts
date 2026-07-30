@@ -4,6 +4,7 @@ import { Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 import { isThresholdAware } from './permissions.catalog';
+import { PermissionActor } from './permissions.service';
 
 /**
  * Result of evaluating whether a role's permission grant covers a monetary
@@ -22,8 +23,10 @@ export class ApprovalAuthorizationService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Resolve whether a role may approve a document whose total is `amount`,
-   * using the threshold attached to its `permissionKey` grant.
+   * Resolve whether an actor may approve a document whose total is `amount`,
+   * using the threshold attached to their `permissionKey` grant. Custom-role-
+   * first (FOR-253): an assigned custom role's grant (and cap) replaces the
+   * built-in role's; SUPER_ADMIN always resolves through the built-in role.
    *
    * `null` threshold = unlimited (allowed regardless of amount).
    * Non-threshold-aware permission keys always resolve as `allowed` with a
@@ -31,14 +34,20 @@ export class ApprovalAuthorizationService {
    * reject non-approval keys here.
    */
   async evaluate(
-    role: UserRole,
+    actor: PermissionActor,
     permissionKey: string,
     amount: Prisma.Decimal | number | null | undefined,
   ): Promise<ThresholdDecision> {
-    const row = await this.prisma.rolePermission.findFirst({
-      where: { role, permission: { key: permissionKey } },
-      select: { thresholdAmount: true },
-    });
+    const useCustomRole = Boolean(actor.customRoleId) && actor.role !== UserRole.SUPER_ADMIN;
+    const row = useCustomRole
+      ? await this.prisma.customRolePermission.findFirst({
+          where: { customRoleId: actor.customRoleId as string, permission: { key: permissionKey } },
+          select: { thresholdAmount: true },
+        })
+      : await this.prisma.rolePermission.findFirst({
+          where: { role: actor.role, permission: { key: permissionKey } },
+          select: { thresholdAmount: true },
+        });
 
     if (!row) {
       return { outcome: 'notGranted' };

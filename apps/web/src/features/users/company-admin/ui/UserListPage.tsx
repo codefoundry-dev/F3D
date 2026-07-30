@@ -544,7 +544,10 @@ export default function UserListPage() {
                             <td className="px-2 align-middle">
                               <RoleBadge
                                 role={user.role}
-                                label={t(`roles.${user.role}` as 'roles.COMPANY_ADMIN')}
+                                label={
+                                  user.customRole?.name ??
+                                  t(`roles.${user.role}` as 'roles.COMPANY_ADMIN')
+                                }
                               />
                             </td>
                             <td className="px-2 align-middle">

@@ -94,6 +94,20 @@ vi.mock('react-hook-form', () => ({
   Controller: ({ render }: any) => render({ field: { value: '', onChange: vi.fn() } }),
 }));
 
+// Custom-role assignment (FOR-253)
+const mockCustomRoles = vi.hoisted(() => ({
+  data: [{ id: 'cr-1', name: 'Limited Buyer' }] as { id: string; name: string }[] | undefined,
+}));
+const mockPermissions = vi.hoisted(() => ({ has: vi.fn(() => true) }));
+
+vi.mock('@/features/roles/services/roles.service', () => ({
+  useCustomRoleList: vi.fn(() => ({ data: mockCustomRoles.data })),
+}));
+
+vi.mock('@/shared/role', () => ({
+  usePermissions: vi.fn(() => ({ has: mockPermissions.has })),
+}));
+
 import { EditUserModal } from './EditUserModal';
 
 describe('EditUserModal', () => {
@@ -104,6 +118,8 @@ describe('EditUserModal', () => {
     mockUpdateMutation.isError = false;
     mockUpdateMutation.isPending = false;
     mockEditFormReturn.isLoadingUser = false;
+    mockCustomRoles.data = [{ id: 'cr-1', name: 'Limited Buyer' }];
+    mockPermissions.has.mockReturnValue(true);
   });
 
   it('renders the modal', () => {
@@ -139,6 +155,23 @@ describe('EditUserModal', () => {
   it('renders role field', () => {
     render(<EditUserModal onClose={mockOnClose} />);
     expect(screen.getByText('editModal.role')).toBeInTheDocument();
+  });
+
+  it('renders the custom role field when the company has custom roles (FOR-253)', () => {
+    render(<EditUserModal onClose={mockOnClose} />);
+    expect(screen.getByText('editModal.customRole')).toBeInTheDocument();
+  });
+
+  it('hides the custom role field when the company has none', () => {
+    mockCustomRoles.data = [];
+    render(<EditUserModal onClose={mockOnClose} />);
+    expect(screen.queryByText('editModal.customRole')).not.toBeInTheDocument();
+  });
+
+  it('hides the custom role field without the role.list permission', () => {
+    mockPermissions.has.mockReturnValue(false);
+    render(<EditUserModal onClose={mockOnClose} />);
+    expect(screen.queryByText('editModal.customRole')).not.toBeInTheDocument();
   });
 
   it('renders position field with optional label', () => {

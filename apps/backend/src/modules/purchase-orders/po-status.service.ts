@@ -210,7 +210,7 @@ export class PoStatusService {
     //  - notGranted     → role can't self-approve; route for internal approval
     let requiresApproval = false;
     if (user.role !== UserRole.SUPER_ADMIN) {
-      const decision = await this.approvalAuth.evaluate(user.role, 'po.approve', po.totalAmount);
+      const decision = await this.approvalAuth.evaluate(user, 'po.approve', po.totalAmount);
       requiresApproval = decision.outcome !== 'allowed';
     }
 
@@ -396,7 +396,7 @@ export class PoStatusService {
     // performed it via approvedById for audit. For everyone else the approver
     // must be authorized for the PO total.
     if (user.role !== UserRole.SUPER_ADMIN) {
-      const decision = await this.approvalAuth.evaluate(user.role, 'po.approve', po.totalAmount);
+      const decision = await this.approvalAuth.evaluate(user, 'po.approve', po.totalAmount);
       if (decision.outcome === 'belowThreshold') {
         throw new ForbiddenException(
           ERR.purchaseOrders.approvalThresholdExceeded(
@@ -1132,7 +1132,7 @@ export class PoStatusService {
         entitled.push(po);
         continue;
       }
-      const decision = await this.approvalAuth.evaluate(user.role, 'po.approve', po.totalAmount);
+      const decision = await this.approvalAuth.evaluate(user, 'po.approve', po.totalAmount);
       if (decision.outcome === 'allowed') entitled.push(po);
     }
 

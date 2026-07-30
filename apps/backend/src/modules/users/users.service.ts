@@ -65,6 +65,16 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   phone?: string;
+
+  /**
+   * Custom-role assignment (FOR-253). A string assigns that custom role (it
+   * must belong to the target user's company scope), null unassigns, absent
+   * leaves the assignment untouched. `@IsOptional()` deliberately lets null
+   * through — class-validator skips both null and undefined.
+   */
+  @IsOptional()
+  @IsString()
+  customRoleId?: string | null;
 }
 
 export class UpdateMeDto {
@@ -167,6 +177,8 @@ const USER_SELECT = {
   role: true,
   status: true,
   companyId: true,
+  customRoleId: true,
+  customRole: { select: { id: true, name: true } },
   lastLoginAt: true,
   createdAt: true,
   updatedAt: true,
@@ -397,7 +409,56 @@ export class UsersService {
       }
     }
 
-    return this.prisma.user.update({ where: { id }, data: dto, select: USER_SELECT });
+    // ── Custom-role assignment (FOR-253) ────────────────────────────────────
+    const effectiveRole = dto.role ?? user.role;
+    const { customRoleId, ...profileFields } = dto;
+    const data: Record<string, unknown> = { ...profileFields };
+
+    let assignedRole: { id: string; name: string } | null = null;
+    if (customRoleId !== undefined && customRoleId !== null) {
+      // SUPER_ADMIN resolves through built-in grants everywhere, so a custom
+      // role on one would be a dead (and misleading) assignment — refuse it.
+      if (effectiveRole === UserRole.SUPER_ADMIN) {
+        throw new BadRequestException(ERR.roles.customRoleSuperAdmin);
+      }
+      // The role must live in the target user's company scope. Cross-company
+      // roles surface as "not found" rather than leaking their existence.
+      assignedRole = await this.prisma.customRole.findFirst({
+        where: { id: customRoleId, companyId: user.companyId },
+        select: { id: true, name: true },
+      });
+      if (!assignedRole) throw new NotFoundException(ERR.roles.customRoleNotFound);
+      data['customRoleId'] = customRoleId;
+    } else if (
+      customRoleId === null ||
+      // Promotion to SUPER_ADMIN implicitly sheds any custom role.
+      (effectiveRole === UserRole.SUPER_ADMIN && user.customRoleId)
+    ) {
+      data['customRoleId'] = null;
+    }
+
+    const updated = await this.prisma.user.update({ where: { id }, data, select: USER_SELECT });
+
+    const previousCustomRole = user.customRole ?? null;
+    if ('customRoleId' in data && updated.customRoleId !== user.customRoleId) {
+      await this.auditService.log({
+        action: updated.customRoleId
+          ? AuditAction.CUSTOM_ROLE_ASSIGNED
+          : AuditAction.CUSTOM_ROLE_UNASSIGNED,
+        performedById: requestingUser.id,
+        targetType: 'User',
+        targetId: updated.id,
+        targetLabel: updated.name,
+        metadata: {
+          customRoleId: updated.customRoleId,
+          customRoleName: assignedRole?.name ?? null,
+          previousCustomRoleId: previousCustomRole?.id ?? null,
+          previousCustomRoleName: previousCustomRole?.name ?? null,
+        },
+      });
+    }
+
+    return updated;
   }
 
   async deactivateUser(id: string, requestingUser: AuthUser) {
@@ -556,23 +617,32 @@ export class UsersService {
 
     if (!user) throw new NotFoundException(ERR.users.notFound);
 
-    const granted = await this.permissionsService.getPermissionsForRole(user.role);
-    const poApprovalThreshold = await this.resolvePoApprovalThreshold(user.role);
+    const granted = await this.permissionsService.getPermissionsForUser(user);
+    const poApprovalThreshold = await this.resolvePoApprovalThreshold(user);
     return { ...user, permissions: Array.from(granted), poApprovalThreshold };
   }
 
   /**
    * Resolve the user's `po.approve` threshold for the frontend send/approve UI
    * (FOR-210). `null` = unlimited (SUPER_ADMIN, or an uncapped grant). `0` =
-   * the role lacks the grant, so any positive PO total requires approval.
+   * the grant is absent, so any positive PO total requires approval. An
+   * assigned custom role's grant replaces the built-in role's (FOR-253).
    */
-  private async resolvePoApprovalThreshold(role: UserRole): Promise<number | null> {
-    if (role === UserRole.SUPER_ADMIN) return null;
+  private async resolvePoApprovalThreshold(user: {
+    role: UserRole;
+    customRoleId?: string | null;
+  }): Promise<number | null> {
+    if (user.role === UserRole.SUPER_ADMIN) return null;
 
-    const grant = await this.prisma.rolePermission.findFirst({
-      where: { role, permission: { key: 'po.approve' } },
-      select: { thresholdAmount: true },
-    });
+    const grant = user.customRoleId
+      ? await this.prisma.customRolePermission.findFirst({
+          where: { customRoleId: user.customRoleId, permission: { key: 'po.approve' } },
+          select: { thresholdAmount: true },
+        })
+      : await this.prisma.rolePermission.findFirst({
+          where: { role: user.role, permission: { key: 'po.approve' } },
+          select: { thresholdAmount: true },
+        });
 
     if (!grant) return 0;
     if (grant.thresholdAmount === null) return null;

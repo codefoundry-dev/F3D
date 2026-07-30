@@ -352,7 +352,7 @@ describe('PoStatusService', () => {
         ForbiddenException,
       );
       expect(mockApprovalAuth.evaluate).toHaveBeenCalledWith(
-        UserRole.PROCUREMENT_OFFICER,
+        expect.objectContaining({ role: UserRole.PROCUREMENT_OFFICER }),
         'po.approve',
         expect.anything(),
       );

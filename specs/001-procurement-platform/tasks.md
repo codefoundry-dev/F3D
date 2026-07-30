@@ -6628,3 +6628,25 @@ approved RFQs and bulk orders, in addition to manual creation.
       `20260728150000_invoice_line_accounting_codes`. **Tests**: backend invoices suites 191 green
       (+1 export line-level spec, review/getInvoice specs extended); web invoices 26 green (+2
       InvoiceReviewPanel).
+- [x] T929 [FOR-253] Custom-role assignment for users (completes FOR-252): nullable
+      `users.custom_role_id` FK → `custom_roles` (ON DELETE SET NULL so company-cascade deletes
+      never fail; API separately blocks deleting a role that is still assigned), new audit actions
+      `CUSTOM_ROLE_ASSIGNED`/`CUSTOM_ROLE_UNASSIGNED`. Assignment via existing
+      `PATCH /v1/users/:id { customRoleId: string | null }` (`user.update`); the role must live in
+      the TARGET user's company scope (cross-company → 404, no existence leak), SUPER_ADMIN targets
+      are rejected and promotion to SUPER_ADMIN sheds the role. Permission resolution is
+      custom-role-FIRST (grants replace the built-in role's, `role` stays authoritative for
+      scoping): JwtStrategy selects `customRoleId` per request → `AuthenticatedUser` →
+      `PermissionsService.getPermissionsForUser`/`userHasPermission`, PermissionsGuard,
+      `ApprovalAuthorizationService.evaluate(actor, …)` (signature now takes the actor, 3 po-status
+      call sites), MR `userCanApprove`, and `getMe`/`resolvePoApprovalThreshold` — per-request DB
+      reads mean assignment takes effect immediately with no token reissue. `deleteCustomRole` 400s
+      while users hold the role (`customRoleInUse`); `assignedUserCount` added to custom-role
+      summary + detail. Web (company-admin only — `/roles/custom` is actor-scoped): EditUserModal
+      "Custom role" dropdown (rendered when `role.list` + list non-empty, `''`→null mapping),
+      custom-role name on the users-list RoleBadge and UserDetail `ProfileInfoGrid` (new `roleLabel`
+      prop), "N assigned" chip on the Roles settings rows, `useUpdateUser` also invalidates
+      `custom-roles`. Migration `20260729130000_add_user_custom_role_assignment`. **Tests**: backend
+      2613 green incl. coverage gate (+~20 specs: user-level resolution, guard pass-through,
+      custom-role threshold evaluate, assignment validation/audit, delete guard; jwt.strategy select
+      assertion updated); web 270 green in touched features (+5 modal/hook specs).

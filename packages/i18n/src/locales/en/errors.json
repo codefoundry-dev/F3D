@@ -219,7 +219,9 @@
     "invalidThreshold": "Threshold for \"{{key}}\" must be a non-negative number or null",
     "customRoleNotFound": "Custom role not found",
     "duplicateCustomRoleName": "A custom role named \"{{name}}\" already exists",
-    "emptyCustomRoleName": "Custom role name cannot be empty"
+    "emptyCustomRoleName": "Custom role name cannot be empty",
+    "customRoleInUse": "Cannot delete \"{{name}}\" — {{count}} user(s) are still assigned to it",
+    "customRoleSuperAdmin": "Super admins cannot be assigned a custom role"
   },
   "boms": {
     "notFound": "BOM not found"

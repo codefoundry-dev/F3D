@@ -415,6 +415,7 @@ describe('RolesService', () => {
       { thresholdAmount: null, permission: { key: 'rfq.read' } },
       { thresholdAmount: { toString: () => '5000' }, permission: { key: 'po.approve' } },
     ],
+    _count: { users: 0 },
     ...over,
   });
 
@@ -426,7 +427,7 @@ describe('RolesService', () => {
           name: 'Junior Buyer',
           description: 'Limited PO rights',
           createdAt: new Date('2026-07-29'),
-          _count: { permissions: 4 },
+          _count: { permissions: 4, users: 2 },
         },
       ]);
 
@@ -436,7 +437,12 @@ describe('RolesService', () => {
         expect.objectContaining({ where: { companyId: 'co-1' } }),
       );
       expect(result).toEqual([
-        expect.objectContaining({ id: 'cr-1', name: 'Junior Buyer', permissionCount: 4 }),
+        expect.objectContaining({
+          id: 'cr-1',
+          name: 'Junior Buyer',
+          permissionCount: 4,
+          assignedUserCount: 2,
+        }),
       ]);
     });
   });
@@ -650,8 +656,26 @@ describe('RolesService', () => {
       );
     });
 
+    it('refuses to delete a role that users still hold (FOR-253)', async () => {
+      prisma.customRole.findFirst.mockResolvedValue({
+        id: 'cr-1',
+        name: 'Junior Buyer',
+        _count: { users: 3 },
+      });
+
+      await expect(service.deleteCustomRole('cr-1', 'co-1', 'actor-1')).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(prisma.customRole.delete).not.toHaveBeenCalled();
+      expect(audit.log).not.toHaveBeenCalled();
+    });
+
     it('deletes the role and audits it', async () => {
-      prisma.customRole.findFirst.mockResolvedValue({ id: 'cr-1', name: 'Junior Buyer' });
+      prisma.customRole.findFirst.mockResolvedValue({
+        id: 'cr-1',
+        name: 'Junior Buyer',
+        _count: { users: 0 },
+      });
 
       const result = await service.deleteCustomRole('cr-1', 'co-1', 'actor-1', '10.0.0.3');
 

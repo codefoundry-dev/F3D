@@ -85,6 +85,8 @@ export interface CustomRoleSummary {
   name: string;
   description: string | null;
   permissionCount: number;
+  /** Users currently holding this role (FOR-253). */
+  assignedUserCount: number;
   createdAt: Date;
 }
 
@@ -95,6 +97,8 @@ export interface CustomRoleDetail {
   permissionKeys: PermissionKey[];
   /** Sparse — only granted threshold-aware permissions with a finite cap. */
   thresholds: Record<string, number>;
+  /** Users currently holding this role (FOR-253) — non-zero blocks deletion. */
+  assignedUserCount: number;
 }
 
 export interface RoleDetail {
@@ -305,7 +309,7 @@ export class RolesService {
         name: true,
         description: true,
         createdAt: true,
-        _count: { select: { permissions: true } },
+        _count: { select: { permissions: true, users: true } },
       },
     });
     return rows.map((r) => ({
@@ -313,6 +317,7 @@ export class RolesService {
       name: r.name,
       description: r.description,
       permissionCount: r._count.permissions,
+      assignedUserCount: r._count.users,
       createdAt: r.createdAt,
     }));
   }
@@ -366,6 +371,7 @@ export class RolesService {
             permission: { select: { key: true } },
           },
         },
+        _count: { select: { users: true } },
       },
     });
     if (!role) throw new NotFoundException(ERR.roles.customRoleNotFound);
@@ -389,6 +395,7 @@ export class RolesService {
       description: role.description,
       permissionKeys,
       thresholds,
+      assignedUserCount: role._count.users,
     };
   }
 
@@ -472,9 +479,16 @@ export class RolesService {
   ): Promise<{ message: string }> {
     const existing = await this.prisma.customRole.findFirst({
       where: { id, companyId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, _count: { select: { users: true } } },
     });
     if (!existing) throw new NotFoundException(ERR.roles.customRoleNotFound);
+
+    // FOR-253: a role that users still hold cannot be deleted — unassign first.
+    if (existing._count.users > 0) {
+      throw new BadRequestException(
+        ERR.roles.customRoleInUse(existing.name, existing._count.users),
+      );
+    }
 
     await this.prisma.customRole.delete({ where: { id } });
 

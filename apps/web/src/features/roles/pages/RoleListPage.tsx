@@ -154,6 +154,11 @@ export default function RoleListPage() {
                   {role.description ?? t('permissionCount', { count: role.permissionCount })}
                 </p>
               </div>
+              {role.assignedUserCount > 0 && (
+                <span className="shrink-0 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-600">
+                  {t('custom.assignedCount', { count: role.assignedUserCount })}
+                </span>
+              )}
               <ChevronRightIcon className="size-4 shrink-0 text-gray-400" />
             </button>
           ))}

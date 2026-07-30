@@ -32,7 +32,7 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException(ERR.general.accessDenied);
     }
 
-    const granted = await this.permissions.getPermissionsForRole(user.role);
+    const granted = await this.permissions.getPermissionsForUser(user);
     const missing = required.filter((key) => !granted.has(key));
 
     if (missing.length > 0) {

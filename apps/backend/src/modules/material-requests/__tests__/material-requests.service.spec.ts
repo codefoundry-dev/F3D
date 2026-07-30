@@ -85,7 +85,11 @@ function makeService() {
   };
   const permissions = {
     roleHasPermission: jest.fn().mockResolvedValue(false),
-  } as unknown as PermissionsService & { roleHasPermission: jest.Mock };
+    userHasPermission: jest.fn().mockResolvedValue(false),
+  } as unknown as PermissionsService & {
+    roleHasPermission: jest.Mock;
+    userHasPermission: jest.Mock;
+  };
   // Inventory push-out hook: defaults to "nothing in stock" (issued 0). Tests
   // that exercise auto-issue override issueOut per-call.
   const inventory = {
@@ -724,7 +728,7 @@ describe('MaterialRequestsService', () => {
 
     it('lets an entitled approver cancel another user’s MR', async () => {
       const { service, prisma, permissions } = makeService();
-      permissions.roleHasPermission.mockResolvedValue(true);
+      permissions.userHasPermission.mockResolvedValue(true);
       prisma.materialRequest.findUnique
         .mockResolvedValueOnce({
           id: 'mr-1',
@@ -734,8 +738,8 @@ describe('MaterialRequestsService', () => {
         })
         .mockResolvedValueOnce(makeMr({ status: MaterialRequestStatus.CANCELLED }));
       await expect(service.cancel('mr-1', officer)).resolves.toBeDefined();
-      expect(permissions.roleHasPermission).toHaveBeenCalledWith(
-        UserRole.PROCUREMENT_OFFICER,
+      expect(permissions.userHasPermission).toHaveBeenCalledWith(
+        expect.objectContaining({ role: UserRole.PROCUREMENT_OFFICER }),
         'materialRequest.approve',
       );
     });
@@ -751,12 +755,12 @@ describe('MaterialRequestsService', () => {
         })
         .mockResolvedValueOnce(makeMr({ status: MaterialRequestStatus.CANCELLED }));
       await expect(service.cancel('mr-1', superAdmin)).resolves.toBeDefined();
-      expect(permissions.roleHasPermission).not.toHaveBeenCalled();
+      expect(permissions.userHasPermission).not.toHaveBeenCalled();
     });
 
     it('forbids a non-requester without the approve grant', async () => {
       const { service, prisma, permissions } = makeService();
-      permissions.roleHasPermission.mockResolvedValue(false);
+      permissions.userHasPermission.mockResolvedValue(false);
       prisma.materialRequest.findUnique.mockResolvedValue({
         id: 'mr-1',
         status: MaterialRequestStatus.SUBMITTED,

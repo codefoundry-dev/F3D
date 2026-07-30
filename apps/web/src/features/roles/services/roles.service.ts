@@ -49,8 +49,9 @@ export function useUpdateRolePermissions(role: UserRole | string) {
 
 // ── Custom roles (FOR-252) ───────────────────────────────────────────────────
 
-export function useCustomRoleList() {
-  return useQuery({ queryKey: [CUSTOM_ROLES_KEY], queryFn: () => getCustomRoles() });
+/** `enabled: false` skips the fetch for callers without `role.list` (FOR-253). */
+export function useCustomRoleList(enabled = true) {
+  return useQuery({ queryKey: [CUSTOM_ROLES_KEY], queryFn: () => getCustomRoles(), enabled });
 }
 
 export function useCustomRoleDetail(id: string) {

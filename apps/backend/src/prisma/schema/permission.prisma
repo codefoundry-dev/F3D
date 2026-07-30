@@ -56,6 +56,7 @@ model CustomRole {
 
   company     Company?               @relation(fields: [companyId], references: [id], onDelete: Cascade)
   permissions CustomRolePermission[]
+  users       User[]                 @relation("UserCustomRole")
 
   @@unique([companyId, name], map: "uq_custom_roles_company_name")
   @@index([companyId], map: "idx_custom_roles_company")

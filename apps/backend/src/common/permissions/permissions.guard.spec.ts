@@ -35,7 +35,7 @@ describe('PermissionsGuard', () => {
   beforeEach(() => {
     reflector = { getAllAndOverride: jest.fn() } as unknown as jest.Mocked<Reflector>;
     permissions = {
-      getPermissionsForRole: jest.fn(),
+      getPermissionsForUser: jest.fn(),
       roleHasPermission: jest.fn(),
     } as unknown as jest.Mocked<PermissionsService>;
     guard = new PermissionsGuard(reflector, permissions);
@@ -44,19 +44,19 @@ describe('PermissionsGuard', () => {
   it('allows the request when no @RequirePermissions metadata is set', async () => {
     reflector.getAllAndOverride.mockReturnValue(undefined);
     await expect(guard.canActivate(ctx(mockUser))).resolves.toBe(true);
-    expect(permissions.getPermissionsForRole).not.toHaveBeenCalled();
+    expect(permissions.getPermissionsForUser).not.toHaveBeenCalled();
   });
 
   it('allows the request when the user role has every required permission', async () => {
     reflector.getAllAndOverride.mockReturnValue(['rfq.create']);
-    permissions.getPermissionsForRole.mockResolvedValue(new Set(['rfq.create', 'rfq.read']));
+    permissions.getPermissionsForUser.mockResolvedValue(new Set(['rfq.create', 'rfq.read']));
 
     await expect(guard.canActivate(ctx(mockUser))).resolves.toBe(true);
   });
 
   it('returns 403 when a single required permission is missing', async () => {
     reflector.getAllAndOverride.mockReturnValue(['po.approve']);
-    permissions.getPermissionsForRole.mockResolvedValue(new Set(['po.read']));
+    permissions.getPermissionsForUser.mockResolvedValue(new Set(['po.read']));
 
     await expect(guard.canActivate(ctx(mockUser))).rejects.toThrow(ForbiddenException);
     await expect(guard.canActivate(ctx(mockUser))).rejects.toThrow(/po\.approve/);
@@ -64,7 +64,7 @@ describe('PermissionsGuard', () => {
 
   it('returns 403 when any required permission is missing (AND semantics)', async () => {
     reflector.getAllAndOverride.mockReturnValue(['po.approve', 'po.update']);
-    permissions.getPermissionsForRole.mockResolvedValue(new Set(['po.approve']));
+    permissions.getPermissionsForUser.mockResolvedValue(new Set(['po.approve']));
 
     await expect(guard.canActivate(ctx(mockUser))).rejects.toThrow(/po\.update/);
   });
@@ -74,14 +74,23 @@ describe('PermissionsGuard', () => {
     await expect(guard.canActivate(ctx(undefined))).rejects.toThrow(ForbiddenException);
   });
 
+  it('passes the whole user (incl. customRoleId) to permission resolution (FOR-253)', async () => {
+    reflector.getAllAndOverride.mockReturnValue(['po.read']);
+    permissions.getPermissionsForUser.mockResolvedValue(new Set(['po.read']));
+    const assigned: AuthenticatedUser = { ...mockUser, customRoleId: 'cr-1' };
+
+    await expect(guard.canActivate(ctx(assigned))).resolves.toBe(true);
+    expect(permissions.getPermissionsForUser).toHaveBeenCalledWith(assigned);
+  });
+
   it('queries the DB on every call so revoking a permission denies the next request', async () => {
     reflector.getAllAndOverride.mockReturnValue(['rfq.create']);
-    permissions.getPermissionsForRole
+    permissions.getPermissionsForUser
       .mockResolvedValueOnce(new Set(['rfq.create']))
       .mockResolvedValueOnce(new Set());
 
     await expect(guard.canActivate(ctx(mockUser))).resolves.toBe(true);
     await expect(guard.canActivate(ctx(mockUser))).rejects.toThrow(ForbiddenException);
-    expect(permissions.getPermissionsForRole).toHaveBeenCalledTimes(2);
+    expect(permissions.getPermissionsForUser).toHaveBeenCalledTimes(2);
   });
 });

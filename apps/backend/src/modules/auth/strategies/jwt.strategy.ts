@@ -48,6 +48,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
         role: true,
         status: true,
         companyId: true,
+        // Resolved fresh on every request so a custom-role (re)assignment takes
+        // effect immediately without waiting for the JWT to be reissued (FOR-253).
+        customRoleId: true,
       },
     });
 
