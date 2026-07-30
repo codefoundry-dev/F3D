@@ -15,9 +15,11 @@ import {
   UploadedFile,
   UseInterceptors,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
+import { UserRole } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -123,7 +125,9 @@ export class CompaniesController {
   @Get(':id/vendors')
   @ApiOperation({ summary: 'Get vendors assigned to a contractor company' })
   @ApiResponse({ status: 200, description: 'List of assigned vendors' })
-  getCompanyVendors(@Param('id') id: string) {
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  getCompanyVendors(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    this.assertCompanyScope(id, user);
     return this.companiesService.getCompanyVendors(id);
   }
 
@@ -161,6 +165,7 @@ export class CompaniesController {
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: AuthUser,
   ) {
+    this.assertCompanyScope(id, user);
     if (!file) throw new BadRequestException(ERR.storage.noFileProvided);
     if (!['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'].includes(file.mimetype)) {
       throw new BadRequestException(ERR.storage.onlyImagesAllowed);
@@ -192,6 +197,9 @@ export class CompaniesController {
     return { id, logoUrl: await this.storageService.getSignedUrl(result.key) };
   }
 
+  // Deliberately NOT company-scoped: logos render cross-company (vendor logos
+  // on RFQ/PO views, message-sender branding), so any authenticated user may
+  // resolve any company's logo URL.
   @Get(':id/logo-url')
   @ApiOperation({ summary: 'Get a presigned URL for the company logo' })
   @ApiResponse({ status: 200, description: 'Logo URL' })
@@ -207,8 +215,11 @@ export class CompaniesController {
   // ── Company Documents ─────────────────────────────────────────────────────
 
   @Get(':id/documents')
+  @RequirePermissions('company.readDocuments')
   @ApiOperation({ summary: 'List company documents' })
-  async getDocuments(@Param('id') id: string) {
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async getDocuments(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    this.assertCompanyScope(id, user);
     return this.prisma.companyDocument.findMany({
       where: { companyId: id },
       include: { file: { include: { uploadedBy: { select: { email: true } } } } },
@@ -217,16 +228,19 @@ export class CompaniesController {
   }
 
   @Post(':id/documents')
+  @RequirePermissions('company.uploadDocument')
   @UseInterceptors(FileInterceptor('file'))
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Upload company document' })
   @ApiConsumes('multipart/form-data')
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   async uploadDocument(
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: AuthUser,
     @Body() body: UploadCompanyDocumentDto,
   ) {
+    this.assertCompanyScope(id, user);
     if (!file) throw new BadRequestException(ERR.storage.noFileProvided);
 
     const ext = path.extname(file.originalname).toLowerCase();
@@ -268,10 +282,17 @@ export class CompaniesController {
   // ── Company Documents Export ─────────────────────────────────────────────
 
   @Get(':id/documents/export/:format')
+  @RequirePermissions('company.readDocuments')
   @ApiOperation({ summary: 'Export company documents as PDF or CSV' })
   @ApiResponse({ status: 200, description: 'Export file URL' })
   @ApiResponse({ status: 400, description: 'Invalid format' })
-  async exportDocuments(@Param('id') id: string, @Param('format') format: string) {
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async exportDocuments(
+    @Param('id') id: string,
+    @Param('format') format: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    this.assertCompanyScope(id, user);
     const normalized = format.toUpperCase();
     if (normalized === 'PDF') {
       return this.companyExportService.exportDocumentsToPDF(id);
@@ -287,15 +308,24 @@ export class CompaniesController {
   @Get(':id/profile/export')
   @ApiOperation({ summary: 'Export company profile as invoice-style PDF' })
   @ApiResponse({ status: 200, description: 'PDF file URL' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Company not found' })
-  async exportCompanyProfile(@Param('id') id: string) {
+  async exportCompanyProfile(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    this.assertCompanyScope(id, user);
     return this.companyExportService.exportCompanyProfilePDF(id);
   }
 
   @Delete(':id/documents/:docId')
+  @RequirePermissions('company.deleteDocument')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete company document' })
-  async deleteDocument(@Param('id') id: string, @Param('docId') docId: string) {
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async deleteDocument(
+    @Param('id') id: string,
+    @Param('docId') docId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    this.assertCompanyScope(id, user);
     const doc = await this.prisma.companyDocument.findFirst({
       where: { id: docId, companyId: id },
       include: { file: true },
@@ -308,6 +338,15 @@ export class CompaniesController {
     await this.prisma.file.delete({ where: { id: doc.fileId } });
 
     return { message: 'Document deleted' };
+  }
+
+  /** Non-SUPER_ADMIN users may only touch their own company's resources
+   *  (documents, logo, exports, vendor assignments) — a permission key alone
+   *  does not stop a Company A user from targeting Company B by id. */
+  private assertCompanyScope(companyId: string, user: AuthUser): void {
+    if (user.role !== UserRole.SUPER_ADMIN && user.companyId !== companyId) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
   }
 
   /** Convert the S3 key stored in `logoUrl` to a short-lived presigned GET URL.

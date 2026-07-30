@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 
 import { ERR } from '../../common/constants/error-messages.const';
 
@@ -32,6 +32,8 @@ describe('CompaniesController', () => {
   };
 
   const superAdmin = { id: 'u1', role: 'SUPER_ADMIN', companyId: null };
+  const companyAdmin = { id: 'u2', role: 'COMPANY_ADMIN', companyId: 'c1' };
+  const otherCompanyAdmin = { id: 'u3', role: 'COMPANY_ADMIN', companyId: 'c2' };
 
   beforeEach(() => {
     companiesService = {
@@ -132,10 +134,23 @@ describe('CompaniesController', () => {
       const expected = [{ id: 'v1', legalName: 'Vendor Co' }];
       companiesService.getCompanyVendors.mockResolvedValue(expected as never);
 
-      const result = await controller.getCompanyVendors('c1');
+      const result = await controller.getCompanyVendors('c1', superAdmin);
 
       expect(companiesService.getCompanyVendors).toHaveBeenCalledWith('c1');
       expect(result).toEqual(expected);
+    });
+
+    it('should allow a company admin to list their own company vendors', async () => {
+      companiesService.getCompanyVendors.mockResolvedValue([] as never);
+
+      await expect(controller.getCompanyVendors('c1', companyAdmin)).resolves.toEqual([]);
+    });
+
+    it("should forbid listing another company's vendors", () => {
+      expect(() => controller.getCompanyVendors('c1', otherCompanyAdmin)).toThrow(
+        ForbiddenException,
+      );
+      expect(companiesService.getCompanyVendors).not.toHaveBeenCalled();
     });
   });
 
@@ -223,6 +238,15 @@ describe('CompaniesController', () => {
         BadRequestException,
       );
     });
+
+    it("should forbid uploading another company's logo", async () => {
+      const file = makeFile();
+
+      await expect(controller.uploadLogo('c1', file, otherCompanyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(storageService.upload).not.toHaveBeenCalled();
+    });
   });
 
   describe('getLogoUrl', () => {
@@ -256,7 +280,7 @@ describe('CompaniesController', () => {
       const docs = [{ id: 'd1', companyId: 'c1', file: { id: 'f1' } }];
       prisma.companyDocument.findMany.mockResolvedValue(docs);
 
-      const result = await controller.getDocuments('c1');
+      const result = await controller.getDocuments('c1', superAdmin);
 
       expect(prisma.companyDocument.findMany).toHaveBeenCalledWith({
         where: { companyId: 'c1' },
@@ -264,6 +288,19 @@ describe('CompaniesController', () => {
         orderBy: { createdAt: 'desc' },
       });
       expect(result).toEqual(docs);
+    });
+
+    it('should allow a company admin to list their own company documents', async () => {
+      prisma.companyDocument.findMany.mockResolvedValue([]);
+
+      await expect(controller.getDocuments('c1', companyAdmin)).resolves.toEqual([]);
+    });
+
+    it("should forbid listing another company's documents", async () => {
+      await expect(controller.getDocuments('c1', otherCompanyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(prisma.companyDocument.findMany).not.toHaveBeenCalled();
     });
   });
 
@@ -355,6 +392,15 @@ describe('CompaniesController', () => {
       );
     });
 
+    it("should forbid uploading to another company's documents", async () => {
+      const file = makeFile();
+
+      await expect(controller.uploadDocument('c1', file, otherCompanyAdmin, {})).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(storageService.upload).not.toHaveBeenCalled();
+    });
+
     it('should default type to Other and handle expiresAt', async () => {
       const file = makeFile();
       storageService.upload.mockResolvedValue({ bucket: 'b', key: 'documents/c1/uuid.pdf' });
@@ -402,7 +448,7 @@ describe('CompaniesController', () => {
         url: 'https://storage/docs.pdf',
       });
 
-      const result = await controller.exportDocuments('c1', 'pdf');
+      const result = await controller.exportDocuments('c1', 'pdf', superAdmin);
 
       expect(companyExportService.exportDocumentsToPDF).toHaveBeenCalledWith('c1');
       expect(result).toEqual({ url: 'https://storage/docs.pdf' });
@@ -413,14 +459,23 @@ describe('CompaniesController', () => {
         url: 'https://storage/docs.csv',
       });
 
-      const result = await controller.exportDocuments('c1', 'csv');
+      const result = await controller.exportDocuments('c1', 'csv', superAdmin);
 
       expect(companyExportService.exportDocumentsToCSV).toHaveBeenCalledWith('c1');
       expect(result).toEqual({ url: 'https://storage/docs.csv' });
     });
 
     it('throws BadRequestException for invalid format', async () => {
-      await expect(controller.exportDocuments('c1', 'xlsx')).rejects.toThrow(BadRequestException);
+      await expect(controller.exportDocuments('c1', 'xlsx', superAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it("forbids exporting another company's documents", async () => {
+      await expect(controller.exportDocuments('c1', 'pdf', otherCompanyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(companyExportService.exportDocumentsToPDF).not.toHaveBeenCalled();
     });
   });
 
@@ -430,10 +485,17 @@ describe('CompaniesController', () => {
         url: 'https://storage/profile.pdf',
       });
 
-      const result = await controller.exportCompanyProfile('c1');
+      const result = await controller.exportCompanyProfile('c1', superAdmin);
 
       expect(companyExportService.exportCompanyProfilePDF).toHaveBeenCalledWith('c1');
       expect(result).toEqual({ url: 'https://storage/profile.pdf' });
+    });
+
+    it("forbids exporting another company's profile", async () => {
+      await expect(controller.exportCompanyProfile('c1', otherCompanyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(companyExportService.exportCompanyProfilePDF).not.toHaveBeenCalled();
     });
   });
 
@@ -449,7 +511,7 @@ describe('CompaniesController', () => {
       prisma.companyDocument.delete.mockResolvedValue({});
       prisma.file.delete.mockResolvedValue({});
 
-      const result = await controller.deleteDocument('c1', 'd1');
+      const result = await controller.deleteDocument('c1', 'd1', superAdmin);
 
       expect(storageService.delete).toHaveBeenCalledWith('documents/c1/doc.pdf');
       expect(prisma.companyDocument.delete).toHaveBeenCalledWith({ where: { id: 'd1' } });
@@ -460,7 +522,17 @@ describe('CompaniesController', () => {
     it('should throw BadRequestException when document is not found', async () => {
       prisma.companyDocument.findFirst.mockResolvedValue(null);
 
-      await expect(controller.deleteDocument('c1', 'd1')).rejects.toThrow(BadRequestException);
+      await expect(controller.deleteDocument('c1', 'd1', superAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it("should forbid deleting another company's document", async () => {
+      await expect(controller.deleteDocument('c1', 'd1', otherCompanyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(prisma.companyDocument.delete).not.toHaveBeenCalled();
+      expect(storageService.delete).not.toHaveBeenCalled();
     });
   });
 });

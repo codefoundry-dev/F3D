@@ -31,6 +31,11 @@ export const PERMISSIONS = {
   'company.create': 'Create company records',
   'company.assignVendors': 'Assign vendors to a contractor',
   'company.removeVendorAssignment': 'Remove a vendor assignment',
+  // Scoped by ownership in the controller: non-SUPER_ADMIN holders may only
+  // manage documents on their OWN company.
+  'company.readDocuments': 'List and export company documents',
+  'company.uploadDocument': 'Upload a company document',
+  'company.deleteDocument': 'Delete a company document',
 
   // ── Invoices ────────────────────────────────────────────────────────────
   'invoice.list': 'List invoices',
@@ -252,6 +257,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
 
     'company.create',
     'company.assignVendors',
+    'company.readDocuments',
+    'company.uploadDocument',
+    'company.deleteDocument',
 
     'invoice.list',
     'invoice.read',
@@ -415,6 +423,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
 
     'company.create',
     'company.assignVendors',
+    'company.readDocuments',
+    'company.uploadDocument',
+    'company.deleteDocument',
 
     'invoice.list',
     'invoice.read',
