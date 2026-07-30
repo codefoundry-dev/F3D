@@ -27,8 +27,10 @@ describe('CompaniesController', () => {
       findMany: jest.Mock;
       create: jest.Mock;
       findFirst: jest.Mock;
+      update: jest.Mock;
       delete: jest.Mock;
     };
+    docExtraction: { findMany: jest.Mock; updateMany: jest.Mock };
   };
   let docIntelligence: { createVendorDocumentExtraction: jest.Mock };
 
@@ -67,8 +69,10 @@ describe('CompaniesController', () => {
         findMany: jest.fn(),
         create: jest.fn(),
         findFirst: jest.fn(),
+        update: jest.fn(),
         delete: jest.fn(),
       },
+      docExtraction: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },
     };
 
     docIntelligence = {
@@ -293,7 +297,7 @@ describe('CompaniesController', () => {
         include: { file: { include: { uploadedBy: { select: { email: true } } } } },
         orderBy: { createdAt: 'desc' },
       });
-      expect(result).toEqual(docs);
+      expect(result).toEqual([{ ...docs[0], extraction: null }]);
     });
 
     it('should allow a company admin to list their own company documents', async () => {
@@ -307,6 +311,102 @@ describe('CompaniesController', () => {
         ForbiddenException,
       );
       expect(prisma.companyDocument.findMany).not.toHaveBeenCalled();
+    });
+
+    // ── FOR-260: extraction attached for the review step ─────────────────────
+
+    it('should attach the completed extraction with its result', async () => {
+      prisma.companyDocument.findMany.mockResolvedValue([
+        { id: 'd1', companyId: 'c1', file: { id: 'f1' } },
+      ]);
+      prisma.docExtraction.findMany.mockResolvedValue([
+        {
+          id: 'x1',
+          status: 'COMPLETED',
+          errorCode: null,
+          completedAt: new Date('2026-07-30T10:00:00Z'),
+          editedResult: { documentType: 'INSURANCE', expiryDate: '2027-01-15' },
+          companyDocumentId: 'd1',
+        },
+      ]);
+
+      const result = await controller.getDocuments('c1', superAdmin);
+
+      expect(prisma.docExtraction.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { companyDocumentId: { in: ['d1'] }, type: 'VENDOR_DOCUMENT' },
+        }),
+      );
+      expect(result[0].extraction).toEqual({
+        id: 'x1',
+        status: 'COMPLETED',
+        errorCode: null,
+        completedAt: '2026-07-30T10:00:00.000Z',
+        result: { documentType: 'INSURANCE', expiryDate: '2027-01-15' },
+      });
+    });
+
+    it('should hide the result while the extraction is still running', async () => {
+      prisma.companyDocument.findMany.mockResolvedValue([
+        { id: 'd1', companyId: 'c1', file: { id: 'f1' } },
+      ]);
+      prisma.docExtraction.findMany.mockResolvedValue([
+        {
+          id: 'x1',
+          status: 'PROCESSING',
+          errorCode: null,
+          completedAt: null,
+          editedResult: null,
+          companyDocumentId: 'd1',
+        },
+      ]);
+
+      const result = await controller.getDocuments('c1', superAdmin);
+
+      expect(result[0].extraction).toEqual({
+        id: 'x1',
+        status: 'PROCESSING',
+        errorCode: null,
+        completedAt: null,
+        result: null,
+      });
+    });
+
+    it('should attach the latest extraction when a document has several', async () => {
+      prisma.companyDocument.findMany.mockResolvedValue([
+        { id: 'd1', companyId: 'c1', file: { id: 'f1' } },
+      ]);
+      // The query orders ascending, so the newest row comes last and wins.
+      prisma.docExtraction.findMany.mockResolvedValue([
+        {
+          id: 'x-old',
+          status: 'FAILED',
+          errorCode: 'TIMEOUT',
+          completedAt: null,
+          editedResult: null,
+          companyDocumentId: 'd1',
+        },
+        {
+          id: 'x-new',
+          status: 'COMPLETED',
+          errorCode: null,
+          completedAt: new Date('2026-07-30T10:00:00Z'),
+          editedResult: { documentType: 'LICENSE' },
+          companyDocumentId: 'd1',
+        },
+      ]);
+
+      const result = await controller.getDocuments('c1', superAdmin);
+
+      expect(result[0].extraction).toMatchObject({ id: 'x-new', status: 'COMPLETED' });
+    });
+
+    it('should not query extractions when there are no documents', async () => {
+      prisma.companyDocument.findMany.mockResolvedValue([]);
+
+      await controller.getDocuments('c1', superAdmin);
+
+      expect(prisma.docExtraction.findMany).not.toHaveBeenCalled();
     });
   });
 
@@ -449,7 +549,7 @@ describe('CompaniesController', () => {
 
     // ── FOR-259: OCR-first extraction trigger ────────────────────────────────
 
-    it('should fire the extraction with autofill flags for the fields left blank', async () => {
+    it('should fire the extraction for the uploaded document', async () => {
       const file = makeFile();
       storageService.upload.mockResolvedValue({ bucket: 'b', key: 'documents/c1/uuid.pdf' });
       prisma.file.create.mockResolvedValue({ id: 'f1' });
@@ -464,25 +564,7 @@ describe('CompaniesController', () => {
         fileId: 'f1',
         mimeType: 'application/pdf',
         data: file.buffer,
-        autofillType: true,
-        autofillExpiresAt: true,
       });
-    });
-
-    it('should not autofill the fields the uploader provided', async () => {
-      const file = makeFile();
-      storageService.upload.mockResolvedValue({ bucket: 'b', key: 'documents/c1/uuid.pdf' });
-      prisma.file.create.mockResolvedValue({ id: 'f1' });
-      prisma.companyDocument.create.mockResolvedValue({ id: 'd1', fileId: 'f1' });
-
-      await controller.uploadDocument('c1', file, superAdmin, {
-        type: 'INSURANCE',
-        expiresAt: '2027-01-01',
-      });
-
-      expect(docIntelligence.createVendorDocumentExtraction).toHaveBeenCalledWith(
-        expect.objectContaining({ autofillType: false, autofillExpiresAt: false }),
-      );
     });
 
     it('should recover the real mimetype from the extension for generic uploads', async () => {
@@ -512,6 +594,73 @@ describe('CompaniesController', () => {
       expect(result).toEqual({ id: 'd1', fileId: 'f1' });
       // Flush the fire-and-forget rejection so its .catch runs inside the test.
       await new Promise(process.nextTick);
+    });
+  });
+
+  describe('reviewDocument (FOR-260)', () => {
+    beforeEach(() => {
+      prisma.companyDocument.findFirst.mockResolvedValue({ id: 'd1', companyId: 'c1' });
+      prisma.companyDocument.update.mockResolvedValue({
+        id: 'd1',
+        type: 'INSURANCE',
+        file: { id: 'f1' },
+      });
+      prisma.docExtraction.updateMany.mockResolvedValue({ count: 1 });
+    });
+
+    it('saves the approved type and expiry onto the document', async () => {
+      const result = await controller.reviewDocument('c1', 'd1', companyAdmin, {
+        type: 'INSURANCE' as never,
+        expiresAt: '2027-01-15',
+      });
+
+      expect(prisma.companyDocument.update).toHaveBeenCalledWith({
+        where: { id: 'd1' },
+        data: { type: 'INSURANCE', expiresAt: new Date('2027-01-15') },
+        include: { file: true },
+      });
+      expect(result).toEqual({ id: 'd1', type: 'INSURANCE', file: { id: 'f1' } });
+    });
+
+    it('clears the expiry when the reviewer left it empty', async () => {
+      await controller.reviewDocument('c1', 'd1', companyAdmin, { type: 'LICENSE' as never });
+
+      expect(prisma.companyDocument.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { type: 'LICENSE', expiresAt: null } }),
+      );
+    });
+
+    it('marks the completed extraction Confirmed with the reviewing user', async () => {
+      await controller.reviewDocument('c1', 'd1', companyAdmin, { type: 'INSURANCE' as never });
+
+      expect(prisma.docExtraction.updateMany).toHaveBeenCalledWith({
+        where: {
+          companyDocumentId: 'd1',
+          type: 'VENDOR_DOCUMENT',
+          status: 'COMPLETED',
+        },
+        data: expect.objectContaining({
+          status: 'CONFIRMED',
+          confirmedByUserId: 'u2',
+          confirmedAt: expect.any(Date),
+        }),
+      });
+    });
+
+    it('rejects a document that does not belong to the company', async () => {
+      prisma.companyDocument.findFirst.mockResolvedValue(null);
+
+      await expect(
+        controller.reviewDocument('c1', 'd-other', companyAdmin, { type: 'OTHER' as never }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.companyDocument.update).not.toHaveBeenCalled();
+    });
+
+    it("forbids reviewing another company's document", async () => {
+      await expect(
+        controller.reviewDocument('c1', 'd1', otherCompanyAdmin, { type: 'OTHER' as never }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(prisma.companyDocument.findFirst).not.toHaveBeenCalled();
     });
   });
 

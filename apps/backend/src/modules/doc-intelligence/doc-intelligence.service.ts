@@ -19,7 +19,6 @@ import {
   MaterialStatus,
   Prisma,
   type DocExtraction,
-  type DocumentType,
   type File as PrismaFile,
 } from '@prisma/client';
 
@@ -44,11 +43,7 @@ import { buildExtractionPrompt, buildOcrTextPrompt } from './doc-intelligence.pr
 import { normalizeQuoteResult } from './doc-intelligence.quote';
 import { buildResponseSchema } from './doc-intelligence.schemas';
 import { listSpreadsheetSheets, spreadsheetToText } from './doc-intelligence.spreadsheet';
-import {
-  normalizeVendorDocumentResult,
-  parseIsoDate,
-  type VendorDocumentExtractionResult,
-} from './doc-intelligence.vendor-document';
+import { normalizeVendorDocumentResult } from './doc-intelligence.vendor-document';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 // Catalogue spreadsheets are large (a real Rexel export is ~11.7 MB / 62k rows);
@@ -373,6 +368,10 @@ export class DocIntelligenceService {
    * Best-effort like the invoice intake: when Gemini isn't configured (it is
    * needed to structure the OCR text too) or the file type has no extraction
    * path (e.g. .docx), no job is created and the upload is unaffected.
+   *
+   * The result is never written onto the CompanyDocument automatically: a
+   * human reviews and approves the extracted values first (FOR-260), via
+   * PATCH /companies/:id/documents/:docId/review.
    */
   async createVendorDocumentExtraction(input: {
     companyId: string;
@@ -381,9 +380,6 @@ export class DocIntelligenceService {
     fileId: string;
     mimeType: string;
     data: Buffer;
-    /** Autofill only the CompanyDocument fields the uploader left blank. */
-    autofillType: boolean;
-    autofillExpiresAt: boolean;
   }): Promise<void> {
     if (!this.gemini.isConfigured()) {
       this.logger.warn(
@@ -404,71 +400,7 @@ export class DocIntelligenceService {
       },
     });
 
-    void this.runVendorDocumentExtraction(extraction.id, input.data, input.mimeType, {
-      type: input.autofillType,
-      expiresAt: input.autofillExpiresAt,
-    });
-  }
-
-  /**
-   * Run the extraction, then write the extracted document type / expiry date
-   * back onto the CompanyDocument fields the uploader left blank. Public so
-   * tests can await it; in production it is only ever fired-and-forgotten.
-   */
-  async runVendorDocumentExtraction(
-    extractionId: string,
-    fileBuffer: Buffer,
-    mimeType: string,
-    autofill: { type: boolean; expiresAt: boolean },
-  ): Promise<void> {
-    await this.runExtraction(extractionId, fileBuffer, mimeType);
-    await this.applyVendorDocumentAutofill(extractionId, autofill);
-  }
-
-  /**
-   * Best-effort write-back (FOR-259): copy the extracted document type and
-   * expiry date onto the CompanyDocument — but only onto fields the uploader
-   * left blank, so a human's explicit choice is never overwritten. Any failure
-   * (document deleted meanwhile, malformed result) logs and moves on; the
-   * extraction record itself is already saved.
-   */
-  private async applyVendorDocumentAutofill(
-    extractionId: string,
-    autofill: { type: boolean; expiresAt: boolean },
-  ): Promise<void> {
-    if (!autofill.type && !autofill.expiresAt) return;
-    try {
-      const job = await this.prisma.docExtraction.findUnique({ where: { id: extractionId } });
-      if (
-        job?.status !== DocExtractionStatus.COMPLETED ||
-        !job.companyDocumentId ||
-        !job.editedResult ||
-        typeof job.editedResult !== 'object'
-      ) {
-        return;
-      }
-      const result = job.editedResult as unknown as VendorDocumentExtractionResult;
-
-      const data: Prisma.CompanyDocumentUncheckedUpdateInput = {};
-      // OTHER is already the column default, so writing it adds nothing.
-      if (autofill.type && result.documentType && result.documentType !== 'OTHER') {
-        data.type = result.documentType as DocumentType;
-      }
-      if (autofill.expiresAt) {
-        const expiresAt = parseIsoDate(result.expiryDate);
-        if (expiresAt) data.expiresAt = expiresAt;
-      }
-      if (Object.keys(data).length === 0) return;
-
-      await this.prisma.companyDocument.update({
-        where: { id: job.companyDocumentId },
-        data,
-      });
-    } catch (err) {
-      this.logger.warn(
-        `Vendor-document autofill for extraction ${extractionId} failed: ${String(err)}`,
-      );
-    }
+    void this.runExtraction(extraction.id, input.data, input.mimeType);
   }
 
   /**

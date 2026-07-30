@@ -37,6 +37,7 @@ export const COMPANIES_PATHS = {
   logoUrl: (id: string) => `/companies/${id}/logo-url`,
   documents: (id: string) => `/companies/${id}/documents`,
   document: (id: string, docId: string) => `/companies/${id}/documents/${docId}`,
+  documentReview: (id: string, docId: string) => `/companies/${id}/documents/${docId}/review`,
   documentsExport: (id: string, format: string) => `/companies/${id}/documents/export/${format}`,
   profileExport: (id: string) => `/companies/${id}/profile/export`,
 } as const;

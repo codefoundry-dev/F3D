@@ -76,6 +76,34 @@
   "viewDocument": "View",
   "downloadDocument": "Download",
 
+  "reviewExtracted": "Review",
+  "reviewDocumentAction": "Review extracted data",
+  "reviewModal": {
+    "title": "Review document data",
+    "subtitle": "Check the data we read from “{{filename}}” and approve or correct it. Only the values you approve are saved.",
+    "extractedData": "Extracted data",
+    "documentType": "Document type",
+    "expiryDate": "Expiry date",
+    "approve": "Approve & save",
+    "approving": "Saving...",
+    "approved": "Document data saved",
+    "extractedHint": "Extracted: {{value}}",
+    "fields": {
+      "title": "Title",
+      "issuer": "Issuer",
+      "documentNumber": "Document number",
+      "holderName": "Holder",
+      "issuedDate": "Issued",
+      "summary": "Summary"
+    },
+    "types": {
+      "INSURANCE": "Insurance",
+      "LICENSE": "License",
+      "CERTIFICATION": "Certification",
+      "OTHER": "Other"
+    }
+  },
+
   "logoInvalidFormat": "Invalid file format. Please upload a JPG, PNG, WebP, or SVG image.",
   "logoTooLarge": "File is too large. Maximum size is 5 MB.",
 

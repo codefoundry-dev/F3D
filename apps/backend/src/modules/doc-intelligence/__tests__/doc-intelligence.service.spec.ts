@@ -84,10 +84,6 @@ function makeService() {
     material: {
       findMany: jest.fn().mockResolvedValue([]),
     },
-    // Vendor-document extractions (FOR-259) autofill the CompanyDocument.
-    companyDocument: {
-      update: jest.fn().mockResolvedValue({}),
-    },
     $transaction: jest.fn((arr: Promise<unknown>[]) => Promise.all(arr)),
   } as unknown as PrismaService & {
     file: { create: jest.Mock; delete: jest.Mock };
@@ -100,7 +96,6 @@ function makeService() {
       delete: jest.Mock;
     };
     material: { findMany: jest.Mock };
-    companyDocument: { update: jest.Mock };
     $transaction: jest.Mock;
   };
 
@@ -367,8 +362,6 @@ describe('DocIntelligenceService', () => {
       fileId: 'file-1',
       mimeType: 'application/pdf',
       data: Buffer.from('%PDF-doc'),
-      autofillType: true,
-      autofillExpiresAt: true,
     };
 
     const VENDOR_RESULT_JSON =
@@ -388,7 +381,7 @@ describe('DocIntelligenceService', () => {
     it('creates a VENDOR_DOCUMENT job linked to the company document and fires the run', async () => {
       const { service, prisma } = makeService();
       prisma.docExtraction.create.mockResolvedValue({ id: 'job-1' });
-      const run = jest.spyOn(service, 'runVendorDocumentExtraction').mockResolvedValue(undefined);
+      const run = jest.spyOn(service, 'runExtraction').mockResolvedValue(undefined);
 
       await service.createVendorDocumentExtraction(vendorInput);
 
@@ -402,10 +395,7 @@ describe('DocIntelligenceService', () => {
           companyDocumentId: 'cd-1',
         },
       });
-      expect(run).toHaveBeenCalledWith('job-1', vendorInput.data, 'application/pdf', {
-        type: true,
-        expiresAt: true,
-      });
+      expect(run).toHaveBeenCalledWith('job-1', vendorInput.data, 'application/pdf');
     });
 
     it('creates no job when Gemini is not configured', async () => {
@@ -537,138 +527,6 @@ describe('DocIntelligenceService', () => {
       await service.runExtraction('job-1', Buffer.from('pdf'), 'application/pdf');
 
       expect(ocr.extractText).not.toHaveBeenCalled();
-    });
-
-    describe('runVendorDocumentExtraction — CompanyDocument autofill', () => {
-      /** First findUnique feeds runExtraction; the second feeds the autofill reload. */
-      function primeRunThenReload(
-        prisma: ReturnType<typeof makeService>['prisma'],
-        completedJob: Record<string, unknown>,
-      ): void {
-        prisma.docExtraction.findUnique
-          .mockResolvedValueOnce({ id: 'job-1', type: DocExtractionType.VENDOR_DOCUMENT })
-          .mockResolvedValueOnce(completedJob);
-      }
-
-      it('fills the type and expiry the uploader left blank', async () => {
-        const { service, prisma, gemini } = makeService();
-        gemini.generate.mockResolvedValue({ text: VENDOR_RESULT_JSON, model: 'gemini-2.5-flash' });
-        primeRunThenReload(prisma, {
-          id: 'job-1',
-          type: DocExtractionType.VENDOR_DOCUMENT,
-          status: DocExtractionStatus.COMPLETED,
-          companyDocumentId: 'cd-1',
-          editedResult: { documentType: 'INSURANCE', expiryDate: '2027-01-15' },
-        });
-
-        await service.runVendorDocumentExtraction('job-1', Buffer.from('pdf'), 'application/pdf', {
-          type: true,
-          expiresAt: true,
-        });
-
-        expect(prisma.companyDocument.update).toHaveBeenCalledWith({
-          where: { id: 'cd-1' },
-          data: { type: 'INSURANCE', expiresAt: new Date(Date.UTC(2027, 0, 15)) },
-        });
-      });
-
-      it('only fills the fields flagged for autofill', async () => {
-        const { service, prisma, gemini } = makeService();
-        gemini.generate.mockResolvedValue({ text: VENDOR_RESULT_JSON, model: 'gemini-2.5-flash' });
-        primeRunThenReload(prisma, {
-          id: 'job-1',
-          type: DocExtractionType.VENDOR_DOCUMENT,
-          status: DocExtractionStatus.COMPLETED,
-          companyDocumentId: 'cd-1',
-          editedResult: { documentType: 'INSURANCE', expiryDate: '2027-01-15' },
-        });
-
-        await service.runVendorDocumentExtraction('job-1', Buffer.from('pdf'), 'application/pdf', {
-          type: false,
-          expiresAt: true,
-        });
-
-        expect(prisma.companyDocument.update).toHaveBeenCalledWith({
-          where: { id: 'cd-1' },
-          data: { expiresAt: new Date(Date.UTC(2027, 0, 15)) },
-        });
-      });
-
-      it('writes nothing for an OTHER classification or an unparseable date', async () => {
-        const { service, prisma, gemini } = makeService();
-        gemini.generate.mockResolvedValue({ text: VENDOR_RESULT_JSON, model: 'gemini-2.5-flash' });
-        primeRunThenReload(prisma, {
-          id: 'job-1',
-          type: DocExtractionType.VENDOR_DOCUMENT,
-          status: DocExtractionStatus.COMPLETED,
-          companyDocumentId: 'cd-1',
-          editedResult: { documentType: 'OTHER', expiryDate: 'June next year' },
-        });
-
-        await service.runVendorDocumentExtraction('job-1', Buffer.from('pdf'), 'application/pdf', {
-          type: true,
-          expiresAt: true,
-        });
-
-        expect(prisma.companyDocument.update).not.toHaveBeenCalled();
-      });
-
-      it('skips autofill when the extraction failed', async () => {
-        const { service, prisma, gemini } = makeService();
-        gemini.generate.mockRejectedValue(new GeminiError('TIMEOUT', 'timed out'));
-        primeRunThenReload(prisma, {
-          id: 'job-1',
-          type: DocExtractionType.VENDOR_DOCUMENT,
-          status: DocExtractionStatus.FAILED,
-          companyDocumentId: 'cd-1',
-          editedResult: null,
-        });
-
-        await service.runVendorDocumentExtraction('job-1', Buffer.from('pdf'), 'application/pdf', {
-          type: true,
-          expiresAt: true,
-        });
-
-        expect(prisma.companyDocument.update).not.toHaveBeenCalled();
-      });
-
-      it('skips the reload entirely when nothing was left blank', async () => {
-        const { service, prisma, gemini } = makeService();
-        gemini.generate.mockResolvedValue({ text: VENDOR_RESULT_JSON, model: 'gemini-2.5-flash' });
-        prisma.docExtraction.findUnique.mockResolvedValue({
-          id: 'job-1',
-          type: DocExtractionType.VENDOR_DOCUMENT,
-        });
-
-        await service.runVendorDocumentExtraction('job-1', Buffer.from('pdf'), 'application/pdf', {
-          type: false,
-          expiresAt: false,
-        });
-
-        // Only runExtraction's own job load — no autofill reload.
-        expect(prisma.docExtraction.findUnique).toHaveBeenCalledTimes(1);
-        expect(prisma.companyDocument.update).not.toHaveBeenCalled();
-      });
-
-      it('survives the company document being deleted mid-flight', async () => {
-        const { service, prisma, gemini } = makeService();
-        gemini.generate.mockResolvedValue({ text: VENDOR_RESULT_JSON, model: 'gemini-2.5-flash' });
-        primeRunThenReload(prisma, {
-          id: 'job-1',
-          type: DocExtractionType.VENDOR_DOCUMENT,
-          status: DocExtractionStatus.COMPLETED,
-          companyDocumentId: 'cd-1',
-          editedResult: { documentType: 'INSURANCE', expiryDate: '2027-01-15' },
-        });
-        prisma.companyDocument.update.mockRejectedValue(new Error('Record not found'));
-
-        await expect(
-          service.runVendorDocumentExtraction('job-1', Buffer.from('pdf'), 'application/pdf', {
-            type: true,
-            expiresAt: true,
-          }),
-        ).resolves.toBeUndefined();
-      });
     });
   });
 

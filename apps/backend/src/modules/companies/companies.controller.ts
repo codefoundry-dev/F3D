@@ -20,7 +20,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { DocExtractionStatus, DocExtractionType, UserRole } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -36,6 +36,7 @@ import {
   CompanyListQueryDto,
   AssignVendorsDto,
   UploadCompanyDocumentDto,
+  ReviewCompanyDocumentDto,
 } from './companies.service';
 import { CompanyExportService } from './company-export.service';
 
@@ -235,10 +236,52 @@ export class CompaniesController {
   @ApiResponse({ status: 403, description: 'Forbidden' })
   async getDocuments(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     this.assertCompanyScope(id, user);
-    return this.prisma.companyDocument.findMany({
+    const documents = await this.prisma.companyDocument.findMany({
       where: { companyId: id },
       include: { file: { include: { uploadedBy: { select: { email: true } } } } },
       orderBy: { createdAt: 'desc' },
+    });
+    // FOR-260: attach each document's extraction so the client can run the
+    // review step (poll while it runs, then show the extracted values for
+    // approval). The result is exposed only once the pipeline finished.
+    const extractions = documents.length
+      ? await this.prisma.docExtraction.findMany({
+          where: {
+            companyDocumentId: { in: documents.map((d) => d.id) },
+            type: DocExtractionType.VENDOR_DOCUMENT,
+          },
+          // Ascending + Map overwrite → the latest extraction per document wins.
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            status: true,
+            errorCode: true,
+            completedAt: true,
+            editedResult: true,
+            companyDocumentId: true,
+          },
+        })
+      : [];
+    const latestByDocument = new Map(extractions.map((e) => [e.companyDocumentId, e]));
+
+    return documents.map((doc) => {
+      const extraction = latestByDocument.get(doc.id);
+      return {
+        ...doc,
+        extraction: extraction
+          ? {
+              id: extraction.id,
+              status: extraction.status,
+              errorCode: extraction.errorCode,
+              completedAt: extraction.completedAt?.toISOString() ?? null,
+              result:
+                extraction.status === DocExtractionStatus.COMPLETED ||
+                extraction.status === DocExtractionStatus.CONFIRMED
+                  ? extraction.editedResult
+                  : null,
+            }
+          : null,
+      };
     });
   }
 
@@ -304,7 +347,6 @@ export class CompaniesController {
         : file.mimetype,
       data: file.buffer,
       userId: user.id,
-      body,
     });
 
     return document;
@@ -314,8 +356,8 @@ export class CompaniesController {
    * Kick off the Google-OCR + LLM extraction for a just-uploaded company
    * document (FOR-259). Fire-and-forget, mirroring the invoice intake: the
    * document row is already committed, so extraction problems must never
-   * fail the upload. The autofill flags let the pipeline fill in only the
-   * fields the uploader left blank (document type, expiry date).
+   * fail the upload. The extracted values are never applied automatically —
+   * a human approves them in the review step (FOR-260).
    */
   private startDocumentExtraction(input: {
     companyId: string;
@@ -324,7 +366,6 @@ export class CompaniesController {
     mimeType: string;
     data: Buffer;
     userId: string;
-    body: UploadCompanyDocumentDto;
   }): void {
     void this.docIntelligence
       .createVendorDocumentExtraction({
@@ -334,8 +375,6 @@ export class CompaniesController {
         fileId: input.fileId,
         mimeType: input.mimeType,
         data: input.data,
-        autofillType: !input.body.type,
-        autofillExpiresAt: !input.body.expiresAt,
       })
       .catch((error: unknown) => {
         this.logger.error(
@@ -343,6 +382,54 @@ export class CompaniesController {
           error instanceof Error ? error.stack : String(error),
         );
       });
+  }
+
+  // ── Company Document Review (FOR-260) ─────────────────────────────────────
+
+  @Patch(':id/documents/:docId/review')
+  @RequirePermissions('company.uploadDocument')
+  @ApiOperation({ summary: 'Save the human-approved document data (review of extracted values)' })
+  @ApiResponse({ status: 400, description: 'Document not found' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async reviewDocument(
+    @Param('id') id: string,
+    @Param('docId') docId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: ReviewCompanyDocumentDto,
+  ) {
+    this.assertCompanyScope(id, user);
+    const doc = await this.prisma.companyDocument.findFirst({
+      where: { id: docId, companyId: id },
+    });
+    if (!doc) throw new BadRequestException(ERR.invoices.documentNotFound);
+
+    // Only the approved values are saved (replace semantics): an omitted
+    // expiry clears the field rather than keeping a value nobody approved.
+    const document = await this.prisma.companyDocument.update({
+      where: { id: docId },
+      data: {
+        type: body.type,
+        expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
+      },
+      include: { file: true },
+    });
+
+    // A human has signed off on the extracted values — the completed
+    // extraction graduates to Confirmed (mirrors the invoice review, FOR-291).
+    await this.prisma.docExtraction.updateMany({
+      where: {
+        companyDocumentId: docId,
+        type: DocExtractionType.VENDOR_DOCUMENT,
+        status: DocExtractionStatus.COMPLETED,
+      },
+      data: {
+        status: DocExtractionStatus.CONFIRMED,
+        confirmedByUserId: user.id,
+        confirmedAt: new Date(),
+      },
+    });
+
+    return document;
   }
 
   // ── Company Documents Export ─────────────────────────────────────────────

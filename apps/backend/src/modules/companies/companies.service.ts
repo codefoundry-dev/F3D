@@ -36,6 +36,17 @@ export class UploadCompanyDocumentDto {
   expiresAt?: string;
 }
 
+/** FOR-260: the human-approved document data saved by the review step.
+ *  Replace semantics — omitting `expiresAt` clears the stored expiry. */
+export class ReviewCompanyDocumentDto {
+  @IsEnum(DocumentType)
+  type!: DocumentType;
+
+  @IsOptional()
+  @IsDateString()
+  expiresAt?: string;
+}
+
 export class CreateCompanyDto {
   @IsEnum(CompanyType)
   type!: CompanyType;

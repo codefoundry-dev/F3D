@@ -1,8 +1,9 @@
 /**
  * Normalizer for VENDOR_DOCUMENT extractions (FOR-259) — company compliance
- * documents (insurance certificates, licenses, certifications). The result is
- * backend-only for now: it feeds the CompanyDocument type/expiry autofill and
- * is stored on the extraction record; there is no dedicated review UI yet.
+ * documents (insurance certificates, licenses, certifications). The stored
+ * result is surfaced in the document review step (FOR-260): a human approves
+ * or corrects the extracted values before anything is written onto the
+ * CompanyDocument.
  */
 
 /** Mirrors the Prisma `DocumentType` enum on CompanyDocument. */
@@ -52,8 +53,8 @@ function normalizeDocumentType(raw: unknown): VendorDocumentType | null {
 /**
  * Parse a strict ISO `YYYY-MM-DD` string into a UTC-midnight Date; null for
  * anything else (including impossible dates like 2026-02-31, which `Date`
- * would silently roll over). The autofill uses this so only unambiguous
- * dates ever reach `CompanyDocument.expiresAt`.
+ * would silently roll over). Only unambiguous extracted dates should ever be
+ * offered for `CompanyDocument.expiresAt`.
  */
 export function parseIsoDate(value: unknown): Date | null {
   if (typeof value !== 'string') return null;
