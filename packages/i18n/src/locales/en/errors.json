@@ -148,6 +148,7 @@
     "noFileProvided": "No file provided",
     "fileTooLarge": "File too large (max {{size}})",
     "fileTypeNotAllowed": "File type not allowed",
+    "documentTypeNotAllowed": "File type not allowed. Supported formats: PDF, DOC, DOCX, XLS, XLSX, CSV, JPG, PNG, WEBP",
     "onlyImagesAllowed": "Only image files are allowed",
     "onlyImagesAllowedFormats": "Only image files are allowed (jpeg, png, webp)",
     "fileNotFound": "File not found"

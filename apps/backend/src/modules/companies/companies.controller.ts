@@ -31,6 +31,7 @@ import {
   UpdateCompanyDto,
   CompanyListQueryDto,
   AssignVendorsDto,
+  UploadCompanyDocumentDto,
 } from './companies.service';
 import { CompanyExportService } from './company-export.service';
 
@@ -39,6 +40,35 @@ interface AuthUser {
   role: string;
   companyId: string | null;
 }
+
+const DOCUMENT_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const DOCUMENT_ALLOWED_EXTENSIONS = [
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.xls',
+  '.xlsx',
+  '.csv',
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.webp',
+];
+const DOCUMENT_ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/csv',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+];
+/** Some browsers/OSes report generic types for otherwise-valid files
+ *  (e.g. Windows reports CSV as text/plain or application/octet-stream),
+ *  so a generic mimetype falls back to the extension check alone. */
+const GENERIC_MIME_TYPES = ['application/octet-stream', 'text/plain', ''];
 
 @ApiTags('companies')
 @ApiBearerAuth()
@@ -195,13 +225,20 @@ export class CompaniesController {
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: AuthUser,
-    @Body() body: { type?: string; expiresAt?: string },
+    @Body() body: UploadCompanyDocumentDto,
   ) {
     if (!file) throw new BadRequestException(ERR.storage.noFileProvided);
-    if (file.size > 10 * 1024 * 1024)
+
+    const ext = path.extname(file.originalname).toLowerCase();
+    const mimeOk =
+      DOCUMENT_ALLOWED_MIME_TYPES.includes(file.mimetype) ||
+      GENERIC_MIME_TYPES.includes(file.mimetype ?? '');
+    if (!DOCUMENT_ALLOWED_EXTENSIONS.includes(ext) || !mimeOk) {
+      throw new BadRequestException(ERR.storage.documentTypeNotAllowed);
+    }
+    if (file.size > DOCUMENT_MAX_FILE_SIZE)
       throw new BadRequestException(ERR.storage.fileTooLarge('10MB'));
 
-    const ext = path.extname(file.originalname);
     const key = `documents/${id}/${randomUUID()}${ext}`;
 
     const result = await this.storageService.upload(key, file.buffer, file.mimetype);
@@ -220,7 +257,7 @@ export class CompaniesController {
     return this.prisma.companyDocument.create({
       data: {
         companyId: id,
-        type: (body.type as 'INSURANCE' | 'LICENSE' | 'CERTIFICATION' | 'OTHER') ?? 'OTHER',
+        type: body.type ?? 'OTHER',
         fileId: fileRecord.id,
         expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
       },

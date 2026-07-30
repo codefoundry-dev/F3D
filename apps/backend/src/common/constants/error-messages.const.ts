@@ -202,6 +202,7 @@ export const ERR = {
     noFileProvided: errors.storage.noFileProvided,
     fileTooLarge: (size: string) => t(errors.storage.fileTooLarge, { size }),
     fileTypeNotAllowed: errors.storage.fileTypeNotAllowed,
+    documentTypeNotAllowed: errors.storage.documentTypeNotAllowed,
     onlyImagesAllowed: errors.storage.onlyImagesAllowed,
     onlyImagesAllowedFormats: errors.storage.onlyImagesAllowedFormats,
     fileNotFound: errors.storage.fileNotFound,

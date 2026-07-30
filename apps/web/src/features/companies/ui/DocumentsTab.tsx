@@ -25,6 +25,22 @@ import { useRef, useState } from 'react';
 
 const DOCS_KEY = 'company-documents';
 
+/** Mirrors the backend allow-list on POST /companies/:id/documents. */
+const ALLOWED_EXTENSIONS = [
+  'pdf',
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+  'csv',
+  'jpg',
+  'jpeg',
+  'png',
+  'webp',
+];
+const ACCEPT_ATTR = ALLOWED_EXTENSIONS.map((ext) => `.${ext}`).join(',');
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB — matches the backend limit
+
 /** 28px gradient-white bordered icon button (card-level ⋮ trigger). */
 const ICON_BTN_28 =
   'flex size-7 shrink-0 items-center justify-center rounded-[8px] border border-[#e8eaed] bg-gradient-to-b from-[#F9F9FA] to-white text-gray-600 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)] transition-colors hover:bg-none hover:bg-gray-50 hover:text-gray-900';
@@ -67,6 +83,7 @@ export function DocumentsTab({ companyId }: DocumentsTabProps) {
     mutationFn: (file: File) => uploadCompanyDocument(companyId, file),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [DOCS_KEY, companyId] });
+      notificationService.success(t('documentUploaded'));
     },
   });
 
@@ -80,10 +97,19 @@ export function DocumentsTab({ companyId }: DocumentsTabProps) {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      uploadMutation.mutate(file);
-      e.target.value = '';
+    e.target.value = '';
+    if (!file) return;
+
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      notificationService.error(t('documentInvalidFormat'));
+      return;
     }
+    if (file.size > MAX_FILE_SIZE) {
+      notificationService.error(t('documentTooLarge'));
+      return;
+    }
+    uploadMutation.mutate(file);
   };
 
   const handleView = (fileId: string) => {
@@ -126,7 +152,13 @@ export function DocumentsTab({ companyId }: DocumentsTabProps) {
           {t('documentsCountLabel', { count: documents?.length ?? 0 })}
         </p>
         <div className="flex items-center gap-2">
-          <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ACCEPT_ATTR}
+            className="hidden"
+            onChange={handleFileChange}
+          />
           <Button
             variant="secondary"
             size="sm"

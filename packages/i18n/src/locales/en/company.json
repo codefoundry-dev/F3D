@@ -70,6 +70,9 @@
   "deleteConfirm": "Are you sure you want to delete this document?",
   "noDocuments": "No documents uploaded yet",
   "documentDeleted": "Document deleted successfully",
+  "documentUploaded": "Document uploaded successfully",
+  "documentInvalidFormat": "Invalid file format. Supported formats: PDF, DOC, DOCX, XLS, XLSX, CSV, JPG, PNG, or WEBP.",
+  "documentTooLarge": "File is too large. Maximum size is 10 MB.",
   "viewDocument": "View",
   "downloadDocument": "Download",
 

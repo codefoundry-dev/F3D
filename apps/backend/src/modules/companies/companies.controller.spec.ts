@@ -1,5 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 
+import { ERR } from '../../common/constants/error-messages.const';
+
 import { CompaniesController } from './companies.controller';
 import { CompaniesService, CompanyListQueryDto, AssignVendorsDto } from './companies.service';
 import { CompanyExportService } from './company-export.service';
@@ -308,6 +310,48 @@ describe('CompaniesController', () => {
 
       await expect(controller.uploadDocument('c1', file, superAdmin, {})).rejects.toThrow(
         BadRequestException,
+      );
+    });
+
+    it('should reject a file whose extension and mimetype are not allowed', async () => {
+      const file = makeFile({ originalname: 'setup.exe', mimetype: 'application/x-msdownload' });
+
+      await expect(controller.uploadDocument('c1', file, superAdmin, {})).rejects.toThrow(
+        ERR.storage.documentTypeNotAllowed,
+      );
+      expect(storageService.upload).not.toHaveBeenCalled();
+    });
+
+    it('should reject a disallowed extension even when the mimetype is spoofed as allowed', async () => {
+      const file = makeFile({ originalname: 'evil.exe', mimetype: 'application/pdf' });
+
+      await expect(controller.uploadDocument('c1', file, superAdmin, {})).rejects.toThrow(
+        ERR.storage.documentTypeNotAllowed,
+      );
+      expect(storageService.upload).not.toHaveBeenCalled();
+    });
+
+    it('should reject an allowed extension with a disallowed non-generic mimetype', async () => {
+      const file = makeFile({ originalname: 'page.pdf', mimetype: 'text/html' });
+
+      await expect(controller.uploadDocument('c1', file, superAdmin, {})).rejects.toThrow(
+        ERR.storage.documentTypeNotAllowed,
+      );
+      expect(storageService.upload).not.toHaveBeenCalled();
+    });
+
+    it('should accept a CSV reported with a generic mimetype via the extension fallback', async () => {
+      const file = makeFile({ originalname: 'vendors.CSV', mimetype: 'text/plain' });
+      storageService.upload.mockResolvedValue({ bucket: 'b', key: 'documents/c1/uuid.csv' });
+      prisma.file.create.mockResolvedValue({ id: 'f1' });
+      prisma.companyDocument.create.mockResolvedValue({ id: 'd4', fileId: 'f1' });
+
+      await controller.uploadDocument('c1', file, superAdmin, {});
+
+      expect(storageService.upload).toHaveBeenCalledWith(
+        expect.stringMatching(/^documents\/c1\/.+\.csv$/),
+        file.buffer,
+        'text/plain',
       );
     });
 

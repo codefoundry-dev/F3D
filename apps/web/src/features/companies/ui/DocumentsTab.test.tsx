@@ -194,6 +194,45 @@ describe('DocumentsTab', () => {
     expect(mockUploadMutate).not.toHaveBeenCalled();
   });
 
+  it('file input restricts selectable types via accept attribute', () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    render(<DocumentsTab companyId="c1" />);
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(fileInput.accept).toBe('.pdf,.doc,.docx,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.webp');
+  });
+
+  it('rejects a file with an unsupported extension and shows an error', async () => {
+    const { notificationService } = await import('@forethread/ui-components');
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    render(<DocumentsTab companyId="c1" />);
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['x'], 'setup.exe', { type: 'application/x-msdownload' });
+    fireEvent.change(fileInput, { target: { files: [file] } });
+    expect(mockUploadMutate).not.toHaveBeenCalled();
+    expect(notificationService.error).toHaveBeenCalledWith('documentInvalidFormat');
+  });
+
+  it('rejects a file over 10MB and shows an error', async () => {
+    const { notificationService } = await import('@forethread/ui-components');
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    render(<DocumentsTab companyId="c1" />);
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['x'], 'big.pdf', { type: 'application/pdf' });
+    Object.defineProperty(file, 'size', { value: 11 * 1024 * 1024 });
+    fireEvent.change(fileInput, { target: { files: [file] } });
+    expect(mockUploadMutate).not.toHaveBeenCalled();
+    expect(notificationService.error).toHaveBeenCalledWith('documentTooLarge');
+  });
+
+  it('accepts an uppercase extension of a supported type', () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    render(<DocumentsTab companyId="c1" />);
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['x'], 'REPORT.PDF', { type: 'application/pdf' });
+    fireEvent.change(fileInput, { target: { files: [file] } });
+    expect(mockUploadMutate).toHaveBeenCalledWith(file);
+  });
+
   it('shows uploading text when upload pending', () => {
     uploadIsPending = true;
     mockUseQuery.mockReturnValue({ data: [], isLoading: false });
@@ -201,11 +240,13 @@ describe('DocumentsTab', () => {
     expect(screen.getByText('uploading')).toBeInTheDocument();
   });
 
-  it('upload onSuccess invalidates queries', () => {
+  it('upload onSuccess invalidates queries and notifies', async () => {
+    const { notificationService } = await import('@forethread/ui-components');
     mockUseQuery.mockReturnValue({ data: [], isLoading: false });
     render(<DocumentsTab companyId="c1" />);
     capturedUploadConfig.onSuccess?.();
     expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['company-documents', 'c1'] });
+    expect(notificationService.success).toHaveBeenCalledWith('documentUploaded');
   });
 
   it('delete onSuccess invalidates and notifies', async () => {
