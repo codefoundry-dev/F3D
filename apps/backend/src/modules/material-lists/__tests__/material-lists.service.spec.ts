@@ -125,6 +125,59 @@ describe('MaterialListsService (CRUD — US 4.03)', () => {
         ForbiddenException,
       );
     });
+
+    it('filters by name/description when a search term is supplied', async () => {
+      mockPrisma.materialList.findMany.mockResolvedValue([]);
+
+      await service.listMaterialLists({ search: '  rebar ' } as never, companyAdmin);
+
+      const where = mockPrisma.materialList.findMany.mock.calls[0][0].where;
+      // Trimmed term matched case-insensitively against both text fields.
+      expect(where.OR).toEqual([
+        { name: { contains: 'rebar', mode: 'insensitive' } },
+        { description: { contains: 'rebar', mode: 'insensitive' } },
+      ]);
+    });
+  });
+
+  // ── getMaterialList ────────────────────────────────────────────────────────
+
+  describe('getMaterialList', () => {
+    it('404s when the list is missing or outside the company', async () => {
+      mockPrisma.materialList.findFirst.mockResolvedValue(null);
+
+      await expect(service.getMaterialList('list-x', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws Forbidden when the user has no company', async () => {
+      await expect(service.getMaterialList('list-1', noCompanyUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(mockPrisma.materialList.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('stringifies a Decimal pricePerUnit in the item detail', async () => {
+      mockPrisma.materialList.findFirst.mockResolvedValue({
+        ...listDetailRow,
+        items: [
+          {
+            ...listDetailRow.items[0],
+            // Prisma returns Decimal columns as Decimal objects — the DTO
+            // carries them as strings to avoid float drift.
+            material: {
+              ...listDetailRow.items[0].material,
+              pricePerUnit: { toString: () => '12.75' },
+            },
+          },
+        ],
+      });
+
+      const res = await service.getMaterialList('list-1', companyAdmin);
+
+      expect(res.items[0].material.pricePerUnit).toBe('12.75');
+    });
   });
 
   // ── createList ─────────────────────────────────────────────────────────────
@@ -215,6 +268,23 @@ describe('MaterialListsService (CRUD — US 4.03)', () => {
         service.updateList('list-x', { name: 'Y' } as never, companyAdmin),
       ).rejects.toThrow(NotFoundException);
       expect(mockPrisma.materialList.update).not.toHaveBeenCalled();
+    });
+
+    it('updates only the description when the name is omitted (null clears it)', async () => {
+      mockPrisma.materialList.findFirst.mockResolvedValue({ id: 'list-1' });
+      mockPrisma.materialList.update.mockResolvedValue({
+        id: 'list-1',
+        name: 'My List',
+        description: null,
+        sourceExtractionId: null,
+        updatedAt: new Date('2026-06-13T11:00:00Z'),
+        _count: { items: 2 },
+      });
+
+      await service.updateList('list-1', { description: null } as never, companyAdmin);
+
+      const data = mockPrisma.materialList.update.mock.calls[0][0].data;
+      expect(data).toEqual({ description: null });
     });
   });
 

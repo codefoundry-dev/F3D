@@ -1,7 +1,7 @@
 import type { InvoiceDetail, InvoicePoMatchResult } from '@forethread/api-client';
 import { InvoiceReviewPanel } from '@forethread/invoice-shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 
 const {
@@ -316,6 +316,10 @@ describe('InvoiceReviewPanel', () => {
 
     // The reconciler resolved the document's reference to PO-00042.
     expect(await screen.findByTestId('invoice-review-match-auto')).toBeInTheDocument();
+    // The badge renders straight from the match result; the selection lands in
+    // form state one effect later. Wait for the visible pre-selection so save
+    // can't race it.
+    await within(screen.getByTestId('invoice-review-po')).findByText('PO-00042');
 
     fireEvent.click(screen.getByTestId('invoice-review-save'));
 
