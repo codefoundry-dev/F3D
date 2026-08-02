@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 
 import { RfqAvailabilityService } from '../rfq-availability.service';
@@ -113,6 +118,89 @@ describe('RfqAvailabilityService', () => {
       expect(result.items[0].matches).toHaveLength(1);
     });
 
+    it('throws Forbidden when the user has no company', async () => {
+      const noCompany = { ...(user as object), companyId: null } as never;
+      await expect(service.checkAvailability({ lineItems: [] }, noCompany)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(prisma.bulkOrder.findMany).not.toHaveBeenCalled();
+    });
+
+    it('returns no matches for a line with neither materialId nor materialName', async () => {
+      prisma.bulkOrder.findMany.mockResolvedValue([bulkOrder()]);
+
+      const result = await service.checkAvailability(
+        { lineItems: [{ index: 0, quantity: 5, uom: 'ea' } as never] },
+        user,
+      );
+
+      expect(result.items).toEqual([{ index: 0, matches: [] }]);
+    });
+
+    it('matches via itemReference when the description is empty, on an open-ended bulk order', async () => {
+      prisma.bulkOrder.findMany.mockResolvedValue([
+        bulkOrder({
+          endDate: null,
+          lineItems: [
+            {
+              id: 'bol-ref',
+              description: null,
+              // Shorter than the request: overlap must also test
+              // needle.includes(haystack).
+              itemReference: 'primer',
+              qtyRemaining: 40,
+              pricePerUnit: 7,
+            },
+          ],
+        }),
+      ]);
+
+      const result = await service.checkAvailability(
+        { lineItems: [{ index: 0, materialName: 'Paint Primer White', quantity: 5, uom: 'gal' }] },
+        user,
+      );
+
+      expect(result.items[0].matches).toEqual([
+        expect.objectContaining({ bulkOrderLineItemId: 'bol-ref', expirationDate: null }),
+      ]);
+    });
+
+    it('lists the vendors of all matching bulk orders sorted by name', async () => {
+      prisma.bulkOrder.findMany.mockResolvedValue([
+        bulkOrder(),
+        bulkOrder({
+          id: 'bo-2',
+          bulkOrderNumber: 'BO-002',
+          vendorId: 'vendor-2',
+          vendor: { id: 'vendor-2', legalName: 'Acme Paints' },
+          lineItems: [
+            {
+              id: 'bol-2',
+              description: 'Paint Primer White 5-Gal budget',
+              itemReference: null,
+              qtyRemaining: 10,
+              pricePerUnit: 8,
+            },
+          ],
+        }),
+      ]);
+
+      const result = await service.checkAvailability(
+        {
+          lineItems: [
+            { index: 0, materialName: 'paint primer white 5-gal', quantity: 25, uom: 'gal' },
+          ],
+        },
+        user,
+      );
+
+      expect(result.vendors).toEqual([
+        { vendorId: 'vendor-2', vendorName: 'Acme Paints' },
+        { vendorId: 'vendor-1', vendorName: 'SteelCorp' },
+      ]);
+      expect(result.items[0].matches).toHaveLength(2);
+    });
+
     it('skips bulk lines with no remaining quantity and unmatched names', async () => {
       prisma.bulkOrder.findMany.mockResolvedValue([
         bulkOrder({
@@ -163,6 +251,48 @@ describe('RfqAvailabilityService', () => {
       await expect(
         service.confirmCoverage('rfq-x', { allocations: [allocation] }, user),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws Forbidden when the user has no company', async () => {
+      const noCompany = { ...(user as object), companyId: null } as never;
+      await expect(
+        service.confirmCoverage('rfq-1', { allocations: [allocation] }, noCompany),
+      ).rejects.toThrow(ForbiddenException);
+      expect(prisma.rfq.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('does not company-scope the RFQ lookup for SUPER_ADMIN', async () => {
+      const superAdmin = { ...(user as object), role: UserRole.SUPER_ADMIN } as never;
+      prisma.rfq.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.confirmCoverage('rfq-1', { allocations: [allocation] }, superAdmin),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(prisma.rfq.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'rfq-1' } }),
+      );
+    });
+
+    it('404s when an allocation references a line of another RFQ', async () => {
+      prisma.rfq.findFirst.mockResolvedValue(draftRfq);
+      prisma.rfqLineItem.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.confirmCoverage('rfq-1', { allocations: [allocation] }, user),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.bulkOrderLineItem.findMany).not.toHaveBeenCalled();
+    });
+
+    it('404s when an allocation references an inactive or foreign bulk-order line', async () => {
+      prisma.rfq.findFirst.mockResolvedValue(draftRfq);
+      prisma.rfqLineItem.findMany.mockResolvedValue([rfqLine]);
+      prisma.bulkOrderLineItem.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.confirmCoverage('rfq-1', { allocations: [allocation] }, user),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it('rejects non-DRAFT RFQs', async () => {
@@ -237,6 +367,57 @@ describe('RfqAvailabilityService', () => {
 
       expect(tx.rfqLineItem.delete).toHaveBeenCalledWith({ where: { id: 'rli-1' } });
       expect(result).toMatchObject({ drawdownsCreated: 1, remainingLineItems: 0 });
+    });
+
+    it('accumulates repeated allocations against the same lines before validating', async () => {
+      prisma.rfq.findFirst.mockResolvedValue(draftRfq);
+      prisma.rfqLineItem.findMany.mockResolvedValue([rfqLine]);
+      prisma.bulkOrderLineItem.findMany.mockResolvedValue([bulkLine]);
+      tx.rfqLineItem.findMany.mockResolvedValue([{ quantity: 50 }]);
+
+      const result = await service.confirmCoverage(
+        'rfq-1',
+        // 120 + 80 = 200 ≤ 300 remaining on the bulk line, ≤ 250 on the RFQ
+        // line — legal only because the quantities are summed per line, not
+        // checked per allocation.
+        {
+          allocations: [
+            { ...allocation, quantity: 120 },
+            { ...allocation, quantity: 80 },
+          ],
+        },
+        user,
+      );
+
+      expect(tx.drawdown.create).toHaveBeenCalledTimes(2);
+      // Second drawdown records the balance left by the first (300 − 120).
+      expect(tx.drawdown.create).toHaveBeenLastCalledWith({
+        data: expect.objectContaining({ quantity: 80, qtyBeforeDrawdown: 180 }),
+      });
+      expect(tx.bulkOrderLineItem.update).toHaveBeenLastCalledWith({
+        where: { id: 'bol-1' },
+        data: expect.objectContaining({ qtyRemaining: 100, ordered: 400 }),
+      });
+      // 250 − 200 → the RFQ line shrinks to 50.
+      expect(tx.rfqLineItem.update).toHaveBeenCalledWith({
+        where: { id: 'rli-1' },
+        data: { quantity: 50 },
+      });
+      expect(result).toMatchObject({ drawdownsCreated: 2, remainingLineItems: 1 });
+    });
+
+    it('reports 0% deliveries progress for a zero-quantity bulk line', async () => {
+      prisma.rfq.findFirst.mockResolvedValue(draftRfq);
+      prisma.rfqLineItem.findMany.mockResolvedValue([rfqLine]);
+      prisma.bulkOrderLineItem.findMany.mockResolvedValue([{ ...bulkLine, qty: 0 }]);
+      tx.rfqLineItem.findMany.mockResolvedValue([{ quantity: 150 }]);
+
+      await service.confirmCoverage('rfq-1', { allocations: [allocation] }, user);
+
+      expect(tx.bulkOrderLineItem.update).toHaveBeenCalledWith({
+        where: { id: 'bol-1' },
+        data: expect.objectContaining({ deliveriesPercent: 0 }),
+      });
     });
   });
 });

@@ -134,4 +134,100 @@ describe('RolesController', () => {
       '10.0.0.7',
     );
   });
+
+  // Express leaves req.ip undefined when the socket is gone (aborted request);
+  // every audited endpoint then falls back to the raw socket address, and to
+  // undefined when that is missing too — the audit log stores "no IP" rather
+  // than failing the request.
+  describe('client IP fallback', () => {
+    const socketOnlyReq = {
+      ip: undefined,
+      socket: { remoteAddress: '192.168.1.9' },
+    } as unknown as Request;
+    const ipLessReq = { ip: undefined, socket: {} } as unknown as Request;
+
+    it('updatePermissions falls back to the socket address, then undefined', async () => {
+      mockService.updateRolePermissions.mockResolvedValue({ role: 'VENDOR', permissionKeys: [] });
+
+      await controller.updatePermissions('VENDOR', { permissionKeys: [] }, authUser, socketOnlyReq);
+      expect(mockService.updateRolePermissions).toHaveBeenLastCalledWith(
+        'VENDOR',
+        [],
+        'actor-1',
+        '192.168.1.9',
+        undefined,
+      );
+
+      await controller.updatePermissions('VENDOR', { permissionKeys: [] }, authUser, ipLessReq);
+      expect(mockService.updateRolePermissions).toHaveBeenLastCalledWith(
+        'VENDOR',
+        [],
+        'actor-1',
+        undefined,
+        undefined,
+      );
+    });
+
+    it('createCustomRole falls back to the socket address, then undefined', async () => {
+      mockService.createCustomRole.mockResolvedValue({ id: 'cr-1' });
+
+      await controller.createCustomRole({ name: 'A' }, authUser, socketOnlyReq);
+      expect(mockService.createCustomRole).toHaveBeenLastCalledWith(
+        'co-1',
+        { name: 'A' },
+        'actor-1',
+        '192.168.1.9',
+      );
+
+      await controller.createCustomRole({ name: 'A' }, authUser, ipLessReq);
+      expect(mockService.createCustomRole).toHaveBeenLastCalledWith(
+        'co-1',
+        { name: 'A' },
+        'actor-1',
+        undefined,
+      );
+    });
+
+    it('updateCustomRole falls back to the socket address, then undefined', async () => {
+      mockService.updateCustomRole.mockResolvedValue({ id: 'cr-1' });
+
+      await controller.updateCustomRole('cr-1', { name: 'B' }, authUser, socketOnlyReq);
+      expect(mockService.updateCustomRole).toHaveBeenLastCalledWith(
+        'cr-1',
+        'co-1',
+        { name: 'B' },
+        'actor-1',
+        '192.168.1.9',
+      );
+
+      await controller.updateCustomRole('cr-1', { name: 'B' }, authUser, ipLessReq);
+      expect(mockService.updateCustomRole).toHaveBeenLastCalledWith(
+        'cr-1',
+        'co-1',
+        { name: 'B' },
+        'actor-1',
+        undefined,
+      );
+    });
+
+    it('deleteCustomRole falls back to the socket address, then undefined', async () => {
+      mockService.deleteCustomRole.mockResolvedValue({ message: 'deleted' });
+
+      await controller.deleteCustomRole('cr-1', authUser, socketOnlyReq);
+      expect(mockService.deleteCustomRole).toHaveBeenLastCalledWith(
+        'cr-1',
+        'co-1',
+        'actor-1',
+        '192.168.1.9',
+      );
+
+      await controller.deleteCustomRole('cr-1', authUser, ipLessReq);
+      expect(mockService.deleteCustomRole).toHaveBeenLastCalledWith(
+        'cr-1',
+        'co-1',
+        'actor-1',
+        undefined,
+      );
+    });
+  });
 });

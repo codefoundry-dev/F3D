@@ -194,6 +194,22 @@ describe('UsersService', () => {
       expect(whereArg.companyId).toEqual({ in: ['comp-1', 'comp-2'] });
     });
 
+    it('filters by a createdAt range, extending dateTo to the end of the day', async () => {
+      await service.listUsers({ dateFrom: '2026-07-01', dateTo: '2026-07-31' }, superAdmin);
+      const whereArg = mockPrisma.user.findMany.mock.calls[0][0].where;
+      expect(whereArg.createdAt).toEqual({
+        gte: new Date('2026-07-01'),
+        lte: new Date('2026-07-31T23:59:59.999'),
+      });
+    });
+
+    it('filters by dateTo alone (open-ended lower bound)', async () => {
+      await service.listUsers({ dateTo: '2026-07-31' }, superAdmin);
+      const whereArg = mockPrisma.user.findMany.mock.calls[0][0].where;
+      expect(whereArg.createdAt).toEqual({ lte: new Date('2026-07-31T23:59:59.999') });
+      expect(whereArg.createdAt).not.toHaveProperty('gte');
+    });
+
     it('returns meta with totalPages', async () => {
       mockPrisma.user.findMany.mockResolvedValue([{ id: '1' }]);
       mockPrisma.user.count.mockResolvedValue(50);
