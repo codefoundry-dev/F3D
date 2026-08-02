@@ -248,13 +248,16 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
   }, [vendorOptions, form?.seededFrom]);
 
   // Pre-select the PO the reconciler resolved from the document's PO reference
-  // (FOR-293), as long as the user hasn't chosen one.
+  // (FOR-293), as long as the user hasn't chosen one. Keyed on seededFrom like
+  // the vendor prefill above: a match that resolves before the form seeds
+  // (cached query + slow extraction) must re-apply once the form exists.
   useEffect(() => {
     if (dirty) return;
     if (matchResult?.resolution !== 'AUTO_MATCHED' || !matchResult.po) return;
     const poId = matchResult.po.id;
     setForm((prev) => (prev && !prev.relatedPoId ? { ...prev, relatedPoId: poId } : prev));
-  }, [matchResult, dirty]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot prefill; the functional update never clobbers a user choice
+  }, [matchResult, dirty, form?.seededFrom]);
 
   // PO-match flags are computed server-side from the *saved* lines, keyed here
   // by the saved line id (rows added since the last save carry no flags yet).
