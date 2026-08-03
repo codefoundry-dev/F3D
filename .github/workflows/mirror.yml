@@ -37,41 +37,14 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0 # full history — the mirror needs every commit
-
-      # TEMPORARY diagnostic — prints only non-secret metadata about the token
-      # (length, prefix, owning account, scopes, repo reachability) to pin down
-      # a "Repository not found" push failure. Remove once the mirror is green.
-      - name: Diagnose mirror token
-        env:
-          MIRROR_TOKEN: ${{ secrets.FORETHREAD_MIRROR_TOKEN }}
-        run: |
-          set -uo pipefail
-          if [ -z "${MIRROR_TOKEN}" ]; then
-            echo "secret is EMPTY"; exit 0
-          fi
-          # Length + prefix identify the token TYPE without revealing it:
-          # classic = 'ghp_' and 40 chars; fine-grained = 'gith' and ~93.
-          echo "length: ${#MIRROR_TOKEN} (classic PAT = 40, fine-grained = ~93)"
-          echo "prefix: ${MIRROR_TOKEN:0:4}"
-          case "$MIRROR_TOKEN" in
-            *[[:space:]]*) echo "WARNING: token contains whitespace/newline — the paste picked up stray characters" ;;
-            *) echo "no stray whitespace" ;;
-          esac
-          echo "--- identity + scopes ---"
-          curl -sS -D /tmp/h -o /tmp/u -H "Authorization: token ${MIRROR_TOKEN}" https://api.github.com/user
-          echo "account: $(jq -r '.login // "AUTH FAILED"' /tmp/u)"
-          # x-oauth-scopes is empty for fine-grained PATs, populated for classic.
-          grep -i '^x-oauth-scopes:' /tmp/h || echo "x-oauth-scopes: (none — not a classic PAT, or no scopes)"
-          # SSO-protected orgs advertise themselves here when access is blocked.
-          grep -i '^x-github-sso:' /tmp/h || true
-          echo "--- mirror repo reachability ---"
-          CODE=$(curl -sS -o /tmp/r -w '%{http_code}' -H "Authorization: token ${MIRROR_TOKEN}" https://api.github.com/repos/Forethread/thecodefoundry.dev)
-          echo "GET /repos/Forethread/thecodefoundry.dev -> HTTP ${CODE}"
-          if [ "$CODE" = "200" ]; then
-            echo "push permission: $(jq -r '.permissions.push' /tmp/r)"
-          else
-            jq -r '.message // empty' /tmp/r
-          fi
+          # REQUIRED for the push below. By default checkout persists an
+          # `http.https://github.com/.extraheader` auth header into git config,
+          # and that header WINS over credentials embedded in a push URL — so
+          # the push authenticates as the workflow's GITHUB_TOKEN (scoped to
+          # this repo only) and the mirror comes back "Repository not found"
+          # even with a perfectly valid PAT. Not persisting it lets the URL
+          # credentials apply.
+          persist-credentials: false
 
       - name: Push ${{ github.ref_name }} to Forethread/thecodefoundry.dev
         env:
