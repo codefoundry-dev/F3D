@@ -32,7 +32,9 @@ jobs:
   detect-changes:
     name: Detect envs to apply
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    # Repo guard: never apply infra from the Forethread mirror (downstream jobs
+    # inherit the skip via `needs`).
+    if: github.repository == 'codefoundry-dev/F3D' && github.event_name == 'push'
     outputs:
       envs: ${{ steps.changes.outputs.envs }}
       any: ${{ steps.changes.outputs.any }}
@@ -176,7 +178,7 @@ jobs:
 
   apply-manual:
     name: apply (${{ inputs.env }}) [manual]
-    if: github.event_name == 'workflow_dispatch'
+    if: github.repository == 'codefoundry-dev/F3D' && github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: ${{ inputs.env }}
     steps:

@@ -25,6 +25,9 @@ jobs:
   detect-changes:
     name: Detect changed envs
     runs-on: ubuntu-latest
+    # Repo guard: the Forethread mirror has no AWS OIDC trust — plans only run
+    # in the canonical repo (downstream jobs inherit the skip via `needs`).
+    if: github.repository == 'codefoundry-dev/F3D'
     outputs:
       envs: ${{ steps.changes.outputs.envs }}
       any: ${{ steps.changes.outputs.any }}
