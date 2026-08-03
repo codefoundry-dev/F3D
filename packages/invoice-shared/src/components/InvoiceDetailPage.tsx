@@ -92,6 +92,19 @@ export function InvoiceDetailPage({
   const showActions = canApprove && isPending;
   const isActioning = approveMutation.isPending || rejectMutation.isPending;
 
+  // The server refuses approval until review has persisted vendor, project and
+  // amount (FOR-290/291) — disable Approve up front rather than dead-ending in
+  // the confirm modal. Declining stays available on any Pending invoice.
+  const reviewComplete =
+    !!invoice &&
+    invoice.vendorName !== null &&
+    invoice.projectId !== null &&
+    invoice.totalAmount !== null;
+  const approveBlockedHint = t('invoiceDetail.approveBlocked', {
+    defaultValue:
+      'Set the vendor, project, and total amount in the review form and save before approving.',
+  });
+
   if (isLoading) {
     return <PageLoader />;
   }
@@ -117,7 +130,8 @@ export function InvoiceDetailPage({
             </Button>
             <Button
               variant="primary"
-              disabled={isActioning}
+              disabled={isActioning || !reviewComplete}
+              title={reviewComplete ? undefined : approveBlockedHint}
               leftIcon={<CheckCircleIcon className="size-4" />}
               onClick={() => {
                 approveMutation.reset();
@@ -150,6 +164,11 @@ export function InvoiceDetailPage({
           mode={decision}
           isPending={isActioning}
           isError={decision === 'approve' ? approveMutation.isError : rejectMutation.isError}
+          errorMessage={
+            decision === 'approve'
+              ? (approveMutation.error?.message ?? null)
+              : (rejectMutation.error?.message ?? null)
+          }
           onClose={() => setDecision(null)}
           onConfirm={(reason) => {
             const mutation = decision === 'approve' ? approveMutation : rejectMutation;

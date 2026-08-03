@@ -316,6 +316,12 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
     setDirty(true);
   };
 
+  // Approval is refused server-side until vendor, project and amount are all
+  // persisted (FOR-290/291); the banner and save toast below must not read as
+  // "done" while any of them is still missing.
+  const reviewComplete =
+    invoice.vendorName !== null && invoice.projectId !== null && invoice.totalAmount !== null;
+
   const onSave = () => {
     if (!form) return;
     const payload: ReviewInvoicePayload = {
@@ -344,9 +350,20 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
       {
         onSuccess: () => {
           setDirty(false);
-          notificationService.success(
-            t('review.savedToast', { defaultValue: 'Invoice details saved.' }),
-          );
+          // A save missing any approve-critical field is a draft, not a done
+          // review — say so instead of a bare success.
+          if (!payload.vendorId || !payload.projectId || payload.totalAmount === null) {
+            notificationService.info(
+              t('review.savedIncompleteToast', {
+                defaultValue:
+                  'Details saved. Set the vendor, project, and total amount before this invoice can be approved.',
+              }),
+            );
+          } else {
+            notificationService.success(
+              t('review.savedToast', { defaultValue: 'Invoice details saved.' }),
+            );
+          }
         },
       },
     );
@@ -367,6 +384,16 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
       <Alert variant="warning" icon={<InfoTriangleIcon className="size-4" />}>
         {t('review.extractionFailed', {
           defaultValue: 'The invoice could not be read automatically. Enter the details manually.',
+        })}
+      </Alert>
+    </div>
+  ) : invoice.reviewedAt && !reviewComplete ? (
+    <div data-testid="invoice-review-incomplete">
+      <Alert variant="warning" icon={<InfoTriangleIcon className="size-4" />}>
+        {t('review.reviewedIncomplete', {
+          defaultValue:
+            'Reviewed on {{date}}, but the vendor, project, and total amount must all be set and saved before this invoice can be approved.',
+          date: new Date(invoice.reviewedAt).toLocaleDateString('en-AU'),
         })}
       </Alert>
     </div>

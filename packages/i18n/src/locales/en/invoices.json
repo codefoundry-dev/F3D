@@ -107,6 +107,7 @@
       "history": "History"
     },
     "approve": "Approve",
+    "approveBlocked": "Set the vendor, project, and total amount in the review form and save before approving.",
     "decline": "Decline",
     "invoiceInfo": "Invoice Information",
     "project": "Project",
@@ -159,6 +160,7 @@
     "extractionFailed": "The invoice could not be read automatically. Enter the details manually.",
     "confirmHint": "These details were read from the document automatically. Confirm or correct each field, then save.",
     "reviewedOn": "Reviewed on {{date}}. You can still correct the details until approval.",
+    "reviewedIncomplete": "Reviewed on {{date}}, but the vendor, project, and total amount must all be set and saved before this invoice can be approved.",
     "extractedValue": "Extracted: {{value}}",
     "vendor": "Vendor",
     "selectVendor": "Select vendor",
@@ -177,6 +179,7 @@
     "noLines": "No line items yet. Add the billed lines from the document.",
     "save": "Save details",
     "savedToast": "Invoice details saved.",
+    "savedIncompleteToast": "Details saved. Set the vendor, project, and total amount before this invoice can be approved.",
     "line": {
       "lineId": "#",
       "description": "Description",

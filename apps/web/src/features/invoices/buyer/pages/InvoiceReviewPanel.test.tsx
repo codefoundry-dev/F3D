@@ -1,5 +1,6 @@
 import type { InvoiceDetail, InvoicePoMatchResult } from '@forethread/api-client';
 import { InvoiceReviewPanel } from '@forethread/invoice-shared';
+import { notificationService } from '@forethread/ui-components';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
@@ -507,5 +508,66 @@ describe('InvoiceReviewPanel', () => {
     const summary = await screen.findByTestId('invoice-review-match-clean');
     expect(summary).toHaveTextContent('All 1 line(s) match PO-00042 — no variances.');
     expect(screen.getByText('Matched')).toBeInTheDocument();
+  });
+
+  // ── Approve-readiness messaging ────────────────────────────────────────────
+  // Approval requires vendor + project + amount on the record; a review save
+  // that leaves any of them empty must not present itself as complete.
+
+  it('warns instead of showing the green banner when a reviewed invoice is missing approve fields', async () => {
+    render(
+      <InvoiceReviewPanel
+        invoice={makeInvoice({
+          reviewedAt: '2026-07-28T10:00:00.000Z',
+          vendorName: 'DAMOS Pty Ltd',
+          projectId: null, // saved without ever choosing a project
+          totalAmount: 110,
+        })}
+      />,
+      { wrapper },
+    );
+    await screen.findByTestId('invoice-review-panel');
+
+    const banner = screen.getByTestId('invoice-review-incomplete');
+    expect(banner).toHaveTextContent('vendor, project, and total amount');
+    expect(screen.queryByTestId('invoice-review-reviewed')).not.toBeInTheDocument();
+  });
+
+  it('keeps the green reviewed banner when vendor, project, and amount are all saved', async () => {
+    render(
+      <InvoiceReviewPanel
+        invoice={makeInvoice({
+          reviewedAt: '2026-07-28T10:00:00.000Z',
+          vendorName: 'DAMOS Pty Ltd',
+          projectId: 'p-1',
+          projectName: 'Plant Upgrade',
+          totalAmount: 110,
+        })}
+      />,
+      { wrapper },
+    );
+    await screen.findByTestId('invoice-review-panel');
+
+    expect(screen.getByTestId('invoice-review-reviewed')).toBeInTheDocument();
+    expect(screen.queryByTestId('invoice-review-incomplete')).not.toBeInTheDocument();
+  });
+
+  it('saves an incomplete review with an info toast, not a bare success', async () => {
+    const infoSpy = vi.spyOn(notificationService, 'info').mockImplementation(() => '');
+    const successSpy = vi.spyOn(notificationService, 'success').mockImplementation(() => '');
+
+    // Default fixture: the extraction seeds the total and the vendor
+    // auto-matches, but no project is ever chosen.
+    render(<InvoiceReviewPanel invoice={makeInvoice()} />, { wrapper });
+    await screen.findByTestId('invoice-review-panel');
+    fireEvent.click(screen.getByTestId('invoice-review-save'));
+
+    await waitFor(() => expect(mockReviewInvoice).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(infoSpy).toHaveBeenCalled());
+    expect(infoSpy.mock.calls[0][0]).toContain('before this invoice can be approved');
+    expect(successSpy).not.toHaveBeenCalled();
+
+    infoSpy.mockRestore();
+    successSpy.mockRestore();
   });
 });

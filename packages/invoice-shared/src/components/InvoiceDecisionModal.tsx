@@ -9,6 +9,8 @@ export interface InvoiceDecisionModalProps {
   mode: 'approve' | 'decline';
   isPending: boolean;
   isError: boolean;
+  /** The server's failure message — actionable, so shown verbatim when present. */
+  errorMessage?: string | null;
   onConfirm: (reason: string | undefined) => void;
   onClose: () => void;
 }
@@ -23,6 +25,7 @@ export function InvoiceDecisionModal({
   mode,
   isPending,
   isError,
+  errorMessage,
   onConfirm,
   onClose,
 }: InvoiceDecisionModalProps) {
@@ -86,7 +89,8 @@ export function InvoiceDecisionModal({
     >
       {isError && (
         <Alert variant="destructive">
-          {t('decision.error', { defaultValue: 'Something went wrong. Please try again.' })}
+          {errorMessage ||
+            t('decision.error', { defaultValue: 'Something went wrong. Please try again.' })}
         </Alert>
       )}
 

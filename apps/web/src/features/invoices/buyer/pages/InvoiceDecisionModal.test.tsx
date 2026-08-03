@@ -114,4 +114,37 @@ describe('InvoiceDecisionModal', () => {
     );
     expect(screen.getByText('Something went wrong. Please try again.')).toBeInTheDocument();
   });
+
+  it('shows the server error message verbatim when one is provided', () => {
+    render(
+      <InvoiceDecisionModal
+        mode="approve"
+        isPending={false}
+        isError
+        errorMessage="This invoice hasn't been reviewed yet. Set the vendor, project, and amount before approving."
+        onConfirm={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "This invoice hasn't been reviewed yet. Set the vendor, project, and amount before approving.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Something went wrong. Please try again.')).not.toBeInTheDocument();
+  });
+
+  it('falls back to the generic error when the message is empty', () => {
+    render(
+      <InvoiceDecisionModal
+        mode="approve"
+        isPending={false}
+        isError
+        errorMessage=""
+        onConfirm={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Something went wrong. Please try again.')).toBeInTheDocument();
+  });
 });
