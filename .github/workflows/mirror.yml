@@ -12,10 +12,13 @@ name: Mirror to Forethread
 #
 # Auth: FORETHREAD_MIRROR_TOKEN repo secret. The pushing account is an outside
 # collaborator on the mirror (not a Forethread org member), so a fine-grained
-# PAT can't target the org — this must be a CLASSIC PAT with `repo` scope (or,
-# for tighter scoping, a write deploy key added by the org owner). Until the
-# secret is set the job warns and exits green (sync simply doesn't happen);
-# once set, push failures are real errors.
+# PAT can't target the org — this must be a CLASSIC PAT with BOTH the `repo`
+# and `workflow` scopes. `workflow` is not optional: the mirrored tree contains
+# .github/workflows/**, and GitHub rejects any PAT push that creates or updates
+# a workflow file without it. (A write deploy key added by the org owner is the
+# tighter-scoped alternative — deploy keys are exempt from that restriction.)
+# Until the secret is set the job warns and exits green (sync simply doesn't
+# happen); once set, push failures are real errors.
 
 on:
   push:
