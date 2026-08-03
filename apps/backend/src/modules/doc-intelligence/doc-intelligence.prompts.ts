@@ -85,7 +85,11 @@ This document is a vendor invoice. Extract every billed line item — do not
 collapse rows. Preserve the order they appear.
 
 For each item:
-- "lineId": the invoice's own line number / line item ID, exactly as printed. Null if absent.
+- "lineId": the invoice's own printed line number / line item ID (e.g. "1", "2", "L-3"),
+  ONLY when the document has an explicit line-number / item-# column. Many invoices
+  print QTY as the leftmost column — a leftmost numeric value on a document with no
+  line-number column is the "quantity", never the "lineId". Null when the invoice
+  does not number its lines.
 - "description": full item / material description as written (trim whitespace).
 - "quantity": numeric quantity billed. Null if absent.
 - "unit": unit of measure (e.g. "ea", "m", "m2", "kg", "bag", "pallet"). Lowercase.
