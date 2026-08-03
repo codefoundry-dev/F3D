@@ -222,8 +222,12 @@ describe('InvoiceReviewPanel', () => {
     render(<InvoiceReviewPanel invoice={makeInvoice()} />, { wrapper });
     await screen.findByTestId('invoice-review-panel');
 
-    // The vendor list resolves async; the extracted name should auto-select it.
-    await waitFor(() => expect(mockGetCompanyVendors).toHaveBeenCalled());
+    // The vendor list resolves async and the prefill lands an effect later.
+    // Waiting on the call alone only proves the request STARTED: on a loaded
+    // runner the edit below then marks the form dirty first, which makes the
+    // prefill effect bail for good and save posts vendorId: null. Wait for the
+    // visible selection instead (same fix as the PO pre-select race).
+    await within(screen.getByTestId('invoice-review-vendor')).findByText('DAMOS Pty Ltd');
 
     fireEvent.change(screen.getByTestId('invoice-review-number'), {
       target: { value: 'I209927-A' },

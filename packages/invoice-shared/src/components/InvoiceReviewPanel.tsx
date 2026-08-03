@@ -587,7 +587,7 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div>
           <label className={fieldLabel}>{t('review.vendor', { defaultValue: 'Vendor' })}</label>
-          <div className="mt-1">
+          <div className="mt-1" data-testid="invoice-review-vendor">
             <CustomDropdown
               options={vendorOptions}
               value={form.vendorId || undefined}
