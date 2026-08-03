@@ -1051,3 +1051,70 @@ web UploadMaterialFilePage 12/12 green; `tsc --noEmit` clean on api-client and a
 |                           |       | splits into 2 findMany calls (Postgres bind cap is 32,767)  |        |
 
 Scoped run 2026-07-27: materials.service.spec 130/130 green after the chunking change.
+
+### FOR-291 — Invoice extraction + human review/correct (T925) — added 2026-07-28
+
+| Test File                        | Tests | Description                                                  | Status |
+| -------------------------------- | ----- | ------------------------------------------------------------ | ------ |
+| invoice-intake.service.spec.ts   | +3    | Extraction kicked off on manual upload (user-attributed) and | PASS   |
+|                                  |       | per email invoice (unattributed, image pages grouped);       |        |
+|                                  |       | extraction failure never fails intake                        |        |
+| doc-intelligence.service.spec.ts | +4    | createInvoiceExtraction: INVOICE job linked to invoice, null |        |
+|                                  |       | user, skip when Gemini unconfigured / no readable file;      | PASS   |
+|                                  |       | runExtraction sends extra page documents in one Gemini call  |        |
+| invoices.service.spec.ts         | +11   | getInvoice maps lines + extraction (result withheld until    | PASS   |
+|                                  |       | COMPLETED); reviewInvoice: field persistence + line replace, |        |
+|                                  |       | reviewer stamp, extraction CONFIRMED, clears empty fields,   |        |
+|                                  |       | status/company guards, vendor/project reference validation   |        |
+| invoices.controller.spec.ts      | +1    | PATCH :id/review delegates to service                        | PASS   |
+| InvoiceReviewPanel.test.tsx      | 5     | Prefill from completed extraction, processing-only banner,   | PASS   |
+|                                  |       | failed→manual entry, save payload (vendor auto-match, parsed |        |
+|                                  |       | numbers), add/remove line rows                               |        |
+
+Full-repo run 2026-07-28: `turbo test` green (backend invoices + doc-intelligence 14 suites / 308+
+tests; web invoices 13/13); `tsc --noEmit` clean on backend, api-client, invoice-shared, apps/web.
+Live extraction validated against 3 real sample invoices (DAMOS, Blackwoods, Officeworks) using the
+production prompt/responseSchema — vendor, invoice #, dates, totals, and line items all correct.
+
+### FOR-290 — UploadInvoicePage stale test rewrite — added 2026-07-28
+
+| Test File                  | Tests | Description                                                    | Status |
+| -------------------------- | ----- | -------------------------------------------------------------- | ------ |
+| UploadInvoicePage.test.tsx | 3     | Rewrote the pre-FOR-290 "under development" placeholder test   | PASS   |
+|                            |       | (was failing): dropzone + disabled submit, intake email panel  |        |
+|                            |       | with copy button, panel hidden when inbound email unconfigured |        |
+
+### FOR-293 — Invoice ↔ PO matching + variance flags — added 2026-07-28
+
+| Test File                        | Tests | Description                                                  | Status |
+| -------------------------------- | ----- | ------------------------------------------------------------ | ------ |
+| invoice-matching.util.spec.ts    | 12    | Reference normalization + loose PO-number citation matching  | PASS   |
+|                                  |       | (digit cores, leading zeros), line-pair scoring signals,     |        |
+|                                  |       | greedy one-to-one pairing with score floor                   |        |
+| invoice-matching.service.spec.ts | 15    | PO resolution per state (linked / auto-matched / ambiguous / | PASS   |
+|                                  |       | not-found / no-reference), vendor mismatch, per-line price/  |        |
+|                                  |       | qty variance vs tolerances, NOT_ON_PO + unbilled lines,      |        |
+|                                  |       | summary counts, access guards                                |        |
+| invoices.service.spec.ts         | +3    | Review persists / clears relatedPoId; rejects a PO outside   | PASS   |
+|                                  |       | the invoice's company                                        |        |
+| invoices.controller.spec.ts      | +1    | GET :id/po-match delegates to the matching service           | PASS   |
+| InvoiceReviewPanel.test.tsx      | +5    | PO selector pre-seeded from the auto-match and saved as      | PASS   |
+|                                  |       | relatedPoId, no-reference / not-found banners, per-line      |        |
+|                                  |       | variance chips + issues summary, all-clear summary           |        |
+
+### FOR-294 — Invoice states with reasons + audit trail — added 2026-07-28
+
+| Test File                     | Tests | Description                                                  | Status |
+| ----------------------------- | ----- | ------------------------------------------------------------ | ------ |
+| invoices.service.spec.ts      | +7    | Approve/reject write INVOICE_APPROVED / INVOICE_REJECTED     | PASS   |
+|                               |       | audit entries with from/to/reason metadata (note trimmed,    |        |
+|                               |       | audit failure never fails the transition); bulk-approve      |        |
+|                               |       | audits per invoice; getAuditTrail maps entries oldest-first  |        |
+|                               |       | with owning-company / billed-vendor / SA access guards       |        |
+| invoices.controller.spec.ts   | +1    | GET :id/audit delegates; approve passes the reason DTO       | PASS   |
+| InvoiceDecisionModal.test.tsx | 4     | Approve confirms without a note and trims a given one;       | PASS   |
+|                               |       | decline disabled until a non-whitespace reason is typed;     |        |
+|                               |       | error alert on mutation failure                              |        |
+| InvoiceHistoryTab.test.tsx    | 2     | Timeline renders received (intake sender) / reviewed stamps  | PASS   |
+|                               |       | + audited transitions with actor and reason; unknown actions |        |
+|                               |       | ignored, reviewed stamp omitted when never reviewed          |        |

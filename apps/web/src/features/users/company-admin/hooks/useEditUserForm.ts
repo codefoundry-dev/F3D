@@ -27,6 +27,7 @@ export function useEditUserForm(onClose: () => void) {
         email: user.email,
         phone: user.phone ?? '',
         role: user.role,
+        customRoleId: user.customRoleId ?? '',
         position: user.position ?? '',
         department: '',
       });
@@ -41,6 +42,7 @@ export function useEditUserForm(onClose: () => void) {
         dto: {
           name: data.name,
           role: data.role,
+          customRoleId: data.customRoleId || null,
           position: data.position || undefined,
           phone: data.phone || undefined,
         },

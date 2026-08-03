@@ -44,6 +44,12 @@ const mockPrisma = {
   rolePermission: {
     findFirst: jest.fn().mockResolvedValue(null),
   },
+  customRole: {
+    findFirst: jest.fn(),
+  },
+  customRolePermission: {
+    findFirst: jest.fn().mockResolvedValue(null),
+  },
   $transaction: jest.fn(),
 };
 mockPrisma.$transaction.mockImplementation((fn: (tx: typeof mockPrisma) => Promise<unknown>) =>
@@ -67,7 +73,9 @@ const mockAuditService = {
 
 const mockPermissionsService = {
   getPermissionsForRole: jest.fn().mockResolvedValue(new Set<string>()),
+  getPermissionsForUser: jest.fn().mockResolvedValue(new Set<string>()),
   roleHasPermission: jest.fn().mockResolvedValue(true),
+  userHasPermission: jest.fn().mockResolvedValue(true),
 };
 
 const superAdmin = { id: 'sa-1', role: UserRole.SUPER_ADMIN, companyId: null };
@@ -186,11 +194,42 @@ describe('UsersService', () => {
       expect(whereArg.companyId).toEqual({ in: ['comp-1', 'comp-2'] });
     });
 
+    it('filters by a createdAt range, extending dateTo to the end of the day', async () => {
+      await service.listUsers({ dateFrom: '2026-07-01', dateTo: '2026-07-31' }, superAdmin);
+      const whereArg = mockPrisma.user.findMany.mock.calls[0][0].where;
+      expect(whereArg.createdAt).toEqual({
+        gte: new Date('2026-07-01'),
+        lte: new Date('2026-07-31T23:59:59.999'),
+      });
+    });
+
+    it('filters by dateTo alone (open-ended lower bound)', async () => {
+      await service.listUsers({ dateTo: '2026-07-31' }, superAdmin);
+      const whereArg = mockPrisma.user.findMany.mock.calls[0][0].where;
+      expect(whereArg.createdAt).toEqual({ lte: new Date('2026-07-31T23:59:59.999') });
+      expect(whereArg.createdAt).not.toHaveProperty('gte');
+    });
+
     it('returns meta with totalPages', async () => {
       mockPrisma.user.findMany.mockResolvedValue([{ id: '1' }]);
       mockPrisma.user.count.mockResolvedValue(50);
       const result = await service.listUsers({ page: 1, limit: 25 }, superAdmin);
       expect(result.meta).toEqual({ page: 1, limit: 25, total: 50, totalPages: 2 });
+    });
+
+    it('derives invitePending and strips the raw invitationToken (FOR-289)', async () => {
+      mockPrisma.user.findMany.mockResolvedValue([
+        { id: 'u-1', status: UserStatus.INVITED, invitationToken: 'hashed' },
+        { id: 'u-2', status: UserStatus.INVITED, invitationToken: null }, // contact-only rep
+        { id: 'u-3', status: UserStatus.ACTIVE, invitationToken: null },
+      ]);
+      mockPrisma.user.count.mockResolvedValue(3);
+
+      const result = await service.listUsers({}, superAdmin);
+      expect(result.items.map((i) => i.invitePending)).toEqual([true, false, false]);
+      for (const item of result.items) {
+        expect(item).not.toHaveProperty('invitationToken');
+      }
     });
   });
 
@@ -301,6 +340,17 @@ describe('UsersService', () => {
       expect(result.projectMemberships).toBeUndefined();
     });
 
+    it('derives invitePending and never returns the raw invitationToken (FOR-289)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...userRecord,
+        status: UserStatus.INVITED,
+        invitationToken: 'hashed',
+      });
+      const result = await service.getUser('u-1', companyAdmin);
+      expect(result.invitePending).toBe(true);
+      expect(result).not.toHaveProperty('invitationToken');
+    });
+
     it('throws NotFoundException when user not found', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       await expect(service.getUser('bad-id', companyAdmin)).rejects.toThrow(NotFoundException);
@@ -369,6 +419,135 @@ describe('UsersService', () => {
       await expect(
         service.updateUser('u-1', { role: UserRole.PROCUREMENT_OFFICER }, companyAdmin),
       ).resolves.toBeDefined();
+    });
+
+    // ── Custom-role assignment (FOR-253) ─────────────────────────────────
+
+    const memberRecord = {
+      id: 'u-2',
+      name: 'Member',
+      companyId: 'comp-1',
+      role: UserRole.PROCUREMENT_OFFICER,
+      status: UserStatus.ACTIVE,
+      customRoleId: null,
+      customRole: null,
+      projectMemberships: [],
+    };
+
+    it('assigns a custom role from the target user company and audits it', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(memberRecord);
+      mockPrisma.customRole.findFirst.mockResolvedValue({ id: 'cr-1', name: 'Limited Buyer' });
+      mockPrisma.user.update.mockResolvedValue({ ...memberRecord, customRoleId: 'cr-1' });
+
+      await service.updateUser('u-2', { customRoleId: 'cr-1' }, companyAdmin);
+
+      expect(mockPrisma.customRole.findFirst).toHaveBeenCalledWith({
+        where: { id: 'cr-1', companyId: 'comp-1' },
+        select: { id: true, name: true },
+      });
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { customRoleId: 'cr-1' } }),
+      );
+      expect(mockAuditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'CUSTOM_ROLE_ASSIGNED',
+          performedById: 'ca-1',
+          targetType: 'User',
+          targetId: 'u-2',
+          metadata: expect.objectContaining({
+            customRoleId: 'cr-1',
+            customRoleName: 'Limited Buyer',
+            previousCustomRoleId: null,
+          }),
+        }),
+      );
+    });
+
+    it('404s when the custom role is outside the target user company scope', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(memberRecord);
+      mockPrisma.customRole.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updateUser('u-2', { customRoleId: 'cr-other-co' }, companyAdmin),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('refuses a custom role on a SUPER_ADMIN target', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...memberRecord,
+        role: UserRole.SUPER_ADMIN,
+        companyId: null,
+      });
+
+      await expect(service.updateUser('u-2', { customRoleId: 'cr-1' }, superAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('unassigns with customRoleId null and audits the removal', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...memberRecord,
+        customRoleId: 'cr-1',
+        customRole: { id: 'cr-1', name: 'Limited Buyer' },
+      });
+      mockPrisma.user.update.mockResolvedValue({ ...memberRecord, customRoleId: null });
+
+      await service.updateUser('u-2', { customRoleId: null }, companyAdmin);
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { customRoleId: null } }),
+      );
+      expect(mockAuditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'CUSTOM_ROLE_UNASSIGNED',
+          metadata: expect.objectContaining({
+            customRoleId: null,
+            previousCustomRoleId: 'cr-1',
+            previousCustomRoleName: 'Limited Buyer',
+          }),
+        }),
+      );
+    });
+
+    it('does not touch the assignment when customRoleId is absent from the dto', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...memberRecord,
+        customRoleId: 'cr-1',
+        customRole: { id: 'cr-1', name: 'Limited Buyer' },
+      });
+      mockPrisma.user.update.mockResolvedValue({ ...memberRecord, customRoleId: 'cr-1' });
+
+      await service.updateUser('u-2', { name: 'Renamed' }, companyAdmin);
+
+      const data = mockPrisma.user.update.mock.calls[0][0].data;
+      expect(data).not.toHaveProperty('customRoleId');
+      expect(mockAuditService.log).not.toHaveBeenCalled();
+    });
+
+    it('sheds the custom role when the user is promoted to SUPER_ADMIN', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...memberRecord,
+        customRoleId: 'cr-1',
+        customRole: { id: 'cr-1', name: 'Limited Buyer' },
+      });
+      mockPrisma.user.update.mockResolvedValue({
+        ...memberRecord,
+        role: UserRole.SUPER_ADMIN,
+        customRoleId: null,
+      });
+
+      await service.updateUser('u-2', { role: UserRole.SUPER_ADMIN }, superAdmin);
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { role: UserRole.SUPER_ADMIN, customRoleId: null },
+        }),
+      );
+      expect(mockAuditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'CUSTOM_ROLE_UNASSIGNED' }),
+      );
     });
   });
 
@@ -482,17 +661,18 @@ describe('UsersService', () => {
   // ── resendInvitation ───────────────────────────────────────────────────
 
   describe('resendInvitation', () => {
-    it('resends invitation for an invited user', async () => {
+    it('resends invitation for an invited user in the admin company', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'u-1',
         email: 'invited@test.com',
         name: 'INVITED',
         status: UserStatus.INVITED,
         role: UserRole.PROCUREMENT_OFFICER,
+        companyId: 'comp-1',
       });
       mockPrisma.user.update.mockResolvedValue({});
 
-      const result = await service.resendInvitation('u-1');
+      const result = await service.resendInvitation('u-1', companyAdmin);
       expect(mockPrisma.user.update).toHaveBeenCalled();
       expect(mockEmailService.sendInvitationEmail).toHaveBeenCalledWith(
         'invited@test.com',
@@ -504,17 +684,49 @@ describe('UsersService', () => {
 
     it('throws NotFoundException when user not found', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      await expect(service.resendInvitation('bad-id')).rejects.toThrow(NotFoundException);
+      await expect(service.resendInvitation('bad-id', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('throws when user is not in Invited status', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'u-1',
         status: UserStatus.ACTIVE,
+        companyId: 'comp-1',
       });
-      await expect(service.resendInvitation('u-1')).rejects.toThrow(
+      await expect(service.resendInvitation('u-1', companyAdmin)).rejects.toThrow(
         'User has already activated their account',
       );
+    });
+
+    it('rejects a target outside the requesting admin company (FOR-289 IDOR guard)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u-1',
+        status: UserStatus.INVITED,
+        companyId: 'comp-other',
+      });
+      await expect(service.resendInvitation('u-1', companyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockEmailService.sendInvitationEmail).not.toHaveBeenCalled();
+    });
+
+    it('SuperAdmin can resend for any company', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u-1',
+        email: 'invited@test.com',
+        name: 'INVITED',
+        status: UserStatus.INVITED,
+        role: UserRole.PROCUREMENT_OFFICER,
+        companyId: 'comp-other',
+      });
+      mockPrisma.user.update.mockResolvedValue({});
+
+      await expect(service.resendInvitation('u-1', superAdmin)).resolves.toEqual({
+        message: 'Invitation resent successfully',
+      });
     });
   });
 
@@ -570,12 +782,13 @@ describe('UsersService', () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'u-1',
         status: UserStatus.INVITED,
+        companyId: 'comp-1',
       });
       mockPrisma.user.update.mockResolvedValue({});
       mockPrisma.emailVerification.deleteMany.mockResolvedValue({ count: 0 });
       mockPrisma.user.delete.mockResolvedValue({});
 
-      const result = await service.cancelInvitation('u-1');
+      const result = await service.cancelInvitation('u-1', companyAdmin);
       expect(mockPrisma.$transaction).toHaveBeenCalled();
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 'u-1' },
@@ -590,15 +803,18 @@ describe('UsersService', () => {
 
     it('throws NotFoundException when user not found', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      await expect(service.cancelInvitation('bad-id')).rejects.toThrow(NotFoundException);
+      await expect(service.cancelInvitation('bad-id', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('throws when user is Active', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'u-1',
         status: UserStatus.ACTIVE,
+        companyId: 'comp-1',
       });
-      await expect(service.cancelInvitation('u-1')).rejects.toThrow(
+      await expect(service.cancelInvitation('u-1', companyAdmin)).rejects.toThrow(
         'Cannot cancel invitation for an active or inactive user',
       );
     });
@@ -607,10 +823,24 @@ describe('UsersService', () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'u-1',
         status: UserStatus.INACTIVE,
+        companyId: 'comp-1',
       });
-      await expect(service.cancelInvitation('u-1')).rejects.toThrow(
+      await expect(service.cancelInvitation('u-1', companyAdmin)).rejects.toThrow(
         'Cannot cancel invitation for an active or inactive user',
       );
+    });
+
+    it('rejects a target outside the requesting admin company (FOR-289 IDOR guard)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u-1',
+        status: UserStatus.INVITED,
+        companyId: 'comp-other',
+      });
+      await expect(service.cancelInvitation('u-1', companyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+      expect(mockPrisma.user.delete).not.toHaveBeenCalled();
     });
   });
 
@@ -623,15 +853,15 @@ describe('UsersService', () => {
         name: 'Me',
         role: UserRole.COMPANY_ADMIN,
       });
-      mockPermissionsService.getPermissionsForRole.mockResolvedValueOnce(
+      mockPermissionsService.getPermissionsForUser.mockResolvedValueOnce(
         new Set(['rfq.create', 'po.approve']),
       );
       mockPrisma.rolePermission.findFirst.mockResolvedValueOnce({ thresholdAmount: null });
 
       const result = await service.getMe('u-1');
 
-      expect(mockPermissionsService.getPermissionsForRole).toHaveBeenCalledWith(
-        UserRole.COMPANY_ADMIN,
+      expect(mockPermissionsService.getPermissionsForUser).toHaveBeenCalledWith(
+        expect.objectContaining({ role: UserRole.COMPANY_ADMIN }),
       );
       expect(result).toEqual({
         id: 'u-1',
@@ -648,7 +878,7 @@ describe('UsersService', () => {
         name: 'PO',
         role: UserRole.PROCUREMENT_OFFICER,
       });
-      mockPermissionsService.getPermissionsForRole.mockResolvedValueOnce(new Set(['po.approve']));
+      mockPermissionsService.getPermissionsForUser.mockResolvedValueOnce(new Set(['po.approve']));
       mockPrisma.rolePermission.findFirst.mockResolvedValueOnce({ thresholdAmount: 25000 });
 
       const result = await service.getMe('u-2');
@@ -661,7 +891,7 @@ describe('UsersService', () => {
         name: 'NoApprove',
         role: UserRole.PROCUREMENT_OFFICER,
       });
-      mockPermissionsService.getPermissionsForRole.mockResolvedValueOnce(new Set<string>());
+      mockPermissionsService.getPermissionsForUser.mockResolvedValueOnce(new Set<string>());
       mockPrisma.rolePermission.findFirst.mockResolvedValueOnce(null);
 
       const result = await service.getMe('u-3');
@@ -674,7 +904,7 @@ describe('UsersService', () => {
         name: 'Root',
         role: UserRole.SUPER_ADMIN,
       });
-      mockPermissionsService.getPermissionsForRole.mockResolvedValueOnce(new Set<string>());
+      mockPermissionsService.getPermissionsForUser.mockResolvedValueOnce(new Set<string>());
 
       const result = await service.getMe('u-4');
       expect(result.poApprovalThreshold).toBeNull();
@@ -684,6 +914,27 @@ describe('UsersService', () => {
     it('throws NotFoundException when user not found', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       await expect(service.getMe('bad-id')).rejects.toThrow(NotFoundException);
+    });
+
+    it('resolves the po.approve threshold from the custom role when assigned (FOR-253)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u-5',
+        name: 'Custom',
+        role: UserRole.PROCUREMENT_OFFICER,
+        customRoleId: 'cr-1',
+        customRole: { id: 'cr-1', name: 'Limited Buyer' },
+      });
+      mockPermissionsService.getPermissionsForUser.mockResolvedValueOnce(new Set(['po.approve']));
+      mockPrisma.customRolePermission.findFirst.mockResolvedValueOnce({ thresholdAmount: 500 });
+
+      const result = await service.getMe('u-5');
+
+      expect(mockPrisma.customRolePermission.findFirst).toHaveBeenCalledWith({
+        where: { customRoleId: 'cr-1', permission: { key: 'po.approve' } },
+        select: { thresholdAmount: true },
+      });
+      expect(mockPrisma.rolePermission.findFirst).not.toHaveBeenCalled();
+      expect(result.poApprovalThreshold).toBe(500);
     });
   });
 

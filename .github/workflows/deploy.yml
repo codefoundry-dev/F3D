@@ -63,6 +63,11 @@ env:
 jobs:
   build-and-push:
     name: build + push (${{ github.event.inputs.env || (github.ref_name == 'main' && 'prod' || 'staging') }})
+    # Deploys only ever run from the canonical repo. This code is mirrored to
+    # Forethread/thecodefoundry.dev, which must never touch AWS — the OIDC trust
+    # is scoped to codefoundry-dev anyway, so without this guard the run would
+    # just fail noisily there. (The `deploy` job inherits the skip via `needs`.)
+    if: github.repository == 'codefoundry-dev/F3D'
     runs-on: ubuntu-24.04-arm # native arm64 - no QEMU, no pnpm-install crash
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}

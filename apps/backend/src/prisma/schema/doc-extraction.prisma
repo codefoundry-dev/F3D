@@ -12,6 +12,7 @@ enum DocExtractionType {
   INVOICE
   GENERIC
   CATALOGUE
+  VENDOR_DOCUMENT
 }
 
 model DocExtraction {
@@ -26,7 +27,9 @@ model DocExtraction {
   model               String?             @db.VarChar(100)
   promptTokens        Int?                @map("prompt_tokens")
   completionTokens    Int?                @map("completion_tokens")
-  createdByUserId     String              @map("created_by_user_id")
+  // Nullable since FOR-291: extractions kicked off by email-intake invoices
+  // have no creating user (mirrors Invoice.createdByUserId).
+  createdByUserId     String?             @map("created_by_user_id")
   lastEditedByUserId  String?             @map("last_edited_by_user_id")
   lastEditedAt        DateTime?           @map("last_edited_at")
   confirmedByUserId   String?             @map("confirmed_by_user_id")
@@ -36,13 +39,24 @@ model DocExtraction {
   // and links the extraction back to its RFQ. Plain scalar (no relation) to keep
   // doc-intelligence decoupled from the RFQ module.
   rfqId               String?             @map("rfq_id")
+  // Set when the extraction was kicked off for an intake invoice (FOR-291).
+  // Same decoupling rationale as rfqId: plain scalar, no relation, so
+  // doc-intelligence stays independent of the invoices module.
+  invoiceId           String?             @map("invoice_id")
+  // Set when the extraction was kicked off for an uploaded company/vendor
+  // document (FOR-259). Same decoupling rationale as rfqId/invoiceId.
+  companyDocumentId   String?             @map("company_document_id")
+  // OCR observability (FOR-259): the page-averaged confidence Google Vision
+  // reported, and whether the OCR text (vs the raw document) reached the LLM.
+  ocrConfidence       Float?              @map("ocr_confidence")
+  ocrUsed             Boolean             @default(false) @map("ocr_used")
   createdAt           DateTime            @default(now()) @map("created_at")
   updatedAt           DateTime            @updatedAt @map("updated_at")
   completedAt         DateTime?           @map("completed_at")
   confirmedAt         DateTime?           @map("confirmed_at")
 
   file          File     @relation(fields: [fileId], references: [id])
-  createdBy     User     @relation("DocExtractionCreatedBy", fields: [createdByUserId], references: [id])
+  createdBy     User?    @relation("DocExtractionCreatedBy", fields: [createdByUserId], references: [id])
   lastEditedBy  User?    @relation("DocExtractionLastEditedBy", fields: [lastEditedByUserId], references: [id])
   confirmedBy   User?    @relation("DocExtractionConfirmedBy", fields: [confirmedByUserId], references: [id])
   company       Company? @relation("DocExtractionCompany", fields: [companyId], references: [id])
@@ -51,5 +65,7 @@ model DocExtraction {
   @@index([companyId, status], map: "idx_doc_extractions_company_status")
   @@index([type, status], map: "idx_doc_extractions_type_status")
   @@index([rfqId], map: "idx_doc_extractions_rfq")
+  @@index([invoiceId], map: "idx_doc_extractions_invoice")
+  @@index([companyDocumentId], map: "idx_doc_extractions_company_document")
   @@map("doc_extractions")
 }

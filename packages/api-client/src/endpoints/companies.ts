@@ -147,6 +147,31 @@ export async function uploadCompanyLogo(id: string, file: File): Promise<Company
   return data.data;
 }
 
+/** Mirrors the backend `DocumentType` enum on CompanyDocument. */
+export type CompanyDocumentType = 'INSURANCE' | 'LICENSE' | 'CERTIFICATION' | 'OTHER';
+
+/** Data extracted from an uploaded document (FOR-259), offered to a human
+ *  for review before anything is saved onto the document (FOR-260). */
+export interface VendorDocumentExtractionResult {
+  documentType: CompanyDocumentType | null;
+  title: string | null;
+  issuer: string | null;
+  documentNumber: string | null;
+  holderName: string | null;
+  issuedDate: string | null;
+  expiryDate: string | null;
+  summary: string | null;
+}
+
+export interface CompanyDocumentExtraction {
+  id: string;
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CONFIRMED' | 'FAILED';
+  errorCode: string | null;
+  completedAt: string | null;
+  /** Present only once the extraction COMPLETED (or was CONFIRMED). */
+  result: VendorDocumentExtractionResult | null;
+}
+
 export interface CompanyDocumentResponse {
   id: string;
   companyId: string;
@@ -161,6 +186,8 @@ export interface CompanyDocumentResponse {
     size: number;
     uploadedBy?: { email: string };
   };
+  /** Attached by the list endpoint only (FOR-260); absent on upload responses. */
+  extraction?: CompanyDocumentExtraction | null;
 }
 
 export async function getCompanyDocuments(id: string): Promise<CompanyDocumentResponse[]> {
@@ -184,6 +211,26 @@ export async function uploadCompanyDocument(
     COMPANIES_PATHS.documents(id),
     formData,
     { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return data.data;
+}
+
+export interface ReviewCompanyDocumentDto {
+  type: CompanyDocumentType;
+  /** Omit to clear the stored expiry (replace semantics). */
+  expiresAt?: string;
+}
+
+/** FOR-260: save the human-approved document data after reviewing the
+ *  extracted values; the backend also marks the extraction Confirmed. */
+export async function reviewCompanyDocument(
+  id: string,
+  docId: string,
+  dto: ReviewCompanyDocumentDto,
+): Promise<CompanyDocumentResponse> {
+  const { data } = await getApiClient().patch<{ data: CompanyDocumentResponse }>(
+    COMPANIES_PATHS.documentReview(id, docId),
+    dto,
   );
   return data.data;
 }

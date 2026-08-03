@@ -46,14 +46,15 @@ export class InvoiceExportService {
       'Due Date',
     ];
 
+    // project/vendor/amount are blank on intake invoices awaiting review (FOR-290).
     const rows = items.map((item) => [
       item.id,
-      item.projectName,
-      item.projectId,
-      item.vendorName,
+      item.projectName ?? '',
+      item.projectId ?? '',
+      item.vendorName ?? '',
       formatEnum(item.status),
       item.relatedPo ?? '',
-      String(item.totalAmount),
+      item.totalAmount === null ? '' : String(item.totalAmount),
       item.dueDate ? new Date(item.dueDate).toLocaleDateString('en-US') : '',
     ]);
 
@@ -88,11 +89,14 @@ export class InvoiceExportService {
         ],
         rows: items.map((item) => ({
           'Invoice ID': item.id,
-          'Project Name': item.projectName,
-          'Vendor Name': item.vendorName,
+          'Project Name': item.projectName ?? '',
+          'Vendor Name': item.vendorName ?? '',
           Status: formatEnum(item.status),
           'Related PO': item.relatedPo ?? '',
-          'Total Amount': `$${Number(item.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+          'Total Amount':
+            item.totalAmount === null
+              ? ''
+              : `$${Number(item.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
           'Due Date': item.dueDate ? new Date(item.dueDate).toLocaleDateString('en-US') : '',
         })),
         filenamePrefix: 'invoices-export',
@@ -110,7 +114,11 @@ export class InvoiceExportService {
     const normalized = format.toUpperCase();
     const invoice = await this.invoicesService.getInvoice(id, user);
 
-    const formattedAmount = `$${Number(invoice.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+    // Blank on intake invoices awaiting review (FOR-290).
+    const formattedAmount =
+      invoice.totalAmount === null
+        ? '—'
+        : `$${Number(invoice.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
     const formattedDate = invoice.dueDate
       ? new Date(invoice.dueDate).toLocaleDateString('en-US', {
           month: 'long',
@@ -132,7 +140,7 @@ export class InvoiceExportService {
           label: 'Invoice Details',
           lines: [
             `Invoice ID: ${invoice.id.slice(0, 8).toUpperCase()}`,
-            `Project: ${invoice.projectName}`,
+            `Project: ${invoice.projectName ?? '—'}`,
             `Status: ${invoice.status}`,
             `Due Date: ${formattedDate}`,
           ],
@@ -140,7 +148,7 @@ export class InvoiceExportService {
         infoRight: {
           label: 'Vendor',
           lines: [
-            invoice.vendorName,
+            invoice.vendorName ?? '—',
             ...(invoice.relatedPo
               ? [`Related PO: ${invoice.relatedPo.slice(0, 8).toUpperCase()}`]
               : []),
@@ -152,7 +160,9 @@ export class InvoiceExportService {
         ],
         rows: [
           {
-            Description: `Invoice for project "${invoice.projectName}"`,
+            Description: invoice.projectName
+              ? `Invoice for project "${invoice.projectName}"`
+              : 'Invoice (awaiting review)',
             Amount: formattedAmount,
           },
         ],
@@ -164,9 +174,13 @@ export class InvoiceExportService {
       });
     }
 
-    // CSV / XLSX for single invoice
+    // CSV / XLSX for single invoice: one row per billed line so the reviewer's
+    // accounting coding (cost code + GL account, FOR-295) exports in a shape an
+    // accounting system can ingest later. Invoice-level columns repeat per row;
+    // an invoice with no lines still exports as a single header-only row.
     const headers = [
       'Invoice ID',
+      'Invoice #',
       'Project Name',
       'Vendor Name',
       'Status',
@@ -174,20 +188,42 @@ export class InvoiceExportService {
       'Total Amount',
       'Due Date',
       'Created At',
+      'Line #',
+      'Description',
+      'Qty',
+      'Unit',
+      'Unit Price',
+      'Line Total',
+      'Cost Code',
+      'GL Account',
     ];
 
-    const rows = [
-      [
-        invoice.id,
-        invoice.projectName,
-        invoice.vendorName,
-        invoice.status,
-        invoice.relatedPo ?? '',
-        String(invoice.totalAmount),
-        invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('en-US') : '',
-        createdDate,
-      ],
+    const invoiceCols = [
+      invoice.id,
+      invoice.invoiceNumber ?? '',
+      invoice.projectName ?? '',
+      invoice.vendorName ?? '',
+      invoice.status,
+      invoice.relatedPoNumber ?? invoice.relatedPo ?? '',
+      invoice.totalAmount === null ? '' : String(invoice.totalAmount),
+      invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('en-US') : '',
+      createdDate,
     ];
+
+    const rows =
+      invoice.lines.length === 0
+        ? [[...invoiceCols, '', '', '', '', '', '', '', '']]
+        : invoice.lines.map((line, index) => [
+            ...invoiceCols,
+            line.lineId ?? String(index + 1),
+            line.description,
+            line.quantity === null ? '' : String(line.quantity),
+            line.unit ?? '',
+            line.unitPrice === null ? '' : String(line.unitPrice),
+            line.lineTotal === null ? '' : String(line.lineTotal),
+            line.costCode ?? '',
+            line.glAccount ?? '',
+          ]);
 
     if (normalized === 'CSV') {
       return this.pdfExportService.exportToCSV({

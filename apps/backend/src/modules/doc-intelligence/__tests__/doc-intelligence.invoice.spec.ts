@@ -113,6 +113,61 @@ describe('normalizeInvoiceResult', () => {
     expect(result.items[0].lineId).toBe('L-1');
   });
 
+  it('reassigns a quantity misread as the lineId when it reproduces the line total', () => {
+    // Allied Pumps INV 102846: QTY is the leftmost column and the invoice has
+    // no line-number column — Gemini returned the 0.40 qty as the lineId.
+    const result = normalizeInvoiceResult({
+      items: [
+        {
+          lineId: '0.40',
+          description: 'Allied Pumps Circular Colour Finished Steel Water Storage Panel Tank',
+          quantity: null,
+          unit: null,
+          unitPrice: 375809,
+          lineTotal: 150323.6,
+        },
+      ],
+    });
+
+    expect(result.items).toEqual([
+      {
+        lineId: null,
+        description: 'Allied Pumps Circular Colour Finished Steel Water Storage Panel Tank',
+        quantity: 0.4,
+        unit: null,
+        unitPrice: 375809,
+        lineTotal: 150323.6,
+      },
+    ]);
+  });
+
+  it('keeps a numeric lineId when the row already has a quantity', () => {
+    const result = normalizeInvoiceResult({
+      items: [{ lineId: '2', description: 'Beam', quantity: 5, unitPrice: 10, lineTotal: 50 }],
+    });
+
+    expect(result.items[0].lineId).toBe('2');
+    expect(result.items[0].quantity).toBe(5);
+  });
+
+  it('keeps the lineId when lineId × unitPrice does not reproduce the line total', () => {
+    const result = normalizeInvoiceResult({
+      items: [{ lineId: '3', description: 'Pipe', quantity: null, unitPrice: 10, lineTotal: 100 }],
+    });
+
+    expect(result.items[0].lineId).toBe('3');
+    expect(result.items[0].quantity).toBeNull();
+  });
+
+  it('keeps the lineId when there is no line total to verify against', () => {
+    const result = normalizeInvoiceResult({
+      items: [{ lineId: '4', description: 'Valve', quantity: null, unitPrice: 25 }],
+    });
+
+    expect(result.items[0].lineId).toBe('4');
+    expect(result.items[0].quantity).toBeNull();
+  });
+
   it('derives taxRate from a "GST 10%" label when no explicit rate is given', () => {
     const result = normalizeInvoiceResult({ taxLabel: 'GST 10%', items: [] });
     expect(result.taxLabel).toBe('GST 10%');

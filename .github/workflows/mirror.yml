@@ -1,0 +1,64 @@
+name: Mirror to Forethread
+
+# One-way sync: codefoundry-dev/F3D (canonical) → Forethread/thecodefoundry.dev
+# (read-only mirror). Every push to main/dev force-pushes the same branch to the
+# mirror, so the mirror always matches this repo exactly — including after PRs
+# are merged in the mirror repo for review visibility (F3D history wins).
+#
+# Deploys never run from the mirror: deploy.yml / terraform-*.yml are guarded
+# with `github.repository == 'codefoundry-dev/F3D'`, and the AWS OIDC trust is
+# scoped to codefoundry-dev. Only ci.yml runs there, so mirror PRs still get
+# checks.
+#
+# Auth: FORETHREAD_MIRROR_TOKEN repo secret. The pushing account is an outside
+# collaborator on the mirror (not a Forethread org member), so a fine-grained
+# PAT can't target the org — this must be a CLASSIC PAT with BOTH the `repo`
+# and `workflow` scopes. `workflow` is not optional: the mirrored tree contains
+# .github/workflows/**, and GitHub rejects any PAT push that creates or updates
+# a workflow file without it. (A write deploy key added by the org owner is the
+# tighter-scoped alternative — deploy keys are exempt from that restriction.)
+# Until the secret is set the job warns and exits green (sync simply doesn't
+# happen); once set, push failures are real errors.
+
+on:
+  push:
+    branches: [main, dev]
+  # Manual resync / token test: gh workflow run mirror.yml --ref dev
+  workflow_dispatch:
+
+concurrency:
+  # Serialize per-branch so two rapid pushes can't race each other's force-push.
+  group: mirror-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    # Never run in the mirror itself (this file gets mirrored too).
+    if: github.repository == 'codefoundry-dev/F3D'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # full history — the mirror needs every commit
+          # REQUIRED for the push below. By default checkout persists an
+          # `http.https://github.com/.extraheader` auth header into git config,
+          # and that header WINS over credentials embedded in a push URL — so
+          # the push authenticates as the workflow's GITHUB_TOKEN (scoped to
+          # this repo only) and the mirror comes back "Repository not found"
+          # even with a perfectly valid PAT. Not persisting it lets the URL
+          # credentials apply.
+          persist-credentials: false
+
+      - name: Push ${{ github.ref_name }} to Forethread/thecodefoundry.dev
+        env:
+          MIRROR_TOKEN: ${{ secrets.FORETHREAD_MIRROR_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${MIRROR_TOKEN}" ]; then
+            echo "::warning::FORETHREAD_MIRROR_TOKEN is not set — skipping mirror sync. Create a PAT with contents:write on Forethread/thecodefoundry.dev and run: gh secret set FORETHREAD_MIRROR_TOKEN"
+            exit 0
+          fi
+          git push --force \
+            "https://x-access-token:${MIRROR_TOKEN}@github.com/Forethread/thecodefoundry.dev.git" \
+            "HEAD:refs/heads/${GITHUB_REF_NAME}"
+          echo "Mirrored ${GITHUB_REF_NAME} @ ${GITHUB_SHA} to Forethread/thecodefoundry.dev"

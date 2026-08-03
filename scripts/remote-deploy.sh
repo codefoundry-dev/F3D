@@ -69,6 +69,10 @@ RESEND_KEY=$(sm_get "${SECRETS_PREFIX}/resend-api-key")
 GEMINI_KEY=$(sm_get "${SECRETS_PREFIX}/gemini-api-key")
 PLACES_KEY=$(sm_get "${SECRETS_PREFIX}/google-places-api-key")
 SENTRY_DSN=$(sm_get "${SECRETS_PREFIX}/sentry-dsn" 2>/dev/null || echo "")
+# Optional (FOR-259): Google Vision OCR for vendor documents. Deploys must not
+# fail before the secret exists — without it, extraction skips OCR and uses
+# the multimodal Gemini path.
+VISION_KEY=$(sm_get "${SECRETS_PREFIX}/google-vision-api-key" 2>/dev/null || echo "")
 
 ############################################
 # 4. Assemble /etc/forethread/backend.env
@@ -183,6 +187,9 @@ THROTTLE_LIMIT=100
 # Google APIs
 GOOGLE_PLACES_API_KEY=${PLACES_KEY}
 GEMINI_API_KEY=${GEMINI_KEY}
+# Google Vision OCR for vendor documents (FOR-259); empty = OCR disabled,
+# extraction falls back to the multimodal Gemini path.
+GOOGLE_VISION_API_KEY=${VISION_KEY}
 GEMINI_MODEL=gemini-2.5-flash
 # Real document extraction (multi-page docs + structured output) routinely runs
 # past 60s. A trivial generateContent from the host is ~0.4s, so the timeouts are

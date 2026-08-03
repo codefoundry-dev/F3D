@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 
 // Mock SVG icons
 vi.mock('@forethread/ui-components/assets/icons/download.svg?react', () => ({
@@ -81,6 +81,21 @@ vi.mock('@forethread/api-client', () => ({
   deleteCompanyDocument: vi.fn(),
   downloadFile: vi.fn(),
   openFileInNewTab: vi.fn(),
+}));
+
+// Mock the review modal (FOR-260) — its own behaviour has a dedicated test.
+vi.mock('./DocumentReviewModal', () => ({
+  DocumentReviewModal: ({ document, onClose, onApproved }: any) => (
+    <div data-testid="review-modal">
+      <span data-testid="review-modal-doc">{document.id}</span>
+      <button data-testid="review-modal-approve" onClick={onApproved}>
+        approve
+      </button>
+      <button data-testid="review-modal-close" onClick={onClose}>
+        close
+      </button>
+    </div>
+  ),
 }));
 
 import { DocumentsTab } from './DocumentsTab';
@@ -194,6 +209,45 @@ describe('DocumentsTab', () => {
     expect(mockUploadMutate).not.toHaveBeenCalled();
   });
 
+  it('file input restricts selectable types via accept attribute', () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    render(<DocumentsTab companyId="c1" />);
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(fileInput.accept).toBe('.pdf,.doc,.docx,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.webp');
+  });
+
+  it('rejects a file with an unsupported extension and shows an error', async () => {
+    const { notificationService } = await import('@forethread/ui-components');
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    render(<DocumentsTab companyId="c1" />);
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['x'], 'setup.exe', { type: 'application/x-msdownload' });
+    fireEvent.change(fileInput, { target: { files: [file] } });
+    expect(mockUploadMutate).not.toHaveBeenCalled();
+    expect(notificationService.error).toHaveBeenCalledWith('documentInvalidFormat');
+  });
+
+  it('rejects a file over 10MB and shows an error', async () => {
+    const { notificationService } = await import('@forethread/ui-components');
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    render(<DocumentsTab companyId="c1" />);
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['x'], 'big.pdf', { type: 'application/pdf' });
+    Object.defineProperty(file, 'size', { value: 11 * 1024 * 1024 });
+    fireEvent.change(fileInput, { target: { files: [file] } });
+    expect(mockUploadMutate).not.toHaveBeenCalled();
+    expect(notificationService.error).toHaveBeenCalledWith('documentTooLarge');
+  });
+
+  it('accepts an uppercase extension of a supported type', () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    render(<DocumentsTab companyId="c1" />);
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['x'], 'REPORT.PDF', { type: 'application/pdf' });
+    fireEvent.change(fileInput, { target: { files: [file] } });
+    expect(mockUploadMutate).toHaveBeenCalledWith(file);
+  });
+
   it('shows uploading text when upload pending', () => {
     uploadIsPending = true;
     mockUseQuery.mockReturnValue({ data: [], isLoading: false });
@@ -201,11 +255,18 @@ describe('DocumentsTab', () => {
     expect(screen.getByText('uploading')).toBeInTheDocument();
   });
 
-  it('upload onSuccess invalidates queries', () => {
+  it('upload onSuccess invalidates queries and notifies', async () => {
+    const { notificationService } = await import('@forethread/ui-components');
     mockUseQuery.mockReturnValue({ data: [], isLoading: false });
     render(<DocumentsTab companyId="c1" />);
-    capturedUploadConfig.onSuccess?.();
+    void act(() =>
+      capturedUploadConfig.onSuccess?.(
+        { id: 'new-doc' },
+        new File(['x'], 'doc.pdf', { type: 'application/pdf' }),
+      ),
+    );
     expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['company-documents', 'c1'] });
+    expect(notificationService.success).toHaveBeenCalledWith('documentUploaded');
   });
 
   it('delete onSuccess invalidates and notifies', async () => {
@@ -234,5 +295,106 @@ describe('DocumentsTab', () => {
     render(<DocumentsTab companyId="c1" />);
     await capturedDeleteConfig.mutationFn?.('doc1');
     expect(apiClient.deleteCompanyDocument).toHaveBeenCalledWith('c1', 'doc1');
+  });
+
+  // ── FOR-260: review step for extracted document data ───────────────────────
+
+  const docNeedingReview = [
+    {
+      id: 'doc1',
+      file: { id: 'file1', filename: 'cert.pdf', size: 1024 },
+      createdAt: '2026-07-30T00:00:00Z',
+      extraction: {
+        id: 'x1',
+        status: 'COMPLETED',
+        errorCode: null,
+        completedAt: '2026-07-30T10:00:00Z',
+        result: { documentType: 'INSURANCE', expiryDate: '2027-01-15' },
+      },
+    },
+  ];
+
+  it('shows a Review pill for a completed unconfirmed extraction and opens the modal', () => {
+    mockUseQuery.mockReturnValue({ data: docNeedingReview, isLoading: false });
+    render(<DocumentsTab companyId="c1" />);
+    fireEvent.click(screen.getByText('reviewExtracted'));
+    expect(screen.getByTestId('review-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('review-modal-doc')).toHaveTextContent('doc1');
+  });
+
+  it('hides the Review pill once the extraction is confirmed', () => {
+    const confirmed = [
+      {
+        ...docNeedingReview[0],
+        extraction: { ...docNeedingReview[0].extraction, status: 'CONFIRMED' },
+      },
+    ];
+    mockUseQuery.mockReturnValue({ data: confirmed, isLoading: false });
+    render(<DocumentsTab companyId="c1" />);
+    expect(screen.queryByText('reviewExtracted')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('doc-action-review')).not.toBeInTheDocument();
+  });
+
+  it('offers a review card action that opens the modal', () => {
+    mockUseQuery.mockReturnValue({ data: docNeedingReview, isLoading: false });
+    render(<DocumentsTab companyId="c1" />);
+    fireEvent.click(screen.getByTestId('doc-action-review'));
+    expect(screen.getByTestId('review-modal')).toBeInTheDocument();
+  });
+
+  it('approving from the modal invalidates the list and closes it', () => {
+    mockUseQuery.mockReturnValue({ data: docNeedingReview, isLoading: false });
+    render(<DocumentsTab companyId="c1" />);
+    fireEvent.click(screen.getByText('reviewExtracted'));
+    fireEvent.click(screen.getByTestId('review-modal-approve'));
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['company-documents', 'c1'] });
+    expect(screen.queryByTestId('review-modal')).not.toBeInTheDocument();
+  });
+
+  it('closing the modal saves nothing and just closes', () => {
+    mockUseQuery.mockReturnValue({ data: docNeedingReview, isLoading: false });
+    render(<DocumentsTab companyId="c1" />);
+    fireEvent.click(screen.getByText('reviewExtracted'));
+    fireEvent.click(screen.getByTestId('review-modal-close'));
+    expect(screen.queryByTestId('review-modal')).not.toBeInTheDocument();
+    expect(mockInvalidateQueries).not.toHaveBeenCalled();
+  });
+
+  it('auto-opens the review modal when the awaited upload extraction completes', () => {
+    mockUseQuery.mockReturnValue({ data: docNeedingReview, isLoading: false });
+    render(<DocumentsTab companyId="c1" />);
+    expect(screen.queryByTestId('review-modal')).not.toBeInTheDocument();
+    // The upload succeeded for doc1; the current data already shows its
+    // extraction COMPLETED, so the effect should open the review modal.
+    void act(() =>
+      capturedUploadConfig.onSuccess?.(
+        { id: 'doc1' },
+        new File(['x'], 'cert.pdf', { type: 'application/pdf' }),
+      ),
+    );
+    expect(screen.getByTestId('review-modal')).toBeInTheDocument();
+  });
+
+  it('does not wait for an extraction after uploading a type with no extraction path', () => {
+    mockUseQuery.mockReturnValue({ data: docNeedingReview, isLoading: false });
+    render(<DocumentsTab companyId="c1" />);
+    void act(() =>
+      capturedUploadConfig.onSuccess?.({ id: 'doc1' }, new File(['x'], 'list.docx', { type: '' })),
+    );
+    expect(screen.queryByTestId('review-modal')).not.toBeInTheDocument();
+  });
+
+  it('polls while an extraction is running and stops when none are', () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    render(<DocumentsTab companyId="c1" />);
+    const { refetchInterval } = mockUseQuery.mock.calls[0][0] as {
+      refetchInterval: (query: { state: { data: unknown } }) => number | false;
+    };
+    const running = [
+      { ...docNeedingReview[0], extraction: { id: 'x1', status: 'PROCESSING', result: null } },
+    ];
+    expect(refetchInterval({ state: { data: running } })).toBe(3000);
+    expect(refetchInterval({ state: { data: docNeedingReview } })).toBe(false);
+    expect(refetchInterval({ state: { data: [] } })).toBe(false);
   });
 });

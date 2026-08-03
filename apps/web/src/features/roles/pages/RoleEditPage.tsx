@@ -1,35 +1,20 @@
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { UserRole } from '@forethread/shared-types/client';
-import {
-  Alert,
-  Button,
-  Checkbox,
-  Input,
-  Spinner,
-  notificationService,
-} from '@forethread/ui-components';
+import { Alert, Button, Spinner, notificationService } from '@forethread/ui-components';
 import ShieldIcon from '@forethread/ui-components/assets/icons/shield-icon.svg?react';
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 
+import { PermissionGrid, parseThresholdInput } from '../components/PermissionGrid';
 import { groupCatalogByDomain } from '../hooks/usePermissionGroups';
 import {
   usePermissionCatalog,
   useRoleDetail,
   useUpdateRolePermissions,
 } from '../services/roles.service';
-
-/** Empty input = unlimited (null in DTO). Otherwise must parse as a finite number ≥ 0. */
-function parseThresholdInput(value: string): number | null | 'invalid' {
-  const trimmed = value.trim();
-  if (trimmed === '') return null;
-  const parsed = Number(trimmed);
-  if (!Number.isFinite(parsed) || parsed < 0) return 'invalid';
-  return parsed;
-}
 
 function isUserRole(value: string): value is UserRole {
   return (Object.values(UserRole) as string[]).includes(value);
@@ -197,60 +182,14 @@ function RoleEditor({ role }: RoleEditorProps) {
 
       {isSuperAdmin && <Alert variant="info">{t('superAdminLocked')}</Alert>}
 
-      <div className="space-y-4">
-        {grouped.map((group) => (
-          <section
-            key={group.domain}
-            className="rounded-[12px] border border-gray-100 bg-white p-5 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]"
-            data-testid={`group-${group.domain}`}
-          >
-            <h2 className="mb-3 text-sm font-semibold text-gray-900">
-              {t(`domains.${group.domain}`)}
-            </h2>
-            <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
-              {group.entries.map((entry) => {
-                const isChecked = selected.has(entry.key);
-                const showThreshold = entry.thresholdAware && isChecked;
-                return (
-                  <li key={entry.key}>
-                    <Checkbox
-                      checked={isChecked}
-                      onChange={() => toggle(entry.key)}
-                      disabled={isSuperAdmin}
-                      label={entry.description}
-                    />
-                    <p className="ml-7 font-mono text-xs text-gray-500">{entry.key}</p>
-                    {showThreshold && (
-                      <div className="ml-7 mt-2 w-40">
-                        <label
-                          htmlFor={`threshold-${entry.key}`}
-                          className="mb-1 block text-xs font-medium text-gray-900"
-                        >
-                          {t('thresholdLabel')}
-                        </label>
-                        <Input
-                          id={`threshold-${entry.key}`}
-                          type="number"
-                          inputMode="decimal"
-                          min="0"
-                          step="any"
-                          inputSize="sm"
-                          value={thresholdInputs[entry.key] ?? ''}
-                          placeholder={t('thresholdPlaceholder')}
-                          onChange={(e) => setThresholdInput(entry.key, e.target.value)}
-                          disabled={isSuperAdmin}
-                          data-testid={`threshold-${entry.key}`}
-                        />
-                        <p className="mt-1 text-xs text-gray-500">{t('thresholdHint')}</p>
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ))}
-      </div>
+      <PermissionGrid
+        grouped={grouped}
+        selected={selected}
+        onToggle={toggle}
+        thresholdInputs={thresholdInputs}
+        onThresholdChange={setThresholdInput}
+        disabled={isSuperAdmin}
+      />
 
       <div className="flex items-center justify-end gap-3 pt-2">
         <Button variant="secondary" onClick={() => navigate(ROUTES.roles)}>

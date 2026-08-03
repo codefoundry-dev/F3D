@@ -85,7 +85,11 @@ This document is a vendor invoice. Extract every billed line item — do not
 collapse rows. Preserve the order they appear.
 
 For each item:
-- "lineId": the invoice's own line number / line item ID, exactly as printed. Null if absent.
+- "lineId": the invoice's own printed line number / line item ID (e.g. "1", "2", "L-3"),
+  ONLY when the document has an explicit line-number / item-# column. Many invoices
+  print QTY as the leftmost column — a leftmost numeric value on a document with no
+  line-number column is the "quantity", never the "lineId". Null when the invoice
+  does not number its lines.
 - "description": full item / material description as written (trim whitespace).
 - "quantity": numeric quantity billed. Null if absent.
 - "unit": unit of measure (e.g. "ea", "m", "m2", "kg", "bag", "pallet"). Lowercase.
@@ -184,6 +188,37 @@ Return JSON shaped exactly like:
   }>,
   "notes": string | null
 }`,
+  VENDOR_DOCUMENT: `${BASE_INSTRUCTION}
+
+This document is a compliance document a vendor/company keeps on file —
+typically an insurance certificate, a business or trade license, or a
+professional certification.
+
+Extract:
+- "documentType": classify the document as exactly one of "INSURANCE",
+  "LICENSE" or "CERTIFICATION"; use "OTHER" when none clearly applies.
+- "title": the document's own title or heading as written. Null if none.
+- "issuer": the organization that issued the document (insurer, licensing
+  authority, certification body). Null if not stated.
+- "documentNumber": the policy / license / certificate number. Null if absent.
+- "holderName": the company or person the document was issued to. Null if absent.
+- "issuedDate": the issue / effective date, ISO format (YYYY-MM-DD) when the
+  document makes it unambiguous; otherwise copy the date exactly as written.
+- "expiryDate": the expiry / valid-until date, same date rules. Null when the
+  document does not expire or no date is stated.
+- "summary": one or two sentences describing what the document covers.
+
+Return JSON shaped exactly like:
+{
+  "documentType": "INSURANCE" | "LICENSE" | "CERTIFICATION" | "OTHER" | null,
+  "title": string | null,
+  "issuer": string | null,
+  "documentNumber": string | null,
+  "holderName": string | null,
+  "issuedDate": string | null,
+  "expiryDate": string | null,
+  "summary": string | null
+}`,
   GENERIC: `${BASE_INSTRUCTION}
 
 Return JSON with whatever fields and tables you find. Top-level keys must be camelCase.
@@ -203,4 +238,19 @@ export function buildExtractionPrompt(type: DocExtractionType, hint?: string): s
   const base = TYPE_PROMPTS[type];
   if (!hint || hint.trim().length === 0) return base;
   return `${base}\n\nAdditional caller hint: ${hint.trim()}`;
+}
+
+/**
+ * FOR-259: when Google OCR already produced confident text for the document,
+ * the text — not the raw file — is what goes to the LLM: a cheaper, faster
+ * text-only call. Mirrors the spreadsheet/CSV inline-prompt style.
+ */
+export function buildOcrTextPrompt(basePrompt: string, ocrText: string): string {
+  return `${basePrompt}
+
+The document's text was extracted with OCR and is provided below verbatim.
+Treat it as the attached document. OCR output can contain minor character
+artifacts; tolerate them rather than inventing corrections.
+
+${ocrText}`;
 }

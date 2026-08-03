@@ -15,7 +15,14 @@ permissions:
 
 concurrency:
   group: tf-plan-${{ github.ref }}
-  cancel-in-progress: true
+  # NOT cancel-in-progress. Terraform holds a DynamoDB state lock for the
+  # duration of a plan and releases it on exit; cancelling the job kills the
+  # process mid-plan, so the lock is never released and every subsequent plan
+  # for that env fails with "Error acquiring the state lock" until someone
+  # force-unlocks it by hand. Two pushes in quick succession to a PR touching
+  # infrastructure/** were enough to trigger this. Queueing costs a few minutes;
+  # an orphaned lock blocks the env until manually cleared.
+  cancel-in-progress: false
 
 env:
   TF_VERSION: '1.9.5'
@@ -25,6 +32,9 @@ jobs:
   detect-changes:
     name: Detect changed envs
     runs-on: ubuntu-latest
+    # Repo guard: the Forethread mirror has no AWS OIDC trust — plans only run
+    # in the canonical repo (downstream jobs inherit the skip via `needs`).
+    if: github.repository == 'codefoundry-dev/F3D'
     outputs:
       envs: ${{ steps.changes.outputs.envs }}
       any: ${{ steps.changes.outputs.any }}
@@ -132,7 +142,9 @@ jobs:
           TF_VAR_notification_email: ${{ (matrix.env == 'prod' && vars.NOTIFICATION_EMAIL_PROD) || (matrix.env == 'staging' && vars.NOTIFICATION_EMAIL_STAGING) || '' }}
         run: |
           set -o pipefail
-          terraform plan -input=false -no-color -out=tfplan | tee plan.txt
+          # -lock-timeout rides out brief contention (e.g. a queued plan for the
+          # same env still finishing) instead of failing on the first attempt.
+          terraform plan -input=false -no-color -lock-timeout=5m -out=tfplan | tee plan.txt
           {
             echo "summary<<EOF"
             tail -c 60000 plan.txt

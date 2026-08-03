@@ -31,6 +31,11 @@ export const PERMISSIONS = {
   'company.create': 'Create company records',
   'company.assignVendors': 'Assign vendors to a contractor',
   'company.removeVendorAssignment': 'Remove a vendor assignment',
+  // Scoped by ownership in the controller: non-SUPER_ADMIN holders may only
+  // manage documents on their OWN company.
+  'company.readDocuments': 'List and export company documents',
+  'company.uploadDocument': 'Upload a company document',
+  'company.deleteDocument': 'Delete a company document',
 
   // ── Invoices ────────────────────────────────────────────────────────────
   'invoice.list': 'List invoices',
@@ -42,6 +47,8 @@ export const PERMISSIONS = {
   'invoice.bulkApprove': 'Bulk-approve invoices',
   'invoice.uploadDocument': 'Upload a document to an invoice',
   'invoice.deleteDocument': 'Delete an invoice document',
+  'invoice.upload': 'Upload a new invoice / view the intake inbox address',
+  'invoice.review': 'Confirm or correct the extracted fields of an intake invoice',
 
   // ── Materials ───────────────────────────────────────────────────────────
   'material.list': 'List materials',
@@ -177,8 +184,10 @@ export const PERMISSIONS = {
   'delivery.generateLink': 'Generate a public QR delivery-submission link for a PO',
 
   // ── Roles & permissions (admin) ─────────────────────────────────────────
-  'role.list': 'List built-in roles and the permissions granted to each',
-  'role.update': 'Grant or revoke permissions on a built-in role',
+  'role.list': 'List roles and the permissions granted to each',
+  'role.update': 'Grant or revoke permissions on a role',
+  'role.create': 'Create custom roles',
+  'role.delete': 'Delete a custom role',
 
   // ── Document intelligence ────────────────────────────────────────────────
   'docExtraction.create': 'Upload a document for AI extraction',
@@ -248,6 +257,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
 
     'company.create',
     'company.assignVendors',
+    'company.readDocuments',
+    'company.uploadDocument',
+    'company.deleteDocument',
 
     'invoice.list',
     'invoice.read',
@@ -258,6 +270,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'invoice.bulkApprove',
     'invoice.uploadDocument',
     'invoice.deleteDocument',
+    'invoice.upload',
+    'invoice.review',
 
     'material.list',
     'material.listCategories',
@@ -377,6 +391,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
 
     'role.list',
     'role.update',
+    'role.create',
+    'role.delete',
 
     'user.list',
     'user.create',
@@ -407,6 +423,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
 
     'company.create',
     'company.assignVendors',
+    'company.readDocuments',
+    'company.uploadDocument',
+    'company.deleteDocument',
 
     'invoice.list',
     'invoice.read',
@@ -417,6 +436,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'invoice.bulkApprove',
     'invoice.uploadDocument',
     'invoice.deleteDocument',
+    'invoice.upload',
+    'invoice.review',
 
     'material.list',
     'material.listCategories',
@@ -561,6 +582,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'invoice.bulkApprove',
     'invoice.uploadDocument',
     'invoice.deleteDocument',
+    'invoice.upload',
+    'invoice.review',
 
     'material.list',
     'material.listCategories',

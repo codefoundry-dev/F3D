@@ -137,12 +137,18 @@
     "documentNotFound": "Document not found",
     "cannotApprove": "Cannot approve invoice with status \"{{status}}\". Only Pending invoices can be approved.",
     "cannotReject": "Cannot reject invoice with status \"{{status}}\". Only Pending invoices can be rejected.",
-    "noIdsProvided": "No invoice IDs provided"
+    "noIdsProvided": "No invoice IDs provided",
+    "notReviewed": "This invoice hasn't been reviewed yet. Set the vendor, project, and amount before approving.",
+    "cannotReview": "Cannot review invoice with status \"{{status}}\". Only Pending invoices can be reviewed.",
+    "reviewVendorNotFound": "The selected vendor was not found",
+    "reviewProjectNotFound": "The selected project was not found",
+    "reviewPoNotFound": "The selected purchase order was not found"
   },
   "storage": {
     "noFileProvided": "No file provided",
     "fileTooLarge": "File too large (max {{size}})",
     "fileTypeNotAllowed": "File type not allowed",
+    "documentTypeNotAllowed": "File type not allowed. Supported formats: PDF, DOC, DOCX, XLS, XLSX, CSV, JPG, PNG, WEBP",
     "onlyImagesAllowed": "Only image files are allowed",
     "onlyImagesAllowedFormats": "Only image files are allowed (jpeg, png, webp)",
     "fileNotFound": "File not found"
@@ -211,7 +217,12 @@
     "cannotModifySuperAdmin": "The SUPER_ADMIN role has every permission and cannot be edited",
     "thresholdNotSupported": "Permission \"{{key}}\" does not support a monetary threshold",
     "thresholdRequiresGrant": "Cannot set a threshold for \"{{key}}\" — the permission must also be granted",
-    "invalidThreshold": "Threshold for \"{{key}}\" must be a non-negative number or null"
+    "invalidThreshold": "Threshold for \"{{key}}\" must be a non-negative number or null",
+    "customRoleNotFound": "Custom role not found",
+    "duplicateCustomRoleName": "A custom role named \"{{name}}\" already exists",
+    "emptyCustomRoleName": "Custom role name cannot be empty",
+    "customRoleInUse": "Cannot delete \"{{name}}\" — {{count}} user(s) are still assigned to it",
+    "customRoleSuperAdmin": "Super admins cannot be assigned a custom role"
   },
   "boms": {
     "notFound": "BOM not found"

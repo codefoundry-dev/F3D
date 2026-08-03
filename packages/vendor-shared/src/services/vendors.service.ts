@@ -2,8 +2,9 @@ import {
   getVendors,
   inviteVendor,
   createCompany,
-  resendInvitation,
-  cancelInvitation,
+  inviteVendorUser,
+  resendVendorUserInvitation,
+  cancelVendorUserInvitation,
   deactivateUser,
   getVendorProfile,
   updateVendorProfile,
@@ -16,6 +17,7 @@ import {
   type VendorListParams,
   type InviteVendorDto,
   type CreateCompanyDto,
+  type InviteVendorUserInput,
   type UpdateVendorProfileInput,
   type CreateWarehouseInput,
   type CreateVendorRepresentativeInput,
@@ -53,11 +55,19 @@ export function useCreateVendorCompany() {
   });
 }
 
+/**
+ * Invitation lifecycle uses the company-scoped vendor endpoints (ADR-0016,
+ * FOR-289): resend re-mints the activation token, cancel only revokes it — the
+ * rep stays as a contact. The /users/:id equivalents are buyer-company
+ * internal (and cancel there deletes the user), so they must not be used for
+ * vendor reps.
+ */
 export function useResendVendorInvitation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (userId: string) => resendInvitation(userId, { skipErrorHandler: true }),
+    mutationFn: ({ companyId, userId }: { companyId: string; userId: string }) =>
+      resendVendorUserInvitation(companyId, userId, { skipErrorHandler: true }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [VENDORS_KEY] });
     },
@@ -68,7 +78,25 @@ export function useCancelVendorInvitation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (userId: string) => cancelInvitation(userId, { skipErrorHandler: true }),
+    mutationFn: ({ companyId, userId }: { companyId: string; userId: string }) =>
+      cancelVendorUserInvitation(companyId, userId, { skipErrorHandler: true }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [VENDORS_KEY] });
+    },
+  });
+}
+
+/**
+ * Invites a user to a specific vendor company (POST /vendors/:id/users/invite).
+ * Works for the vendor's own admins AND buyers with vendor.user.invite —
+ * unlike the invite-vendor-company flow, which is buyer-only (FOR-289).
+ */
+export function useInviteVendorUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ vendorId, input }: { vendorId: string; input: InviteVendorUserInput }) =>
+      inviteVendorUser(vendorId, input, { skipErrorHandler: true }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [VENDORS_KEY] });
     },

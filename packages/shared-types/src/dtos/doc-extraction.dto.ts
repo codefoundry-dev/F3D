@@ -257,8 +257,9 @@ export class DocExtractionResponseDto {
   @Type(() => DocExtractionUsageDto)
   usage!: DocExtractionUsageDto | null;
 
-  @ApiProperty()
-  createdByUserId!: string;
+  /** Null for extractions kicked off by user-less email intake (FOR-291). */
+  @ApiPropertyOptional()
+  createdByUserId!: string | null;
 
   @ApiPropertyOptional()
   lastEditedByUserId!: string | null;

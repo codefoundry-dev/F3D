@@ -19,21 +19,30 @@ import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import EyeOpenedIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 
 import { INVOICE_ROUTES } from '../constants/routes';
 import { useInvoice, useApproveInvoice, useRejectInvoice } from '../hooks/useInvoices';
 
+import { InvoiceDecisionModal } from './InvoiceDecisionModal';
+import { InvoiceHistoryTab } from './InvoiceHistoryTab';
+import { InvoiceReviewPanel } from './InvoiceReviewPanel';
+
 export interface InvoiceDetailPageProps {
   canApprove?: boolean;
+  /** Show the review/correct form on Pending invoices (FOR-291). */
+  canReview?: boolean;
 }
 
-type Tab = 'details' | 'attachments';
+type Tab = 'details' | 'attachments' | 'history';
 
-const TABS: Tab[] = ['details', 'attachments'];
+const TABS: Tab[] = ['details', 'attachments', 'history'];
 
-export function InvoiceDetailPage({ canApprove = false }: InvoiceDetailPageProps) {
+export function InvoiceDetailPage({
+  canApprove = false,
+  canReview = false,
+}: InvoiceDetailPageProps) {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation('invoices');
   const [searchParams, setSearchParams] = useSearchParams();
@@ -44,6 +53,8 @@ export function InvoiceDetailPage({ canApprove = false }: InvoiceDetailPageProps
   const approveMutation = useApproveInvoice();
   const rejectMutation = useRejectInvoice();
   const setTitle = usePageTitleStore((s) => s.setTitle);
+  // Which decision modal is open (FOR-294) — both capture a reason for the trail.
+  const [decision, setDecision] = useState<'approve' | 'decline' | null>(null);
 
   // Surface the title + Invoices breadcrumb in the app bar (back → list).
   useEffect(() => {
@@ -71,11 +82,28 @@ export function InvoiceDetailPage({ canApprove = false }: InvoiceDetailPageProps
         count: docCount,
       }),
     },
+    {
+      value: 'history',
+      label: t('invoiceDetail.tabs.history', { defaultValue: 'History' }),
+    },
   ];
 
   const isPending = invoice?.status === 'PENDING';
   const showActions = canApprove && isPending;
   const isActioning = approveMutation.isPending || rejectMutation.isPending;
+
+  // The server refuses approval until review has persisted vendor, project and
+  // amount (FOR-290/291) — disable Approve up front rather than dead-ending in
+  // the confirm modal. Declining stays available on any Pending invoice.
+  const reviewComplete =
+    !!invoice &&
+    invoice.vendorName !== null &&
+    invoice.projectId !== null &&
+    invoice.totalAmount !== null;
+  const approveBlockedHint = t('invoiceDetail.approveBlocked', {
+    defaultValue:
+      'Set the vendor, project, and total amount in the review form and save before approving.',
+  });
 
   if (isLoading) {
     return <PageLoader />;
@@ -93,15 +121,22 @@ export function InvoiceDetailPage({ canApprove = false }: InvoiceDetailPageProps
               variant="secondary"
               disabled={isActioning}
               leftIcon={<CrossInCircleIcon className="size-4" />}
-              onClick={() => id && rejectMutation.mutate(id)}
+              onClick={() => {
+                rejectMutation.reset();
+                setDecision('decline');
+              }}
             >
               {t('invoiceDetail.decline', { defaultValue: 'Decline' })}
             </Button>
             <Button
               variant="primary"
-              disabled={isActioning}
+              disabled={isActioning || !reviewComplete}
+              title={reviewComplete ? undefined : approveBlockedHint}
               leftIcon={<CheckCircleIcon className="size-4" />}
-              onClick={() => id && approveMutation.mutate(id)}
+              onClick={() => {
+                approveMutation.reset();
+                setDecision('approve');
+              }}
             >
               {t('invoiceDetail.approve', { defaultValue: 'Approve' })}
             </Button>
@@ -111,9 +146,36 @@ export function InvoiceDetailPage({ canApprove = false }: InvoiceDetailPageProps
 
       {/* Tab content */}
       <div className="flex-1 overflow-auto rounded-[14px] border border-gray-100 bg-white shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
-        {activeTab === 'details' && <InvoiceDetailsTab invoice={invoice} />}
+        {activeTab === 'details' &&
+          // Pending invoices show the review/correct form (FOR-291); once the
+          // invoice leaves Pending the details freeze into the read-only view.
+          (canReview && isPending && invoice ? (
+            <InvoiceReviewPanel invoice={invoice} />
+          ) : (
+            <InvoiceDetailsTab invoice={invoice} />
+          ))}
         {activeTab === 'attachments' && <AttachmentsTab documents={invoice?.documents ?? []} />}
+        {activeTab === 'history' && invoice && <InvoiceHistoryTab invoice={invoice} />}
       </div>
+
+      {/* Approve / decline confirmation with the reason for the trail (FOR-294) */}
+      {decision && id && (
+        <InvoiceDecisionModal
+          mode={decision}
+          isPending={isActioning}
+          isError={decision === 'approve' ? approveMutation.isError : rejectMutation.isError}
+          errorMessage={
+            decision === 'approve'
+              ? (approveMutation.error?.message ?? null)
+              : (rejectMutation.error?.message ?? null)
+          }
+          onClose={() => setDecision(null)}
+          onConfirm={(reason) => {
+            const mutation = decision === 'approve' ? approveMutation : rejectMutation;
+            mutation.mutate({ id, reason }, { onSuccess: () => setDecision(null) });
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -149,17 +211,28 @@ function InvoiceDetailsTab({ invoice }: { invoice: InvoiceDetail | undefined }) 
             {t(`status.${invoice.status}` as never)}
           </Badge>
         </InfoRow>
+        {/* project/vendor/amount are empty on intake invoices awaiting review (FOR-290) */}
         <InfoRow label={t('invoiceDetail.project', { defaultValue: 'Project' })}>
-          {invoice.projectName}
+          {invoice.projectName ?? '—'}
         </InfoRow>
         <InfoRow label={t('invoiceDetail.vendor', { defaultValue: 'Vendor' })}>
-          {invoice.vendorName}
+          {invoice.vendorName ?? invoice.senderEmail ?? '—'}
         </InfoRow>
         <InfoRow label={t('invoiceDetail.totalAmount', { defaultValue: 'Total Amount' })}>
-          ${invoice.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          {invoice.totalAmount === null
+            ? '—'
+            : `$${invoice.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+        </InfoRow>
+        <InfoRow label={t('invoiceDetail.invoiceNumber', { defaultValue: 'Invoice #' })}>
+          {invoice.invoiceNumber ?? '—'}
         </InfoRow>
         <InfoRow label={t('invoiceDetail.relatedPo', { defaultValue: 'Related PO' })}>
-          {invoice.relatedPo ?? t('invoiceDetail.noPo', { defaultValue: 'None' })}
+          {invoice.relatedPoNumber ??
+            invoice.relatedPo ??
+            t('invoiceDetail.noPo', { defaultValue: 'None' })}
+        </InfoRow>
+        <InfoRow label={t('invoiceDetail.issuedDate', { defaultValue: 'Invoice Date' })}>
+          {invoice.issuedDate ? new Date(invoice.issuedDate).toLocaleDateString('en-AU') : '—'}
         </InfoRow>
         <InfoRow label={t('invoiceDetail.dueDate', { defaultValue: 'Due Date' })}>
           {invoice.dueDate
@@ -170,6 +243,66 @@ function InvoiceDetailsTab({ invoice }: { invoice: InvoiceDetail | undefined }) 
           {new Date(invoice.createdAt).toLocaleDateString('en-AU')}
         </InfoRow>
       </div>
+
+      {/* Billed lines confirmed at review (FOR-291) */}
+      {invoice.lines && invoice.lines.length > 0 ? (
+        <div className="mt-8">
+          <h3 className="text-base font-semibold text-foreground mb-4">
+            {t('invoiceDetail.lineItems', { defaultValue: 'Line Items' })}
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px] text-sm" data-testid="invoice-detail-lines">
+              <thead>
+                <tr className="border-b border-border text-left text-muted-foreground">
+                  <th className="pb-3 pr-3 font-medium">
+                    {t('review.line.description', { defaultValue: 'Description' })}
+                  </th>
+                  <th className="pb-3 pr-3 font-medium">
+                    {t('review.line.quantity', { defaultValue: 'Qty' })}
+                  </th>
+                  <th className="pb-3 pr-3 font-medium">
+                    {t('review.line.unit', { defaultValue: 'Unit' })}
+                  </th>
+                  <th className="pb-3 pr-3 font-medium text-right">
+                    {t('review.line.unitPrice', { defaultValue: 'Unit price' })}
+                  </th>
+                  <th className="pb-3 pr-3 font-medium text-right">
+                    {t('review.line.lineTotal', { defaultValue: 'Line total' })}
+                  </th>
+                  {/* Buyer-side accounting coding captured at review (FOR-295) */}
+                  <th className="pb-3 pr-3 font-medium">
+                    {t('review.line.costCode', { defaultValue: 'Cost code' })}
+                  </th>
+                  <th className="pb-3 font-medium">
+                    {t('review.line.glAccount', { defaultValue: 'GL account' })}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoice.lines.map((line) => (
+                  <tr key={line.id} className="border-b border-border last:border-b-0">
+                    <td className="py-3 pr-3 text-foreground">{line.description}</td>
+                    <td className="py-3 pr-3 text-muted-foreground">{line.quantity ?? '—'}</td>
+                    <td className="py-3 pr-3 text-muted-foreground">{line.unit ?? '—'}</td>
+                    <td className="py-3 pr-3 text-right text-muted-foreground">
+                      {line.unitPrice === null
+                        ? '—'
+                        : `$${line.unitPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+                    </td>
+                    <td className="py-3 pr-3 text-right text-muted-foreground">
+                      {line.lineTotal === null
+                        ? '—'
+                        : `$${line.lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+                    </td>
+                    <td className="py-3 pr-3 text-muted-foreground">{line.costCode ?? '—'}</td>
+                    <td className="py-3 text-muted-foreground">{line.glAccount ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -218,12 +351,17 @@ function AttachmentsTab({ documents }: { documents: InvoiceDocument[] }) {
               <tr key={doc.id} className="border-b border-border last:border-b-0">
                 <td className="py-3 font-medium text-foreground">{doc.name}</td>
                 <td className="py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-medium">
-                      {doc.uploadedBy.email.charAt(0).toUpperCase()}
+                  {/* Email-intake documents have no uploading user (FOR-290) */}
+                  {doc.uploadedBy ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-medium">
+                        {doc.uploadedBy.email.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-muted-foreground">{doc.uploadedBy.email}</span>
                     </div>
-                    <span className="text-muted-foreground">{doc.uploadedBy.email}</span>
-                  </div>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </td>
                 <td className="py-3 text-muted-foreground">
                   {new Date(doc.uploadedAt).toLocaleDateString('en-AU')}

@@ -14,7 +14,8 @@ import { DashboardItemCard } from './DashboardItemCard';
 export interface InvoiceCardItem {
   id: string;
   invoiceId: string;
-  projectName: string;
+  /** Null on intake invoices awaiting review (FOR-290). */
+  projectName: string | null;
   poReference: string | null;
   date: string;
   totalCost: number | null;
@@ -65,7 +66,7 @@ export function InvoiceCard({
       actions={actions}
       fields={[
         { icon: <FileTextIcon className={ICON_CLASS} />, value: item.invoiceId },
-        { icon: <BriefcaseIcon className={ICON_CLASS} />, value: item.projectName },
+        { icon: <BriefcaseIcon className={ICON_CLASS} />, value: item.projectName ?? '—' },
         { icon: <CartIcon className={ICON_CLASS} />, value: item.poReference ?? '-' },
         { icon: <DateIcon className={ICON_CLASS} />, value: formatDate(item.date) },
         {

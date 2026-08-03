@@ -20,6 +20,8 @@ export const editUserFormSchema = z.object({
   email: z.string().email('Invalid email address'),
   phone: z.string().optional().default(''),
   role: z.string().min(1, 'Role is required'),
+  // Custom-role assignment (FOR-253) — '' means "none" and is sent as null.
+  customRoleId: z.string().optional().default(''),
   position: z.string().optional().default(''),
   department: z.string().optional().default(''),
 });

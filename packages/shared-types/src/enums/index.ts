@@ -298,6 +298,15 @@ export enum InvoiceStatus {
   REJECTED = 'REJECTED',
 }
 
+/**
+ * How an invoice entered the system (FOR-290): uploaded by the buyer team, or
+ * received on the company's invoice-intake email inbox.
+ */
+export enum InvoiceSource {
+  MANUAL = 'MANUAL',
+  EMAIL = 'EMAIL',
+}
+
 export enum QuoteResponseStatus {
   PENDING = 'PENDING',
   SUBMITTED = 'SUBMITTED',
@@ -373,6 +382,7 @@ export enum DocExtractionType {
   INVOICE = 'INVOICE',
   GENERIC = 'GENERIC',
   CATALOGUE = 'CATALOGUE',
+  VENDOR_DOCUMENT = 'VENDOR_DOCUMENT',
 }
 
 export enum DocExtractionStatus {

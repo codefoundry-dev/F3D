@@ -190,6 +190,11 @@ export const ERR = {
     cannotApprove: (status: string) => t(errors.invoices.cannotApprove, { status }),
     cannotReject: (status: string) => t(errors.invoices.cannotReject, { status }),
     noIdsProvided: errors.invoices.noIdsProvided,
+    notReviewed: errors.invoices.notReviewed,
+    cannotReview: (status: string) => t(errors.invoices.cannotReview, { status }),
+    reviewVendorNotFound: errors.invoices.reviewVendorNotFound,
+    reviewProjectNotFound: errors.invoices.reviewProjectNotFound,
+    reviewPoNotFound: errors.invoices.reviewPoNotFound,
   },
 
   // ── Storage / Files ──────────────────────────────────────
@@ -197,6 +202,7 @@ export const ERR = {
     noFileProvided: errors.storage.noFileProvided,
     fileTooLarge: (size: string) => t(errors.storage.fileTooLarge, { size }),
     fileTypeNotAllowed: errors.storage.fileTypeNotAllowed,
+    documentTypeNotAllowed: errors.storage.documentTypeNotAllowed,
     onlyImagesAllowed: errors.storage.onlyImagesAllowed,
     onlyImagesAllowedFormats: errors.storage.onlyImagesAllowedFormats,
     fileNotFound: errors.storage.fileNotFound,
@@ -285,6 +291,12 @@ export const ERR = {
     thresholdNotSupported: (key: string) => t(errors.roles.thresholdNotSupported, { key }),
     thresholdRequiresGrant: (key: string) => t(errors.roles.thresholdRequiresGrant, { key }),
     invalidThreshold: (key: string) => t(errors.roles.invalidThreshold, { key }),
+    customRoleNotFound: errors.roles.customRoleNotFound,
+    duplicateCustomRoleName: (name: string) => t(errors.roles.duplicateCustomRoleName, { name }),
+    emptyCustomRoleName: errors.roles.emptyCustomRoleName,
+    customRoleInUse: (name: string, count: number) =>
+      t(errors.roles.customRoleInUse, { name, count }),
+    customRoleSuperAdmin: errors.roles.customRoleSuperAdmin,
   },
 
   // ── Document extractions ─────────────────────────────────

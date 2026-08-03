@@ -1,17 +1,14 @@
+import type { PermissionCatalogEntry } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { UserRole } from '@forethread/shared-types/client';
-import {
-  Alert,
-  Button,
-  Input,
-  Spinner,
-  notificationService,
-} from '@forethread/ui-components';
-import { useEffect, useMemo, useState } from 'react';
+import { Alert, Button, Input, Spinner, notificationService } from '@forethread/ui-components';
+import { useMemo, useState, type ReactNode } from 'react';
 
 import {
+  useCustomRoleDetail,
   usePermissionCatalog,
   useRoleDetail,
+  useUpdateCustomRole,
   useUpdateRolePermissions,
 } from '@/features/roles/services/roles.service';
 
@@ -26,89 +23,177 @@ function parseThresholdInput(value: string): number | null | 'invalid' {
   return parsed;
 }
 
+type Selection = { kind: 'builtin'; role: UserRole } | { kind: 'custom'; id: string };
+
 /**
  * "Approval configuration" tab — set the spend limit at which a granted,
  * threshold-aware permission (e.g. `po.approve`) escalates to a higher-tier
- * approver. Grants themselves are managed in the "Role permissions" tab; this
- * tab only edits thresholds and leaves the permission set untouched on save.
+ * approver. Covers both built-in roles and the company's custom roles
+ * (FOR-286 — a custom role assigned to a user is that user's personal limit).
+ * Grants themselves are managed in the "Role permissions" tab; this tab only
+ * edits thresholds and leaves the permission set untouched on save.
  */
 export default function ApprovalConfigurationTab() {
   const { t } = useTranslation('roles');
-  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+  const [selected, setSelected] = useState<Selection | null>(null);
 
   return (
     <div className="flex flex-1 flex-col gap-4 rounded-[18px] border border-gray-100 bg-[#F9F9FA] p-3 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
-      {selectedRole ? (
-        <ApprovalConfigEditor role={selectedRole} onBack={() => setSelectedRole(null)} />
-      ) : (
+      {selected === null ? (
         <RoleConfigList
-          onSelect={setSelectedRole}
+          onSelect={(role) => setSelected({ kind: 'builtin', role })}
           renderSubtitle={() => t('approval.listSubtitle')}
+          onSelectCustom={(role) => setSelected({ kind: 'custom', id: role.id })}
+          renderCustomSubtitle={() => t('approval.listSubtitle')}
         />
+      ) : selected.kind === 'builtin' ? (
+        <BuiltinApprovalEditor
+          key={selected.role}
+          role={selected.role}
+          onBack={() => setSelected(null)}
+        />
+      ) : (
+        <CustomApprovalEditor key={selected.id} id={selected.id} onBack={() => setSelected(null)} />
       )}
     </div>
   );
 }
 
-interface EditorProps {
-  role: UserRole;
-  onBack: () => void;
-}
-
-function ApprovalConfigEditor({ role, onBack }: EditorProps) {
+function BuiltinApprovalEditor({ role, onBack }: { role: UserRole; onBack: () => void }) {
   const { t } = useTranslation('roles');
   const detailQuery = useRoleDetail(role);
   const catalogQuery = usePermissionCatalog();
   const updateMutation = useUpdateRolePermissions(role);
-
-  const [thresholdInputs, setThresholdInputs] = useState<Record<string, string>>({});
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    if (detailQuery.data && !hydrated) {
-      const inputs: Record<string, string> = {};
-      for (const [key, value] of Object.entries(detailQuery.data.thresholds)) {
-        inputs[key] = String(value);
-      }
-      setThresholdInputs(inputs);
-      setHydrated(true);
-    }
-  }, [detailQuery.data, hydrated]);
-
-  // The threshold-aware permissions that are actually granted to this role —
-  // only these can carry a cap (the backend rejects thresholds on un-granted keys).
-  const approvalEntries = useMemo(() => {
-    if (!detailQuery.data || !catalogQuery.data) return [];
-    const granted = new Set(detailQuery.data.permissionKeys);
-    return catalogQuery.data
-      .filter((entry) => entry.thresholdAware && granted.has(entry.key))
-      .sort((a, b) => a.key.localeCompare(b.key));
-  }, [detailQuery.data, catalogQuery.data]);
-
   const isSuperAdmin = role === UserRole.SUPER_ADMIN;
 
-  if (detailQuery.isLoading || catalogQuery.isLoading || !hydrated) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Spinner size="md" />
-      </div>
-    );
+  if (detailQuery.isLoading || catalogQuery.isLoading) {
+    return <EditorSpinner />;
   }
-
   if (detailQuery.isError || catalogQuery.isError || !detailQuery.data || !catalogQuery.data) {
     return <Alert variant="destructive">{t('saveError')}</Alert>;
   }
 
-  const originalThresholds = detailQuery.data.thresholds;
+  const detail = detailQuery.data;
+  return (
+    <ThresholdEditorForm
+      header={<RoleEditorHeader role={role} onBack={onBack} />}
+      locked={isSuperAdmin}
+      lockedNotice={isSuperAdmin ? t('superAdminLocked') : undefined}
+      permissionKeys={detail.permissionKeys}
+      initialThresholds={detail.thresholds}
+      catalog={catalogQuery.data}
+      emptyMessage={t('approval.empty')}
+      saving={updateMutation.isPending}
+      onSave={async (thresholds) => {
+        // Send the role's existing permission set unchanged — this tab only edits
+        // thresholds, and the backend treats the body as the full desired grant.
+        await updateMutation.mutateAsync({
+          permissionKeys: [...detail.permissionKeys],
+          thresholds,
+        });
+      }}
+      onBack={onBack}
+    />
+  );
+}
+
+function CustomApprovalEditor({ id, onBack }: { id: string; onBack: () => void }) {
+  const { t } = useTranslation('roles');
+  const detailQuery = useCustomRoleDetail(id);
+  const catalogQuery = usePermissionCatalog();
+  const updateMutation = useUpdateCustomRole(id);
+
+  if (detailQuery.isLoading || catalogQuery.isLoading) {
+    return <EditorSpinner />;
+  }
+  if (detailQuery.isError || catalogQuery.isError || !detailQuery.data || !catalogQuery.data) {
+    return <Alert variant="destructive">{t('custom.loadError')}</Alert>;
+  }
+
+  return (
+    <ThresholdEditorForm
+      header={<RoleEditorHeader title={detailQuery.data.name} onBack={onBack} />}
+      locked={false}
+      permissionKeys={detailQuery.data.permissionKeys}
+      initialThresholds={detailQuery.data.thresholds}
+      catalog={catalogQuery.data}
+      emptyMessage={t('approval.customEmpty')}
+      saving={updateMutation.isPending}
+      // Omitting permissionKeys keeps the custom role's grant set untouched —
+      // the backend re-applies the existing keys with the new thresholds.
+      onSave={async (thresholds) => {
+        await updateMutation.mutateAsync({ thresholds });
+      }}
+      onBack={onBack}
+    />
+  );
+}
+
+function EditorSpinner() {
+  return (
+    <div className="flex items-center justify-center py-16">
+      <Spinner size="md" />
+    </div>
+  );
+}
+
+interface ThresholdEditorFormProps {
+  header: ReactNode;
+  locked: boolean;
+  lockedNotice?: string;
+  permissionKeys: string[];
+  initialThresholds: Record<string, number>;
+  catalog: PermissionCatalogEntry[];
+  emptyMessage: string;
+  saving: boolean;
+  onSave: (thresholds: Record<string, number | null>) => Promise<void>;
+  onBack: () => void;
+}
+
+/**
+ * The threshold inputs + save flow shared by the built-in-role and custom-role
+ * approval editors. Mounted only once its data props are loaded, so input state
+ * initialises straight from props.
+ */
+function ThresholdEditorForm({
+  header,
+  locked,
+  lockedNotice,
+  permissionKeys,
+  initialThresholds,
+  catalog,
+  emptyMessage,
+  saving,
+  onSave,
+  onBack,
+}: ThresholdEditorFormProps) {
+  const { t } = useTranslation('roles');
+  const [thresholdInputs, setThresholdInputs] = useState<Record<string, string>>(() => {
+    const inputs: Record<string, string> = {};
+    for (const [key, value] of Object.entries(initialThresholds)) {
+      inputs[key] = String(value);
+    }
+    return inputs;
+  });
+
+  // The threshold-aware permissions that are actually granted to this role —
+  // only these can carry a cap (the backend rejects thresholds on un-granted keys).
+  const approvalEntries = useMemo(() => {
+    const granted = new Set(permissionKeys);
+    return catalog
+      .filter((entry) => entry.thresholdAware && granted.has(entry.key))
+      .sort((a, b) => a.key.localeCompare(b.key));
+  }, [permissionKeys, catalog]);
+
   const isDirty = approvalEntries.some((entry) => {
     const parsed = parseThresholdInput(thresholdInputs[entry.key] ?? '');
     if (parsed === 'invalid') return true;
-    const previous = originalThresholds[entry.key] ?? null;
+    const previous = initialThresholds[entry.key] ?? null;
     return parsed !== previous;
   });
 
   const setThresholdInput = (key: string, value: string) => {
-    if (isSuperAdmin) return;
+    if (locked) return;
     setThresholdInputs((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -129,12 +214,7 @@ function ApprovalConfigEditor({ role, onBack }: EditorProps) {
     }
 
     try {
-      // Send the role's existing permission set unchanged — this tab only edits
-      // thresholds, and the backend treats the body as the full desired grant.
-      await updateMutation.mutateAsync({
-        permissionKeys: [...detailQuery.data.permissionKeys],
-        thresholds,
-      });
+      await onSave(thresholds);
       notificationService.success(t('saved'));
       onBack();
     } catch {
@@ -144,13 +224,13 @@ function ApprovalConfigEditor({ role, onBack }: EditorProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <RoleEditorHeader role={role} onBack={onBack} />
+      {header}
 
-      {isSuperAdmin && <Alert variant="info">{t('superAdminLocked')}</Alert>}
+      {lockedNotice && <Alert variant="info">{lockedNotice}</Alert>}
 
       {approvalEntries.length === 0 ? (
         <div className="rounded-[12px] border border-gray-100 bg-white p-8 text-center text-sm text-gray-500 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
-          {t('approval.empty')}
+          {emptyMessage}
         </div>
       ) : (
         <>
@@ -158,7 +238,10 @@ function ApprovalConfigEditor({ role, onBack }: EditorProps) {
             <p className="mb-4 text-xs text-gray-500">{t('approval.editorHint')}</p>
             <ul className="flex flex-col gap-4">
               {approvalEntries.map((entry) => (
-                <li key={entry.key} className="border-b border-gray-50 pb-4 last:border-0 last:pb-0">
+                <li
+                  key={entry.key}
+                  className="border-b border-gray-50 pb-4 last:border-0 last:pb-0"
+                >
                   <p className="text-sm font-medium text-gray-900">{entry.description}</p>
                   <p className="font-mono text-xs text-gray-500">{entry.key}</p>
                   <div className="mt-2 w-40">
@@ -178,7 +261,7 @@ function ApprovalConfigEditor({ role, onBack }: EditorProps) {
                       value={thresholdInputs[entry.key] ?? ''}
                       placeholder={t('thresholdPlaceholder')}
                       onChange={(e) => setThresholdInput(entry.key, e.target.value)}
-                      disabled={isSuperAdmin}
+                      disabled={locked}
                       data-testid={`threshold-${entry.key}`}
                     />
                     <p className="mt-1 text-xs text-gray-500">{t('thresholdHint')}</p>
@@ -195,9 +278,9 @@ function ApprovalConfigEditor({ role, onBack }: EditorProps) {
             <Button
               variant="primary"
               onClick={() => void handleSave()}
-              disabled={!isDirty || updateMutation.isPending || isSuperAdmin}
+              disabled={!isDirty || saving || locked}
             >
-              {updateMutation.isPending ? t('saving') : t('save')}
+              {saving ? t('saving') : t('save')}
             </Button>
           </div>
         </>

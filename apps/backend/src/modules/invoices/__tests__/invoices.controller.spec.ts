@@ -2,12 +2,16 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UserRole } from '@prisma/client';
 
 import { InvoiceExportService } from '../invoice-export.service';
+import { InvoiceIntakeService } from '../invoice-intake.service';
+import { InvoiceMatchingService } from '../invoice-matching.service';
 import { InvoicesController } from '../invoices.controller';
 import { InvoicesService } from '../invoices.service';
 
 const mockService = {
   listInvoices: jest.fn(),
   getInvoice: jest.fn(),
+  getAuditTrail: jest.fn(),
+  reviewInvoice: jest.fn(),
   approveInvoice: jest.fn(),
   rejectInvoice: jest.fn(),
   bulkApproveInvoices: jest.fn(),
@@ -18,6 +22,15 @@ const mockService = {
 const mockExportService = {
   exportInvoices: jest.fn(),
   exportSingleInvoice: jest.fn(),
+};
+
+const mockIntakeService = {
+  uploadInvoice: jest.fn(),
+  getIntakeAddress: jest.fn(),
+};
+
+const mockMatchingService = {
+  getPoMatch: jest.fn(),
 };
 
 const mockUser = {
@@ -38,6 +51,8 @@ describe('InvoicesController', () => {
       providers: [
         { provide: InvoicesService, useValue: mockService },
         { provide: InvoiceExportService, useValue: mockExportService },
+        { provide: InvoiceIntakeService, useValue: mockIntakeService },
+        { provide: InvoiceMatchingService, useValue: mockMatchingService },
       ],
     }).compile();
 
@@ -66,13 +81,48 @@ describe('InvoicesController', () => {
     });
   });
 
-  describe('approveInvoice', () => {
+  describe('getPoMatch', () => {
+    it('delegates to the matching service', async () => {
+      const expected = { resolution: 'AUTO_MATCHED', lines: [] };
+      mockMatchingService.getPoMatch.mockResolvedValue(expected);
+
+      const result = await controller.getPoMatch('inv-1', mockUser);
+      expect(mockMatchingService.getPoMatch).toHaveBeenCalledWith('inv-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('reviewInvoice', () => {
     it('delegates to service', async () => {
+      const dto = { vendorId: 'vendor-1', lines: [] } as never;
+      const expected = { id: 'inv-1', reviewedAt: '2026-07-28T00:00:00.000Z' };
+      mockService.reviewInvoice.mockResolvedValue(expected);
+
+      const result = await controller.reviewInvoice('inv-1', dto, mockUser);
+      expect(mockService.reviewInvoice).toHaveBeenCalledWith('inv-1', dto, mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('getInvoiceAudit', () => {
+    it('delegates to service', async () => {
+      const expected = [{ id: 'log-1', action: 'INVOICE_APPROVED' }];
+      mockService.getAuditTrail.mockResolvedValue(expected);
+
+      const result = await controller.getInvoiceAudit('inv-1', mockUser);
+      expect(mockService.getAuditTrail).toHaveBeenCalledWith('inv-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('approveInvoice', () => {
+    it('delegates to service with the optional reason (FOR-294)', async () => {
       const expected = { id: 'inv-1', status: 'APPROVED' };
       mockService.approveInvoice.mockResolvedValue(expected);
 
-      const result = await controller.approveInvoice('inv-1', mockUser);
-      expect(mockService.approveInvoice).toHaveBeenCalledWith('inv-1', mockUser);
+      const dto = { reason: 'Checked against the PO.' };
+      const result = await controller.approveInvoice('inv-1', dto, mockUser);
+      expect(mockService.approveInvoice).toHaveBeenCalledWith('inv-1', dto, mockUser);
       expect(result).toEqual(expected);
     });
   });
@@ -130,6 +180,29 @@ describe('InvoicesController', () => {
         { reason: 'Wrong quantities' },
         mockUser,
       );
+    });
+  });
+
+  describe('uploadInvoice', () => {
+    it('delegates to the intake service', async () => {
+      const expected = { id: 'inv-9', status: 'PENDING', source: 'MANUAL' };
+      mockIntakeService.uploadInvoice.mockResolvedValue(expected);
+      const file = { originalname: 'invoice.pdf' } as Express.Multer.File;
+
+      const result = await controller.uploadInvoice(file, mockUser);
+      expect(mockIntakeService.uploadInvoice).toHaveBeenCalledWith(file, mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('getIntakeAddress', () => {
+    it('delegates to the intake service', async () => {
+      const expected = { email: 'invoices-abc@in.example.com' };
+      mockIntakeService.getIntakeAddress.mockResolvedValue(expected);
+
+      const result = await controller.getIntakeAddress(mockUser);
+      expect(mockIntakeService.getIntakeAddress).toHaveBeenCalledWith(mockUser);
+      expect(result).toEqual(expected);
     });
   });
 

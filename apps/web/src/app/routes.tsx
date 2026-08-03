@@ -22,6 +22,7 @@ const UserProfilePage = lazy(() => import('@/features/profile/pages/UserProfileP
 const SettingsPage = lazy(() => import('@/features/settings/pages/SettingsPage'));
 const RoleListPage = lazy(() => import('@/features/roles/pages/RoleListPage'));
 const RoleEditPage = lazy(() => import('@/features/roles/pages/RoleEditPage'));
+const CustomRoleEditPage = lazy(() => import('@/features/roles/pages/CustomRoleEditPage'));
 const ProjectListPage = lazy(() => import('@/features/projects/pages/ProjectListPage'));
 const CreateProjectPage = lazy(() => import('@/features/projects/pages/CreateProjectPage'));
 const ProjectDetailPage = lazy(() => import('@/features/projects/pages/ProjectDetailPage'));
@@ -604,7 +605,16 @@ export const routes: RouteObject[] = [
                   { path: ROUTES.roles, element: withSuspense(<RoleListPage />) },
                   {
                     element: <PermissionRoute require={['role.update']} />,
-                    children: [{ path: ROUTES.roleEdit, element: withSuspense(<RoleEditPage />) }],
+                    children: [
+                      // Static /custom/:id is registered before the ':role'
+                      // param route so react-router never binds "custom" as a
+                      // built-in role name.
+                      {
+                        path: ROUTES.customRoleEdit,
+                        element: withSuspense(<CustomRoleEditPage />),
+                      },
+                      { path: ROUTES.roleEdit, element: withSuspense(<RoleEditPage />) },
+                    ],
                   },
                 ],
               },

@@ -554,19 +554,21 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
                             {invoice.id.slice(0, 8)}
                           </span>
                         </td>
+                        {/* project/vendor/amount are empty on intake invoices
+                            awaiting review (FOR-290) */}
                         <td className="max-w-[180px] px-2 align-middle">
                           <span className="block truncate px-1 font-medium text-gray-800">
-                            {invoice.projectName}
+                            {invoice.projectName ?? '—'}
                           </span>
                         </td>
                         <td className="px-2 align-middle">
                           <span className="block px-1 font-medium text-gray-800">
-                            {invoice.projectCode}
+                            {invoice.projectCode ?? '—'}
                           </span>
                         </td>
                         <td className="max-w-[180px] px-2 align-middle">
                           <span className="block truncate px-1 font-medium text-gray-800">
-                            {invoice.vendorName}
+                            {invoice.vendorName ?? '—'}
                           </span>
                         </td>
                         <td className="px-2 align-middle">
@@ -581,10 +583,11 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
                         </td>
                         <td className="px-2 align-middle">
                           <span className="block px-1 font-medium text-gray-800">
-                            $
-                            {invoice.totalAmount.toLocaleString('en-US', {
-                              minimumFractionDigits: 2,
-                            })}
+                            {invoice.totalAmount === null
+                              ? '—'
+                              : `$${invoice.totalAmount.toLocaleString('en-US', {
+                                  minimumFractionDigits: 2,
+                                })}`}
                           </span>
                         </td>
                         <td className="px-2 align-middle">
@@ -615,7 +618,7 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
                               className="flex size-7 shrink-0 items-center justify-center rounded-[8px] border border-gray-100 bg-gradient-to-b from-[#F9F9FA] to-white text-gray-600 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)] transition-colors hover:bg-none hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50"
                               title={t('actions.approve')}
                               disabled={approveMutation.isPending || invoice.status !== 'PENDING'}
-                              onClick={() => approveMutation.mutate(invoice.id)}
+                              onClick={() => approveMutation.mutate({ id: invoice.id })}
                             >
                               <CheckCircleIcon className="size-3.5" />
                             </button>
@@ -628,7 +631,7 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
                                       {
                                         key: 'approve',
                                         label: t('actions.approve'),
-                                        onClick: () => approveMutation.mutate(invoice.id),
+                                        onClick: () => approveMutation.mutate({ id: invoice.id }),
                                       },
                                     ]
                                   : []),

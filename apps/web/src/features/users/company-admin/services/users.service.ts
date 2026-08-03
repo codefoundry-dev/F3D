@@ -56,6 +56,8 @@ export function useUpdateUser() {
     onSuccess: (_, { id }) => {
       void queryClient.invalidateQueries({ queryKey: [USERS_KEY] });
       void queryClient.invalidateQueries({ queryKey: [USERS_KEY, id] });
+      // Assignment changes move the per-role assigned counts (FOR-253).
+      void queryClient.invalidateQueries({ queryKey: ['custom-roles'] });
     },
   });
 }

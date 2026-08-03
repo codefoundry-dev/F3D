@@ -21,6 +21,11 @@ export interface UpdateUserDto {
   role?: string;
   position?: string;
   phone?: string;
+  /**
+   * Custom-role assignment (FOR-253). A string assigns that custom role, null
+   * unassigns, absent leaves the assignment untouched.
+   */
+  customRoleId?: string | null;
 }
 
 export interface UpdateMeDto {
@@ -61,9 +66,22 @@ export interface UserResponse {
   role: UserRole;
   status: UserStatus;
   companyId: string;
+  /**
+   * Custom-role assignment (FOR-253). When set, the custom role's permission
+   * grants replace the built-in role's; `role` remains the base role.
+   * Optional because older user-shaped responses may omit it.
+   */
+  customRoleId?: string | null;
+  customRole?: { id: string; name: string } | null;
   lastLoginAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * True when the user is INVITED and an activation invitation has been sent
+   * (and not yet accepted/cancelled). INVITED users without it are contact-only
+   * records (added without an invite, FOR-272) — offer "send", not "cancel".
+   */
+  invitePending?: boolean;
   company: { id: string; legalName: string; type: string } | null;
   projects?: { id: string; name: string }[];
   /**

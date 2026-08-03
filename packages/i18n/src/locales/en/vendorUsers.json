@@ -56,6 +56,7 @@
     "editUser": "Edit user",
     "deactivateUser": "Deactivate user",
     "activateUser": "Activate user",
+    "sendInvitation": "Send Invitation",
     "resendInvitation": "Reset Invitation",
     "cancelInvitation": "Cancel Invitation"
   },
@@ -73,8 +74,8 @@
   },
   "cancelInvitationModal": {
     "title": "Cancel Invitation",
-    "subtitle": "This action cannot be undone.",
-    "info": "<span class=\"text-destructive\">You are about to cancel the invitation for <strong class=\"font-bold\">{{email}}</strong>. This will permanently remove their account from the platform.</span>",
+    "subtitle": "The activation link will stop working.",
+    "info": "<span class=\"text-destructive\">You are about to cancel the invitation for <strong class=\"font-bold\">{{email}}</strong>. The activation link will stop working, but the user remains as a contact and can be invited again later.</span>",
     "confirm": "Cancel Invitation"
   },
   "resendInvitationModal": {
@@ -83,7 +84,14 @@
     "info": "<span class=\"text-success\">A new invitation link will be sent to <strong class=\"font-bold\">{{email}}</strong>. The previous invitation link will be invalidated.</span>",
     "confirm": "Resend Invitation"
   },
+  "sendInvitationModal": {
+    "title": "Send Invitation",
+    "subtitle": "An invitation will be sent to this user.",
+    "info": "<span class=\"text-success\">An invitation link will be sent to <strong class=\"font-bold\">{{email}}</strong>. They can use it to set a password and activate their account.</span>",
+    "confirm": "Send Invitation"
+  },
   "resendInvitationSuccess": "Invitation has been resent successfully",
+  "sendInvitationSuccess": "Invitation has been sent successfully",
   "cancelInvitationSuccess": "Invitation has been cancelled successfully",
   "editModal": {
     "title": "Edit User Details",
@@ -104,6 +112,7 @@
   "detail": {
     "notFound": "User not found.",
     "editUser": "Edit User",
+    "sendInvitation": "Send Invitation",
     "resendInvitation": "Resend Invitation",
     "cancelInvitation": "Cancel Invitation",
     "deactivate": "Deactivate",

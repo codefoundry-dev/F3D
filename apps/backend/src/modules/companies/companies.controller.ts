@@ -12,17 +12,21 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  Logger,
   UploadedFile,
   UseInterceptors,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
+import { DocExtractionStatus, DocExtractionType, UserRole } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/permissions';
 import { PrismaService } from '../../prisma/prisma.service';
+import { DocIntelligenceService } from '../doc-intelligence/doc-intelligence.service';
 import { StorageService } from '../storage/storage.service';
 
 import {
@@ -31,6 +35,8 @@ import {
   UpdateCompanyDto,
   CompanyListQueryDto,
   AssignVendorsDto,
+  UploadCompanyDocumentDto,
+  ReviewCompanyDocumentDto,
 } from './companies.service';
 import { CompanyExportService } from './company-export.service';
 
@@ -40,15 +46,57 @@ interface AuthUser {
   companyId: string | null;
 }
 
+const DOCUMENT_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const DOCUMENT_ALLOWED_EXTENSIONS = [
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.xls',
+  '.xlsx',
+  '.csv',
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.webp',
+];
+const DOCUMENT_ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/csv',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+];
+/** Some browsers/OSes report generic types for otherwise-valid files
+ *  (e.g. Windows reports CSV as text/plain or application/octet-stream),
+ *  so a generic mimetype falls back to the extension check alone. */
+const GENERIC_MIME_TYPES = ['application/octet-stream', 'text/plain', ''];
+/** FOR-259: extraction needs the real content type, but the validation above
+ *  deliberately accepts generic mimetypes when the extension is valid —
+ *  recover the type from the extension so those uploads still reach OCR. */
+const DOCUMENT_EXTENSION_MIME_TYPES: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+};
+
 @ApiTags('companies')
 @ApiBearerAuth()
 @Controller('companies')
 export class CompaniesController {
+  private readonly logger = new Logger(CompaniesController.name);
+
   constructor(
     private readonly companiesService: CompaniesService,
     private readonly companyExportService: CompanyExportService,
     private readonly storageService: StorageService,
     private readonly prisma: PrismaService,
+    private readonly docIntelligence: DocIntelligenceService,
   ) {}
 
   @Get()
@@ -93,7 +141,9 @@ export class CompaniesController {
   @Get(':id/vendors')
   @ApiOperation({ summary: 'Get vendors assigned to a contractor company' })
   @ApiResponse({ status: 200, description: 'List of assigned vendors' })
-  getCompanyVendors(@Param('id') id: string) {
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  getCompanyVendors(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    this.assertCompanyScope(id, user);
     return this.companiesService.getCompanyVendors(id);
   }
 
@@ -131,6 +181,7 @@ export class CompaniesController {
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: AuthUser,
   ) {
+    this.assertCompanyScope(id, user);
     if (!file) throw new BadRequestException(ERR.storage.noFileProvided);
     if (!['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'].includes(file.mimetype)) {
       throw new BadRequestException(ERR.storage.onlyImagesAllowed);
@@ -162,6 +213,9 @@ export class CompaniesController {
     return { id, logoUrl: await this.storageService.getSignedUrl(result.key) };
   }
 
+  // Deliberately NOT company-scoped: logos render cross-company (vendor logos
+  // on RFQ/PO views, message-sender branding), so any authenticated user may
+  // resolve any company's logo URL.
   @Get(':id/logo-url')
   @ApiOperation({ summary: 'Get a presigned URL for the company logo' })
   @ApiResponse({ status: 200, description: 'Logo URL' })
@@ -177,31 +231,86 @@ export class CompaniesController {
   // ── Company Documents ─────────────────────────────────────────────────────
 
   @Get(':id/documents')
+  @RequirePermissions('company.readDocuments')
   @ApiOperation({ summary: 'List company documents' })
-  async getDocuments(@Param('id') id: string) {
-    return this.prisma.companyDocument.findMany({
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async getDocuments(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    this.assertCompanyScope(id, user);
+    const documents = await this.prisma.companyDocument.findMany({
       where: { companyId: id },
       include: { file: { include: { uploadedBy: { select: { email: true } } } } },
       orderBy: { createdAt: 'desc' },
     });
+    // FOR-260: attach each document's extraction so the client can run the
+    // review step (poll while it runs, then show the extracted values for
+    // approval). The result is exposed only once the pipeline finished.
+    const extractions = documents.length
+      ? await this.prisma.docExtraction.findMany({
+          where: {
+            companyDocumentId: { in: documents.map((d) => d.id) },
+            type: DocExtractionType.VENDOR_DOCUMENT,
+          },
+          // Ascending + Map overwrite → the latest extraction per document wins.
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            status: true,
+            errorCode: true,
+            completedAt: true,
+            editedResult: true,
+            companyDocumentId: true,
+          },
+        })
+      : [];
+    const latestByDocument = new Map(extractions.map((e) => [e.companyDocumentId, e]));
+
+    return documents.map((doc) => {
+      const extraction = latestByDocument.get(doc.id);
+      return {
+        ...doc,
+        extraction: extraction
+          ? {
+              id: extraction.id,
+              status: extraction.status,
+              errorCode: extraction.errorCode,
+              completedAt: extraction.completedAt?.toISOString() ?? null,
+              result:
+                extraction.status === DocExtractionStatus.COMPLETED ||
+                extraction.status === DocExtractionStatus.CONFIRMED
+                  ? extraction.editedResult
+                  : null,
+            }
+          : null,
+      };
+    });
   }
 
   @Post(':id/documents')
+  @RequirePermissions('company.uploadDocument')
   @UseInterceptors(FileInterceptor('file'))
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Upload company document' })
   @ApiConsumes('multipart/form-data')
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   async uploadDocument(
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: AuthUser,
-    @Body() body: { type?: string; expiresAt?: string },
+    @Body() body: UploadCompanyDocumentDto,
   ) {
+    this.assertCompanyScope(id, user);
     if (!file) throw new BadRequestException(ERR.storage.noFileProvided);
-    if (file.size > 10 * 1024 * 1024)
+
+    const ext = path.extname(file.originalname).toLowerCase();
+    const mimeOk =
+      DOCUMENT_ALLOWED_MIME_TYPES.includes(file.mimetype) ||
+      GENERIC_MIME_TYPES.includes(file.mimetype ?? '');
+    if (!DOCUMENT_ALLOWED_EXTENSIONS.includes(ext) || !mimeOk) {
+      throw new BadRequestException(ERR.storage.documentTypeNotAllowed);
+    }
+    if (file.size > DOCUMENT_MAX_FILE_SIZE)
       throw new BadRequestException(ERR.storage.fileTooLarge('10MB'));
 
-    const ext = path.extname(file.originalname);
     const key = `documents/${id}/${randomUUID()}${ext}`;
 
     const result = await this.storageService.upload(key, file.buffer, file.mimetype);
@@ -217,24 +326,126 @@ export class CompaniesController {
       },
     });
 
-    return this.prisma.companyDocument.create({
+    const document = await this.prisma.companyDocument.create({
       data: {
         companyId: id,
-        type: (body.type as 'INSURANCE' | 'LICENSE' | 'CERTIFICATION' | 'OTHER') ?? 'OTHER',
+        type: body.type ?? 'OTHER',
         fileId: fileRecord.id,
         expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
       },
       include: { file: true },
     });
+
+    // FOR-259: OCR-first data extraction for the uploaded document.
+    // Fire-and-forget — the upload response never waits on the pipeline.
+    this.startDocumentExtraction({
+      companyId: id,
+      companyDocumentId: document.id,
+      fileId: fileRecord.id,
+      mimeType: GENERIC_MIME_TYPES.includes(file.mimetype ?? '')
+        ? (DOCUMENT_EXTENSION_MIME_TYPES[ext] ?? file.mimetype)
+        : file.mimetype,
+      data: file.buffer,
+      userId: user.id,
+    });
+
+    return document;
+  }
+
+  /**
+   * Kick off the Google-OCR + LLM extraction for a just-uploaded company
+   * document (FOR-259). Fire-and-forget, mirroring the invoice intake: the
+   * document row is already committed, so extraction problems must never
+   * fail the upload. The extracted values are never applied automatically —
+   * a human approves them in the review step (FOR-260).
+   */
+  private startDocumentExtraction(input: {
+    companyId: string;
+    companyDocumentId: string;
+    fileId: string;
+    mimeType: string;
+    data: Buffer;
+    userId: string;
+  }): void {
+    void this.docIntelligence
+      .createVendorDocumentExtraction({
+        companyId: input.companyId,
+        companyDocumentId: input.companyDocumentId,
+        createdByUserId: input.userId,
+        fileId: input.fileId,
+        mimeType: input.mimeType,
+        data: input.data,
+      })
+      .catch((error: unknown) => {
+        this.logger.error(
+          `Failed to start extraction for company document ${input.companyDocumentId}`,
+          error instanceof Error ? error.stack : String(error),
+        );
+      });
+  }
+
+  // ── Company Document Review (FOR-260) ─────────────────────────────────────
+
+  @Patch(':id/documents/:docId/review')
+  @RequirePermissions('company.uploadDocument')
+  @ApiOperation({ summary: 'Save the human-approved document data (review of extracted values)' })
+  @ApiResponse({ status: 400, description: 'Document not found' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async reviewDocument(
+    @Param('id') id: string,
+    @Param('docId') docId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: ReviewCompanyDocumentDto,
+  ) {
+    this.assertCompanyScope(id, user);
+    const doc = await this.prisma.companyDocument.findFirst({
+      where: { id: docId, companyId: id },
+    });
+    if (!doc) throw new BadRequestException(ERR.invoices.documentNotFound);
+
+    // Only the approved values are saved (replace semantics): an omitted
+    // expiry clears the field rather than keeping a value nobody approved.
+    const document = await this.prisma.companyDocument.update({
+      where: { id: docId },
+      data: {
+        type: body.type,
+        expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
+      },
+      include: { file: true },
+    });
+
+    // A human has signed off on the extracted values — the completed
+    // extraction graduates to Confirmed (mirrors the invoice review, FOR-291).
+    await this.prisma.docExtraction.updateMany({
+      where: {
+        companyDocumentId: docId,
+        type: DocExtractionType.VENDOR_DOCUMENT,
+        status: DocExtractionStatus.COMPLETED,
+      },
+      data: {
+        status: DocExtractionStatus.CONFIRMED,
+        confirmedByUserId: user.id,
+        confirmedAt: new Date(),
+      },
+    });
+
+    return document;
   }
 
   // ── Company Documents Export ─────────────────────────────────────────────
 
   @Get(':id/documents/export/:format')
+  @RequirePermissions('company.readDocuments')
   @ApiOperation({ summary: 'Export company documents as PDF or CSV' })
   @ApiResponse({ status: 200, description: 'Export file URL' })
   @ApiResponse({ status: 400, description: 'Invalid format' })
-  async exportDocuments(@Param('id') id: string, @Param('format') format: string) {
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async exportDocuments(
+    @Param('id') id: string,
+    @Param('format') format: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    this.assertCompanyScope(id, user);
     const normalized = format.toUpperCase();
     if (normalized === 'PDF') {
       return this.companyExportService.exportDocumentsToPDF(id);
@@ -250,15 +461,24 @@ export class CompaniesController {
   @Get(':id/profile/export')
   @ApiOperation({ summary: 'Export company profile as invoice-style PDF' })
   @ApiResponse({ status: 200, description: 'PDF file URL' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Company not found' })
-  async exportCompanyProfile(@Param('id') id: string) {
+  async exportCompanyProfile(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    this.assertCompanyScope(id, user);
     return this.companyExportService.exportCompanyProfilePDF(id);
   }
 
   @Delete(':id/documents/:docId')
+  @RequirePermissions('company.deleteDocument')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete company document' })
-  async deleteDocument(@Param('id') id: string, @Param('docId') docId: string) {
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async deleteDocument(
+    @Param('id') id: string,
+    @Param('docId') docId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    this.assertCompanyScope(id, user);
     const doc = await this.prisma.companyDocument.findFirst({
       where: { id: docId, companyId: id },
       include: { file: true },
@@ -271,6 +491,15 @@ export class CompaniesController {
     await this.prisma.file.delete({ where: { id: doc.fileId } });
 
     return { message: 'Document deleted' };
+  }
+
+  /** Non-SUPER_ADMIN users may only touch their own company's resources
+   *  (documents, logo, exports, vendor assignments) — a permission key alone
+   *  does not stop a Company A user from targeting Company B by id. */
+  private assertCompanyScope(companyId: string, user: AuthUser): void {
+    if (user.role !== UserRole.SUPER_ADMIN && user.companyId !== companyId) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
   }
 
   /** Convert the S3 key stored in `logoUrl` to a short-lived presigned GET URL.

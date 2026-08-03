@@ -47,6 +47,10 @@ model Company {
   logoUrl       String?       @map("logo_url") @db.VarChar(500)
   status        CompanyStatus @default(ACTIVE)
   specialisations String[]    @map("specialisations")
+  // Local-part key of the company's invoice-intake inbox (FOR-290):
+  // invoices-<key>@INVOICE_INBOUND_DOMAIN. Generated lazily the first time the
+  // team views their intake address.
+  invoiceInboxKey String?     @unique @map("invoice_inbox_key") @db.VarChar(32)
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
@@ -88,6 +92,9 @@ model Company {
 
   // Delivery reports (Epic 6) — vendor on a delivery report
   deliveryReportsAsVendor DeliveryReport[] @relation("DeliveryReportVendor")
+
+  // Admin-defined custom roles (FOR-252)
+  customRoles           CustomRole[]
 
   @@index([type], map: "idx_companies_type")
   @@index([legalName], map: "idx_companies_legal_name")

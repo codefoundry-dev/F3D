@@ -37,6 +37,7 @@ export const COMPANIES_PATHS = {
   logoUrl: (id: string) => `/companies/${id}/logo-url`,
   documents: (id: string) => `/companies/${id}/documents`,
   document: (id: string, docId: string) => `/companies/${id}/documents/${docId}`,
+  documentReview: (id: string, docId: string) => `/companies/${id}/documents/${docId}/review`,
   documentsExport: (id: string, format: string) => `/companies/${id}/documents/export/${format}`,
   profileExport: (id: string) => `/companies/${id}/profile/export`,
 } as const;
@@ -50,8 +51,10 @@ export const AUDIT_PATHS = {
 export const ROLES_PATHS = {
   ROOT: '/roles',
   CATALOG: '/roles/permissions/catalog',
+  CUSTOM: '/roles/custom',
   byRole: (role: string) => `/roles/${role}`,
   permissions: (role: string) => `/roles/${role}/permissions`,
+  customById: (id: string) => `/roles/custom/${id}`,
 } as const;
 
 export const STORAGE_PATHS = {
@@ -217,8 +220,13 @@ export const BULK_ORDERS_PATHS = {
 export const INVOICES_PATHS = {
   ROOT: '/invoices',
   byId: (id: string) => `/invoices/${id}`,
+  UPLOAD: '/invoices/upload',
+  INTAKE_ADDRESS: '/invoices/intake-address',
   approve: (id: string) => `/invoices/${id}/approve`,
   reject: (id: string) => `/invoices/${id}/reject`,
+  review: (id: string) => `/invoices/${id}/review`,
+  poMatch: (id: string) => `/invoices/${id}/po-match`,
+  audit: (id: string) => `/invoices/${id}/audit`,
   BULK_APPROVE: '/invoices/bulk-approve',
   export: (format: 'csv' | 'xlsx' | 'pdf') => `/invoices/export/${format}`,
   exportSingle: (id: string, format: 'csv' | 'xlsx' | 'pdf') => `/invoices/${id}/export/${format}`,

@@ -4,10 +4,12 @@ import {
   Input,
   FormField,
   Button,
+  Alert,
   UserAlreadyExistsModal,
 } from '@forethread/ui-components';
 import EnvelopeIcon from '@forethread/ui-components/assets/icons/envelope-simple.svg?react';
 import IdBadgeIcon from '@forethread/ui-components/assets/icons/id-badge.svg?react';
+import InfoIcon from '@forethread/ui-components/assets/icons/info.svg?react';
 import NewUserIcon from '@forethread/ui-components/assets/icons/new-user.svg?react';
 import UserOutlineIcon from '@forethread/ui-components/assets/icons/user-outline.svg?react';
 
@@ -19,7 +21,7 @@ interface InviteVendorUserModalProps {
 
 export function InviteVendorUserModal({ onClose }: InviteVendorUserModalProps) {
   const { t } = useTranslation(['vendorUsers', 'common']);
-  const { form, handleSubmit, inviteMutation, showUserExists, closeUserExists } =
+  const { form, handleSubmit, inviteMutation, showUserExists, closeUserExists, showError } =
     useInviteVendorUserForm(onClose);
   const {
     register,
@@ -47,6 +49,13 @@ export function InviteVendorUserModal({ onClose }: InviteVendorUserModalProps) {
           </>
         }
       >
+        {/* Non-409 failures used to vanish silently — surface them (FOR-289) */}
+        {showError && (
+          <Alert variant="destructive" icon={<InfoIcon className="w-5 h-5" />}>
+            {t('inviteModal.createError')}
+          </Alert>
+        )}
+
         {/* Full Name */}
         <FormField label={t('inviteModal.fullName')} error={errors.name?.message} labelSize="lg">
           <Input

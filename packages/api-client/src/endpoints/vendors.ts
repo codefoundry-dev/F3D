@@ -259,7 +259,7 @@ export async function addVendorRepresentative(
 export interface InviteVendorUserInput {
   name: string;
   email: string;
-  position: string;
+  position?: string;
 }
 
 export async function inviteVendorUser(
@@ -277,16 +277,28 @@ export async function inviteVendorUser(
  * Sends (first invite) or re-sends the activation invitation to an existing
  * representative. Buyer- and vendor-accessible (ADR-0016).
  */
-export async function resendVendorUserInvitation(companyId: string, userId: string): Promise<void> {
-  await getApiClient().post(VENDORS_PATHS.resendUserInvitation(companyId, userId));
+export async function resendVendorUserInvitation(
+  companyId: string,
+  userId: string,
+  config?: AxiosRequestConfig,
+): Promise<void> {
+  await getApiClient().post(
+    VENDORS_PATHS.resendUserInvitation(companyId, userId),
+    undefined,
+    config,
+  );
 }
 
 /**
  * Revokes a pending invitation; the representative reverts to a contact-only
  * record (it is NOT deleted — use removeVendorRepresentative for that).
  */
-export async function cancelVendorUserInvitation(companyId: string, userId: string): Promise<void> {
-  await getApiClient().delete(VENDORS_PATHS.cancelUserInvitation(companyId, userId));
+export async function cancelVendorUserInvitation(
+  companyId: string,
+  userId: string,
+  config?: AxiosRequestConfig,
+): Promise<void> {
+  await getApiClient().delete(VENDORS_PATHS.cancelUserInvitation(companyId, userId), config);
 }
 
 export async function getVendorRepresentative(

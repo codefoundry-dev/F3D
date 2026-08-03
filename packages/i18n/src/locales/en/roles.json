@@ -2,6 +2,32 @@
   "title": "Roles & permissions",
   "subtitle": "Configure which permissions each built-in role has. Changes take effect on the next request.",
   "rolesHeading": "Roles",
+  "custom": {
+    "heading": "Custom roles",
+    "subtitle": "Roles you define for your company, with their own permission sets.",
+    "assignedCount": "{{count}} assigned",
+    "create": "Create custom role",
+    "empty": "No custom roles yet. Create one to bundle a tailored set of permissions.",
+    "loadError": "Failed to load custom roles",
+    "editSubtitle": "Edit this custom role's name, description and permissions.",
+    "nameLabel": "Role name",
+    "namePlaceholder": "e.g. Junior Buyer",
+    "nameRequired": "Role name cannot be empty",
+    "descriptionLabel": "Description (optional)",
+    "descriptionPlaceholder": "What is this role for?",
+    "createTitle": "Create custom role",
+    "createDescription": "Name the role, then choose its permissions on the next screen.",
+    "createConfirm": "Create role",
+    "created": "Custom role created",
+    "createError": "Failed to create custom role",
+    "delete": "Delete role",
+    "deleteTitle": "Delete custom role",
+    "deleteDescription": "\"{{name}}\" will be removed permanently. This cannot be undone.",
+    "deleteConfirm": "Delete role",
+    "deleted": "Custom role deleted",
+    "deleteError": "Failed to delete custom role",
+    "notFound": "Custom role not found"
+  },
   "roleNames": {
     "SUPER_ADMIN": "Super Admin",
     "COMPANY_ADMIN": "Company Admin",
@@ -28,7 +54,8 @@
   "approval": {
     "listSubtitle": "Set approval spend limits",
     "editorHint": "Set the maximum amount this role can approve before a document escalates to a higher-tier approver. Leave a field blank for no limit.",
-    "empty": "No approval-aware permissions are enabled for this role yet. Enable them under Role permissions first."
+    "empty": "No approval-aware permissions are enabled for this role yet. Enable them under Role permissions first.",
+    "customEmpty": "This custom role has no approval-aware permissions yet. Grant them (e.g. Approve purchase orders) under Role permissions first."
   },
   "domains": {
     "dashboard": "Dashboards",

@@ -83,6 +83,10 @@ export default function VendorUserDetailPage() {
               actions={getUserActions(
                 user,
                 {
+                  onSend: () =>
+                    resendMutation.mutate(user.id, {
+                      onSuccess: () => notificationService.success(t('sendInvitationSuccess')),
+                    }),
                   onResend: () =>
                     resendMutation.mutate(user.id, {
                       onSuccess: () => notificationService.success(t('resendInvitationSuccess')),
@@ -91,6 +95,7 @@ export default function VendorUserDetailPage() {
                     openStatusActionModal('cancelInvitation', user.id, user.email),
                 },
                 {
+                  sendInvitation: t('detail.sendInvitation'),
                   resendInvitation: t('detail.resendInvitation'),
                   cancelInvitation: t('detail.cancelInvitation'),
                 },
@@ -151,16 +156,23 @@ export default function VendorUserDetailPage() {
 function getUserActions(
   user: UserResponse,
   handlers: {
+    onSend: () => void;
     onResend: () => void;
     onCancelInvitation: () => void;
   },
   labels: {
+    sendInvitation: string;
     resendInvitation: string;
     cancelInvitation: string;
   },
 ): DotAction[] {
-  // Vendors can only manage invitations, not edit/deactivate users
+  // Vendors can only manage invitations, not edit/deactivate users.
+  // Contact-only reps (no invite sent yet, FOR-272) get "send" — there is no
+  // pending invitation to resend or cancel (FOR-289).
   if (user.status === UserStatus.INVITED) {
+    if (!user.invitePending) {
+      return [{ key: 'sendInvitation', label: labels.sendInvitation, onClick: handlers.onSend }];
+    }
     return [
       { key: 'resendInvitation', label: labels.resendInvitation, onClick: handlers.onResend },
       {

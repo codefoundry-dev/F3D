@@ -28,12 +28,6 @@ const mockPrisma = {
   poLineItem: {
     update: jest.fn(),
   },
-  rolePermission: {
-    findMany: jest.fn(),
-  },
-  user: {
-    findMany: jest.fn(),
-  },
   auditLog: {
     findMany: jest.fn(),
   },
@@ -131,6 +125,7 @@ const mockPoExportService = {
 
 const mockApprovalAuth = {
   evaluate: jest.fn(),
+  findEligibleApproverEmails: jest.fn(),
 };
 
 const mockAuditService = {
@@ -183,6 +178,8 @@ describe('PoStatusService', () => {
     mockPurchaseOrdersService.getPurchaseOrderById.mockResolvedValue(fullPoDetail);
     // Default: approval authorization grants the action (null threshold = unlimited).
     mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
+    // Default: no eligible approvers — notification fan-out tests override this.
+    mockApprovalAuth.findEligibleApproverEmails.mockResolvedValue([]);
     // Run interactive transactions against the same mock client so existing
     // assertions on mockPrisma.purchaseOrder.update still apply (FOR-246 wrapped
     // the SENT transition + token issuance in prisma.$transaction).
@@ -352,7 +349,7 @@ describe('PoStatusService', () => {
         ForbiddenException,
       );
       expect(mockApprovalAuth.evaluate).toHaveBeenCalledWith(
-        UserRole.PROCUREMENT_OFFICER,
+        expect.objectContaining({ role: UserRole.PROCUREMENT_OFFICER }),
         'po.approve',
         expect.anything(),
       );
@@ -2181,15 +2178,19 @@ describe('PoStatusService', () => {
       mockPrisma.purchaseOrder.findUnique
         .mockResolvedValueOnce(heldPo)
         .mockResolvedValueOnce({ poNumber: 'PO-BIG' });
-      mockPrisma.rolePermission.findMany.mockResolvedValue([
-        { role: UserRole.COMPANY_ADMIN, thresholdAmount: null },
-      ]);
-      mockPrisma.user.findMany.mockResolvedValue([{ email: 'approver@test.com' }]);
+      mockApprovalAuth.findEligibleApproverEmails.mockResolvedValue(['approver@test.com']);
       mockEmailService.sendPoPendingApprovalEmail.mockResolvedValue(undefined);
 
       await service.issuePurchaseOrder('po-big', procurementOfficer);
       await new Promise((r) => setTimeout(r, 10));
 
+      // Recipient eligibility (thresholds, custom-role-first) lives in
+      // ApprovalAuthorizationService (FOR-286); this service only fans out.
+      expect(mockApprovalAuth.findEligibleApproverEmails).toHaveBeenCalledWith(
+        'comp-1',
+        'po.approve',
+        30000,
+      );
       expect(mockEmailService.sendPoPendingApprovalEmail).toHaveBeenCalledWith(
         'approver@test.com',
         'PO-BIG',
@@ -2205,10 +2206,7 @@ describe('PoStatusService', () => {
       mockPrisma.purchaseOrder.findUnique
         .mockResolvedValueOnce(heldPo)
         .mockResolvedValueOnce({ poNumber: 'PO-BIG' });
-      mockPrisma.rolePermission.findMany.mockResolvedValue([
-        { role: UserRole.COMPANY_ADMIN, thresholdAmount: null },
-      ]);
-      mockPrisma.user.findMany.mockResolvedValue([{ email: 'approver@test.com' }]);
+      mockApprovalAuth.findEligibleApproverEmails.mockResolvedValue(['approver@test.com']);
       mockBranding.getEmailBrand.mockResolvedValue(brand);
       mockEmailService.sendPoPendingApprovalEmail.mockResolvedValue(undefined);
 
@@ -2227,46 +2225,30 @@ describe('PoStatusService', () => {
       );
     });
 
-    it('does not email anyone when no role is eligible for the PO total', async () => {
+    it('does not email anyone when no user is eligible for the PO total', async () => {
       mockPrisma.purchaseOrder.findUnique.mockResolvedValueOnce(heldPo);
-      mockPrisma.rolePermission.findMany.mockResolvedValue([
-        { role: UserRole.COMPANY_ADMIN, thresholdAmount: 1000 },
-      ]);
+      mockApprovalAuth.findEligibleApproverEmails.mockResolvedValue([]);
 
       await service.issuePurchaseOrder('po-big', procurementOfficer);
       await new Promise((r) => setTimeout(r, 10));
 
-      expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
       expect(mockEmailService.sendPoPendingApprovalEmail).not.toHaveBeenCalled();
     });
 
-    it('treats a role with an ample threshold as eligible', async () => {
-      mockPrisma.purchaseOrder.findUnique
-        .mockResolvedValueOnce(heldPo)
-        .mockResolvedValueOnce({ poNumber: 'PO-BIG' });
-      mockPrisma.rolePermission.findMany.mockResolvedValue([
-        { role: UserRole.COMPANY_ADMIN, thresholdAmount: 50000 },
-      ]);
-      mockPrisma.user.findMany.mockResolvedValue([{ email: 'approver@test.com' }]);
-
-      await service.issuePurchaseOrder('po-big', procurementOfficer);
-      await new Promise((r) => setTimeout(r, 10));
-
-      expect(mockEmailService.sendPoPendingApprovalEmail).toHaveBeenCalled();
-    });
-
-    it('treats a null PO total as within every threshold', async () => {
+    it('renders a null PO total as a zero amount on the email', async () => {
       mockPrisma.purchaseOrder.findUnique
         .mockResolvedValueOnce({ ...heldPo, totalAmount: null })
         .mockResolvedValueOnce({ poNumber: 'PO-NULL' });
-      mockPrisma.rolePermission.findMany.mockResolvedValue([
-        { role: UserRole.COMPANY_ADMIN, thresholdAmount: 1000 },
-      ]);
-      mockPrisma.user.findMany.mockResolvedValue([{ email: 'approver@test.com' }]);
+      mockApprovalAuth.findEligibleApproverEmails.mockResolvedValue(['approver@test.com']);
 
       await service.issuePurchaseOrder('po-big', procurementOfficer);
       await new Promise((r) => setTimeout(r, 10));
 
+      expect(mockApprovalAuth.findEligibleApproverEmails).toHaveBeenCalledWith(
+        'comp-1',
+        'po.approve',
+        null,
+      );
       expect(mockEmailService.sendPoPendingApprovalEmail).toHaveBeenCalledWith(
         'approver@test.com',
         'PO-NULL',
@@ -2279,10 +2261,7 @@ describe('PoStatusService', () => {
 
     it('skips the email when the PO row disappears before it is built', async () => {
       mockPrisma.purchaseOrder.findUnique.mockResolvedValueOnce(heldPo).mockResolvedValueOnce(null);
-      mockPrisma.rolePermission.findMany.mockResolvedValue([
-        { role: UserRole.COMPANY_ADMIN, thresholdAmount: null },
-      ]);
-      mockPrisma.user.findMany.mockResolvedValue([{ email: 'approver@test.com' }]);
+      mockApprovalAuth.findEligibleApproverEmails.mockResolvedValue(['approver@test.com']);
 
       await service.issuePurchaseOrder('po-big', procurementOfficer);
       await new Promise((r) => setTimeout(r, 10));

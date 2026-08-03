@@ -72,7 +72,7 @@ function PendingInvoiceCard({ item }: { item: InvoicePendingItem }) {
   return (
     <>
       <InvoiceCard
-        name={item.vendorName}
+        name={item.vendorName ?? '—'}
         item={item}
         onCardClick={() => navigate(invoiceDetailPath(item.id))}
         onMessageClick={() => navigate(`${invoiceDetailPath(item.id)}?tab=messages`)}

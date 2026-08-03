@@ -18,7 +18,11 @@ import EnvelopeIcon from '@forethread/ui-components/assets/icons/envelope-simple
 import IdBadgeIcon from '@forethread/ui-components/assets/icons/id-badge.svg?react';
 import PhoneIcon from '@forethread/ui-components/assets/icons/phone.svg?react';
 import UserOutlineIcon from '@forethread/ui-components/assets/icons/user-outline.svg?react';
+import { useMemo } from 'react';
 import { Controller } from 'react-hook-form';
+
+import { useCustomRoleList } from '@/features/roles/services/roles.service';
+import { usePermissions } from '@/shared/role';
 
 import { useEditUserForm } from '../hooks/useEditUserForm';
 import { useRoleOptions } from '../hooks/useRoleOptions';
@@ -36,6 +40,20 @@ export function EditUserModal({ onClose }: EditUserModalProps) {
     control,
     formState: { errors },
   } = form;
+
+  // Custom-role assignment (FOR-253): listed via /roles/custom, which needs
+  // `role.list`. The field only renders when the company has custom roles.
+  const { has } = usePermissions();
+  const canListCustomRoles = has('role.list');
+  const { data: customRoles } = useCustomRoleList(canListCustomRoles);
+  const customRoleOptions = useMemo(
+    () => [
+      { value: '', label: t('editModal.noCustomRole') },
+      ...(customRoles ?? []).map((r) => ({ value: r.id, label: r.name })),
+    ],
+    [customRoles, t],
+  );
+  const showCustomRoleField = canListCustomRoles && (customRoles?.length ?? 0) > 0;
 
   if (isLoadingUser) {
     return (
@@ -120,6 +138,33 @@ export function EditUserModal({ onClose }: EditUserModalProps) {
           )}
         />
       </FormField>
+
+      {/* Custom role (optional, FOR-253) — overrides the role's permissions */}
+      {showCustomRoleField && (
+        <div>
+          <label className="mb-1.5 block px-2">
+            <span className="text-[16px] font-medium leading-[1.4] tracking-[0.3px] text-gray-800">
+              {t('editModal.customRole')}{' '}
+              <span className="text-[12px] font-normal text-gray-500">
+                ({t('editModal.customRoleHint')})
+              </span>
+            </span>
+          </label>
+          <Controller
+            name="customRoleId"
+            control={control}
+            render={({ field }) => (
+              <CustomDropdown
+                options={customRoleOptions}
+                value={field.value ?? ''}
+                onChange={field.onChange}
+                placeholder={t('editModal.selectCustomRole')}
+                leftIcon={<IdBadgeIcon className="w-5 h-5" />}
+              />
+            )}
+          />
+        </div>
+      )}
 
       {/* Position (optional) */}
       <div>

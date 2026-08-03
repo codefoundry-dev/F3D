@@ -104,6 +104,7 @@ export const ROUTES = {
   settings: '/settings',
   roles: '/settings/roles',
   roleEdit: '/settings/roles/:role',
+  customRoleEdit: '/settings/roles/custom/:id',
 } as const;
 
 export type RouteKey = keyof typeof ROUTES;

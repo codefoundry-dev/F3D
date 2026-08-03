@@ -85,7 +85,9 @@ export class UpdateWarehouseDto extends CreateWarehouseDto {}
 export class InviteVendorUserDto {
   @IsString() @IsNotEmpty() name!: string;
   @IsEmail() email!: string;
-  @IsString() @IsNotEmpty() position!: string;
+  // Optional to match the invite forms, where position is an optional field
+  // (FOR-289 — a required check here silently 400'd invites sent without one).
+  @IsOptional() @IsString() position?: string;
 }
 
 /**

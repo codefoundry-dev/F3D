@@ -2,18 +2,25 @@ import { randomUUID } from 'crypto';
 import * as path from 'path';
 
 import {
+  ApproveInvoiceDto,
   InvoiceListQueryDto,
   RejectInvoiceDto,
+  ReviewInvoiceDto,
   buildPaginationMeta,
+  type InvoiceExtractionResult,
 } from '@forethread/shared-types';
 import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  CompanyType,
+  DocExtractionStatus,
+  DocExtractionType,
   NotificationEntityType,
   NotificationType,
   InvoiceStatus as PrismaInvoiceStatus,
@@ -26,6 +33,7 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
 import { invoiceReference } from '../../common/utils/invoice-reference.util';
 import { resolveVendorEmailRecipients } from '../../common/utils/vendor-recipients.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditAction, AuditService } from '../audit/audit.service';
 import { BrandingService } from '../export/branding.service';
 import { NotificationService } from '../notification-feed/notification.service';
 import { EmailService } from '../notifications/email.service';
@@ -33,8 +41,15 @@ import { StorageService } from '../storage/storage.service';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
+/** Reviewed text fields collapse to null when blank — '' is never stored. */
+function trimmedOrNull(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed === undefined || trimmed === '' ? null : trimmed;
+}
+
 @Injectable()
 export class InvoicesService {
+  private readonly logger = new Logger(InvoicesService.name);
   private readonly webAppUrl: string;
 
   constructor(
@@ -43,9 +58,41 @@ export class InvoicesService {
     private readonly emailService: EmailService,
     private readonly notifications: NotificationService,
     private readonly branding: BrandingService,
+    private readonly audit: AuditService,
     config: ConfigService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
+  }
+
+  /**
+   * Record an invoice state transition on the audit trail (FOR-294), with the
+   * reviewer's reason when one was given. Best-effort: the transition is
+   * already committed, so an audit failure must never throw back into the
+   * request.
+   */
+  private async auditTransition(
+    action: AuditAction,
+    invoiceId: string,
+    user: AuthenticatedUser,
+    from: PrismaInvoiceStatus,
+    to: PrismaInvoiceStatus,
+    reason?: string | null,
+  ): Promise<void> {
+    try {
+      await this.audit.log({
+        action,
+        performedById: user.id,
+        targetType: 'Invoice',
+        targetId: invoiceId,
+        metadata: { from, to, ...(reason ? { reason } : {}) },
+      });
+    } catch (err) {
+      this.logger.debug(
+        `Failed to audit invoice transition ${from}→${to}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   // ── List Invoices ──────────────────────────────────────────────────────────
@@ -104,6 +151,7 @@ export class InvoicesService {
     if (query.search) {
       where.OR = [
         { id: { contains: query.search, mode: 'insensitive' } },
+        { invoiceNumber: { contains: query.search, mode: 'insensitive' } },
         { project: { name: { contains: query.search, mode: 'insensitive' } } },
         { vendor: { legalName: { contains: query.search, mode: 'insensitive' } } },
       ];
@@ -147,16 +195,20 @@ export class InvoicesService {
     ]);
 
     return {
+      // project/vendor/totalAmount are null on intake-created invoices that
+      // haven't been reviewed yet (FOR-290).
       items: items.map((inv) => ({
         id: inv.id,
-        projectName: inv.project.name,
+        projectName: inv.project?.name ?? null,
         projectId: inv.projectId,
-        projectCode: inv.project.code,
-        vendorName: inv.vendor.legalName,
+        projectCode: inv.project?.code ?? null,
+        vendorName: inv.vendor?.legalName ?? null,
         status: inv.status,
+        source: inv.source,
         relatedPo: inv.relatedPo?.id ?? null,
-        totalAmount: Number(inv.totalAmount),
+        totalAmount: inv.totalAmount === null ? null : Number(inv.totalAmount),
         dueDate: inv.dueDate?.toISOString() ?? null,
+        invoiceNumber: inv.invoiceNumber,
       })),
       meta: buildPaginationMeta(query.page ?? 1, query.take, total),
     };
@@ -170,7 +222,8 @@ export class InvoicesService {
       include: {
         project: { select: { name: true } },
         vendor: { select: { legalName: true } },
-        relatedPo: { select: { id: true } },
+        relatedPo: { select: { id: true, poNumber: true } },
+        lines: { orderBy: { position: 'asc' } },
         documents: {
           include: {
             file: {
@@ -184,37 +237,198 @@ export class InvoicesService {
 
     if (!inv) throw new NotFoundException(ERR.invoices.notFound);
 
+    // The latest extraction for this invoice (FOR-291) — the review UI's
+    // prefill source and processing/failure indicator.
+    const extraction = await this.prisma.docExtraction.findFirst({
+      where: { invoiceId: id, type: DocExtractionType.INVOICE },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        errorCode: true,
+        editedResult: true,
+        completedAt: true,
+      },
+    });
+
     return {
       id: inv.id,
-      projectName: inv.project.name,
+      projectName: inv.project?.name ?? null,
       projectId: inv.projectId,
-      vendorName: inv.vendor.legalName,
+      vendorName: inv.vendor?.legalName ?? null,
       status: inv.status,
+      source: inv.source,
+      senderEmail: inv.senderEmail,
       relatedPo: inv.relatedPo?.id ?? null,
-      totalAmount: Number(inv.totalAmount),
+      relatedPoNumber: inv.relatedPo?.poNumber ?? null,
+      totalAmount: inv.totalAmount === null ? null : Number(inv.totalAmount),
       dueDate: inv.dueDate?.toISOString() ?? null,
+      invoiceNumber: inv.invoiceNumber,
+      issuedDate: inv.issuedDate?.toISOString() ?? null,
+      reviewedAt: inv.reviewedAt?.toISOString() ?? null,
+      lines: inv.lines.map((line) => ({
+        id: line.id,
+        lineId: line.lineId,
+        description: line.description,
+        quantity: line.quantity === null ? null : Number(line.quantity),
+        unit: line.unit,
+        unitPrice: line.unitPrice === null ? null : Number(line.unitPrice),
+        lineTotal: line.lineTotal === null ? null : Number(line.lineTotal),
+        costCode: line.costCode,
+        glAccount: line.glAccount,
+      })),
+      extraction: extraction
+        ? {
+            id: extraction.id,
+            status: extraction.status,
+            errorCode: extraction.errorCode,
+            completedAt: extraction.completedAt?.toISOString() ?? null,
+            result:
+              extraction.status === DocExtractionStatus.COMPLETED ||
+              extraction.status === DocExtractionStatus.CONFIRMED
+                ? (extraction.editedResult as unknown as InvoiceExtractionResult | null)
+                : null,
+          }
+        : null,
       createdAt: inv.createdAt.toISOString(),
       updatedAt: inv.updatedAt.toISOString(),
       documents: inv.documents.map((doc) => ({
         id: doc.id,
         name: doc.file.filename,
         fileId: doc.fileId,
-        uploadedBy: {
-          name: doc.file.uploadedBy.name,
-          email: doc.file.uploadedBy.email,
-          avatarUrl: null,
-        },
+        // Email-intake documents have no uploading user (FOR-290).
+        uploadedBy: doc.file.uploadedBy
+          ? {
+              name: doc.file.uploadedBy.name,
+              email: doc.file.uploadedBy.email,
+              avatarUrl: null,
+            }
+          : null,
         uploadedAt: doc.createdAt.toISOString(),
       })),
     };
   }
 
-  // ── Approve Invoice ────────────────────────────────────────────────────────
+  // ── Review Invoice (FOR-291) ───────────────────────────────────────────────
 
-  async approveInvoice(id: string, user: AuthenticatedUser) {
+  /**
+   * Persist the reviewer's confirmed/corrected fields onto the invoice.
+   * Replace semantics: every save writes the full set of reviewed fields and
+   * swaps the line items wholesale, so the record always reflects the
+   * reviewer's latest statement of what the document says. Only Pending
+   * invoices are reviewable — approval freezes the record.
+   */
+  async reviewInvoice(id: string, dto: ReviewInvoiceDto, user: AuthenticatedUser) {
     const inv = await this.prisma.invoice.findUnique({
       where: { id },
       select: { id: true, status: true, companyId: true },
+    });
+
+    if (!inv) throw new NotFoundException(ERR.invoices.notFound);
+
+    if (user.role !== UserRole.SUPER_ADMIN && user.companyId !== inv.companyId) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
+
+    if (inv.status !== PrismaInvoiceStatus.PENDING) {
+      throw new BadRequestException(ERR.invoices.cannotReview(inv.status));
+    }
+
+    if (dto.vendorId) {
+      const vendor = await this.prisma.company.findFirst({
+        where: { id: dto.vendorId, type: CompanyType.VENDOR },
+        select: { id: true },
+      });
+      if (!vendor) throw new BadRequestException(ERR.invoices.reviewVendorNotFound);
+    }
+
+    if (dto.projectId) {
+      const project = await this.prisma.project.findFirst({
+        where: { id: dto.projectId, companyId: inv.companyId },
+        select: { id: true },
+      });
+      if (!project) throw new BadRequestException(ERR.invoices.reviewProjectNotFound);
+    }
+
+    // The PO the invoice bills against (FOR-293) — must be one of the buying
+    // company's own POs.
+    if (dto.relatedPoId) {
+      const po = await this.prisma.purchaseOrder.findFirst({
+        where: { id: dto.relatedPoId, companyId: inv.companyId },
+        select: { id: true },
+      });
+      if (!po) throw new BadRequestException(ERR.invoices.reviewPoNotFound);
+    }
+
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.invoice.update({
+        where: { id },
+        data: {
+          vendorId: dto.vendorId ?? null,
+          projectId: dto.projectId ?? null,
+          relatedPoId: dto.relatedPoId ?? null,
+          invoiceNumber: trimmedOrNull(dto.invoiceNumber),
+          issuedDate: dto.issuedDate ? new Date(dto.issuedDate) : null,
+          dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+          totalAmount: dto.totalAmount ?? null,
+          reviewedByUserId: user.id,
+          reviewedAt: now,
+          // Review moves dueDate, so the reminder ledger (US 8.09) must reset —
+          // the new date is what should be reminded on. Reviews only happen
+          // while Pending (reminders sweep Approved), so nothing has fired yet.
+          dueReminderSentAt: null,
+          overdueReminderSentAt: null,
+        },
+        select: { id: true },
+      }),
+      this.prisma.invoiceLineItem.deleteMany({ where: { invoiceId: id } }),
+      this.prisma.invoiceLineItem.createMany({
+        data: dto.lines.map((line, position) => ({
+          invoiceId: id,
+          position,
+          lineId: trimmedOrNull(line.lineId),
+          description: line.description.trim(),
+          quantity: line.quantity ?? null,
+          unit: trimmedOrNull(line.unit),
+          unitPrice: line.unitPrice ?? null,
+          lineTotal: line.lineTotal ?? null,
+          costCode: trimmedOrNull(line.costCode),
+          glAccount: trimmedOrNull(line.glAccount),
+        })),
+      }),
+      // A human has signed off on the extracted values — the completed
+      // extraction job graduates to Confirmed.
+      this.prisma.docExtraction.updateMany({
+        where: {
+          invoiceId: id,
+          type: DocExtractionType.INVOICE,
+          status: DocExtractionStatus.COMPLETED,
+        },
+        data: {
+          status: DocExtractionStatus.CONFIRMED,
+          confirmedByUserId: user.id,
+          confirmedAt: now,
+        },
+      }),
+    ]);
+
+    return this.getInvoice(id, user);
+  }
+
+  // ── Approve Invoice ────────────────────────────────────────────────────────
+
+  async approveInvoice(id: string, dto: ApproveInvoiceDto, user: AuthenticatedUser) {
+    const inv = await this.prisma.invoice.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        companyId: true,
+        projectId: true,
+        vendorId: true,
+        totalAmount: true,
+      },
     });
 
     if (!inv) throw new NotFoundException(ERR.invoices.notFound);
@@ -228,6 +442,12 @@ export class InvoicesService {
       throw new BadRequestException(ERR.invoices.cannotApprove(inv.status));
     }
 
+    // Intake-created invoices (FOR-290) stay unapprovable until review
+    // (FOR-291) has filled in who it's from, what it's for, and how much.
+    if (inv.vendorId === null || inv.projectId === null || inv.totalAmount === null) {
+      throw new BadRequestException(ERR.invoices.notReviewed);
+    }
+
     const updated = await this.prisma.invoice.update({
       where: { id },
       data: { status: PrismaInvoiceStatus.APPROVED },
@@ -238,14 +458,23 @@ export class InvoicesService {
       },
     });
 
+    await this.auditTransition(
+      AuditAction.INVOICE_APPROVED,
+      id,
+      user,
+      inv.status,
+      PrismaInvoiceStatus.APPROVED,
+      trimmedOrNull(dto.reason),
+    );
+
     return {
       id: updated.id,
-      projectName: updated.project.name,
+      projectName: updated.project?.name ?? null,
       projectId: updated.projectId,
-      vendorName: updated.vendor.legalName,
+      vendorName: updated.vendor?.legalName ?? null,
       status: updated.status,
       relatedPo: updated.relatedPo?.id ?? null,
-      totalAmount: Number(updated.totalAmount),
+      totalAmount: updated.totalAmount === null ? null : Number(updated.totalAmount),
       dueDate: updated.dueDate?.toISOString() ?? null,
     };
   }
@@ -282,6 +511,15 @@ export class InvoicesService {
       },
     });
 
+    await this.auditTransition(
+      AuditAction.INVOICE_REJECTED,
+      id,
+      user,
+      inv.status,
+      PrismaInvoiceStatus.REJECTED,
+      trimmedOrNull(dto.reason),
+    );
+
     // Tell the vendor their invoice was rejected / a discrepancy was raised
     // (US 8.05 / 8.06). Fire-and-forget, like every other transactional
     // notification — the status change is already committed.
@@ -289,12 +527,12 @@ export class InvoicesService {
 
     return {
       id: updated.id,
-      projectName: updated.project.name,
+      projectName: updated.project?.name ?? null,
       projectId: updated.projectId,
-      vendorName: updated.vendor.legalName,
+      vendorName: updated.vendor?.legalName ?? null,
       status: updated.status,
       relatedPo: updated.relatedPo?.id ?? null,
-      totalAmount: Number(updated.totalAmount),
+      totalAmount: updated.totalAmount === null ? null : Number(updated.totalAmount),
       dueDate: updated.dueDate?.toISOString() ?? null,
     };
   }
@@ -312,13 +550,16 @@ export class InvoicesService {
     invoice: {
       id: string;
       companyId: string;
-      vendorId: string;
+      vendorId: string | null;
       rejectionReason: string | null;
-      project: { name: string };
+      project: { name: string } | null;
       company: { legalName: string };
     },
     rejectedByUserId: string,
   ): Promise<void> {
+    // Intake invoices that review never linked to a vendor have no one to tell.
+    if (!invoice.vendorId) return;
+
     const vendor = await this.prisma.company.findUnique({
       where: { id: invoice.vendorId },
       select: {
@@ -336,6 +577,8 @@ export class InvoicesService {
 
     const reference = invoiceReference(invoice.id);
     const viewUrl = `${this.webAppUrl}/invoices/${invoice.id}`;
+    // Intake invoices may be rejected before review linked them to a project.
+    const projectName = invoice.project?.name ?? null;
     // The rejecting (buyer) company's logo + name, shown atop the email (FOR-288).
     const brand = await this.branding.getEmailBrand(invoice.companyId);
 
@@ -346,7 +589,7 @@ export class InvoicesService {
           {
             invoiceReference: reference,
             companyName: invoice.company.legalName,
-            projectName: invoice.project.name,
+            projectName: projectName ?? '',
           },
           viewUrl,
           { comment: invoice.rejectionReason, brand },
@@ -357,7 +600,9 @@ export class InvoicesService {
     await this.notifications.createForEmails(recipients, {
       type: NotificationType.INVOICE_REJECTED,
       title: 'Invoice rejected',
-      body: `${invoice.company.legalName} rejected invoice ${reference} for ${invoice.project.name}.`,
+      body: projectName
+        ? `${invoice.company.legalName} rejected invoice ${reference} for ${projectName}.`
+        : `${invoice.company.legalName} rejected invoice ${reference}.`,
       entityType: NotificationEntityType.INVOICE,
       entityId: invoice.id,
       metadata: { rejectedByUserId },
@@ -374,6 +619,11 @@ export class InvoicesService {
     const where: Prisma.InvoiceWhereInput = {
       id: { in: ids },
       status: PrismaInvoiceStatus.PENDING,
+      // Unreviewed intake invoices (FOR-290) are skipped, mirroring the
+      // single-approve guard; approvedCount reflects how many qualified.
+      vendorId: { not: null },
+      projectId: { not: null },
+      totalAmount: { not: null },
     };
 
     // Scope by company
@@ -381,15 +631,71 @@ export class InvoicesService {
       where.companyId = user.companyId;
     }
 
+    // Resolve the qualifying rows first so each approval lands on the audit
+    // trail (FOR-294); the updateMany keeps the same guard so a row that
+    // changed in between is not silently approved.
+    const qualifying = await this.prisma.invoice.findMany({ where, select: { id: true } });
+
     const result = await this.prisma.invoice.updateMany({
       where,
       data: { status: PrismaInvoiceStatus.APPROVED },
     });
 
+    await Promise.all(
+      qualifying.map((q) =>
+        this.auditTransition(
+          AuditAction.INVOICE_APPROVED,
+          q.id,
+          user,
+          PrismaInvoiceStatus.PENDING,
+          PrismaInvoiceStatus.APPROVED,
+        ),
+      ),
+    );
+
     return {
       approvedCount: result.count,
       requestedCount: ids.length,
     };
+  }
+
+  // ── Invoice audit trail (FOR-294) ─────────────────────────────────────────
+
+  /**
+   * Chronological state history for an invoice: who moved it, when, and why
+   * (approve note / rejection reason travel in `metadata.reason`). Visibility
+   * mirrors the list scoping — the owning (buyer) company, the billed vendor,
+   * and SUPER_ADMIN.
+   */
+  async getAuditTrail(id: string, user: AuthenticatedUser) {
+    const inv = await this.prisma.invoice.findUnique({
+      where: { id },
+      select: { id: true, companyId: true, vendorId: true },
+    });
+
+    if (!inv) throw new NotFoundException(ERR.invoices.notFound);
+
+    const hasAccess =
+      user.role === UserRole.SUPER_ADMIN ||
+      user.companyId === inv.companyId ||
+      (inv.vendorId !== null && user.companyId === inv.vendorId);
+    if (!hasAccess) throw new ForbiddenException(ERR.general.accessDenied);
+
+    const logs = await this.prisma.auditLog.findMany({
+      where: { targetType: 'Invoice', targetId: id },
+      orderBy: { createdAt: 'asc' },
+      include: { performedBy: { select: { id: true, name: true, email: true } } },
+    });
+
+    return logs.map((log) => ({
+      id: log.id,
+      action: log.action,
+      metadata: log.metadata,
+      performedBy: log.performedBy
+        ? { id: log.performedBy.id, name: log.performedBy.name, email: log.performedBy.email }
+        : null,
+      createdAt: log.createdAt.toISOString(),
+    }));
   }
 
   // ── Upload Invoice Document ─────────────────────────────────────────────────
@@ -435,11 +741,15 @@ export class InvoicesService {
       id: doc.id,
       name: doc.file.filename,
       fileId: doc.fileId,
-      uploadedBy: {
-        name: doc.file.uploadedBy.name,
-        email: doc.file.uploadedBy.email,
-        avatarUrl: null,
-      },
+      // Always present on this path (the file was just created with an
+      // uploader); typed nullable since FOR-290 email-intake files.
+      uploadedBy: doc.file.uploadedBy
+        ? {
+            name: doc.file.uploadedBy.name,
+            email: doc.file.uploadedBy.email,
+            avatarUrl: null,
+          }
+        : null,
       uploadedAt: doc.createdAt.toISOString(),
     };
   }

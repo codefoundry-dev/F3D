@@ -13,6 +13,8 @@ export interface ProfileInfoGridProps {
   phone: string | null;
   status: string;
   role: string;
+  /** Overrides the translated role name — e.g. an assigned custom role (FOR-253). */
+  roleLabel?: string;
   createdAt: string;
   position: string | null;
   company?: string | null;
@@ -26,6 +28,7 @@ export function ProfileInfoGrid({
   phone,
   status,
   role,
+  roleLabel,
   createdAt,
   position,
   company,
@@ -53,7 +56,7 @@ export function ProfileInfoGrid({
 
         <InfoField label={t('role')}>
           <BriefcaseIcon className="w-4 h-4 text-muted-foreground" />
-          {t(`users:roles.${role}` as 'users:roles.COMPANY_ADMIN')}
+          {roleLabel ?? t(`users:roles.${role}` as 'users:roles.COMPANY_ADMIN')}
         </InfoField>
 
         <InfoField label={t('dateJoined')}>

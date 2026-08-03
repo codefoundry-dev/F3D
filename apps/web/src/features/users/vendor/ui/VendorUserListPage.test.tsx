@@ -20,6 +20,7 @@ const mockUsers: UserResponse[] = [
     email: 'bob@test.com',
     phone: null,
     status: 'INVITED',
+    invitePending: true,
     role: 'VENDOR',
     createdAt: '2024-02-20T00:00:00Z',
     position: null,
@@ -309,6 +310,29 @@ describe('VendorUserListPage', () => {
       'cancelInvitation',
       'u2',
       'bob@test.com',
+    );
+  });
+
+  it('offers only Send invitation for a contact-only rep (no pending invite, FOR-289)', () => {
+    mockUseVendorUsers.mockReturnValueOnce({
+      data: {
+        items: [{ ...mockUsers[1], id: 'u4', email: 'dana@test.com', invitePending: false }],
+        meta: { page: 1, limit: 25, total: 1, totalPages: 1 },
+      },
+      isLoading: false,
+      isError: false,
+    });
+    render(<VendorUserListPage />);
+    const dotMenu = screen.getByTestId('dot-menu');
+    expect(dotMenu.querySelector('[data-testid="action-sendInvitation"]')).toBeTruthy();
+    expect(dotMenu.querySelector('[data-testid="action-resendInvitation"]')).toBeNull();
+    expect(dotMenu.querySelector('[data-testid="action-cancelInvitation"]')).toBeNull();
+
+    fireEvent.click(dotMenu.querySelector('[data-testid="action-sendInvitation"]')!);
+    expect(mockStoreState.openStatusActionModal).toHaveBeenCalledWith(
+      'sendInvitation',
+      'u4',
+      'dana@test.com',
     );
   });
 

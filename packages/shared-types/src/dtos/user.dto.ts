@@ -61,6 +61,15 @@ export class UpdateUserDto {
   @IsString()
   @IsOptional()
   position?: string;
+
+  /**
+   * Custom-role assignment (FOR-253). A string assigns that custom role, null
+   * unassigns, absent leaves the assignment untouched.
+   */
+  @ApiPropertyOptional({ nullable: true })
+  @IsString()
+  @IsOptional()
+  customRoleId?: string | null;
 }
 
 export class UpdateMeDto {

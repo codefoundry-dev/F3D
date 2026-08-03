@@ -7,6 +7,13 @@ export interface AuthenticatedUser {
   email: string;
   role: UserRole;
   companyId: string | null;
+  /**
+   * Custom-role assignment (FOR-253). When set, the custom role's permission
+   * grants replace the built-in role's for this user. Optional so existing
+   * fixtures/tests that build an AuthenticatedUser literal keep compiling —
+   * absent means "no custom role".
+   */
+  customRoleId?: string | null;
 }
 
 /** Extracts the authenticated user from the JWT-validated request */

@@ -514,7 +514,8 @@
     "submittedForApproval": "Purchase order submitted for approval",
     "failed": "Failed to send purchase order. Please try again.",
     "approved": "Purchase order approved",
-    "approveFailed": "Failed to approve purchase order. Please try again."
+    "approveFailed": "Failed to approve purchase order. Please try again.",
+    "overApprovalLimit": "This order's total ({{amount}} {{currency}}) is above your approval limit of {{limit}} {{currency}}. It needs an approver with a higher limit."
   },
   "approvedQuotes": {
     "title": "Add from Approved quotes",

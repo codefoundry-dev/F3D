@@ -1,7 +1,9 @@
 import {
+  ApproveInvoiceDto,
   BulkApproveInvoicesDto,
   InvoiceListQueryDto,
   RejectInvoiceDto,
+  ReviewInvoiceDto,
 } from '@forethread/shared-types';
 import {
   Body,
@@ -24,6 +26,8 @@ import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-
 import { RequirePermissions } from '../../common/permissions';
 
 import { InvoiceExportService } from './invoice-export.service';
+import { InvoiceIntakeService } from './invoice-intake.service';
+import { InvoiceMatchingService } from './invoice-matching.service';
 import { InvoicesService } from './invoices.service';
 
 @ApiTags('Invoices')
@@ -33,7 +37,37 @@ export class InvoicesController {
   constructor(
     private readonly invoicesService: InvoicesService,
     private readonly invoiceExportService: InvoiceExportService,
+    private readonly invoiceIntakeService: InvoiceIntakeService,
+    private readonly invoiceMatchingService: InvoiceMatchingService,
   ) {}
+
+  // ── POST /v1/invoices/upload ───────────────────────────────────────────────
+
+  @Post('upload')
+  @UseInterceptors(FileInterceptor('file'))
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('invoice.upload')
+  @ApiOperation({ summary: 'Upload an invoice file, creating a new Pending invoice (FOR-290)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiResponse({ status: 201, description: 'Invoice created from the uploaded file' })
+  @ApiResponse({ status: 400, description: 'Missing, oversized, or unsupported file' })
+  async uploadInvoice(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.invoiceIntakeService.uploadInvoice(file, user);
+  }
+
+  // ── GET /v1/invoices/intake-address ────────────────────────────────────────
+  // NOTE: Must be before :id route to avoid NestJS matching "intake-address" as an id
+
+  @Get('intake-address')
+  @RequirePermissions('invoice.upload')
+  @ApiOperation({ summary: "Get the company's invoice-intake email address (FOR-290)" })
+  @ApiResponse({ status: 200, description: 'Intake address, or email: null when not configured' })
+  async getIntakeAddress(@CurrentUser() user: AuthenticatedUser) {
+    return this.invoiceIntakeService.getIntakeAddress(user);
+  }
 
   // ── GET /v1/invoices/export/:format ─────────────────────────────────────
   // NOTE: Must be before :id route to avoid NestJS matching "export" as an id
@@ -88,16 +122,65 @@ export class InvoicesController {
     return this.invoicesService.getInvoice(id, user);
   }
 
+  // ── GET /v1/invoices/:id/po-match ──────────────────────────────────────────
+
+  @Get(':id/po-match')
+  @RequirePermissions('invoice.review')
+  @ApiOperation({
+    summary:
+      'Reconcile the invoice against its PO: per-line price/quantity variance and unexpected-line flags (FOR-293)',
+  })
+  @ApiResponse({ status: 200, description: 'Match report for the reviewer' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  async getPoMatch(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.invoiceMatchingService.getPoMatch(id, user);
+  }
+
+  // ── PATCH /v1/invoices/:id/review ──────────────────────────────────────────
+
+  @Patch(':id/review')
+  @RequirePermissions('invoice.review')
+  @ApiOperation({
+    summary: 'Persist reviewer-confirmed/corrected invoice fields and line items (FOR-291)',
+  })
+  @ApiResponse({ status: 200, description: 'Invoice updated with the reviewed fields' })
+  @ApiResponse({ status: 400, description: 'Invoice is not Pending, or a reference is invalid' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  async reviewInvoice(
+    @Param('id') id: string,
+    @Body() dto: ReviewInvoiceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.invoicesService.reviewInvoice(id, dto, user);
+  }
+
+  // ── GET /v1/invoices/:id/audit ─────────────────────────────────────────────
+
+  @Get(':id/audit')
+  @RequirePermissions('invoice.read')
+  @ApiOperation({
+    summary: 'State history for the invoice — transitions with reasons (FOR-294)',
+  })
+  @ApiResponse({ status: 200, description: 'Chronological audit entries for the invoice' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  async getInvoiceAudit(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.invoicesService.getAuditTrail(id, user);
+  }
+
   // ── PATCH /v1/invoices/:id/approve ─────────────────────────────────────────
 
   @Patch(':id/approve')
   @RequirePermissions('invoice.approve')
-  @ApiOperation({ summary: 'Approve a pending invoice' })
+  @ApiOperation({ summary: 'Approve a pending invoice (optional reason recorded on the trail)' })
   @ApiResponse({ status: 200, description: 'Invoice approved' })
   @ApiResponse({ status: 400, description: 'Invoice is not in Pending status' })
   @ApiResponse({ status: 404, description: 'Invoice not found' })
-  async approveInvoice(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.invoicesService.approveInvoice(id, user);
+  async approveInvoice(
+    @Param('id') id: string,
+    @Body() dto: ApproveInvoiceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.invoicesService.approveInvoice(id, dto, user);
   }
 
   // ── PATCH /v1/invoices/:id/reject ──────────────────────────────────────────

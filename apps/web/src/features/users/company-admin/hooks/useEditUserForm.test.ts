@@ -103,6 +103,7 @@ describe('useEditUserForm', () => {
       email: 'test@t.com',
       phone: '123',
       role: 'Admin',
+      customRoleId: 'cr-1',
       position: 'Dev',
     };
     mockUseUser.mockReturnValue({ data: user, isLoading: false });
@@ -117,6 +118,7 @@ describe('useEditUserForm', () => {
       email: 'test@t.com',
       phone: '123',
       role: 'Admin',
+      customRoleId: 'cr-1',
       position: 'Dev',
       department: '',
     });
@@ -143,6 +145,7 @@ describe('useEditUserForm', () => {
       email: 'test@t.com',
       phone: '',
       role: 'Admin',
+      customRoleId: '',
       position: '',
       department: '',
     });
@@ -157,6 +160,7 @@ describe('useEditUserForm', () => {
         dto: {
           name: 'Updated',
           role: 'Admin',
+          customRoleId: null,
           position: 'Dev',
           phone: '123',
         },
@@ -192,10 +196,32 @@ describe('useEditUserForm', () => {
         dto: {
           name: 'Test',
           role: 'Admin',
+          customRoleId: null,
           position: undefined,
           phone: undefined,
         },
       },
+      expect.any(Object),
+    );
+  });
+
+  it('handleSubmit sends the selected custom role id (FOR-253)', () => {
+    mockHandleSubmit.mockImplementationOnce((cb: any) => {
+      return () =>
+        cb({
+          name: 'Test',
+          email: 'e@e.com',
+          role: 'Admin',
+          customRoleId: 'cr-9',
+          phone: '',
+          position: '',
+          department: '',
+        });
+    });
+    const result = useEditUserForm(mockOnClose);
+    void result.handleSubmit();
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ dto: expect.objectContaining({ customRoleId: 'cr-9' }) }),
       expect.any(Object),
     );
   });

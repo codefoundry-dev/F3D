@@ -7,6 +7,11 @@ const mockService = {
   listRoles: jest.fn(),
   getRoleDetail: jest.fn(),
   updateRolePermissions: jest.fn(),
+  listCustomRoles: jest.fn(),
+  createCustomRole: jest.fn(),
+  getCustomRoleDetail: jest.fn(),
+  updateCustomRole: jest.fn(),
+  deleteCustomRole: jest.fn(),
 };
 
 const authUser = { id: 'actor-1', role: 'COMPANY_ADMIN', companyId: 'co-1' };
@@ -64,5 +69,165 @@ describe('RolesController', () => {
       undefined,
     );
     expect(result).toEqual({ role: 'VENDOR', permissionKeys: ['rfq.read'] });
+  });
+
+  it('listCustomRoles scopes to the caller company and wraps in { items }', async () => {
+    mockService.listCustomRoles.mockResolvedValue([{ id: 'cr-1', name: 'Junior Buyer' }]);
+
+    await expect(controller.listCustomRoles(authUser)).resolves.toEqual({
+      items: [{ id: 'cr-1', name: 'Junior Buyer' }],
+    });
+    expect(mockService.listCustomRoles).toHaveBeenCalledWith('co-1');
+  });
+
+  it('createCustomRole forwards the caller company, actor id and IP', async () => {
+    mockService.createCustomRole.mockResolvedValue({ id: 'cr-1', name: 'Junior Buyer' });
+    const req = { ip: '10.0.0.5', socket: { remoteAddress: '10.0.0.5' } } as unknown as Request;
+
+    const result = await controller.createCustomRole({ name: 'Junior Buyer' }, authUser, req);
+
+    expect(mockService.createCustomRole).toHaveBeenCalledWith(
+      'co-1',
+      { name: 'Junior Buyer' },
+      'actor-1',
+      '10.0.0.5',
+    );
+    expect(result).toEqual({ id: 'cr-1', name: 'Junior Buyer' });
+  });
+
+  it('getCustomRole delegates the id and caller company to the service', async () => {
+    mockService.getCustomRoleDetail.mockResolvedValue({ id: 'cr-1', permissionKeys: [] });
+
+    await expect(controller.getCustomRole('cr-1', authUser)).resolves.toEqual({
+      id: 'cr-1',
+      permissionKeys: [],
+    });
+    expect(mockService.getCustomRoleDetail).toHaveBeenCalledWith('cr-1', 'co-1');
+  });
+
+  it('updateCustomRole forwards the dto, actor id and IP', async () => {
+    mockService.updateCustomRole.mockResolvedValue({ id: 'cr-1', name: 'Site Buyer' });
+    const req = { ip: '10.0.0.6', socket: { remoteAddress: '10.0.0.6' } } as unknown as Request;
+
+    await controller.updateCustomRole('cr-1', { name: 'Site Buyer' }, authUser, req);
+
+    expect(mockService.updateCustomRole).toHaveBeenCalledWith(
+      'cr-1',
+      'co-1',
+      { name: 'Site Buyer' },
+      'actor-1',
+      '10.0.0.6',
+    );
+  });
+
+  it('deleteCustomRole forwards the id, caller company, actor id and IP', async () => {
+    mockService.deleteCustomRole.mockResolvedValue({ message: 'Custom role deleted' });
+    const req = { ip: '10.0.0.7', socket: { remoteAddress: '10.0.0.7' } } as unknown as Request;
+
+    await expect(controller.deleteCustomRole('cr-1', authUser, req)).resolves.toEqual({
+      message: 'Custom role deleted',
+    });
+    expect(mockService.deleteCustomRole).toHaveBeenCalledWith(
+      'cr-1',
+      'co-1',
+      'actor-1',
+      '10.0.0.7',
+    );
+  });
+
+  // Express leaves req.ip undefined when the socket is gone (aborted request);
+  // every audited endpoint then falls back to the raw socket address, and to
+  // undefined when that is missing too — the audit log stores "no IP" rather
+  // than failing the request.
+  describe('client IP fallback', () => {
+    const socketOnlyReq = {
+      ip: undefined,
+      socket: { remoteAddress: '192.168.1.9' },
+    } as unknown as Request;
+    const ipLessReq = { ip: undefined, socket: {} } as unknown as Request;
+
+    it('updatePermissions falls back to the socket address, then undefined', async () => {
+      mockService.updateRolePermissions.mockResolvedValue({ role: 'VENDOR', permissionKeys: [] });
+
+      await controller.updatePermissions('VENDOR', { permissionKeys: [] }, authUser, socketOnlyReq);
+      expect(mockService.updateRolePermissions).toHaveBeenLastCalledWith(
+        'VENDOR',
+        [],
+        'actor-1',
+        '192.168.1.9',
+        undefined,
+      );
+
+      await controller.updatePermissions('VENDOR', { permissionKeys: [] }, authUser, ipLessReq);
+      expect(mockService.updateRolePermissions).toHaveBeenLastCalledWith(
+        'VENDOR',
+        [],
+        'actor-1',
+        undefined,
+        undefined,
+      );
+    });
+
+    it('createCustomRole falls back to the socket address, then undefined', async () => {
+      mockService.createCustomRole.mockResolvedValue({ id: 'cr-1' });
+
+      await controller.createCustomRole({ name: 'A' }, authUser, socketOnlyReq);
+      expect(mockService.createCustomRole).toHaveBeenLastCalledWith(
+        'co-1',
+        { name: 'A' },
+        'actor-1',
+        '192.168.1.9',
+      );
+
+      await controller.createCustomRole({ name: 'A' }, authUser, ipLessReq);
+      expect(mockService.createCustomRole).toHaveBeenLastCalledWith(
+        'co-1',
+        { name: 'A' },
+        'actor-1',
+        undefined,
+      );
+    });
+
+    it('updateCustomRole falls back to the socket address, then undefined', async () => {
+      mockService.updateCustomRole.mockResolvedValue({ id: 'cr-1' });
+
+      await controller.updateCustomRole('cr-1', { name: 'B' }, authUser, socketOnlyReq);
+      expect(mockService.updateCustomRole).toHaveBeenLastCalledWith(
+        'cr-1',
+        'co-1',
+        { name: 'B' },
+        'actor-1',
+        '192.168.1.9',
+      );
+
+      await controller.updateCustomRole('cr-1', { name: 'B' }, authUser, ipLessReq);
+      expect(mockService.updateCustomRole).toHaveBeenLastCalledWith(
+        'cr-1',
+        'co-1',
+        { name: 'B' },
+        'actor-1',
+        undefined,
+      );
+    });
+
+    it('deleteCustomRole falls back to the socket address, then undefined', async () => {
+      mockService.deleteCustomRole.mockResolvedValue({ message: 'deleted' });
+
+      await controller.deleteCustomRole('cr-1', authUser, socketOnlyReq);
+      expect(mockService.deleteCustomRole).toHaveBeenLastCalledWith(
+        'cr-1',
+        'co-1',
+        'actor-1',
+        '192.168.1.9',
+      );
+
+      await controller.deleteCustomRole('cr-1', authUser, ipLessReq);
+      expect(mockService.deleteCustomRole).toHaveBeenLastCalledWith(
+        'cr-1',
+        'co-1',
+        'actor-1',
+        undefined,
+      );
+    });
   });
 });

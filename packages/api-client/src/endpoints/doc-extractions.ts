@@ -10,7 +10,13 @@ import { DOC_EXTRACTIONS_PATHS } from './paths';
 // returns. Give it generous headroom.
 const UPLOAD_TIMEOUT_MS = 120_000;
 
-export type DocExtractionType = 'BOM' | 'QUOTE' | 'INVOICE' | 'GENERIC' | 'CATALOGUE';
+export type DocExtractionType =
+  | 'BOM'
+  | 'QUOTE'
+  | 'INVOICE'
+  | 'GENERIC'
+  | 'CATALOGUE'
+  | 'VENDOR_DOCUMENT';
 export type DocExtractionStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CONFIRMED' | 'FAILED';
 
 export interface DocExtractionFile {

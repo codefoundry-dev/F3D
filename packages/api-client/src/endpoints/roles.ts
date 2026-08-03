@@ -58,3 +58,91 @@ export async function updateRolePermissions(
   );
   return data.data;
 }
+
+// ── Custom roles (FOR-252) ───────────────────────────────────────────────────
+// Admin-defined roles scoped to the caller's company. Users are assigned one
+// via PATCH /users/:id { customRoleId } (FOR-253).
+
+export interface CustomRoleSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  permissionCount: number;
+  /** Users currently holding this role (FOR-253). */
+  assignedUserCount: number;
+  createdAt: string;
+}
+
+export interface CustomRoleDetail {
+  id: string;
+  name: string;
+  description: string | null;
+  permissionKeys: string[];
+  /** Sparse map: only granted threshold-aware permissions with a finite cap. */
+  thresholds: Record<string, number>;
+  /** Users currently holding this role (FOR-253) — non-zero blocks deletion. */
+  assignedUserCount: number;
+}
+
+export interface CreateCustomRoleDto {
+  name: string;
+  description?: string;
+  permissionKeys?: string[];
+  /** Optional. Null entries clear the cap (= unlimited). */
+  thresholds?: Record<string, number | null>;
+}
+
+export interface UpdateCustomRoleDto {
+  name?: string;
+  description?: string;
+  permissionKeys?: string[];
+  thresholds?: Record<string, number | null>;
+}
+
+export async function getCustomRoles(): Promise<CustomRoleSummary[]> {
+  const { data } = await getApiClient().get<{ data: { items: CustomRoleSummary[] } }>(
+    ROLES_PATHS.CUSTOM,
+  );
+  return data.data.items;
+}
+
+export async function createCustomRole(
+  dto: CreateCustomRoleDto,
+  config?: AxiosRequestConfig,
+): Promise<CustomRoleDetail> {
+  const { data } = await getApiClient().post<{ data: CustomRoleDetail }>(
+    ROLES_PATHS.CUSTOM,
+    dto,
+    config,
+  );
+  return data.data;
+}
+
+export async function getCustomRole(id: string): Promise<CustomRoleDetail> {
+  const { data } = await getApiClient().get<{ data: CustomRoleDetail }>(ROLES_PATHS.customById(id));
+  return data.data;
+}
+
+export async function updateCustomRole(
+  id: string,
+  dto: UpdateCustomRoleDto,
+  config?: AxiosRequestConfig,
+): Promise<CustomRoleDetail> {
+  const { data } = await getApiClient().put<{ data: CustomRoleDetail }>(
+    ROLES_PATHS.customById(id),
+    dto,
+    config,
+  );
+  return data.data;
+}
+
+export async function deleteCustomRole(
+  id: string,
+  config?: AxiosRequestConfig,
+): Promise<{ message: string }> {
+  const { data } = await getApiClient().delete<{ data: { message: string } }>(
+    ROLES_PATHS.customById(id),
+    config,
+  );
+  return data.data;
+}

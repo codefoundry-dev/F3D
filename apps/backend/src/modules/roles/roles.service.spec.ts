@@ -16,6 +16,17 @@ interface MockPrisma {
     update: jest.Mock;
     deleteMany: jest.Mock;
   };
+  customRole: {
+    findMany: jest.Mock;
+    findFirst: jest.Mock;
+    create: jest.Mock;
+    update: jest.Mock;
+    delete: jest.Mock;
+  };
+  customRolePermission: {
+    deleteMany: jest.Mock;
+    createMany: jest.Mock;
+  };
   $transaction: jest.Mock;
 }
 
@@ -33,6 +44,17 @@ describe('RolesService', () => {
         create: jest.fn().mockReturnValue({ __op: 'create' }),
         update: jest.fn().mockReturnValue({ __op: 'update' }),
         deleteMany: jest.fn().mockReturnValue({ __op: 'deleteMany' }),
+      },
+      customRole: {
+        findMany: jest.fn(),
+        findFirst: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn().mockReturnValue({ __op: 'customRole.update' }),
+        delete: jest.fn().mockResolvedValue({}),
+      },
+      customRolePermission: {
+        deleteMany: jest.fn().mockReturnValue({ __op: 'customRolePermission.deleteMany' }),
+        createMany: jest.fn().mockReturnValue({ __op: 'customRolePermission.createMany' }),
       },
       $transaction: jest.fn().mockResolvedValue([]),
     };
@@ -113,10 +135,7 @@ describe('RolesService', () => {
   });
 
   describe('updateRolePermissions', () => {
-    function arrangeCurrent(
-      currentKeys: string[],
-      currentThresholds: Record<string, number> = {},
-    ) {
+    function arrangeCurrent(currentKeys: string[], currentThresholds: Record<string, number> = {}) {
       prisma.permission.findMany.mockResolvedValue([
         { id: 'p-rfq.read', key: 'rfq.read' },
         { id: 'p-rfq.create', key: 'rfq.create' },
@@ -237,25 +256,19 @@ describe('RolesService', () => {
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ thresholdAmount: null, permission: { key: 'rfq.read' } }]);
 
-      await service.updateRolePermissions(
-        UserRole.FOREMAN,
-        ['rfq.read', 'rfq.read'],
-        'actor-1',
-      );
+      await service.updateRolePermissions(UserRole.FOREMAN, ['rfq.read', 'rfq.read'], 'actor-1');
 
       expect(prisma.rolePermission.create).toHaveBeenCalledTimes(1);
     });
 
     it('creates a new grant with the supplied threshold for a threshold-aware permission', async () => {
       arrangeCurrent([]);
-      prisma.rolePermission.findMany
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([
-          {
-            thresholdAmount: { toString: () => '25000' },
-            permission: { key: 'po.approve' },
-          },
-        ]);
+      prisma.rolePermission.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+        {
+          thresholdAmount: { toString: () => '25000' },
+          permission: { key: 'po.approve' },
+        },
+      ]);
 
       await service.updateRolePermissions(
         UserRole.PROCUREMENT_OFFICER,
@@ -328,9 +341,7 @@ describe('RolesService', () => {
             permission: { key: 'po.approve' },
           },
         ])
-        .mockResolvedValueOnce([
-          { thresholdAmount: null, permission: { key: 'po.approve' } },
-        ]);
+        .mockResolvedValueOnce([{ thresholdAmount: null, permission: { key: 'po.approve' } }]);
 
       await service.updateRolePermissions(
         UserRole.COMPANY_ADMIN,
@@ -391,6 +402,293 @@ describe('RolesService', () => {
           { 'po.approve': -1 },
         ),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ── Custom roles (FOR-252) ─────────────────────────────────────────────────
+
+  const detailRow = (over: Record<string, unknown> = {}) => ({
+    id: 'cr-1',
+    name: 'Junior Buyer',
+    description: null,
+    permissions: [
+      { thresholdAmount: null, permission: { key: 'rfq.read' } },
+      { thresholdAmount: { toString: () => '5000' }, permission: { key: 'po.approve' } },
+    ],
+    _count: { users: 0 },
+    ...over,
+  });
+
+  describe('listCustomRoles', () => {
+    it('returns summaries scoped to the given company', async () => {
+      prisma.customRole.findMany.mockResolvedValue([
+        {
+          id: 'cr-1',
+          name: 'Junior Buyer',
+          description: 'Limited PO rights',
+          createdAt: new Date('2026-07-29'),
+          _count: { permissions: 4, users: 2 },
+        },
+      ]);
+
+      const result = await service.listCustomRoles('co-1');
+
+      expect(prisma.customRole.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { companyId: 'co-1' } }),
+      );
+      expect(result).toEqual([
+        expect.objectContaining({
+          id: 'cr-1',
+          name: 'Junior Buyer',
+          permissionCount: 4,
+          assignedUserCount: 2,
+        }),
+      ]);
+    });
+  });
+
+  describe('createCustomRole', () => {
+    it('rejects a blank name', async () => {
+      await expect(service.createCustomRole('co-1', { name: '   ' }, 'actor-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('rejects a duplicate name within the company (case-insensitive)', async () => {
+      prisma.customRole.findFirst.mockResolvedValueOnce({ id: 'cr-existing' });
+
+      await expect(
+        service.createCustomRole('co-1', { name: 'junior buyer' }, 'actor-1'),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.customRole.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            companyId: 'co-1',
+            name: { equals: 'junior buyer', mode: 'insensitive' },
+          },
+        }),
+      );
+    });
+
+    it('rejects an unknown permission key', async () => {
+      prisma.customRole.findFirst.mockResolvedValueOnce(null);
+
+      await expect(
+        service.createCustomRole(
+          'co-1',
+          { name: 'Junior Buyer', permissionKeys: ['rfq.notReal'] },
+          'actor-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('creates the role with its grants and audits it', async () => {
+      prisma.customRole.findFirst
+        .mockResolvedValueOnce(null) // name-clash check
+        .mockResolvedValueOnce(detailRow()); // getCustomRoleDetail
+      prisma.permission.findMany.mockResolvedValue([
+        { id: 'p-rfq.read', key: 'rfq.read' },
+        { id: 'p-po.approve', key: 'po.approve' },
+      ]);
+      prisma.customRole.create.mockResolvedValue({ id: 'cr-1' });
+
+      const result = await service.createCustomRole(
+        'co-1',
+        {
+          name: '  Junior Buyer  ',
+          description: 'Limited PO rights',
+          permissionKeys: ['rfq.read', 'po.approve'],
+          thresholds: { 'po.approve': 5000 },
+        },
+        'actor-1',
+        '10.0.0.1',
+      );
+
+      expect(prisma.customRole.create).toHaveBeenCalledWith({
+        data: {
+          companyId: 'co-1',
+          name: 'Junior Buyer',
+          description: 'Limited PO rights',
+          permissions: {
+            create: [
+              { permissionId: 'p-rfq.read', thresholdAmount: null },
+              { permissionId: 'p-po.approve', thresholdAmount: 5000 },
+            ],
+          },
+        },
+        select: { id: true },
+      });
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: AuditAction.CUSTOM_ROLE_CREATED,
+          performedById: 'actor-1',
+          targetType: 'CustomRole',
+          targetId: 'cr-1',
+          targetLabel: 'Junior Buyer',
+          ipAddress: '10.0.0.1',
+        }),
+      );
+      expect(result.permissionKeys).toEqual(['po.approve', 'rfq.read']);
+      expect(result.thresholds).toEqual({ 'po.approve': 5000 });
+    });
+
+    it('rejects a threshold for a permission that is not granted', async () => {
+      prisma.customRole.findFirst.mockResolvedValueOnce(null);
+
+      await expect(
+        service.createCustomRole(
+          'co-1',
+          { name: 'Junior Buyer', permissionKeys: ['rfq.read'], thresholds: { 'po.approve': 1 } },
+          'actor-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('getCustomRoleDetail', () => {
+    it('404s when the role is outside the caller company scope', async () => {
+      prisma.customRole.findFirst.mockResolvedValue(null);
+      await expect(service.getCustomRoleDetail('cr-1', 'co-2')).rejects.toThrow(NotFoundException);
+    });
+
+    it('returns sorted catalog-known keys and threshold map', async () => {
+      prisma.customRole.findFirst.mockResolvedValue(
+        detailRow({
+          permissions: [
+            { thresholdAmount: null, permission: { key: 'rfq.read' } },
+            { thresholdAmount: { toString: () => '5000' }, permission: { key: 'po.approve' } },
+            { thresholdAmount: null, permission: { key: 'legacy.unknown' } },
+          ],
+        }),
+      );
+
+      const result = await service.getCustomRoleDetail('cr-1', 'co-1');
+
+      expect(result.permissionKeys).toEqual(['po.approve', 'rfq.read']);
+      expect(result.thresholds).toEqual({ 'po.approve': 5000 });
+    });
+  });
+
+  describe('updateCustomRole', () => {
+    it('404s when the role is outside the caller company scope', async () => {
+      prisma.customRole.findFirst.mockResolvedValue(null);
+      await expect(
+        service.updateCustomRole('cr-1', 'co-2', { name: 'X' }, 'actor-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('rejects renaming to another role name in the same company', async () => {
+      prisma.customRole.findFirst
+        .mockResolvedValueOnce(detailRow()) // load existing
+        .mockResolvedValueOnce({ id: 'cr-other' }); // clash check
+
+      await expect(
+        service.updateCustomRole('cr-1', 'co-1', { name: 'Senior Buyer' }, 'actor-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('replaces the grant set in one transaction and audits added/removed keys', async () => {
+      prisma.customRole.findFirst
+        .mockResolvedValueOnce(
+          detailRow({
+            permissions: [{ permission: { key: 'rfq.read' } }],
+          }),
+        ) // load existing
+        .mockResolvedValueOnce(detailRow()); // getCustomRoleDetail
+      prisma.permission.findMany.mockResolvedValue([{ id: 'p-po.approve', key: 'po.approve' }]);
+
+      await service.updateCustomRole(
+        'cr-1',
+        'co-1',
+        { permissionKeys: ['po.approve'], thresholds: { 'po.approve': 5000 } },
+        'actor-1',
+        '10.0.0.2',
+      );
+
+      const txOps = prisma.$transaction.mock.calls[0][0] as unknown[];
+      expect(txOps).toHaveLength(3);
+      expect(prisma.customRolePermission.deleteMany).toHaveBeenCalledWith({
+        where: { customRoleId: 'cr-1' },
+      });
+      expect(prisma.customRolePermission.createMany).toHaveBeenCalledWith({
+        data: [{ permissionId: 'p-po.approve', thresholdAmount: 5000, customRoleId: 'cr-1' }],
+      });
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: AuditAction.CUSTOM_ROLE_UPDATED,
+          metadata: expect.objectContaining({
+            added: ['po.approve'],
+            removed: ['rfq.read'],
+          }),
+        }),
+      );
+    });
+
+    it('keeps the current grants when permissionKeys is omitted (rename only)', async () => {
+      prisma.customRole.findFirst
+        .mockResolvedValueOnce(
+          detailRow({
+            name: 'Junior Buyer',
+            permissions: [{ permission: { key: 'rfq.read' } }],
+          }),
+        )
+        .mockResolvedValueOnce(null) // clash check for the new name
+        .mockResolvedValueOnce(detailRow({ name: 'Site Buyer' }));
+      prisma.permission.findMany.mockResolvedValue([{ id: 'p-rfq.read', key: 'rfq.read' }]);
+
+      await service.updateCustomRole('cr-1', 'co-1', { name: 'Site Buyer' }, 'actor-1');
+
+      expect(prisma.customRolePermission.createMany).toHaveBeenCalledWith({
+        data: [{ permissionId: 'p-rfq.read', thresholdAmount: null, customRoleId: 'cr-1' }],
+      });
+      expect(prisma.customRole.update).toHaveBeenCalledWith({
+        where: { id: 'cr-1' },
+        data: { name: 'Site Buyer' },
+      });
+    });
+  });
+
+  describe('deleteCustomRole', () => {
+    it('404s when the role is outside the caller company scope', async () => {
+      prisma.customRole.findFirst.mockResolvedValue(null);
+      await expect(service.deleteCustomRole('cr-1', 'co-2', 'actor-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('refuses to delete a role that users still hold (FOR-253)', async () => {
+      prisma.customRole.findFirst.mockResolvedValue({
+        id: 'cr-1',
+        name: 'Junior Buyer',
+        _count: { users: 3 },
+      });
+
+      await expect(service.deleteCustomRole('cr-1', 'co-1', 'actor-1')).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(prisma.customRole.delete).not.toHaveBeenCalled();
+      expect(audit.log).not.toHaveBeenCalled();
+    });
+
+    it('deletes the role and audits it', async () => {
+      prisma.customRole.findFirst.mockResolvedValue({
+        id: 'cr-1',
+        name: 'Junior Buyer',
+        _count: { users: 0 },
+      });
+
+      const result = await service.deleteCustomRole('cr-1', 'co-1', 'actor-1', '10.0.0.3');
+
+      expect(prisma.customRole.delete).toHaveBeenCalledWith({ where: { id: 'cr-1' } });
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: AuditAction.CUSTOM_ROLE_DELETED,
+          targetId: 'cr-1',
+          targetLabel: 'Junior Buyer',
+          ipAddress: '10.0.0.3',
+        }),
+      );
+      expect(result).toEqual({ message: 'Custom role deleted' });
     });
   });
 });

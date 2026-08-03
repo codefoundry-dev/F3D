@@ -4,9 +4,18 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { CompanyType, CompanyStatus, UserRole } from '@prisma/client';
+import { CompanyType, CompanyStatus, DocumentType, UserRole } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsString, IsEmail, IsOptional, IsEnum, IsArray, IsUrl, Matches } from 'class-validator';
+import {
+  IsString,
+  IsEmail,
+  IsOptional,
+  IsEnum,
+  IsArray,
+  IsUrl,
+  Matches,
+  IsDateString,
+} from 'class-validator';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -15,6 +24,27 @@ export class AssignVendorsDto {
   @IsArray()
   @IsString({ each: true })
   contractorIds!: string[];
+}
+
+export class UploadCompanyDocumentDto {
+  @IsOptional()
+  @IsEnum(DocumentType)
+  type?: DocumentType;
+
+  @IsOptional()
+  @IsDateString()
+  expiresAt?: string;
+}
+
+/** FOR-260: the human-approved document data saved by the review step.
+ *  Replace semantics — omitting `expiresAt` clears the stored expiry. */
+export class ReviewCompanyDocumentDto {
+  @IsEnum(DocumentType)
+  type!: DocumentType;
+
+  @IsOptional()
+  @IsDateString()
+  expiresAt?: string;
 }
 
 export class CreateCompanyDto {

@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 
-type StatusAction = 'activate' | 'deactivate' | 'resendInvitation' | 'cancelInvitation';
+type StatusAction =
+  | 'activate'
+  | 'deactivate'
+  | 'sendInvitation'
+  | 'resendInvitation'
+  | 'cancelInvitation';
 
 interface VendorUsersState {
   isInviteModalOpen: boolean;

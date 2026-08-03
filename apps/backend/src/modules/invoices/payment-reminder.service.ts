@@ -16,13 +16,17 @@ import { EmailService } from '../notifications/email.service';
 /** How many days before the due date the "payment due" reminder goes out. */
 const DEFAULT_LEAD_DAYS = 3;
 
-/** The invoice fields a reminder needs, plus the names it quotes. */
+/**
+ * The invoice fields a reminder needs, plus the names it quotes. `vendor` is
+ * nullable in the schema since FOR-290; the sweeps filter vendor-less invoices
+ * out, so the fallback name never actually renders.
+ */
 type RemindableInvoice = {
   id: string;
   companyId: string;
   dueDate: Date | null;
   totalAmount: unknown;
-  vendor: { legalName: string };
+  vendor: { legalName: string } | null;
 };
 
 /**
@@ -90,6 +94,9 @@ export class PaymentReminderService {
         status: PrismaInvoiceStatus.APPROVED,
         dueReminderSentAt: null,
         dueDate: { gte: startOfToday, lte: cutoff },
+        // Approval requires a vendor since FOR-290, but pre-existing rows may
+        // predate that guard — a vendor-less reminder has no one to name.
+        vendorId: { not: null },
       },
       select: {
         id: true,
@@ -118,6 +125,7 @@ export class PaymentReminderService {
         status: PrismaInvoiceStatus.APPROVED,
         overdueReminderSentAt: null,
         dueDate: { lt: startOfToday },
+        vendorId: { not: null },
       },
       select: {
         id: true,
@@ -170,7 +178,7 @@ export class PaymentReminderService {
     await this.notifications.createForEmails(context.recipients, {
       type: NotificationType.PAYMENT_DUE,
       title: 'Payment due soon',
-      body: `Invoice ${context.params.invoiceReference} from ${invoice.vendor.legalName} is due on ${context.params.dueDate}.`,
+      body: `Invoice ${context.params.invoiceReference} from ${context.params.vendorName} is due on ${context.params.dueDate}.`,
       entityType: NotificationEntityType.INVOICE,
       entityId: invoice.id,
     });
@@ -194,7 +202,7 @@ export class PaymentReminderService {
     await this.notifications.createForEmails(context.recipients, {
       type: NotificationType.PAYMENT_OVERDUE,
       title: 'Payment overdue',
-      body: `Invoice ${context.params.invoiceReference} from ${invoice.vendor.legalName} was due on ${context.params.dueDate}.`,
+      body: `Invoice ${context.params.invoiceReference} from ${context.params.vendorName} was due on ${context.params.dueDate}.`,
       entityType: NotificationEntityType.INVOICE,
       entityId: invoice.id,
     });
@@ -213,7 +221,7 @@ export class PaymentReminderService {
       brand: await this.branding.getEmailBrand(invoice.companyId),
       params: {
         invoiceReference: invoiceReference(invoice.id),
-        vendorName: invoice.vendor.legalName,
+        vendorName: invoice.vendor?.legalName ?? 'the vendor',
         amount: this.formatAmount(invoice.totalAmount),
         dueDate: this.formatDate(invoice.dueDate),
       },

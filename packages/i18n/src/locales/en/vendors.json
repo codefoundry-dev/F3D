@@ -46,8 +46,8 @@
   },
   "cancelInvitationModal": {
     "title": "Cancel Invitation",
-    "subtitle": "This action cannot be undone.",
-    "info": "<span class=\"text-destructive\">You are about to cancel the invitation for <strong class=\"font-bold\">{{name}}</strong> (<strong class=\"font-bold\">{{email}}</strong>). This will permanently remove their account from the platform.</span>",
+    "subtitle": "The activation link will stop working.",
+    "info": "<span class=\"text-destructive\">You are about to cancel the invitation for <strong class=\"font-bold\">{{name}}</strong> (<strong class=\"font-bold\">{{email}}</strong>). The activation link will stop working, but they remain on the platform as a contact and can be invited again later.</span>",
     "confirm": "Cancel Invitation"
   },
   "resetInvitationModal": {
@@ -235,12 +235,19 @@
   "editProfile": "Edit Profile",
   "userInvite": {
     "title": "Invite User",
-    "name": "Name",
+    "subtitle": "Invite a user to this vendor company",
+    "name": "Full name",
+    "namePlaceholder": "Name Surname",
     "email": "Email",
+    "emailPlaceholder": "user@example.com",
     "position": "Position",
+    "positionOptional": "(optional)",
+    "positionPlaceholder": "Enter position",
     "sendInvitation": "Send Invitation",
+    "sending": "Sending…",
     "success": "Invitation sent successfully",
-    "emailInUse": "A user with this email already exists"
+    "emailInUse": "A user with this email already exists",
+    "error": "Failed to send invitation. Please try again."
   },
   "editVendorModal": {
     "title": "Edit User Details",

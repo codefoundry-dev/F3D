@@ -21,9 +21,45 @@ import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?re
 import FileTextIcon from '@forethread/ui-components/assets/icons/file-text.svg?react';
 import PaperclipIcon from '@forethread/ui-components/assets/icons/paperclip.svg?react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+import { DocumentReviewModal } from './DocumentReviewModal';
 
 const DOCS_KEY = 'company-documents';
+
+/** Poll cadence while an upload's extraction is still running (FOR-260). */
+const EXTRACTION_POLL_MS = 3000;
+/** Stop waiting for a fresh upload's extraction to appear after this long —
+ *  no extraction row is ever created when the pipeline is not configured. */
+const EXTRACTION_WAIT_MS = 60_000;
+/** Upload types with an extraction path (mirrors the backend's Gemini-native
+ *  set) — other types never produce data to review, so don't wait on them. */
+const EXTRACTABLE_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'webp'];
+
+/** The extraction finished and nobody has approved its values yet. */
+function needsReview(doc: CompanyDocumentResponse): boolean {
+  return doc.extraction?.status === 'COMPLETED';
+}
+
+function extractionRunning(doc: CompanyDocumentResponse): boolean {
+  return doc.extraction?.status === 'PENDING' || doc.extraction?.status === 'PROCESSING';
+}
+
+/** Mirrors the backend allow-list on POST /companies/:id/documents. */
+const ALLOWED_EXTENSIONS = [
+  'pdf',
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+  'csv',
+  'jpg',
+  'jpeg',
+  'png',
+  'webp',
+];
+const ACCEPT_ATTR = ALLOWED_EXTENSIONS.map((ext) => `.${ext}`).join(',');
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB — matches the backend limit
 
 /** 28px gradient-white bordered icon button (card-level ⋮ trigger). */
 const ICON_BTN_28 =
@@ -56,17 +92,47 @@ export function DocumentsTab({ companyId }: DocumentsTabProps) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [docToDelete, setDocToDelete] = useState<CompanyDocumentResponse | null>(null);
+  const [docToReview, setDocToReview] = useState<CompanyDocumentResponse | null>(null);
+  // The just-uploaded document whose extraction we are waiting on so the
+  // review modal can open by itself when the extracted data is ready.
+  const [pendingReview, setPendingReview] = useState<{ docId: string; until: number } | null>(null);
 
   const { data: documents, isLoading } = useQuery({
     queryKey: [DOCS_KEY, companyId],
     queryFn: () => getCompanyDocuments(companyId),
     enabled: Boolean(companyId),
+    // Keep refreshing while an extraction runs (or while a fresh upload's
+    // extraction row has yet to appear) so the review step can kick in.
+    refetchInterval: (query) => {
+      const docs = query.state.data;
+      if (docs?.some(extractionRunning)) return EXTRACTION_POLL_MS;
+      if (pendingReview && Date.now() < pendingReview.until) return EXTRACTION_POLL_MS;
+      return false;
+    },
   });
+
+  // Auto-open the review modal once the awaited extraction completes.
+  useEffect(() => {
+    if (!pendingReview || !documents) return;
+    const doc = documents.find((d) => d.id === pendingReview.docId);
+    const status = doc?.extraction?.status;
+    if (doc && status === 'COMPLETED') {
+      setDocToReview(doc);
+      setPendingReview(null);
+    } else if (!doc || status === 'FAILED' || status === 'CONFIRMED') {
+      setPendingReview(null);
+    }
+  }, [documents, pendingReview]);
 
   const uploadMutation = useMutation({
     mutationFn: (file: File) => uploadCompanyDocument(companyId, file),
-    onSuccess: () => {
+    onSuccess: (doc, file) => {
       void queryClient.invalidateQueries({ queryKey: [DOCS_KEY, companyId] });
+      notificationService.success(t('documentUploaded'));
+      const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+      if (EXTRACTABLE_EXTENSIONS.includes(ext)) {
+        setPendingReview({ docId: doc.id, until: Date.now() + EXTRACTION_WAIT_MS });
+      }
     },
   });
 
@@ -80,10 +146,19 @@ export function DocumentsTab({ companyId }: DocumentsTabProps) {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      uploadMutation.mutate(file);
-      e.target.value = '';
+    e.target.value = '';
+    if (!file) return;
+
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      notificationService.error(t('documentInvalidFormat'));
+      return;
     }
+    if (file.size > MAX_FILE_SIZE) {
+      notificationService.error(t('documentTooLarge'));
+      return;
+    }
+    uploadMutation.mutate(file);
   };
 
   const handleView = (fileId: string) => {
@@ -105,6 +180,9 @@ export function DocumentsTab({ companyId }: DocumentsTabProps) {
   };
 
   const getCardActions = (doc: CompanyDocumentResponse): DotAction[] => [
+    ...(needsReview(doc)
+      ? [{ key: 'review', label: t('reviewDocumentAction'), onClick: () => setDocToReview(doc) }]
+      : []),
     { key: 'view', label: t('viewDocument'), onClick: () => handleView(doc.file.id) },
     {
       key: 'download',
@@ -126,7 +204,13 @@ export function DocumentsTab({ companyId }: DocumentsTabProps) {
           {t('documentsCountLabel', { count: documents?.length ?? 0 })}
         </p>
         <div className="flex items-center gap-2">
-          <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ACCEPT_ATTR}
+            className="hidden"
+            onChange={handleFileChange}
+          />
           <Button
             variant="secondary"
             size="sm"
@@ -186,6 +270,15 @@ export function DocumentsTab({ companyId }: DocumentsTabProps) {
                     )}
                   </div>
                 </div>
+                {needsReview(doc) && (
+                  <button
+                    type="button"
+                    onClick={() => setDocToReview(doc)}
+                    className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold leading-none text-amber-700 transition-colors hover:bg-amber-100"
+                  >
+                    {t('reviewExtracted')}
+                  </button>
+                )}
                 <DotActionsMenu
                   actions={getCardActions(doc)}
                   bordered={false}
@@ -195,6 +288,18 @@ export function DocumentsTab({ companyId }: DocumentsTabProps) {
             );
           })}
         </div>
+      )}
+
+      {docToReview && (
+        <DocumentReviewModal
+          companyId={companyId}
+          document={docToReview}
+          onClose={() => setDocToReview(null)}
+          onApproved={() => {
+            void queryClient.invalidateQueries({ queryKey: [DOCS_KEY, companyId] });
+            setDocToReview(null);
+          }}
+        />
       )}
 
       {docToDelete && (

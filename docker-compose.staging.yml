@@ -108,6 +108,10 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       GEMINI_TIMEOUT_MS: ${GEMINI_TIMEOUT_MS:-180000}
       GEMINI_THINKING_BUDGET: ${GEMINI_THINKING_BUDGET:-0}
+      # --- Google Vision OCR for vendor documents (FOR-259) ---
+      # Optional: without a key, vendor-doc extraction skips OCR and goes
+      # straight to the multimodal Gemini path.
+      GOOGLE_VISION_API_KEY: ${GOOGLE_VISION_API_KEY:-}
       # --- Object storage: AWS S3 (replaces the former local MinIO container) ---
       # The backend talks to a real AWS S3 bucket via @aws-sdk/client-s3. On the
       # EC2 host the instance IAM role supplies credentials automatically, so

@@ -95,6 +95,7 @@ describe('JwtStrategy', () => {
           role: true,
           status: true,
           companyId: true,
+          customRoleId: true,
         },
       });
       expect(result).toEqual(activeUser);

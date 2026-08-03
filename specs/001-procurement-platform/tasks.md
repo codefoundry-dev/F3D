@@ -6567,3 +6567,108 @@ approved RFQs and bulk orders, in addition to manual creation.
       merged and deduped by material id before the in-memory match maps — downstream matching
       unchanged. **Tests**: +1 materials.service.spec regression (10,001 names split into 2 chunked
       calls); 130 green.
+- [x] T925 [FOR-291] Invoice extraction + human review/correct: intake (manual upload + email inbox)
+      fire-and-forgets a Gemini INVOICE extraction over the stored file(s) — multi-image invoices
+      send every page in one call (`runExtraction` extraDocuments); `doc_extractions` gains
+      `invoice_id` (mirrors rfqId decoupling) and a nullable `created_by_user_id` (email intake has
+      no user). New `PATCH /v1/invoices/:id/review` (permission `invoice.review`, CA/PO/FO) persists
+      the reviewer's confirmed/corrected vendor/project/invoice #/issued date/due date/total with
+      replace semantics and swaps the new `invoice_line_items` rows wholesale (FOR-293 matching +
+      FOR-295 coding build on them); resets the US 8.09 reminder ledger (review moves dueDate);
+      marks the COMPLETED extraction CONFIRMED. Invoice detail returns `lines[]` + extraction
+      status/result; `useInvoice` polls 3s while extracting. `InvoiceReviewPanel` replaces the
+      details tab for Pending invoices (buyer + finance): fields seeded from saved review →
+      completed extraction → blank, vendor auto-matched from the extracted name, editable line
+      table, "Extracted: …" hints for unparseable dates/terms. Migration 20260728130000. **Tests**:
+      backend invoices + doc-intelligence suites green (+19 specs); web invoices 13 green;
+      extraction validated against 3 real sample invoice PDFs (DAMOS/Blackwoods/Officeworks) with
+      the production prompt/schema.
+- [x] T926 [FOR-293] Invoice ↔ PO matching + per-line variance flags: new on-demand
+      `GET /v1/invoices/:id/po-match` (permission `invoice.review`) recomputes the reconciliation
+      report from the saved invoice lines on every call — PO resolution (`LINKED` explicit link →
+      `AUTO_MATCHED` when the extracted references cite exactly one of the company's POs →
+      `AMBIGUOUS` / `NOT_FOUND` / `NO_REFERENCE`) with loose reference matching ("P/O 0042" cites
+      "PO-00042"), greedy one-to-one line pairing scored on material-code echo, description overlap,
+      line number, and price/qty agreement (pure `invoice-matching.util.ts`), per-line
+      `PRICE_VARIANCE` / `QTY_VARIANCE` flags against configurable tolerances (±2% price, exact qty
+      via `INVOICE_MATCH_*` env), `NOT_ON_PO` for unexpected lines, unbilled PO lines,
+      vendor-mismatch warning, and a reviewer summary. `PATCH /v1/invoices/:id/review` now persists
+      `relatedPoId` (validated against the invoice's company); `InvoiceReviewPanel` gains a Related
+      PO selector seeded from the auto-match, per-resolution banner, per-line match/variance chips,
+      and a save-to-refresh hint. No migration. **Tests**: backend invoice-matching.util 12 +
+      invoice-matching.service 15 + invoices.service +3 + controller +1 green; web
+      InvoiceReviewPanel +5 green.
+- [x] T927 [FOR-294] Invoice states with reasons + audit trail: approve / reject transitions now
+      land on the audit trail — new `AuditAction` values `INVOICE_APPROVED` / `INVOICE_REJECTED`
+      written via `AuditService` with `{from, to, reason}` metadata (best-effort, never fails the
+      transition); bulk-approve resolves the qualifying rows first so every invoice gets its own
+      entry. `PATCH /v1/invoices/:id/approve` accepts an optional reason (`ApproveInvoiceDto`,
+      trail-only); reject's reason stays on `rejection_reason` + the vendor email and is mirrored to
+      the trail. New `GET /v1/invoices/:id/audit` (permission `invoice.read`; owning company, billed
+      vendor, SA) mirrors the PO audit endpoint. Frontend: `InvoiceDecisionModal` (GridModal) —
+      approve captures an optional note, decline REQUIRES a reason before enabling; new History tab
+      (`InvoiceHistoryTab`) renders received (with intake sender) / reviewed stamps from the invoice
+      row plus the audited transitions with actor + reason; `useApproveInvoice`/`useRejectInvoice`
+      mutate with `{id, reason}`. i18n `status.PENDING` label renamed "Pending" → "To Review".
+      Migration `20260728140000_invoice_audit_actions` (enum values only). **Tests**: backend
+      invoices suites 190 green (+7 audit/trail specs, +1 controller); web InvoiceDecisionModal 4 +
+      InvoiceHistoryTab 2 green.
+- [x] T928 [FOR-295] Cost code + GL account per invoice line (export-ready, no QuickBooks posting):
+      `invoice_line_items` gains nullable `cost_code` + `gl_account` VARCHAR(64) — buyer-side
+      accounting coding entered by the reviewer, never extracted from the document.
+      `ReviewInvoiceLineDto` accepts optional `costCode`/`glAccount` (trimmed-or-null on save,
+      replace semantics unchanged); invoice detail returns them per line. Export-ready:
+      single-invoice CSV/XLSX restructured to one row per billed line (invoice-level columns — now
+      incl. Invoice # and the human PO number — repeat per row; Line #, Description, Qty, Unit, Unit
+      Price, Line Total, Cost Code, GL Account follow; a lineless invoice still emits one
+      header-only row). No QuickBooks posting; list-level export and single-invoice PDF unchanged.
+      `InvoiceReviewPanel` line table gains editable Cost code / GL account columns (extraction
+      seeding leaves them blank); the frozen `InvoiceDetailsTab` lines table shows both read-only.
+      i18n `review.line.costCode`/`glAccount`. Migration
+      `20260728150000_invoice_line_accounting_codes`. **Tests**: backend invoices suites 191 green
+      (+1 export line-level spec, review/getInvoice specs extended); web invoices 26 green (+2
+      InvoiceReviewPanel).
+- [x] T929 [FOR-253] Custom-role assignment for users (completes FOR-252): nullable
+      `users.custom_role_id` FK → `custom_roles` (ON DELETE SET NULL so company-cascade deletes
+      never fail; API separately blocks deleting a role that is still assigned), new audit actions
+      `CUSTOM_ROLE_ASSIGNED`/`CUSTOM_ROLE_UNASSIGNED`. Assignment via existing
+      `PATCH /v1/users/:id { customRoleId: string | null }` (`user.update`); the role must live in
+      the TARGET user's company scope (cross-company → 404, no existence leak), SUPER_ADMIN targets
+      are rejected and promotion to SUPER_ADMIN sheds the role. Permission resolution is
+      custom-role-FIRST (grants replace the built-in role's, `role` stays authoritative for
+      scoping): JwtStrategy selects `customRoleId` per request → `AuthenticatedUser` →
+      `PermissionsService.getPermissionsForUser`/`userHasPermission`, PermissionsGuard,
+      `ApprovalAuthorizationService.evaluate(actor, …)` (signature now takes the actor, 3 po-status
+      call sites), MR `userCanApprove`, and `getMe`/`resolvePoApprovalThreshold` — per-request DB
+      reads mean assignment takes effect immediately with no token reissue. `deleteCustomRole` 400s
+      while users hold the role (`customRoleInUse`); `assignedUserCount` added to custom-role
+      summary + detail. Web (company-admin only — `/roles/custom` is actor-scoped): EditUserModal
+      "Custom role" dropdown (rendered when `role.list` + list non-empty, `''`→null mapping),
+      custom-role name on the users-list RoleBadge and UserDetail `ProfileInfoGrid` (new `roleLabel`
+      prop), "N assigned" chip on the Roles settings rows, `useUpdateUser` also invalidates
+      `custom-roles`. Migration `20260729130000_add_user_custom_role_assignment`. **Tests**: backend
+      2613 green incl. coverage gate (+~20 specs: user-level resolution, guard pass-through,
+      custom-role threshold evaluate, assignment validation/audit, delete guard; jwt.strategy select
+      assertion updated); web 270 green in touched features (+5 modal/hook specs).
+- [x] T930 [FOR-286] Approval routing & per-role/per-user approval limits (builds on
+      FOR-196/210/253): approver notification for a PENDING_APPROVAL PO is now custom-role-aware —
+      new `ApprovalAuthorizationService.findEligibleApproverEmails(companyId, key, amount)` resolves
+      every ACTIVE company user's effective `po.approve` grant custom-role-FIRST (an assigned custom
+      role's cap replaces the built-in role's) in 3 batched queries; replaces the
+      built-in-roles-only `findApproverEmails` in po-status (custom-role approvers were never
+      notified, users restricted by a custom role were over-notified). Web: company-admin User
+      Management tabs now cover custom roles — "Approval configuration" lists the company's custom
+      roles and edits their caps via a thresholds-only `PUT /roles/custom/:id` (grants preserved:
+      `permissionKeys` omitted), "Role permissions" lists + edits custom-role grants and can create
+      one inline (reuses `CreateCustomRoleModal`); shared `RoleConfigList` gained the custom
+      section, both tab editors were parameterised into shared forms. PO detail: an over-limit
+      viewer (`me.poApprovalThreshold` below the PO total, via po-shared `requiresApproval`) sees
+      Approve disabled with an explanatory left-side tooltip (`send.overApprovalLimit`), and approve
+      failures surface the backend 403 message (with the configured cap) instead of the generic
+      toast. No migration. **Tests**: backend approval-authorization spec +7 (custom-role
+      included/excluded, replacement semantics, inclusive boundary, dedupe, short-circuit),
+      po-status notification specs reworked to the new seam, full suites + coverage gate green; web
+      2169 green incl. PoApprovalActions +4 (over-limit disable/tooltip, backend-message toast,
+      decline stays available). Runtime verified via Playwright route-mock harness
+      (`.tmp/for286/shot_for286.mjs`): custom-role threshold editor hydrates + saves
+      `{"thresholds":{"po.approve":10000}}`, over-limit Approve disabled with tooltip.

@@ -27,6 +27,11 @@ vi.mock('@forethread/ui-components', () => ({
   Spinner: () => <div data-testid="spinner" />,
   EmptyState: ({ title }: { title: string }) => <div data-testid="empty-state">{title}</div>,
   EmptyBoxIllustration: () => <div data-testid="empty-box" />,
+  Button: ({ children, onClick, ...props }: any) => (
+    <button onClick={onClick} data-testid={props['data-testid']}>
+      {children}
+    </button>
+  ),
 }));
 
 const mockNavigate = vi.hoisted(() => vi.fn());
@@ -35,13 +40,27 @@ vi.mock('react-router-dom', () => ({
 }));
 
 const mockUseUserRole = vi.hoisted(() => vi.fn());
+const mockHas = vi.hoisted(() => vi.fn());
 vi.mock('@/shared/role', () => ({
   useUserRole: () => mockUseUserRole(),
+  usePermissions: () => ({ has: mockHas }),
 }));
 
 const mockUseRoleList = vi.hoisted(() => vi.fn());
+const mockUseCustomRoleList = vi.hoisted(() => vi.fn());
 vi.mock('../services/roles.service', () => ({
   useRoleList: () => mockUseRoleList(),
+  useCustomRoleList: () => mockUseCustomRoleList(),
+}));
+
+vi.mock('../components/CreateCustomRoleModal', () => ({
+  CreateCustomRoleModal: ({ onCreated }: { onCreated: (id: string) => void }) => (
+    <div data-testid="create-custom-role-modal">
+      <button type="button" onClick={() => onCreated('cr-9')}>
+        simulate-created
+      </button>
+    </div>
+  ),
 }));
 
 import RoleListPage from './RoleListPage';
@@ -51,6 +70,8 @@ describe('RoleListPage', () => {
     vi.clearAllMocks();
     // Default viewer is a Super Admin (the role that owns this standalone page).
     mockUseUserRole.mockReturnValue('SUPER_ADMIN');
+    mockHas.mockReturnValue(true);
+    mockUseCustomRoleList.mockReturnValue({ isLoading: false, isError: false, data: [] });
   });
 
   it('shows a spinner while loading', () => {
@@ -112,5 +133,48 @@ describe('RoleListPage', () => {
     render(<RoleListPage />);
     fireEvent.click(screen.getByTestId('role-COMPANY_ADMIN'));
     expect(mockNavigate).toHaveBeenCalledWith('/settings/roles/COMPANY_ADMIN');
+  });
+
+  describe('custom roles (FOR-252)', () => {
+    beforeEach(() => {
+      mockUseRoleList.mockReturnValue({
+        isLoading: false,
+        isError: false,
+        data: [{ role: 'COMPANY_ADMIN', permissionCount: 42 }],
+      });
+    });
+
+    it('shows the empty hint when the company has no custom roles', () => {
+      render(<RoleListPage />);
+      expect(screen.getByTestId('custom-roles-empty')).toBeInTheDocument();
+    });
+
+    it('lists custom roles and navigates to the custom edit page on click', () => {
+      mockUseCustomRoleList.mockReturnValue({
+        isLoading: false,
+        isError: false,
+        data: [{ id: 'cr-1', name: 'Junior Buyer', description: 'Limited PO', permissionCount: 4 }],
+      });
+
+      render(<RoleListPage />);
+      expect(screen.getByText('Junior Buyer')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('custom-role-cr-1'));
+      expect(mockNavigate).toHaveBeenCalledWith('/settings/roles/custom/cr-1');
+    });
+
+    it('hides the create button without the role.create permission', () => {
+      mockHas.mockImplementation((key: string) => key !== 'role.create');
+      render(<RoleListPage />);
+      expect(screen.queryByTestId('custom-role-create')).not.toBeInTheDocument();
+    });
+
+    it('opens the create modal and navigates to the new role after creation', () => {
+      render(<RoleListPage />);
+      fireEvent.click(screen.getByTestId('custom-role-create'));
+      expect(screen.getByTestId('create-custom-role-modal')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByText('simulate-created'));
+      expect(mockNavigate).toHaveBeenCalledWith('/settings/roles/custom/cr-9');
+    });
   });
 });

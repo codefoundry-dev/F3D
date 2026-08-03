@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
 
 vi.mock('@forethread/invoice-shared', () => ({
-  InvoiceDetailPage: ({ canApprove }: { canApprove: boolean }) => (
-    <div data-testid="invoice-detail" data-can-approve={canApprove}>
+  InvoiceDetailPage: ({ canApprove, canReview }: { canApprove: boolean; canReview: boolean }) => (
+    <div data-testid="invoice-detail" data-can-approve={canApprove} data-can-review={canReview}>
       Invoice Detail
     </div>
   ),
@@ -11,10 +11,11 @@ vi.mock('@forethread/invoice-shared', () => ({
 import BuyerInvoiceDetailPage from './InvoiceDetailPage';
 
 describe('BuyerInvoiceDetailPage', () => {
-  it('renders InvoiceDetailPage with canApprove prop', () => {
+  it('renders InvoiceDetailPage with canApprove and canReview props', () => {
     render(<BuyerInvoiceDetailPage />);
     const el = screen.getByTestId('invoice-detail');
     expect(el).toBeInTheDocument();
     expect(el.getAttribute('data-can-approve')).toBe('true');
+    expect(el.getAttribute('data-can-review')).toBe('true');
   });
 });

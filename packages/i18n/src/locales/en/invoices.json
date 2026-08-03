@@ -34,7 +34,7 @@
     "actions": "Actions"
   },
   "status": {
-    "PENDING": "Pending",
+    "PENDING": "To Review",
     "APPROVED": "Approved",
     "DISPUTED": "Disputed",
     "PAID": "Paid",
@@ -71,14 +71,43 @@
   },
   "upload": {
     "title": "Upload Invoice",
-    "comingSoon": "This page is under development. Invoice upload will be available soon."
+    "cardTitle": "Upload invoice files",
+    "dropTitle": "Drag & drop invoice files here or",
+    "browse": "browse",
+    "dropFormats": "PDF, PNG, JPG or WEBP — max 10MB each",
+    "uploadCount": "Upload ({{count}})",
+    "uploading": "Uploading…",
+    "goToInvoices": "Go to invoices",
+    "viewInvoice": "View invoice",
+    "removeFile": "Remove {{name}}",
+    "status": {
+      "queued": "Ready to upload",
+      "uploading": "Uploading…",
+      "done": "Invoice created — pending review",
+      "failed": "Upload failed"
+    },
+    "successToast": "{{count}} invoice(s) created and pending review",
+    "partialToast": "{{done}} of {{total}} files uploaded — the rest failed",
+    "hint": "Each uploaded file becomes its own invoice in Pending. Review it to set the vendor, project, and amount.",
+    "errors": {
+      "unsupportedType": "Unsupported file type. Use PDF, PNG, JPG or WEBP.",
+      "tooLarge": "File is too large (max 10MB)."
+    },
+    "inbox": {
+      "title": "Or email invoices in",
+      "description": "Vendors can send invoices straight to your company's intake address — every attachment arrives here as an invoice to review.",
+      "copy": "Copy address",
+      "copied": "Address copied"
+    }
   },
   "invoiceDetail": {
     "tabs": {
       "details": "Invoice Details",
-      "attachments": "Attachments ({{count}})"
+      "attachments": "Attachments ({{count}})",
+      "history": "History"
     },
     "approve": "Approve",
+    "approveBlocked": "Set the vendor, project, and total amount in the review form and save before approving.",
     "decline": "Decline",
     "invoiceInfo": "Invoice Information",
     "project": "Project",
@@ -97,6 +126,87 @@
     "actions": "Actions",
     "noAttachments": "No attachments yet.",
     "view": "View",
-    "download": "Download"
+    "download": "Download",
+    "invoiceNumber": "Invoice #",
+    "issuedDate": "Invoice Date",
+    "lineItems": "Line Items"
+  },
+  "decision": {
+    "approveTitle": "Approve invoice",
+    "approveDescription": "Approving confirms this invoice is correct and ready for payment.",
+    "approveNoteLabel": "Note (optional)",
+    "approveNotePlaceholder": "Add a note for the record…",
+    "approveConfirm": "Approve invoice",
+    "declineTitle": "Decline invoice",
+    "declineDescription": "Declining rejects this invoice; your reason is recorded and shared with the vendor.",
+    "declineReasonLabel": "Reason",
+    "declineReasonPlaceholder": "Explain why this invoice is being declined…",
+    "declineConfirm": "Decline invoice",
+    "cancel": "Cancel",
+    "error": "Something went wrong. Please try again."
+  },
+  "history": {
+    "title": "Invoice History",
+    "received": "Invoice received",
+    "receivedEmail": "From {{email}}",
+    "reviewed": "Details reviewed",
+    "approved": "Invoice approved",
+    "rejected": "Invoice rejected",
+    "performedBy": "By {{name}}",
+    "reason": "Reason: {{reason}}"
+  },
+  "review": {
+    "extracting": "Reading the invoice… extracted details will appear here shortly.",
+    "extractionFailed": "The invoice could not be read automatically. Enter the details manually.",
+    "confirmHint": "These details were read from the document automatically. Confirm or correct each field, then save.",
+    "reviewedOn": "Reviewed on {{date}}. You can still correct the details until approval.",
+    "reviewedIncomplete": "Reviewed on {{date}}, but the vendor, project, and total amount must all be set and saved before this invoice can be approved.",
+    "extractedValue": "Extracted: {{value}}",
+    "vendor": "Vendor",
+    "selectVendor": "Select vendor",
+    "project": "Project",
+    "selectProject": "Select project",
+    "relatedPo": "Related PO",
+    "selectPo": "Select purchase order",
+    "invoiceNumber": "Invoice #",
+    "invoiceNumberPlaceholder": "e.g. INV-1024",
+    "issuedDate": "Invoice date",
+    "dueDate": "Due date",
+    "totalAmount": "Total amount",
+    "lineItems": "Line items",
+    "addLine": "Add line",
+    "removeLine": "Remove line",
+    "noLines": "No line items yet. Add the billed lines from the document.",
+    "save": "Save details",
+    "savedToast": "Invoice details saved.",
+    "savedIncompleteToast": "Details saved. Set the vendor, project, and total amount before this invoice can be approved.",
+    "line": {
+      "lineId": "#",
+      "description": "Description",
+      "quantity": "Qty",
+      "unit": "Unit",
+      "unitPrice": "Unit price",
+      "lineTotal": "Line total",
+      "costCode": "Cost code",
+      "glAccount": "GL account",
+      "poMatch": "PO match"
+    },
+    "match": {
+      "autoMatched": "This invoice cites {{poNumber}} — confirmed automatically from the document. Save to link it.",
+      "noReference": "No PO reference was found on this invoice. Select the purchase order manually if one exists.",
+      "notFound": "The document cites \"{{refs}}\", but no matching purchase order was found.",
+      "ambiguous": "The document's PO references match several purchase orders — select the right one.",
+      "vendorMismatch": "The selected vendor differs from the vendor on {{poNumber}}.",
+      "summaryClean": "All {{count}} line(s) match {{poNumber}} — no variances.",
+      "summaryIssues": "Checked against {{poNumber}}: {{matched}} of {{count}} line(s) matched, {{price}} price variance(s), {{qty}} quantity variance(s), {{unexpected}} not on the PO.",
+      "unbilled": "{{count}} PO line(s) are not billed on this invoice.",
+      "saveToRefresh": "Variance flags are checked against the saved lines — save to refresh them.",
+      "flag": {
+        "matched": "Matched",
+        "price": "Price {{pct}}%",
+        "qty": "Qty {{delta}}",
+        "notOnPo": "Not on PO"
+      }
+    }
   }
 }

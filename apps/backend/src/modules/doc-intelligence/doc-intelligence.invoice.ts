@@ -29,18 +29,40 @@ function percentFromLabel(label: string | null): number | null {
   return match ? Number(match[1]) : null;
 }
 
+/** qty × unit price reproduces the line total within cent-level rounding slack. */
+function matchesLineTotal(qty: number, unitPrice: number, lineTotal: number): boolean {
+  return Math.abs(qty * unitPrice - lineTotal) <= 0.011 + lineTotal * 1e-9;
+}
+
 function normalizeItem(raw: unknown): InvoiceExtractionLineItem | null {
   if (!raw || typeof raw !== 'object') return null;
   const v = raw as Record<string, unknown>;
 
-  const lineId = normalizeString(v.lineId ?? v.lineItemId ?? v.lineNo ?? v.id ?? v.line_id);
+  let lineId = normalizeString(v.lineId ?? v.lineItemId ?? v.lineNo ?? v.id ?? v.line_id);
   const description = normalizeString(v.description ?? v.item ?? v.material);
-  const quantity = parseNumber(v.quantity ?? v.qty);
+  let quantity = parseNumber(v.quantity ?? v.qty);
   const unit = canonicalizeUnit(
     normalizeString(v.unit) ?? normalizeString(v.uom) ?? normalizeString(v.units),
   );
   const unitPrice = parseNumber(v.unitPrice ?? v.price ?? v.unit_price ?? v.rate);
   const lineTotal = parseNumber(v.lineTotal ?? v.total ?? v.amount ?? v.line_total);
+
+  // Gemini sometimes reads a leftmost QTY column as the row's line ID on
+  // invoices that have no line-number column. When the quantity is missing,
+  // the "lineId" is numeric, and lineId × unitPrice reproduces the line
+  // total, it is the quantity — reassign it.
+  if (quantity === null && lineId !== null && unitPrice !== null && unitPrice > 0) {
+    const numericLineId = parseNumber(lineId);
+    if (
+      numericLineId !== null &&
+      numericLineId > 0 &&
+      lineTotal !== null &&
+      matchesLineTotal(numericLineId, unitPrice, lineTotal)
+    ) {
+      quantity = numericLineId;
+      lineId = null;
+    }
+  }
 
   // Drop header / subtotal / blank rows: nothing billable to reconcile.
   if (!description && unitPrice === null) return null;

@@ -655,10 +655,10 @@ export class MaterialRequestsService {
     }
   }
 
-  /** True when the caller's role holds `materialRequest.approve`. */
+  /** True when the caller holds `materialRequest.approve` (custom-role-first). */
   private async userCanApprove(user: AuthenticatedUser): Promise<boolean> {
     if (user.role === UserRole.SUPER_ADMIN) return true;
-    return this.permissions.roleHasPermission(user.role, 'materialRequest.approve');
+    return this.permissions.userHasPermission(user, 'materialRequest.approve');
   }
 
   /** Next "MR-00001" number for a company, sequential by existing MR count. */

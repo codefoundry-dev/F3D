@@ -1,16 +1,18 @@
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { UserRole } from '@forethread/shared-types/client';
-import { Spinner, EmptyState, EmptyBoxIllustration } from '@forethread/ui-components';
+import { Button, Spinner, EmptyState, EmptyBoxIllustration } from '@forethread/ui-components';
 import ChevronRightIcon from '@forethread/ui-components/assets/icons/chevron-right.svg?react';
+import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
 import ShieldIcon from '@forethread/ui-components/assets/icons/shield-icon.svg?react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
-import { useUserRole } from '@/shared/role';
+import { usePermissions, useUserRole } from '@/shared/role';
 
-import { useRoleList } from '../services/roles.service';
+import { CreateCustomRoleModal } from '../components/CreateCustomRoleModal';
+import { useCustomRoleList, useRoleList } from '../services/roles.service';
 
 const ROLE_ORDER: readonly UserRole[] = [
   UserRole.SUPER_ADMIN,
@@ -26,7 +28,10 @@ export default function RoleListPage() {
   const { t } = useTranslation('roles');
   const navigate = useNavigate();
   const viewerRole = useUserRole();
+  const { has } = usePermissions();
   const { data, isLoading, isError } = useRoleList();
+  const customQuery = useCustomRoleList();
+  const [creating, setCreating] = useState(false);
 
   // Only a Super Admin may view/configure the Super Admin role.
   const visibleRoles = ROLE_ORDER.filter(
@@ -55,7 +60,7 @@ export default function RoleListPage() {
         </div>
       </div>
 
-      {/* ── Content ── */}
+      {/* ── Built-in roles ── */}
       {isLoading ? (
         <div className="flex h-48 items-center justify-center">
           <Spinner size="md" />
@@ -96,6 +101,78 @@ export default function RoleListPage() {
             );
           })}
         </div>
+      )}
+
+      {/* ── Custom roles (FOR-252) ── */}
+      <div className="mt-2 flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base font-semibold text-gray-900">{t('custom.heading')}</h2>
+          <p className="text-sm leading-tight text-gray-500">{t('custom.subtitle')}</p>
+        </div>
+        {has('role.create') && (
+          <Button
+            variant="primary"
+            onClick={() => setCreating(true)}
+            data-testid="custom-role-create"
+          >
+            <PlusIcon className="size-4" />
+            {t('custom.create')}
+          </Button>
+        )}
+      </div>
+
+      {customQuery.isLoading ? (
+        <div className="flex h-24 items-center justify-center">
+          <Spinner size="md" />
+        </div>
+      ) : customQuery.isError || !customQuery.data ? (
+        <div className="flex items-center justify-center rounded-[18px] border border-gray-100 bg-[#F9F9FA] p-6 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
+          <p className="text-sm text-gray-500">{t('custom.loadError')}</p>
+        </div>
+      ) : customQuery.data.length === 0 ? (
+        <div className="flex items-center justify-center rounded-[18px] border border-gray-100 bg-[#F9F9FA] p-6 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
+          <p className="text-sm text-gray-500" data-testid="custom-roles-empty">
+            {t('custom.empty')}
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1.5 rounded-[18px] border border-gray-100 bg-[#F9F9FA] p-3 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
+          {customQuery.data.map((role) => (
+            <button
+              key={role.id}
+              type="button"
+              onClick={() => navigate(ROUTES.customRoleEdit.replace(':id', role.id))}
+              data-testid={`custom-role-${role.id}`}
+              className="flex items-center gap-4 rounded-[10px] border border-gray-100 bg-white p-3 text-left shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)] transition-colors hover:bg-gray-25"
+            >
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] border border-gray-100 bg-gradient-to-b from-[#F9F9FA] to-white text-gray-600 shadow-[0_1px_3px_0_rgba(10,13,18,0.06),0_1px_1px_0_rgba(10,13,18,0.02)]">
+                <ShieldIcon className="size-[18px]" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-gray-900">{role.name}</p>
+                <p className="truncate text-xs text-gray-500">
+                  {role.description ?? t('permissionCount', { count: role.permissionCount })}
+                </p>
+              </div>
+              {role.assignedUserCount > 0 && (
+                <span className="shrink-0 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-600">
+                  {t('custom.assignedCount', { count: role.assignedUserCount })}
+                </span>
+              )}
+              <ChevronRightIcon className="size-4 shrink-0 text-gray-400" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {creating && (
+        <CreateCustomRoleModal
+          onClose={() => setCreating(false)}
+          onCreated={(id) => {
+            setCreating(false);
+            navigate(ROUTES.customRoleEdit.replace(':id', id));
+          }}
+        />
       )}
     </div>
   );

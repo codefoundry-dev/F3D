@@ -57,7 +57,7 @@ function PendingInvoiceCard({ item }: { item: InvoicePendingItem }) {
   // approve/reject lives on the invoice detail page (reachable via the card).
   return (
     <DashboardItemCard
-      name={item.vendorName}
+      name={item.vendorName ?? '—'}
       onCardClick={() => navigate(ROUTES.invoiceDetail.replace(':id', item.id))}
       hasChatNotification={item.hasUnreadMessages}
       hasAttachment={item.hasAttachments ?? false}
@@ -69,7 +69,7 @@ function PendingInvoiceCard({ item }: { item: InvoicePendingItem }) {
       }
       fields={[
         { icon: <FileTextIcon className={ICON} />, value: item.invoiceId },
-        { icon: <BriefcaseIcon className={ICON} />, value: item.projectName },
+        { icon: <BriefcaseIcon className={ICON} />, value: item.projectName ?? '—' },
         { icon: <CartIcon className={ICON} />, value: item.poReference ?? '-' },
         { icon: <DateIcon className={ICON} />, value: formatDate(item.date) },
         {
