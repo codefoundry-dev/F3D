@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { VendorSelection } from '../components/create/SelectVendorsCard';
 import { useAssignedVendors, useResolveVendorSelection } from '../services/rfqs.service';
 
-
 /**
  * Backs the RFQ vendor picker (ADR-0018).
  *
@@ -78,7 +77,7 @@ export function useVendorPicker(
           const repIds = new Set(selection.repIds);
           for (const vendor of matched) {
             vendorIds.add(vendor.companyId);
-            for (const repId of vendor.repIds) repIds.add(repId);
+            for (const rep of vendor.reps) repIds.add(rep.id);
           }
           onChange({ vendorIds: [...vendorIds], repIds: [...repIds] });
         },
@@ -102,9 +101,12 @@ export function useVendorPicker(
 /**
  * Render a resolved vendor as a list row. Used for vendors that are selected
  * but absent from the loaded page — matched by Add All beyond it, or hidden by
- * the active filter. `representatives` is empty because the summary carries only
- * sendable rep *ids*; the selection already holds them, and the row only needs
- * to be nameable.
+ * the active filter.
+ *
+ * The reps are carried through so the Selected panel can NAME them. Dropping
+ * them made a selected-but-off-page vendor render as "All contacts (company
+ * email)" while specific reps were in fact selected — the summary quietly
+ * misdescribing who the RFQ would reach.
  */
 export function resolvedToListItem(vendor: ResolvedVendor): VendorListItem {
   return {
@@ -120,7 +122,17 @@ export function resolvedToListItem(vendor: ResolvedVendor): VendorListItem {
     assignedAt: '',
     specialisations: vendor.specialisations,
     categories: vendor.categories,
-    representatives: [],
+    // Every rep here is sendable by construction — the resolver excludes
+    // INACTIVE server-side.
+    representatives: vendor.reps.map((rep) => ({
+      id: rep.id,
+      name: rep.name,
+      email: rep.email,
+      phone: null,
+      position: rep.position,
+      status: 'INVITED' as const,
+      createdAt: '',
+    })),
   };
 }
 
@@ -131,8 +143,13 @@ function toResolved(vendor: VendorListItem): ResolvedVendor {
     companyEmail: vendor.companyEmail,
     categories: vendor.categories,
     specialisations: vendor.specialisations,
-    repIds: (vendor.representatives ?? [])
+    reps: (vendor.representatives ?? [])
       .filter((rep) => rep.status !== 'INACTIVE')
-      .map((rep) => rep.id),
+      .map((rep) => ({
+        id: rep.id,
+        name: rep.name,
+        email: rep.email,
+        position: rep.position,
+      })),
   };
 }

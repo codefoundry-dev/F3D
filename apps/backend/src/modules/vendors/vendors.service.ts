@@ -407,7 +407,8 @@ export class VendorsService {
             specialisations: true,
             users: {
               where: { role: UserRole.VENDOR, status: { not: UserStatus.INACTIVE } },
-              select: { id: true },
+              select: { id: true, name: true, email: true, position: true },
+              orderBy: { createdAt: 'asc' },
             },
           },
         },
@@ -421,7 +422,11 @@ export class VendorsService {
         companyEmail: a.vendor.contactEmail,
         categories: a.categories,
         specialisations: a.vendor.specialisations,
-        repIds: a.vendor.users.map((u) => u.id),
+        // Whole reps, not bare ids: the picker has to be able to *name* who a
+        // match will email. Returning ids alone made an off-page vendor render
+        // as "All contacts (company email)" while specific reps were in fact
+        // selected — the UI under-reporting the real recipient set.
+        reps: a.vendor.users,
       })),
     };
   }

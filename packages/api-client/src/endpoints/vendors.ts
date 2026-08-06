@@ -115,15 +115,17 @@ export interface ResolveVendorSelectionInput {
 }
 
 /** A vendor matched by {@link resolveVendorSelection}, carrying enough to render
- *  it in the picker even though it may lie beyond the loaded page. `repIds` are
- *  the *sendable* reps only — deactivated ones are already excluded. */
+ *  it in the picker even though it may lie beyond the loaded page. `reps` are
+ *  the *sendable* reps only — deactivated ones are already excluded — and are
+ *  full records so the Selected panel can name them rather than falling back to
+ *  "all contacts". */
 export interface ResolvedVendor {
   companyId: string;
   companyName: string;
   companyEmail: string | null;
   categories: string[];
   specialisations: string[];
-  repIds: string[];
+  reps: { id: string; name: string; email: string; position: string | null }[];
 }
 
 export interface ResolvedVendorSelection {

@@ -934,7 +934,7 @@ describe('VendorsService', () => {
             legalName: 'Sparky Co',
             contactEmail: 'hi@sparky.com',
             specialisations: [],
-            users: [{ id: 'r1' }],
+            users: [{ id: 'r1', name: 'Jane Okafor', email: 'jane@sparky.com', position: null }],
           },
         },
       ]);
@@ -957,7 +957,7 @@ describe('VendorsService', () => {
           companyEmail: 'hi@sparky.com',
           categories: ['ELECTRICAL'],
           specialisations: [],
-          repIds: ['r1'],
+          reps: [{ id: 'r1', name: 'Jane Okafor', email: 'jane@sparky.com', position: null }],
         },
       ]);
     });

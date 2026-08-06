@@ -627,7 +627,9 @@ export default function CreateRfqPage() {
               onRemoveItem={(key) => setItems((prev) => prev.filter((item) => item.key !== key))}
               onRemoveVendor={(vendorId) => {
                 const repIdsOfVendor = new Set(
-                  vendorPicker.extraSelected.find((v) => v.companyId === vendorId)?.repIds ??
+                  vendorPicker.extraSelected
+                    .find((v) => v.companyId === vendorId)
+                    ?.reps.map((rep) => rep.id) ??
                     (vendors.find((v) => v.companyId === vendorId)?.representatives ?? []).map(
                       (rep) => rep.id,
                     ),
