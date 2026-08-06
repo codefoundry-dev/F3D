@@ -38,6 +38,11 @@ interface ReviewLineForm {
   key: string;
   /** The saved InvoiceLineItem id this row came from; PO-match flags (FOR-293) key on it. */
   savedId?: string;
+  /**
+   * The line number printed on the document. Not shown or editable — it was
+   * noise for reviewers — but carried through save because the review PATCH
+   * replaces the line set and PO matching (FOR-293) falls back to it.
+   */
   lineId: string;
   description: string;
   quantity: string;
@@ -711,12 +716,9 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
           </p>
         ) : (
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[960px] text-sm">
+            <table className="w-full min-w-[900px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="w-16 pb-2 pr-2 font-medium">
-                    {t('review.line.lineId', { defaultValue: '#' })}
-                  </th>
                   <th className="pb-2 pr-2 font-medium">
                     {t('review.line.description', { defaultValue: 'Description' })}
                   </th>
@@ -750,14 +752,6 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
               <tbody data-testid="invoice-review-lines">
                 {form.lines.map((line) => (
                   <tr key={line.key} className="border-b border-border last:border-b-0">
-                    <td className="py-1.5 pr-2 align-top">
-                      <Input
-                        inputSize="sm"
-                        value={line.lineId}
-                        onChange={(e) => updateLine(line.key, { lineId: e.target.value })}
-                        aria-label={t('review.line.lineId', { defaultValue: '#' })}
-                      />
-                    </td>
                     <td className="py-1.5 pr-2 align-top">
                       <Input
                         inputSize="sm"

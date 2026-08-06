@@ -181,7 +181,6 @@
     "savedToast": "Invoice details saved.",
     "savedIncompleteToast": "Details saved. Set the vendor, project, and total amount before this invoice can be approved.",
     "line": {
-      "lineId": "#",
       "description": "Description",
       "quantity": "Qty",
       "unit": "Unit",
