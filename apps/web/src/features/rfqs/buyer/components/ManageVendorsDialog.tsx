@@ -10,7 +10,7 @@ import {
 } from '@forethread/ui-components';
 import { useState } from 'react';
 
-import { useAssignedVendors } from '../services/rfqs.service';
+import { useVendorPicker } from '../hooks/useVendorPicker';
 
 import { SelectVendorsCard, type VendorSelection } from './create/SelectVendorsCard';
 
@@ -42,11 +42,11 @@ export function ManageVendorsDialog({
   onSave,
 }: ManageVendorsDialogProps) {
   const { t } = useTranslation('rfqs');
-  const { data: vendors = [], isLoading } = useAssignedVendors();
   const [selection, setSelection] = useState<VendorSelection>({
     vendorIds: currentVendorIds,
     repIds: currentSalesRepIds,
   });
+  const picker = useVendorPicker(selection, setSelection);
 
   return (
     <Modal onClose={onCancel} maxWidth="max-w-4xl" scrollBody decoration={<ModalGridBackground />}>
@@ -57,11 +57,18 @@ export function ManageVendorsDialog({
         <p className="mb-4 text-sm text-muted-foreground">{t('manageVendors.subtitle')}</p>
 
         <SelectVendorsCard
-          vendors={vendors}
+          vendors={picker.vendors}
           selectedVendorIds={selection.vendorIds}
           selectedRepIds={selection.repIds}
           onChange={setSelection}
-          isLoading={isLoading}
+          isLoading={picker.isLoading}
+          search={picker.search}
+          onSearchChange={picker.setSearch}
+          categoryFilter={picker.categoryFilter}
+          onCategoryFilterChange={picker.setCategoryFilter}
+          onAddAll={picker.addAll}
+          isAddingAll={picker.isAddingAll}
+          extraSelected={picker.extraSelected}
         />
 
         {isError && (

@@ -263,6 +263,8 @@ export const MATERIALS_PATHS = {
 export const VENDORS_PATHS = {
   ROOT: '/vendors',
   INVITE: '/vendors/invite',
+  RESOLVE_SELECTION: '/vendors/selection/resolve',
+  categories: (id: string) => `/vendors/${id}/categories`,
   profile: (id: string) => `/vendors/${id}/profile`,
   warehouses: (id: string) => `/vendors/${id}/warehouses`,
   warehouse: (id: string, whId: string) => `/vendors/${id}/warehouses/${whId}`,

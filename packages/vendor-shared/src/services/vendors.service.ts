@@ -8,6 +8,7 @@ import {
   deactivateUser,
   getVendorProfile,
   updateVendorProfile,
+  updateVendorCategories,
   addWarehouse,
   updateWarehouse,
   deleteWarehouse,
@@ -117,6 +118,23 @@ export function useUpdateVendorProfile() {
   return useMutation({
     mutationFn: ({ id, dto }: { id: string; dto: UpdateVendorProfileInput }) =>
       updateVendorProfile(id, dto),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [VENDORS_KEY] });
+    },
+  });
+}
+
+/**
+ * Sets the Vendor Categories this contractor applies to a vendor (ADR-0018).
+ * Separate from useUpdateVendorProfile because it writes the *assignment*, not
+ * the company — a distinction the two endpoints exist to keep visible.
+ */
+export function useUpdateVendorCategories() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, categories }: { id: string; categories: string[] }) =>
+      updateVendorCategories(id, categories),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [VENDORS_KEY] });
     },

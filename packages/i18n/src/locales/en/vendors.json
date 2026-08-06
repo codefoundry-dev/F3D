@@ -18,7 +18,9 @@
     "last7days": "Last 7 days",
     "last30days": "Last 30 days",
     "last90days": "Last 90 days",
-    "last12months": "Last 12 months"
+    "last12months": "Last 12 months",
+    "category": "Category",
+    "uncategorised": "Uncategorised"
   },
   "columns": {
     "fullName": "Full name",
@@ -31,7 +33,8 @@
   "statuses": {
     "INVITED": "Invited",
     "ACTIVE": "Active",
-    "DEACTIVATED": "Deactivated"
+    "DEACTIVATED": "Deactivated",
+    "INACTIVE": "Deactivated"
   },
   "actions": {
     "viewCompanyDetails": "View company details",
@@ -280,6 +283,19 @@
     "creating": "Creating...",
     "createError": "Failed to create vendor company. Please try again.",
     "success": "\"{{companyName}}\" has been successfully created",
-    "successReused": "\"{{companyName}}\" already exists on the platform and has been added to your vendor list"
+    "successReused": "\"{{companyName}}\" already exists on the platform and has been added to your vendor list",
+    "categories": "Categories",
+    "categoriesPlaceholder": "Select categories",
+    "categoriesSelected_one": "{{count}} category",
+    "categoriesSelected_other": "{{count}} categories"
+  },
+  "categoriesCard": {
+    "title": "Vendor Categories",
+    "subtitle": "How your company classifies this vendor. Only you see this — it decides which category sends they appear in.",
+    "placeholder": "Select categories",
+    "selected_one": "{{count}} category",
+    "selected_other": "{{count}} categories",
+    "uncategorised": "Uncategorised — this vendor will not appear in any category send",
+    "error": "Could not update categories. Please try again."
   }
 }

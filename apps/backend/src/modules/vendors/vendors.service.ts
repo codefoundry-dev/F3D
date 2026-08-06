@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CompanyType, UserRole, UserStatus } from '@prisma/client';
+import { CompanyType, UserRole, UserStatus, VendorCategory } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -16,6 +16,9 @@ import {
   AuthUser,
   CreateVendorRepresentativeDto,
   CreateWarehouseDto,
+  ResolveVendorSelectionDto,
+  UNCATEGORISED,
+  UpdateVendorCategoriesDto,
   UpdateVendorProfileDto,
   UpdateWarehouseDto,
   VendorListQueryDto,
@@ -30,7 +33,10 @@ export interface VendorRepresentativeRow {
   email: string;
   phone: string | null;
   position: string | null;
-  status: 'ACTIVE' | 'INVITED';
+  /** Deactivated reps are reported as `INACTIVE`, never collapsed into
+   *  `INVITED` — a caller choosing RFQ recipients must be able to see that a
+   *  rep is unsendable (CONTEXT.md → Sales Rep). */
+  status: 'ACTIVE' | 'INVITED' | 'INACTIVE';
   createdAt: string;
 }
 
@@ -48,6 +54,35 @@ export interface VendorListRow {
   specialisations: string[];
   categories: string[];
   representatives: VendorRepresentativeRow[];
+}
+
+const VENDOR_CATEGORY_KEYS = new Set<string>(Object.values(VendorCategory));
+
+/**
+ * Translate a comma-separated category filter into a `CompanyVendorAssignment`
+ * where-fragment. Unknown keys are dropped rather than passed to Prisma, so a
+ * stale bookmark degrades to "no filter" instead of a 500.
+ *
+ * {@link UNCATEGORISED} matches assignments with an empty `categories` array and
+ * ORs with any real categories in the same request — "Electrical or untagged"
+ * is a legitimate thing to ask for while a vendor book is being tidied up.
+ */
+export function buildCategoryWhere(category?: string): Record<string, unknown> {
+  if (!category) return {};
+
+  const requested = category
+    .split(',')
+    .map((c) => c.trim().toUpperCase())
+    .filter(Boolean);
+
+  const known = requested.filter((c) => VENDOR_CATEGORY_KEYS.has(c)) as VendorCategory[];
+  const wantsUncategorised = requested.includes(UNCATEGORISED);
+
+  if (known.length === 0 && !wantsUncategorised) return {};
+  if (known.length === 0) return { categories: { isEmpty: true } };
+  if (!wantsUncategorised) return { categories: { hasSome: known } };
+
+  return { OR: [{ categories: { hasSome: known } }, { categories: { isEmpty: true } }] };
 }
 
 @Injectable()
@@ -85,6 +120,8 @@ export class VendorsService {
       const specs = query.specialisation.split(',').map((s) => s.trim());
       vendorWhere['specialisations'] = { hasSome: specs };
     }
+
+    Object.assign(assignmentWhere, buildCategoryWhere(query.category));
 
     if (Object.keys(vendorWhere).length > 0) {
       assignmentWhere['vendor'] = vendorWhere;
@@ -138,7 +175,12 @@ export class VendorsService {
         email: u.email,
         phone: u.phone ?? null,
         position: u.position ?? null,
-        status: u.status === UserStatus.ACTIVE ? 'ACTIVE' : 'INVITED',
+        status:
+          u.status === UserStatus.ACTIVE
+            ? 'ACTIVE'
+            : u.status === UserStatus.INACTIVE
+              ? 'INACTIVE'
+              : 'INVITED',
         createdAt: u.createdAt.toISOString(),
       }));
 
@@ -221,7 +263,20 @@ export class VendorsService {
 
     await this.validateVendorAccess(vendorCompanyId, user);
 
-    return company;
+    // The viewer's OWN classification of this vendor (ADR-0018). Another
+    // contractor's categories are none of their business, and a vendor viewing
+    // itself has none — it holds `specialisations`, not categories.
+    const assignment =
+      user.role === UserRole.VENDOR || !user.companyId
+        ? null
+        : await this.prisma.companyVendorAssignment.findUnique({
+            where: {
+              vendorId_contractorId: { vendorId: vendorCompanyId, contractorId: user.companyId },
+            },
+            select: { categories: true },
+          });
+
+    return { ...company, categories: assignment?.categories ?? [] };
   }
 
   async updateVendorProfile(
@@ -255,6 +310,120 @@ export class VendorsService {
     });
 
     return updated;
+  }
+
+  // ── Vendor Categories (ADR-0018) ──────────────────────────────────────────
+
+  /**
+   * Set the Vendor Categories the requesting contractor applies to one of its
+   * vendors. Replace-semantics; an empty array clears them.
+   *
+   * A Vendor Category is a fact about the *relationship*, so it is written to
+   * the caller's own `CompanyVendorAssignment` and is invisible to every other
+   * contractor. Vendors cannot set their own — that is what
+   * `Company.specialisations` is for, and it is descriptive only.
+   */
+  async updateVendorCategories(
+    vendorCompanyId: string,
+    dto: UpdateVendorCategoriesDto,
+    user: AuthenticatedUser,
+  ) {
+    if (user.role === UserRole.VENDOR || !user.companyId) {
+      throw new ForbiddenException(ERR.vendors.categoriesNeedContractor);
+    }
+
+    const company = await this.prisma.company.findFirst({
+      where: { id: vendorCompanyId, type: CompanyType.VENDOR },
+    });
+    if (!company) {
+      throw new NotFoundException(ERR.vendors.notFound);
+    }
+
+    // Also serves as the authorisation check: no assignment, no access.
+    const { count } = await this.prisma.companyVendorAssignment.updateMany({
+      where: { vendorId: vendorCompanyId, contractorId: user.companyId },
+      data: { categories: { set: dto.categories } },
+    });
+
+    if (count === 0) {
+      throw new ForbiddenException(ERR.vendors.accessDenied);
+    }
+
+    await this.auditService.log({
+      action: AuditAction.VENDOR_CATEGORIES_UPDATED,
+      performedById: user.id,
+      targetType: 'CompanyVendorAssignment',
+      targetId: vendorCompanyId,
+      targetLabel: company.legalName,
+      metadata: { categories: dto.categories },
+    });
+
+    return { vendorId: vendorCompanyId, categories: dto.categories };
+  }
+
+  /**
+   * Resolve a category filter to every matching vendor id plus the ids of their
+   * **sendable** reps — the server-side backing for the RFQ wizard's "Add All".
+   *
+   * Deliberately unpaginated: "every Electrical vendor" that silently meant
+   * "those on page 1" is the defect this replaces. `INACTIVE` reps are dropped
+   * here rather than in the browser so bulk selection can never reach a
+   * recipient a single selection could not (CONTEXT.md).
+   *
+   * Vendors with no sendable rep are still returned — they fall back to the
+   * company contact email on send, the same contract the RFQ send already uses.
+   *
+   * Returns summaries rather than bare ids: the caller must be able to render a
+   * vendor it selected but never loaded (the match may lie beyond the page the
+   * picker is showing), which is the whole reason this endpoint exists.
+   */
+  async resolveVendorSelection(dto: ResolveVendorSelectionDto, user: AuthenticatedUser) {
+    if (!user.companyId) return { vendors: [] };
+
+    const where: Record<string, unknown> = {
+      contractorId: user.companyId,
+      ...buildCategoryWhere(dto.category),
+    };
+
+    if (dto.search) {
+      where['vendor'] = {
+        OR: [
+          { legalName: { contains: dto.search, mode: 'insensitive' } },
+          { contactEmail: { contains: dto.search, mode: 'insensitive' } },
+        ],
+      };
+    }
+
+    const assignments = await this.prisma.companyVendorAssignment.findMany({
+      where,
+      orderBy: { assignedAt: 'desc' },
+      select: {
+        vendorId: true,
+        categories: true,
+        vendor: {
+          select: {
+            legalName: true,
+            contactEmail: true,
+            specialisations: true,
+            users: {
+              where: { role: UserRole.VENDOR, status: { not: UserStatus.INACTIVE } },
+              select: { id: true },
+            },
+          },
+        },
+      },
+    });
+
+    return {
+      vendors: assignments.map((a) => ({
+        companyId: a.vendorId,
+        companyName: a.vendor.legalName,
+        companyEmail: a.vendor.contactEmail,
+        categories: a.categories,
+        specialisations: a.vendor.specialisations,
+        repIds: a.vendor.users.map((u) => u.id),
+      })),
+    };
   }
 
   // ── Warehouses ────────────────────────────────────────────────────────────

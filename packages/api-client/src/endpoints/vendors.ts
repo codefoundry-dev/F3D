@@ -9,6 +9,8 @@ export interface InviteVendorDto {
   companyEmail: string;
   userName: string;
   userEmail: string;
+  /** Optional Vendor Categories for the assignment this invite creates. */
+  categories?: string[];
 }
 
 export interface InviteVendorResponse {
@@ -23,7 +25,9 @@ export interface VendorRepresentativeItem {
   email: string;
   phone: string | null;
   position: string | null;
-  status: 'ACTIVE' | 'INVITED';
+  /** `INACTIVE` reps are unsendable — they must never be offered as, or swept
+   *  into, an RFQ recipient selection (CONTEXT.md → Sales Rep). */
+  status: VendorRepresentativeStatus;
   createdAt: string;
 }
 
@@ -48,12 +52,20 @@ export interface VendorListParams {
   limit?: number;
   search?: string;
   status?: string;
+  /** @deprecated Legacy free-text filter over the vendor's self-declared
+   *  specialisations. Use `category` — see ADR-0018. */
   specialisation?: string;
+  /** Comma-separated VendorCategory keys, optionally including
+   *  {@link UNCATEGORISED}. Matches a vendor carrying any of them. */
+  category?: string;
   dateFrom?: string;
   dateTo?: string;
   sortBy?: string;
   sortDir?: 'asc' | 'desc';
 }
+
+/** Filter sentinel for vendors carrying no Vendor Category at all (ADR-0018). */
+export const UNCATEGORISED = 'UNCATEGORISED';
 
 export interface PaginatedVendorsResponse {
   items: VendorListItem[];
@@ -80,6 +92,62 @@ export async function getVendors(params?: VendorListParams): Promise<PaginatedVe
   return data.data;
 }
 
+// ── Vendor Categories (ADR-0018) ─────────────────────────────────────────────
+
+/**
+ * Sets the Vendor Categories the calling contractor applies to a vendor.
+ * Replace-semantics — the array becomes the whole set, and `[]` clears it.
+ * Scoped to the caller's own assignment; other contractors are unaffected.
+ */
+export async function updateVendorCategories(
+  vendorId: string,
+  categories: string[],
+): Promise<{ vendorId: string; categories: string[] }> {
+  const { data } = await getApiClient().patch<{
+    data: { vendorId: string; categories: string[] };
+  }>(VENDORS_PATHS.categories(vendorId), { categories });
+  return data.data;
+}
+
+export interface ResolveVendorSelectionInput {
+  category?: string;
+  search?: string;
+}
+
+/** A vendor matched by {@link resolveVendorSelection}, carrying enough to render
+ *  it in the picker even though it may lie beyond the loaded page. `repIds` are
+ *  the *sendable* reps only — deactivated ones are already excluded. */
+export interface ResolvedVendor {
+  companyId: string;
+  companyName: string;
+  companyEmail: string | null;
+  categories: string[];
+  specialisations: string[];
+  repIds: string[];
+}
+
+export interface ResolvedVendorSelection {
+  vendors: ResolvedVendor[];
+}
+
+/**
+ * Resolves a category filter to every matching vendor id plus their sendable
+ * rep ids — the backing call for the RFQ wizard's "Add All".
+ *
+ * Unpaginated on purpose: the browser only ever holds a page of vendors, so
+ * resolving this client-side would silently cap the selection. Deactivated reps
+ * are excluded server-side, so the result is safe to select wholesale.
+ */
+export async function resolveVendorSelection(
+  input: ResolveVendorSelectionInput,
+): Promise<ResolvedVendorSelection> {
+  const { data } = await getApiClient().post<{ data: ResolvedVendorSelection }>(
+    VENDORS_PATHS.RESOLVE_SELECTION,
+    input,
+  );
+  return data.data;
+}
+
 // ── Vendor Profile ───────────────────────────────────────────────────────────
 
 export interface VendorProfile {
@@ -93,7 +161,11 @@ export interface VendorProfile {
   contactPhone: string | null;
   website: string | null;
   logoUrl: string | null;
+  /** The vendor's own descriptive claim — drives nothing (ADR-0018). */
   specialisations: string[];
+  /** The *viewing contractor's* classification of this vendor. Empty for a
+   *  vendor viewing itself, and never another contractor's categories. */
+  categories: string[];
   warehouseLocations: WarehouseLocation[];
   representatives: VendorRepresentative[];
 }

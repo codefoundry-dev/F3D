@@ -151,8 +151,8 @@ describe('CompaniesService', () => {
       expect(prisma.company.create).toHaveBeenCalled();
       expect(prisma.companyVendorAssignment.createMany).toHaveBeenCalledWith({
         data: [
-          { vendorId: 'v1', contractorId: 'c1' },
-          { vendorId: 'v1', contractorId: 'c2' },
+          { vendorId: 'v1', contractorId: 'c1', categories: [] },
+          { vendorId: 'v1', contractorId: 'c2', categories: [] },
         ],
         skipDuplicates: true,
       });
@@ -209,7 +209,7 @@ describe('CompaniesService', () => {
       await service.createCompany(dto, companyAdmin);
 
       expect(prisma.companyVendorAssignment.createMany).toHaveBeenCalledWith({
-        data: [{ vendorId: 'v1', contractorId: 'c1' }],
+        data: [{ vendorId: 'v1', contractorId: 'c1', categories: [] }],
         skipDuplicates: true,
       });
     });
@@ -232,7 +232,7 @@ describe('CompaniesService', () => {
       });
       expect(prisma.company.create).not.toHaveBeenCalled();
       expect(prisma.companyVendorAssignment.createMany).toHaveBeenCalledWith({
-        data: [{ vendorId: 'rexel-1', contractorId: 'c1' }],
+        data: [{ vendorId: 'rexel-1', contractorId: 'c1', categories: [] }],
         skipDuplicates: true,
       });
       expect(result).toEqual({ ...existing, alreadyExisted: true });
@@ -276,7 +276,7 @@ describe('CompaniesService', () => {
         alreadyExisted: true,
       });
       expect(prisma.companyVendorAssignment.createMany).toHaveBeenCalledWith({
-        data: [{ vendorId: 'rexel-1', contractorId: 'c1' }],
+        data: [{ vendorId: 'rexel-1', contractorId: 'c1', categories: [] }],
         skipDuplicates: true,
       });
     });
@@ -363,8 +363,8 @@ describe('CompaniesService', () => {
 
       expect(prisma.companyVendorAssignment.createMany).toHaveBeenCalledWith({
         data: [
-          { vendorId: 'v1', contractorId: 'c1' },
-          { vendorId: 'v2', contractorId: 'c1' },
+          { vendorId: 'v1', contractorId: 'c1', categories: [] },
+          { vendorId: 'v2', contractorId: 'c1', categories: [] },
         ],
         skipDuplicates: true,
       });

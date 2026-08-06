@@ -258,6 +258,7 @@ export const ERR = {
     cannotRemoveActiveRepresentative: errors.vendors.cannotRemoveActiveRepresentative,
     cannotRemoveDeactivatedRepresentative: errors.vendors.cannotRemoveDeactivatedRepresentative,
     representativeReferencedByRfqs: errors.vendors.representativeReferencedByRfqs,
+    categoriesNeedContractor: errors.vendors.categoriesNeedContractor,
   },
 
   // ── Messages ───────────────────────────────────────────

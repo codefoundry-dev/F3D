@@ -26,17 +26,24 @@ export function resolveVendorEmailRecipients(
 /**
  * Resolve the recipients for an RFQ invitation when the buyer chose specific
  * vendor sales reps (US 5.05). The selected reps win; a vendor with no chosen
- * reps (quick-added or legacy) falls back to the company's user accounts /
- * contact email via {@link resolveVendorEmailRecipients}.
+ * (sendable) reps falls back to the company's user accounts / contact email.
+ *
+ * `INACTIVE` (deactivated) reps are dropped from **both** lists — CONTEXT.md:
+ * a deactivated rep receives no vendor-bound emails at all, and the RFQ
+ * invitation ships a tokenised guest link to every recipient (FOR-201), so
+ * emailing one would hand a deactivated person login-free authority over the
+ * document. This mirrors {@link resolveVendorRecipientsWithState} on the PO
+ * path, including the fall-through: a selection consisting *only* of
+ * deactivated reps behaves like no selection at all.
  */
 export function resolveSelectedRecipients(
-  selectedReps: ReadonlyArray<{ email: string }>,
-  fallbackUsers: ReadonlyArray<{ email: string }>,
+  selectedReps: ReadonlyArray<UserWithStatus>,
+  fallbackUsers: ReadonlyArray<UserWithStatus>,
   contactEmail?: string | null,
 ): string[] {
-  const selected = dedupeEmails(selectedReps.map((r) => r.email));
+  const selected = dedupeEmails(sendableRecipients(selectedReps).map((r) => r.email));
   if (selected.length > 0) return selected;
-  return resolveVendorEmailRecipients(fallbackUsers, contactEmail);
+  return resolveVendorEmailRecipients(sendableRecipients(fallbackUsers), contactEmail);
 }
 
 /** A vendor-side email recipient together with what kind of "View" link they can use. */

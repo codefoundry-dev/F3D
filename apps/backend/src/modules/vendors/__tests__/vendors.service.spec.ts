@@ -1,13 +1,15 @@
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UserRole, UserStatus } from '@prisma/client';
 
-import { VendorsService } from '../vendors.service';
+import { buildCategoryWhere, VendorsService } from '../vendors.service';
 
 const mockPrisma = {
   companyVendorAssignment: {
     findMany: jest.fn(),
     count: jest.fn(),
     findFirst: jest.fn(),
+    findUnique: jest.fn(),
+    updateMany: jest.fn(),
   },
   company: {
     findFirst: jest.fn(),
@@ -319,7 +321,10 @@ describe('VendorsService', () => {
       };
       mockPrisma.company.findFirst.mockResolvedValue(profile);
       const result = await service.getVendorProfile('vendor-comp-1', vendorUser);
-      expect(result).toEqual(profile);
+      // A vendor holds no categories of its own — those are each contractor's
+      // classification of it (ADR-0018).
+      expect(result).toEqual({ ...profile, categories: [] });
+      expect(mockPrisma.companyVendorAssignment.findUnique).not.toHaveBeenCalled();
     });
 
     it('allows contractor to see assigned vendor profile', async () => {
@@ -333,9 +338,13 @@ describe('VendorsService', () => {
       };
       mockPrisma.company.findFirst.mockResolvedValue(profile);
       mockPrisma.companyVendorAssignment.findFirst.mockResolvedValue({ id: 'assign-1' });
+      mockPrisma.companyVendorAssignment.findUnique.mockResolvedValue({
+        categories: ['ELECTRICAL'],
+      });
 
       const result = await service.getVendorProfile('vendor-comp-1', companyAdmin);
-      expect(result).toEqual(profile);
+      // The viewing contractor's own categories ride along with the profile.
+      expect(result).toEqual({ ...profile, categories: ['ELECTRICAL'] });
     });
 
     it('throws ForbiddenException when contractor has no companyId', async () => {
@@ -833,6 +842,130 @@ describe('VendorsService', () => {
           targetId: 'rep-1',
         }),
       );
+    });
+  });
+
+  // ── Vendor Categories (ADR-0018) ──────────────────────────────────────────
+
+  describe('buildCategoryWhere', () => {
+    it('returns no filter when nothing is requested', () => {
+      expect(buildCategoryWhere(undefined)).toEqual({});
+      expect(buildCategoryWhere('')).toEqual({});
+    });
+
+    it('matches any of the requested categories', () => {
+      expect(buildCategoryWhere('ELECTRICAL,LIGHTING')).toEqual({
+        categories: { hasSome: ['ELECTRICAL', 'LIGHTING'] },
+      });
+    });
+
+    it('is case-insensitive and tolerates padding', () => {
+      expect(buildCategoryWhere(' electrical ')).toEqual({
+        categories: { hasSome: ['ELECTRICAL'] },
+      });
+    });
+
+    it('drops unknown keys rather than handing them to Prisma', () => {
+      // A stale bookmark must degrade to "no filter", not a 500.
+      expect(buildCategoryWhere('NOT_A_CATEGORY')).toEqual({});
+    });
+
+    it('matches untagged vendors for the UNCATEGORISED sentinel', () => {
+      expect(buildCategoryWhere('UNCATEGORISED')).toEqual({ categories: { isEmpty: true } });
+    });
+
+    it('ORs untagged vendors with real categories', () => {
+      expect(buildCategoryWhere('ELECTRICAL,UNCATEGORISED')).toEqual({
+        OR: [{ categories: { hasSome: ['ELECTRICAL'] } }, { categories: { isEmpty: true } }],
+      });
+    });
+  });
+
+  describe('updateVendorCategories', () => {
+    beforeEach(() => {
+      mockPrisma.company.findFirst.mockResolvedValue({
+        id: 'vendor-comp-1',
+        legalName: 'VendorCo',
+      });
+      mockPrisma.companyVendorAssignment.updateMany.mockResolvedValue({ count: 1 });
+    });
+
+    it('writes the categories onto the calling contractor own assignment', async () => {
+      await service.updateVendorCategories(
+        'vendor-comp-1',
+        { categories: ['ELECTRICAL'] as never },
+        companyAdmin,
+      );
+
+      expect(mockPrisma.companyVendorAssignment.updateMany).toHaveBeenCalledWith({
+        where: { vendorId: 'vendor-comp-1', contractorId: 'comp-1' },
+        data: { categories: { set: ['ELECTRICAL'] } },
+      });
+    });
+
+    it('refuses a vendor setting its own categories', async () => {
+      // A category is the contractor's classification, not the vendor's claim.
+      await expect(
+        service.updateVendorCategories('vendor-comp-1', { categories: [] }, vendorUser),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.companyVendorAssignment.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('refuses when the vendor is not assigned to the caller', async () => {
+      mockPrisma.companyVendorAssignment.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(
+        service.updateVendorCategories(
+          'vendor-comp-1',
+          { categories: ['ELECTRICAL'] as never },
+          companyAdmin,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('resolveVendorSelection', () => {
+    it('returns every match with only its sendable reps', async () => {
+      mockPrisma.companyVendorAssignment.findMany.mockResolvedValue([
+        {
+          vendorId: 'v1',
+          categories: ['ELECTRICAL'],
+          vendor: {
+            legalName: 'Sparky Co',
+            contactEmail: 'hi@sparky.com',
+            specialisations: [],
+            users: [{ id: 'r1' }],
+          },
+        },
+      ]);
+
+      const result = await service.resolveVendorSelection({ category: 'ELECTRICAL' }, companyAdmin);
+
+      // Deactivated reps are excluded by the query, not by the caller.
+      const where = mockPrisma.companyVendorAssignment.findMany.mock.calls[0][0];
+      expect(where.select.vendor.select.users.where.status).toEqual({ not: UserStatus.INACTIVE });
+      expect(where.where).toMatchObject({
+        contractorId: 'comp-1',
+        categories: { hasSome: ['ELECTRICAL'] },
+      });
+      // No take/skip: completeness is the whole point of this endpoint.
+      expect(where.take).toBeUndefined();
+      expect(result.vendors).toEqual([
+        {
+          companyId: 'v1',
+          companyName: 'Sparky Co',
+          companyEmail: 'hi@sparky.com',
+          categories: ['ELECTRICAL'],
+          specialisations: [],
+          repIds: ['r1'],
+        },
+      ]);
+    });
+
+    it('returns nothing for a user with no company', async () => {
+      expect(
+        await service.resolveVendorSelection({}, { ...companyAdmin, companyId: null }),
+      ).toEqual({ vendors: [] });
     });
   });
 });

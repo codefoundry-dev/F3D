@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { CompanyType, CompanyStatus, DocumentType, UserRole } from '@prisma/client';
+import { CompanyType, CompanyStatus, DocumentType, UserRole, VendorCategory } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsString,
@@ -21,9 +21,16 @@ import { ERR } from '../../common/constants/error-messages.const';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export class AssignVendorsDto {
+  /** NB: despite the name these are VENDOR ids — see assignVendorsToContractor. */
   @IsArray()
   @IsString({ each: true })
   contractorIds!: string[];
+
+  /** Optional Vendor Categories for the assignments created here (ADR-0018). */
+  @IsOptional()
+  @IsArray()
+  @IsEnum(VendorCategory, { each: true })
+  categories?: VendorCategory[];
 }
 
 export class UploadCompanyDocumentDto {
@@ -93,6 +100,17 @@ export class CreateCompanyDto {
   @IsArray()
   @IsString({ each: true })
   assignedContractorIds?: string[];
+
+  /**
+   * Vendor Categories to stamp on the assignment(s) created for this vendor
+   * (ADR-0018). Applies to every contractor assigned in the same call — they
+   * are all acting on the creator's classification at this point; each can
+   * diverge later via PATCH /vendors/:id/categories.
+   */
+  @IsOptional()
+  @IsArray()
+  @IsEnum(VendorCategory, { each: true })
+  categories?: VendorCategory[];
 }
 
 export class UpdateCompanyDto {
@@ -226,7 +244,9 @@ export class CompaniesService {
       throw new BadRequestException(ERR.companies.contactEmailRequired);
     }
 
-    const { assignedContractorIds, ...companyData } = dto;
+    // `categories` lives on the assignment, not the Company — keep it out of
+    // the company payload (ADR-0018).
+    const { assignedContractorIds, categories, ...companyData } = dto;
 
     // Reuse an existing vendor row when one matches by contactEmail or abn.
     // Why: contractors create vendors via the same dialog and would otherwise
@@ -250,6 +270,7 @@ export class CompaniesService {
           data: Array.from(contractorIds).map((contractorId) => ({
             vendorId: company.id,
             contractorId,
+            categories: categories ?? [],
           })),
           skipDuplicates: true,
         });
@@ -329,6 +350,7 @@ export class CompaniesService {
       data: dto.contractorIds.map((vendorId) => ({
         vendorId,
         contractorId,
+        categories: dto.categories ?? [],
       })),
       skipDuplicates: true,
     });

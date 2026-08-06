@@ -1,5 +1,6 @@
-import type { VendorListItem } from '@forethread/api-client';
+import { UNCATEGORISED, type ResolvedVendor, type VendorListItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { VendorCategory } from '@forethread/shared-types/client';
 import { Button, Checkbox, Spinner, cn, formatEnum } from '@forethread/ui-components';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 import ChevronRightIcon from '@forethread/ui-components/assets/icons/chevron-right.svg?react';
@@ -8,6 +9,8 @@ import FilterIcon from '@forethread/ui-components/assets/icons/filter.svg?react'
 import InfoIcon from '@forethread/ui-components/assets/icons/info.svg?react';
 import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
 import { useMemo, useState } from 'react';
+
+import { resolvedToListItem } from '../../hooks/useVendorPicker';
 
 import { TABLE_BODY_ROW, TABLE_HEADER_ROW, TABLE_TH } from './tableStyles';
 
@@ -22,13 +25,32 @@ export interface VendorSelection {
 }
 
 interface SelectVendorsCardProps {
+  /** The vendors to show in the table. When a category filter is active the
+   *  parent supplies the server-filtered page; see {@link useVendorPicker}. */
   vendors: VendorListItem[];
   selectedVendorIds: string[];
   selectedRepIds: string[];
   onChange: (next: VendorSelection) => void;
   isLoading?: boolean;
   error?: string;
+  /** Current category filter (a VendorCategory key or {@link UNCATEGORISED}). */
+  categoryFilter: string | null;
+  onCategoryFilterChange: (next: string | null) => void;
+  search: string;
+  onSearchChange: (next: string) => void;
+  /** Resolves "every vendor matching the current filter" server-side. Returns
+   *  summaries so vendors beyond the loaded page can still be rendered. */
+  onAddAll: () => void;
+  isAddingAll?: boolean;
+  /** Selected vendors that are not in `vendors` — e.g. matched by Add All
+   *  beyond the loaded page, or hidden by the current filter. Keeps the
+   *  Selected panel honest instead of silently dropping them. */
+  extraSelected?: ResolvedVendor[];
 }
+
+/** Every category, from the enum — never derived from the loaded page, or a
+ *  category held only by an unloaded vendor would be unfilterable (ADR-0018). */
+const CATEGORY_OPTIONS: string[] = [...Object.values(VendorCategory), UNCATEGORISED];
 
 function vendorInitials(name: string): string {
   return name
@@ -46,8 +68,14 @@ function VendorAvatar({ name }: { name: string }) {
   );
 }
 
+/** Deactivated reps receive no vendor-bound emails (CONTEXT.md), so they are
+ *  never selectable — not individually, and not via "add all reps". They are
+ *  still *rendered*, disabled, so the buyer can see why someone is missing
+ *  rather than wondering where they went. */
+const isSendable = (rep: { status: string }) => rep.status !== 'INACTIVE';
+
 const repIdsOf = (vendor: VendorListItem): string[] =>
-  (vendor.representatives ?? []).map((rep) => rep.id);
+  (vendor.representatives ?? []).filter(isSendable).map((rep) => rep.id);
 
 /**
  * "Select Vendors" block (Figma 5.05): a searchable vendor table where each
@@ -64,42 +92,46 @@ export function SelectVendorsCard({
   onChange,
   isLoading = false,
   error,
+  categoryFilter,
+  onCategoryFilterChange,
+  search,
+  onSearchChange,
+  onAddAll,
+  isAddingAll = false,
+  extraSelected = [],
 }: SelectVendorsCardProps) {
   const { t } = useTranslation('rfqs');
-  const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const repSet = useMemo(() => new Set(selectedRepIds), [selectedRepIds]);
   const vendorSet = useMemo(() => new Set(selectedVendorIds), [selectedVendorIds]);
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    for (const vendor of vendors) for (const c of vendor.categories) set.add(c);
-    return [...set].sort();
-  }, [vendors]);
+  // Search and category are both applied server-side; the rows arrive filtered.
+  const filtered = vendors;
 
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return vendors.filter((vendor) => {
-      if (query && !vendor.companyName.toLowerCase().includes(query)) return false;
-      if (categoryFilter && !vendor.categories.includes(categoryFilter)) return false;
-      return true;
-    });
-  }, [vendors, search, categoryFilter]);
+  /** Selected vendors the current page can describe, plus stubs for the ones it
+   *  cannot. Without the stubs, Add-All-ing 130 Electrical vendors would show
+   *  100 in the panel and silently swallow the rest. */
+  const selectedVendors = useMemo(() => {
+    const onPage = vendors.filter((vendor) => vendorSet.has(vendor.companyId));
+    const known = new Set(onPage.map((v) => v.companyId));
+    const stubs = extraSelected
+      .filter((v) => vendorSet.has(v.companyId) && !known.has(v.companyId))
+      .map(resolvedToListItem);
+    return [...onPage, ...stubs];
+  }, [vendors, vendorSet, extraSelected]);
 
-  const selectedVendors = useMemo(
-    () => vendors.filter((vendor) => vendorSet.has(vendor.companyId)),
-    [vendors, vendorSet],
-  );
-
-  const locationOf = (vendor: VendorListItem) => {
+  /** The vendor's own claim about what it supplies. Descriptive only — it drives
+   *  nothing (ADR-0018). It was previously rendered under a "Location" heading,
+   *  which it has never been. */
+  const declaredOf = (vendor: VendorListItem) => {
     const specialisation = vendor.specialisations[0];
     return specialisation ? formatEnum(specialisation) : '—';
   };
+  /** The authoritative Vendor Category — this contractor's classification. */
   const categoryOf = (vendor: VendorListItem) =>
-    vendor.categories.map(formatEnum).join(', ') || '—';
+    vendor.categories.map(formatEnum).join(', ') || t('create.vendors.uncategorised');
 
   // ── Selection mutations (each emits the full next selection) ────────────────
   const selectedRepCountFor = (vendor: VendorListItem) =>
@@ -145,16 +177,6 @@ export function SelectVendorsCard({
     });
   };
 
-  const addAll = () => {
-    const nextVendors = new Set(selectedVendorIds);
-    const nextReps = new Set(selectedRepIds);
-    for (const vendor of filtered) {
-      nextVendors.add(vendor.companyId);
-      for (const id of repIdsOf(vendor)) nextReps.add(id);
-    }
-    onChange({ vendorIds: [...nextVendors], repIds: [...nextReps] });
-  };
-
   const removeAll = () => onChange({ vendorIds: [], repIds: [] });
 
   return (
@@ -167,7 +189,7 @@ export function SelectVendorsCard({
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => onSearchChange(e.target.value)}
               placeholder={t('create.vendors.searchPlaceholder')}
               className="w-full h-10 rounded-lg border border-border bg-background pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground/40"
               data-testid="vendor-search"
@@ -192,44 +214,55 @@ export function SelectVendorsCard({
                   type="button"
                   className="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-accent"
                   onClick={() => {
-                    setCategoryFilter(null);
+                    onCategoryFilterChange(null);
                     setFilterOpen(false);
                   }}
                 >
                   {t('create.vendors.allCategories')}
                 </button>
-                {categories.map((category) => (
+                {CATEGORY_OPTIONS.map((category) => (
                   <button
                     key={category}
                     type="button"
                     className={cn(
                       'w-full text-left px-3 py-2 text-sm rounded-md hover:bg-accent',
                       categoryFilter === category && 'bg-accent font-medium',
+                      category === UNCATEGORISED && 'border-t border-border mt-1 pt-2 italic',
                     )}
                     onClick={() => {
-                      setCategoryFilter(category);
+                      onCategoryFilterChange(category);
                       setFilterOpen(false);
                     }}
                   >
-                    {formatEnum(category)}
+                    {category === UNCATEGORISED
+                      ? t('create.vendors.uncategorised')
+                      : formatEnum(category)}
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          <Button type="button" size="md" onClick={addAll} data-testid="vendor-add-all">
-            {t('create.vendors.addAll')}
+          <Button
+            type="button"
+            size="md"
+            onClick={onAddAll}
+            isLoading={isAddingAll}
+            data-testid="vendor-add-all"
+          >
+            {categoryFilter ? t('create.vendors.addAllInCategory') : t('create.vendors.addAll')}
           </Button>
         </div>
 
         {categoryFilter && (
           <div className="flex items-center gap-2 px-3 pb-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-muted text-foreground rounded-full">
-              {formatEnum(categoryFilter)}
+              {categoryFilter === UNCATEGORISED
+                ? t('create.vendors.uncategorised')
+                : formatEnum(categoryFilter)}
               <button
                 type="button"
-                onClick={() => setCategoryFilter(null)}
+                onClick={() => onCategoryFilterChange(null)}
                 className="hover:text-destructive"
                 aria-label={t('create.vendors.clearFilter')}
               >
@@ -249,25 +282,32 @@ export function SelectVendorsCard({
               <thead className="sticky top-0 bg-muted/50 z-10">
                 <tr className={TABLE_HEADER_ROW}>
                   <th className={TABLE_TH}>{t('create.vendors.colName')}</th>
-                  <th className={TABLE_TH}>{t('create.vendors.colLocation')}</th>
+                  <th className={TABLE_TH}>{t('create.vendors.colDeclared')}</th>
                   <th className={TABLE_TH}>{t('create.vendors.colCategory')}</th>
                   <th className={cn(TABLE_TH, 'w-36')}>{t('create.vendors.colAction')}</th>
                 </tr>
               </thead>
               {filtered.map((vendor) => {
                 const reps = vendor.representatives ?? [];
-                const hasReps = reps.length > 0;
+                const sendableCount = reps.filter(isSendable).length;
+                // A vendor whose reps are ALL deactivated behaves like a vendor
+                // with none: it falls back to the company contact email rather
+                // than offering an "add all reps" button that selects nobody.
+                const hasReps = sendableCount > 0;
+                /** Display-only: deactivated reps stay visible in the expander
+                 *  so their absence from the selection is explained, not silent. */
+                const hasAnyReps = reps.length > 0;
                 const selectedCount = selectedRepCountFor(vendor);
                 const onRfq = vendorSet.has(vendor.companyId);
                 const isExpanded = expanded[vendor.companyId] ?? false;
-                const allRepsSelected = hasReps && selectedCount === reps.length;
+                const allRepsSelected = hasReps && selectedCount === sendableCount;
 
                 return (
                   <tbody key={vendor.id}>
                     <tr className={TABLE_BODY_ROW}>
                       <td className="py-2.5 px-3">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          {hasReps ? (
+                          {hasAnyReps ? (
                             <button
                               type="button"
                               onClick={() =>
@@ -301,13 +341,13 @@ export function SelectVendorsCard({
                               {hasReps
                                 ? selectedCount > 0
                                   ? t('create.vendors.repsSelected', { count: selectedCount })
-                                  : t('create.vendors.repsAvailable', { count: reps.length })
+                                  : t('create.vendors.repsAvailable', { count: sendableCount })
                                 : t('create.vendors.companyContact')}
                             </span>
                           </div>
                         </div>
                       </td>
-                      <td className="py-2.5 px-3 text-muted-foreground">{locationOf(vendor)}</td>
+                      <td className="py-2.5 px-3 text-muted-foreground">{declaredOf(vendor)}</td>
                       <td className="py-2.5 px-3 text-muted-foreground">{categoryOf(vendor)}</td>
                       <td className="py-2.5 px-3">
                         <Button
@@ -333,36 +373,48 @@ export function SelectVendorsCard({
                       </td>
                     </tr>
 
-                    {hasReps && isExpanded && (
+                    {hasAnyReps && isExpanded && (
                       <tr>
                         <td colSpan={4} className="bg-muted/30 px-3 py-2">
                           <div className="flex flex-col gap-1 pl-8">
-                            {reps.map((rep) => (
-                              <div
-                                key={rep.id}
-                                className="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-accent/60"
-                                data-testid={`rep-row-${rep.id}`}
-                              >
-                                <Checkbox
-                                  size="sm"
-                                  checked={repSet.has(rep.id)}
-                                  onChange={(checked) => toggleRep(vendor, rep.id, checked)}
-                                />
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-sm text-foreground truncate">
-                                    {rep.name}
-                                    {rep.position && (
-                                      <span className="text-muted-foreground ml-2">
-                                        {rep.position}
-                                      </span>
-                                    )}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground truncate">
-                                    {rep.email}
-                                  </p>
+                            {reps.map((rep) => {
+                              const sendable = isSendable(rep);
+                              return (
+                                <div
+                                  key={rep.id}
+                                  className={cn(
+                                    'flex items-center gap-3 rounded-md px-2 py-1.5',
+                                    sendable ? 'hover:bg-accent/60' : 'opacity-60',
+                                  )}
+                                  data-testid={`rep-row-${rep.id}`}
+                                >
+                                  <Checkbox
+                                    size="sm"
+                                    checked={sendable && repSet.has(rep.id)}
+                                    disabled={!sendable}
+                                    onChange={(checked) => toggleRep(vendor, rep.id, checked)}
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm text-foreground truncate">
+                                      {rep.name}
+                                      {rep.position && (
+                                        <span className="text-muted-foreground ml-2">
+                                          {rep.position}
+                                        </span>
+                                      )}
+                                      {!sendable && (
+                                        <span className="ml-2 text-xs text-muted-foreground italic">
+                                          {t('create.vendors.repDeactivated')}
+                                        </span>
+                                      )}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground truncate">
+                                      {rep.email}
+                                    </p>
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </td>
                       </tr>
@@ -432,7 +484,7 @@ export function SelectVendorsCard({
                           {vendor.companyName}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {locationOf(vendor)}
+                          {declaredOf(vendor)}
                         </p>
                       </div>
                     </div>

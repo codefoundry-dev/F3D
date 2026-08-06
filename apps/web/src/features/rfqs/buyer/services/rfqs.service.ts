@@ -8,9 +8,11 @@ import {
   getMaterials,
   getMaterialSuggestions,
   getVendors,
+  resolveVendorSelection,
   queryKeys,
   type ProjectListParams,
   type MaterialListQueryParams,
+  type ResolveVendorSelectionInput,
   type VendorListParams,
 } from '@forethread/api-client';
 import type { SaveRfqDraftValues, UpdateRfqValues } from '@forethread/shared-types/client';
@@ -116,11 +118,28 @@ export function useRfqMaterialSuggestions(search: string) {
   });
 }
 
-/** Vendors assigned to the contractor (step 3 options). */
+/**
+ * Vendors assigned to the contractor (step 3 options).
+ *
+ * NB: this is one page (100). It is fine for rendering the picker, but must NOT
+ * be used to answer "every vendor in category X" — that is what
+ * {@link useResolveVendorSelection} is for (ADR-0018).
+ */
 export function useAssignedVendors(params?: VendorListParams) {
   return useQuery({
     queryKey: ['vendors', params],
     queryFn: () => getVendors({ limit: 100, ...params }),
     select: (data) => data.items,
+  });
+}
+
+/**
+ * Resolves "add every vendor matching this filter" server-side. Unpaginated,
+ * and deactivated reps are already excluded from `repIds`, so the result can be
+ * selected wholesale without the browser re-deriving who is sendable.
+ */
+export function useResolveVendorSelection() {
+  return useMutation({
+    mutationFn: (input: ResolveVendorSelectionInput) => resolveVendorSelection(input),
   });
 }

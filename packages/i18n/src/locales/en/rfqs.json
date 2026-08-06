@@ -692,7 +692,6 @@
       "clearFilter": "Clear filter",
       "addAll": "Add all",
       "colName": "Vendor Name",
-      "colLocation": "Location",
       "colCategory": "Category",
       "colAction": "Action",
       "add": "Add",
@@ -712,7 +711,11 @@
       "removeAll": "Remove all",
       "remove": "Remove {{name}}",
       "removeRep": "Remove {{name}}",
-      "selectAtLeastOne": "Select at least one vendor to continue."
+      "selectAtLeastOne": "Select at least one vendor to continue.",
+      "colDeclared": "Declared",
+      "uncategorised": "Uncategorised",
+      "addAllInCategory": "Add all matching",
+      "repDeactivated": "Deactivated"
     },
     "lineItems": {
       "cardTitle": "Add Line Items",

@@ -8,6 +8,8 @@ vi.mock('@forethread/i18n', () => ({
 
 vi.mock('../services/rfqs.service', () => ({
   useAssignedVendors: mockUseAssignedVendors,
+  // Add All resolves server-side (ADR-0018); tests drive it through the mock.
+  useResolveVendorSelection: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock('@forethread/ui-components', () => ({

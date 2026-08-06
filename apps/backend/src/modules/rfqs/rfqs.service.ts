@@ -2157,8 +2157,11 @@ export class RfqsService {
             id: true,
             // The reps the buyer explicitly chose (US 5.05). When present they are
             // the sole recipients; otherwise we fall back to the vendor's users.
+            // `status` is required: deactivated reps must be dropped before the
+            // send (CONTEXT.md), and the buyer's selection can outlive their
+            // deactivation.
             contacts: {
-              select: { user: { select: { email: true } } },
+              select: { user: { select: { email: true, status: true } } },
             },
             vendor: {
               select: {

@@ -59,6 +59,7 @@ export class VendorInviteService {
           data: {
             vendorId: existingCompany.id,
             contractorId: requestingUser.companyId,
+            categories: dto.categories ?? [],
           },
         });
       }
@@ -155,6 +156,7 @@ export class VendorInviteService {
           vendorId: vendorCompany.id,
           // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- guarded by check at method start
           contractorId: requestingUser.companyId!,
+          categories: dto.categories ?? [],
         },
       });
 

@@ -35,6 +35,9 @@ const mockApi = vi.hoisted(() => ({
   getMaterialLists: vi.fn().mockResolvedValue([]),
   getMaterialList: vi.fn(),
   getProjects: vi.fn().mockResolvedValue({ items: [] }),
+  // Sentinel constant, not a function — SelectVendorsCard reads it at module
+  // scope to build the category filter options (ADR-0018).
+  UNCATEGORISED: 'UNCATEGORISED',
 }));
 
 vi.mock('react-router-dom', () => ({
@@ -68,6 +71,8 @@ vi.mock('../services/rfqs.service', () => ({
   useRfqMaterials: mockUseRfqMaterials,
   useRfqMaterialSuggestions: () => ({ data: undefined, isLoading: false }),
   useAssignedVendors: mockUseAssignedVendors,
+  // Add All resolves server-side (ADR-0018); tests drive it through the mock.
+  useResolveVendorSelection: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock('@/features/doc-intelligence', () => ({

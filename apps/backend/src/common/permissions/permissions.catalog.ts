@@ -102,6 +102,7 @@ export const PERMISSIONS = {
   'vendor.list': 'List vendors',
   'vendor.readProfile': 'Read a vendor profile',
   'vendor.updateProfile': 'Update a vendor profile',
+  'vendor.updateCategories': 'Set the vendor categories your company applies to a vendor',
   'vendor.warehouse.create': 'Add a vendor warehouse',
   'vendor.warehouse.update': 'Update a vendor warehouse',
   'vendor.warehouse.delete': 'Delete a vendor warehouse',
@@ -318,6 +319,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'vendor.list',
     'vendor.readProfile',
     'vendor.updateProfile',
+    'vendor.updateCategories',
     'vendor.warehouse.create',
     'vendor.warehouse.update',
     'vendor.warehouse.delete',
@@ -484,6 +486,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'vendor.list',
     'vendor.readProfile',
     'vendor.updateProfile',
+    'vendor.updateCategories',
     'vendor.warehouse.create',
     'vendor.warehouse.update',
     'vendor.warehouse.delete',
@@ -703,6 +706,10 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
 
     'vendor.readProfile',
     'vendor.updateProfile',
+    // Deliberately NOT 'vendor.updateCategories': a Vendor Category is the
+    // contractor's classification of this vendor, held on their assignment and
+    // invisible to the vendor itself (ADR-0018). The vendor's own claim about
+    // what it supplies is `Company.specialisations`, set via updateProfile.
     'vendor.warehouse.create',
     'vendor.warehouse.update',
     'vendor.warehouse.delete',

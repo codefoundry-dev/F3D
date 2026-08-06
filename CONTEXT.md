@@ -59,6 +59,30 @@ follow ADR-0002's "lifetime of the document"; **PO links are capped at a fixed 3
 window (e.g. a change-request notification) re-issues a fresh token rather than shipping a dead link
 (blessed by the same amendment).
 
+### Vendor categorisation
+
+**Vendor Category**: What a Vendor supplies, expressed as one or more values of the `VendorCategory`
+enum (`ELECTRICAL`, `PLUMBING`, …). It is a **relationship fact, not a vendor fact**: the category
+is declared by the **contractor** on their `CompanyVendorAssignment`, so two contractors may
+categorise the same vendor differently and each sees only their own
+([ADR-0018](docs/adr/0018-vendor-category-is-a-per-contractor-relationship-fact.md)). Chosen over
+vendor self-declaration because vendors are email-first (ADR-0001) — an Unactivated Vendor never
+logs in, so any vendor-owned tag would be permanently empty for exactly the vendors reached by
+tokenised link. _Avoid_: **group** — that word already means "the Sales Reps at one company,
+collapsed into one row" (`useGroupedVendors`); **specialisation** — the retired vendor-declared
+free-text field; **trade** — unused, adds a fourth synonym.
+
+**Vendor Specialisation** (retired as authority): The vendor's own free-text claim about what it
+supplies, on `Company.specialisations`. It is **descriptive only** — no filter, no RFQ recipient
+selection, and no grouping may read it. It survives on the vendor profile and the company PDF
+export, and may _prefill_ a contractor's Vendor Categories when a vendor is attached, but never
+overrides them. Anything that needs to know what a vendor supplies reads the **Vendor Category**.
+
+**Category filter → Add All**: The way a buyer sends one RFQ to every vendor in a category. There is
+no stored "group" to send to — the recipient set is a _query_ over Vendor Categories, resolved at
+selection time in the RFQ wizard and then frozen as ordinary `RfqVendor` rows. A vendor
+recategorised afterwards does not join or leave an RFQ already sent.
+
 ### Vendor PO response
 
 A vendor's response to a Purchase Order is a sequence of **distinct** transitions, not a single
@@ -113,11 +137,34 @@ buyer-side reject is "decline" → `CANCELLED`; the vendor-side is "vendor-decli
   manual PO (no source RFQ), or a vendor with no selection, falls back to all vendor users, then the
   company contact email — the same fallback contract the RFQ send uses.
 
+- **Vendor Category is a per-contractor opinion, not a property of the vendor.** The same vendor may
+  be `ELECTRICAL` to one contractor and `GENERAL_RETAILER` to another; neither is wrong and neither
+  is visible to the other. This is why it lives on `CompanyVendorAssignment` and not on `Company`.
+- **Bulk selection may never reach a recipient a single selection could not.** "Filter → Add All" is
+  a convenience over the same rules that govern picking one rep by hand — in particular a
+  **Deactivated rep** is never selectable and never emailed, on the RFQ path exactly as on the PO
+  path. Any widening of selection must preserve this.
+
 ## Flagged ambiguities
 
 - "Cancel invitation" historically **deleted the User row** — defensible when a rep only existed
   because of an invite, wrong once reps can be added without one (FOR-272). Resolved: cancel =
   revoke token (revert to contact-only); destruction is the separate **Remove Representative** verb.
+
+- "What does this vendor supply" had **two live fields and no precedence**:
+  `Company.specialisations` (vendor-owned, free text, forced to a single value by the create modal)
+  and `CompanyVendorAssignment.categories` (contractor-owned, typed, multi — and written by nothing
+  but the seed, so the RFQ wizard's category filter was permanently empty).
+  `useGroupedVendors.ts:23` was quietly papering over it by falling back from one to the other.
+  Resolved by [ADR-0018](docs/adr/0018-vendor-category-is-a-per-contractor-relationship-fact.md):
+  `categories` is authoritative, `specialisations` is a descriptive claim, the fallback goes.
+
+- "Deactivated reps receive no vendor-bound emails" held on the PO path (`sendableRecipients` drops
+  `INACTIVE`) but **not** on the RFQ path — `resolveSelectedRecipients` never filtered on status,
+  and the send query did not even select it. The vendor picker compounded it by rendering every non-
+  `ACTIVE` rep as `INVITED`, hiding deactivated people from the buyer choosing recipients. Resolved:
+  the RFQ path filters `INACTIVE` like the PO path, and the picker shows deactivation as its own
+  state.
 
 - "Acknowledge" was used loosely to mean the whole vendor response. Resolved: the tokenised link
   exposes the full set — **Acknowledge**, **Accept**, **Decline** — preserving the two-step

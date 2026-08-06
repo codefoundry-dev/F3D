@@ -27,6 +27,7 @@ export default function VendorProfilePage() {
       vendorId={id}
       onBack={() => navigate(-1)}
       initialEdit={searchParams.get('edit') === 'true'}
+      canManageCategories
       onViewRepresentative={(userId) =>
         navigate(ROUTES.vendorRepDetail.replace(':id', id).replace(':userId', userId))
       }

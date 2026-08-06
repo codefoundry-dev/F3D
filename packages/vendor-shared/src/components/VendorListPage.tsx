@@ -1,4 +1,4 @@
-import type { VendorListItem } from '@forethread/api-client';
+import { UNCATEGORISED } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { VendorCategory } from '@forethread/shared-types/client';
@@ -17,7 +17,7 @@ import { useVendorsStore } from '../state/vendors.store';
 import { CompanyGroupRow } from './CompanyGroupRow';
 import { VendorListToolbar } from './VendorListToolbar';
 import { VendorModals } from './VendorModals';
-import { VendorRow } from './VendorRow';
+import { VendorRow, type VendorRowSubject } from './VendorRow';
 import { VendorTableHeader } from './VendorTableHeader';
 
 export default function VendorListPage() {
@@ -37,7 +37,7 @@ export default function VendorListPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [companyFilter, setCompanyFilter] = useState<string[]>([]);
-  const [specialisationFilter, setSpecialisationFilter] = useState<string[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
@@ -65,7 +65,9 @@ export default function VendorListPage() {
     limit: pageSize,
     search: search || undefined,
     status: statusFilter.length === 1 ? statusFilter[0] : undefined,
-    specialisation: specialisationFilter.length > 0 ? specialisationFilter.join(',') : undefined,
+    // Vendor Category is authoritative for filtering (ADR-0018); the vendor's
+    // own `specialisations` claim drives nothing.
+    category: categoryFilter.length > 0 ? categoryFilter.join(',') : undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     sortBy: sortField ?? undefined,
@@ -83,12 +85,16 @@ export default function VendorListPage() {
     [t],
   );
 
-  const specialisationOptions = useMemo(
-    () =>
-      Object.values(VendorCategory).map((cat) => ({
+  const categoryOptions = useMemo(
+    () => [
+      ...Object.values(VendorCategory).map((cat) => ({
         value: cat,
         label: t(`vendorCategories.${cat}` as 'vendorCategories.ELECTRICAL'),
       })),
+      // Category is only mandatory on the create-new path, so untagged vendors
+      // exist by design — they must be reachable, not invisible (ADR-0018).
+      { value: UNCATEGORISED, label: t('filters.uncategorised') },
+    ],
     [t],
   );
 
@@ -127,10 +133,10 @@ export default function VendorListPage() {
             setStatusFilter(v);
             setPage(1);
           }}
-          specialisationOptions={specialisationOptions}
-          specialisationFilter={specialisationFilter}
-          onSpecialisationFilterChange={(v) => {
-            setSpecialisationFilter(v);
+          categoryOptions={categoryOptions}
+          categoryFilter={categoryFilter}
+          onCategoryFilterChange={(v) => {
+            setCategoryFilter(v);
             setPage(1);
           }}
           dateFrom={dateFrom}
@@ -230,7 +236,7 @@ interface VendorTableProps {
   sortDir: SortDir | null;
   onSort: (field: SortField) => void;
   getCompanyRowActions: (companyId: string, group?: VendorGroup) => DotAction[];
-  getVendorRowActions: (vendor: VendorListItem) => DotAction[];
+  getVendorRowActions: (vendor: VendorRowSubject) => DotAction[];
   onEditVendor: (userId: string) => void;
   onViewCompany: (companyId: string) => void;
   onViewUser: (companyId: string, userId: string) => void;
@@ -283,7 +289,7 @@ interface VendorGroupSectionProps {
   isExpanded: boolean;
   onToggle: () => void;
   getCompanyRowActions: (companyId: string, group?: VendorGroup) => DotAction[];
-  getVendorRowActions: (vendor: VendorListItem) => DotAction[];
+  getVendorRowActions: (vendor: VendorRowSubject) => DotAction[];
   onEditVendor: (userId: string) => void;
   onViewCompany: (companyId: string) => void;
   onViewUser: (companyId: string, userId: string) => void;

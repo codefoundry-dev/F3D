@@ -50,11 +50,13 @@ describe('resolveVendorEmailRecipients', () => {
 });
 
 describe('resolveSelectedRecipients', () => {
+  const invited = (email: string) => ({ email, status: 'INVITED' });
+
   it('emails only the selected reps when any are chosen', () => {
     expect(
       resolveSelectedRecipients(
-        [{ email: 'jane@vendor.com' }, { email: 'john@vendor.com' }],
-        [{ email: 'someone-else@vendor.com' }],
+        [invited('jane@vendor.com'), invited('john@vendor.com')],
+        [invited('someone-else@vendor.com')],
         'contact@vendor.com',
       ),
     ).toEqual(['jane@vendor.com', 'john@vendor.com']);
@@ -62,13 +64,13 @@ describe('resolveSelectedRecipients', () => {
 
   it('de-duplicates the selected reps case-insensitively', () => {
     expect(
-      resolveSelectedRecipients([{ email: 'Jane@Vendor.com' }, { email: 'jane@vendor.com' }], []),
+      resolveSelectedRecipients([invited('Jane@Vendor.com'), invited('jane@vendor.com')], []),
     ).toEqual(['Jane@Vendor.com']);
   });
 
   it('falls back to the vendor users when no reps were chosen', () => {
     expect(
-      resolveSelectedRecipients([], [{ email: 'user@vendor.com' }], 'contact@vendor.com'),
+      resolveSelectedRecipients([], [invited('user@vendor.com')], 'contact@vendor.com'),
     ).toEqual(['user@vendor.com']);
   });
 
@@ -77,9 +79,41 @@ describe('resolveSelectedRecipients', () => {
   });
 
   it('ignores blank selected rep emails and falls back', () => {
-    expect(resolveSelectedRecipients([{ email: '  ' }], [{ email: 'user@vendor.com' }])).toEqual([
-      'user@vendor.com',
-    ]);
+    expect(
+      resolveSelectedRecipients([{ email: '  ', status: 'INVITED' }], [invited('user@vendor.com')]),
+    ).toEqual(['user@vendor.com']);
+  });
+
+  // ── Deactivated reps (CONTEXT.md: they receive no vendor-bound emails) ──────
+
+  it('drops a deactivated rep from the selection but keeps the sendable ones', () => {
+    expect(
+      resolveSelectedRecipients(
+        [{ email: 'gone@vendor.com', status: 'INACTIVE' }, invited('jane@vendor.com')],
+        [invited('fallback@vendor.com')],
+        'contact@vendor.com',
+      ),
+    ).toEqual(['jane@vendor.com']);
+  });
+
+  it('falls through to the vendor users when every selected rep is deactivated', () => {
+    expect(
+      resolveSelectedRecipients(
+        [{ email: 'gone@vendor.com', status: 'INACTIVE' }],
+        [invited('user@vendor.com')],
+        'contact@vendor.com',
+      ),
+    ).toEqual(['user@vendor.com']);
+  });
+
+  it('never emails a deactivated rep via the fallback list either', () => {
+    expect(
+      resolveSelectedRecipients(
+        [],
+        [{ email: 'gone@vendor.com', status: 'INACTIVE' }],
+        'contact@vendor.com',
+      ),
+    ).toEqual(['contact@vendor.com']);
   });
 });
 

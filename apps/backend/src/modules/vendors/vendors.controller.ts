@@ -22,6 +22,8 @@ import {
   CreateWarehouseDto,
   InviteVendorDto,
   InviteVendorUserDto,
+  ResolveVendorSelectionDto,
+  UpdateVendorCategoriesDto,
   UpdateVendorProfileDto,
   UpdateWarehouseDto,
   VendorListQueryDto,
@@ -54,6 +56,47 @@ export class VendorsController {
   @ApiResponse({ status: 200, description: 'Paginated vendor list' })
   listVendors(@Query() query: VendorListQueryDto, @CurrentUser() user: AuthenticatedUser) {
     return this.vendorsService.listVendors(query, user);
+  }
+
+  // ── Vendor Categories (ADR-0018) ──────────────────────────────────────────
+
+  @Post('selection/resolve')
+  @RequirePermissions('vendor.list')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Resolve a category filter to every matching vendor + sendable rep id',
+    description:
+      'Backs the RFQ wizard\'s "Add All". Unpaginated by design, and excludes deactivated reps ' +
+      'server-side so bulk selection cannot reach a recipient a single selection could not.',
+  })
+  @ApiResponse({ status: 200, description: 'Vendor and rep ids matching the filter' })
+  resolveVendorSelection(
+    @Body() dto: ResolveVendorSelectionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.vendorsService.resolveVendorSelection(dto, user);
+  }
+
+  @Patch(':id/categories')
+  @RequirePermissions('vendor.updateCategories')
+  @ApiOperation({
+    summary: 'Set the Vendor Categories this contractor applies to a vendor',
+    description:
+      "Replace-semantics; an empty array clears them. Scoped to the caller's own assignment — " +
+      "one contractor's categorisation is invisible to every other (ADR-0018).",
+  })
+  @ApiResponse({ status: 200, description: 'Categories updated' })
+  @ApiResponse({
+    status: 403,
+    description: 'Vendor not assigned to the caller, or caller is a vendor',
+  })
+  @ApiResponse({ status: 404, description: 'Vendor not found' })
+  updateVendorCategories(
+    @Param('id') id: string,
+    @Body() dto: UpdateVendorCategoriesDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.vendorsService.updateVendorCategories(id, dto, user);
   }
 
   // ── Vendor Profile (US-3.07) ──────────────────────────────────────────────

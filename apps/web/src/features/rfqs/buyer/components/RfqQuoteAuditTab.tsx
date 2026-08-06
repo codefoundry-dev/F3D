@@ -49,7 +49,9 @@ function AuditRow({ entry, isLast }: { entry: QuoteAuditEntry; isLast: boolean }
   const total = entry.changes?.snapshot.totalCost ?? null;
   const fieldsChanged = entry.changes?.fields ? Object.keys(entry.changes.fields).length : 0;
   const lineItemsChanged = entry.changes?.lineItems
-    ? entry.changes.lineItems.changed + entry.changes.lineItems.added + entry.changes.lineItems.removed
+    ? entry.changes.lineItems.changed +
+      entry.changes.lineItems.added +
+      entry.changes.lineItems.removed
     : 0;
 
   return (
