@@ -95,8 +95,22 @@ describe('InvoicesController', () => {
       mockMatchingService.getPoMatch.mockResolvedValue(expected);
 
       const result = await controller.getPoMatch('inv-1', mockUser);
-      expect(mockMatchingService.getPoMatch).toHaveBeenCalledWith('inv-1', mockUser);
+      expect(mockMatchingService.getPoMatch).toHaveBeenCalledWith('inv-1', mockUser, undefined);
       expect(result).toEqual(expected);
+    });
+
+    it("passes the reviewer's selected PO through as the reconciliation target", async () => {
+      mockMatchingService.getPoMatch.mockResolvedValue({ resolution: 'SELECTED', lines: [] });
+
+      await controller.getPoMatch('inv-1', mockUser, 'po-9');
+      expect(mockMatchingService.getPoMatch).toHaveBeenCalledWith('inv-1', mockUser, 'po-9');
+    });
+
+    it('treats an empty poId as no selection', async () => {
+      mockMatchingService.getPoMatch.mockResolvedValue({ resolution: 'NO_REFERENCE', lines: [] });
+
+      await controller.getPoMatch('inv-1', mockUser, '');
+      expect(mockMatchingService.getPoMatch).toHaveBeenCalledWith('inv-1', mockUser, undefined);
     });
   });
 

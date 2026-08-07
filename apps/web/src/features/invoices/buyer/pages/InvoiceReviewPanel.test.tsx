@@ -165,12 +165,24 @@ function makeMatch(overrides: Partial<InvoicePoMatchResult> = {}): InvoicePoMatc
       vendorId: 'v-1',
       vendorName: 'DAMOS Pty Ltd',
       projectId: 'p-1',
+      projectName: 'Plant Upgrade',
+      currency: 'AUD',
       totalAmount: 110,
+      delivery: {
+        status: 'PARTIALLY_DELIVERED',
+        quantityOrdered: 10,
+        quantityDelivered: 4,
+        linesDelivered: 0,
+        lineCount: 1,
+        percentDelivered: 40,
+        plannedDeliveryDate: '2026-08-14T00:00:00.000Z',
+      },
     },
     poCandidates: [],
     poReferences: ['PO-2026-001'],
     vendorMismatch: false,
     lines: [],
+    poLines: [],
     unbilledPoLines: [],
     thresholds: { priceTolerancePct: 2, quantityTolerance: 0 },
     summary: {
@@ -531,10 +543,12 @@ describe('InvoiceReviewPanel', () => {
       unitOfMeasure: 'm',
       unitPrice: 8.5,
       lineTotal: 85,
+      costCode: null,
     };
     mockGetInvoicePoMatch.mockResolvedValue(
       makeMatch({
         resolution: 'LINKED',
+        poLines: [poLine],
         lines: [
           {
             invoiceLineId: 'il-1',
@@ -580,8 +594,11 @@ describe('InvoiceReviewPanel', () => {
     expect(summary).toHaveTextContent(
       'Checked against PO-00042: 1 of 2 line(s) matched, 1 price variance(s), 0 quantity variance(s), 1 not on the PO.',
     );
-    expect(screen.getByText('Price +10%')).toBeInTheDocument();
-    expect(screen.getByText('Not on PO')).toBeInTheDocument();
+    // Scoped to the editable line table — the PO comparison below repeats the
+    // same badges against the PO's own lines.
+    const lineRows = within(screen.getByTestId('invoice-review-lines'));
+    expect(lineRows.getByText('Price +10%')).toBeInTheDocument();
+    expect(lineRows.getByText('Not on PO')).toBeInTheDocument();
   });
 
   it('shows the all-clear summary and Matched badges when every line matches', async () => {
@@ -603,9 +620,22 @@ describe('InvoiceReviewPanel', () => {
         },
       ],
     });
+    const poLine = {
+      id: 'pol-1',
+      lineNumber: 1,
+      materialCode: 'PVC-100',
+      description: 'DN100 PVC pipe',
+      quantityOrdered: 10,
+      quantityDelivered: 10,
+      unitOfMeasure: 'm',
+      unitPrice: 8.5,
+      lineTotal: 85,
+      costCode: null,
+    };
     mockGetInvoicePoMatch.mockResolvedValue(
       makeMatch({
         resolution: 'LINKED',
+        poLines: [poLine],
         lines: [
           {
             invoiceLineId: 'il-1',
@@ -614,17 +644,7 @@ describe('InvoiceReviewPanel', () => {
             quantity: 10,
             unitPrice: 8.5,
             lineTotal: 85,
-            poLine: {
-              id: 'pol-1',
-              lineNumber: 1,
-              materialCode: 'PVC-100',
-              description: 'DN100 PVC pipe',
-              quantityOrdered: 10,
-              quantityDelivered: 10,
-              unitOfMeasure: 'm',
-              unitPrice: 8.5,
-              lineTotal: 85,
-            },
+            poLine,
             matchConfidence: 0.7,
             priceVariancePct: 0,
             quantityDelta: 0,
@@ -646,7 +666,177 @@ describe('InvoiceReviewPanel', () => {
 
     const summary = await screen.findByTestId('invoice-review-match-clean');
     expect(summary).toHaveTextContent('All 1 line(s) match PO-00042 — no variances.');
-    expect(screen.getByText('Matched')).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('invoice-review-lines')).getByText('Matched'),
+    ).toBeInTheDocument();
+  });
+
+  // ── Matched-PO comparison ──────────────────────────────────────────────────
+  // The reviewer decides against the PO, so the PO's own state — lifecycle
+  // status, how much of it actually arrived, and every line it ordered — has to
+  // sit beside the invoice rather than a page away.
+
+  describe('matched PO comparison', () => {
+    const poLine = (overrides: Record<string, unknown> = {}) => ({
+      id: 'pol-1',
+      lineNumber: 1,
+      materialCode: 'PVC-100',
+      description: 'DN100 PVC pipe',
+      quantityOrdered: 10,
+      quantityDelivered: 4,
+      unitOfMeasure: 'm',
+      unitPrice: 8.5,
+      lineTotal: 85,
+      costCode: null,
+      ...overrides,
+    });
+
+    const reviewedInvoice = () =>
+      makeInvoice({
+        reviewedAt: '2026-07-28T10:00:00.000Z',
+        relatedPo: 'po-1',
+        relatedPoNumber: 'PO-00042',
+        lines: [
+          {
+            id: 'il-1',
+            lineId: '1',
+            description: 'DN100 PVC pipe',
+            quantity: 10,
+            unit: 'm',
+            unitPrice: 8.5,
+            lineTotal: 85,
+            costCode: null,
+            glAccount: null,
+          },
+        ],
+      });
+
+    it('shows the PO status, its delivery status and delivery progress', async () => {
+      mockGetInvoicePoMatch.mockResolvedValue(
+        makeMatch({ resolution: 'LINKED', poLines: [poLine()] }),
+      );
+
+      render(<InvoiceReviewPanel invoice={reviewedInvoice()} />, { wrapper });
+
+      const card = await screen.findByTestId('invoice-po-comparison');
+      expect(within(card).getByTestId('invoice-po-comparison-status')).toHaveTextContent('Sent');
+      expect(within(card).getByTestId('invoice-po-comparison-delivery')).toHaveTextContent(
+        'Partially delivered',
+      );
+      expect(within(card).getByTestId('invoice-po-comparison-progress')).toHaveTextContent(
+        '4 of 10 units (40%)',
+      );
+    });
+
+    it("lists the PO's line items beside what the invoice bills for them", async () => {
+      const billed = poLine();
+      const unbilled = poLine({
+        id: 'pol-2',
+        lineNumber: 2,
+        materialCode: 'FIT-90',
+        description: '90° elbow fitting',
+        quantityOrdered: 4,
+        quantityDelivered: 0,
+        unitOfMeasure: 'ea',
+        unitPrice: 12,
+        lineTotal: 48,
+      });
+      mockGetInvoicePoMatch.mockResolvedValue(
+        makeMatch({
+          resolution: 'LINKED',
+          poLines: [billed, unbilled],
+          lines: [
+            {
+              invoiceLineId: 'il-1',
+              position: 0,
+              description: 'DN100 PVC pipe',
+              quantity: 10,
+              unitPrice: 8.5,
+              lineTotal: 85,
+              poLine: billed,
+              matchConfidence: 0.9,
+              priceVariancePct: 0,
+              quantityDelta: 0,
+              flags: [],
+            },
+          ],
+          unbilledPoLines: [unbilled],
+          summary: {
+            lineCount: 1,
+            matchedCount: 1,
+            priceVarianceCount: 0,
+            quantityVarianceCount: 0,
+            unexpectedCount: 0,
+          },
+        }),
+      );
+
+      render(<InvoiceReviewPanel invoice={reviewedInvoice()} />, { wrapper });
+
+      const card = await screen.findByTestId('invoice-po-comparison');
+      const rows = within(card).getByTestId('invoice-po-comparison-rows');
+      // Every PO line is listed, billed or not.
+      expect(within(rows).getByText('DN100 PVC pipe')).toBeInTheDocument();
+      expect(within(rows).getByText('90° elbow fitting')).toBeInTheDocument();
+      // The line the invoice never billed is called out rather than left blank.
+      expect(within(rows).getByText('Not billed')).toBeInTheDocument();
+    });
+
+    it('hides the PO lines behind the toggle and brings them back', async () => {
+      mockGetInvoicePoMatch.mockResolvedValue(
+        makeMatch({ resolution: 'LINKED', poLines: [poLine()] }),
+      );
+
+      render(<InvoiceReviewPanel invoice={reviewedInvoice()} />, { wrapper });
+      const card = await screen.findByTestId('invoice-po-comparison');
+      const toggle = within(card).getByTestId('invoice-po-comparison-toggle');
+
+      fireEvent.click(toggle);
+      expect(within(card).queryByTestId('invoice-po-comparison-rows')).not.toBeInTheDocument();
+
+      fireEvent.click(toggle);
+      expect(within(card).getByTestId('invoice-po-comparison-rows')).toBeInTheDocument();
+    });
+
+    it('reconciles against a PO the reviewer picks by hand, before any save', async () => {
+      mockGetPurchaseOrders.mockResolvedValue({
+        items: [
+          { id: 'po-1', poNumber: 'PO-00042' },
+          { id: 'po-9', poNumber: 'PO-00099' },
+        ],
+        meta: { page: 1, limit: 100, total: 2, totalPages: 1 },
+      });
+      // The report answers for whichever PO is asked about — that is the whole
+      // point of the manual selection: no save, but the real comparison.
+      mockGetInvoicePoMatch.mockImplementation((_id: string, params?: { poId?: string | null }) =>
+        Promise.resolve(
+          params?.poId === 'po-9'
+            ? makeMatch({
+                resolution: 'SELECTED',
+                po: { ...makeMatch().po!, id: 'po-9', poNumber: 'PO-00099', status: 'DELIVERED' },
+                poLines: [poLine()],
+              })
+            : makeMatch({ resolution: 'NO_REFERENCE', po: null, poReferences: [] }),
+        ),
+      );
+
+      render(<InvoiceReviewPanel invoice={makeInvoice()} />, { wrapper });
+      await screen.findByTestId('invoice-review-match-no-reference');
+
+      const poField = within(screen.getByTestId('invoice-review-po'));
+      fireEvent.click(poField.getAllByRole('button')[0]);
+      fireEvent.click(await poField.findByRole('option', { name: 'PO-00099' }));
+
+      await waitFor(() =>
+        expect(mockGetInvoicePoMatch).toHaveBeenCalledWith('inv-1', { poId: 'po-9' }),
+      );
+      const card = await screen.findByTestId('invoice-po-comparison');
+      expect(card).toHaveTextContent('PO-00099');
+      expect(within(card).getByTestId('invoice-po-comparison-status')).toHaveTextContent(
+        'Delivered',
+      );
+      expect(mockReviewInvoice).not.toHaveBeenCalled();
+    });
   });
 
   // ── Approve-readiness messaging ────────────────────────────────────────────

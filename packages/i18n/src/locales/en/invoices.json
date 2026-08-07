@@ -205,6 +205,33 @@
         "price": "Price {{pct}}%",
         "qty": "Qty {{delta}}",
         "notOnPo": "Not on PO"
+      },
+      "selected": "Comparing this invoice against {{poNumber}}. Save to link it — the line checks below run once the invoice lines are saved.",
+      "row": {
+        "notBilled": "Not billed"
+      },
+      "delivery": {
+        "AWAITING_DELIVERY": "Awaiting delivery",
+        "PARTIALLY_DELIVERED": "Partially delivered",
+        "DELIVERED": "Delivered"
+      },
+      "po": {
+        "sectionLabel": "Matched purchase order",
+        "heading": "Matched purchase order",
+        "vendor": "Vendor",
+        "project": "Project",
+        "total": "PO total",
+        "plannedDelivery": "Planned delivery",
+        "deliveryProgress": "Delivered",
+        "deliveredOf": "{{delivered}} of {{ordered}} units ({{percent}}%)",
+        "deliveryBadge": "Delivery: {{status}}",
+        "columnGroup": "Purchase order",
+        "invoiceGroup": "Invoice",
+        "ordered": "Ordered",
+        "delivered": "Delivered",
+        "showLines": "Show PO lines",
+        "hideLines": "Hide PO lines",
+        "noLines": "This purchase order has no line items."
       }
     }
   }

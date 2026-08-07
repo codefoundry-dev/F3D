@@ -30,6 +30,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useInvoicePoMatch, useReviewInvoice } from '../hooks/useInvoices';
 
+import { InvoicePoComparison } from './InvoicePoComparison';
+
 // ── Form state ───────────────────────────────────────────────────────────────
 // Every value is kept as a string while editing (numbers parse on save), so
 // clearing a field can never silently become NaN mid-edit.
@@ -122,10 +124,6 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
     queryFn: () => getPurchaseOrders({ limit: 100 }),
   });
 
-  // Invoice↔PO reconciliation (FOR-293): PO suggestion + per-line variance flags.
-  const poMatch = useInvoicePoMatch(invoice.id);
-  const matchResult: InvoicePoMatchResult | undefined = poMatch.data;
-
   const extraction = invoice.extraction;
   const extractionRunning = extraction?.status === 'PENDING' || extraction?.status === 'PROCESSING';
   const extracted: InvoiceExtractionResult | null = extraction?.result ?? null;
@@ -133,6 +131,12 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
   const [form, setForm] = useState<ReviewFormState | null>(null);
   const [dirty, setDirty] = useState(false);
   const lineKey = useRef(0);
+
+  // Invoice↔PO reconciliation (FOR-293): PO suggestion + per-line variance flags.
+  // Reconciled against the PO currently chosen in the form, so picking one by
+  // hand shows its status, delivery progress and lines without saving first.
+  const poMatch = useInvoicePoMatch(invoice.id, form?.relatedPoId || null);
+  const matchResult: InvoicePoMatchResult | undefined = poMatch.data;
 
   const nextKey = () => {
     lineKey.current += 1;
@@ -459,6 +463,13 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
 
   const showLineFlags = !!matchResult?.po && matchResult.lines.length > 0;
 
+  // The server flags the mismatch against the *saved* vendor; once the reviewer
+  // has picked one in the form that choice is the truthful comparison, so the
+  // warning clears as soon as they correct it rather than after the next save.
+  const vendorMismatch = form.vendorId
+    ? !!matchResult?.po?.vendorId && matchResult.po.vendorId !== form.vendorId
+    : !!matchResult?.vendorMismatch;
+
   const matchBanner = (() => {
     if (!matchResult) return null;
     const warnIcon = <InfoTriangleIcon className="size-4" />;
@@ -501,7 +512,7 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
       );
     }
 
-    // LINKED / AUTO_MATCHED
+    // LINKED / AUTO_MATCHED / SELECTED
     if (!matchResult.po) return null;
     const poNumber = matchResult.po.poNumber;
     const { lineCount, matchedCount, priceVarianceCount, quantityVarianceCount, unexpectedCount } =
@@ -517,6 +528,16 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
                 {t('review.match.autoMatched', {
                   defaultValue:
                     'This invoice cites {{poNumber}} — confirmed automatically from the document. Save to link it.',
+                  poNumber,
+                })}
+              </Alert>
+            </div>
+          ) : matchResult.resolution === 'SELECTED' ? (
+            <div data-testid="invoice-review-match-selected">
+              <Alert variant="info" icon={warnIcon}>
+                {t('review.match.selected', {
+                  defaultValue:
+                    'Comparing this invoice against {{poNumber}}. Save to link it — the line checks below run once the invoice lines are saved.',
                   poNumber,
                 })}
               </Alert>
@@ -548,7 +569,7 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
             </Alert>
           </div>
         )}
-        {matchResult.vendorMismatch && (
+        {vendorMismatch && (
           <div data-testid="invoice-review-match-vendor">
             <Alert variant="warning" icon={warnIcon}>
               {t('review.match.vendorMismatch', {
@@ -711,6 +732,10 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
 
       {/* ── PO match (FOR-293) ───────────────────────────────────────────── */}
       {matchBanner}
+
+      {/* The matched/selected PO itself: status, delivery progress and every one
+          of its lines beside what the invoice bills for them. */}
+      {matchResult?.po && <InvoicePoComparison match={matchResult} />}
 
       {/* ── Line items ───────────────────────────────────────────────────── */}
       <div>

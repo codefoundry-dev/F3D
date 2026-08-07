@@ -9,6 +9,9 @@
  * How the purchase order was (or wasn't) resolved for the invoice:
  * - LINKED — the invoice already carries `relatedPoId` (reviewer-confirmed).
  * - AUTO_MATCHED — exactly one company PO matches an extracted PO reference.
+ * - SELECTED — the reviewer picked a PO in the review form that is neither the
+ *   saved link nor the auto-matched one; the report is a preview of what saving
+ *   that choice would reconcile against.
  * - AMBIGUOUS — several company POs match the extracted references; the
  *   reviewer must pick one (candidates are listed).
  * - NOT_FOUND — the invoice cites PO reference(s), but none resolve to a
@@ -18,11 +21,37 @@
 export type InvoicePoResolution =
   | 'LINKED'
   | 'AUTO_MATCHED'
+  | 'SELECTED'
   | 'AMBIGUOUS'
   | 'NOT_FOUND'
   | 'NO_REFERENCE';
 
 export type InvoiceLineMatchFlag = 'PRICE_VARIANCE' | 'QTY_VARIANCE' | 'NOT_ON_PO';
+
+/**
+ * Where the PO stands on delivery, derived from its line quantities the same way
+ * the delivery close-out derives the PO status (see PoStatusService): every line
+ * received in full → DELIVERED, anything received → PARTIALLY_DELIVERED, else
+ * AWAITING_DELIVERY. Derived rather than read off `PurchaseOrder.status` because
+ * the status also carries non-delivery states (Sent, Invoiced, Dispute…) that say
+ * nothing about what actually arrived.
+ */
+export type InvoicePoDeliveryStatus = 'AWAITING_DELIVERY' | 'PARTIALLY_DELIVERED' | 'DELIVERED';
+
+/** Delivery progress on the matched PO — context for the invoice reviewer. */
+export interface InvoicePoDelivery {
+  status: InvoicePoDeliveryStatus;
+  /** Total quantity ordered across the PO's lines. */
+  quantityOrdered: number;
+  /** Total quantity received against those lines (may exceed ordered). */
+  quantityDelivered: number;
+  /** PO lines received in full. */
+  linesDelivered: number;
+  lineCount: number;
+  /** Received / ordered as a 0–100 percentage, capped at 100; 0 when nothing is ordered. */
+  percentDelivered: number;
+  plannedDeliveryDate: string | null;
+}
 
 /** The resolved (or candidate) purchase order, header-level. */
 export interface InvoiceMatchedPo {
@@ -32,7 +61,10 @@ export interface InvoiceMatchedPo {
   vendorId: string | null;
   vendorName: string | null;
   projectId: string;
+  projectName: string | null;
+  currency: string;
   totalAmount: number | null;
+  delivery: InvoicePoDelivery;
 }
 
 /** A PO line as compared against the invoice. */
@@ -46,6 +78,8 @@ export interface InvoicePoMatchPoLine {
   unitOfMeasure: string;
   unitPrice: number;
   lineTotal: number;
+  /** The PO's own coding — what the reviewer's line coding (FOR-295) should agree with. */
+  costCode: string | null;
 }
 
 /** One saved invoice line with its PO pairing and variance flags. */
@@ -85,15 +119,20 @@ export interface InvoicePoMatchThresholds {
 
 export interface InvoicePoMatchResult {
   resolution: InvoicePoResolution;
-  /** The PO the lines were checked against; null unless LINKED or AUTO_MATCHED. */
+  /** The PO the lines were checked against; null unless LINKED, AUTO_MATCHED or SELECTED. */
   po: InvoiceMatchedPo | null;
-  /** All resolving POs when AMBIGUOUS (otherwise empty). */
+  /** All resolving POs when AMBIGUOUS; retained when the reviewer picks one of them. */
   poCandidates: InvoiceMatchedPo[];
   /** PO references as extracted from the document (FOR-291). */
   poReferences: string[];
   /** True when the invoice's reviewed vendor differs from the PO's vendor. */
   vendorMismatch: boolean;
   lines: InvoicePoMatchLine[];
+  /**
+   * Every line on the resolved PO, in line-number order — the reviewer's
+   * side-by-side reference, billed or not. Empty when no PO is resolved.
+   */
+  poLines: InvoicePoMatchPoLine[];
   /** PO lines the invoice does not bill — context for the reviewer. */
   unbilledPoLines: InvoicePoMatchPoLine[];
   thresholds: InvoicePoMatchThresholds;

@@ -122,15 +122,34 @@ export interface InvoiceDetail {
 
 // ── Invoice ↔ PO match (FOR-293), mirroring shared-types ────────────────────
 
-/** How the PO was (or wasn't) resolved for the invoice (FOR-293). */
+/**
+ * How the PO was (or wasn't) resolved for the invoice (FOR-293). `SELECTED` is a
+ * preview of the PO the reviewer picked in the form but has not saved yet.
+ */
 export type InvoicePoResolution =
   | 'LINKED'
   | 'AUTO_MATCHED'
+  | 'SELECTED'
   | 'AMBIGUOUS'
   | 'NOT_FOUND'
   | 'NO_REFERENCE';
 
 export type InvoiceLineMatchFlag = 'PRICE_VARIANCE' | 'QTY_VARIANCE' | 'NOT_ON_PO';
+
+/** Where the PO stands on delivery, derived from its line quantities. */
+export type InvoicePoDeliveryStatus = 'AWAITING_DELIVERY' | 'PARTIALLY_DELIVERED' | 'DELIVERED';
+
+/** Delivery progress on the matched PO — context for the invoice reviewer. */
+export interface InvoicePoDelivery {
+  status: InvoicePoDeliveryStatus;
+  quantityOrdered: number;
+  quantityDelivered: number;
+  linesDelivered: number;
+  lineCount: number;
+  /** Received / ordered as a 0–100 percentage, capped at 100. */
+  percentDelivered: number;
+  plannedDeliveryDate: string | null;
+}
 
 /** The resolved (or candidate) purchase order, header-level. */
 export interface InvoiceMatchedPo {
@@ -140,7 +159,10 @@ export interface InvoiceMatchedPo {
   vendorId: string | null;
   vendorName: string | null;
   projectId: string;
+  projectName: string | null;
+  currency: string;
   totalAmount: number | null;
+  delivery: InvoicePoDelivery;
 }
 
 /** A PO line as compared against the invoice. */
@@ -154,6 +176,7 @@ export interface InvoicePoMatchPoLine {
   unitOfMeasure: string;
   unitPrice: number;
   lineTotal: number;
+  costCode: string | null;
 }
 
 /** One saved invoice line with its PO pairing and variance flags. */
@@ -178,6 +201,8 @@ export interface InvoicePoMatchResult {
   poReferences: string[];
   vendorMismatch: boolean;
   lines: InvoicePoMatchLine[];
+  /** Every line on the resolved PO, in line-number order (billed or not). */
+  poLines: InvoicePoMatchPoLine[];
   unbilledPoLines: InvoicePoMatchPoLine[];
   thresholds: { priceTolerancePct: number; quantityTolerance: number };
   summary: {
@@ -299,14 +324,19 @@ export async function reviewInvoice(
  * Reconcile the invoice against its PO (FOR-293): PO resolution plus per-line
  * price/quantity variance and unexpected-line flags, computed from the saved
  * invoice lines. Recomputed server-side on every call.
+ *
+ * `poId` previews the report against a PO the reviewer has selected in the review
+ * form but not yet saved, so its status, delivery progress and lines can be
+ * compared side by side before the link is committed.
  */
 export async function getInvoicePoMatch(
   id: string,
+  params?: { poId?: string | null },
   config?: AxiosRequestConfig,
 ): Promise<InvoicePoMatchResult> {
   const { data } = await getApiClient().get<{ data: InvoicePoMatchResult }>(
     INVOICES_PATHS.poMatch(id),
-    config,
+    { params: params?.poId ? { poId: params.poId } : undefined, ...config },
   );
   return data.data;
 }

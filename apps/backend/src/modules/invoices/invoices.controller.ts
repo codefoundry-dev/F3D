@@ -136,8 +136,16 @@ export class InvoicesController {
   })
   @ApiResponse({ status: 200, description: 'Match report for the reviewer' })
   @ApiResponse({ status: 404, description: 'Invoice not found' })
-  async getPoMatch(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.invoiceMatchingService.getPoMatch(id, user);
+  async getPoMatch(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('poId') poId?: string,
+  ) {
+    // `poId` previews the reconciliation against a PO the reviewer has selected in
+    // the form but not yet saved, so the PO's status, delivery progress and lines
+    // can be compared before committing to the link. A PO outside the invoice's
+    // company is ignored, not an error.
+    return this.invoiceMatchingService.getPoMatch(id, user, poId === '' ? undefined : poId);
   }
 
   // ── PATCH /v1/invoices/:id/review ──────────────────────────────────────────

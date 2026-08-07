@@ -42,12 +42,19 @@ export function useInvoice(id: string | undefined) {
  * Invoice ↔ PO reconciliation report (FOR-293): PO resolution plus per-line
  * price/quantity variance flags, recomputed from the saved invoice lines.
  * Lives under the ['invoices'] key so review/approve saves refresh it.
+ *
+ * `poId` is the PO the reviewer has selected in the form but not yet saved: it
+ * keys its own cache entry so switching the selection re-reconciles against the
+ * newly chosen PO (status, delivery progress and lines) without a save.
  */
-export function useInvoicePoMatch(id: string | undefined) {
+export function useInvoicePoMatch(id: string | undefined, poId?: string | null) {
   return useQuery({
-    queryKey: ['invoices', id, 'po-match'],
-    queryFn: () => getInvoicePoMatch(id as string),
+    queryKey: ['invoices', id, 'po-match', poId ?? null],
+    queryFn: () => getInvoicePoMatch(id as string, { poId }),
     enabled: !!id,
+    // The previously-selected PO's report stays on screen while the newly
+    // selected one loads, so the comparison table never blanks mid-review.
+    placeholderData: keepPreviousData,
   });
 }
 
