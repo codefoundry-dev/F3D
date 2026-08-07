@@ -8,6 +8,7 @@ import { useTranslation } from '@forethread/i18n';
 import {
   Button,
   DatePicker,
+  DotActionsMenu,
   MaterialSearchPanel,
   StepperInput,
   Textarea,
@@ -21,6 +22,7 @@ import ChevronRightIcon from '@forethread/ui-components/assets/icons/chevron-rig
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import NoteIcon from '@forethread/ui-components/assets/icons/note.svg?react';
+import ProjectsIcon from '@forethread/ui-components/assets/icons/projects.svg?react';
 import { useMemo, useState } from 'react';
 
 import {
@@ -66,7 +68,8 @@ const UNASSIGNED_GROUP_ID = '__unassigned__';
 
 /** Per-project inline manual entry draft. `materialId` is set when the name
  * was picked from the catalogue popup (FOR-274) and dropped again as soon as
- * the user edits the name to free text. */
+ * the user edits the name to free text. `description` has no cell of its own —
+ * it only carries the catalogue material's description onto the line. */
 interface ManualDraft {
   name: string;
   description: string;
@@ -82,40 +85,6 @@ function formatExpiration(value: string | null | undefined): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-/** Inline select rendered borderless inside a table cell. */
-function CellSelect({
-  value,
-  options,
-  placeholder,
-  onChange,
-  testId,
-}: {
-  value: string | undefined;
-  options: Array<{ value: string; label: string }>;
-  placeholder?: string;
-  onChange: (value: string) => void;
-  testId?: string;
-}) {
-  return (
-    <select
-      value={value ?? ''}
-      onChange={(e) => onChange(e.target.value)}
-      data-testid={testId}
-      className={cn(
-        'w-full h-9 bg-transparent text-sm text-foreground focus:outline-none cursor-pointer truncate',
-        !value && 'text-muted-foreground',
-      )}
-    >
-      {placeholder !== undefined && <option value="">{placeholder}</option>}
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-  );
 }
 
 /**
@@ -331,12 +300,9 @@ export function StepLineItems({
 
   const projectOptions = projects.map((project) => ({ value: project.id, label: project.name }));
 
-  const lineItemDisplayId = (item: WizardLineItem) =>
-    item.serverId ? item.serverId.slice(0, 8).toUpperCase() : '—';
-
-  /** Columns: project, id, material, description, qty, uom, exp, availability,
-   * actions. The Availability column is always present (9 columns total). */
-  const colCount = 9;
+  /** Columns: material, qty, uom, exp, availability, actions. The project is
+   * carried by the group header, so rows don't repeat it (6 columns total). */
+  const colCount = 6;
 
   const canCheckAvailability = items.length > 0 && !availabilityLoading;
 
@@ -415,13 +381,10 @@ export function StepLineItems({
 
       {/* ── Grouped line-items table ── */}
       <div className="rounded-lg border border-border overflow-x-auto bg-card">
-        <table className={cn('w-full text-sm min-w-[1140px]')} data-testid="line-items-table">
+        <table className={cn('w-full text-sm min-w-[900px]')} data-testid="line-items-table">
           <thead>
             <tr className={TABLE_HEADER_ROW}>
-              <th className={cn(TABLE_TH, 'w-[140px]')}>{t('create.lineItems.colProject')}</th>
-              <th className={cn(TABLE_TH, 'w-[110px]')}>{t('create.lineItems.colLineItemId')}</th>
               <th className={TABLE_TH}>{t('create.lineItems.colMaterialName')}</th>
-              <th className={TABLE_TH}>{t('create.lineItems.colDescription')}</th>
               <th className={cn(TABLE_TH, 'w-[120px]')}>
                 {t('create.lineItems.colQty')} <span className="text-destructive">*</span>
               </th>
@@ -430,7 +393,7 @@ export function StepLineItems({
               </th>
               <th className={cn(TABLE_TH, 'w-[150px]')}>{t('create.lineItems.colExpDelivery')}</th>
               <th className={cn(TABLE_TH, 'w-[210px]')}>{t('create.lineItems.colAvailability')}</th>
-              <th className={cn(TABLE_TH, 'w-[90px]')}>{t('create.lineItems.colActions')}</th>
+              <th className={cn(TABLE_TH, 'w-[120px]')}>{t('create.lineItems.colActions')}</th>
             </tr>
           </thead>
 
@@ -473,8 +436,9 @@ export function StepLineItems({
                       key={item.key}
                       item={item}
                       itemIndex={index}
-                      displayId={lineItemDisplayId(item)}
                       projectOptions={projectOptions}
+                      groupProjectId={groupId}
+                      moveLabel={t('create.lineItems.moveToProject')}
                       notesOpen={notesOpen[item.key] ?? false}
                       onToggleNotes={() =>
                         setNotesOpen((prev) => ({
@@ -505,8 +469,6 @@ export function StepLineItems({
                     Suppressed for the catch-all group — manual rows need a project. */}
                 {!isCollapsed && !isUnassigned && (
                   <tr className={TABLE_BODY_ROW} data-testid={`manual-row-${groupId}`}>
-                    <td className="py-1.5 px-3 text-muted-foreground">{groupName}</td>
-                    <td className="py-1.5 px-3 text-muted-foreground">—</td>
                     <td className="py-1.5 px-1">
                       <ManualMaterialNameCell
                         value={draft.name}
@@ -517,15 +479,6 @@ export function StepLineItems({
                         onCommit={() => commitManualDraft(groupId)}
                         placeholder={t('create.lineItems.manualNamePlaceholder')}
                         testId={`manual-name-${groupId}`}
-                      />
-                    </td>
-                    <td className="py-1.5 px-1">
-                      <input
-                        value={draft.description}
-                        onChange={(e) => patchManualDraft(groupId, { description: e.target.value })}
-                        onBlur={() => commitManualDraft(groupId)}
-                        placeholder={t('create.lineItems.manualDescriptionPlaceholder')}
-                        className="w-full h-9 px-2 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:bg-muted/40 rounded"
                       />
                     </td>
                     <td className="py-1.5 px-1">
@@ -548,7 +501,7 @@ export function StepLineItems({
                         data-testid={`manual-uom-${groupId}`}
                       />
                     </td>
-                    <td className="py-1.5 px-1 text-muted-foreground" colSpan={colCount - 6} />
+                    <td className="py-1.5 px-1 text-muted-foreground" colSpan={colCount - 3} />
                   </tr>
                 )}
               </tbody>
@@ -597,8 +550,10 @@ interface AvailabilityLabels {
 interface LineItemRowProps {
   item: WizardLineItem;
   itemIndex: number;
-  displayId: string;
   projectOptions: Array<{ value: string; label: string }>;
+  /** Id of the group the row is rendered under — excluded from the move menu. */
+  groupProjectId: string;
+  moveLabel: string;
   notesOpen: boolean;
   onToggleNotes: () => void;
   onChange: (patch: Partial<WizardLineItem>) => void;
@@ -622,8 +577,9 @@ interface LineItemRowProps {
 function LineItemRow({
   item,
   itemIndex,
-  displayId,
   projectOptions,
+  groupProjectId,
+  moveLabel,
   notesOpen,
   onToggleNotes,
   onChange,
@@ -663,27 +619,16 @@ function LineItemRow({
   );
   const canCoverMore = remaining > 0 && hasSpareCapacity;
 
+  // Reassignment lives in the row actions now that the Project column is gone:
+  // every selected project except the group this row already sits under. Rows in
+  // the "Unassigned" group match no group id, so they get the full list.
+  const moveTargets = projectOptions.filter((option) => option.value !== groupProjectId);
+
   return (
     <>
       <tr className={TABLE_BODY_ROW} data-testid={`line-item-${item.key}`}>
-        <td className="py-1.5 px-1">
-          <CellSelect
-            value={item.projectId}
-            options={projectOptions}
-            onChange={(projectId) => onChange({ projectId })}
-            testId={`line-project-${item.key}`}
-          />
-        </td>
-        <td className="py-1.5 px-3 text-muted-foreground whitespace-nowrap">{displayId}</td>
         <td className="py-1.5 px-3">
           <span className="text-foreground">{item.materialName}</span>
-        </td>
-        <td className="py-1.5 px-1">
-          <input
-            value={item.description ?? ''}
-            onChange={(e) => onChange({ description: e.target.value })}
-            className="w-full h-9 px-2 bg-transparent text-sm text-foreground focus:outline-none focus:bg-muted/40 rounded"
-          />
         </td>
         <td className="py-1.5 px-1">
           <StepperInput
@@ -786,6 +731,20 @@ function LineItemRow({
 
         <td className="py-1.5 px-3">
           <div className="flex items-center gap-1">
+            {moveTargets.length > 0 && (
+              <DotActionsMenu
+                actions={moveTargets.map((option) => ({
+                  key: option.value,
+                  label: option.label,
+                  onClick: () => onChange({ projectId: option.value }),
+                }))}
+                bordered={false}
+                ariaLabel={moveLabel}
+                trigger={<ProjectsIcon className="w-4 h-4" />}
+                triggerClassName="p-1.5 border-0 rounded-md"
+                className="shrink-0"
+              />
+            )}
             <button
               type="button"
               onClick={onToggleNotes}
