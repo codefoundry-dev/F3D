@@ -104,14 +104,14 @@ buyer-side reject is "decline" → `CANCELLED`; the vendor-side is "vendor-decli
 ### Approvals
 
 **Approver Pool**: The set of `ACTIVE` users in the document's own company whose **effective** grant
-of that document's approval permission (`po.approve` / `invoice.approve`) covers its total — "effective" meaning custom-role-first (an assigned
-custom role's cap replaces the built-in role's; `SUPER_ADMIN` always resolves through the built-in
-role). Like **Category filter → Add All**, it is a **query, not a stored entity**: it is recomputed
-per document from the live grants, so it can never name someone who cannot actually approve. A null
-cap means unlimited and is always in the pool. _Avoid_: **group** (already means "the Sales Reps at
-one company, collapsed into one row"), **team**, **entitled approvers**, **eligible approvers** (the
-method name `findEligibleApproverEmails` is retained for back-compat; the domain term is Approver
-Pool).
+of that document's approval permission (`po.approve` / `invoice.approve`) covers its total —
+"effective" meaning custom-role-first (an assigned custom role's cap replaces the built-in role's;
+`SUPER_ADMIN` always resolves through the built-in role). Like **Category filter → Add All**, it is
+a **query, not a stored entity**: it is recomputed per document from the live grants, so it can
+never name someone who cannot actually approve. A null cap means unlimited and is always in the
+pool. _Avoid_: **group** (already means "the Sales Reps at one company, collapsed into one row"),
+**team**, **entitled approvers**, **eligible approvers** (the method name
+`findEligibleApproverEmails` is retained for back-compat; the domain term is Approver Pool).
 
 **Submit for Approval**: The moment a document's total is first tested against its author's cap and,
 if uncovered, routed to the **Approver Pool**. On a **Purchase Order** this is _issue_
@@ -120,12 +120,36 @@ invoice arrives from a vendor rather than being raised by a spender, so the **re
 structural analogue of the PO's creator. Approval state lives in `approvalStatus` / `approvedById`,
 **separate from** the document's own `status` (ADR-0006 §Consequences), on both entities.
 
-**Nominated Approver**: A member of the **Approver Pool** whom the document's creator singles out
-at submit time. Nomination is a **routing hint, not a grant** — it changes only who is _notified_;
+**Nominated Approver**: A member of the **Approver Pool** whom the document's creator singles out at
+submit time. Nomination is a **routing hint, not a grant** — it changes only who is _notified_;
 every Pool member retains authority to approve. The creator may therefore only ever **narrow, never
 widen**: nominating cannot reach anyone outside the Pool, and nominating nobody notifies the whole
 Pool (the default). _Avoid_: assign, delegate (delegate is the Out-of-Office re-route in ADR-0006),
 approver (unqualified — that is a Pool member).
+
+**Approval Workflow**: A named, versioned definition of how one object type reaches approval — entry
+condition, ordered steps, reapproval triggers, owner. Published versions are **immutable**; a
+request pins the version it was submitted against, so changing a workflow never reroutes work
+already in flight. The approvable set is a **closed list of 15** (ADR-0006, 2026-08-07 enterprise
+amendment): adding one is a code change, not configuration. _Avoid_: process, rule, policy (a
+**Policy Variable** is the separate, tenant-configured number a workflow reads).
+
+**Approval Step**: One stage within a workflow — an authority pool, an entry condition, a quorum, a
+ceiling variable, an SLA and an escalation target. Sequential steps gate the next; parallel steps
+run concurrently. The **Approver Pool** is a step's authority resolution, not a workflow-level
+concept. _Avoid_: stage (reserved for the sheet-14 roadmap stages), level, tier.
+
+**Policy Variable**: A tenant-configured, scoped, effective-dated number a workflow reads at routing
+time (`PO_L1_MAX`, `INV_TOL_PCT`, `APPROVAL_SLA_HOURS`). Versioned and pinned per request alongside
+the workflow. Distinct from a permission's `thresholdAmount`, which is per-role and unversioned.
+_Avoid_: threshold (ambiguous — say which), setting, config value.
+
+**Approval Request**: The unit of approval state — object, pinned workflow version, pinned variable
+version, protected-object hash, current state, current step. Carries the state machine; the
+document's `approvalStatus` is a projection of it. **Superseded** means a protected field changed
+after approval, so the prior approval no longer authorises the action. **Disputed** means a
+`POST_HOC` request was rejected after the real-world effect already occurred. _Avoid_: approval
+(unqualified), ticket, task.
 
 ## Relationships
 
@@ -146,8 +170,8 @@ approver (unqualified — that is a Pool member).
   what the UI names and what authorisation enforces; one exception makes both untrustworthy. So when
   the Pool is empty (only possible once an admin has _deliberately_ capped `COMPANY_ADMIN` below the
   amount — `thresholdAmount` is unseeded and `null` = unlimited, so admins are otherwise in every
-  Pool), Company Admins are notified as a **fallback recipient**, not added to the Pool. They resolve
-  it by raising a limit or reducing the document — never by approving past their own cap.
+  Pool), Company Admins are notified as a **fallback recipient**, not added to the Pool. They
+  resolve it by raising a limit or reducing the document — never by approving past their own cap.
 - **The Approver Pool is live; a Nomination is frozen.** Unlike **Category filter → Add All**, whose
   query is resolved once and frozen into `RfqVendor` rows, the Pool is recomputed on every read —
   because `RfqVendor` rows are document _content_ (who was invited to quote), whereas the Pool is a
@@ -222,21 +246,21 @@ approver (unqualified — that is a Pool member).
   editable in the Approval configuration tab, but `InvoicesService.approveInvoice` checks only
   company scope, `PENDING` status and reviewed-ness — it never calls
   `ApprovalAuthorizationService.evaluate`, so any holder of `invoice.approve` could approve any
-  amount while the UI claimed a limit applied. Being *configurable* is not being *enforced*: every
+  amount while the UI claimed a limit applied. Being _configurable_ is not being _enforced_: every
   threshold-aware key in `THRESHOLD_AWARE_PERMISSIONS` must have an `evaluate` call on its action
   path, or it must not be threshold-aware.
 
 - "An RFQ needs approval when the creator hits their threshold" is **undefined** — an RFQ carries no
   money anywhere in the model (`Rfq` has only `totalRequestedQty`, a unit count; `RfqLineItem` has
-  quantity/unit/costCode and no price; the source Material Request has none either). `Rfq.
-  approvalStatus` and `Rfq.approvedById` exist in the schema and `RfqDetailsTab` renders an
+  quantity/unit/costCode and no price; the source Material Request has none either).
+  `Rfq. approvalStatus` and `Rfq.approvedById` exist in the schema and `RfqDetailsTab` renders an
   "Approved By" field, but **nothing in the backend ever writes them** and there is no `rfq.approve`
-  permission key — the columns are vestigial and the field is permanently "-". Resolved: the
-  RFQ→PO thread meets its money gate where money first exists — at award (`rfq.approveQuote`) and
-  again at PO issue against the **Approver Pool**. No creation-time gate on RFQs; the vestigial
-  fields and the dead display come out. Deriving an estimate from `Material.pricePerUnit` was
-  rejected: `RfqLineItem.materialId` is nullable by design (FOR-204), so BOM/free-text lines
-  contribute zero and the estimate under-counts on exactly the largest RFQs.
+  permission key — the columns are vestigial and the field is permanently "-". Resolved: the RFQ→PO
+  thread meets its money gate where money first exists — at award (`rfq.approveQuote`) and again at
+  PO issue against the **Approver Pool**. No creation-time gate on RFQs; the vestigial fields and
+  the dead display come out. Deriving an estimate from `Material.pricePerUnit` was rejected:
+  `RfqLineItem.materialId` is nullable by design (FOR-204), so BOM/free-text lines contribute zero
+  and the estimate under-counts on exactly the largest RFQs.
 
 - "Acknowledge" was used loosely to mean the whole vendor response. Resolved: the tokenised link
   exposes the full set — **Acknowledge**, **Accept**, **Decline** — preserving the two-step
