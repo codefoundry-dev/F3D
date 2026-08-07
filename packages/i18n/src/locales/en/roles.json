@@ -37,6 +37,15 @@
     "FOREMAN": "Foreman",
     "VENDOR": "Vendor"
   },
+  "roleNamesPlural": {
+    "SUPER_ADMIN": "Super Admins",
+    "COMPANY_ADMIN": "Company Admins",
+    "PROCUREMENT_OFFICER": "Procurement Officers",
+    "FINANCIAL_OFFICER": "Financial Officers",
+    "WAREHOUSE_OFFICER": "Warehouse Officers",
+    "FOREMAN": "Foremen",
+    "VENDOR": "Vendors"
+  },
   "permissionCount": "{{count}} permissions",
   "edit": "Edit permissions",
   "save": "Save changes",

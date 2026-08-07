@@ -96,6 +96,12 @@ export interface UserResponse {
    * the max PO total the user may send without approval.
    */
   poApprovalThreshold?: number | null;
+  /**
+   * FOR-303: the current user's `invoice.approve` threshold. Same semantics as
+   * `poApprovalThreshold` — `null` unlimited, `0` no authority, a number caps
+   * the invoice total the user may approve. Advisory: the backend enforces it.
+   */
+  invoiceApprovalThreshold?: number | null;
 }
 
 export interface PaginationMeta {

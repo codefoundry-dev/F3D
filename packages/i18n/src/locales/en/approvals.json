@@ -1,0 +1,52 @@
+{
+  "pool": {
+    "heading": "Approval",
+    "pendingTitle": "Awaiting approval",
+    "pendingSummary_one": "{{roles}} ({{count}} person in your company)",
+    "pendingSummary_other": "{{roles}} ({{count}} people in your company)",
+    "roleGroup_one": "{{role}}",
+    "roleGroup_other": "{{role}}s",
+    "notRequiredTitle": "No approval required",
+    "notRequiredBody": "This document is within the sender's approval limit.",
+    "approvedBy": "Approved by {{name}}",
+    "rejectedBy": "Rejected by {{name}}",
+    "resolvedNoActor": "Approval resolved",
+    "emptyTitle": "No one can approve this",
+    "emptyBody": "No one in your company has an approval limit that covers this amount. Raise an approval limit under Roles & permissions, or reduce the document to move it forward.",
+    "loadError": "Could not load the approver pool.",
+    "loading": "Loading approvers…"
+  },
+  "nominees": {
+    "heading": "Asked to approve",
+    "none": "Everyone in the pool was notified.",
+    "ineligible": "no longer eligible",
+    "ineligibleHint": "{{name}}'s approval limit no longer covers this amount, so they can't approve it. Anyone else in the pool still can.",
+    "nominatedAt": "Asked {{date}}",
+    "withdraw": "Withdraw",
+    "withdrawn": "Nomination withdrawn",
+    "withdrawFailed": "Could not withdraw the nomination.",
+    "add": "Ask someone else",
+    "added_one": "{{count}} approver notified",
+    "added_other": "{{count}} approvers notified",
+    "addFailed": "Could not add the nomination."
+  },
+  "nominateModal": {
+    "title": "Submit for approval",
+    "description": "This is over your approval limit, so it goes to the approvers below. Anyone in the pool can approve it — choosing people only decides who gets notified.",
+    "addTitle": "Ask another approver",
+    "addDescription": "Pick who else to notify. This doesn't change who is allowed to approve — everyone in the pool already can.",
+    "notifyEveryone": "Notify everyone in the pool",
+    "notifyEveryoneHint": "The default. Everyone below is emailed and sees it in their queue.",
+    "notifySelected": "Notify specific people",
+    "notifySelectedHint": "Only the people you pick are notified. Everyone else still sees it in their queue and can still approve it.",
+    "poolHeading": "Approver pool",
+    "alreadyNominated": "Already asked",
+    "selectAtLeastOne": "Pick at least one person, or choose to notify everyone.",
+    "submit": "Submit for approval",
+    "confirmAdd": "Notify them",
+    "cancel": "Cancel",
+    "emptyTitle": "No one can approve this",
+    "emptyBody": "No one in your company has an approval limit that covers this amount. Raise an approval limit under Roles & permissions, or reduce the document before submitting it.",
+    "emptyDismiss": "Close"
+  }
+}

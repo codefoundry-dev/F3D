@@ -1,4 +1,5 @@
 import { exportPurchaseOrders } from '@forethread/api-client';
+import { ApproverPoolPanel } from '@forethread/approval-shared';
 import { useTranslation } from '@forethread/i18n';
 import {
   usePurchaseOrder,
@@ -206,6 +207,9 @@ export default function PurchaseOrderDetailPage() {
       <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-6 md:pb-8">
         {activeTab === 'details' && (
           <>
+            {/* Who the order is waiting on (FOR-304). Self-hides when approval
+                was never required, so it only appears where it means something. */}
+            <ApproverPoolPanel entityType="PURCHASE_ORDER" entityId={po.id} />
             <SplitPoSection po={po} />
             <PoDetailsTab
               po={po}

@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@forethread/api-client": "workspace:*",
+    "@forethread/approval-shared": "workspace:*",
     "@forethread/auth": "workspace:*",
     "@forethread/bulk-order-shared": "workspace:^",
     "@forethread/i18n": "workspace:*",

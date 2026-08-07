@@ -238,6 +238,27 @@ export class ReviewInvoiceDto {
   @ValidateNested({ each: true })
   @Type(() => ReviewInvoiceLineDto)
   lines!: ReviewInvoiceLineDto[];
+
+  /**
+   * Approver Pool members to notify, when the reviewed total goes over the
+   * reviewer's own `invoice.approve` cap and the invoice is therefore routed for
+   * approval (FOR-309).
+   *
+   * Routing only: every Pool member keeps full authority to approve the invoice
+   * whether nominated or not, and ids outside the Pool are rejected server-side.
+   * Omitted or empty notifies the whole Pool. Ignored entirely when the total is
+   * within the reviewer's cap — there is no approval to route.
+   */
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Approver Pool members to notify if this review routes the invoice for ' +
+      'approval. Narrows notification only; never changes who may approve.',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  nomineeIds?: string[];
 }
 
 export class RejectInvoiceDto {

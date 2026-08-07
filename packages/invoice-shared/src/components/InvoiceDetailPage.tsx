@@ -4,6 +4,7 @@ import {
   type InvoiceDetail,
   type InvoiceDocument,
 } from '@forethread/api-client';
+import { ApproverPoolPanel, exceedsApprovalCap, useMe } from '@forethread/approval-shared';
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import {
@@ -50,6 +51,7 @@ export function InvoiceDetailPage({
   const activeTab = TABS.includes(initialTab) ? initialTab : 'details';
 
   const { data: invoice, isLoading } = useInvoice(id);
+  const { data: me } = useMe();
   const approveMutation = useApproveInvoice();
   const rejectMutation = useRejectInvoice();
   const setTitle = usePageTitleStore((s) => s.setTitle);
@@ -105,6 +107,20 @@ export function InvoiceDetailPage({
       'Set the vendor, project, and total amount in the review form and save before approving.',
   });
 
+  // FOR-303: `invoice.approve` carries a configurable cap that the backend now
+  // enforces. A viewer whose cap is below the invoice total sees Approve
+  // disabled with the explanation rather than a silent 403. `me` still loading
+  // resolves to false (enabled) — the backend stays the authority and its
+  // message surfaces through the decision modal's error state. Decline stays
+  // available: rejecting an invoice does not need spend authority.
+  const overLimit = exceedsApprovalCap(me?.invoiceApprovalThreshold, invoice?.totalAmount);
+  const overLimitHint = t('invoiceDetail.overApprovalLimit', {
+    amount: (invoice?.totalAmount ?? 0).toLocaleString(),
+    limit: (me?.invoiceApprovalThreshold ?? 0).toLocaleString(),
+    defaultValue:
+      'This invoice totals {{amount}}, above your approval limit of {{limit}}. A higher-tier approver must approve it.',
+  });
+
   if (isLoading) {
     return <PageLoader />;
   }
@@ -130,9 +146,10 @@ export function InvoiceDetailPage({
             </Button>
             <Button
               variant="primary"
-              disabled={isActioning || !reviewComplete}
-              title={reviewComplete ? undefined : approveBlockedHint}
+              disabled={isActioning || !reviewComplete || overLimit}
+              title={!reviewComplete ? approveBlockedHint : overLimit ? overLimitHint : undefined}
               leftIcon={<CheckCircleIcon className="size-4" />}
+              data-testid={overLimit ? 'invoice-approve-over-limit' : 'invoice-approve-button'}
               onClick={() => {
                 approveMutation.reset();
                 setDecision('approve');
@@ -143,6 +160,10 @@ export function InvoiceDetailPage({
           </div>
         )}
       </div>
+
+      {/* Who the invoice is waiting on (FOR-309). The same component the PO
+          uses — self-hides when approval was never required. */}
+      {id && <ApproverPoolPanel entityType="INVOICE" entityId={id} />}
 
       {/* Tab content */}
       <div className="flex-1 overflow-auto rounded-[14px] border border-gray-100 bg-white shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">

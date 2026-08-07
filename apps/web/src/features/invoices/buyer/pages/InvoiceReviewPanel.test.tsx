@@ -60,6 +60,40 @@ vi.mock('@forethread/rfq-shared', () => ({
     selector({ setTitle: vi.fn() }),
 }));
 
+// The nomination modal has its own suite; here it is a probe for "did saving a
+// review that needs approval stop to ask who to notify". `exceedsApprovalCap`
+// stays real — it is the decision under test.
+vi.mock('@forethread/approval-shared', async () => {
+  const { exceedsApprovalCap } = await vi.importActual<
+    typeof import('@forethread/approval-shared/utils')
+  >('@forethread/approval-shared/utils');
+  return {
+    exceedsApprovalCap,
+    ApproverPoolPanel: () => <div data-testid="approver-pool-panel" />,
+    NominateApproversModal: ({
+      previewAmount,
+      onConfirm,
+      onClose,
+    }: {
+      previewAmount?: number | null;
+      onConfirm?: (ids: string[]) => void;
+      onClose: () => void;
+    }) => (
+      <div data-testid="nominate-modal" data-preview-amount={String(previewAmount)}>
+        <button data-testid="nominate-everyone" onClick={() => onConfirm?.([])}>
+          everyone
+        </button>
+        <button data-testid="nominate-one" onClick={() => onConfirm?.(['appr-1'])}>
+          one
+        </button>
+        <button data-testid="nominate-cancel" onClick={onClose}>
+          cancel
+        </button>
+      </div>
+    ),
+  };
+});
+
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
@@ -165,6 +199,107 @@ describe('InvoiceReviewPanel', () => {
     });
     mockGetInvoicePoMatch.mockResolvedValue(makeMatch());
     mockReviewInvoice.mockResolvedValue(makeInvoice());
+  });
+
+  // ── FOR-309: review completion is the invoice's submit-for-approval moment ─
+  describe('approver nomination at review completion', () => {
+    /**
+     * Render and wait until the profile query has landed.
+     *
+     * The routing decision reads `invoiceApprovalThreshold` off `me`, and the
+     * panel renders before that query resolves — clicking Save too early would
+     * see an undefined (= unlimited) cap and skip the modal. Waiting for the
+     * vendor dropdown proves `me` resolved, since the vendor fetch is keyed on
+     * its companyId.
+     */
+    const renderSettled = async (invoice = makeInvoice()) => {
+      render(<InvoiceReviewPanel invoice={invoice} />, { wrapper });
+      await screen.findByTestId('invoice-review-panel');
+      await within(screen.getByTestId('invoice-review-vendor')).findByText('DAMOS Pty Ltd');
+    };
+
+    /** A reviewer whose own invoice.approve cap is below the reviewed total. */
+    const cappedReviewer = () =>
+      mockGetMe.mockResolvedValue({
+        id: 'u-1',
+        companyId: 'comp-1',
+        invoiceApprovalThreshold: 50,
+      });
+
+    it('saves straight away when the reviewer could approve the total themselves', async () => {
+      mockGetMe.mockResolvedValue({
+        id: 'u-1',
+        companyId: 'comp-1',
+        invoiceApprovalThreshold: 5000,
+      });
+      await renderSettled();
+
+      fireEvent.click(screen.getByTestId('invoice-review-save'));
+
+      await waitFor(() => expect(mockReviewInvoice).toHaveBeenCalledTimes(1));
+      expect(screen.queryByTestId('nominate-modal')).not.toBeInTheDocument();
+    });
+
+    it('asks who to notify when the review will route the invoice for approval', async () => {
+      cappedReviewer();
+      await renderSettled();
+
+      fireEvent.click(screen.getByTestId('invoice-review-save'));
+
+      expect(screen.getByTestId('nominate-modal')).toBeInTheDocument();
+      expect(mockReviewInvoice).not.toHaveBeenCalled();
+    });
+
+    it('previews the pool against the total being saved, not the stored one', async () => {
+      cappedReviewer();
+      // Stored total is null; the reviewer has typed 110 via the extraction.
+      await renderSettled();
+
+      fireEvent.change(screen.getByTestId('invoice-review-total'), { target: { value: '900' } });
+      fireEvent.click(screen.getByTestId('invoice-review-save'));
+
+      // Showing the old total's Pool would offer people who cannot approve the
+      // figure about to be written.
+      expect(screen.getByTestId('nominate-modal')).toHaveAttribute('data-preview-amount', '900');
+    });
+
+    it('sends no nominees when the reviewer keeps "notify everyone"', async () => {
+      cappedReviewer();
+      await renderSettled();
+
+      fireEvent.click(screen.getByTestId('invoice-review-save'));
+      fireEvent.click(screen.getByTestId('nominate-everyone'));
+
+      await waitFor(() => expect(mockReviewInvoice).toHaveBeenCalledTimes(1));
+      const [, payload] = mockReviewInvoice.mock.calls[0] as [string, Record<string, unknown>];
+      // Omitted entirely, so the backend notifies the whole Pool.
+      expect(payload.nomineeIds).toBeUndefined();
+    });
+
+    it('carries the nominees in the same request as the review', async () => {
+      cappedReviewer();
+      await renderSettled();
+
+      fireEvent.click(screen.getByTestId('invoice-review-save'));
+      fireEvent.click(screen.getByTestId('nominate-one'));
+
+      await waitFor(() => expect(mockReviewInvoice).toHaveBeenCalledTimes(1));
+      const [, payload] = mockReviewInvoice.mock.calls[0] as [string, Record<string, unknown>];
+      // One request: the routing decision and the review are the same event.
+      expect(payload.nomineeIds).toEqual(['appr-1']);
+      expect(payload).toMatchObject({ totalAmount: 110 });
+    });
+
+    it('saves nothing when the reviewer cancels', async () => {
+      cappedReviewer();
+      await renderSettled();
+
+      fireEvent.click(screen.getByTestId('invoice-review-save'));
+      fireEvent.click(screen.getByTestId('nominate-cancel'));
+
+      expect(screen.queryByTestId('nominate-modal')).not.toBeInTheDocument();
+      expect(mockReviewInvoice).not.toHaveBeenCalled();
+    });
   });
 
   it('prefills the form from the completed extraction', async () => {

@@ -210,6 +210,16 @@ export interface ReviewInvoicePayload {
     costCode?: string | null;
     glAccount?: string | null;
   }[];
+  /**
+   * Approver Pool members to notify, when the reviewed total goes over the
+   * reviewer's own `invoice.approve` cap and the invoice is routed for approval
+   * (FOR-309).
+   *
+   * Routing only: every Pool member keeps full authority whether nominated or
+   * not, and ids outside the Pool are rejected server-side. Omitted or empty
+   * notifies the whole Pool; ignored entirely when no approval is needed.
+   */
+  nomineeIds?: string[];
 }
 
 export interface InvoiceListItem {
@@ -351,11 +361,28 @@ export async function getInvoiceAuditTrail(
   return data.data;
 }
 
+export interface BulkApproveInvoicesResult {
+  /** Rows actually moved to APPROVED. */
+  approvedCount: number;
+  /** Ids the caller submitted, including ones that did not qualify. */
+  requestedCount: number;
+  /**
+   * FOR-303: qualifying rows left untouched because their total was above the
+   * caller's `invoice.approve` cap. They need a higher-tier approver.
+   */
+  skippedOverLimitCount: number;
+}
+
 export async function bulkApproveInvoices(
   ids: string[],
   config?: AxiosRequestConfig,
-): Promise<void> {
-  await getApiClient().post(INVOICES_PATHS.BULK_APPROVE, { ids }, config);
+): Promise<BulkApproveInvoicesResult> {
+  const { data } = await getApiClient().post<{ data: BulkApproveInvoicesResult }>(
+    INVOICES_PATHS.BULK_APPROVE,
+    { ids },
+    config,
+  );
+  return data.data;
 }
 
 // ── Export ───────────────────────────────────────────────────────────────

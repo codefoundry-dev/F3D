@@ -9,6 +9,7 @@ import {
   type InvoicePoMatchResult,
   type ReviewInvoicePayload,
 } from '@forethread/api-client';
+import { NominateApproversModal, exceedsApprovalCap } from '@forethread/approval-shared';
 import { useTranslation } from '@forethread/i18n';
 import {
   Alert,
@@ -103,6 +104,7 @@ export interface InvoiceReviewPanelProps {
 export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
   const { t } = useTranslation('invoices');
   const reviewMutation = useReviewInvoice();
+  const [showNominate, setShowNominate] = useState(false);
 
   const me = useQuery({ queryKey: ['me'], queryFn: () => getMe() });
   const companyId = me.data?.companyId;
@@ -327,7 +329,25 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
   const reviewComplete =
     invoice.vendorName !== null && invoice.projectId !== null && invoice.totalAmount !== null;
 
-  const onSave = () => {
+  /**
+   * FOR-309: will saving this review hand the invoice to the Approver Pool?
+   *
+   * An invoice arrives from a vendor rather than being raised by a spender, so
+   * review completion is its "submit for approval" moment and the *reviewer's*
+   * cap is what decides. Mirrors the button-labelling logic on `PoSendButton`,
+   * and like it is advisory only — the backend re-decides authoritatively.
+   */
+  const reviewedTotal = form ? parseNum(form.totalAmount) : null;
+  const routesForApproval = exceedsApprovalCap(me.data?.invoiceApprovalThreshold, reviewedTotal);
+
+  /**
+   * Save the review, optionally routing it at specific approvers (FOR-309).
+   *
+   * `nomineeIds` only means anything when the reviewed total is over the
+   * reviewer's own `invoice.approve` cap — the backend ignores it otherwise,
+   * because there is no approval to route.
+   */
+  const onSave = (nomineeIds?: string[]) => {
     if (!form) return;
     const payload: ReviewInvoicePayload = {
       vendorId: form.vendorId || null,
@@ -351,10 +371,11 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
         })),
     };
     reviewMutation.mutate(
-      { id: invoice.id, payload },
+      { id: invoice.id, payload: nomineeIds?.length ? { ...payload, nomineeIds } : payload },
       {
         onSuccess: () => {
           setDirty(false);
+          setShowNominate(false);
           // A save missing any approve-critical field is a draft, not a done
           // review — say so instead of a bare success.
           if (!payload.vendorId || !payload.projectId || payload.totalAmount === null) {
@@ -853,14 +874,31 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
       {/* ── Save ─────────────────────────────────────────────────────────── */}
       <div className="flex justify-end border-t border-border pt-4">
         <Button
-          onClick={onSave}
+          // Explicit handler, never a bare `onClick={onSave}`: the click event
+          // would arrive as the `nomineeIds` argument.
+          onClick={() => (routesForApproval ? setShowNominate(true) : onSave())}
           disabled={reviewMutation.isPending}
-          isLoading={reviewMutation.isPending}
+          isLoading={reviewMutation.isPending && !showNominate}
           data-testid="invoice-review-save"
         >
           {t('review.save', { defaultValue: 'Save details' })}
         </Button>
       </div>
+
+      {/* Review completion is the invoice's "submit for approval" moment, so it
+          gets the same confirm step the PO does (FOR-309). The Pool is previewed
+          against the total being saved, not the one currently stored. */}
+      {showNominate && (
+        <NominateApproversModal
+          entityType="INVOICE"
+          entityId={invoice.id}
+          mode="submit"
+          previewAmount={reviewedTotal}
+          isSubmitting={reviewMutation.isPending}
+          onClose={() => setShowNominate(false)}
+          onConfirm={(nomineeIds) => onSave(nomineeIds)}
+        />
+      )}
     </div>
   );
 }

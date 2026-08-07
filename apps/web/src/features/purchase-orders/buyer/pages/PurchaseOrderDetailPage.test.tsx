@@ -119,6 +119,14 @@ vi.mock('../components/PoSendButton', () => ({
   PoSendButton: () => <div data-testid="po-send-button" />,
 }));
 
+// The Approver Pool panel has its own suite in @forethread/approval-shared; here
+// it is a stub like every other child, so this suite stays about page layout.
+vi.mock('@forethread/approval-shared', () => ({
+  ApproverPoolPanel: (props: { entityType: string; entityId: string }) => (
+    <div data-testid="approver-pool-panel" data-entity-type={props.entityType} />
+  ),
+}));
+
 import PurchaseOrderDetailPage from './PurchaseOrderDetailPage';
 
 const MOCK_PO = {

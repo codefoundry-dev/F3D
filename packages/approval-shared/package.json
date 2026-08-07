@@ -1,0 +1,38 @@
+{
+  "name": "@forethread/approval-shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Approver Pool and Nomination components, hooks and helpers shared by the Purchase Order and Invoice paths",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./components": "./src/components/index.ts",
+    "./hooks": "./src/hooks/index.ts",
+    "./utils": "./src/utils/index.ts"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.0.0",
+    "react": "^18.0.0"
+  },
+  "dependencies": {
+    "@forethread/api-client": "workspace:*",
+    "@forethread/i18n": "workspace:*",
+    "@forethread/ui-components": "workspace:*"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@forethread/config": "workspace:*",
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^18.3.5",
+    "jsdom": "^25.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.1"
+  }
+}

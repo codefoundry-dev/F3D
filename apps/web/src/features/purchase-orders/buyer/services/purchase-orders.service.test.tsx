@@ -116,9 +116,21 @@ describe('purchase-orders.service', () => {
     vi.mocked(issuePurchaseOrder).mockResolvedValue({} as never);
     const { result } = renderHook(() => useIssuePurchaseOrder(), { wrapper: createWrapper() });
     act(() => {
-      result.current.mutate('po-1');
+      result.current.mutate({ id: 'po-1' });
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(issuePurchaseOrder).toHaveBeenCalledWith('po-1');
+    // No nominees → no body at all, so the backend notifies the whole Approver
+    // Pool exactly as it did before nomination existed (FOR-306).
+    expect(issuePurchaseOrder).toHaveBeenCalledWith('po-1', undefined);
+  });
+
+  it('useIssuePurchaseOrder forwards approver nominations when there are any', async () => {
+    vi.mocked(issuePurchaseOrder).mockResolvedValue({} as never);
+    const { result } = renderHook(() => useIssuePurchaseOrder(), { wrapper: createWrapper() });
+    act(() => {
+      result.current.mutate({ id: 'po-1', nomineeIds: ['u1', 'u2'] });
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(issuePurchaseOrder).toHaveBeenCalledWith('po-1', { nomineeIds: ['u1', 'u2'] });
   });
 });

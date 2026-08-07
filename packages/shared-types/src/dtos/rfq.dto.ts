@@ -434,8 +434,6 @@ export class RfqListQueryDto extends BasePaginationQueryDto {
       'pickUpLocation',
       'pickUp',
       'createdBy',
-      'approvalStatus',
-      'approvedBy',
       'lineItems',
       'reqQuantities',
       'recVendors',
@@ -583,12 +581,6 @@ export class RfqListItemDto {
   createdBy!: string;
 
   @ApiPropertyOptional()
-  approvalStatus!: string | null;
-
-  @ApiPropertyOptional()
-  approvedBy!: string | null;
-
-  @ApiPropertyOptional()
   lastModifiedBy!: string | null;
 }
 
@@ -625,12 +617,6 @@ export class RfqResponseDto {
 
   @ApiProperty()
   totalRequestedQty!: number;
-
-  @ApiPropertyOptional()
-  approvalStatus!: string | null;
-
-  @ApiPropertyOptional()
-  approvedBy!: { id: string; name: string } | null;
 
   @ApiProperty()
   createdBy!: { id: string; name: string };

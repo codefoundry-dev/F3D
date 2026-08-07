@@ -162,6 +162,12 @@ export const PURCHASE_ORDERS_PATHS = {
   rejectChange: (id: string, crId: string) =>
     `/purchase-orders/${id}/change-requests/${crId}/reject`,
   emails: (poId: string) => `/purchase-orders/${poId}/emails`,
+  // Approver Pool + Nomination (ADR-0006 amendment). The routes hang off each
+  // document's own controller rather than a shared /approvals root, so they
+  // stay RESTful; both delegate to the one ApprovalsService.
+  approverPool: (id: string) => `/purchase-orders/${id}/approver-pool`,
+  nominations: (id: string) => `/purchase-orders/${id}/nominations`,
+  nomination: (id: string, userId: string) => `/purchase-orders/${id}/nominations/${userId}`,
 } as const;
 
 // ── Delivery Reports (Epic 6 — Delivery) ──────────────────────────────────────
@@ -232,6 +238,10 @@ export const INVOICES_PATHS = {
   exportSingle: (id: string, format: 'csv' | 'xlsx' | 'pdf') => `/invoices/${id}/export/${format}`,
   documents: (invoiceId: string) => `/invoices/${invoiceId}/documents`,
   document: (invoiceId: string, docId: string) => `/invoices/${invoiceId}/documents/${docId}`,
+  // Approver Pool + Nomination — same shapes as the PO routes above.
+  approverPool: (id: string) => `/invoices/${id}/approver-pool`,
+  nominations: (id: string) => `/invoices/${id}/nominations`,
+  nomination: (id: string, userId: string) => `/invoices/${id}/nominations/${userId}`,
 } as const;
 
 // ── Views ───────────────────────────────────────────────────────────────────

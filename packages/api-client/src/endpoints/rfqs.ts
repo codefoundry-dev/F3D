@@ -69,8 +69,6 @@ export interface RfqListItem {
   createdDate: string;
   createdBy: string;
   createdByUserId: string;
-  approvalStatus: string | null;
-  approvedBy: string | null;
   lastModifiedBy: string | null;
 }
 
@@ -150,8 +148,6 @@ export interface RfqDetail {
   deadlineEnd: string | null;
   needByDate: string | null;
   totalRequestedQty: number;
-  approvalStatus: string | null;
-  approvedBy: { id: string; name: string } | null;
   createdBy: { id: string; name: string };
   lastModifiedBy: { id: string; name: string } | null;
   lineItems: RfqLineItem[];
