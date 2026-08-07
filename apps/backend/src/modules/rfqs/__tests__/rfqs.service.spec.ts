@@ -282,12 +282,10 @@ describe('RfqsService', () => {
           deliveryLocationId: '123 St',
           deadlineStart: new Date('2026-04-01'),
           deadlineEnd: new Date('2026-04-15'),
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'Alpha' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 3, quoteResponses: 2, invitedVendors: 4 },
           quoteResponses: [
             {
@@ -335,12 +333,10 @@ describe('RfqsService', () => {
           deliveryLocationId: null,
           deadlineStart: null,
           deadlineEnd: null,
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'Beta' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 2, quoteResponses: 0, invitedVendors: 0 },
           quoteResponses: [],
         },
@@ -458,8 +454,6 @@ describe('RfqsService', () => {
       ['pickUpLocation', { pickUpLocation: 'asc' }],
       ['pickUp', { pickUpDate: 'asc' }],
       ['createdBy', { createdBy: { name: 'asc' } }],
-      ['approvalStatus', { approvalStatus: 'asc' }],
-      ['approvedBy', { approvedBy: { name: 'asc' } }],
       ['projectId', { projectId: 'asc' }],
     ])('sorts by %s', async (sortBy, expectedOrderBy) => {
       await service.listRfqs(q({ sortBy, sortDir: 'asc' }), companyAdmin);
@@ -576,12 +570,10 @@ describe('RfqsService', () => {
           deliveryLocationId: '123 St',
           deadlineStart: null,
           deadlineEnd: null,
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'Alpha' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 1, quoteResponses: 1 },
           quoteResponses: [{ vendorId: 'v-1', status: QuoteResponseStatus.SUBMITTED }],
         },
@@ -603,12 +595,10 @@ describe('RfqsService', () => {
           deliveryLocationId: '456 Ave',
           deadlineStart: null,
           deadlineEnd: null,
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'Beta' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 1, quoteResponses: 0 },
           quoteResponses: [],
         },
@@ -630,12 +620,10 @@ describe('RfqsService', () => {
           deliveryLocationId: '789 Blvd',
           deadlineStart: null,
           deadlineEnd: null,
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'Gamma' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 1, quoteResponses: 0 },
           quoteResponses: [],
         },
@@ -657,12 +645,10 @@ describe('RfqsService', () => {
           deliveryLocationId: null,
           deadlineStart: null,
           deadlineEnd: null,
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'Delta' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 1, quoteResponses: 1 },
           quoteResponses: [{ vendorId: 'v-1', status: QuoteResponseStatus.APPROVED }],
         },
@@ -684,12 +670,10 @@ describe('RfqsService', () => {
           deliveryLocationId: '100 Main',
           deadlineStart: null,
           deadlineEnd: null,
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'Epsilon' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 1, quoteResponses: 1 },
           quoteResponses: [{ vendorId: 'v-1', status: QuoteResponseStatus.DECLINED }],
         },
@@ -711,12 +695,10 @@ describe('RfqsService', () => {
           deliveryLocationId: '200 Elm',
           deadlineStart: null,
           deadlineEnd: null,
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'Zeta' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 1, quoteResponses: 0 },
           quoteResponses: [],
         },
@@ -738,12 +720,10 @@ describe('RfqsService', () => {
           deliveryLocationId: null,
           deadlineStart: null,
           deadlineEnd: null,
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'Pickup Project' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 1, quoteResponses: 0 },
           quoteResponses: [],
         },
@@ -765,12 +745,10 @@ describe('RfqsService', () => {
           deliveryLocationId: 'Addr',
           deadlineStart: null,
           deadlineEnd: null,
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'NoDeadline' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 0, quoteResponses: 0 },
           quoteResponses: [],
         },
@@ -796,12 +774,10 @@ describe('RfqsService', () => {
         deadlineStart: null,
         deadlineEnd: null,
         totalRequestedQty: 100,
-        approvalStatus: null,
         createdAt: new Date('2026-03-01'),
         updatedAt: new Date('2026-03-01'),
         project: { name: 'Alpha' },
         createdBy: { id: 'po-1', name: 'PO User' },
-        approvedBy: null,
         lineItems: [
           {
             id: 'li-1',
@@ -852,12 +828,10 @@ describe('RfqsService', () => {
         deadlineStart: null,
         deadlineEnd: null,
         totalRequestedQty: 50,
-        approvalStatus: null,
         createdAt: new Date('2026-03-01'),
         updatedAt: new Date('2026-03-01'),
         project: { name: 'VendorProj' },
         createdBy: { id: 'po-1', name: 'PO User' },
-        approvedBy: null,
         lineItems: [],
         quoteResponses: [
           {
@@ -894,12 +868,10 @@ describe('RfqsService', () => {
         deadlineStart: null,
         deadlineEnd: null,
         totalRequestedQty: 50,
-        approvalStatus: null,
         createdAt: new Date('2026-03-01'),
         updatedAt: new Date('2026-03-01'),
         project: { name: 'VendorProj2' },
         createdBy: { id: 'po-1', name: 'PO User' },
-        approvedBy: null,
         lineItems: [],
         quoteResponses: [
           {
@@ -936,12 +908,10 @@ describe('RfqsService', () => {
         deadlineStart: null,
         deadlineEnd: null,
         totalRequestedQty: 50,
-        approvalStatus: null,
         createdAt: new Date('2026-03-01'),
         updatedAt: new Date('2026-03-01'),
         project: { name: 'VendorProj3' },
         createdBy: { id: 'po-1', name: 'PO User' },
-        approvedBy: null,
         lineItems: [],
         quoteResponses: [],
         documents: [],
@@ -975,12 +945,10 @@ describe('RfqsService', () => {
         deadlineStart: null,
         deadlineEnd: null,
         totalRequestedQty: 50,
-        approvalStatus: null,
         createdAt: new Date('2026-03-01'),
         updatedAt: new Date('2026-03-01'),
         project: { name: 'BuyerProj' },
         createdBy: { id: 'po-1', name: 'PO User' },
-        approvedBy: null,
         lineItems: [],
         quoteResponses: [],
         documents: [],
@@ -1004,12 +972,10 @@ describe('RfqsService', () => {
         deadlineStart: new Date('2026-04-01'),
         deadlineEnd: new Date('2026-04-15'),
         totalRequestedQty: 50,
-        approvalStatus: 'APPROVED',
         createdAt: new Date('2026-03-01'),
         updatedAt: new Date('2026-03-02'),
         project: { name: 'DocProject' },
         createdBy: { id: 'po-1', name: 'PO User' },
-        approvedBy: { id: 'ca-1', name: 'CA User' },
         lineItems: [],
         quoteResponses: [],
         documents: [
@@ -1029,7 +995,6 @@ describe('RfqsService', () => {
       expect(result.documents).toHaveLength(1);
       expect(result.documents[0].name).toBe('spec.pdf');
       expect(result.documents[0].uploadedBy?.name).toBe('PO User');
-      expect(result.approvedBy).toEqual({ id: 'ca-1', name: 'CA User' });
     });
   });
 
@@ -2360,7 +2325,6 @@ describe('RfqsService', () => {
         projectId: 'proj-1',
         project: { name: 'TestProj' },
         createdBy: { id: 'po-1', name: 'PO User' },
-        approvedBy: null,
         lineItems: [],
         quoteResponses: [],
         invitedVendors: [],
@@ -2377,7 +2341,6 @@ describe('RfqsService', () => {
         totalRequestedQty: 15,
         pickUpLocation: null,
         pickUpDate: null,
-        approvalStatus: null,
       });
     }
 
@@ -2535,7 +2498,6 @@ describe('RfqsService', () => {
         projectId: 'proj-1',
         project: { name: 'TestProj' },
         createdBy: { id: 'po-1', name: 'PO User' },
-        approvedBy: null,
         lineItems: [],
         quoteResponses: [],
         invitedVendors: [],
@@ -2552,7 +2514,6 @@ describe('RfqsService', () => {
         totalRequestedQty: 0,
         pickUpLocation: null,
         pickUpDate: null,
-        approvalStatus: null,
       });
     }
 
@@ -2744,7 +2705,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -2761,7 +2721,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.$transaction.mockResolvedValue([]);
 
@@ -2927,7 +2886,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -2944,7 +2902,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.rfq.update.mockResolvedValue({});
       mockPrisma.rfqVendor.update.mockResolvedValue({});
@@ -3019,7 +2976,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -3036,7 +2992,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.rfq.update.mockResolvedValue({});
       mockPrisma.rfqVendor.findUnique.mockResolvedValue(null);
@@ -3085,7 +3040,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -3102,7 +3056,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.rfq.update.mockResolvedValue({});
       mockPrisma.rfqVendor.update.mockResolvedValue({});
@@ -3155,7 +3108,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -3172,7 +3124,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.rfq.update.mockResolvedValue({});
       mockPrisma.rfqVendor.update.mockResolvedValue({});
@@ -3217,7 +3168,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -3234,7 +3184,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.rfq.update.mockResolvedValue({});
 
@@ -3269,7 +3218,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -3286,7 +3234,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.rfq.update.mockResolvedValue({});
 
@@ -3342,7 +3289,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -3359,7 +3305,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.rfq.update.mockResolvedValue({});
       mockPrisma.rfqVendor.update.mockResolvedValue({});
@@ -3425,7 +3370,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -3442,7 +3386,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.rfq.update.mockResolvedValue({});
       mockPrisma.rfqVendor.update.mockResolvedValue({});
@@ -3511,7 +3454,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -3528,7 +3470,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.rfq.update.mockResolvedValue({});
       mockPrisma.rfqVendor.update.mockResolvedValue({});
@@ -3614,12 +3555,10 @@ describe('RfqsService', () => {
         deadlineStart: null,
         deadlineEnd: null,
         totalRequestedQty: 50,
-        approvalStatus: null,
         createdAt: new Date('2026-03-01'),
         updatedAt: new Date('2026-03-01'),
         project: { name: 'Alpha' },
         createdBy: { id: 'po-1', name: 'PO User' },
-        approvedBy: null,
         lineItems: [],
         quoteResponses: [
           {
@@ -3722,7 +3661,6 @@ describe('RfqsService', () => {
       projectId: 'proj-1',
       project: { name: 'Proj' },
       createdBy: { id: 'po-1', name: 'PO' },
-      approvedBy: null,
       lineItems: [],
       quoteResponses: [],
       invitedVendors: [],
@@ -3739,7 +3677,6 @@ describe('RfqsService', () => {
       totalRequestedQty: 0,
       pickUpLocation: null,
       pickUpDate: null,
-      approvalStatus: null,
     };
 
     it('updates deliveryLocationId, needByDate, earliestDeliveryDate', async () => {

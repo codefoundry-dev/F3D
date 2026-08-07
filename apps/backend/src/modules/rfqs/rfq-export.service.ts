@@ -153,16 +153,6 @@ const COLUMN_MAP: Record<string, ExportColumnDef> = {
     pdfWidth: 100,
     value: (r) => str(r.createdBy),
   },
-  approvalStatus: {
-    header: 'Approval Status',
-    pdfWidth: 80,
-    value: (r) => formatEnum(r.approvalStatus as string),
-  },
-  approvedBy: {
-    header: 'Approved By',
-    pdfWidth: 90,
-    value: (r) => str(r.approvedBy),
-  },
   lastModifiedBy: {
     header: 'Last Modified By',
     pdfWidth: 90,
@@ -184,7 +174,6 @@ const DEFAULT_COLUMNS = [
   'totalRequestedQty',
   'createdDate',
   'createdBy',
-  'approvalStatus',
 ];
 
 @Injectable()

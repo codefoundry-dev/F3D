@@ -117,6 +117,7 @@ const mockEmailService = {
   sendPoIssuedEmail: jest.fn(),
   sendPoDeclinedByVendorEmail: jest.fn(),
   sendPoPendingApprovalEmail: jest.fn(),
+  sendPoApprovalUnroutableEmail: jest.fn(),
 };
 
 const mockPoExportService = {
@@ -126,7 +127,19 @@ const mockPoExportService = {
 const mockApprovalAuth = {
   evaluate: jest.fn(),
   findEligibleApproverEmails: jest.fn(),
+  resolveApproverPool: jest.fn(),
+  findCompanyAdminRecipients: jest.fn(),
 };
+
+/** Build an Approver Pool member the way ApprovalAuthorizationService returns them. */
+const poolMember = (email: string, overrides: Record<string, unknown> = {}) => ({
+  id: `u-${email}`,
+  name: email,
+  email,
+  role: UserRole.PROCUREMENT_OFFICER,
+  customRoleName: null,
+  ...overrides,
+});
 
 const mockAuditService = {
   log: jest.fn(),
@@ -155,6 +168,20 @@ const mockNotifications = {
   createForUsers: jest.fn().mockResolvedValue(undefined),
 };
 
+/**
+ * Approver Pool + Nomination (FOR-306). `resolveNotificationTargets` defaults to
+ * "the whole pool" so every pre-nomination assertion in this file keeps holding:
+ * nominating nobody must reproduce the old broadcast exactly.
+ */
+const mockApprovals = {
+  assertNomineesInPool: jest.fn().mockResolvedValue(undefined),
+  recordNominationsAtSubmit: jest.fn().mockResolvedValue([]),
+  resolveNotificationTargets: jest.fn((_type: unknown, _id: string, pool: unknown[]) =>
+    Promise.resolve(pool),
+  ),
+  addNominations: jest.fn(),
+};
+
 describe('PoStatusService', () => {
   let service: PoStatusService;
 
@@ -172,6 +199,7 @@ describe('PoStatusService', () => {
       mockConfig as never,
       mockBranding as never,
       mockNotifications as never,
+      mockApprovals as never,
     );
     // Default: getPurchaseOrder / getPurchaseOrderById return fullPoDetail-shaped response
     mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue(fullPoDetail);
@@ -180,6 +208,13 @@ describe('PoStatusService', () => {
     mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
     // Default: no eligible approvers — notification fan-out tests override this.
     mockApprovalAuth.findEligibleApproverEmails.mockResolvedValue([]);
+    mockApprovalAuth.resolveApproverPool.mockResolvedValue([]);
+    mockApprovalAuth.findCompanyAdminRecipients.mockResolvedValue([]);
+    mockApprovals.resolveNotificationTargets.mockImplementation(
+      (_type: unknown, _id: string, pool: unknown[]) => Promise.resolve(pool),
+    );
+    mockApprovals.recordNominationsAtSubmit.mockResolvedValue([]);
+    mockApprovals.assertNomineesInPool.mockResolvedValue(undefined);
     // Run interactive transactions against the same mock client so existing
     // assertions on mockPrisma.purchaseOrder.update still apply (FOR-246 wrapped
     // the SENT transition + token issuance in prisma.$transaction).
@@ -2177,16 +2212,16 @@ describe('PoStatusService', () => {
     it('emails the entitled approvers when a held PO is routed for approval', async () => {
       mockPrisma.purchaseOrder.findUnique
         .mockResolvedValueOnce(heldPo)
-        .mockResolvedValueOnce({ poNumber: 'PO-BIG' });
-      mockApprovalAuth.findEligibleApproverEmails.mockResolvedValue(['approver@test.com']);
+        .mockResolvedValueOnce({ poNumber: 'PO-BIG', createdByUserId: 'po-u-1' });
+      mockApprovalAuth.resolveApproverPool.mockResolvedValue([poolMember('approver@test.com')]);
       mockEmailService.sendPoPendingApprovalEmail.mockResolvedValue(undefined);
 
       await service.issuePurchaseOrder('po-big', procurementOfficer);
       await new Promise((r) => setTimeout(r, 10));
 
-      // Recipient eligibility (thresholds, custom-role-first) lives in
+      // Pool composition (thresholds, custom-role-first) lives in
       // ApprovalAuthorizationService (FOR-286); this service only fans out.
-      expect(mockApprovalAuth.findEligibleApproverEmails).toHaveBeenCalledWith(
+      expect(mockApprovalAuth.resolveApproverPool).toHaveBeenCalledWith(
         'comp-1',
         'po.approve',
         30000,
@@ -2205,8 +2240,8 @@ describe('PoStatusService', () => {
       const brand = { name: 'TestCo', logoUrl: 'https://cdn.test/testco.png' };
       mockPrisma.purchaseOrder.findUnique
         .mockResolvedValueOnce(heldPo)
-        .mockResolvedValueOnce({ poNumber: 'PO-BIG' });
-      mockApprovalAuth.findEligibleApproverEmails.mockResolvedValue(['approver@test.com']);
+        .mockResolvedValueOnce({ poNumber: 'PO-BIG', createdByUserId: 'po-u-1' });
+      mockApprovalAuth.resolveApproverPool.mockResolvedValue([poolMember('approver@test.com')]);
       mockBranding.getEmailBrand.mockResolvedValue(brand);
       mockEmailService.sendPoPendingApprovalEmail.mockResolvedValue(undefined);
 
@@ -2225,26 +2260,16 @@ describe('PoStatusService', () => {
       );
     });
 
-    it('does not email anyone when no user is eligible for the PO total', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValueOnce(heldPo);
-      mockApprovalAuth.findEligibleApproverEmails.mockResolvedValue([]);
-
-      await service.issuePurchaseOrder('po-big', procurementOfficer);
-      await new Promise((r) => setTimeout(r, 10));
-
-      expect(mockEmailService.sendPoPendingApprovalEmail).not.toHaveBeenCalled();
-    });
-
     it('renders a null PO total as a zero amount on the email', async () => {
       mockPrisma.purchaseOrder.findUnique
         .mockResolvedValueOnce({ ...heldPo, totalAmount: null })
-        .mockResolvedValueOnce({ poNumber: 'PO-NULL' });
-      mockApprovalAuth.findEligibleApproverEmails.mockResolvedValue(['approver@test.com']);
+        .mockResolvedValueOnce({ poNumber: 'PO-NULL', createdByUserId: 'po-u-1' });
+      mockApprovalAuth.resolveApproverPool.mockResolvedValue([poolMember('approver@test.com')]);
 
       await service.issuePurchaseOrder('po-big', procurementOfficer);
       await new Promise((r) => setTimeout(r, 10));
 
-      expect(mockApprovalAuth.findEligibleApproverEmails).toHaveBeenCalledWith(
+      expect(mockApprovalAuth.resolveApproverPool).toHaveBeenCalledWith(
         'comp-1',
         'po.approve',
         null,
@@ -2261,12 +2286,291 @@ describe('PoStatusService', () => {
 
     it('skips the email when the PO row disappears before it is built', async () => {
       mockPrisma.purchaseOrder.findUnique.mockResolvedValueOnce(heldPo).mockResolvedValueOnce(null);
-      mockApprovalAuth.findEligibleApproverEmails.mockResolvedValue(['approver@test.com']);
+      mockApprovalAuth.resolveApproverPool.mockResolvedValue([poolMember('approver@test.com')]);
 
       await service.issuePurchaseOrder('po-big', procurementOfficer);
       await new Promise((r) => setTimeout(r, 10));
 
       expect(mockEmailService.sendPoPendingApprovalEmail).not.toHaveBeenCalled();
+    });
+
+    // ── FOR-302: empty Approver Pool must not strand the PO ──────────────────
+    describe('empty Approver Pool (FOR-302)', () => {
+      const admin = {
+        id: 'admin-1',
+        name: 'Ama Boateng',
+        email: 'admin@test.com',
+        role: UserRole.COMPANY_ADMIN,
+        customRoleName: null,
+      };
+
+      const arrangeEmptyPool = () => {
+        mockPrisma.purchaseOrder.findUnique
+          .mockResolvedValueOnce(heldPo)
+          .mockResolvedValueOnce({ poNumber: 'PO-BIG', createdByUserId: 'po-u-1' });
+        mockApprovalAuth.resolveApproverPool.mockResolvedValue([]);
+        mockApprovalAuth.findCompanyAdminRecipients.mockResolvedValue([admin]);
+      };
+
+      it('emails the Company Admins that nobody can approve the PO', async () => {
+        arrangeEmptyPool();
+
+        await service.issuePurchaseOrder('po-big', procurementOfficer);
+        await new Promise((r) => setTimeout(r, 10));
+
+        expect(mockApprovalAuth.findCompanyAdminRecipients).toHaveBeenCalledWith('comp-1');
+        expect(mockEmailService.sendPoApprovalUnroutableEmail).toHaveBeenCalledWith(
+          'admin@test.com',
+          'PO-BIG',
+          '30000 AUD',
+          'http://localhost:5179/purchase-orders/po-big',
+          expect.objectContaining({ companyId: 'comp-1', purchaseOrderId: 'po-big' }),
+          undefined,
+        );
+        // Never the ordinary "needs your approval" email — they cannot approve it.
+        expect(mockEmailService.sendPoPendingApprovalEmail).not.toHaveBeenCalled();
+      });
+
+      it('raises an in-app notification for the Company Admins', async () => {
+        arrangeEmptyPool();
+
+        await service.issuePurchaseOrder('po-big', procurementOfficer);
+        await new Promise((r) => setTimeout(r, 10));
+
+        expect(mockNotifications.createForEmails).toHaveBeenCalledWith(
+          ['admin@test.com'],
+          expect.objectContaining({
+            type: 'PO_APPROVAL_UNROUTABLE',
+            entityType: 'PURCHASE_ORDER',
+            entityId: 'po-big',
+          }),
+        );
+      });
+
+      it('signals the creator so the submit is not a silent success', async () => {
+        arrangeEmptyPool();
+
+        await service.issuePurchaseOrder('po-big', procurementOfficer);
+        await new Promise((r) => setTimeout(r, 10));
+
+        expect(mockNotifications.createForUsers).toHaveBeenCalledWith(
+          expect.objectContaining({
+            userIds: ['po-u-1'],
+            type: 'PO_APPROVAL_UNROUTABLE',
+            entityId: 'po-big',
+          }),
+        );
+      });
+
+      it('does not double-notify a creator who is themselves a Company Admin', async () => {
+        mockPrisma.purchaseOrder.findUnique
+          .mockResolvedValueOnce(heldPo)
+          .mockResolvedValueOnce({ poNumber: 'PO-BIG', createdByUserId: 'admin-1' });
+        mockApprovalAuth.resolveApproverPool.mockResolvedValue([]);
+        mockApprovalAuth.findCompanyAdminRecipients.mockResolvedValue([admin]);
+
+        await service.issuePurchaseOrder('po-big', procurementOfficer);
+        await new Promise((r) => setTimeout(r, 10));
+
+        // Already reached through the admin email fan-out.
+        expect(mockNotifications.createForUsers).not.toHaveBeenCalled();
+      });
+
+      it('never grants the Company Admins approval authority', async () => {
+        arrangeEmptyPool();
+
+        await service.issuePurchaseOrder('po-big', procurementOfficer);
+        await new Promise((r) => setTimeout(r, 10));
+
+        // The Pool is the only thing that confers authority, and it stays empty
+        // — the admins were resolved as recipients, never added to it.
+        expect(mockApprovalAuth.resolveApproverPool).toHaveBeenCalledTimes(1);
+        await expect(mockApprovalAuth.resolveApproverPool.mock.results[0].value).resolves.toEqual(
+          [],
+        );
+      });
+    });
+
+    // ── FOR-306: nominating narrows who is notified, never who may approve ───
+    describe('approver nomination at submit (FOR-306)', () => {
+      const ama = poolMember('ama@test.com');
+      const kojo = { ...poolMember('kojo@test.com'), id: 'u2' };
+
+      const arrangePool = () => {
+        // mockReset, not clear: `clearAllMocks` leaves the mockResolvedValueOnce
+        // queue intact, so a test that throws early would leak its unconsumed
+        // value into the next one.
+        mockPrisma.purchaseOrder.findUnique.mockReset();
+        mockPrisma.purchaseOrder.findUnique
+          .mockResolvedValueOnce(heldPo)
+          .mockResolvedValueOnce({ poNumber: 'PO-BIG', createdByUserId: 'po-u-1' });
+        mockApprovalAuth.resolveApproverPool.mockResolvedValue([ama, kojo]);
+        mockEmailService.sendPoPendingApprovalEmail.mockResolvedValue(undefined);
+      };
+
+      it('records the nomination against the PO', async () => {
+        arrangePool();
+
+        await service.issuePurchaseOrder('po-big', procurementOfficer, { nomineeIds: [ama.id] });
+
+        expect(mockApprovals.recordNominationsAtSubmit).toHaveBeenCalledWith(
+          'PURCHASE_ORDER',
+          'po-big',
+          'comp-1',
+          [ama, kojo],
+          [ama.id],
+          procurementOfficer.id,
+        );
+      });
+
+      it('vets the nominees BEFORE committing the PO to PENDING_APPROVAL', async () => {
+        arrangePool();
+        mockApprovals.assertNomineesInPool.mockRejectedValue(
+          new BadRequestException('not in pool'),
+        );
+
+        await expect(
+          service.issuePurchaseOrder('po-big', procurementOfficer, { nomineeIds: ['stranger'] }),
+        ).rejects.toThrow(BadRequestException);
+
+        // A bad id must 400 on a still-DRAFT order, never leave it half-submitted.
+        expect(mockPrisma.purchaseOrder.update).not.toHaveBeenCalled();
+        expect(mockApprovals.recordNominationsAtSubmit).not.toHaveBeenCalled();
+      });
+
+      it('narrows the email fan-out to the nominees', async () => {
+        arrangePool();
+        mockApprovals.resolveNotificationTargets.mockResolvedValue([ama]);
+
+        await service.issuePurchaseOrder('po-big', procurementOfficer, { nomineeIds: [ama.id] });
+        await new Promise((r) => setTimeout(r, 10));
+
+        expect(mockEmailService.sendPoPendingApprovalEmail).toHaveBeenCalledTimes(1);
+        expect(mockEmailService.sendPoPendingApprovalEmail).toHaveBeenCalledWith(
+          'ama@test.com',
+          'PO-BIG',
+          expect.any(String),
+          expect.any(String),
+          expect.any(Object),
+          undefined,
+        );
+      });
+
+      it('narrows the in-app fan-out to the nominees too', async () => {
+        arrangePool();
+        mockApprovals.resolveNotificationTargets.mockResolvedValue([ama]);
+
+        await service.issuePurchaseOrder('po-big', procurementOfficer, { nomineeIds: [ama.id] });
+        await new Promise((r) => setTimeout(r, 10));
+
+        expect(mockNotifications.createForEmails).toHaveBeenCalledWith(
+          ['ama@test.com'],
+          expect.objectContaining({ type: 'PO_PENDING_APPROVAL' }),
+        );
+      });
+
+      it('notifies the whole pool when nobody was nominated', async () => {
+        arrangePool();
+
+        await service.issuePurchaseOrder('po-big', procurementOfficer, { nomineeIds: [] });
+        await new Promise((r) => setTimeout(r, 10));
+
+        // Submitting without choosing anyone must behave exactly as it did
+        // before nomination existed.
+        expect(mockApprovals.recordNominationsAtSubmit).not.toHaveBeenCalled();
+        expect(mockEmailService.sendPoPendingApprovalEmail).toHaveBeenCalledTimes(2);
+      });
+
+      it('leaves the PO status untouched by the nomination', async () => {
+        arrangePool();
+
+        await service.issuePurchaseOrder('po-big', procurementOfficer, { nomineeIds: [ama.id] });
+
+        // A Nomination is routing, not authority: the PO is PENDING_APPROVAL to
+        // the whole Pool either way, so every member's dashboard queue is
+        // unaffected and any of them can still approve it.
+        expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              status: 'PENDING_APPROVAL',
+              approvalStatus: 'PENDING',
+            }),
+          }),
+        );
+      });
+
+      it('resolves the pool once and reuses it for the fan-out', async () => {
+        arrangePool();
+
+        await service.issuePurchaseOrder('po-big', procurementOfficer, { nomineeIds: [ama.id] });
+        await new Promise((r) => setTimeout(r, 10));
+
+        expect(mockApprovalAuth.resolveApproverPool).toHaveBeenCalledTimes(1);
+      });
+
+      afterEach(() => mockPrisma.purchaseOrder.findUnique.mockReset());
+    });
+  });
+
+  // ── FOR-308: nominate further approvers after submit ──────────────────────
+  describe('nominateApprovers', () => {
+    const creator = {
+      id: 'po-u-1',
+      email: 'po@test.com',
+      role: UserRole.PROCUREMENT_OFFICER,
+      companyId: 'comp-1',
+    };
+    const yaw = { ...poolMember('yaw@test.com'), id: 'u3' };
+    const poolView = { entityId: 'po-big', members: [], nominations: [] };
+
+    beforeEach(() => {
+      mockEmailService.sendPoPendingApprovalEmail.mockResolvedValue(undefined);
+      mockPrisma.purchaseOrder.findUnique.mockReset();
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        poNumber: 'PO-BIG',
+        companyId: 'comp-1',
+        totalAmount: 30000,
+        currency: 'AUD',
+      });
+    });
+
+    afterEach(() => mockPrisma.purchaseOrder.findUnique.mockReset());
+
+    it('emails only the newly nominated member', async () => {
+      mockApprovals.addNominations.mockResolvedValue({ view: poolView, notify: [yaw] });
+
+      const result = await service.nominateApprovers('po-big', ['u3'], creator);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendPoPendingApprovalEmail).toHaveBeenCalledTimes(1);
+      expect(mockEmailService.sendPoPendingApprovalEmail).toHaveBeenCalledWith(
+        'yaw@test.com',
+        'PO-BIG',
+        '30000 AUD',
+        'http://localhost:5179/purchase-orders/po-big',
+        expect.objectContaining({ companyId: 'comp-1', purchaseOrderId: 'po-big' }),
+        undefined,
+      );
+      expect(result).toBe(poolView);
+    });
+
+    it('sends nothing when the nominee was already asked', async () => {
+      mockApprovals.addNominations.mockResolvedValue({ view: poolView, notify: [] });
+
+      await service.nominateApprovers('po-big', ['u3'], creator);
+      await new Promise((r) => setTimeout(r, 10));
+
+      // No re-notification storm: re-nominating is a no-op, not a fresh email.
+      expect(mockEmailService.sendPoPendingApprovalEmail).not.toHaveBeenCalled();
+      expect(mockNotifications.createForEmails).not.toHaveBeenCalled();
+    });
+
+    it('propagates a rejected nomination rather than swallowing it', async () => {
+      mockApprovals.addNominations.mockRejectedValue(new BadRequestException('outside pool'));
+
+      await expect(service.nominateApprovers('po-big', ['stranger'], creator)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 

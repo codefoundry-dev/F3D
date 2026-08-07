@@ -27,6 +27,9 @@ export const EMAIL_TEMPLATES = {
   QUOTE_SUBMITTED: 'quote-submitted',
   PO_DECLINED_BY_VENDOR: 'po-declined-by-vendor',
   PO_PENDING_APPROVAL: 'po-pending-approval',
+  PO_APPROVAL_UNROUTABLE: 'po-approval-unroutable',
+  INVOICE_PENDING_APPROVAL: 'invoice-pending-approval',
+  INVOICE_APPROVAL_UNROUTABLE: 'invoice-approval-unroutable',
   DELIVERY_CODE: 'delivery-code',
 } as const;
 

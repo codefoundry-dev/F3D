@@ -191,10 +191,21 @@ export const ERR = {
     cannotReject: (status: string) => t(errors.invoices.cannotReject, { status }),
     noIdsProvided: errors.invoices.noIdsProvided,
     notReviewed: errors.invoices.notReviewed,
+    approvalThresholdExceeded: (amount: string, threshold: string) =>
+      t(errors.invoices.approvalThresholdExceeded, { amount, threshold }),
     cannotReview: (status: string) => t(errors.invoices.cannotReview, { status }),
     reviewVendorNotFound: errors.invoices.reviewVendorNotFound,
     reviewProjectNotFound: errors.invoices.reviewProjectNotFound,
     reviewPoNotFound: errors.invoices.reviewPoNotFound,
+  },
+
+  // ── Approver Pool + Nomination (ADR-0006 amendment) ──────
+  approvals: {
+    notNominator: errors.approvals.notNominator,
+    notPending: errors.approvals.notPending,
+    nomineeNotInPool: (name: string) => t(errors.approvals.nomineeNotInPool, { name }),
+    nomineeUnknown: errors.approvals.nomineeUnknown,
+    nominationNotFound: errors.approvals.nominationNotFound,
   },
 
   // ── Storage / Files ──────────────────────────────────────

@@ -46,7 +46,6 @@ const sampleItems = [
     totalRequestedQty: 100,
     createdDate: '2026-03-01T00:00:00.000Z',
     createdBy: 'PO User',
-    approvalStatus: 'APPROVED',
   },
   {
     id: 'rfq-2',
@@ -61,7 +60,6 @@ const sampleItems = [
     totalRequestedQty: 50,
     createdDate: '2026-03-05T00:00:00.000Z',
     createdBy: 'CA User',
-    approvalStatus: null,
   },
 ];
 
@@ -269,7 +267,7 @@ describe('RfqExportService', () => {
     await service.exportRfqs(
       'csv',
       q({
-        columns: 'applIssues,arcBlocksDist,contractorName,approvalStatus,approvedBy,lastModifiedBy',
+        columns: 'applIssues,arcBlocksDist,contractorName,lastModifiedBy',
       } as never),
       companyAdmin as never,
     );
@@ -279,22 +277,17 @@ describe('RfqExportService', () => {
       'Appl. Issues',
       'Arc Blocks Dist.',
       'Contractor Name',
-      'Approval Status',
-      'Approved By',
       'Last Modified By',
     ]);
     // First item
     expect(rows[0][0]).toBe('3');
     expect(rows[0][1]).toBe('7.5');
     expect(rows[0][2]).toBe('PO User'); // contractorName maps to createdBy
-    expect(rows[0][3]).toBe('Approved');
-    expect(rows[0][5]).toBe('Editor');
+    expect(rows[0][3]).toBe('Editor');
     // Second item — null values
     expect(rows[1][0]).toBe('');
     expect(rows[1][1]).toBe('');
     expect(rows[1][3]).toBe('');
-    expect(rows[1][4]).toBe('');
-    expect(rows[1][5]).toBe('');
   });
 
   it('maps US 2.06 vendor dashboard columns (Contractor Company, Total Responded Quotes)', async () => {
@@ -375,8 +368,6 @@ describe('RfqExportService', () => {
       createdDate: null,
       createdBy: null,
       contractorName: null,
-      approvalStatus: null,
-      approvedBy: null,
       lastModifiedBy: null,
     };
     mockRfqsService.listRfqs.mockResolvedValue({ items: [nullItem], meta: {} });
@@ -406,8 +397,6 @@ describe('RfqExportService', () => {
       'contractorName',
       'contractorCompany',
       'totalRespondedQuotes',
-      'approvalStatus',
-      'approvedBy',
       'lastModifiedBy',
     ].join(',');
 

@@ -481,6 +481,94 @@ export class EmailService implements OnModuleInit {
     }
   }
 
+  /**
+   * Tell a Company Admin that a PO is stuck: it is awaiting approval but no
+   * active user's `po.approve` cap covers its total, so the Approver Pool is
+   * empty (FOR-302). They are a fallback *recipient*, not an approver — the
+   * copy asks them to raise a limit or reduce the order, never to approve past
+   * their own cap.
+   */
+  async sendPoApprovalUnroutableEmail(
+    to: string,
+    poNumber: string,
+    amount: string,
+    viewUrl: string,
+    log?: EmailLogContext,
+    brand?: EmailBrand,
+  ): Promise<void> {
+    const t = this.getTranslations('poApprovalUnroutable', { poNumber, amount });
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        html: this.renderEmail(EMAIL_TEMPLATES.PO_APPROVAL_UNROUTABLE, t, { viewUrl }, brand),
+        template: EMAIL_TEMPLATES.PO_APPROVAL_UNROUTABLE,
+        ...(log ? { log } : {}),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
+  /**
+   * Tell an Approver Pool member that a reviewed invoice went over the
+   * reviewer's `invoice.approve` cap and now needs their sign-off (FOR-307).
+   * The invoice equivalent of {@link sendPoPendingApprovalEmail}.
+   */
+  async sendInvoicePendingApprovalEmail(
+    to: string,
+    invoiceReference: string,
+    amount: string,
+    viewUrl: string,
+    log?: EmailLogContext,
+    brand?: EmailBrand,
+  ): Promise<void> {
+    const t = this.getTranslations('invoicePendingApproval', { invoiceReference, amount });
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        html: this.renderEmail(EMAIL_TEMPLATES.INVOICE_PENDING_APPROVAL, t, { viewUrl }, brand),
+        template: EMAIL_TEMPLATES.INVOICE_PENDING_APPROVAL,
+        ...(log ? { log } : {}),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
+  /**
+   * Tell a Company Admin that a reviewed invoice is stuck: it needs approval but
+   * no active user's `invoice.approve` cap covers its total, so the Approver
+   * Pool is empty. Same fallback-recipient rule as the PO case (FOR-302) — the
+   * copy asks for a limit raise or a corrected amount, never for an approval
+   * past their own cap.
+   */
+  async sendInvoiceApprovalUnroutableEmail(
+    to: string,
+    invoiceReference: string,
+    amount: string,
+    viewUrl: string,
+    log?: EmailLogContext,
+    brand?: EmailBrand,
+  ): Promise<void> {
+    const t = this.getTranslations('invoiceApprovalUnroutable', { invoiceReference, amount });
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        html: this.renderEmail(EMAIL_TEMPLATES.INVOICE_APPROVAL_UNROUTABLE, t, { viewUrl }, brand),
+        template: EMAIL_TEMPLATES.INVOICE_APPROVAL_UNROUTABLE,
+        ...(log ? { log } : {}),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
   async sendPoDeclinedByVendorEmail(
     to: string,
     poNumber: string,

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
 import * as multer from 'multer';
 
+import { ApprovalsModule } from '../approvals/approvals.module';
 import { AuditModule } from '../audit/audit.module';
 import { DocIntelligenceModule } from '../doc-intelligence/doc-intelligence.module';
 import { ExportModule } from '../export/export.module';
@@ -23,6 +24,7 @@ import { ResendInboundController } from './resend-inbound.controller';
     NotificationsModule,
     DocIntelligenceModule,
     AuditModule,
+    ApprovalsModule,
     MulterModule.register({ storage: multer.memoryStorage() }),
   ],
   controllers: [InvoicesController, ResendInboundController],

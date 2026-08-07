@@ -9,6 +9,11 @@ enum NotificationType {
   QUOTE_UPDATED
   PO_ISSUED
   PO_PENDING_APPROVAL
+  // The PO reached PENDING_APPROVAL but its Approver Pool is empty — nobody's
+  // cap covers the total (FOR-302). Goes to Company Admins as a fallback
+  // recipient and to the creator; it asks for a limit raise or a smaller
+  // order, and confers no authority to approve.
+  PO_APPROVAL_UNROUTABLE
   PO_DECLINED
   // The CHANGE_REQUEST_* trio covers both bulk-agreement and PO change requests
   // — `entityType` (BULK_ORDER vs PURCHASE_ORDER) is what tells them apart.
@@ -20,6 +25,12 @@ enum NotificationType {
   PO_INTERNAL_CHANGE
   BULK_ORDER_CANCELLED
   INVOICE_REJECTED
+  // Invoice equivalents of the PO pair above (FOR-307). The reviewed total went
+  // over the *reviewer's* `invoice.approve` cap, so the invoice was routed to
+  // the Approver Pool; UNROUTABLE is the same empty-Pool fallback FOR-302
+  // introduced for POs — a recipient-only signal that confers no authority.
+  INVOICE_PENDING_APPROVAL
+  INVOICE_APPROVAL_UNROUTABLE
   PAYMENT_DUE
   PAYMENT_OVERDUE
   MESSAGE_RECEIVED

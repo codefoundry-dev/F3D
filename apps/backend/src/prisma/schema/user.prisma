@@ -60,9 +60,9 @@ model User {
   quoteAudits          QuoteAudit[]
 
   // Procurement relations
-  approvedRfqs         Rfq[]             @relation("RfqApprovedBy")
   createdRfqs          Rfq[]             @relation("RfqCreatedBy")
   approvedPos          PurchaseOrder[]   @relation("PoApprovedBy")
+  approvedInvoices     Invoice[]         @relation("InvoiceApprovedBy")
   createdPos           PurchaseOrder[]   @relation("PoCreatedBy")
   lastModifiedPos      PurchaseOrder[]   @relation("PoLastModifiedBy")
   poChangeRequests     PoChangeRequest[] @relation("PoChangeRequestedBy")
@@ -90,6 +90,10 @@ model User {
 
   // In-app notification feed (bell + panel)
   notifications        Notification[]     @relation("UserNotifications")
+  // Approver-Pool nominations (FOR-306): rows where this user was nominated,
+  // and rows where they did the nominating.
+  approvalNominations  ApprovalNomination[] @relation("ApprovalNominee")
+  approvalNominationsMade ApprovalNomination[] @relation("ApprovalNominator")
 
   // Bulk order change request relations
   bulkOrderChangeRequests         BulkOrderChangeRequest[] @relation("BulkOrderChangeRequestedBy")

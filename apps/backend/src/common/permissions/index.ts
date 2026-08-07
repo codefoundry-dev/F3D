@@ -12,4 +12,4 @@ export { PermissionsService } from './permissions.service';
 export { PermissionsBootstrap } from './permissions.bootstrap';
 export { PermissionsModule } from './permissions.module';
 export { ApprovalAuthorizationService } from './approval-authorization.service';
-export type { ThresholdDecision } from './approval-authorization.service';
+export type { ThresholdDecision, ApproverPoolMember } from './approval-authorization.service';

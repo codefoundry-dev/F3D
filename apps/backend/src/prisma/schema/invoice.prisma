@@ -23,6 +23,14 @@ model Invoice {
   vendorId        String?       @map("vendor_id")
   relatedPoId     String?       @map("related_po_id")
   status          InvoiceStatus @default(PENDING)
+  // Approval state, deliberately SEPARATE from document state (FOR-307 /
+  // ADR-0006): `status` keeps meaning where the invoice is in its own
+  // lifecycle, `approvalStatus` whether spend authority has signed off. There
+  // is intentionally no PENDING_APPROVAL InvoiceStatus — keeping the two axes
+  // apart is what lets the Approver Pool logic be written once for POs and
+  // invoices alike. Mirrors PurchaseOrder.approvalStatus / approvedById.
+  approvalStatus  ApprovalStatus @default(NOT_REQUIRED) @map("approval_status")
+  approvedById    String?       @map("approved_by_id")
   source          InvoiceSource @default(MANUAL)
   totalAmount     Decimal?      @map("total_amount") @db.Decimal(18, 4)
   dueDate         DateTime?     @map("due_date")
@@ -62,6 +70,7 @@ model Invoice {
   relatedPo  PurchaseOrder? @relation("InvoiceRelatedPo", fields: [relatedPoId], references: [id])
   createdBy  User?          @relation("InvoiceCreatedBy", fields: [createdByUserId], references: [id])
   reviewedBy User?          @relation("InvoiceReviewedBy", fields: [reviewedByUserId], references: [id])
+  approvedBy User?          @relation("InvoiceApprovedBy", fields: [approvedById], references: [id])
   documents  InvoiceDocument[]
   lines      InvoiceLineItem[]
 

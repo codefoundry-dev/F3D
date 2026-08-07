@@ -847,6 +847,17 @@ describe('UsersService', () => {
   // ── getMe ──────────────────────────────────────────────────────────────
 
   describe('getMe', () => {
+    /**
+     * getMe resolves the `po.approve` and `invoice.approve` caps concurrently
+     * (FOR-303), so mocks key off the permission key rather than call order.
+     */
+    const grantsByKey = (
+      grants: Partial<Record<'po.approve' | 'invoice.approve', { thresholdAmount: number | null }>>,
+    ) =>
+      jest.fn(({ where }: { where: { permission: { key: string } } }) =>
+        Promise.resolve(grants[where.permission.key as keyof typeof grants] ?? null),
+      );
+
     it('returns the user with the permission keys granted to their role', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'u-1',
@@ -856,7 +867,12 @@ describe('UsersService', () => {
       mockPermissionsService.getPermissionsForUser.mockResolvedValueOnce(
         new Set(['rfq.create', 'po.approve']),
       );
-      mockPrisma.rolePermission.findFirst.mockResolvedValueOnce({ thresholdAmount: null });
+      mockPrisma.rolePermission.findFirst.mockImplementation(
+        grantsByKey({
+          'po.approve': { thresholdAmount: null },
+          'invoice.approve': { thresholdAmount: null },
+        }),
+      );
 
       const result = await service.getMe('u-1');
 
@@ -869,6 +885,7 @@ describe('UsersService', () => {
         role: UserRole.COMPANY_ADMIN,
         permissions: ['rfq.create', 'po.approve'],
         poApprovalThreshold: null,
+        invoiceApprovalThreshold: null,
       });
     });
 
@@ -879,10 +896,31 @@ describe('UsersService', () => {
         role: UserRole.PROCUREMENT_OFFICER,
       });
       mockPermissionsService.getPermissionsForUser.mockResolvedValueOnce(new Set(['po.approve']));
-      mockPrisma.rolePermission.findFirst.mockResolvedValueOnce({ thresholdAmount: 25000 });
+      mockPrisma.rolePermission.findFirst.mockImplementation(
+        grantsByKey({ 'po.approve': { thresholdAmount: 25000 } }),
+      );
 
       const result = await service.getMe('u-2');
       expect(result.poApprovalThreshold).toBe(25000);
+    });
+
+    it('exposes the invoice.approve threshold independently of the PO one (FOR-303)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u-2b',
+        name: 'Finance',
+        role: UserRole.FINANCIAL_OFFICER,
+      });
+      mockPermissionsService.getPermissionsForUser.mockResolvedValueOnce(
+        new Set(['invoice.approve']),
+      );
+      mockPrisma.rolePermission.findFirst.mockImplementation(
+        grantsByKey({ 'invoice.approve': { thresholdAmount: 5000 } }),
+      );
+
+      const result = await service.getMe('u-2b');
+      expect(result.invoiceApprovalThreshold).toBe(5000);
+      // No po.approve grant → 0, i.e. any positive PO total needs approval.
+      expect(result.poApprovalThreshold).toBe(0);
     });
 
     it('returns 0 when the role lacks the po.approve grant', async () => {
@@ -892,10 +930,11 @@ describe('UsersService', () => {
         role: UserRole.PROCUREMENT_OFFICER,
       });
       mockPermissionsService.getPermissionsForUser.mockResolvedValueOnce(new Set<string>());
-      mockPrisma.rolePermission.findFirst.mockResolvedValueOnce(null);
+      mockPrisma.rolePermission.findFirst.mockImplementation(grantsByKey({}));
 
       const result = await service.getMe('u-3');
       expect(result.poApprovalThreshold).toBe(0);
+      expect(result.invoiceApprovalThreshold).toBe(0);
     });
 
     it('returns null (unlimited) for SUPER_ADMIN without a rolePermission lookup', async () => {
@@ -908,6 +947,7 @@ describe('UsersService', () => {
 
       const result = await service.getMe('u-4');
       expect(result.poApprovalThreshold).toBeNull();
+      expect(result.invoiceApprovalThreshold).toBeNull();
       expect(mockPrisma.rolePermission.findFirst).not.toHaveBeenCalled();
     });
 
@@ -925,12 +965,19 @@ describe('UsersService', () => {
         customRole: { id: 'cr-1', name: 'Limited Buyer' },
       });
       mockPermissionsService.getPermissionsForUser.mockResolvedValueOnce(new Set(['po.approve']));
-      mockPrisma.customRolePermission.findFirst.mockResolvedValueOnce({ thresholdAmount: 500 });
+      mockPrisma.customRolePermission.findFirst.mockImplementation(
+        grantsByKey({ 'po.approve': { thresholdAmount: 500 } }),
+      );
 
       const result = await service.getMe('u-5');
 
       expect(mockPrisma.customRolePermission.findFirst).toHaveBeenCalledWith({
         where: { customRoleId: 'cr-1', permission: { key: 'po.approve' } },
+        select: { thresholdAmount: true },
+      });
+      // Custom-role-first applies to both caps.
+      expect(mockPrisma.customRolePermission.findFirst).toHaveBeenCalledWith({
+        where: { customRoleId: 'cr-1', permission: { key: 'invoice.approve' } },
         select: { thresholdAmount: true },
       });
       expect(mockPrisma.rolePermission.findFirst).not.toHaveBeenCalled();

@@ -57,8 +57,12 @@ model Rfq {
   totalRequestedQty    Int             @default(0) @map("total_requested_qty")
   message              String?
   ccEmails             String[]        @default([]) @map("cc_emails")
-  approvalStatus       ApprovalStatus? @map("approval_status")
-  approvedById         String?         @map("approved_by_id")
+  // No approval gate on an RFQ (FOR-305 / ADR-0006 amendment "Not changed"): an
+  // RFQ carries no monetary value anywhere in the model, so there is no total to
+  // test against a cap. The RFQ→PO thread meets its money gate at award
+  // (rfq.approveQuote) and again at PO issue against the Approver Pool. The
+  // vestigial approval_status / approved_by_id columns were dropped rather than
+  // left promising a flow that never existed.
   createdByUserId      String          @map("created_by_user_id")
   createdAt            DateTime        @default(now()) @map("created_at")
   updatedAt            DateTime        @updatedAt @map("updated_at")
@@ -66,7 +70,6 @@ model Rfq {
   project          Project          @relation(fields: [projectId], references: [id])
   company          Company          @relation("RfqCompany", fields: [companyId], references: [id])
   deliveryLocation ProjectLocation? @relation("RfqDeliveryLocation", fields: [deliveryLocationId], references: [id])
-  approvedBy       User?            @relation("RfqApprovedBy", fields: [approvedById], references: [id])
   createdBy        User             @relation("RfqCreatedBy", fields: [createdByUserId], references: [id])
   lineItems        RfqLineItem[]
   projects         RfqProject[]

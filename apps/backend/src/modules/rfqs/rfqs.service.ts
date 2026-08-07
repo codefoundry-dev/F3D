@@ -73,7 +73,6 @@ const RFQ_LIST_INCLUDE = {
   project: { select: { id: true, name: true, code: true } },
   deliveryLocation: { select: { id: true, label: true, address: true } },
   createdBy: { select: { id: true, name: true } },
-  approvedBy: { select: { id: true, name: true } },
   invitedVendors: { select: { vendor: { select: { id: true, legalName: true } } } },
   _count: { select: { lineItems: true, quoteResponses: true, invitedVendors: true } },
   quoteResponses: {
@@ -123,7 +122,6 @@ const RFQ_DETAIL_INCLUDE = {
   projects: { include: { project: { select: { id: true, name: true, code: true } } } },
   deliveryLocation: { select: { id: true, label: true, address: true } },
   createdBy: { select: { id: true, name: true } },
-  approvedBy: { select: { id: true, name: true } },
   lineItems: {
     include: {
       material: { select: { id: true, name: true, uom: true } },
@@ -295,8 +293,6 @@ export class RfqsService {
           createdDate: rfq.createdAt.toISOString(),
           createdBy: rfq.createdBy.name,
           createdByUserId: rfq.createdByUserId,
-          approvalStatus: rfq.approvalStatus,
-          approvedBy: rfq.approvedBy?.name ?? null,
           lastModifiedBy: null,
         };
       }),
@@ -427,8 +423,6 @@ export class RfqsService {
       deadlineStart: rfq.deadlineStart?.toISOString() ?? null,
       deadlineEnd: rfq.deadlineEnd?.toISOString() ?? null,
       totalRequestedQty: rfq.totalRequestedQty,
-      approvalStatus: rfq.approvalStatus,
-      approvedBy: rfq.approvedBy ? { id: rfq.approvedBy.id, name: rfq.approvedBy.name } : null,
       createdBy: { id: rfq.createdBy.id, name: rfq.createdBy.name },
       lineItems: rfq.lineItems.map((li) => {
         const liAny = li as Record<string, unknown>;
@@ -2114,10 +2108,6 @@ export class RfqsService {
         return { pickUpDate: sortDir };
       case 'createdBy':
         return { createdBy: { name: sortDir } };
-      case 'approvalStatus':
-        return { approvalStatus: sortDir };
-      case 'approvedBy':
-        return { approvedBy: { name: sortDir } };
       case 'createdDate':
       default:
         return { createdAt: sortDir };

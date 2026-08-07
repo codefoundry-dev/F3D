@@ -1,10 +1,11 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
   IsInt,
   IsNotEmpty,
+  IsOptional,
   IsString,
   IsUUID,
   Min,
@@ -48,4 +49,29 @@ export class ReceivePoDto {
   @ValidateNested({ each: true })
   @Type(() => ReceivePoLineDto)
   lines!: ReceivePoLineDto[];
+}
+
+/**
+ * Submit a purchase order (POST …/issue).
+ *
+ * The body exists only to carry the optional approver nomination (FOR-306). A
+ * PO within the issuer's approval limit goes straight to the vendor and ignores
+ * it; one that is over the limit is routed to the Approver Pool, and these ids
+ * narrow *who is notified* about it.
+ *
+ * Omitting the field — or sending an empty array — notifies the whole Pool,
+ * which is the pre-nomination behaviour, so existing callers are unaffected.
+ */
+export class IssuePoDto {
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Approver Pool members to notify. Routing only: every Pool member keeps ' +
+      'full authority to approve, whether nominated or not. Ids outside the ' +
+      'Pool are rejected — a nomination can narrow, never widen.',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  nomineeIds?: string[];
 }

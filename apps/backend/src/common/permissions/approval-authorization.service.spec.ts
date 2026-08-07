@@ -185,7 +185,15 @@ describe('ApprovalAuthorizationService', () => {
       email: string,
       role: UserRole = UserRole.PROCUREMENT_OFFICER,
       customRoleId: string | null = null,
-    ) => ({ email, role, customRoleId });
+      customRoleName: string | null = null,
+    ) => ({
+      id: `u-${email}`,
+      name: email.split('@')[0],
+      email,
+      role,
+      customRoleId,
+      customRole: customRoleId ? { name: customRoleName ?? 'Custom' } : null,
+    });
 
     beforeEach(() => {
       prisma.rolePermission.findMany.mockResolvedValue([]);
@@ -207,7 +215,15 @@ describe('ApprovalAuthorizationService', () => {
       expect(result).toEqual(['admin@test.com']);
       expect(prisma.user.findMany).toHaveBeenCalledWith({
         where: { companyId: 'comp-1', status: 'ACTIVE' },
-        select: { email: true, role: true, customRoleId: true },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          customRoleId: true,
+          customRole: { select: { name: true } },
+        },
+        orderBy: { name: 'asc' },
       });
     });
 
@@ -295,6 +311,166 @@ describe('ApprovalAuthorizationService', () => {
 
       expect(result).toEqual(['dup@test.com']);
       expect(prisma.customRolePermission.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Approver Pool read model (ADR-0006 amendment / FOR-304) ────────────────
+  describe('resolveApproverPool', () => {
+    const user = (
+      email: string,
+      role: UserRole = UserRole.PROCUREMENT_OFFICER,
+      customRoleId: string | null = null,
+      customRoleName: string | null = null,
+    ) => ({
+      id: `u-${email}`,
+      name: email.split('@')[0],
+      email,
+      role,
+      customRoleId,
+      customRole: customRoleId ? { name: customRoleName ?? 'Custom' } : null,
+    });
+
+    beforeEach(() => {
+      prisma.rolePermission.findMany.mockResolvedValue([]);
+      prisma.customRolePermission.findMany.mockResolvedValue([]);
+    });
+
+    it('returns member identities with their role, and never a cap amount', async () => {
+      prisma.user.findMany.mockResolvedValue([user('admin@test.com', UserRole.COMPANY_ADMIN)]);
+      prisma.rolePermission.findMany.mockResolvedValue([
+        { role: UserRole.COMPANY_ADMIN, thresholdAmount: new Prisma.Decimal(100_000) },
+      ]);
+
+      const pool = await service.resolveApproverPool('comp-1', 'po.approve', 30_000);
+
+      expect(pool).toEqual([
+        {
+          id: 'u-admin@test.com',
+          name: 'admin',
+          email: 'admin@test.com',
+          role: UserRole.COMPANY_ADMIN,
+          customRoleName: null,
+        },
+      ]);
+      // Publishing per-user caps would expose the company's spend hierarchy.
+      expect(JSON.stringify(pool)).not.toContain('100000');
+      expect(pool[0]).not.toHaveProperty('thresholdAmount');
+    });
+
+    it('names the custom role when the holder has one assigned', async () => {
+      prisma.user.findMany.mockResolvedValue([
+        user('buyer@test.com', UserRole.FOREMAN, 'cr-1', 'Junior Buyer'),
+      ]);
+      prisma.customRolePermission.findMany.mockResolvedValue([
+        { customRoleId: 'cr-1', thresholdAmount: null },
+      ]);
+
+      const pool = await service.resolveApproverPool('comp-1', 'po.approve', 30_000);
+
+      expect(pool).toHaveLength(1);
+      expect(pool[0].customRoleName).toBe('Junior Buyer');
+      expect(pool[0].role).toBe(UserRole.FOREMAN);
+    });
+
+    it('is empty when every role is capped below the amount — the deadlock case', async () => {
+      prisma.user.findMany.mockResolvedValue([
+        user('admin@test.com', UserRole.COMPANY_ADMIN),
+        user('officer@test.com', UserRole.PROCUREMENT_OFFICER),
+      ]);
+      prisma.rolePermission.findMany.mockResolvedValue([
+        { role: UserRole.COMPANY_ADMIN, thresholdAmount: new Prisma.Decimal(100_000) },
+        { role: UserRole.PROCUREMENT_OFFICER, thresholdAmount: new Prisma.Decimal(10_000) },
+      ]);
+
+      const pool = await service.resolveApproverPool('comp-1', 'po.approve', 250_000);
+
+      expect(pool).toEqual([]);
+    });
+
+    it('recomputes on every call rather than caching a snapshot', async () => {
+      prisma.user.findMany.mockResolvedValue([user('officer@test.com')]);
+      prisma.rolePermission.findMany.mockResolvedValue([
+        { role: UserRole.PROCUREMENT_OFFICER, thresholdAmount: new Prisma.Decimal(50_000) },
+      ]);
+
+      await expect(
+        service.resolveApproverPool('comp-1', 'po.approve', 30_000),
+      ).resolves.toHaveLength(1);
+
+      // The cap is lowered under the same amount — the member drops out.
+      prisma.rolePermission.findMany.mockResolvedValue([
+        { role: UserRole.PROCUREMENT_OFFICER, thresholdAmount: new Prisma.Decimal(1_000) },
+      ]);
+
+      await expect(
+        service.resolveApproverPool('comp-1', 'po.approve', 30_000),
+      ).resolves.toHaveLength(0);
+    });
+
+    it('is parameterised by permission key so invoices reuse it unchanged', async () => {
+      prisma.user.findMany.mockResolvedValue([
+        user('finance@test.com', UserRole.FINANCIAL_OFFICER),
+      ]);
+      prisma.rolePermission.findMany.mockResolvedValue([
+        { role: UserRole.FINANCIAL_OFFICER, thresholdAmount: null },
+      ]);
+
+      const pool = await service.resolveApproverPool('comp-1', 'invoice.approve', 30_000);
+
+      expect(pool).toHaveLength(1);
+      expect(prisma.rolePermission.findMany).toHaveBeenCalledWith({
+        where: { permission: { key: 'invoice.approve' } },
+        select: { role: true, thresholdAmount: true },
+      });
+    });
+  });
+
+  describe('findCompanyAdminRecipients (FOR-302 fallback)', () => {
+    it('selects ACTIVE Company Admins by built-in role, ignoring approval caps', async () => {
+      prisma.user.findMany.mockResolvedValue([
+        {
+          id: 'admin-1',
+          name: 'Ama Boateng',
+          email: 'admin@test.com',
+          role: UserRole.COMPANY_ADMIN,
+          customRoleId: null,
+          customRole: null,
+        },
+      ]);
+
+      const admins = await service.findCompanyAdminRecipients('comp-1');
+
+      expect(admins).toEqual([
+        {
+          id: 'admin-1',
+          name: 'Ama Boateng',
+          email: 'admin@test.com',
+          role: UserRole.COMPANY_ADMIN,
+          customRoleName: null,
+        },
+      ]);
+      // Deliberately no permission/threshold join: they are being told nobody
+      // can approve, not handed authority to approve.
+      expect(prisma.user.findMany).toHaveBeenCalledWith({
+        where: { companyId: 'comp-1', status: 'ACTIVE', role: UserRole.COMPANY_ADMIN },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          customRoleId: true,
+          customRole: { select: { name: true } },
+        },
+        orderBy: { name: 'asc' },
+      });
+      expect(prisma.rolePermission.findMany).not.toHaveBeenCalled();
+      expect(prisma.customRolePermission.findMany).not.toHaveBeenCalled();
+    });
+
+    it('returns an empty list when the company has no active admin', async () => {
+      prisma.user.findMany.mockResolvedValue([]);
+
+      await expect(service.findCompanyAdminRecipients('comp-1')).resolves.toEqual([]);
     });
   });
 });

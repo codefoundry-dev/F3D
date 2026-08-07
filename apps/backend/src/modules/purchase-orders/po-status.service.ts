@@ -11,6 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   AccessTokenPurpose,
   AccessTokenSubject,
+  ApprovalEntityType,
   AuditAction,
   ApprovalStatus,
   NotificationEntityType,
@@ -23,10 +24,11 @@ import {
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { ApprovalAuthorizationService } from '../../common/permissions';
+import { ApprovalAuthorizationService, type ApproverPoolMember } from '../../common/permissions';
 import { resolveVendorRecipientsWithState } from '../../common/utils/vendor-recipients.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
+import { ApprovalsService } from '../approvals/approvals.service';
 import { AuditService } from '../audit/audit.service';
 import { BrandingService } from '../export/branding.service';
 import { InventoryService } from '../inventory/inventory.service';
@@ -35,7 +37,7 @@ import { EmailService } from '../notifications/email.service';
 
 import { PoExportService } from './po-export.service';
 import { assertTransition } from './po-state-machine';
-import { DeclinePoDto, ReceivePoDto } from './po-status.dto';
+import { DeclinePoDto, IssuePoDto, ReceivePoDto } from './po-status.dto';
 import { PO_TOKEN_TTL_MS } from './po-token.const';
 import { VendorAcceptPoDto, VendorDeclinePoDto } from './po-vendor.dto';
 import { PurchaseOrdersService } from './purchase-orders.service';
@@ -108,6 +110,7 @@ export class PoStatusService {
     config: ConfigService,
     private readonly branding: BrandingService,
     private readonly notifications: NotificationService,
+    private readonly approvals: ApprovalsService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
   }
@@ -174,7 +177,7 @@ export class PoStatusService {
 
   // ── Issue Purchase Order ───────────────────────────────────────────────
 
-  async issuePurchaseOrder(id: string, user: AuthenticatedUser) {
+  async issuePurchaseOrder(id: string, user: AuthenticatedUser, dto?: IssuePoDto) {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id },
       select: {
@@ -217,6 +220,21 @@ export class PoStatusService {
     if (requiresApproval) {
       // Hold for internal approval — do NOT notify the vendor or set issuedAt.
       assertTransition(po.status, PrismaPoStatus.PENDING_APPROVAL);
+
+      // FOR-306: resolve the Pool and vet the nominees BEFORE the transition, so
+      // an id outside the Pool is a 400 on a still-DRAFT order rather than a
+      // half-submitted one. The Pool depends on company + total only, so it is
+      // the same set either side of the status change.
+      const nomineeIds = dto?.nomineeIds ?? [];
+      const pool = await this.approvalAuth.resolveApproverPool(
+        po.companyId,
+        'po.approve',
+        po.totalAmount,
+      );
+      if (nomineeIds.length > 0) {
+        await this.approvals.assertNomineesInPool(po.companyId, pool, nomineeIds);
+      }
+
       await this.prisma.purchaseOrder.update({
         where: { id },
         data: {
@@ -235,8 +253,24 @@ export class PoStatusService {
         { requiresApproval: true },
       );
 
+      // Persist the routing choice before notifying, and await it: a Nomination
+      // is part of the document's record ("Kwame asked Ama on the 9th"), not a
+      // best-effort side effect like the email itself.
+      if (nomineeIds.length > 0) {
+        await this.approvals.recordNominationsAtSubmit(
+          ApprovalEntityType.PURCHASE_ORDER,
+          id,
+          po.companyId,
+          pool,
+          nomineeIds,
+          user.id,
+        );
+      }
+
       // Notify the company users entitled to approve this PO (fire-and-forget).
-      this.notifyApproversOfPendingPo(id, po.companyId, po.totalAmount, po.currency).catch(
+      // Nominees, when the submitter chose any, narrow *who is notified* —
+      // never who may approve.
+      this.notifyApproversOfPendingPo(id, po.companyId, po.totalAmount, po.currency, pool).catch(
         () => {},
       );
 
@@ -1324,39 +1358,58 @@ export class PoStatusService {
     );
   }
 
-  /**
-   * Email the company users entitled to approve a PO that has been routed to
-   * PENDING_APPROVAL (Week-3 approver notification). "Entitled" = an ACTIVE user
-   * in the PO's company whose effective `po.approve` grant covers the PO total
-   * (custom-role-first per FOR-253/FOR-286: an assigned custom role's cap
-   * replaces the built-in role's). Best-effort.
-   */
-  private async notifyApproversOfPendingPo(
-    poId: string,
-    companyId: string,
-    totalAmount: Prisma.Decimal | null,
-    currency: string,
-  ): Promise<void> {
-    const recipients = await this.approvalAuth.findEligibleApproverEmails(
-      companyId,
-      'po.approve',
-      totalAmount,
-    );
-    if (recipients.length === 0) return;
+  // ── Nomination (FOR-308) ─────────────────────────────────────────────────
 
+  /**
+   * Nominate further Approver Pool members on a PO already awaiting approval,
+   * and notify exactly the people newly added.
+   *
+   * The persistence and its rules (creator-only, pending-only, in-Pool-only)
+   * belong to `ApprovalsService`, which is shared with invoices; the *email*
+   * belongs here, where the PO's templates and branding live. Re-nominating
+   * someone already asked returns no one to notify, so it costs them no second
+   * email — the "no re-notification storm" requirement.
+   */
+  async nominateApprovers(poId: string, userIds: string[], user: AuthenticatedUser) {
+    const { view, notify } = await this.approvals.addNominations(
+      ApprovalEntityType.PURCHASE_ORDER,
+      poId,
+      userIds,
+      user,
+    );
+
+    if (notify.length > 0) {
+      // Best-effort, like every other notification on this path: a mail failure
+      // must not undo a nomination that is already recorded.
+      this.notifyNominatedApprovers(poId, notify).catch(() => {});
+    }
+
+    return view;
+  }
+
+  /**
+   * Tell newly nominated Pool members that a PO is waiting on them.
+   *
+   * Deliberately the same PO_PENDING_APPROVAL notification the submit-time
+   * fan-out sends: from the nominee's side nothing is different — a PO needs
+   * their approval — and a separate "you were nominated" type would imply the
+   * nomination granted them something. It did not.
+   */
+  private async notifyNominatedApprovers(
+    poId: string,
+    nominees: ApproverPoolMember[],
+  ): Promise<void> {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id: poId },
-      select: { poNumber: true },
+      select: { poNumber: true, companyId: true, totalAmount: true, currency: true },
     });
     if (!po) return;
 
-    const amountLabel = `${(totalAmount ?? 0).toString()} ${currency}`;
+    const amountLabel = `${(po.totalAmount ?? 0).toString()} ${po.currency}`;
     const viewUrl = `${this.webAppUrl}/purchase-orders/${poId}`;
-    const log = { companyId, purchaseOrderId: poId };
-
-    // The issuing company's logo + name, shown atop the approval-request email
-    // (FOR-288). companyId is the PO's own company (the approvers' company).
-    const brand = await this.branding.getEmailBrand(companyId);
+    const log = { companyId: po.companyId, purchaseOrderId: poId };
+    const brand = await this.branding.getEmailBrand(po.companyId);
+    const recipients = [...new Set(nominees.map((n) => n.email))];
 
     await Promise.all(
       recipients.map((email) =>
@@ -1378,5 +1431,158 @@ export class PoStatusService {
       entityType: NotificationEntityType.PURCHASE_ORDER,
       entityId: poId,
     });
+  }
+
+  /**
+   * Email the company users entitled to approve a PO that has been routed to
+   * PENDING_APPROVAL (Week-3 approver notification). "Entitled" = an ACTIVE user
+   * in the PO's company whose effective `po.approve` grant covers the PO total
+   * (custom-role-first per FOR-253/FOR-286: an assigned custom role's cap
+   * replaces the built-in role's). Best-effort.
+   */
+  private async notifyApproversOfPendingPo(
+    poId: string,
+    companyId: string,
+    totalAmount: Prisma.Decimal | null,
+    currency: string,
+    resolvedPool?: ApproverPoolMember[],
+  ): Promise<void> {
+    // The submit path has already resolved the Pool to vet nominees against it;
+    // re-resolving here would be a second identical set of queries.
+    const pool =
+      resolvedPool ??
+      (await this.approvalAuth.resolveApproverPool(companyId, 'po.approve', totalAmount));
+
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id: poId },
+      select: { poNumber: true, createdByUserId: true },
+    });
+    if (!po) return;
+
+    const amountLabel = `${(totalAmount ?? 0).toString()} ${currency}`;
+    const viewUrl = `${this.webAppUrl}/purchase-orders/${poId}`;
+    const log = { companyId, purchaseOrderId: poId };
+
+    // The issuing company's logo + name, shown atop the approval-request email
+    // (FOR-288). companyId is the PO's own company (the approvers' company).
+    const brand = await this.branding.getEmailBrand(companyId);
+
+    // FOR-302: an empty Pool means the PO is already committed to
+    // PENDING_APPROVAL with nobody able to approve it. Returning silently here
+    // stranded it permanently. Tell the Company Admins so a limit can be raised
+    // (or the order reduced), and tell the creator so the submit is not a silent
+    // success. Neither is granted authority — Pool membership always means
+    // "this cap covers this amount", with no exceptions.
+    if (pool.length === 0) {
+      await this.notifyPoApprovalUnroutable(
+        poId,
+        companyId,
+        po.poNumber,
+        po.createdByUserId,
+        amountLabel,
+        viewUrl,
+        log,
+        brand,
+      );
+      return;
+    }
+
+    // FOR-306: nominating narrows the fan-out to the nominees. Everyone else in
+    // the Pool keeps full authority and still sees the PO in the dashboard's
+    // entitlement-filtered "Awaiting approval" queue — that queue is the safety
+    // net this narrowing leans on.
+    const targets = await this.approvals.resolveNotificationTargets(
+      ApprovalEntityType.PURCHASE_ORDER,
+      poId,
+      pool,
+    );
+    const recipients = [...new Set(targets.map((m) => m.email))];
+
+    await Promise.all(
+      recipients.map((email) =>
+        this.emailService.sendPoPendingApprovalEmail(
+          email,
+          po.poNumber,
+          amountLabel,
+          viewUrl,
+          log,
+          brand,
+        ),
+      ),
+    );
+
+    await this.notifications.createForEmails(recipients, {
+      type: NotificationType.PO_PENDING_APPROVAL,
+      title: 'Purchase order awaiting approval',
+      body: `Purchase order ${po.poNumber} (${amountLabel}) needs your approval.`,
+      entityType: NotificationEntityType.PURCHASE_ORDER,
+      entityId: poId,
+    });
+  }
+
+  /**
+   * Fallback fan-out for a PO whose Approver Pool is empty (FOR-302). Company
+   * Admins are notified as *recipients* — they are told nobody can approve the
+   * order and that the way out is raising an approval limit under Roles &
+   * permissions or reducing the order. Their own cap is untouched, so this can
+   * never let them approve past it.
+   *
+   * The creator is notified too (in-app), so submitting into a dead state is
+   * never a silent success. Best-effort, like the rest of the notify path.
+   */
+  private async notifyPoApprovalUnroutable(
+    poId: string,
+    companyId: string,
+    poNumber: string,
+    createdByUserId: string,
+    amountLabel: string,
+    viewUrl: string,
+    log: { companyId: string; purchaseOrderId: string },
+    brand: Awaited<ReturnType<BrandingService['getEmailBrand']>>,
+  ): Promise<void> {
+    const admins = await this.approvalAuth.findCompanyAdminRecipients(companyId);
+    const adminEmails = [...new Set(admins.map((a) => a.email))];
+
+    const title = 'Purchase order has no eligible approver';
+    const body =
+      `Purchase order ${poNumber} (${amountLabel}) is awaiting approval, but no one in ` +
+      `your company has an approval limit that covers this amount. Raise an approval ` +
+      `limit or reduce the order to move it forward.`;
+
+    await Promise.all(
+      adminEmails.map((email) =>
+        this.emailService.sendPoApprovalUnroutableEmail(
+          email,
+          poNumber,
+          amountLabel,
+          viewUrl,
+          log,
+          brand,
+        ),
+      ),
+    );
+
+    await this.notifications.createForEmails(adminEmails, {
+      type: NotificationType.PO_APPROVAL_UNROUTABLE,
+      title,
+      body,
+      entityType: NotificationEntityType.PURCHASE_ORDER,
+      entityId: poId,
+    });
+
+    // The creator gets the same signal in-app even when they are not an admin.
+    // createForUsers de-duplicates nothing across calls, so skip it when the
+    // creator was already reached as an admin.
+    const creatorIsAdmin = admins.some((a) => a.id === createdByUserId);
+    if (!creatorIsAdmin) {
+      await this.notifications.createForUsers({
+        userIds: [createdByUserId],
+        type: NotificationType.PO_APPROVAL_UNROUTABLE,
+        title,
+        body,
+        entityType: NotificationEntityType.PURCHASE_ORDER,
+        entityId: poId,
+      });
+    }
   }
 }

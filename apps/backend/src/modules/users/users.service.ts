@@ -647,29 +647,41 @@ export class UsersService {
     if (!user) throw new NotFoundException(ERR.users.notFound);
 
     const granted = await this.permissionsService.getPermissionsForUser(user);
-    const poApprovalThreshold = await this.resolvePoApprovalThreshold(user);
-    return { ...user, permissions: Array.from(granted), poApprovalThreshold };
+    const [poApprovalThreshold, invoiceApprovalThreshold] = await Promise.all([
+      this.resolveApprovalThreshold(user, 'po.approve'),
+      this.resolveApprovalThreshold(user, 'invoice.approve'),
+    ]);
+    return {
+      ...user,
+      permissions: Array.from(granted),
+      poApprovalThreshold,
+      invoiceApprovalThreshold,
+    };
   }
 
   /**
-   * Resolve the user's `po.approve` threshold for the frontend send/approve UI
-   * (FOR-210). `null` = unlimited (SUPER_ADMIN, or an uncapped grant). `0` =
-   * the grant is absent, so any positive PO total requires approval. An
-   * assigned custom role's grant replaces the built-in role's (FOR-253).
+   * Resolve the user's cap on a threshold-aware approval permission for the
+   * frontend send/approve UI (FOR-210, extended to invoices by FOR-303).
+   * `null` = unlimited (SUPER_ADMIN, or an uncapped grant). `0` = the grant is
+   * absent, so any positive total requires a higher-tier approver. An assigned
+   * custom role's grant replaces the built-in role's (FOR-253).
+   *
+   * Advisory only — the backend re-checks the cap authoritatively on the action
+   * path via `ApprovalAuthorizationService.evaluate`.
    */
-  private async resolvePoApprovalThreshold(user: {
-    role: UserRole;
-    customRoleId?: string | null;
-  }): Promise<number | null> {
+  private async resolveApprovalThreshold(
+    user: { role: UserRole; customRoleId?: string | null },
+    permissionKey: 'po.approve' | 'invoice.approve',
+  ): Promise<number | null> {
     if (user.role === UserRole.SUPER_ADMIN) return null;
 
     const grant = user.customRoleId
       ? await this.prisma.customRolePermission.findFirst({
-          where: { customRoleId: user.customRoleId, permission: { key: 'po.approve' } },
+          where: { customRoleId: user.customRoleId, permission: { key: permissionKey } },
           select: { thresholdAmount: true },
         })
       : await this.prisma.rolePermission.findFirst({
-          where: { role: user.role, permission: { key: 'po.approve' } },
+          where: { role: user.role, permission: { key: permissionKey } },
           select: { thresholdAmount: true },
         });
 

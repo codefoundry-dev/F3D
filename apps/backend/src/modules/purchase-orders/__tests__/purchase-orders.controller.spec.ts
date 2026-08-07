@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserRole } from '@prisma/client';
 
+import { ApprovalsService } from '../../approvals/approvals.service';
 import { PoChangeService } from '../po-change.service';
 import { PoDocumentService } from '../po-document.service';
 import { PoExportService } from '../po-export.service';
@@ -57,6 +58,12 @@ const mockChangeService = {
   listChangeRequestsViaToken: jest.fn(),
 };
 
+/** The Approver Pool read model (FOR-304); the controller only delegates to it. */
+const mockApprovalsService = {
+  getApproverPool: jest.fn(),
+  withdrawNomination: jest.fn(),
+};
+
 const mockUser = {
   id: 'ca-1',
   email: 'ca@test.com',
@@ -79,6 +86,7 @@ describe('PurchaseOrdersController', () => {
         { provide: PoStatusService, useValue: mockStatusService },
         { provide: PoValidationService, useValue: mockValidationService },
         { provide: PoChangeService, useValue: mockChangeService },
+        { provide: ApprovalsService, useValue: mockApprovalsService },
       ],
     }).compile();
 
@@ -203,7 +211,13 @@ describe('PurchaseOrdersController', () => {
       mockStatusService.issuePurchaseOrder.mockResolvedValue(expected);
 
       const result = await controller.issuePurchaseOrder('po-1', mockUser);
-      expect(mockStatusService.issuePurchaseOrder).toHaveBeenCalledWith('po-1', mockUser);
+      // No body → no nominees → the whole Approver Pool is notified, exactly as
+      // before nomination existed (FOR-306).
+      expect(mockStatusService.issuePurchaseOrder).toHaveBeenCalledWith(
+        'po-1',
+        mockUser,
+        undefined,
+      );
       expect(result).toEqual(expected);
     });
   });

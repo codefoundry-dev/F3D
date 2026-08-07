@@ -75,3 +75,71 @@ The full engine described above is **narrowed for Release 1** to reduce build co
 - The OOO chain is a code constant (`MAX_DELEGATION_DEPTH = 1` in Release 1, `= 3` in v2). No data migration required when raised.
 
 The full closed-list engine remains the post-v1 target; the amendment is a build-cost cut, not a design pivot.
+
+## Amendment — Approver Pool and Nomination (2026-08-07)
+
+This amendment **partially reverses** two positions above. Read it before citing them.
+
+### What changed and why
+
+The original ADR rejected "per-user-pick approvers" outright (Decision, out-of-scope item 3;
+Alternatives item 3), on the grounds that per-request approver picking reintroduces the "who do I
+send this to?" cognitive load and defeats pre-configured workflows. That reasoning holds **only for
+picking that confers authority**. In practice the shipped system (FOR-286) notifies *every* company
+user whose effective `po.approve` cap covers the total, which at real org sizes is a broadcast — the
+opposite failure: nobody owns the request, so nobody acts.
+
+We therefore split the concept in two:
+
+- **Approver Pool** — the set of `ACTIVE` users in the document's company whose effective
+  `po.approve` / `invoice.approve` grant covers the total. This is **authority**, it remains purely
+  role-and-threshold-derived, and the creator cannot influence it. The original ADR's position is
+  intact here.
+- **Nomination** — the creator singling out Pool members to notify. This is **routing only**. It
+  confers nothing, and every Pool member retains full authority to approve regardless.
+
+The creator may therefore only ever **narrow, never widen**: a Nomination cannot reach anyone outside
+the Pool, and nominating nobody (the default) notifies the whole Pool, exactly reproducing current
+behaviour. Because nomination never gates authority, an absent nominee cannot block a document —
+which is what made this safe to do while Out-of-Office remains unbuilt.
+
+### Also decided
+
+- **The Pool is live; a Nomination is frozen.** The Pool is recomputed on every read, deliberately
+  unlike the frozen `RfqVendor` recipient set (ADR-0018 / CONTEXT.md): those rows are document
+  _content_, whereas the Pool is a derived view of _current_ authority, and authorisation is
+  evaluated live at approve time. A frozen Pool would name approvers who then hit a 403. A Nomination
+  is the creator's recorded intent, so it persists; a nominee who later falls out of the Pool renders
+  as no longer eligible rather than silently disappearing. Creators may add nominees after submit
+  (the unresponsive-approver remedy); Pool members re-nominating each other is deferred.
+- **Pool membership always means "this cap covers this amount", with no exceptions.** When the Pool
+  would be empty — only reachable once an admin has *deliberately* capped `COMPANY_ADMIN` below the
+  total, since `thresholdAmount` is unseeded and `null` means unlimited — Company Admins are notified
+  as a **fallback recipient**, not added to the Pool. They resolve it by raising a limit or reducing
+  the document, never by approving past their own cap. This closes a live deadlock:
+  `po-status.service.ts` previously returned silently on an empty recipient list *after* committing
+  the PO to `PENDING_APPROVAL`, stranding it permanently with no notification and no eligible actor.
+- **Display rule.** While pending, the UI names the Pool by **role labels and a count**, never as an
+  individual and never with cap amounts (which would publish the company's spend hierarchy and invite
+  approver-shopping). Once resolved it names the **individual** who acted, because the audit
+  requirement in this ADR's Consequences demands a person. The nomination picker is the one surface
+  that lists Pool members by name and role — still without caps. Copy is tenant-scoped ("in your
+  company"): `SUPER_ADMIN` bypasses both company scope and threshold as break-glass but is never in
+  the Pool (`companyId` is null), and platform-operator identity is not exposed to tenants.
+- **Invoices reach parity, via `approvalStatus` + `approvedById` mirroring the PO** — not a new
+  `InvoiceStatus` value, preserving this ADR's document-state/approval-state separation. An invoice's
+  submit moment is **review completion** (`PATCH /:id/review`), the reviewer standing in for the PO's
+  creator, since invoices arrive from vendors rather than being raised by a spender. This also closes
+  a second live gap: `InvoicesService.approveInvoice` never called `evaluate`, so `invoice.approve`'s
+  configured cap was enforced nowhere despite being item 2 of the Release-1 closed list.
+- **Nominations persist in one polymorphic `ApprovalNomination` table** (`entityType`, `entityId`,
+  `userId`, `nominatedById`, `nominatedAt`), matching the `entityType`/`entityId` precedent set by
+  `Notification` and delivering this ADR's "reusable across entities" intent. Trade-off accepted: no
+  FK on `entityId`, so cascade-on-delete is handled in code.
+
+### Not changed
+
+RFQs gain **no** approval gate. An RFQ carries no monetary value anywhere in the model, so there is
+no threshold to test; the RFQ→PO thread meets its money gate at award and again at PO issue. The
+vestigial `Rfq.approvalStatus` / `Rfq.approvedById` columns and the permanently-empty "Approved By"
+field they feed are removed rather than left promising a flow that does not exist.

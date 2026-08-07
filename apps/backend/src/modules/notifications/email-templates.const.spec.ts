@@ -22,11 +22,12 @@ describe('EMAIL_TEMPLATES', () => {
     expect(EMAIL_TEMPLATES.QUOTE_SUBMITTED).toBe('quote-submitted');
     expect(EMAIL_TEMPLATES.PO_DECLINED_BY_VENDOR).toBe('po-declined-by-vendor');
     expect(EMAIL_TEMPLATES.PO_PENDING_APPROVAL).toBe('po-pending-approval');
+    expect(EMAIL_TEMPLATES.PO_APPROVAL_UNROUTABLE).toBe('po-approval-unroutable');
     expect(EMAIL_TEMPLATES.DELIVERY_CODE).toBe('delivery-code');
   });
 
-  it('should have exactly 29 templates', () => {
-    expect(Object.keys(EMAIL_TEMPLATES)).toHaveLength(29);
+  it('should have exactly 32 templates', () => {
+    expect(Object.keys(EMAIL_TEMPLATES)).toHaveLength(32);
   });
 
   it('should have unique values', () => {
@@ -59,6 +60,7 @@ describe('EMAIL_TEMPLATES', () => {
         'QUOTE_SUBMITTED',
         'PO_DECLINED_BY_VENDOR',
         'PO_PENDING_APPROVAL',
+        'PO_APPROVAL_UNROUTABLE',
         'DELIVERY_CODE',
       ]),
     );

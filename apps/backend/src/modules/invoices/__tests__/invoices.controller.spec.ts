@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserRole } from '@prisma/client';
 
+import { ApprovalsService } from '../../approvals/approvals.service';
 import { InvoiceExportService } from '../invoice-export.service';
 import { InvoiceIntakeService } from '../invoice-intake.service';
 import { InvoiceMatchingService } from '../invoice-matching.service';
@@ -33,6 +34,12 @@ const mockMatchingService = {
   getPoMatch: jest.fn(),
 };
 
+/** Approver Pool read model + withdrawal (FOR-309); the controller delegates. */
+const mockApprovalsService = {
+  getApproverPool: jest.fn(),
+  withdrawNomination: jest.fn(),
+};
+
 const mockUser = {
   id: 'ca-1',
   email: 'ca@test.com',
@@ -53,6 +60,7 @@ describe('InvoicesController', () => {
         { provide: InvoiceExportService, useValue: mockExportService },
         { provide: InvoiceIntakeService, useValue: mockIntakeService },
         { provide: InvoiceMatchingService, useValue: mockMatchingService },
+        { provide: ApprovalsService, useValue: mockApprovalsService },
       ],
     }).compile();
 

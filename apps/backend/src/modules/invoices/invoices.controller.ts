@@ -21,9 +21,12 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApprovalEntityType } from '@prisma/client';
 
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/permissions';
+import { NominateApproversDto } from '../approvals/approvals.dto';
+import { ApprovalsService } from '../approvals/approvals.service';
 
 import { InvoiceExportService } from './invoice-export.service';
 import { InvoiceIntakeService } from './invoice-intake.service';
@@ -39,6 +42,7 @@ export class InvoicesController {
     private readonly invoiceExportService: InvoiceExportService,
     private readonly invoiceIntakeService: InvoiceIntakeService,
     private readonly invoiceMatchingService: InvoiceMatchingService,
+    private readonly approvalsService: ApprovalsService,
   ) {}
 
   // ── POST /v1/invoices/upload ───────────────────────────────────────────────
@@ -165,6 +169,80 @@ export class InvoicesController {
   @ApiResponse({ status: 404, description: 'Invoice not found' })
   async getInvoiceAudit(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.invoicesService.getAuditTrail(id, user);
+  }
+
+  // ── GET /v1/invoices/:id/approver-pool ─────────────────────────────────────
+
+  @Get(':id/approver-pool')
+  @RequirePermissions('invoice.read')
+  @ApiOperation({
+    summary: "The invoice's Approver Pool, its nominees, and who resolved it",
+    description:
+      'Gated on invoice.read, not invoice.approve: the reviewer needs to see ' +
+      'who they are waiting on without holding approval authority themselves. ' +
+      'The Pool is recomputed live on every call and never carries a cap amount.',
+  })
+  @ApiResponse({ status: 200, description: 'Approver Pool view' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  async getInvoiceApproverPool(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('amount') amount?: string,
+  ) {
+    // `amount` previews the Pool for a total the reviewer has typed but not yet
+    // saved, so the nomination picker never offers someone who cannot approve
+    // the figure about to be written (FOR-309).
+    const parsed = amount === undefined || amount === '' ? undefined : Number(amount);
+    return this.approvalsService.getApproverPool(
+      ApprovalEntityType.INVOICE,
+      id,
+      user,
+      parsed === undefined || Number.isNaN(parsed) ? undefined : parsed,
+    );
+  }
+
+  // ── POST /v1/invoices/:id/nominations ──────────────────────────────────────
+
+  @Post(':id/nominations')
+  @RequirePermissions('invoice.read')
+  @ApiOperation({
+    summary: 'Nominate further Approver Pool members on an invoice awaiting approval',
+    description:
+      'Routing only — gated on invoice.read because nominating is not an ' +
+      'approval act. Only the reviewer may nominate, only while the approval is ' +
+      'open, and only Pool members. Re-nominating an existing nominee is a no-op.',
+  })
+  @ApiResponse({ status: 201, description: 'Updated Approver Pool view' })
+  @ApiResponse({ status: 400, description: 'Nominee outside the Pool, or invoice not pending' })
+  @ApiResponse({ status: 403, description: 'Caller did not review this invoice' })
+  async nominateInvoiceApprovers(
+    @Param('id') id: string,
+    @Body() dto: NominateApproversDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    // Through InvoicesService, not ApprovalsService: the nominee has to be
+    // notified, and the invoice's email templates live with the invoice.
+    return this.invoicesService.nominateApprovers(id, dto.userIds, user);
+  }
+
+  // ── DELETE /v1/invoices/:id/nominations/:userId ────────────────────────────
+
+  @Delete(':id/nominations/:userId')
+  @RequirePermissions('invoice.read')
+  @ApiOperation({
+    summary: 'Withdraw a nomination',
+    description:
+      'Removes the routing hint only. The withdrawn user keeps their place in ' +
+      'the Approver Pool and can still approve the invoice.',
+  })
+  @ApiResponse({ status: 200, description: 'Updated Approver Pool view' })
+  @ApiResponse({ status: 404, description: 'No such nomination' })
+  async withdrawInvoiceNomination(
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.approvalsService.withdrawNomination(ApprovalEntityType.INVOICE, id, userId, user);
   }
 
   // ── PATCH /v1/invoices/:id/approve ─────────────────────────────────────────
