@@ -219,6 +219,23 @@ describe('ApprovalsService (FOR-304)', () => {
       expect(view.roleGroups).toEqual([]);
     });
 
+    it('still lists a PO creator in their own Pool — PO separation of duties is FOR-320', async () => {
+      givenPo();
+      mockApprovalAuth.resolveApproverPool.mockResolvedValue([
+        poMember(creator.id, 'Creator', UserRole.PROCUREMENT_OFFICER),
+      ]);
+
+      const view = await service.getApproverPool(
+        ApprovalEntityType.PURCHASE_ORDER,
+        'po-1',
+        creator,
+      );
+
+      // The FOR-349 exclusion is deliberately scoped to material requests; the
+      // PO hole closes with the enterprise engine's SoD rule.
+      expect(view.members.map((m) => m.id)).toEqual([creator.id]);
+    });
+
     it('resolves an invoice through invoice.approve, reusing the same pool logic', async () => {
       mockPrisma.invoice.findUnique.mockResolvedValue({
         id: 'inv-1',
@@ -301,6 +318,42 @@ describe('ApprovalsService (FOR-304)', () => {
         );
       });
 
+      it('excludes the requester from their own Pool, whatever grant they hold (FOR-349)', async () => {
+        givenMr();
+        mockApprovalAuth.resolveApproverPool.mockResolvedValue([
+          poMember(creator.id, 'Creator', UserRole.PROCUREMENT_OFFICER),
+          poMember('u1', 'Ama Boateng', UserRole.PROCUREMENT_OFFICER),
+        ]);
+
+        const view = await service.getApproverPool(
+          ApprovalEntityType.MATERIAL_REQUEST,
+          'mr-1',
+          bystander,
+        );
+
+        expect(view.members.map((m) => m.id)).toEqual(['u1']);
+        expect(view.memberCount).toBe(1);
+        expect(view.roleGroups).toEqual([
+          { role: UserRole.PROCUREMENT_OFFICER, customRoleName: null, count: 1 },
+        ]);
+      });
+
+      it('flags an empty Pool when the requester is the only grant holder (FOR-349)', async () => {
+        givenMr();
+        mockApprovalAuth.resolveApproverPool.mockResolvedValue([
+          poMember(creator.id, 'Creator', UserRole.PROCUREMENT_OFFICER),
+        ]);
+
+        const view = await service.getApproverPool(
+          ApprovalEntityType.MATERIAL_REQUEST,
+          'mr-1',
+          creator,
+        );
+
+        expect(view.isEmpty).toBe(true);
+        expect(view.memberCount).toBe(0);
+      });
+
       it('lets the requester nominate while pending, and nobody else', async () => {
         givenMr();
         mockApprovalAuth.resolveApproverPool.mockResolvedValue([
@@ -351,6 +404,18 @@ describe('ApprovalsService (FOR-304)', () => {
         expect(view.canNominate).toBe(true);
         // No document was read — the pool is a pure function of the company.
         expect(mockPrisma.materialRequest.findUnique).not.toHaveBeenCalled();
+      });
+
+      it('excludes the caller — a requester cannot route an MR to themselves (FOR-349)', async () => {
+        mockApprovalAuth.resolveApproverPool.mockResolvedValue([
+          poMember(creator.id, 'Creator', UserRole.PROCUREMENT_OFFICER),
+          poMember('u1', 'Ama Boateng', UserRole.COMPANY_ADMIN),
+        ]);
+
+        const view = await service.getProspectivePool(ApprovalEntityType.MATERIAL_REQUEST, creator);
+
+        expect(view.members.map((m) => m.id)).toEqual(['u1']);
+        expect(view.memberCount).toBe(1);
       });
 
       it('flags an empty prospective pool so the wizard can block before submitting', async () => {
@@ -714,6 +779,20 @@ describe('ApprovalsService (FOR-304)', () => {
       await expect(
         service.addNominations(ApprovalEntityType.PURCHASE_ORDER, 'po-1', ['u9'], creator),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('refuses a requester nominating themselves on their own MR (FOR-349)', async () => {
+      givenMr();
+      mockApprovalAuth.resolveApproverPool.mockResolvedValue([
+        poMember(creator.id, 'Creator', UserRole.PROCUREMENT_OFFICER),
+        poMember('u1', 'Ama Boateng', UserRole.PROCUREMENT_OFFICER),
+      ]);
+      // Holding the grant does not put them in their own Pool, so this is the
+      // ordinary outside-the-Pool 400 — no special case.
+      await expect(
+        service.addNominations(ApprovalEntityType.MATERIAL_REQUEST, 'mr-1', [creator.id], creator),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.approvalNomination.createMany).not.toHaveBeenCalled();
     });
   });
 

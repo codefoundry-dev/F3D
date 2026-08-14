@@ -13,7 +13,7 @@
     "resolvedNoActor": "Approval resolved",
     "emptyTitle": "No one can approve this",
     "emptyBody": "No one in your company has an approval limit that covers this amount. Raise an approval limit under Roles & permissions, or reduce the document to move it forward.",
-    "emptyBodyNoCap": "No one in your company holds the permission to approve this kind of request. Grant the approval permission under Roles & permissions to move it forward.",
+    "emptyBodyNoCap": "No one else in your company holds the permission to approve this kind of request. Grant the approval permission under Roles & permissions to move it forward.",
     "loadError": "Could not load the approver pool.",
     "loading": "Loading approvers…"
   },
@@ -50,7 +50,7 @@
     "cancel": "Cancel",
     "emptyTitle": "No one can approve this",
     "emptyBody": "No one in your company has an approval limit that covers this amount. Raise an approval limit under Roles & permissions, or reduce the document before submitting it.",
-    "emptyBodyNoCap": "No one in your company holds the permission to approve this kind of request. Grant the approval permission under Roles & permissions before submitting it.",
+    "emptyBodyNoCap": "No one else in your company holds the permission to approve this kind of request. Grant the approval permission under Roles & permissions before submitting it.",
     "emptyDismiss": "Close"
   }
 }

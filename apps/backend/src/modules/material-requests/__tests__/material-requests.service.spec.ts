@@ -1,8 +1,7 @@
 import { MaterialRequestPriority, MaterialRequestStatus } from '@forethread/shared-types';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { AuditAction, PoSourceOfCreation, UserRole } from '@prisma/client';
-
 import { ConfigService } from '@nestjs/config';
+import { AuditAction, PoSourceOfCreation, UserRole } from '@prisma/client';
 
 import { AuthenticatedUser } from '../../../common/decorators/current-user.decorator';
 import {
@@ -296,10 +295,7 @@ describe('MaterialRequestsService', () => {
       prisma.materialRequest.create.mockResolvedValue({ id: 'mr-1' });
       prisma.materialRequest.findUnique.mockResolvedValue(makeMr());
 
-      await service.create(
-        foreman,
-        makeCreateDto({ submit: true, nomineeIds: ['approver-1'] }) as CreateMaterialRequestDto,
-      );
+      await service.create(foreman, makeCreateDto({ submit: true, nomineeIds: ['approver-1'] }));
       await flushAsync();
 
       expect(approvalAuth.resolveApproverPool).toHaveBeenCalledWith(
@@ -323,16 +319,40 @@ describe('MaterialRequestsService', () => {
       expect(email.sendMaterialRequestPendingApprovalEmail).toHaveBeenCalled();
     });
 
+    it('excludes the requester from the Pool on create-with-submit (FOR-349)', async () => {
+      const { service, prisma, approvals, approvalAuth, email, poolMember } = makeService();
+      // The requester holds materialRequest.approve themselves…
+      approvalAuth.resolveApproverPool.mockResolvedValue([
+        poolMember,
+        { ...poolMember, id: 'fm-1', name: 'Foreman Joe', email: 'fm@example.com' },
+      ]);
+      prisma.project.findUnique.mockResolvedValue({ id: 'project-1', companyId: 'company-1' });
+      prisma.materialRequest.create.mockResolvedValue({ id: 'mr-1' });
+      prisma.materialRequest.findUnique.mockResolvedValue(makeMr());
+
+      await service.create(foreman, makeCreateDto({ submit: true, nomineeIds: ['approver-1'] }));
+      await flushAsync();
+
+      // …but separation of duties keeps them out of their own Pool: vetting
+      // sees the requester-less set, and they are not a notification target.
+      expect(approvals.assertNomineesInPool).toHaveBeenCalledWith(
+        'company-1',
+        [poolMember],
+        ['approver-1'],
+      );
+      expect(email.sendMaterialRequestPendingApprovalEmail).toHaveBeenCalledTimes(1);
+      expect(email.sendMaterialRequestPendingApprovalEmail.mock.calls[0][0]).toBe(
+        'ama@example.com',
+      );
+    });
+
     it('a nominee outside the Pool is a 400 with no MR created at all', async () => {
       const { service, prisma, approvals } = makeService();
       prisma.project.findUnique.mockResolvedValue({ id: 'project-1', companyId: 'company-1' });
       approvals.assertNomineesInPool.mockRejectedValueOnce(new BadRequestException('not in pool'));
 
       await expect(
-        service.create(
-          foreman,
-          makeCreateDto({ submit: true, nomineeIds: ['outsider'] }) as CreateMaterialRequestDto,
-        ),
+        service.create(foreman, makeCreateDto({ submit: true, nomineeIds: ['outsider'] })),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(prisma.materialRequest.create).not.toHaveBeenCalled();
     });
@@ -342,10 +362,7 @@ describe('MaterialRequestsService', () => {
       prisma.project.findUnique.mockResolvedValue({ id: 'project-1', companyId: 'company-1' });
 
       await expect(
-        service.create(
-          foreman,
-          makeCreateDto({ nomineeIds: ['approver-1'] }) as CreateMaterialRequestDto,
-        ),
+        service.create(foreman, makeCreateDto({ nomineeIds: ['approver-1'] })),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(approvalAuth.resolveApproverPool).not.toHaveBeenCalled();
     });
@@ -815,6 +832,35 @@ describe('MaterialRequestsService', () => {
       );
     });
 
+    it('excludes the requester from their own Pool at submit (FOR-349)', async () => {
+      const { service, prisma, approvals, approvalAuth, email, poolMember } = makeService();
+      approvalAuth.resolveApproverPool.mockResolvedValue([
+        poolMember,
+        { ...poolMember, id: 'fm-1', name: 'Foreman Joe', email: 'fm@example.com' },
+      ]);
+      prisma.materialRequest.findUnique
+        .mockResolvedValueOnce({
+          id: 'mr-1',
+          status: MaterialRequestStatus.DRAFT,
+          companyId: 'company-1',
+          requestedById: 'fm-1',
+        })
+        .mockResolvedValue(makeMr());
+
+      await service.submit('mr-1', foreman, { nomineeIds: ['approver-1'] });
+      await flushAsync();
+
+      expect(approvals.assertNomineesInPool).toHaveBeenCalledWith(
+        'company-1',
+        [poolMember],
+        ['approver-1'],
+      );
+      expect(email.sendMaterialRequestPendingApprovalEmail).toHaveBeenCalledTimes(1);
+      expect(email.sendMaterialRequestPendingApprovalEmail.mock.calls[0][0]).toBe(
+        'ama@example.com',
+      );
+    });
+
     it('rejects submitting a non-DRAFT MR via the state machine', async () => {
       const { service, prisma } = makeService();
       prisma.materialRequest.findUnique.mockResolvedValue({
@@ -916,6 +962,7 @@ describe('MaterialRequestsService', () => {
           id: 'mr-1',
           status: MaterialRequestStatus.SUBMITTED,
           companyId: 'company-1',
+          requestedById: 'fm-1',
           deliveryLocationId: null,
           lineItems: [],
         })
@@ -938,6 +985,7 @@ describe('MaterialRequestsService', () => {
           id: 'mr-1',
           status: MaterialRequestStatus.SUBMITTED,
           companyId: 'company-1',
+          requestedById: 'fm-1',
           deliveryLocationId: 'loc-hdr',
           lineItems: [
             // tracked: material + line location → issued from stock
@@ -990,10 +1038,26 @@ describe('MaterialRequestsService', () => {
         id: 'mr-1',
         status: MaterialRequestStatus.DRAFT,
         companyId: 'company-1',
+        requestedById: 'fm-1',
         deliveryLocationId: null,
         lineItems: [],
       });
       await expect(service.approve('mr-1', officer)).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('forbids the requester approving their own MR, whatever grant they hold (FOR-349)', async () => {
+      const { service, prisma } = makeService();
+      prisma.materialRequest.findUnique.mockResolvedValue({
+        id: 'mr-1',
+        status: MaterialRequestStatus.SUBMITTED,
+        companyId: 'company-1',
+        requestedById: 'po-1',
+        deliveryLocationId: null,
+        lineItems: [],
+      });
+      await expect(service.approve('mr-1', officer)).rejects.toBeInstanceOf(ForbiddenException);
+      // Nothing moved: no status write, no auto-issue transaction.
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it('throws NotFound when the MR is missing', async () => {
@@ -1045,6 +1109,20 @@ describe('MaterialRequestsService', () => {
       await expect(service.decline('mr-1', officer, { reason: 'x' })).rejects.toBeInstanceOf(
         BadRequestException,
       );
+    });
+
+    it('forbids the requester declining their own MR — their way out is cancel (FOR-349)', async () => {
+      const { service, prisma } = makeService();
+      prisma.materialRequest.findUnique.mockResolvedValue({
+        id: 'mr-1',
+        status: MaterialRequestStatus.SUBMITTED,
+        companyId: 'company-1',
+        requestedById: 'fm-1',
+      });
+      await expect(
+        service.decline('mr-1', foreman, { reason: 'changed my mind' }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.materialRequest.update).not.toHaveBeenCalled();
     });
   });
 

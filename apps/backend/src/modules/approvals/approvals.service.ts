@@ -249,7 +249,12 @@ export class ApprovalsService {
       config.permissionKey,
       amountOverride === undefined ? doc.totalAmount : amountOverride,
     );
-    const members = pool.map((m) => this.toMemberView(m));
+    // FOR-349: the requester is never an eligible approver of their own MR, so
+    // the Pool everyone sees — and nominates from — must not offer them.
+    const eligible = config.excludeRequesterFromPool
+      ? pool.filter((m) => m.id !== doc.nominatorUserId)
+      : pool;
+    const members = eligible.map((m) => this.toMemberView(m));
 
     const isResolved =
       doc.approvalStatus === ApprovalStatus.APPROVED ||
@@ -302,7 +307,11 @@ export class ApprovalsService {
       config.permissionKey,
       null,
     );
-    const members = pool.map((m) => this.toMemberView(m));
+    // The caller is the prospective requester — they must not be offered
+    // themselves as an approver of the document they are about to raise
+    // (FOR-349).
+    const eligible = config.excludeRequesterFromPool ? pool.filter((m) => m.id !== user.id) : pool;
+    const members = eligible.map((m) => this.toMemberView(m));
 
     return {
       entityType,
@@ -451,12 +460,17 @@ export class ApprovalsService {
       config.permissionKey,
       doc.totalAmount,
     );
+    // Vetting against the requester-less Pool makes self-nomination a 400,
+    // exactly like any other nominee outside the Pool (FOR-349).
+    const eligible = config.excludeRequesterFromPool
+      ? pool.filter((m) => m.id !== doc.nominatorUserId)
+      : pool;
 
     const notify = await this.persistNominations(
       entityType,
       entityId,
       doc.companyId,
-      pool,
+      eligible,
       userIds,
       user.id,
     );

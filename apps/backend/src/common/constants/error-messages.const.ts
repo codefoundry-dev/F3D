@@ -255,6 +255,7 @@ export const ERR = {
     cannotConvertNotApproved: errors.materialRequests.cannotConvertNotApproved,
     vendorRequired: errors.materialRequests.vendorRequired,
     nomineesRequireSubmit: errors.materialRequests.nomineesRequireSubmit,
+    cannotReviewOwn: errors.materialRequests.cannotReviewOwn,
   },
 
   // ── Vendors ─────────────────────────────────────────────

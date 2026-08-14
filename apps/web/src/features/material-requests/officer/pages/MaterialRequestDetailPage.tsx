@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { useAuthStore } from '@/features/auth/state/auth.store';
 import { usePermissions } from '@/shared/role/usePermissions';
 
 import {
@@ -31,6 +32,7 @@ export default function MaterialRequestDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { has } = usePermissions();
+  const currentUserId = useAuthStore((s) => s.currentUser?.id ?? null);
 
   const { data: mr, isLoading, isError } = useMaterialRequest(id);
   const { data: audit, isLoading: isLoadingAudit } = useMaterialRequestAudit(id);
@@ -75,9 +77,17 @@ export default function MaterialRequestDetailPage() {
   const rfqLink = mr.convertedToRfq?.id ?? '';
   const poLink = mr.convertedToPo?.id ?? '';
 
-  const canApprove = isSubmitted && has('materialRequest.approve');
-  const canDecline = isSubmitted && has('materialRequest.decline');
+  // FOR-349: separation of duties — the requester never reviews their own
+  // request, whatever grants they hold. The backend enforces the same rule
+  // with a 403; hiding the buttons keeps the page honest about it.
+  const isOwnRequest = mr.requestedBy.id === currentUserId;
+  const canApprove = isSubmitted && !isOwnRequest && has('materialRequest.approve');
+  const canDecline = isSubmitted && !isOwnRequest && has('materialRequest.decline');
   const canConvert = isApproved && has('materialRequest.convert');
+  const showOwnRequestNote =
+    isSubmitted &&
+    isOwnRequest &&
+    (has('materialRequest.approve') || has('materialRequest.decline'));
 
   const handleApprove = () => approve.mutate(mr.id);
 
@@ -132,6 +142,11 @@ export default function MaterialRequestDetailPage() {
 
           {/* ═══ Action bar (status + permission gated) ═══ */}
           <div className="flex flex-wrap items-center gap-2" data-testid="mr-action-bar">
+            {showOwnRequestNote && (
+              <p className="text-xs text-muted-foreground" data-testid="mr-own-request-note">
+                {t('detail.actions.ownRequestNote')}
+              </p>
+            )}
             {canApprove && (
               <Button
                 variant="primary"

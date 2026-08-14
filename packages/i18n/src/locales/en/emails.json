@@ -185,7 +185,7 @@
     "subject": "Forethread — No One Can Approve Material Request {{mrNumber}}",
     "greeting": "Hi,",
     "heading": "A material request is awaiting approval, but no one is able to approve it.",
-    "body": "Material request {{mrNumber}} for {{projectName}} has been submitted, but no active user in your company holds the permission to approve material requests. It cannot move forward until the approval permission is granted under Roles & permissions.",
+    "body": "Material request {{mrNumber}} for {{projectName}} has been submitted, but no active user in your company is eligible to approve it — a requester can never approve their own request. It cannot move forward until the approval permission is granted to another user under Roles & permissions.",
     "buttonLabel": "Review Request"
   },
   "invitationExpiredNotification": {

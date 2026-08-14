@@ -152,7 +152,7 @@ export class MaterialRequestsService {
     }
     let pool: ApproverPoolMember[] = [];
     if (submit) {
-      pool = await this.resolveMrApproverPool(companyId);
+      pool = await this.resolveMrApproverPool(companyId, user.id);
       if (nomineeIds.length > 0) {
         await this.approvals.assertNomineesInPool(companyId, pool, nomineeIds);
       }
@@ -336,7 +336,7 @@ export class MaterialRequestsService {
     // half-submitted one. The Pool depends on the company only (an MR has no
     // amount), so it is the same set either side of the status change.
     const nomineeIds = dto?.nomineeIds ?? [];
-    const pool = await this.resolveMrApproverPool(mr.companyId);
+    const pool = await this.resolveMrApproverPool(mr.companyId, mr.requestedById);
     if (nomineeIds.length > 0) {
       await this.approvals.assertNomineesInPool(mr.companyId, pool, nomineeIds);
     }
@@ -380,6 +380,7 @@ export class MaterialRequestsService {
         id: true,
         status: true,
         companyId: true,
+        requestedById: true,
         deliveryLocationId: true,
         lineItems: {
           select: { id: true, materialId: true, quantity: true, deliveryLocationId: true },
@@ -388,6 +389,12 @@ export class MaterialRequestsService {
     });
     if (!mr) throw new NotFoundException(ERR.materialRequests.notFound);
     this.assertCompanyAccess(user, mr.companyId);
+    // FOR-349: separation of duties — whatever grant the requester holds,
+    // another authorised user must resolve their request. Same identity-first
+    // ordering as cancel: who you are disqualifies you before status is judged.
+    if (mr.requestedById === user.id) {
+      throw new ForbiddenException(ERR.materialRequests.cannotReviewOwn);
+    }
     assertTransitionOrThrow(mr.status, MaterialRequestStatus.APPROVED);
 
     // Approve the MR and auto-issue any in-stock lines atomically: the status
@@ -453,6 +460,12 @@ export class MaterialRequestsService {
 
   async decline(id: string, user: AuthenticatedUser, dto: DeclineMaterialRequestDto) {
     const mr = await this.findForTransition(id, user);
+    // FOR-349: declining is the other half of the review act (it records the
+    // caller as the reviewer), so the requester is barred from it too — their
+    // own way out of a submitted request is cancel.
+    if (mr.requestedById === user.id) {
+      throw new ForbiddenException(ERR.materialRequests.cannotReviewOwn);
+    }
     assertTransitionOrThrow(mr.status, MaterialRequestStatus.DECLINED);
 
     await this.prisma.materialRequest.update({
@@ -746,9 +759,22 @@ export class MaterialRequestsService {
    * includes `materialRequest.approve`. The key is not threshold-aware and an
    * MR carries no amount, so — unlike the PO/Invoice Pools — this is grant
    * membership, not cap coverage (ADR-0006 amendment, FOR-347).
+   *
+   * The requester is excluded even when they hold the grant (FOR-349):
+   * separation of duties says another authorised user must approve, so they
+   * are neither a valid nominee nor a pending-approval notification target
+   * for their own request.
    */
-  private resolveMrApproverPool(companyId: string): Promise<ApproverPoolMember[]> {
-    return this.approvalAuth.resolveApproverPool(companyId, 'materialRequest.approve', null);
+  private async resolveMrApproverPool(
+    companyId: string,
+    requesterId: string,
+  ): Promise<ApproverPoolMember[]> {
+    const pool = await this.approvalAuth.resolveApproverPool(
+      companyId,
+      'materialRequest.approve',
+      null,
+    );
+    return pool.filter((m) => m.id !== requesterId);
   }
 
   /**
@@ -761,10 +787,6 @@ export class MaterialRequestsService {
     companyId: string,
     resolvedPool?: ApproverPoolMember[],
   ): Promise<void> {
-    // The submit path has already resolved the Pool to vet nominees against it;
-    // re-resolving here would be a second identical set of queries.
-    const pool = resolvedPool ?? (await this.resolveMrApproverPool(companyId));
-
     const mr = await this.prisma.materialRequest.findUnique({
       where: { id: mrId },
       select: {
@@ -774,6 +796,10 @@ export class MaterialRequestsService {
       },
     });
     if (!mr) return;
+
+    // The submit path has already resolved the Pool to vet nominees against it;
+    // re-resolving here would be a second identical set of queries.
+    const pool = resolvedPool ?? (await this.resolveMrApproverPool(companyId, mr.requestedById));
 
     const viewUrl = `${this.webAppUrl}/material-requests/${mrId}`;
     const log = { companyId };
@@ -894,8 +920,9 @@ export class MaterialRequestsService {
     const title = 'Material request has no eligible approver';
     const body =
       `Material request ${mrNumber} for ${projectName} is awaiting approval, but no one ` +
-      `in your company is able to approve material requests. Grant the approval ` +
-      `permission under Roles & permissions to move it forward.`;
+      `in your company is eligible to approve it — a requester can never approve their ` +
+      `own request. Grant the approval permission to another user under Roles & ` +
+      `permissions to move it forward.`;
 
     await Promise.all(
       adminEmails.map((email) =>

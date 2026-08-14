@@ -15,20 +15,36 @@ export const APPROVAL_ENTITY_CONFIG = {
     /** Audit actions that terminate the approval, newest wins. */
     resolvedActions: ['PO_APPROVED', 'PO_DECLINED'] as const,
     auditTargetType: 'PurchaseOrder',
+    // A creator may still approve their own PO — closing that hole is the
+    // enterprise engine's separation-of-duties rule (FOR-320), not this map.
+    excludeRequesterFromPool: false,
   },
   INVOICE: {
     permissionKey: 'invoice.approve' as const,
     resolvedActions: ['INVOICE_APPROVED', 'INVOICE_REJECTED'] as const,
     auditTargetType: 'Invoice',
+    excludeRequesterFromPool: false,
   },
   MATERIAL_REQUEST: {
     permissionKey: 'materialRequest.approve' as const,
     resolvedActions: ['MATERIAL_REQUEST_APPROVED', 'MATERIAL_REQUEST_DECLINED'] as const,
     auditTargetType: 'MaterialRequest',
+    /**
+     * FOR-349: a requester is never an eligible approver of their own MR. On a
+     * loaded document "requester" is its `nominatorUserId`; on a prospective
+     * Pool it is the caller. The approve/decline endpoints enforce the same
+     * rule as a hard 403 — this flag keeps the read model honest about it.
+     */
+    excludeRequesterFromPool: true,
   },
 } satisfies Record<
   ApprovalEntityType,
-  { permissionKey: string; resolvedActions: readonly string[]; auditTargetType: string }
+  {
+    permissionKey: string;
+    resolvedActions: readonly string[];
+    auditTargetType: string;
+    excludeRequesterFromPool: boolean;
+  }
 >;
 
 /** One Pool member, as the nomination picker needs them. Never carries a cap. */
