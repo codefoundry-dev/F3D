@@ -34,6 +34,7 @@ import {
   QuoteResponseStatus,
   RfqStatus,
   UserRole,
+  UserStatus,
 } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
@@ -337,6 +338,10 @@ export class RfqsService {
     });
 
     if (!rfq) throw new NotFoundException(ERR.rfqs.notFound);
+
+    // Project-based visibility (FOR-351) — also closes the previous gap where
+    // the detail read carried no company/invitation check at all.
+    await this.assertRfqVisible(user, rfq);
 
     // Compute vendor status from the vendor's own quote response
     let vendorStatus: string | undefined;
@@ -1159,7 +1164,7 @@ export class RfqsService {
     });
 
     // Generate invitation tokens for each vendor and notify via email (fire-and-forget)
-    this.generateInvitationTokensAndNotify(rfq.id).catch(() => {});
+    this.generateInvitationTokensAndNotify(rfq.id, user.id).catch(() => {});
 
     return this.getRfq(id, user);
   }
@@ -2001,6 +2006,22 @@ export class RfqsService {
       where.invitedVendors = { some: { vendor: { users: { some: { id: user.id } } } } };
     } else if (user.role !== UserRole.SUPER_ADMIN && user.companyId) {
       where.companyId = user.companyId;
+      // RFQ visibility is project-based (FOR-351): everyone below Company Admin
+      // sees only the RFQs of projects they are assigned to — any project the
+      // RFQ spans (primary or rfq_projects) — plus RFQs they created
+      // themselves, since creation doesn't require membership. Kept in AND so
+      // the search OR below can't widen the scope.
+      if (user.role !== UserRole.COMPANY_ADMIN) {
+        where.AND = [
+          {
+            OR: [
+              { createdByUserId: user.id },
+              { project: { members: { some: { userId: user.id } } } },
+              { projects: { some: { project: { members: { some: { userId: user.id } } } } } },
+            ],
+          },
+        ];
+      }
     }
 
     // Quick filters
@@ -2116,7 +2137,11 @@ export class RfqsService {
 
   // ── Email notifications ──────────────────────────────────────────────────
 
-  private async generateInvitationTokensAndNotify(rfqId: string): Promise<void> {
+  private async generateInvitationTokensAndNotify(
+    rfqId: string,
+    /** The user who triggered the send — excluded from the member fan-out. */
+    sentByUserId?: string,
+  ): Promise<void> {
     const rfq = await this.prisma.rfq.findUnique({
       where: { id: rfqId },
       select: {
@@ -2126,12 +2151,22 @@ export class RfqsService {
         ccEmails: true,
         needByDate: true,
         // Members of every project the RFQ spans are auto-CC'd on the vendor
-        // emails (FOR-255). Both the primary project and the rfq_projects join
-        // are read so legacy rows (primary only on `project`) are covered.
-        project: { select: { members: { select: { user: { select: { email: true } } } } } },
+        // emails (FOR-255) and get the in-app RFQ_SENT mirror (FOR-351). Both
+        // the primary project and the rfq_projects join are read so legacy rows
+        // (primary only on `project`) are covered.
+        project: {
+          select: {
+            name: true,
+            members: { select: { user: { select: { id: true, email: true, status: true } } } },
+          },
+        },
         projects: {
           select: {
-            project: { select: { members: { select: { user: { select: { email: true } } } } } },
+            project: {
+              select: {
+                members: { select: { user: { select: { id: true, email: true, status: true } } } },
+              },
+            },
           },
         },
         documents: {
@@ -2239,6 +2274,30 @@ export class RfqsService {
         entityId: rfqId,
       });
     }
+
+    // Tell the project team the RFQ went out (FOR-351): every ACTIVE member of
+    // every project the RFQ spans gets the in-app counterpart of the CC above —
+    // except whoever sent it, who doesn't need to hear about their own action.
+    const memberIds = new Set<string>();
+    for (const m of rfq.project?.members ?? []) {
+      if (m.user.status === UserStatus.ACTIVE) memberIds.add(m.user.id);
+    }
+    for (const rp of rfq.projects ?? []) {
+      for (const m of rp.project.members ?? []) {
+        if (m.user.status === UserStatus.ACTIVE) memberIds.add(m.user.id);
+      }
+    }
+    memberIds.delete(sentByUserId ?? rfq.createdByUserId);
+    if (memberIds.size > 0) {
+      await this.notifications.createForUsers({
+        userIds: [...memberIds],
+        type: NotificationType.RFQ_SENT,
+        title: 'RFQ sent',
+        body: `RFQ ${rfqNumber} for ${rfq.project.name} was sent to vendors.`,
+        entityType: NotificationEntityType.RFQ,
+        entityId: rfqId,
+      });
+    }
   }
 
   /**
@@ -2275,24 +2334,8 @@ export class RfqsService {
     comment: string | null = null,
   ): Promise<void> {
     try {
-      const rfq = await this.prisma.rfq.findUnique({
-        where: { id: rfqId },
-        select: {
-          rfqNumber: true,
-          companyId: true,
-        },
-      });
-
+      const rfq = await this.resolveQuoteWatchers(rfqId);
       if (!rfq) return;
-
-      const contractors = await this.prisma.user.findMany({
-        where: {
-          companyId: rfq.companyId,
-          role: { in: [UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER] },
-          status: 'ACTIVE',
-        },
-        select: { email: true },
-      });
 
       const rfqNumber = rfq.rfqNumber ?? rfqId.slice(0, 8).toUpperCase();
       const viewUrl = `${this.webAppUrl}/rfqs`;
@@ -2302,9 +2345,9 @@ export class RfqsService {
       const brand = await this.branding.getEmailBrand(rfq.companyId);
 
       await Promise.all(
-        contractors.map((u) =>
+        rfq.emails.map((email) =>
           this.emailService.sendQuoteSubmittedEmail(
-            u.email,
+            email,
             rfqNumber,
             vendorName,
             viewUrl,
@@ -2314,19 +2357,74 @@ export class RfqsService {
         ),
       );
 
-      await this.notifications.createForEmails(
-        contractors.map((u) => u.email),
-        {
-          type: NotificationType.QUOTE_SUBMITTED,
-          title: 'New quote received',
-          body: `${vendorName} submitted a quote for RFQ ${rfqNumber}.`,
-          entityType: NotificationEntityType.RFQ,
-          entityId: rfqId,
-        },
-      );
+      await this.notifications.createForEmails(rfq.emails, {
+        type: NotificationType.QUOTE_SUBMITTED,
+        title: 'New quote received',
+        body: `${vendorName} submitted a quote for RFQ ${rfqNumber}.`,
+        entityType: NotificationEntityType.RFQ,
+        entityId: rfqId,
+      });
     } catch {
       // fire-and-forget: email failures are non-critical
     }
+  }
+
+  /**
+   * Who hears about quote activity on an RFQ (FOR-351): Company Admins keep
+   * company-wide oversight; beyond them only the ACTIVE members of the projects
+   * the RFQ spans — plus its creator — matching project-based RFQ visibility.
+   * Returns null when the RFQ doesn't exist.
+   */
+  private async resolveQuoteWatchers(
+    rfqId: string,
+  ): Promise<{ rfqNumber: string | null; companyId: string; emails: string[] } | null> {
+    const rfq = await this.prisma.rfq.findUnique({
+      where: { id: rfqId },
+      select: {
+        rfqNumber: true,
+        companyId: true,
+        createdBy: { select: { email: true, status: true } },
+        project: {
+          select: {
+            members: {
+              where: { user: { status: UserStatus.ACTIVE } },
+              select: { user: { select: { email: true } } },
+            },
+          },
+        },
+        projects: {
+          select: {
+            project: {
+              select: {
+                members: {
+                  where: { user: { status: UserStatus.ACTIVE } },
+                  select: { user: { select: { email: true } } },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!rfq) return null;
+
+    const admins = await this.prisma.user.findMany({
+      where: {
+        companyId: rfq.companyId,
+        role: UserRole.COMPANY_ADMIN,
+        status: UserStatus.ACTIVE,
+      },
+      select: { email: true },
+    });
+
+    const emails = normalizeCcEmails([
+      ...admins.map((u) => u.email),
+      ...collectProjectMemberEmails(rfq),
+      ...(rfq.createdBy.status === UserStatus.ACTIVE ? [rfq.createdBy.email] : []),
+    ]);
+
+    return { rfqNumber: rfq.rfqNumber, companyId: rfq.companyId, emails };
   }
 
   async notifyContractorOfQuoteUpdate(
@@ -2336,24 +2434,8 @@ export class RfqsService {
     comment: string | null = null,
   ): Promise<void> {
     try {
-      const rfq = await this.prisma.rfq.findUnique({
-        where: { id: rfqId },
-        select: {
-          rfqNumber: true,
-          companyId: true,
-        },
-      });
-
+      const rfq = await this.resolveQuoteWatchers(rfqId);
       if (!rfq) return;
-
-      const contractors = await this.prisma.user.findMany({
-        where: {
-          companyId: rfq.companyId,
-          role: { in: [UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER] },
-          status: 'ACTIVE',
-        },
-        select: { email: true },
-      });
 
       const rfqNumber = rfq.rfqNumber ?? rfqId.slice(0, 8).toUpperCase();
 
@@ -2364,9 +2446,9 @@ export class RfqsService {
       const brand = await this.branding.getEmailBrand(rfq.companyId);
 
       await Promise.all(
-        contractors.map((u) =>
+        rfq.emails.map((email) =>
           this.emailService.sendQuoteUpdatedEmail(
-            u.email,
+            email,
             rfqNumber,
             vendorName,
             viewUrl,
@@ -2376,16 +2458,13 @@ export class RfqsService {
         ),
       );
 
-      await this.notifications.createForEmails(
-        contractors.map((u) => u.email),
-        {
-          type: NotificationType.QUOTE_UPDATED,
-          title: 'Quote updated',
-          body: `${vendorName} updated their quote for RFQ ${rfqNumber}.`,
-          entityType: NotificationEntityType.RFQ,
-          entityId: rfqId,
-        },
-      );
+      await this.notifications.createForEmails(rfq.emails, {
+        type: NotificationType.QUOTE_UPDATED,
+        title: 'Quote updated',
+        body: `${vendorName} updated their quote for RFQ ${rfqNumber}.`,
+        entityType: NotificationEntityType.RFQ,
+        entityId: rfqId,
+      });
     } catch {
       // fire-and-forget: email failures are non-critical
     }
@@ -2410,6 +2489,44 @@ export class RfqsService {
     if (user.role !== UserRole.SUPER_ADMIN && user.companyId !== companyId) {
       throw new ForbiddenException(ERR.general.accessDenied);
     }
+  }
+
+  /**
+   * RFQ read access is project-based (FOR-351): SuperAdmin sees everything,
+   * CompanyAdmin everything in their company, a vendor only RFQs they were
+   * invited to, and every other role only the RFQs of projects they are a
+   * member of (any project the RFQ spans) or that they created themselves.
+   * Mirrors the scoping buildListWhere applies to the list.
+   */
+  private async assertRfqVisible(
+    user: AuthenticatedUser,
+    rfq: { id: string; companyId: string; createdByUserId: string },
+  ): Promise<void> {
+    if (user.role === UserRole.SUPER_ADMIN) return;
+
+    if (user.role === UserRole.VENDOR) {
+      const invited = await this.prisma.rfqVendor.findFirst({
+        where: { rfqId: rfq.id, vendor: { users: { some: { id: user.id } } } },
+        select: { id: true },
+      });
+      if (!invited) throw new ForbiddenException(ERR.general.accessDenied);
+      return;
+    }
+
+    this.assertCompanyAccess(user, rfq.companyId);
+    if (user.role === UserRole.COMPANY_ADMIN) return;
+    if (rfq.createdByUserId === user.id) return;
+
+    const membership = await this.prisma.projectMember.findFirst({
+      where: {
+        userId: user.id,
+        project: {
+          OR: [{ rfqs: { some: { id: rfq.id } } }, { rfqProjects: { some: { rfqId: rfq.id } } }],
+        },
+      },
+      select: { id: true },
+    });
+    if (!membership) throw new ForbiddenException(ERR.general.accessDenied);
   }
 
   // ── Multi-project helpers (US 5.05) ───────────────────────────────────────

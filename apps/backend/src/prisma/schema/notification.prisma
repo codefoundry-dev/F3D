@@ -5,6 +5,10 @@
 
 enum NotificationType {
   RFQ_RECEIVED
+  // Buyer-side mirror of the send (FOR-351): every member of every project the
+  // RFQ spans gets this when the RFQ goes out to vendors — the in-app
+  // counterpart of the FOR-255 email CC. The sender is excluded (they acted).
+  RFQ_SENT
   QUOTE_SUBMITTED
   QUOTE_UPDATED
   PO_ISSUED

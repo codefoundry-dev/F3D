@@ -6,6 +6,9 @@ import { NOTIFICATIONS_PATHS } from './paths';
 
 export type NotificationType =
   | 'RFQ_RECEIVED'
+  // Buyer-side mirror of the send (FOR-351): project members are told the RFQ
+  // went out to vendors. Deep-links to the RFQ via entityType/entityId.
+  | 'RFQ_SENT'
   | 'QUOTE_SUBMITTED'
   | 'QUOTE_UPDATED'
   | 'PO_ISSUED'
