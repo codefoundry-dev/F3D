@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 
 const mockUseProjectBoms = vi.hoisted(() => vi.fn());
+const mockUseBom = vi.hoisted(() => vi.fn());
 const mockNavigate = vi.hoisted(() => vi.fn());
 
 vi.mock('@forethread/i18n', () => ({
@@ -8,8 +9,9 @@ vi.mock('@forethread/i18n', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  Badge: (p: any) => <span>{p.children}</span>,
   Button: (p: any) => (
-    <button onClick={p.onClick} disabled={p.disabled}>
+    <button onClick={p.onClick} disabled={p.disabled} data-testid={p['data-testid']}>
       {p.children}
     </button>
   ),
@@ -31,12 +33,8 @@ vi.mock('@forethread/ui-components', () => ({
   ),
 }));
 
-vi.mock('@forethread/ui-components/assets/icons/eye-opened.svg?react', () => ({
-  default: (p: any) => <svg data-testid="eye-icon" {...p} />,
-}));
-
-vi.mock('@forethread/ui-components/assets/icons/edit.svg?react', () => ({
-  default: (p: any) => <svg data-testid="edit-icon" {...p} />,
+vi.mock('@forethread/ui-components/assets/icons/chevron-down.svg?react', () => ({
+  default: (p: any) => <svg data-testid="chevron-icon" {...p} />,
 }));
 
 vi.mock('@forethread/ui-components/assets/icons/search.svg?react', () => ({
@@ -57,6 +55,7 @@ vi.mock('@/app/route-config', () => ({
 
 vi.mock('../hooks/useBoms', () => ({
   useProjectBoms: mockUseProjectBoms,
+  useBom: mockUseBom,
 }));
 
 import { BomTab } from './BomTab';
@@ -77,9 +76,41 @@ function makeBom(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function makeItem(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'item-1',
+    materialName: 'Cement',
+    matchedMaterialId: 'mat-1',
+    matchedMaterialName: 'Portland Cement',
+    description: 'Grey cement 42.5N',
+    uom: 'bag',
+    quantity: 10,
+    category: 'Concrete',
+    materialType: 'Raw',
+    matchConfidence: 0.9,
+    sortOrder: 0,
+    ...overrides,
+  };
+}
+
+/** useBom mock resolving per-BOM detail payloads keyed by id. */
+function stubBomDetails(details: Record<string, Record<string, unknown>[]>) {
+  mockUseBom.mockImplementation((id: string | null) => {
+    if (id && details[id]) {
+      return {
+        data: { ...makeBom({ id }), items: details[id] },
+        isLoading: false,
+        isError: false,
+      };
+    }
+    return { data: undefined, isLoading: false, isError: false };
+  });
+}
+
 describe('BomTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    stubBomDetails({});
   });
 
   it('renders a spinner while loading', () => {
@@ -102,67 +133,92 @@ describe('BomTab', () => {
     expect(screen.getByText('tab.emptyHistorical')).toBeInTheDocument();
   });
 
-  it('splits BOMs into active and historical by status', () => {
+  it('renders the active BOM materials directly as a list', () => {
+    mockUseProjectBoms.mockReturnValue({
+      data: [makeBom({ id: 'bom-1', bomNumber: 'BOM-ACTIVE', status: 'ACTIVE' })],
+      isLoading: false,
+      isError: false,
+    });
+    stubBomDetails({
+      'bom-1': [makeItem({ id: 'item-1', materialName: 'Cement' })],
+    });
+    render(<BomTab projectId="proj-1" />);
+
+    expect(screen.getByTestId('active-bom-meta')).toHaveTextContent('BOM-ACTIVE');
+    expect(screen.getByTestId('bom-items-view-table')).toBeInTheDocument();
+    expect(screen.getByText('Cement')).toBeInTheDocument();
+    expect(mockUseBom).toHaveBeenCalledWith('bom-1');
+  });
+
+  it('does not render eye-icon view actions anywhere', () => {
     mockUseProjectBoms.mockReturnValue({
       data: [
-        makeBom({ id: 'bom-1', bomNumber: 'BOM-ACTIVE', status: 'ACTIVE' }),
-        makeBom({ id: 'bom-2', bomNumber: 'BOM-OLD', status: 'SUPERSEDED' }),
+        makeBom({ id: 'bom-1', status: 'ACTIVE' }),
+        makeBom({ id: 'bom-2', status: 'SUPERSEDED' }),
       ],
       isLoading: false,
       isError: false,
     });
     render(<BomTab projectId="proj-1" />);
 
-    expect(screen.getByText('BOM-ACTIVE')).toBeInTheDocument();
-    expect(screen.getByText('BOM-OLD')).toBeInTheDocument();
-    expect(screen.getByTestId('bom-row-bom-1')).toBeInTheDocument();
-    expect(screen.getByTestId('bom-row-bom-2')).toBeInTheDocument();
-    // matched/items rendered as "3/5"
-    expect(screen.getAllByText('3/5').length).toBe(2);
-    expect(screen.getAllByText('Alice').length).toBe(2);
+    expect(screen.queryByTestId('bom-view-bom-1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('bom-view-bom-2')).not.toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it('renders the section titles and create-new button', () => {
+  it('shows a spinner while the active BOM items load', () => {
     mockUseProjectBoms.mockReturnValue({ data: [makeBom()], isLoading: false, isError: false });
+    mockUseBom.mockReturnValue({ data: undefined, isLoading: true, isError: false });
     render(<BomTab projectId="proj-1" />);
-    expect(screen.getByText('tab.activeTitle')).toBeInTheDocument();
-    expect(screen.getByText('tab.historicalTitle')).toBeInTheDocument();
-    expect(screen.getByText('tab.createNew')).toBeInTheDocument();
+    expect(screen.getByTestId('spinner')).toBeInTheDocument();
   });
 
-  it('filters by bomNumber', () => {
-    mockUseProjectBoms.mockReturnValue({
-      data: [
-        makeBom({ id: 'bom-1', bomNumber: 'BOM-001' }),
-        makeBom({ id: 'bom-2', bomNumber: 'BOM-999' }),
+  it('shows an error message when the active BOM items fail to load', () => {
+    mockUseProjectBoms.mockReturnValue({ data: [makeBom()], isLoading: false, isError: false });
+    mockUseBom.mockReturnValue({ data: undefined, isLoading: false, isError: true });
+    render(<BomTab projectId="proj-1" />);
+    expect(screen.getByText('tab.itemsLoadFailed')).toBeInTheDocument();
+  });
+
+  it('shows an empty message when the active BOM has no line items', () => {
+    mockUseProjectBoms.mockReturnValue({ data: [makeBom()], isLoading: false, isError: false });
+    stubBomDetails({ 'bom-1': [] });
+    render(<BomTab projectId="proj-1" />);
+    expect(screen.getByText('tab.noItems')).toBeInTheDocument();
+  });
+
+  it('filters the active BOM materials by search term', () => {
+    mockUseProjectBoms.mockReturnValue({ data: [makeBom()], isLoading: false, isError: false });
+    stubBomDetails({
+      'bom-1': [
+        makeItem({ id: 'item-1', materialName: 'Cement' }),
+        makeItem({ id: 'item-2', materialName: 'Steel Rebar', matchedMaterialName: null }),
       ],
-      isLoading: false,
-      isError: false,
     });
     render(<BomTab projectId="proj-1" />);
 
-    fireEvent.change(screen.getByTestId('bom-search'), { target: { value: '999' } });
+    fireEvent.change(screen.getByTestId('bom-search'), { target: { value: 'steel' } });
 
-    expect(screen.queryByText('BOM-001')).not.toBeInTheDocument();
-    expect(screen.getByText('BOM-999')).toBeInTheDocument();
+    expect(screen.queryByText('Cement')).not.toBeInTheDocument();
+    expect(screen.getByText('Steel Rebar')).toBeInTheDocument();
   });
 
-  it('filters by createdBy name', () => {
-    mockUseProjectBoms.mockReturnValue({
-      data: [
-        makeBom({ id: 'bom-1', bomNumber: 'BOM-001', createdBy: { id: 'u1', name: 'Alice' } }),
-        makeBom({ id: 'bom-2', bomNumber: 'BOM-002', createdBy: { id: 'u2', name: 'Bob' } }),
-      ],
-      isLoading: false,
-      isError: false,
-    });
+  it('shows a no-results message when no materials match the search', () => {
+    mockUseProjectBoms.mockReturnValue({ data: [makeBom()], isLoading: false, isError: false });
+    stubBomDetails({ 'bom-1': [makeItem({ materialName: 'Cement' })] });
     render(<BomTab projectId="proj-1" />);
 
-    fireEvent.change(screen.getByTestId('bom-search'), { target: { value: 'bob' } });
+    fireEvent.change(screen.getByTestId('bom-search'), { target: { value: 'zzz' } });
+    expect(screen.getByText('tab.noMatchingItems')).toBeInTheDocument();
+  });
 
-    expect(screen.queryByText('BOM-001')).not.toBeInTheDocument();
-    expect(screen.getByText('BOM-002')).toBeInTheDocument();
-    expect(screen.getByText('Bob')).toBeInTheDocument();
+  it('treats whitespace-only search as no filter', () => {
+    mockUseProjectBoms.mockReturnValue({ data: [makeBom()], isLoading: false, isError: false });
+    stubBomDetails({ 'bom-1': [makeItem({ materialName: 'Cement' })] });
+    render(<BomTab projectId="proj-1" />);
+
+    fireEvent.change(screen.getByTestId('bom-search'), { target: { value: '   ' } });
+    expect(screen.getByText('Cement')).toBeInTheDocument();
   });
 
   it('navigates to the BOM create route with the project id resolved', () => {
@@ -173,19 +229,7 @@ describe('BomTab', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/projects/proj-42/bom/new');
   });
 
-  it('navigates to the BOM detail page when the eye button is clicked', () => {
-    mockUseProjectBoms.mockReturnValue({
-      data: [makeBom({ id: 'bom-1' })],
-      isLoading: false,
-      isError: false,
-    });
-    render(<BomTab projectId="proj-1" />);
-
-    fireEvent.click(screen.getByTestId('bom-view-bom-1'));
-    expect(mockNavigate).toHaveBeenCalledWith('/projects/proj-1/bom/bom-1');
-  });
-
-  it('navigates to the Edit BOM page from an active BOM row', () => {
+  it('navigates to the Edit BOM page from the active BOM header', () => {
     mockUseProjectBoms.mockReturnValue({
       data: [makeBom({ id: 'bom-1', status: 'ACTIVE' })],
       isLoading: false,
@@ -193,11 +237,59 @@ describe('BomTab', () => {
     });
     render(<BomTab projectId="proj-1" />);
 
-    fireEvent.click(screen.getByTestId('bom-edit-bom-1'));
+    fireEvent.click(screen.getByTestId('bom-edit-active'));
     expect(mockNavigate).toHaveBeenCalledWith('/projects/proj-1/bom/bom-1/edit');
   });
 
-  it('does not render an Edit action for historical BOM rows', () => {
+  it('does not render the Edit action when there is no active BOM', () => {
+    mockUseProjectBoms.mockReturnValue({
+      data: [makeBom({ id: 'bom-2', status: 'SUPERSEDED' })],
+      isLoading: false,
+      isError: false,
+    });
+    render(<BomTab projectId="proj-1" />);
+    expect(screen.queryByTestId('bom-edit-active')).not.toBeInTheDocument();
+  });
+
+  it('lists historical BOM versions as summary rows', () => {
+    mockUseProjectBoms.mockReturnValue({
+      data: [
+        makeBom({ id: 'bom-1', bomNumber: 'BOM-ACTIVE', status: 'ACTIVE' }),
+        makeBom({ id: 'bom-2', bomNumber: 'BOM-OLD', status: 'SUPERSEDED' }),
+      ],
+      isLoading: false,
+      isError: false,
+    });
+    render(<BomTab projectId="proj-1" />);
+
+    expect(screen.getByTestId('bom-row-bom-2')).toBeInTheDocument();
+    expect(screen.getByText('BOM-OLD')).toBeInTheDocument();
+    expect(screen.getByText('3/5')).toBeInTheDocument();
+    // The active BOM is not a summary row — its materials render directly.
+    expect(screen.queryByTestId('bom-row-bom-1')).not.toBeInTheDocument();
+  });
+
+  it('expands a historical BOM row to show its materials in place', () => {
+    mockUseProjectBoms.mockReturnValue({
+      data: [makeBom({ id: 'bom-2', bomNumber: 'BOM-OLD', status: 'SUPERSEDED' })],
+      isLoading: false,
+      isError: false,
+    });
+    stubBomDetails({ 'bom-2': [makeItem({ id: 'item-9', materialName: 'Old Timber' })] });
+    render(<BomTab projectId="proj-1" />);
+
+    expect(screen.queryByTestId('bom-items-row-bom-2')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('bom-toggle-bom-2'));
+    expect(screen.getByTestId('bom-items-row-bom-2')).toBeInTheDocument();
+    expect(screen.getByText('Old Timber')).toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId('bom-toggle-bom-2'));
+    expect(screen.queryByTestId('bom-items-row-bom-2')).not.toBeInTheDocument();
+  });
+
+  it('renders pagination and forwards page/size changes for the historical table', () => {
     mockUseProjectBoms.mockReturnValue({
       data: [makeBom({ id: 'bom-2', status: 'SUPERSEDED' })],
       isLoading: false,
@@ -205,31 +297,10 @@ describe('BomTab', () => {
     });
     render(<BomTab projectId="proj-1" />);
 
-    expect(screen.getByTestId('bom-view-bom-2')).toBeInTheDocument();
-    expect(screen.queryByTestId('bom-edit-bom-2')).not.toBeInTheDocument();
-  });
-
-  it('renders pagination and forwards page/size changes for non-empty tables', () => {
-    mockUseProjectBoms.mockReturnValue({ data: [makeBom()], isLoading: false, isError: false });
-    render(<BomTab projectId="proj-1" />);
-
-    // Active table renders a pagination control.
     const next = screen.getByText('tab.next');
     fireEvent.click(next);
     const rowsPerPage = screen.getByText('tab.rowsPerPage');
     fireEvent.click(rowsPerPage);
     expect(screen.getByTestId('pagination')).toBeInTheDocument();
-  });
-
-  it('treats whitespace-only search as no filter', () => {
-    mockUseProjectBoms.mockReturnValue({
-      data: [makeBom({ id: 'bom-1', bomNumber: 'BOM-001' })],
-      isLoading: false,
-      isError: false,
-    });
-    render(<BomTab projectId="proj-1" />);
-
-    fireEvent.change(screen.getByTestId('bom-search'), { target: { value: '   ' } });
-    expect(screen.getByText('BOM-001')).toBeInTheDocument();
   });
 });

@@ -2,7 +2,7 @@
   "tab": {
     "activeTitle": "Active project BOM",
     "historicalTitle": "Historical BOM versions",
-    "searchPlaceholder": "Search",
+    "searchPlaceholder": "Search materials",
     "createNew": "Create new",
     "columns": {
       "bomId": "BOM ID",
@@ -19,9 +19,16 @@
     "showing": "Showing {{from}} to {{to}} of {{total}} BOMs",
     "back": "Back",
     "next": "Next",
-    "viewBom": "View BOM",
     "editBom": "Edit BOM",
-    "loadFailed": "Could not load BOMs for this project."
+    "loadFailed": "Could not load BOMs for this project.",
+    "metaMatched": "{{matched}}/{{total}} matched",
+    "metaCreatedBy": "Created by {{name}}",
+    "metaUpdated": "Updated {{date}}",
+    "showItems": "Show materials",
+    "hideItems": "Hide materials",
+    "itemsLoadFailed": "Could not load the materials for this BOM.",
+    "noItems": "This BOM has no line items yet.",
+    "noMatchingItems": "No materials match your search."
   },
   "viewModal": {
     "title": "{{bomNumber}} — line items",

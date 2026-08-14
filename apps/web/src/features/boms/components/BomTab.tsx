@@ -1,15 +1,16 @@
 import type { BomListItemDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { Button, Input, Spinner, TablePagination } from '@forethread/ui-components';
-import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
-import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
+import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 
-import { useProjectBoms } from '../hooks/useBoms';
+import { useBom, useProjectBoms } from '../hooks/useBoms';
+
+import { BomItemsTable } from './BomItemsTable';
 
 type TFn = (key: string, options?: Record<string, unknown>) => string;
 
@@ -19,22 +20,70 @@ function formatDate(value: string): string {
   return new Date(value).toLocaleDateString('en-US', DATE_FORMAT);
 }
 
-function BomTable({
+/**
+ * The line items of one BOM, fetched on demand and rendered as a material
+ * list. `search` narrows the rows by material name, catalogue match,
+ * description or category.
+ */
+function BomItems({ bomId, search = '', t }: { bomId: string; search?: string; t: TFn }) {
+  const { data: bom, isLoading, isError } = useBom(bomId);
+
+  const items = useMemo(() => {
+    const all = bom?.items ?? [];
+    const term = search.trim().toLowerCase();
+    if (!term) return all;
+    return all.filter((item) =>
+      [item.materialName, item.matchedMaterialName, item.description, item.category].some((value) =>
+        value?.toLowerCase().includes(term),
+      ),
+    );
+  }, [bom, search]);
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-8">
+        <Spinner />
+      </div>
+    );
+  }
+
+  if (isError || !bom) {
+    return <p className="text-sm text-destructive py-6 text-center">{t('tab.itemsLoadFailed')}</p>;
+  }
+
+  if (bom.items.length === 0) {
+    return <p className="text-sm text-muted-foreground py-6 text-center">{t('tab.noItems')}</p>;
+  }
+
+  if (items.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground py-6 text-center">{t('tab.noMatchingItems')}</p>
+    );
+  }
+
+  return <BomItemsTable items={items} />;
+}
+
+function HistoricalBomTable({
   boms,
   emptyText,
-  onView,
-  onEdit,
   t,
 }: {
   boms: BomListItemDto[];
   emptyText: string;
-  onView: (id: string) => void;
-  /** When supplied, an Edit action is rendered per row (active BOMs only). */
-  onEdit?: (id: string) => void;
   t: TFn;
 }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(new Set());
+
+  const toggleExpanded = (id: string) =>
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const pageItems = useMemo(
     () => boms.slice((page - 1) * pageSize, page * pageSize),
@@ -64,44 +113,47 @@ function BomTable({
             </tr>
           </thead>
           <tbody>
-            {pageItems.map((bom) => (
-              <tr key={bom.id} className="border-t border-border" data-testid={`bom-row-${bom.id}`}>
-                <td className={td}>{bom.bomNumber}</td>
-                <td className={td}>{bom.itemCount}</td>
-                <td className={td}>
-                  {bom.matchedCount}/{bom.itemCount}
-                </td>
-                <td className={td}>{bom.createdBy.name}</td>
-                <td className={td}>{formatDate(bom.createdAt)}</td>
-                <td className={td}>{formatDate(bom.updatedAt)}</td>
-                <td className={td}>
-                  <div className="flex items-center gap-2">
+            {pageItems.map((bom) => {
+              const expanded = expandedIds.has(bom.id);
+              return [
+                <tr
+                  key={bom.id}
+                  className="border-t border-border"
+                  data-testid={`bom-row-${bom.id}`}
+                >
+                  <td className={td}>{bom.bomNumber}</td>
+                  <td className={td}>{bom.itemCount}</td>
+                  <td className={td}>
+                    {bom.matchedCount}/{bom.itemCount}
+                  </td>
+                  <td className={td}>{bom.createdBy.name}</td>
+                  <td className={td}>{formatDate(bom.createdAt)}</td>
+                  <td className={td}>{formatDate(bom.updatedAt)}</td>
+                  <td className={td}>
                     <button
                       type="button"
-                      onClick={() => onView(bom.id)}
-                      aria-label={t('tab.viewBom')}
-                      title={t('tab.viewBom')}
+                      onClick={() => toggleExpanded(bom.id)}
+                      aria-label={expanded ? t('tab.hideItems') : t('tab.showItems')}
+                      title={expanded ? t('tab.hideItems') : t('tab.showItems')}
+                      aria-expanded={expanded}
                       className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                      data-testid={`bom-view-${bom.id}`}
+                      data-testid={`bom-toggle-${bom.id}`}
                     >
-                      <EyeIcon className="w-4 h-4" />
+                      <ChevronDownIcon
+                        className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
+                      />
                     </button>
-                    {onEdit && (
-                      <button
-                        type="button"
-                        onClick={() => onEdit(bom.id)}
-                        aria-label={t('tab.editBom')}
-                        title={t('tab.editBom')}
-                        className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                        data-testid={`bom-edit-${bom.id}`}
-                      >
-                        <EditIcon className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                </tr>,
+                expanded && (
+                  <tr key={`${bom.id}-items`} data-testid={`bom-items-row-${bom.id}`}>
+                    <td colSpan={7} className="px-3 pb-3 bg-muted/30">
+                      <BomItems bomId={bom.id} t={t} />
+                    </td>
+                  </tr>
+                ),
+              ];
+            })}
           </tbody>
         </table>
       </div>
@@ -123,9 +175,11 @@ function BomTable({
 }
 
 /**
- * "Bill of Materials" tab of the project details view (US 5.01 / 5.02): the
- * active project BOM plus superseded versions, with the Create-new entry point
- * into the upload wizard and Eye / Edit actions into the BOM detail + editor.
+ * "Bill of Materials" tab of the project details view (US 5.01 / 5.02,
+ * FOR-345): the active BOM's materials are embedded directly as a list, with
+ * the Create-new entry point into the upload wizard and an Edit action into
+ * the editor. Historical versions stay summarised as rows whose materials
+ * expand in place.
  */
 export function BomTab({ projectId }: { projectId: string }) {
   const { t: tRaw } = useTranslation('boms');
@@ -134,24 +188,8 @@ export function BomTab({ projectId }: { projectId: string }) {
   const { data: boms, isLoading, isError } = useProjectBoms(projectId);
   const [search, setSearch] = useState('');
 
-  const viewBom = (bomId: string) =>
-    navigate(ROUTES.projectBomDetail.replace(':id', projectId).replace(':bomId', bomId));
-  const editBom = (bomId: string) =>
-    navigate(ROUTES.projectBomEdit.replace(':id', projectId).replace(':bomId', bomId));
-
-  const filtered = useMemo(() => {
-    const all = boms ?? [];
-    const term = search.trim().toLowerCase();
-    if (!term) return all;
-    return all.filter(
-      (bom) =>
-        bom.bomNumber.toLowerCase().includes(term) ||
-        bom.createdBy.name.toLowerCase().includes(term),
-    );
-  }, [boms, search]);
-
-  const active = useMemo(() => filtered.filter((b) => b.status === 'ACTIVE'), [filtered]);
-  const historical = useMemo(() => filtered.filter((b) => b.status !== 'ACTIVE'), [filtered]);
+  const activeBom = useMemo(() => (boms ?? []).find((b) => b.status === 'ACTIVE'), [boms]);
+  const historical = useMemo(() => (boms ?? []).filter((b) => b.status !== 'ACTIVE'), [boms]);
 
   if (isLoading) {
     return (
@@ -167,7 +205,7 @@ export function BomTab({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-6" data-testid="bom-tab">
-      {/* Active project BOM */}
+      {/* Active project BOM — its materials rendered directly */}
       <section className="bg-card rounded-lg border border-border p-4">
         <h2 className="text-base font-bold text-foreground mb-4">{t('tab.activeTitle')}</h2>
         <div className="rounded-lg border border-border p-4 space-y-4">
@@ -182,25 +220,52 @@ export function BomTab({ projectId }: { projectId: string }) {
                 data-testid="bom-search"
               />
             </div>
+            {activeBom && (
+              <Button
+                variant="outline"
+                onClick={() =>
+                  navigate(
+                    ROUTES.projectBomEdit.replace(':id', projectId).replace(':bomId', activeBom.id),
+                  )
+                }
+                data-testid="bom-edit-active"
+              >
+                {t('tab.editBom')}
+              </Button>
+            )}
             <Button onClick={() => navigate(ROUTES.projectBomCreate.replace(':id', projectId))}>
               {t('tab.createNew')}
             </Button>
           </div>
 
-          <BomTable
-            boms={active}
-            emptyText={t('tab.emptyActive')}
-            onView={viewBom}
-            onEdit={editBom}
-            t={t}
-          />
+          {activeBom ? (
+            <>
+              <p className="text-sm" data-testid="active-bom-meta">
+                <span className="font-bold text-foreground">{activeBom.bomNumber}</span>
+                <span className="text-muted-foreground">
+                  {' · '}
+                  {t('tab.metaMatched', {
+                    matched: activeBom.matchedCount,
+                    total: activeBom.itemCount,
+                  })}
+                  {' · '}
+                  {t('tab.metaCreatedBy', { name: activeBom.createdBy.name })}
+                  {' · '}
+                  {t('tab.metaUpdated', { date: formatDate(activeBom.updatedAt) })}
+                </span>
+              </p>
+              <BomItems bomId={activeBom.id} search={search} t={t} />
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground py-6 text-center">{t('tab.emptyActive')}</p>
+          )}
         </div>
       </section>
 
       {/* Historical BOM versions */}
       <section className="bg-card rounded-lg border border-border p-4">
         <h2 className="text-base font-bold text-foreground mb-4">{t('tab.historicalTitle')}</h2>
-        <BomTable boms={historical} emptyText={t('tab.emptyHistorical')} onView={viewBom} t={t} />
+        <HistoricalBomTable boms={historical} emptyText={t('tab.emptyHistorical')} t={t} />
       </section>
     </div>
   );
