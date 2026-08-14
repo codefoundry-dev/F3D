@@ -18,6 +18,7 @@ export { PoChangeDiff } from './PoChangeDiff';
 export type { PoChangeDiffProps } from './PoChangeDiff';
 export { PoChangeReviewStep } from './PoChangeReviewStep';
 export { PoChangeRequestTab, PoChangeRequestTabLoading } from './PoChangeRequestTab';
+export { PoCancelRequestModal } from './PoCancelRequestModal';
 export { PoCommsPage } from './PoCommsPage';
 export type { PoCommsTab, PoCommsPageProps } from './PoCommsPage';
 

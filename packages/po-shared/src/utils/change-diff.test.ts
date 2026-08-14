@@ -159,6 +159,48 @@ describe('computePoChangedFields', () => {
     const diff = computePoChangedFields(form, po);
     expect(diff.fields?.message).toBeUndefined();
   });
+
+  it('captures a per-line delivery time change (FOR-352)', () => {
+    const po = makePo({
+      lineItems: [{ ...makePo().lineItems[0], deliveryTime: '09:00' }],
+    } as Partial<PoDetail>);
+    const form = makeForm(po);
+    form.lineItems[0].deliveryTime = '14:30';
+    const diff = computePoChangedFields(form, po);
+    expect(diff.lineItems?.[0].changes.deliveryTime).toEqual({ from: '09:00', to: '14:30' });
+    expect(deriveChangeType(diff)).toBe('COMMERCIAL');
+  });
+
+  it('reports PO lines missing from the form as removedLineItems (FOR-352)', () => {
+    const po = makePo({
+      lineItems: [
+        makePo().lineItems[0],
+        {
+          ...makePo().lineItems[0],
+          id: 'li-2',
+          lineNumber: 2,
+          materialName: 'Copper Pipe',
+          materialCode: 'CP-1',
+        },
+      ],
+      lineItemCount: 2,
+    } as Partial<PoDetail>);
+    const form = makeForm(po);
+    // The editor deleted the second row.
+    form.lineItems = form.lineItems.filter((li) => li.lineItemId !== 'li-2');
+
+    const diff = computePoChangedFields(form, po);
+    expect(diff.removedLineItems).toEqual([{ lineItemId: 'li-2', name: 'Copper Pipe' }]);
+    expect(diff.lineItems).toBeUndefined();
+    expect(hasAnyChange(diff)).toBe(true);
+  });
+
+  it('reports no removals when every PO line still has a form row', () => {
+    const po = makePo();
+    const form = makeForm(po);
+    const diff = computePoChangedFields(form, po);
+    expect(diff.removedLineItems).toBeUndefined();
+  });
 });
 
 describe('deriveChangeType', () => {
@@ -185,5 +227,29 @@ describe('deriveChangeType', () => {
         ],
       }),
     ).toBe('INTERNAL');
+  });
+
+  it('is COMMERCIAL for a cancellation request (FOR-352)', () => {
+    expect(deriveChangeType({ cancelPo: true })).toBe('COMMERCIAL');
+  });
+
+  it('is COMMERCIAL when line items are removed (FOR-352)', () => {
+    expect(deriveChangeType({ removedLineItems: [{ lineItemId: 'li-1', name: 'x' }] })).toBe(
+      'COMMERCIAL',
+    );
+  });
+});
+
+describe('hasAnyChange (FOR-352 extensions)', () => {
+  it('is true for a cancellation-only payload', () => {
+    expect(hasAnyChange({ cancelPo: true })).toBe(true);
+  });
+
+  it('is true for a removal-only payload', () => {
+    expect(hasAnyChange({ removedLineItems: [{ lineItemId: 'li-1', name: 'x' }] })).toBe(true);
+  });
+
+  it('stays false for an empty payload', () => {
+    expect(hasAnyChange({})).toBe(false);
   });
 });

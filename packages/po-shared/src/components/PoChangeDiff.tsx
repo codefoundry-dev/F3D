@@ -1,6 +1,6 @@
 import type { PoChangedFields, PoChangeFieldDiff } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { formatCurrency, formatDate } from '@forethread/ui-components';
+import { Alert, formatCurrency, formatDate } from '@forethread/ui-components';
 import ArrowRightIcon from '@forethread/ui-components/assets/icons/arrow-right.svg?react';
 
 /** Fields rendered as currency in the diff. */
@@ -41,6 +41,8 @@ export function PoChangeDiff({
 
   const fieldEntries = Object.entries(changedFields.fields ?? {});
   const lineItems = changedFields.lineItems ?? [];
+  const removedLineItems = changedFields.removedLineItems ?? [];
+  const isCancellation = changedFields.cancelPo === true;
 
   const formatValue = (field: string, value: unknown): string => {
     if (value === null || value === undefined || value === '') return t('change.empty');
@@ -59,6 +61,9 @@ export function PoChangeDiff({
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Cancellation request (FOR-352) — supersedes any other diff */}
+      {isCancellation && <Alert variant="destructive">{t('change.cancelBanner')}</Alert>}
+
       {/* Suggested changes (PO-level) */}
       {fieldEntries.length > 0 && (
         <div>
@@ -119,6 +124,39 @@ export function PoChangeDiff({
                     />
                   ))}
                 </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Removed line items (FOR-352) — deleted from the PO on approval */}
+      {removedLineItems.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-foreground">{t('change.removedLineItems')}</h3>
+            {onEditLineItems && (
+              <button
+                type="button"
+                onClick={onEditLineItems}
+                className="text-sm text-foreground hover:text-foreground/70 transition-colors"
+              >
+                {t('change.edit')}
+              </button>
+            )}
+          </div>
+          <div className="flex flex-col gap-2">
+            {removedLineItems.map((li, idx) => (
+              <div
+                key={`${li.lineItemId}-${idx}`}
+                className="flex items-center justify-between rounded-lg border border-border p-3"
+              >
+                <span className="text-sm text-muted-foreground line-through truncate">
+                  {li.name}
+                </span>
+                <span className="shrink-0 rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive">
+                  {t('change.removedBadge')}
+                </span>
               </div>
             ))}
           </div>

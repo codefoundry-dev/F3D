@@ -30,6 +30,7 @@ import { NotificationService } from '../notification-feed/notification.service';
 import { EmailService } from '../notifications/email.service';
 
 import { CreatePoChangeRequestDto, RejectPoChangeRequestDto } from './po-change.dto';
+import { assertTransition } from './po-state-machine';
 import { PO_TOKEN_TTL_MS } from './po-token.const';
 
 /**
@@ -45,9 +46,17 @@ interface ChangedLineItem {
   name: string;
   changes: Record<string, ChangedFieldDiff>;
 }
+interface RemovedLineItem {
+  lineItemId: string;
+  name?: string;
+}
 interface ChangedFields {
   fields?: Record<string, ChangedFieldDiff>;
   lineItems?: ChangedLineItem[];
+  // FOR-352: lines the request deletes on approval.
+  removedLineItems?: RemovedLineItem[];
+  // FOR-352: approving cancels the PO instead of applying field changes.
+  cancelPo?: boolean;
 }
 
 /**
@@ -205,6 +214,8 @@ export class PoChangeService {
       throw new BadRequestException(`Cannot propose changes: PO status is ${po.status}`);
     }
 
+    await this.validateProposedRemovals(poId, dto);
+
     // Sequential per-PO human reference ("CR-001", "CR-002", …) shown on the
     // detail tab + action log.
     const reference = await this.nextChangeReference(poId);
@@ -276,6 +287,8 @@ export class PoChangeService {
     if (!allowedStatuses.includes(po.status)) {
       throw new BadRequestException(`Cannot propose changes: PO status is ${po.status}`);
     }
+
+    await this.validateProposedRemovals(poId, dto);
 
     const vendorLabel = po.vendor?.legalName ?? po.vendor?.tradeName ?? GUEST_VENDOR_ACTOR_LABEL;
     const reference = await this.nextChangeReference(poId);
@@ -502,13 +515,25 @@ export class PoChangeService {
   // ── Approve a change request ─────────────────────────────────────────────
 
   async approveChange(poId: string, changeRequestId: string, user: AuthenticatedUser) {
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id: poId },
+      select: { id: true, status: true, companyId: true, vendorId: true },
+    });
+    if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
+
+    this.validateAccess(po, user);
+
     const cr = await this.prisma.poChangeRequest.findUnique({
       where: { id: changeRequestId },
       include: {
-        requestedBy: { select: { id: true, name: true } },
+        requestedBy: { select: { id: true, name: true, role: true } },
       },
     });
-    if (!cr) throw new NotFoundException('Change request not found');
+    // A CR belonging to a different PO is "not found" for this route — resolving
+    // it here would apply its diff onto the PO named in the URL.
+    if (!cr || cr.purchaseOrderId !== poId) {
+      throw new NotFoundException('Change request not found');
+    }
 
     if (cr.status !== PoChangeRequestStatus.PENDING) {
       throw new BadRequestException('Change request is not pending');
@@ -519,6 +544,12 @@ export class PoChangeService {
 
     const changedFields = (cr.changedFields ?? {}) as ChangedFields;
     const resolvedAt = new Date();
+
+    // FOR-352 — a cancellation request short-circuits the field-apply path:
+    // approving it cancels the PO itself.
+    if (changedFields.cancelPo === true) {
+      return this.approveCancellation(po, cr, user, resolvedAt);
+    }
 
     await this.prisma.$transaction(async (tx) => {
       // 1) Apply PO-level field changes
@@ -551,6 +582,36 @@ export class PoChangeService {
         lineData.lineTotal = nextUnitPrice * nextQty;
 
         await tx.poLineItem.update({ where: { id: li.lineItemId }, data: lineData });
+      }
+
+      // 2b) FOR-352 — delete the lines the request removes. Lines with recorded
+      // deliveries are protected (a DeliveryReportLine FK would reject the
+      // delete anyway — this surfaces it as a 400 instead of a 500), and at
+      // least one line must survive: an empty PO is a cancellation, not a change.
+      const removedIds = (changedFields.removedLineItems ?? [])
+        .map((li) => li?.lineItemId)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0);
+      if (removedIds.length > 0) {
+        const removable = await tx.poLineItem.findMany({
+          where: { id: { in: removedIds }, purchaseOrderId: poId },
+          select: {
+            id: true,
+            quantityDelivered: true,
+            _count: { select: { deliveryReportLines: true } },
+          },
+        });
+        if (removable.some((l) => l.quantityDelivered > 0 || l._count.deliveryReportLines > 0)) {
+          throw new BadRequestException(
+            'Cannot remove a line item that already has recorded deliveries',
+          );
+        }
+        const totalLines = await tx.poLineItem.count({ where: { purchaseOrderId: poId } });
+        if (removable.length >= totalLines) {
+          throw new BadRequestException(
+            'Cannot remove every line item — cancel the purchase order instead',
+          );
+        }
+        await tx.poLineItem.deleteMany({ where: { id: { in: removable.map((l) => l.id) } } });
       }
 
       // 3) Recompute PO money + counts from the (now updated) line items
@@ -618,13 +679,23 @@ export class PoChangeService {
     dto: RejectPoChangeRequestDto,
     user: AuthenticatedUser,
   ) {
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id: poId },
+      select: { id: true, companyId: true, vendorId: true },
+    });
+    if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
+
+    this.validateAccess(po, user);
+
     const cr = await this.prisma.poChangeRequest.findUnique({
       where: { id: changeRequestId },
       include: {
         requestedBy: { select: { id: true, name: true } },
       },
     });
-    if (!cr) throw new NotFoundException('Change request not found');
+    if (!cr || cr.purchaseOrderId !== poId) {
+      throw new NotFoundException('Change request not found');
+    }
 
     if (cr.status !== PoChangeRequestStatus.PENDING) {
       throw new BadRequestException('Change request is not pending');
@@ -680,6 +751,127 @@ export class PoChangeService {
   }
 
   // ── Internal helpers ──────────────────────────────────────────────────────
+
+  /**
+   * FOR-352 — apply an approved cancellation request: the PO transitions to
+   * CANCELLED (contractor-requested) or CANCELLED_BY_VENDOR (vendor- or
+   * guest-portal-requested), with the requester's message preserved as the
+   * cancellation reason. Any other diffs the request carried are ignored —
+   * cancelling supersedes them. The state machine still arbitrates: a PO that
+   * moved to a non-cancellable status since the proposal rejects with a 400.
+   */
+  private async approveCancellation(
+    po: { id: string; status: PoStatus },
+    cr: {
+      id: string;
+      reference: string | null;
+      changeType: PoChangeType;
+      changedFields: Prisma.JsonValue;
+      message: string | null;
+      requestedById: string | null;
+      requestedBy: { id: string; name: string; role: UserRole } | null;
+    },
+    user: AuthenticatedUser,
+    resolvedAt: Date,
+  ) {
+    const requesterIsVendor = cr.requestedById === null || cr.requestedBy?.role === UserRole.VENDOR;
+    const target = requesterIsVendor ? PoStatus.CANCELLED_BY_VENDOR : PoStatus.CANCELLED;
+    assertTransition(po.status, target);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.purchaseOrder.update({
+        where: { id: po.id },
+        data: {
+          status: target,
+          ...(cr.message ? { cancellationReason: cr.message } : {}),
+          lastModifiedById: user.id,
+        },
+      });
+      await tx.poChangeRequest.update({
+        where: { id: cr.id },
+        data: {
+          status: PoChangeRequestStatus.APPROVED,
+          resolvedById: user.id,
+          resolvedAt,
+        },
+      });
+    });
+
+    const resolver = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { name: true },
+    });
+
+    await this.auditService.log({
+      action: AuditAction.PO_CHANGE_APPROVED,
+      performedById: user.id,
+      targetType: 'PurchaseOrder',
+      targetId: po.id,
+      metadata: {
+        changeRequestId: cr.id,
+        reference: cr.reference ?? null,
+        changeType: cr.changeType,
+        changedFields: (cr.changedFields ?? {}) as Prisma.InputJsonValue,
+        requestedByName: cr.requestedBy?.name ?? null,
+        resolvedByName: resolver?.name ?? user.email,
+        resolvedAt: resolvedAt.toISOString(),
+      },
+    });
+
+    // Second entry mirroring the direct-cancel audit shape (from/to/reason) so
+    // the cancellation itself reads in the action log like any other transition.
+    await this.auditService.log({
+      action: AuditAction.PO_CANCELLED,
+      performedById: user.id,
+      targetType: 'PurchaseOrder',
+      targetId: po.id,
+      metadata: {
+        from: po.status,
+        to: target,
+        reason: cr.message ?? null,
+        changeRequestId: cr.id,
+      },
+    });
+
+    this.notifyChangeResolved(cr.requestedById, po.id, 'approved', user.id, cr.message).catch(
+      () => {},
+    );
+
+    return { approved: true };
+  }
+
+  /**
+   * FOR-352 — propose-time guard for `changedFields.removedLineItems`: a change
+   * request may thin a PO out but never empty it — removing every line is a
+   * cancellation and must be proposed as one (`cancelPo`). A cancellation
+   * request skips the check because its removals are ignored on apply. Ids not
+   * on the PO are ignored here and again when applying.
+   */
+  private async validateProposedRemovals(
+    poId: string,
+    dto: CreatePoChangeRequestDto,
+  ): Promise<void> {
+    const changed = (dto.changedFields ?? {}) as ChangedFields;
+    if (changed.cancelPo === true) return;
+
+    const removedIds = new Set(
+      (changed.removedLineItems ?? [])
+        .map((li) => li?.lineItemId)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0),
+    );
+    if (removedIds.size === 0) return;
+
+    const lines = await this.prisma.poLineItem.findMany({
+      where: { purchaseOrderId: poId },
+      select: { id: true },
+    });
+    const removals = lines.filter((l) => removedIds.has(l.id)).length;
+    if (lines.length > 0 && removals >= lines.length) {
+      throw new BadRequestException(
+        'Cannot remove every line item — request a cancellation instead',
+      );
+    }
+  }
 
   /** Build a typed PO update from the allowlisted `changedFields.fields` diff. */
   private buildPoUpdateData(

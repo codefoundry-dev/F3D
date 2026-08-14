@@ -656,16 +656,28 @@ export interface PoChangeLineItem {
   changes: Record<string, PoChangeFieldDiff>;
 }
 
+/** A line item the change request proposes to delete from the PO (FOR-352). */
+export interface PoRemovedLineItem {
+  lineItemId: string;
+  name: string;
+}
+
 /**
  * The agreed cross-package `changedFields` shape (PLAN §B). `fields` are
  * PO-level attributes (paymentTermsDays, pickUpTimeExpectation, pickUpLocation,
  * plannedDeliveryDate, deliveryLocationId, deliveryNotes, …); `lineItems` are
  * per-line attribute diffs (unitPrice, costCode, expectedDeliveryDate, discount,
  * quantityOrdered, …). Approving applies these to the PO.
+ *
+ * FOR-352 extensions: `removedLineItems` lists lines the request deletes on
+ * approval, and `cancelPo: true` marks a cancellation request — approving it
+ * cancels the PO instead of applying field changes.
  */
 export interface PoChangedFields {
   fields?: Record<string, PoChangeFieldDiff>;
   lineItems?: PoChangeLineItem[];
+  removedLineItems?: PoRemovedLineItem[];
+  cancelPo?: boolean;
 }
 
 export interface CreatePoChangeRequestInput {

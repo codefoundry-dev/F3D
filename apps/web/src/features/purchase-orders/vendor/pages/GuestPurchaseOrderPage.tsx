@@ -1,24 +1,33 @@
 import {
+  type CreatePoChangeRequestInput,
   type PoDetail,
   exportPublicPurchaseOrder,
   getPublicPurchaseOrder,
   isApiError,
+  proposePublicPoChange,
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { PoDetailTabs, PoDetailsTab, PoLineItemsTab } from '@forethread/po-shared';
+import {
+  PoCancelRequestModal,
+  PoDetailTabs,
+  PoDetailsTab,
+  PoLineItemsTab,
+} from '@forethread/po-shared';
 import type { PoTab } from '@forethread/po-shared';
 import {
   Alert,
   Badge,
   Button,
   getStatusColor,
+  notificationService,
   PO_STATUS_COLORS,
   Spinner,
 } from '@forethread/ui-components';
+import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import EditWithoutLineIcon from '@forethread/ui-components/assets/icons/edit-without-line.svg?react';
 import InfoIcon from '@forethread/ui-components/assets/icons/info.svg?react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -101,6 +110,18 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
     void exportPublicPurchaseOrder(token).then(({ url }) => window.open(url, '_blank'));
   };
 
+  // FOR-352 — request cancellation via the tokenised change-request path (the
+  // contractor must approve before the PO transitions to CANCELLED_BY_VENDOR).
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const proposeCancelMutation = useMutation({
+    mutationFn: (input: CreatePoChangeRequestInput) => proposePublicPoChange(token, input),
+    onSuccess: () => {
+      notificationService.success(t('cancelRequest.submitted'));
+      setShowCancelModal(false);
+    },
+    onError: () => notificationService.error(t('cancelRequest.submitError')),
+  });
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
       {/* ═══ Header ═══ */}
@@ -130,6 +151,16 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
                 }
               >
                 {t('guest.requestChanges')}
+              </Button>
+            )}
+            {canChange && (
+              <Button
+                variant="outline"
+                size="lg"
+                leftIcon={<CrossIcon className="w-3.5 h-3.5" />}
+                onClick={() => setShowCancelModal(true)}
+              >
+                {t('actions.requestCancellation')}
               </Button>
             )}
             <Button
@@ -166,6 +197,21 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
           <PoLineItemsTab lineItems={po.lineItems ?? []} layout="page" readOnly />
         )}
       </div>
+
+      {showCancelModal && (
+        <PoCancelRequestModal
+          poNumber={po.poNumber}
+          onClose={() => setShowCancelModal(false)}
+          onConfirm={(reason: string) =>
+            proposeCancelMutation.mutate({
+              changeType: 'COMMERCIAL',
+              changedFields: { cancelPo: true },
+              message: reason || undefined,
+            })
+          }
+          isSubmitting={proposeCancelMutation.isPending}
+        />
+      )}
     </div>
   );
 }

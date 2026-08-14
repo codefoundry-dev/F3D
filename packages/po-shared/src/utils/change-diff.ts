@@ -30,6 +30,7 @@ export const PO_LINE_CHANGE_FIELDS = [
   'quantityOrdered',
   'costCode',
   'expectedDeliveryDate',
+  'deliveryTime',
   'description',
   'unitOfMeasure',
   'notes',
@@ -51,6 +52,7 @@ const COMMERCIAL_LINE_FIELDS = new Set<string>([
   'unitPrice',
   'quantityOrdered',
   'expectedDeliveryDate',
+  'deliveryTime',
 ]);
 
 /** Normalise a value for equality: empty string / null / undefined collapse to ''. */
@@ -115,6 +117,8 @@ function existingLineValue(
       return line.costCode ?? '';
     case 'expectedDeliveryDate':
       return line.expectedDeliveryDate ? line.expectedDeliveryDate.slice(0, 10) : '';
+    case 'deliveryTime':
+      return line.deliveryTime ?? '';
     case 'description':
       return line.description ?? '';
     case 'unitOfMeasure':
@@ -136,6 +140,8 @@ function formLineValue(line: FormValues['lineItems'][number], key: PoLineChangeF
       return line.costCode ?? '';
     case 'expectedDeliveryDate':
       return line.expectedDeliveryDate ? line.expectedDeliveryDate.slice(0, 10) : '';
+    case 'deliveryTime':
+      return line.deliveryTime ?? '';
     case 'description':
       return line.description ?? '';
     case 'unitOfMeasure':
@@ -151,7 +157,9 @@ function formLineValue(line: FormValues['lineItems'][number], key: PoLineChangeF
  * Diff the edited form against the existing PO into the `changedFields` payload.
  * Line items are matched by the form row's `lineItemId` (seeded from the PO line
  * `id` in change mode); rows with no match (newly added) are ignored because the
- * backend apply step only patches existing lines.
+ * backend apply step only patches existing lines. PO lines whose id no longer
+ * appears among the form rows were deleted in the editor and surface as
+ * `removedLineItems` (FOR-352) — approving deletes them from the PO.
  */
 export function computePoChangedFields(form: FormValues, po: PoDetail): PoChangedFields {
   const fields: Record<string, PoChangeFieldDiff> = {};
@@ -188,22 +196,42 @@ export function computePoChangedFields(form: FormValues, po: PoDetail): PoChange
     }
   }
 
+  // FOR-352 — PO lines the editor deleted (no form row carries their id).
+  const formLineIds = new Set(
+    form.lineItems.map((li) => li.lineItemId).filter((id): id is string => Boolean(id)),
+  );
+  const removedLineItems: PoChangedFields['removedLineItems'] = po.lineItems
+    .filter((li) => !formLineIds.has(li.id))
+    .map((li) => ({
+      lineItemId: li.id,
+      name: li.materialName || li.description || li.id,
+    }));
+
   const payload: PoChangedFields = {};
   if (Object.keys(fields).length > 0) payload.fields = fields;
   if (lineItems.length > 0) payload.lineItems = lineItems;
+  if (removedLineItems.length > 0) payload.removedLineItems = removedLineItems;
   return payload;
 }
 
 /** True when the payload carries at least one PO-level or line-item change. */
 export function hasAnyChange(changed: PoChangedFields): boolean {
-  return Object.keys(changed.fields ?? {}).length > 0 || (changed.lineItems ?? []).length > 0;
+  return (
+    changed.cancelPo === true ||
+    Object.keys(changed.fields ?? {}).length > 0 ||
+    (changed.lineItems ?? []).length > 0 ||
+    (changed.removedLineItems ?? []).length > 0
+  );
 }
 
 /**
  * Derive the change type from the diff: COMMERCIAL if any money/quantity/date/
- * location field moved, otherwise INTERNAL (note-only / cosmetic edits).
+ * location field moved — or the request cancels the PO / removes line items
+ * (FOR-352) — otherwise INTERNAL (note-only / cosmetic edits).
  */
 export function deriveChangeType(changed: PoChangedFields): 'COMMERCIAL' | 'INTERNAL' {
+  if (changed.cancelPo === true) return 'COMMERCIAL';
+  if ((changed.removedLineItems ?? []).length > 0) return 'COMMERCIAL';
   for (const key of Object.keys(changed.fields ?? {})) {
     if (COMMERCIAL_PO_FIELDS.has(key)) return 'COMMERCIAL';
   }

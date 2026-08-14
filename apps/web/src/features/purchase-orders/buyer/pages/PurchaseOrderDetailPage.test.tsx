@@ -82,6 +82,7 @@ vi.mock('@forethread/po-shared', () => ({
   PoActionLogTab: () => <div data-testid="po-action-log-tab" />,
   PoChangeRequestTab: () => <div data-testid="po-change-request-tab" />,
   PoChangeRequestTabLoading: () => <div data-testid="po-change-request-tab-loading" />,
+  PoCancelRequestModal: () => <div data-testid="po-cancel-request-modal" />,
 }));
 
 vi.mock('@forethread/ui-components', () => ({
@@ -102,6 +103,7 @@ vi.mock('@forethread/ui-components', () => ({
     </button>
   ),
   Spinner: ({ size }: { size?: string }) => <div data-testid="spinner" data-size={size} />,
+  notificationService: { success: vi.fn(), error: vi.fn() },
   onPhoneOnly: vi.fn(),
   onDigitsOnly: vi.fn(),
   onDecimalOnly: vi.fn(),
