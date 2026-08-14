@@ -13,6 +13,7 @@
     "resolvedNoActor": "Approval resolved",
     "emptyTitle": "No one can approve this",
     "emptyBody": "No one in your company has an approval limit that covers this amount. Raise an approval limit under Roles & permissions, or reduce the document to move it forward.",
+    "emptyBodyNoCap": "No one in your company holds the permission to approve this kind of request. Grant the approval permission under Roles & permissions to move it forward.",
     "loadError": "Could not load the approver pool.",
     "loading": "Loading approvers…"
   },
@@ -21,6 +22,7 @@
     "none": "Everyone in the pool was notified.",
     "ineligible": "no longer eligible",
     "ineligibleHint": "{{name}}'s approval limit no longer covers this amount, so they can't approve it. Anyone else in the pool still can.",
+    "ineligibleHintNoCap": "{{name}} is no longer able to approve this request. Anyone else in the pool still can.",
     "nominatedAt": "Asked {{date}}",
     "withdraw": "Withdraw",
     "withdrawn": "Nomination withdrawn",
@@ -33,6 +35,7 @@
   "nominateModal": {
     "title": "Submit for approval",
     "description": "This is over your approval limit, so it goes to the approvers below. Anyone in the pool can approve it — choosing people only decides who gets notified.",
+    "descriptionNoCap": "This request needs approval before procurement can proceed, so it goes to the approvers below. Anyone in the pool can approve it — choosing people only decides who gets notified.",
     "addTitle": "Ask another approver",
     "addDescription": "Pick who else to notify. This doesn't change who is allowed to approve — everyone in the pool already can.",
     "notifyEveryone": "Notify everyone in the pool",
@@ -47,6 +50,7 @@
     "cancel": "Cancel",
     "emptyTitle": "No one can approve this",
     "emptyBody": "No one in your company has an approval limit that covers this amount. Raise an approval limit under Roles & permissions, or reduce the document before submitting it.",
+    "emptyBodyNoCap": "No one in your company holds the permission to approve this kind of request. Grant the approval permission under Roles & permissions before submitting it.",
     "emptyDismiss": "Close"
   }
 }

@@ -187,7 +187,8 @@
     "cannotUpdateNonDraft": "Only Draft material requests can be edited",
     "cannotCancel": "Cannot cancel material request with status \"{{status}}\"",
     "cannotConvertNotApproved": "Only an approved material request can be converted",
-    "vendorRequired": "A vendor is required to convert a material request into a purchase order"
+    "vendorRequired": "A vendor is required to convert a material request into a purchase order",
+    "nomineesRequireSubmit": "Approvers can only be nominated when submitting the material request"
   },
   "vendors": {
     "alreadyAssigned": "This vendor is already in your vendor list",

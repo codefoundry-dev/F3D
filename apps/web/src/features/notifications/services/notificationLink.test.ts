@@ -40,6 +40,12 @@ describe('resolveNotificationLink', () => {
     );
   });
 
+  it('links a material request notification to the MR detail page (FOR-347)', () => {
+    expect(
+      resolveNotificationLink({ ...base, entityType: 'MATERIAL_REQUEST', entityId: 'mr-2' }),
+    ).toBe('/material-requests/mr-2');
+  });
+
   it('links a quote-response notification to the nested quote page using metadata.rfqId', () => {
     expect(
       resolveNotificationLink({

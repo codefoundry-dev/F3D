@@ -2,11 +2,21 @@ import { MaterialRequestPriority, MaterialRequestStatus } from '@forethread/shar
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuditAction, PoSourceOfCreation, UserRole } from '@prisma/client';
 
+import { ConfigService } from '@nestjs/config';
+
 import { AuthenticatedUser } from '../../../common/decorators/current-user.decorator';
-import { PermissionsService } from '../../../common/permissions';
+import {
+  ApprovalAuthorizationService,
+  PermissionsService,
+  type ApproverPoolMember,
+} from '../../../common/permissions';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { ApprovalsService } from '../../approvals/approvals.service';
 import { AuditService } from '../../audit/audit.service';
+import { BrandingService } from '../../export/branding.service';
 import { InventoryService } from '../../inventory/inventory.service';
+import { NotificationService } from '../../notification-feed/notification.service';
+import { EmailService } from '../../notifications/email.service';
 import {
   ConvertToPoDto,
   CreateMaterialRequestDto,
@@ -96,9 +106,83 @@ function makeService() {
     issueOut: jest.fn().mockResolvedValue({ issued: 0, movement: null }),
   } as unknown as InventoryService & { issueOut: jest.Mock };
 
-  const service = new MaterialRequestsService(prisma, audit, permissions, inventory);
-  return { service, prisma, audit, permissions, inventory, tx };
+  // Approver routing (FOR-347). The Pool defaults to one eligible officer so
+  // routing paths exercise the non-empty branch; empty-pool tests override it.
+  const poolMember: ApproverPoolMember = {
+    id: 'approver-1',
+    name: 'Ama Approver',
+    email: 'ama@example.com',
+    role: 'PROCUREMENT_OFFICER' as ApproverPoolMember['role'],
+    customRoleName: null,
+  };
+  const approvals = {
+    assertNomineesInPool: jest.fn().mockResolvedValue(undefined),
+    recordNominationsAtSubmit: jest.fn().mockResolvedValue([]),
+    addNominations: jest.fn().mockResolvedValue({ view: { nominations: [] }, notify: [] }),
+    resolveNotificationTargets: jest.fn().mockImplementation((_t, _id, pool) => pool),
+  } as unknown as ApprovalsService & {
+    assertNomineesInPool: jest.Mock;
+    recordNominationsAtSubmit: jest.Mock;
+    addNominations: jest.Mock;
+    resolveNotificationTargets: jest.Mock;
+  };
+  const approvalAuth = {
+    resolveApproverPool: jest.fn().mockResolvedValue([poolMember]),
+    findCompanyAdminRecipients: jest.fn().mockResolvedValue([]),
+  } as unknown as ApprovalAuthorizationService & {
+    resolveApproverPool: jest.Mock;
+    findCompanyAdminRecipients: jest.Mock;
+  };
+  const email = {
+    sendMaterialRequestPendingApprovalEmail: jest.fn().mockResolvedValue(undefined),
+    sendMaterialRequestApprovalUnroutableEmail: jest.fn().mockResolvedValue(undefined),
+  } as unknown as EmailService & {
+    sendMaterialRequestPendingApprovalEmail: jest.Mock;
+    sendMaterialRequestApprovalUnroutableEmail: jest.Mock;
+  };
+  const notifications = {
+    createForEmails: jest.fn().mockResolvedValue(undefined),
+    createForUsers: jest.fn().mockResolvedValue(undefined),
+  } as unknown as NotificationService & {
+    createForEmails: jest.Mock;
+    createForUsers: jest.Mock;
+  };
+  const branding = {
+    getEmailBrand: jest.fn().mockResolvedValue(undefined),
+  } as unknown as BrandingService & { getEmailBrand: jest.Mock };
+  const config = {
+    get: jest.fn().mockReturnValue('http://localhost:5179'),
+  } as unknown as ConfigService;
+
+  const service = new MaterialRequestsService(
+    prisma,
+    audit,
+    permissions,
+    inventory,
+    approvals,
+    approvalAuth,
+    email,
+    notifications,
+    branding,
+    config,
+  );
+  return {
+    service,
+    prisma,
+    audit,
+    permissions,
+    inventory,
+    tx,
+    approvals,
+    approvalAuth,
+    email,
+    notifications,
+    poolMember,
+  };
 }
+
+/** Let fire-and-forget notification promises settle before asserting on them. */
+const flushAsync = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 // ── Fixture builders ──────────────────────────────────────────────────────────
 function makeMr(overrides: Record<string, unknown> = {}) {
@@ -204,6 +288,79 @@ describe('MaterialRequestsService', () => {
       expect(createArgs.data.note).toBe('urgent');
       expect(audit.log).toHaveBeenCalledTimes(2);
       expect(audit.log.mock.calls[1][0].action).toBe(AuditAction.MATERIAL_REQUEST_SUBMITTED);
+    });
+
+    it('routes a create-with-submit to the Approver Pool (vet → record → notify)', async () => {
+      const { service, prisma, approvals, approvalAuth, email, poolMember } = makeService();
+      prisma.project.findUnique.mockResolvedValue({ id: 'project-1', companyId: 'company-1' });
+      prisma.materialRequest.create.mockResolvedValue({ id: 'mr-1' });
+      prisma.materialRequest.findUnique.mockResolvedValue(makeMr());
+
+      await service.create(
+        foreman,
+        makeCreateDto({ submit: true, nomineeIds: ['approver-1'] }) as CreateMaterialRequestDto,
+      );
+      await flushAsync();
+
+      expect(approvalAuth.resolveApproverPool).toHaveBeenCalledWith(
+        'company-1',
+        'materialRequest.approve',
+        null,
+      );
+      expect(approvals.assertNomineesInPool).toHaveBeenCalledWith(
+        'company-1',
+        [poolMember],
+        ['approver-1'],
+      );
+      expect(approvals.recordNominationsAtSubmit).toHaveBeenCalledWith(
+        'MATERIAL_REQUEST',
+        'mr-1',
+        'company-1',
+        [poolMember],
+        ['approver-1'],
+        'fm-1',
+      );
+      expect(email.sendMaterialRequestPendingApprovalEmail).toHaveBeenCalled();
+    });
+
+    it('a nominee outside the Pool is a 400 with no MR created at all', async () => {
+      const { service, prisma, approvals } = makeService();
+      prisma.project.findUnique.mockResolvedValue({ id: 'project-1', companyId: 'company-1' });
+      approvals.assertNomineesInPool.mockRejectedValueOnce(new BadRequestException('not in pool'));
+
+      await expect(
+        service.create(
+          foreman,
+          makeCreateDto({ submit: true, nomineeIds: ['outsider'] }) as CreateMaterialRequestDto,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.materialRequest.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects nominees on a draft create — a draft has no routing moment', async () => {
+      const { service, prisma, approvalAuth } = makeService();
+      prisma.project.findUnique.mockResolvedValue({ id: 'project-1', companyId: 'company-1' });
+
+      await expect(
+        service.create(
+          foreman,
+          makeCreateDto({ nomineeIds: ['approver-1'] }) as CreateMaterialRequestDto,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(approvalAuth.resolveApproverPool).not.toHaveBeenCalled();
+    });
+
+    it('does not notify anyone for a draft create', async () => {
+      const { service, prisma, email, notifications } = makeService();
+      prisma.project.findUnique.mockResolvedValue({ id: 'project-1', companyId: 'company-1' });
+      prisma.materialRequest.create.mockResolvedValue({ id: 'mr-1' });
+      prisma.materialRequest.findUnique.mockResolvedValue(makeMr());
+
+      await service.create(foreman, makeCreateDto());
+      await flushAsync();
+
+      expect(email.sendMaterialRequestPendingApprovalEmail).not.toHaveBeenCalled();
+      expect(notifications.createForEmails).not.toHaveBeenCalled();
     });
 
     it('throws NotFound when the project does not exist', async () => {
@@ -524,13 +681,138 @@ describe('MaterialRequestsService', () => {
           companyId: 'company-1',
           requestedById: 'fm-1',
         })
-        .mockResolvedValueOnce(makeMr());
+        // Detail re-read + the notify fan-out's own read (FOR-347).
+        .mockResolvedValue(makeMr());
       await service.submit('mr-1', foreman);
       expect(prisma.materialRequest.update).toHaveBeenCalledWith({
         where: { id: 'mr-1' },
         data: { status: MaterialRequestStatus.SUBMITTED },
       });
       expect(audit.log.mock.calls[0][0].action).toBe(AuditAction.MATERIAL_REQUEST_SUBMITTED);
+    });
+
+    it('routes the submission to the Approver Pool: emails + in-app notifies the members', async () => {
+      const { service, prisma, email, notifications, approvalAuth } = makeService();
+      prisma.materialRequest.findUnique
+        .mockResolvedValueOnce({
+          id: 'mr-1',
+          status: MaterialRequestStatus.DRAFT,
+          companyId: 'company-1',
+          requestedById: 'fm-1',
+        })
+        .mockResolvedValue(makeMr());
+
+      await service.submit('mr-1', foreman);
+      await flushAsync();
+
+      expect(approvalAuth.resolveApproverPool).toHaveBeenCalledWith(
+        'company-1',
+        'materialRequest.approve',
+        null,
+      );
+      expect(email.sendMaterialRequestPendingApprovalEmail).toHaveBeenCalledWith(
+        'ama@example.com',
+        'MR-00001',
+        'Downtown Reno',
+        expect.stringContaining('/material-requests/mr-1'),
+        expect.anything(),
+        undefined,
+      );
+      expect(notifications.createForEmails).toHaveBeenCalledWith(
+        ['ama@example.com'],
+        expect.objectContaining({
+          type: 'MATERIAL_REQUEST_PENDING_APPROVAL',
+          entityType: 'MATERIAL_REQUEST',
+          entityId: 'mr-1',
+        }),
+      );
+    });
+
+    it('vets nominees against the Pool BEFORE the status write, and records them after', async () => {
+      const { service, prisma, approvals, poolMember } = makeService();
+      prisma.materialRequest.findUnique
+        .mockResolvedValueOnce({
+          id: 'mr-1',
+          status: MaterialRequestStatus.DRAFT,
+          companyId: 'company-1',
+          requestedById: 'fm-1',
+        })
+        .mockResolvedValue(makeMr());
+
+      await service.submit('mr-1', foreman, { nomineeIds: ['approver-1'] });
+
+      expect(approvals.assertNomineesInPool).toHaveBeenCalledWith(
+        'company-1',
+        [poolMember],
+        ['approver-1'],
+      );
+      expect(approvals.recordNominationsAtSubmit).toHaveBeenCalledWith(
+        'MATERIAL_REQUEST',
+        'mr-1',
+        'company-1',
+        [poolMember],
+        ['approver-1'],
+        'fm-1',
+      );
+    });
+
+    it('a nominee outside the Pool is a 400 on a still-DRAFT request (no status write)', async () => {
+      const { service, prisma, approvals } = makeService();
+      prisma.materialRequest.findUnique.mockResolvedValue({
+        id: 'mr-1',
+        status: MaterialRequestStatus.DRAFT,
+        companyId: 'company-1',
+        requestedById: 'fm-1',
+      });
+      approvals.assertNomineesInPool.mockRejectedValueOnce(new BadRequestException('not in pool'));
+
+      await expect(
+        service.submit('mr-1', foreman, { nomineeIds: ['outsider'] }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.materialRequest.update).not.toHaveBeenCalled();
+      expect(approvals.recordNominationsAtSubmit).not.toHaveBeenCalled();
+    });
+
+    it('falls back to Company Admins + the requester when the Pool is empty', async () => {
+      const { service, prisma, approvalAuth, email, notifications } = makeService();
+      approvalAuth.resolveApproverPool.mockResolvedValue([]);
+      approvalAuth.findCompanyAdminRecipients.mockResolvedValue([
+        {
+          id: 'admin-1',
+          name: 'Adjoa Admin',
+          email: 'admin@example.com',
+          role: 'COMPANY_ADMIN',
+          customRoleName: null,
+        },
+      ]);
+      prisma.materialRequest.findUnique
+        .mockResolvedValueOnce({
+          id: 'mr-1',
+          status: MaterialRequestStatus.DRAFT,
+          companyId: 'company-1',
+          requestedById: 'fm-1',
+        })
+        .mockResolvedValue(makeMr());
+
+      await service.submit('mr-1', foreman);
+      await flushAsync();
+
+      expect(email.sendMaterialRequestPendingApprovalEmail).not.toHaveBeenCalled();
+      expect(email.sendMaterialRequestApprovalUnroutableEmail).toHaveBeenCalledWith(
+        'admin@example.com',
+        'MR-00001',
+        'Downtown Reno',
+        expect.any(String),
+        expect.anything(),
+        undefined,
+      );
+      // The requester is not an admin, so they get the same signal in-app.
+      expect(notifications.createForUsers).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userIds: ['fm-1'],
+          type: 'MATERIAL_REQUEST_APPROVAL_UNROUTABLE',
+        }),
+      );
     });
 
     it('rejects submitting a non-DRAFT MR via the state machine', async () => {
@@ -559,9 +841,69 @@ describe('MaterialRequestsService', () => {
           companyId: 'company-1',
           requestedById: 'fm-1',
         })
-        .mockResolvedValueOnce(makeMr());
+        .mockResolvedValue(makeMr());
       audit.log.mockRejectedValueOnce(new Error('audit down'));
       await expect(service.submit('mr-1', foreman)).resolves.toBeDefined();
+    });
+
+    it('still resolves when the notification fan-out fails (best-effort)', async () => {
+      const { service, prisma, email } = makeService();
+      prisma.materialRequest.findUnique
+        .mockResolvedValueOnce({
+          id: 'mr-1',
+          status: MaterialRequestStatus.DRAFT,
+          companyId: 'company-1',
+          requestedById: 'fm-1',
+        })
+        .mockResolvedValue(makeMr());
+      email.sendMaterialRequestPendingApprovalEmail.mockRejectedValue(new Error('smtp down'));
+      await expect(service.submit('mr-1', foreman)).resolves.toBeDefined();
+      await flushAsync();
+    });
+  });
+
+  // ── nominateApprovers (FOR-347) ─────────────────────────────────────────────
+  describe('nominateApprovers', () => {
+    it('records via ApprovalsService and notifies the newly nominated members', async () => {
+      const { service, prisma, approvals, email, notifications, poolMember } = makeService();
+      approvals.addNominations.mockResolvedValue({
+        view: { nominations: [{ userId: 'approver-1' }] },
+        notify: [poolMember],
+      });
+      prisma.materialRequest.findUnique.mockResolvedValue(makeMr());
+
+      const view = await service.nominateApprovers('mr-1', ['approver-1'], foreman);
+      await flushAsync();
+
+      expect(approvals.addNominations).toHaveBeenCalledWith(
+        'MATERIAL_REQUEST',
+        'mr-1',
+        ['approver-1'],
+        foreman,
+      );
+      expect(view).toEqual({ nominations: [{ userId: 'approver-1' }] });
+      expect(email.sendMaterialRequestPendingApprovalEmail).toHaveBeenCalledWith(
+        'ama@example.com',
+        'MR-00001',
+        'Downtown Reno',
+        expect.any(String),
+        expect.anything(),
+        undefined,
+      );
+      expect(notifications.createForEmails).toHaveBeenCalledWith(
+        ['ama@example.com'],
+        expect.objectContaining({ type: 'MATERIAL_REQUEST_PENDING_APPROVAL' }),
+      );
+    });
+
+    it('sends nothing when every id was already nominated (notify empty)', async () => {
+      const { service, approvals, email } = makeService();
+      approvals.addNominations.mockResolvedValue({ view: { nominations: [] }, notify: [] });
+
+      await service.nominateApprovers('mr-1', ['approver-1'], foreman);
+      await flushAsync();
+
+      expect(email.sendMaterialRequestPendingApprovalEmail).not.toHaveBeenCalled();
     });
   });
 

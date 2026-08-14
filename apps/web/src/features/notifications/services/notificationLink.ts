@@ -22,6 +22,8 @@ export function resolveNotificationLink(notification: NotificationItem): string 
       return generatePath(ROUTES.bulkOrderDetail, { id: entityId });
     case 'INVOICE':
       return generatePath(ROUTES.invoiceDetail, { id: entityId });
+    case 'MATERIAL_REQUEST':
+      return generatePath(ROUTES.materialRequestDetail, { id: entityId });
     case 'QUOTE_RESPONSE': {
       const rfqId = typeof metadata?.rfqId === 'string' ? metadata.rfqId : null;
       if (!rfqId) return null;

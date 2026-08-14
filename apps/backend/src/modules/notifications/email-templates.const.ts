@@ -30,6 +30,8 @@ export const EMAIL_TEMPLATES = {
   PO_APPROVAL_UNROUTABLE: 'po-approval-unroutable',
   INVOICE_PENDING_APPROVAL: 'invoice-pending-approval',
   INVOICE_APPROVAL_UNROUTABLE: 'invoice-approval-unroutable',
+  MATERIAL_REQUEST_PENDING_APPROVAL: 'material-request-pending-approval',
+  MATERIAL_REQUEST_APPROVAL_UNROUTABLE: 'material-request-approval-unroutable',
   DELIVERY_CODE: 'delivery-code',
 } as const;
 

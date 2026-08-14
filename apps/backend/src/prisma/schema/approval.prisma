@@ -14,9 +14,14 @@
 /// The documents that carry an Approver Pool. Deliberately narrower than
 /// NotificationEntityType: RFQs have no monetary value to test against a cap
 /// (FOR-305), and bulk orders are not in the Release-1 closed list.
+///
+/// MATERIAL_REQUEST (FOR-347) is the one member whose Pool is not cap-derived:
+/// an MR carries no money, so its Pool is everyone holding the (non-threshold)
+/// `materialRequest.approve` grant. See the ADR-0006 amendment.
 enum ApprovalEntityType {
   PURCHASE_ORDER
   INVOICE
+  MATERIAL_REQUEST
 }
 
 /// One creator→approver routing hint. Polymorphic over PO and Invoice, matching

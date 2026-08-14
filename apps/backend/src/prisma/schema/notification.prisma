@@ -31,6 +31,13 @@ enum NotificationType {
   // introduced for POs — a recipient-only signal that confers no authority.
   INVOICE_PENDING_APPROVAL
   INVOICE_APPROVAL_UNROUTABLE
+  // Material-request equivalents of the two pairs above (FOR-347). Every
+  // submitted MR requires approval (there is no within-your-own-cap direct
+  // path), so PENDING_APPROVAL fires on submission; UNROUTABLE is the same
+  // empty-Pool fallback, raised when nobody in the company holds
+  // `materialRequest.approve`.
+  MATERIAL_REQUEST_PENDING_APPROVAL
+  MATERIAL_REQUEST_APPROVAL_UNROUTABLE
   PAYMENT_DUE
   PAYMENT_OVERDUE
   MESSAGE_RECEIVED
@@ -46,6 +53,7 @@ enum NotificationEntityType {
   PURCHASE_ORDER
   BULK_ORDER
   INVOICE
+  MATERIAL_REQUEST
 }
 
 model Notification {

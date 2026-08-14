@@ -79,6 +79,17 @@ vi.mock('../components/ConvertToPoModal', () => ({
     </div>
   ),
 }));
+// The Approver Pool panel has its own suite in @forethread/approval-shared; here
+// it is a stub like every other child, so this suite stays about page layout.
+vi.mock('@forethread/approval-shared', () => ({
+  ApproverPoolPanel: (props: { entityType: string; entityId: string }) => (
+    <div
+      data-testid="approver-pool-panel"
+      data-entity-type={props.entityType}
+      data-entity-id={props.entityId}
+    />
+  ),
+}));
 vi.mock('../../services/material-requests.service', () => ({
   useMaterialRequest: (id: string) => mockUseMaterialRequest(id),
   useMaterialRequestAudit: () => mockUseAudit(),
@@ -143,6 +154,14 @@ describe('MaterialRequestDetailPage', () => {
     expect(screen.getByText('john@x.com')).toBeInTheDocument();
     expect(screen.getByTestId('line-items')).toBeInTheDocument();
     expect(screen.getByTestId('activity')).toBeInTheDocument();
+  });
+
+  it('mounts the Approver Pool panel for the material request (FOR-347)', () => {
+    mockUseMaterialRequest.mockReturnValue({ isLoading: false, data: detail({}) });
+    render(<MaterialRequestDetailPage />);
+    const panel = screen.getByTestId('approver-pool-panel');
+    expect(panel).toHaveAttribute('data-entity-type', 'MATERIAL_REQUEST');
+    expect(panel).toHaveAttribute('data-entity-id', 'mr-1');
   });
 
   it('shows Approve + Decline for a SUBMITTED request with permissions', () => {

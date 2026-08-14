@@ -26,6 +26,7 @@ const superAdmin = {
 const mockPrisma = {
   purchaseOrder: { findUnique: jest.fn() },
   invoice: { findUnique: jest.fn() },
+  materialRequest: { findUnique: jest.fn() },
   approvalNomination: {
     findMany: jest.fn(),
     createMany: jest.fn(),
@@ -65,6 +66,17 @@ function givenPo(overrides: Record<string, unknown> = {}) {
     approvalStatus: ApprovalStatus.PENDING,
     createdByUserId: creator.id,
     approvedBy: null,
+    ...overrides,
+  });
+}
+
+function givenMr(overrides: Record<string, unknown> = {}) {
+  mockPrisma.materialRequest.findUnique.mockResolvedValue({
+    id: 'mr-1',
+    companyId: 'comp-1',
+    status: 'SUBMITTED',
+    requestedById: creator.id,
+    reviewedBy: null,
     ...overrides,
   });
 }
@@ -225,6 +237,135 @@ describe('ApprovalsService (FOR-304)', () => {
         800,
       );
       expect(view.entityType).toBe(ApprovalEntityType.INVOICE);
+    });
+
+    describe('material requests (FOR-347)', () => {
+      it('resolves through materialRequest.approve with a null amount — grant membership, not caps', async () => {
+        givenMr();
+
+        const view = await service.getApproverPool(
+          ApprovalEntityType.MATERIAL_REQUEST,
+          'mr-1',
+          creator,
+        );
+
+        expect(mockApprovalAuth.resolveApproverPool).toHaveBeenCalledWith(
+          'comp-1',
+          'materialRequest.approve',
+          null,
+        );
+        expect(view.entityType).toBe(ApprovalEntityType.MATERIAL_REQUEST);
+        expect(view.approvalStatus).toBe(ApprovalStatus.PENDING);
+      });
+
+      it.each([
+        ['DRAFT', ApprovalStatus.NOT_REQUIRED],
+        ['SUBMITTED', ApprovalStatus.PENDING],
+        ['APPROVED', ApprovalStatus.APPROVED],
+        ['CONVERTED', ApprovalStatus.APPROVED],
+        ['DECLINED', ApprovalStatus.REJECTED],
+        ['CANCELLED', ApprovalStatus.NOT_REQUIRED],
+      ])('derives approval status from MaterialRequestStatus %s → %s', async (status, expected) => {
+        // An MR has no stored approvalStatus column: its lifecycle IS its
+        // approval axis, so the service derives one instead of duplicating state.
+        givenMr({ status });
+        mockPrisma.auditLog.findFirst.mockResolvedValue(null);
+
+        const view = await service.getApproverPool(
+          ApprovalEntityType.MATERIAL_REQUEST,
+          'mr-1',
+          creator,
+        );
+
+        expect(view.approvalStatus).toBe(expected);
+      });
+
+      it('surfaces the reviewer as the resolver once approved', async () => {
+        givenMr({ status: 'APPROVED', reviewedBy: { id: 'u9', name: 'Ama Boateng' } });
+        mockPrisma.auditLog.findFirst.mockResolvedValue({
+          createdAt: new Date('2026-08-13T10:00:00.000Z'),
+        });
+
+        const view = await service.getApproverPool(
+          ApprovalEntityType.MATERIAL_REQUEST,
+          'mr-1',
+          creator,
+        );
+
+        expect(view.resolvedBy).toEqual({ id: 'u9', name: 'Ama Boateng' });
+        expect(view.resolvedAt).toBe('2026-08-13T10:00:00.000Z');
+        expect(mockPrisma.auditLog.findFirst).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({ targetType: 'MaterialRequest' }),
+          }),
+        );
+      });
+
+      it('lets the requester nominate while pending, and nobody else', async () => {
+        givenMr();
+        mockApprovalAuth.resolveApproverPool.mockResolvedValue([
+          poMember('u1', 'Ama Boateng', UserRole.PROCUREMENT_OFFICER),
+        ]);
+
+        const asRequester = await service.getApproverPool(
+          ApprovalEntityType.MATERIAL_REQUEST,
+          'mr-1',
+          creator,
+        );
+        const asBystander = await service.getApproverPool(
+          ApprovalEntityType.MATERIAL_REQUEST,
+          'mr-1',
+          bystander,
+        );
+
+        expect(asRequester.canNominate).toBe(true);
+        expect(asBystander.canNominate).toBe(false);
+      });
+
+      it('throws NotFound for a missing material request', async () => {
+        mockPrisma.materialRequest.findUnique.mockResolvedValue(null);
+        await expect(
+          service.getApproverPool(ApprovalEntityType.MATERIAL_REQUEST, 'mr-x', creator),
+        ).rejects.toBeInstanceOf(NotFoundException);
+      });
+    });
+
+    describe('getProspectivePool (FOR-347)', () => {
+      it('resolves the pool for the caller company with no document at all', async () => {
+        mockApprovalAuth.resolveApproverPool.mockResolvedValue([
+          poMember('u1', 'Ama Boateng', UserRole.PROCUREMENT_OFFICER),
+          poMember('u2', 'Efua Sarpong', UserRole.COMPANY_ADMIN),
+        ]);
+
+        const view = await service.getProspectivePool(ApprovalEntityType.MATERIAL_REQUEST, creator);
+
+        expect(mockApprovalAuth.resolveApproverPool).toHaveBeenCalledWith(
+          'comp-1',
+          'materialRequest.approve',
+          null,
+        );
+        expect(view.entityId).toBeNull();
+        expect(view.approvalStatus).toBe(ApprovalStatus.PENDING);
+        expect(view.memberCount).toBe(2);
+        expect(view.nominations).toEqual([]);
+        expect(view.canNominate).toBe(true);
+        // No document was read — the pool is a pure function of the company.
+        expect(mockPrisma.materialRequest.findUnique).not.toHaveBeenCalled();
+      });
+
+      it('flags an empty prospective pool so the wizard can block before submitting', async () => {
+        mockApprovalAuth.resolveApproverPool.mockResolvedValue([]);
+
+        const view = await service.getProspectivePool(ApprovalEntityType.MATERIAL_REQUEST, creator);
+
+        expect(view.isEmpty).toBe(true);
+      });
+
+      it('rejects a caller with no company (SUPER_ADMIN is never in a pool)', async () => {
+        await expect(
+          service.getProspectivePool(ApprovalEntityType.MATERIAL_REQUEST, superAdmin),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      });
     });
 
     describe('once resolved', () => {

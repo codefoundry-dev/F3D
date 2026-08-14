@@ -9,6 +9,7 @@ import { useState, type ReactNode } from 'react';
 
 import { useApproverPool, useWithdrawNomination } from '../hooks/useApproverPool';
 import { useRoleLabel } from '../hooks/useRoleLabel';
+import { hasMonetaryCap } from '../utils/threshold';
 
 import { NominateApproversModal } from './NominateApproversModal';
 
@@ -76,6 +77,7 @@ export function ApproverPoolPanel({
 }: ApproverPoolPanelProps) {
   const { t } = useTranslation('approvals');
   const roleLabel = useRoleLabel();
+  const capBased = hasMonetaryCap(entityType);
   const [showNominate, setShowNominate] = useState(false);
   const { data: pool, isLoading, isError } = useApproverPool(entityType, entityId);
   const withdraw = useWithdrawNomination(entityType, entityId);
@@ -141,7 +143,7 @@ export function ApproverPoolPanel({
         <p className="text-sm font-semibold" data-testid="approver-pool-empty">
           {t('pool.emptyTitle')}
         </p>
-        <p className="mt-0.5 text-sm">{t('pool.emptyBody')}</p>
+        <p className="mt-0.5 text-sm">{t(capBased ? 'pool.emptyBody' : 'pool.emptyBodyNoCap')}</p>
       </PanelShell>
     );
   }
@@ -192,7 +194,10 @@ export function ApproverPoolPanel({
                     {!n.stillEligible && (
                       <span
                         className="ml-2 rounded-full bg-[#F4F4F6] px-2 py-0.5 text-xs text-[#8A909C]"
-                        title={t('nominees.ineligibleHint', { name: n.name })}
+                        title={t(
+                          capBased ? 'nominees.ineligibleHint' : 'nominees.ineligibleHintNoCap',
+                          { name: n.name },
+                        )}
                       >
                         {t('nominees.ineligible')}
                       </span>

@@ -1,3 +1,4 @@
+import { ApproverPoolPanel } from '@forethread/approval-shared';
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { Button, formatDate, formatDateTime, Spinner } from '@forethread/ui-components';
@@ -111,6 +112,11 @@ export default function MaterialRequestDetailPage() {
       >
         {t('detail.back')}
       </button>
+
+      {/* Approver Pool + nominees (FOR-347). Self-hides unless the MR is on its
+          approval axis; the requester sees who they are waiting on and may ask
+          someone else, approvers see it resolved. */}
+      <ApproverPoolPanel entityType="MATERIAL_REQUEST" entityId={mr.id} />
 
       {/* ═══ Header card ═══ */}
       <div className="rounded-lg border border-border bg-card p-6">

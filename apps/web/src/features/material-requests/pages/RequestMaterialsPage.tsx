@@ -1,3 +1,4 @@
+import { NominateApproversModal } from '@forethread/approval-shared';
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { StatusErrorModal } from '@forethread/ui-components';
@@ -6,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { useAuthStore } from '@/features/auth/state/auth.store';
 
 import { PrimaryButton, SecondaryButton } from '../components/MobileButtons';
 import { MobileHeader } from '../components/MobileHeader';
@@ -58,6 +60,13 @@ export default function RequestMaterialsPage() {
   const [lines, setLines] = useState<MrWizardLine[]>([]);
   const [detailErrors, setDetailErrors] = useState<MrDetailsErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [showNominate, setShowNominate] = useState(false);
+  // Remembered so the error modal's "try again" resubmits with the same choice.
+  const [nomineeIds, setNomineeIds] = useState<string[]>([]);
+
+  // SUPER_ADMIN has no company, hence no Approver Pool to pick from — submit
+  // directly (mirrors the PO issue path, where SUPER_ADMIN always sends).
+  const isSuperAdmin = useAuthStore((s) => s.currentUser?.role === 'SUPER_ADMIN');
 
   const project = projectQuery.data;
   const jobCode = project?.name ?? projectId;
@@ -157,9 +166,15 @@ export default function RequestMaterialsPage() {
     setStep(2);
   };
 
-  const handleSubmit = () => {
+  /**
+   * Create-and-submit the MR, optionally nominating approvers (FOR-347). The
+   * nominees ride on the create payload because the wizard's submit is a single
+   * call — there is no MR id until it returns.
+   */
+  const submitRequest = (ids: string[]) => {
     if (lines.length === 0) return;
-    const input = buildCreateInput({ projectId, lines }, { submit: true });
+    const base = buildCreateInput({ projectId, lines }, { submit: true });
+    const input = ids.length > 0 ? { ...base, nomineeIds: ids } : base;
     createMutation.mutate(input, {
       onSuccess: (mr) => {
         navigate(ROUTES.materialRequestConfirmation.replace(':id', mr.id), {
@@ -168,6 +183,25 @@ export default function RequestMaterialsPage() {
       },
       onError: () => setSubmitError(t('review.submitFailed')),
     });
+  };
+
+  /**
+   * Submit Request click: every submitted MR requires approval, so the
+   * nomination modal is the confirm step — the requester sees who it routes to
+   * and may narrow the notification (never the authority).
+   */
+  const handleSubmit = () => {
+    if (lines.length === 0) return;
+    if (isSuperAdmin) {
+      submitRequest([]);
+      return;
+    }
+    setShowNominate(true);
+  };
+
+  const handleConfirmNominees = (ids: string[]) => {
+    setNomineeIds(ids);
+    submitRequest(ids);
   };
 
   const selectedCount = lines.length;
@@ -262,6 +296,18 @@ export default function RequestMaterialsPage() {
         </p>
       )}
 
+      {showNominate && !submitError && (
+        <NominateApproversModal
+          entityType="MATERIAL_REQUEST"
+          // No MR exists yet — the modal shows the company's prospective Pool.
+          entityId={null}
+          mode="submit"
+          isSubmitting={createMutation.isPending}
+          onClose={() => setShowNominate(false)}
+          onConfirm={handleConfirmNominees}
+        />
+      )}
+
       {submitError && (
         <StatusErrorModal
           title={t('review.submitFailed')}
@@ -269,7 +315,7 @@ export default function RequestMaterialsPage() {
           primaryButtonLabel={t('review.tryAgain')}
           onPrimaryClick={() => {
             setSubmitError(null);
-            handleSubmit();
+            submitRequest(nomineeIds);
           }}
           secondaryButtonLabel={t('review.dismiss')}
           onSecondaryClick={() => setSubmitError(null)}

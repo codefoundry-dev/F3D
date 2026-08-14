@@ -46,6 +46,12 @@ export interface CreateMaterialRequestInput {
   note?: string;
   /** Submit immediately (create directly in SUBMITTED instead of DRAFT). */
   submit?: boolean;
+  /**
+   * Approver Pool members to nominate on submission (FOR-347). Routing only —
+   * narrows who is notified, never who may approve. Requires `submit: true`;
+   * omitted or empty = notify the whole Pool.
+   */
+  nomineeIds?: string[];
   lineItems: CreateMrLineItemInput[];
 }
 
@@ -205,11 +211,13 @@ export async function updateMaterialRequest(
 
 export async function submitMaterialRequest(
   id: string,
+  /** Optional Pool members to nominate as part of this submission (FOR-347). */
+  body?: { nomineeIds?: string[] },
   config?: AxiosRequestConfig,
 ): Promise<MrDetail> {
   const { data } = await getApiClient().post<{ data: MrDetail }>(
     MATERIAL_REQUESTS_PATHS.submit(id),
-    undefined,
+    body,
     config,
   );
   return data.data;

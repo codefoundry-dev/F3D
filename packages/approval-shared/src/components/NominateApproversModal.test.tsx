@@ -134,6 +134,68 @@ describe('NominateApproversModal (FOR-306)', () => {
     });
   });
 
+  describe('prospective submit mode (FOR-347)', () => {
+    it('fetches the prospective pool when there is no entity id yet', () => {
+      renderModal(
+        { entityType: 'MATERIAL_REQUEST', entityId: null },
+        makePool({ entityType: 'MATERIAL_REQUEST', entityId: null }),
+      );
+
+      // The MR wizard creates-and-submits in one call, so the pool is fetched
+      // company-wide with prospective: true instead of by document id.
+      expect(mockUseApproverPool).toHaveBeenCalledWith(
+        'MATERIAL_REQUEST',
+        undefined,
+        expect.objectContaining({ prospective: true }),
+      );
+      expect(screen.getByText('Ama Boateng')).toBeInTheDocument();
+    });
+
+    it('uses the non-monetary copy — an MR has no approval limit to be over', () => {
+      renderModal(
+        { entityType: 'MATERIAL_REQUEST', entityId: null },
+        makePool({ entityType: 'MATERIAL_REQUEST', entityId: null }),
+      );
+
+      expect(
+        screen.getByText(/needs approval before procurement can proceed/i),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/over your approval limit/i)).not.toBeInTheDocument();
+    });
+
+    it('blocks with the permission-flavoured empty copy when nobody holds the grant', () => {
+      renderModal(
+        { entityType: 'MATERIAL_REQUEST', entityId: null },
+        makePool({
+          entityType: 'MATERIAL_REQUEST',
+          entityId: null,
+          members: [],
+          roleGroups: [],
+          memberCount: 0,
+          isEmpty: true,
+        }),
+      );
+
+      expect(screen.getByText('No one can approve this')).toBeInTheDocument();
+      expect(screen.getByText(/holds the permission to approve/i)).toBeInTheDocument();
+      expect(screen.queryByText(/approval limit that covers this amount/i)).not.toBeInTheDocument();
+    });
+
+    it('hands the picked nominees back to the caller like any submit-mode confirm', () => {
+      const onConfirm = vi.fn();
+      renderModal(
+        { entityType: 'MATERIAL_REQUEST', entityId: null, onConfirm },
+        makePool({ entityType: 'MATERIAL_REQUEST', entityId: null }),
+      );
+
+      fireEvent.click(screen.getByLabelText('Notify specific people'));
+      fireEvent.click(checkboxFor('Ama Boateng'));
+      fireEvent.click(screen.getByTestId('nominate-modal-confirm'));
+
+      expect(onConfirm).toHaveBeenCalledWith(['u1']);
+    });
+  });
+
   describe('add mode (FOR-308)', () => {
     const withNominee = () =>
       makePool({

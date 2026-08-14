@@ -1,9 +1,13 @@
 import { ApprovalEntityType } from '@prisma/client';
 
 /**
- * The two documents that carry an Approver Pool (ADR-0006 amendment). Each maps
- * to the threshold-aware permission whose grant defines authority over it, so
- * every Pool operation is one implementation parameterised by this pair.
+ * The documents that carry an Approver Pool (ADR-0006 amendment). Each maps to
+ * the permission whose grant defines authority over it, so every Pool operation
+ * is one implementation parameterised by this map.
+ *
+ * `materialRequest.approve` is the one non-threshold-aware key here (FOR-347):
+ * an MR carries no monetary value, so its Pool is grant membership rather than
+ * cap coverage — `resolveApproverPool` ignores caps for non-threshold keys.
  */
 export const APPROVAL_ENTITY_CONFIG = {
   PURCHASE_ORDER: {
@@ -16,6 +20,11 @@ export const APPROVAL_ENTITY_CONFIG = {
     permissionKey: 'invoice.approve' as const,
     resolvedActions: ['INVOICE_APPROVED', 'INVOICE_REJECTED'] as const,
     auditTargetType: 'Invoice',
+  },
+  MATERIAL_REQUEST: {
+    permissionKey: 'materialRequest.approve' as const,
+    resolvedActions: ['MATERIAL_REQUEST_APPROVED', 'MATERIAL_REQUEST_DECLINED'] as const,
+    auditTargetType: 'MaterialRequest',
   },
 } satisfies Record<
   ApprovalEntityType,
@@ -61,7 +70,8 @@ export interface ApprovalNominationView {
 
 export interface ApproverPoolView {
   entityType: ApprovalEntityType;
-  entityId: string;
+  /** Null for a prospective Pool — the document does not exist yet (FOR-347). */
+  entityId: string | null;
   /** NOT_REQUIRED | PENDING | APPROVED | REJECTED. */
   approvalStatus: string;
   /** Full membership — for the nomination picker only. */

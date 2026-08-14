@@ -191,6 +191,41 @@ no threshold to test; the RFQ→PO thread meets its money gate at award and agai
 vestigial `Rfq.approvalStatus` / `Rfq.approvedById` columns and the permanently-empty "Approved By"
 field they feed are removed rather than left promising a flow that does not exist.
 
+## Amendment — Material Request routing (2026-08-14, FOR-347)
+
+Material Requests join `ApprovalEntityType` as the Pool's third — and first non-monetary — member.
+An MR already had a mandatory approval step (`SUBMITTED → APPROVED/DECLINED`, gated on
+`materialRequest.approve`); what it lacked was **routing**: nobody was notified on submission, so
+the step relied on approvers polling the awaiting-approval list.
+
+- **The MR Pool is grant membership, not cap coverage.** An MR carries no money (pricing first
+  exists on the PO it converts into), and `materialRequest.approve` is deliberately **not**
+  threshold-aware. `resolveApproverPool` with a `null` amount already degrades to "every ACTIVE user
+  whose effective grant includes the key" — that degraded form _is_ the MR Pool. This does not
+  contradict the RFQ exclusion above: the RFQ has no approval step at all, whereas the MR has one
+  and merely needs it routed. "Pool membership always means this cap covers this amount" now reads
+  "…means authority over this document" for the non-monetary member.
+- **Approval state is derived, not stored.** Unlike the invoice (which gained `approvalStatus`
+  columns to keep its document lifecycle separate), an MR's lifecycle _is_ its approval axis —
+  `SUBMITTED` means "awaiting review" and nothing else. `ApprovalsService` derives
+  (`SUBMITTED→PENDING`, `APPROVED/CONVERTED→APPROVED`, `DECLINED→REJECTED`, else `NOT_REQUIRED`) and
+  maps `approvedBy` onto the existing `reviewedBy`. No new columns.
+- **Every submitted MR requires approval** — there is no "within your own cap so it sends directly"
+  branch, because there is no cap. Consequently the submit UI always offers the nomination step, and
+  the empty-Pool fallback copy asks admins to **grant the permission** under Roles & permissions
+  rather than raise a limit.
+- **The wizard's prospective Pool.** The MR wizard creates-and-submits in one call, so the requester
+  picks nominees before any document exists. Because the MR Pool is a pure function of the company,
+  `GET /material-requests/approver-pool` serves the identical Pool without an entity id (view
+  carries `entityId: null`). This is the amount-preview idea from FOR-309 transposed: there, a Pool
+  for an unsaved total; here, a Pool for an unsaved document.
+- The requester stands in for the PO's creator as nominator; nomination remains routing-only,
+  narrow-never-widen, enforced server-side; notifications are `MATERIAL_REQUEST_PENDING_APPROVAL` /
+  `MATERIAL_REQUEST_APPROVAL_UNROUTABLE`, mirroring the PO pair.
+
+The enterprise amendment below is unaffected: WF-MR-STANDARD (FOR-332) will subsume this single-step
+routing when the engine lands, exactly as it subsumes the PO and invoice paths.
+
 ## Amendment — Enterprise engine (2026-08-07)
 
 **Status: Proposed.** Nothing below is built. This amendment exists so the foundation work (FOR-310)

@@ -11,6 +11,19 @@
 // what will happen. The backend re-decides authoritatively on the action path
 // via `ApprovalAuthorizationService.evaluate`.
 
+import type { ApprovalEntityType } from '@forethread/api-client';
+
+/**
+ * True when this entity's Approver Pool is derived from monetary caps.
+ *
+ * Material requests are the exception (FOR-347): an MR carries no amount, so
+ * its Pool is grant membership and every amount-flavoured copy string ("covers
+ * this amount", "raise a limit") has a no-cap variant instead.
+ */
+export function hasMonetaryCap(entityType: ApprovalEntityType): boolean {
+  return entityType !== 'MATERIAL_REQUEST';
+}
+
 /**
  * True when `total` is outside the cap, i.e. the actor cannot action it
  * themselves and it must go to the Approver Pool.

@@ -14,13 +14,19 @@ import { useMemo, useState } from 'react';
 
 import { useAddNominations, useApproverPool } from '../hooks/useApproverPool';
 import { useRoleLabel } from '../hooks/useRoleLabel';
+import { hasMonetaryCap } from '../utils/threshold';
 
 type NominateMode = 'submit' | 'add';
 type NotifyChoice = 'everyone' | 'selected';
 
 export interface NominateApproversModalProps {
   entityType: ApprovalEntityType;
-  entityId: string;
+  /**
+   * Null in `submit` mode only: the document does not exist yet, so the
+   * *prospective* Pool is shown instead (FOR-347 — the MR wizard creates and
+   * submits in one call). `add` mode always has a real document.
+   */
+  entityId: string | null;
   /**
    * `submit` — the confirm step of Submit for Approval (FOR-306). The modal only
    * collects the choice; the caller owns the submit mutation, because the
@@ -74,10 +80,13 @@ export function NominateApproversModal({
 }: NominateApproversModalProps) {
   const { t } = useTranslation('approvals');
   const roleLabel = useRoleLabel();
-  const { data: pool, isLoading } = useApproverPool(entityType, entityId, {
+  const capBased = hasMonetaryCap(entityType);
+  const { data: pool, isLoading } = useApproverPool(entityType, entityId ?? undefined, {
     amount: mode === 'submit' ? previewAmount : undefined,
+    prospective: entityId === null,
   });
-  const addNominations = useAddNominations(entityType, entityId);
+  // Only exercised in `add` mode, which always has a real entity id.
+  const addNominations = useAddNominations(entityType, entityId ?? '');
 
   const [choice, setChoice] = useState<NotifyChoice>('everyone');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -135,7 +144,7 @@ export function NominateApproversModal({
         onClose={onClose}
         icon={<UsersGroupIcon className="h-6 w-6" />}
         title={t('nominateModal.emptyTitle')}
-        description={t('nominateModal.emptyBody')}
+        description={t(capBased ? 'nominateModal.emptyBody' : 'nominateModal.emptyBodyNoCap')}
         actions={
           <Button type="button" variant="outline" onClick={onClose}>
             {t('nominateModal.emptyDismiss')}
@@ -154,7 +163,13 @@ export function NominateApproversModal({
       scrollBody
       icon={<UsersGroupIcon className="h-6 w-6" />}
       title={t(isAdd ? 'nominateModal.addTitle' : 'nominateModal.title')}
-      description={t(isAdd ? 'nominateModal.addDescription' : 'nominateModal.description')}
+      description={t(
+        isAdd
+          ? 'nominateModal.addDescription'
+          : capBased
+            ? 'nominateModal.description'
+            : 'nominateModal.descriptionNoCap',
+      )}
       actions={
         <>
           {/* Explicit onClick, never a type="submit" that morphs: a morphing

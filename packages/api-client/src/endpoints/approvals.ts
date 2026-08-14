@@ -2,7 +2,7 @@ import type { AxiosRequestConfig } from 'axios';
 
 import { getApiClient } from '../client';
 
-import { INVOICES_PATHS, PURCHASE_ORDERS_PATHS } from './paths';
+import { INVOICES_PATHS, MATERIAL_REQUESTS_PATHS, PURCHASE_ORDERS_PATHS } from './paths';
 
 // Approver Pool and Nomination (ADR-0006 amendment, 2026-08-07).
 //
@@ -18,8 +18,13 @@ import { INVOICES_PATHS, PURCHASE_ORDERS_PATHS } from './paths';
 // One set of types serves both documents, so the UI is composed once rather than
 // forked per entity.
 
-/** The documents that carry an Approver Pool. Mirrors the backend enum. */
-export type ApprovalEntityType = 'PURCHASE_ORDER' | 'INVOICE';
+/**
+ * The documents that carry an Approver Pool. Mirrors the backend enum.
+ *
+ * MATERIAL_REQUEST (FOR-347) is the one member with no monetary value: its Pool
+ * is everyone holding `materialRequest.approve`, not cap coverage.
+ */
+export type ApprovalEntityType = 'PURCHASE_ORDER' | 'INVOICE' | 'MATERIAL_REQUEST';
 
 /** Approval state, deliberately separate from the document's own status. */
 export type ApprovalStatusValue = 'NOT_REQUIRED' | 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -69,7 +74,8 @@ export interface ApprovalNomination {
 
 export interface ApproverPoolView {
   entityType: ApprovalEntityType;
-  entityId: string;
+  /** Null for a prospective Pool — the document does not exist yet (FOR-347). */
+  entityId: string | null;
   approvalStatus: ApprovalStatusValue;
   /** Full membership — for the nomination picker only, never the pending panel. */
   members: ApproverPoolMember[];
@@ -89,9 +95,22 @@ export interface ApproverPoolView {
   canNominate: boolean;
 }
 
-/** Resolve the path pair for an entity type so callers stay entity-agnostic. */
+/**
+ * Resolve the path trio for an entity type so callers stay entity-agnostic.
+ * An explicit map (not a fallback chain) so an unmapped new entity type is a
+ * compile error here rather than a silent resolve to the PO paths.
+ */
+const APPROVAL_PATHS: Record<
+  ApprovalEntityType,
+  Pick<typeof PURCHASE_ORDERS_PATHS, 'approverPool' | 'nominations' | 'nomination'>
+> = {
+  PURCHASE_ORDER: PURCHASE_ORDERS_PATHS,
+  INVOICE: INVOICES_PATHS,
+  MATERIAL_REQUEST: MATERIAL_REQUESTS_PATHS,
+};
+
 function pathsFor(entityType: ApprovalEntityType) {
-  return entityType === 'INVOICE' ? INVOICES_PATHS : PURCHASE_ORDERS_PATHS;
+  return APPROVAL_PATHS[entityType];
 }
 
 /**
@@ -125,6 +144,27 @@ export async function getApproverPool(
   const { data } = await getApiClient().get<{ data: ApproverPoolView }>(
     pathsFor(entityType).approverPool(entityId),
     requestConfig,
+  );
+  return data.data;
+}
+
+/**
+ * The Approver Pool a *new* material request would be routed to (FOR-347).
+ *
+ * The MR wizard creates-and-submits in one call, so the requester picks
+ * approvers before any document exists. An MR Pool depends only on the
+ * caller's company — it has no amount — so this prospective Pool is identical
+ * to every real MR's Pool. Returns a view with `entityId: null` and no
+ * nominations. Material requests only.
+ */
+export async function getProspectiveApproverPool(
+  entityType: 'MATERIAL_REQUEST',
+  config?: AxiosRequestConfig,
+): Promise<ApproverPoolView> {
+  void entityType; // single-entity today; the parameter keeps call sites explicit
+  const { data } = await getApiClient().get<{ data: ApproverPoolView }>(
+    MATERIAL_REQUESTS_PATHS.PROSPECTIVE_APPROVER_POOL,
+    config,
   );
   return data.data;
 }

@@ -26,8 +26,8 @@ describe('EMAIL_TEMPLATES', () => {
     expect(EMAIL_TEMPLATES.DELIVERY_CODE).toBe('delivery-code');
   });
 
-  it('should have exactly 32 templates', () => {
-    expect(Object.keys(EMAIL_TEMPLATES)).toHaveLength(32);
+  it('should have exactly 34 templates', () => {
+    expect(Object.keys(EMAIL_TEMPLATES)).toHaveLength(34);
   });
 
   it('should have unique values', () => {

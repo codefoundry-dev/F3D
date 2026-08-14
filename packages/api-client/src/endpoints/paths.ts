@@ -207,6 +207,13 @@ export const MATERIAL_REQUESTS_PATHS = {
   cancel: (id: string) => `/material-requests/${id}/cancel`,
   convertToRfq: (id: string) => `/material-requests/${id}/convert-to-rfq`,
   convertToPo: (id: string) => `/material-requests/${id}/convert-to-po`,
+  // Approver Pool + Nomination (FOR-347) — same shapes as the PO/Invoice routes.
+  approverPool: (id: string) => `/material-requests/${id}/approver-pool`,
+  nominations: (id: string) => `/material-requests/${id}/nominations`,
+  nomination: (id: string, userId: string) => `/material-requests/${id}/nominations/${userId}`,
+  // Prospective Pool: the wizard creates-and-submits in one call, so it needs
+  // the Pool before any MR exists. Company-scoped, no entity id.
+  PROSPECTIVE_APPROVER_POOL: '/material-requests/approver-pool',
 } as const;
 
 // ── Bulk Orders ──────────────────────────────────────────────────────────────

@@ -1,1 +1,1 @@
-export { exceedsApprovalCap } from './threshold';
+export { exceedsApprovalCap, hasMonetaryCap } from './threshold';

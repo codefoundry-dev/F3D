@@ -569,6 +569,75 @@ export class EmailService implements OnModuleInit {
     }
   }
 
+  /**
+   * Tell an Approver Pool member that a material request has been submitted and
+   * needs their sign-off (FOR-347). The MR equivalent of
+   * {@link sendPoPendingApprovalEmail} — no amount, an MR carries none; the
+   * project name stands in as context.
+   */
+  async sendMaterialRequestPendingApprovalEmail(
+    to: string,
+    mrNumber: string,
+    projectName: string,
+    viewUrl: string,
+    log?: EmailLogContext,
+    brand?: EmailBrand,
+  ): Promise<void> {
+    const t = this.getTranslations('materialRequestPendingApproval', { mrNumber, projectName });
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        html: this.renderEmail(
+          EMAIL_TEMPLATES.MATERIAL_REQUEST_PENDING_APPROVAL,
+          t,
+          { viewUrl },
+          brand,
+        ),
+        template: EMAIL_TEMPLATES.MATERIAL_REQUEST_PENDING_APPROVAL,
+        ...(log ? { log } : {}),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
+  /**
+   * Tell a Company Admin that a material request is stuck: it is awaiting
+   * approval but nobody in the company holds `materialRequest.approve`, so the
+   * Approver Pool is empty (FOR-347). Same fallback-recipient rule as the PO
+   * case (FOR-302), except the remedy is granting the permission — an MR has no
+   * amount, so there is no limit to raise.
+   */
+  async sendMaterialRequestApprovalUnroutableEmail(
+    to: string,
+    mrNumber: string,
+    projectName: string,
+    viewUrl: string,
+    log?: EmailLogContext,
+    brand?: EmailBrand,
+  ): Promise<void> {
+    const t = this.getTranslations('materialRequestApprovalUnroutable', { mrNumber, projectName });
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        html: this.renderEmail(
+          EMAIL_TEMPLATES.MATERIAL_REQUEST_APPROVAL_UNROUTABLE,
+          t,
+          { viewUrl },
+          brand,
+        ),
+        template: EMAIL_TEMPLATES.MATERIAL_REQUEST_APPROVAL_UNROUTABLE,
+        ...(log ? { log } : {}),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
   async sendPoDeclinedByVendorEmail(
     to: string,
     poNumber: string,

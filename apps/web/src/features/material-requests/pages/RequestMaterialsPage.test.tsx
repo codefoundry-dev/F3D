@@ -41,6 +41,42 @@ vi.mock('../services/material-requests.service', () => ({
   useCreateMaterialRequest: () => ({ mutate: mockMutate, isPending: false }),
 }));
 
+// The signed-in user's role decides whether the nomination step appears
+// (SUPER_ADMIN has no company, hence no Pool — direct submit).
+const mockRole = vi.hoisted(() => ({ value: 'FOREMAN' }));
+vi.mock('@/features/auth/state/auth.store', () => ({
+  useAuthStore: (selector: (s: { currentUser: { role: string } }) => unknown) =>
+    selector({ currentUser: { role: mockRole.value } }),
+}));
+
+// The nomination modal has its own suite in @forethread/approval-shared; here it
+// is a stub that lets the test confirm with/without picked nominees.
+vi.mock('@forethread/approval-shared', () => ({
+  NominateApproversModal: ({
+    onConfirm,
+    onClose,
+  }: {
+    onConfirm?: (ids: string[]) => void;
+    onClose: () => void;
+  }) => (
+    <div data-testid="nominate-modal">
+      <button type="button" data-testid="nominate-everyone" onClick={() => onConfirm?.([])}>
+        everyone
+      </button>
+      <button
+        type="button"
+        data-testid="nominate-picked"
+        onClick={() => onConfirm?.(['approver-1'])}
+      >
+        picked
+      </button>
+      <button type="button" data-testid="nominate-close" onClick={onClose}>
+        close
+      </button>
+    </div>
+  ),
+}));
+
 // Mock chrome + step components so the test drives orchestration only.
 vi.mock('../components/MobileShell', () => ({
   MobileShell: ({
@@ -190,6 +226,7 @@ import RequestMaterialsPage from './RequestMaterialsPage';
 describe('RequestMaterialsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRole.value = 'FOREMAN';
     mockUseProjectDetail.mockReturnValue({
       data: {
         id: 'proj-1',
@@ -200,6 +237,14 @@ describe('RequestMaterialsPage', () => {
       },
     });
   });
+
+  /** Drive the wizard to the Review step with one valid line. */
+  function advanceToReview() {
+    fireEvent.click(screen.getByTestId('add-line'));
+    fireEvent.click(screen.getByTestId('mr-step1-next'));
+    fireEvent.click(screen.getByTestId('fill-line'));
+    fireEvent.click(screen.getByTestId('mr-step2-next'));
+  }
 
   it('starts on step 1 (select materials) with Next disabled until a line is added', () => {
     render(<RequestMaterialsPage />);
@@ -235,35 +280,78 @@ describe('RequestMaterialsPage', () => {
     expect(screen.getByTestId('progress').textContent).toBe('3');
   });
 
-  it('submits the request and navigates to confirmation on success', () => {
-    mockMutate.mockImplementation((_input, { onSuccess }) => onSuccess({ id: 'mr-99' }));
+  it('opens the nomination modal on Submit Request instead of submitting outright (FOR-347)', () => {
     render(<RequestMaterialsPage />);
-    fireEvent.click(screen.getByTestId('add-line'));
-    fireEvent.click(screen.getByTestId('mr-step1-next'));
-    fireEvent.click(screen.getByTestId('fill-line'));
-    fireEvent.click(screen.getByTestId('mr-step2-next'));
+    advanceToReview();
 
     fireEvent.click(screen.getByTestId('mr-submit'));
+
+    expect(screen.getByTestId('nominate-modal')).toBeInTheDocument();
+    expect(mockMutate).not.toHaveBeenCalled();
+  });
+
+  it('submits with no nominees ("everyone") and navigates to confirmation on success', () => {
+    mockMutate.mockImplementation((_input, { onSuccess }) => onSuccess({ id: 'mr-99' }));
+    render(<RequestMaterialsPage />);
+    advanceToReview();
+
+    fireEvent.click(screen.getByTestId('mr-submit'));
+    fireEvent.click(screen.getByTestId('nominate-everyone'));
 
     expect(mockMutate).toHaveBeenCalledTimes(1);
     const [payload] = mockMutate.mock.calls[0];
     expect(payload.projectId).toBe('proj-1');
     expect(payload.submit).toBe(true);
     expect(payload.lineItems).toHaveLength(1);
+    // No nominees picked → the field is omitted entirely, not sent as [].
+    expect(payload.nomineeIds).toBeUndefined();
     expect(mockNavigate).toHaveBeenCalledWith(
       '/material-requests/confirmation/mr-99',
       expect.objectContaining({ state: { mr: { id: 'mr-99' } } }),
     );
   });
 
+  it('threads picked nominees into the create payload', () => {
+    mockMutate.mockImplementation((_input, { onSuccess }) => onSuccess({ id: 'mr-99' }));
+    render(<RequestMaterialsPage />);
+    advanceToReview();
+
+    fireEvent.click(screen.getByTestId('mr-submit'));
+    fireEvent.click(screen.getByTestId('nominate-picked'));
+
+    const [payload] = mockMutate.mock.calls[0];
+    expect(payload.nomineeIds).toEqual(['approver-1']);
+  });
+
+  it('closing the modal abandons the submit', () => {
+    render(<RequestMaterialsPage />);
+    advanceToReview();
+
+    fireEvent.click(screen.getByTestId('mr-submit'));
+    fireEvent.click(screen.getByTestId('nominate-close'));
+
+    expect(mockMutate).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('nominate-modal')).not.toBeInTheDocument();
+  });
+
+  it('a SUPER_ADMIN submits directly — no company, hence no Pool to pick from', () => {
+    mockRole.value = 'SUPER_ADMIN';
+    mockMutate.mockImplementation((_input, { onSuccess }) => onSuccess({ id: 'mr-99' }));
+    render(<RequestMaterialsPage />);
+    advanceToReview();
+
+    fireEvent.click(screen.getByTestId('mr-submit'));
+
+    expect(screen.queryByTestId('nominate-modal')).not.toBeInTheDocument();
+    expect(mockMutate).toHaveBeenCalledTimes(1);
+  });
+
   it('shows an error modal when submission fails', () => {
     mockMutate.mockImplementation((_input, { onError }) => onError());
     render(<RequestMaterialsPage />);
-    fireEvent.click(screen.getByTestId('add-line'));
-    fireEvent.click(screen.getByTestId('mr-step1-next'));
-    fireEvent.click(screen.getByTestId('fill-line'));
-    fireEvent.click(screen.getByTestId('mr-step2-next'));
+    advanceToReview();
     fireEvent.click(screen.getByTestId('mr-submit'));
+    fireEvent.click(screen.getByTestId('nominate-everyone'));
 
     expect(screen.getByTestId('error-modal')).toBeInTheDocument();
   });

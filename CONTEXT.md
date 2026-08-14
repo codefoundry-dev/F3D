@@ -104,13 +104,15 @@ buyer-side reject is "decline" → `CANCELLED`; the vendor-side is "vendor-decli
 ### Approvals
 
 **Approver Pool**: The set of `ACTIVE` users in the document's own company whose **effective** grant
-of that document's approval permission (`po.approve` / `invoice.approve`) covers its total —
-"effective" meaning custom-role-first (an assigned custom role's cap replaces the built-in role's;
-`SUPER_ADMIN` always resolves through the built-in role). Like **Category filter → Add All**, it is
-a **query, not a stored entity**: it is recomputed per document from the live grants, so it can
-never name someone who cannot actually approve. A null cap means unlimited and is always in the
-pool. _Avoid_: **group** (already means "the Sales Reps at one company, collapsed into one row"),
-**team**, **entitled approvers**, **eligible approvers** (the method name
+of that document's approval permission (`po.approve` / `invoice.approve` /
+`materialRequest.approve`) covers its total — "effective" meaning custom-role-first (an assigned
+custom role's cap replaces the built-in role's; `SUPER_ADMIN` always resolves through the built-in
+role). Like **Category filter → Add All**, it is a **query, not a stored entity**: it is recomputed
+per document from the live grants, so it can never name someone who cannot actually approve. A null
+cap means unlimited and is always in the pool. A **Material Request** is the non-monetary member
+(FOR-347): it has no total and its permission is not threshold-aware, so its Pool is simply everyone
+holding the grant. _Avoid_: **group** (already means "the Sales Reps at one company, collapsed into
+one row"), **team**, **entitled approvers**, **eligible approvers** (the method name
 `findEligibleApproverEmails` is retained for back-compat; the domain term is Approver Pool).
 
 **Submit for Approval**: The moment a document's total is first tested against its author's cap and,
@@ -118,7 +120,11 @@ if uncovered, routed to the **Approver Pool**. On a **Purchase Order** this is _
 (`DRAFT → PENDING_APPROVAL`); on an **Invoice** it is _review completion_ (`PATCH /:id/review`) — an
 invoice arrives from a vendor rather than being raised by a spender, so the **reviewer** is the
 structural analogue of the PO's creator. Approval state lives in `approvalStatus` / `approvedById`,
-**separate from** the document's own `status` (ADR-0006 §Consequences), on both entities.
+**separate from** the document's own `status` (ADR-0006 §Consequences), on both entities. On a
+**Material Request** it is _submission_ itself (`DRAFT → SUBMITTED`, or the wizard's one-shot
+create-with-submit): there is no cap to test, so **every** submitted MR routes to the Pool, and —
+uniquely — approval state is **derived from** `MaterialRequestStatus` rather than stored, because an
+MR's lifecycle _is_ its approval axis (ADR-0006, FOR-347 amendment).
 
 **Nominated Approver**: A member of the **Approver Pool** whom the document's creator singles out at
 submit time. Nomination is a **routing hint, not a grant** — it changes only who is _notified_;
@@ -165,13 +171,16 @@ after approval, so the prior approval no longer authorises the action. **Dispute
   are reached through it. The two areas answer different questions: "who works for me" vs. "who do I
   deal with at this supplier".
 
-- **Pool membership always means "this person's cap covers this amount" — no exceptions.** Nothing
-  may put someone in the **Approver Pool** whose cap does not cover the total, because the Pool is
-  what the UI names and what authorisation enforces; one exception makes both untrustworthy. So when
-  the Pool is empty (only possible once an admin has _deliberately_ capped `COMPANY_ADMIN` below the
-  amount — `thresholdAmount` is unseeded and `null` = unlimited, so admins are otherwise in every
-  Pool), Company Admins are notified as a **fallback recipient**, not added to the Pool. They
-  resolve it by raising a limit or reducing the document — never by approving past their own cap.
+- **Pool membership always means "this person has authority over this document" — no exceptions.**
+  For POs and Invoices that reads "their cap covers the total"; for Material Requests it reads "they
+  hold the approve grant" (there is no amount). Nothing may put someone in the **Approver Pool**
+  without that authority, because the Pool is what the UI names and what authorisation enforces; one
+  exception makes both untrustworthy. So when the Pool is empty (for monetary documents: an admin
+  has _deliberately_ capped `COMPANY_ADMIN` below the amount — `thresholdAmount` is unseeded and
+  `null` = unlimited, so admins are otherwise in every Pool; for MRs: nobody holds the grant),
+  Company Admins are notified as a **fallback recipient**, not added to the Pool. They resolve it by
+  raising a limit or reducing the document — or, for an MR, granting the permission — never by
+  approving past their own authority.
 - **The Approver Pool is live; a Nomination is frozen.** Unlike **Category filter → Add All**, whose
   query is resolved once and frozen into `RfqVendor` rows, the Pool is recomputed on every read —
   because `RfqVendor` rows are document _content_ (who was invited to quote), whereas the Pool is a

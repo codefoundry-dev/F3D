@@ -254,6 +254,7 @@ export const ERR = {
     cannotCancel: (status: string) => t(errors.materialRequests.cannotCancel, { status }),
     cannotConvertNotApproved: errors.materialRequests.cannotConvertNotApproved,
     vendorRequired: errors.materialRequests.vendorRequired,
+    nomineesRequireSubmit: errors.materialRequests.nomineesRequireSubmit,
   },
 
   // ── Vendors ─────────────────────────────────────────────

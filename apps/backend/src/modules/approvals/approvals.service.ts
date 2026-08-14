@@ -4,7 +4,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ApprovalEntityType, ApprovalStatus, AuditAction, Prisma, UserRole } from '@prisma/client';
+import {
+  ApprovalEntityType,
+  ApprovalStatus,
+  AuditAction,
+  MaterialRequestStatus,
+  Prisma,
+  UserRole,
+} from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -26,16 +33,40 @@ interface ApprovableDocument {
   totalAmount: Prisma.Decimal | null;
   approvalStatus: ApprovalStatus;
   approvedBy: { id: string; name: string } | null;
-  /** Who may nominate: the PO's creator, or the invoice's reviewer (FOR-307). */
+  /**
+   * Who may nominate: the PO's creator, the invoice's reviewer (FOR-307), or
+   * the material request's requester (FOR-347).
+   */
   nominatorUserId: string | null;
 }
 
 /**
- * Approver Pool and Nomination, shared by the Purchase Order and Invoice paths
- * (ADR-0006 amendment, 2026-08-07).
+ * A material request has no stored `approvalStatus` — its lifecycle already IS
+ * its approval axis (SUBMITTED means "awaiting review", nothing else), so the
+ * separate-column rule that keeps `InvoiceStatus` honest would duplicate state
+ * here. Derive instead (FOR-347). CONVERTED maps to APPROVED because conversion
+ * is only reachable from an approved MR.
+ */
+function deriveMrApprovalStatus(status: MaterialRequestStatus): ApprovalStatus {
+  switch (status) {
+    case MaterialRequestStatus.SUBMITTED:
+      return ApprovalStatus.PENDING;
+    case MaterialRequestStatus.APPROVED:
+    case MaterialRequestStatus.CONVERTED:
+      return ApprovalStatus.APPROVED;
+    case MaterialRequestStatus.DECLINED:
+      return ApprovalStatus.REJECTED;
+    default:
+      return ApprovalStatus.NOT_REQUIRED;
+  }
+}
+
+/**
+ * Approver Pool and Nomination, shared by the Purchase Order, Invoice and
+ * Material Request paths (ADR-0006 amendment, 2026-08-07; FOR-347).
  *
  * One implementation parameterised by entity type — the Pool is the same idea
- * on both documents, and forking it is how the two paths drift.
+ * on every document, and forking it is how the paths drift.
  */
 @Injectable()
 export class ApprovalsService {
@@ -70,6 +101,33 @@ export class ApprovalsService {
         approvalStatus: po.approvalStatus,
         approvedBy: po.approvedBy,
         nominatorUserId: po.createdByUserId,
+      };
+    }
+
+    if (entityType === ApprovalEntityType.MATERIAL_REQUEST) {
+      const mr = await this.prisma.materialRequest.findUnique({
+        where: { id: entityId },
+        select: {
+          id: true,
+          companyId: true,
+          status: true,
+          requestedById: true,
+          reviewedBy: { select: { id: true, name: true } },
+        },
+      });
+      if (!mr) throw new NotFoundException(ERR.materialRequests.notFound);
+      return {
+        id: mr.id,
+        companyId: mr.companyId,
+        // No monetary value, ever: the Pool degrades to everyone holding the
+        // (non-threshold-aware) `materialRequest.approve` grant — a null
+        // amount is within every cap, matching `evaluate`'s rule.
+        totalAmount: null,
+        approvalStatus: deriveMrApprovalStatus(mr.status),
+        // `reviewedBy` records whoever approved or declined; getApproverPool
+        // only surfaces it once the approval is resolved.
+        approvedBy: mr.reviewedBy,
+        nominatorUserId: mr.requestedById,
       };
     }
 
@@ -213,9 +271,51 @@ export class ApprovalsService {
       resolvedBy: isResolved ? doc.approvedBy : null,
       resolvedAt,
       nominations,
-      // Only the creator (PO) / reviewer (Invoice) may nominate. Pool members
-      // re-nominating each other is deferred (ADR-0006 amendment).
+      // Only the creator (PO) / reviewer (Invoice) / requester (MR) may
+      // nominate. Pool members re-nominating each other is deferred (ADR-0006
+      // amendment).
       canNominate: doc.approvalStatus === ApprovalStatus.PENDING && doc.nominatorUserId === user.id,
+    };
+  }
+
+  /**
+   * The Pool a document of this type would have if the caller submitted one
+   * right now (FOR-347).
+   *
+   * A material request's Pool depends only on (company, permission) — it has no
+   * amount — so the prospective Pool is identical to every real MR's Pool in
+   * the company. The wizard needs it *before* the document exists: the
+   * requester picks approvers on the same click that creates-and-submits the
+   * MR, so there is no entity id to read a Pool against yet.
+   */
+  async getProspectivePool(
+    entityType: ApprovalEntityType,
+    user: AuthenticatedUser,
+  ): Promise<ApproverPoolView> {
+    // SUPER_ADMIN has no company, hence no Pool to preview (they are never Pool
+    // members either) — the caller must belong to a tenant.
+    if (!user.companyId) throw new ForbiddenException(ERR.general.accessDenied);
+
+    const config = APPROVAL_ENTITY_CONFIG[entityType];
+    const pool = await this.approvalAuth.resolveApproverPool(
+      user.companyId,
+      config.permissionKey,
+      null,
+    );
+    const members = pool.map((m) => this.toMemberView(m));
+
+    return {
+      entityType,
+      entityId: null,
+      approvalStatus: ApprovalStatus.PENDING,
+      members,
+      roleGroups: this.groupByRole(members),
+      memberCount: members.length,
+      isEmpty: members.length === 0,
+      resolvedBy: null,
+      resolvedAt: null,
+      nominations: [],
+      canNominate: true,
     };
   }
 

@@ -1,6 +1,7 @@
 import {
   addApprovalNominations,
   getApproverPool,
+  getProspectiveApproverPool,
   withdrawApprovalNomination,
   type ApprovalEntityType,
   type ApproverPoolView,
@@ -39,12 +40,26 @@ export function useApproverPool(
     enabled?: boolean;
     /** Preview the Pool for an as-yet-unsaved total (the invoice review case). */
     amount?: number | null;
+    /**
+     * Fetch the *prospective* Pool — the one a new document of this type would
+     * be routed to (FOR-347). For when no document exists yet: the MR wizard
+     * creates-and-submits in one call, so the requester picks approvers before
+     * there is an entity id. `entityId` is ignored. Material requests only —
+     * the MR Pool is amount-free, so it is the same for every document.
+     */
+    prospective?: boolean;
   },
 ) {
+  const prospective = options?.prospective ?? false;
   return useQuery({
-    queryKey: approverPoolQueryKey(entityType, entityId ?? '', options?.amount),
-    queryFn: () => getApproverPool(entityType, entityId as string, { amount: options?.amount }),
-    enabled: Boolean(entityId) && (options?.enabled ?? true),
+    queryKey: prospective
+      ? (['approver-pool', entityType, 'prospective'] as const)
+      : approverPoolQueryKey(entityType, entityId ?? '', options?.amount),
+    queryFn: () =>
+      prospective
+        ? getProspectiveApproverPool(entityType as 'MATERIAL_REQUEST')
+        : getApproverPool(entityType, entityId as string, { amount: options?.amount }),
+    enabled: (prospective || Boolean(entityId)) && (options?.enabled ?? true),
   } as UseQueryOptions<ApproverPoolView>);
 }
 

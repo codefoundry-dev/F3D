@@ -1,5 +1,5 @@
 // Utils
-export { exceedsApprovalCap } from './utils';
+export { exceedsApprovalCap, hasMonetaryCap } from './utils';
 
 // Hooks
 export {

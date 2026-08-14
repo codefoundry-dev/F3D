@@ -132,6 +132,14 @@ jest.mock(
       subject: 'Forethread — Payment Overdue ({{invoiceReference}})',
       greeting: 'Hello,',
     },
+    materialRequestPendingApproval: {
+      subject: 'Forethread — Material Request Needs Your Approval ({{mrNumber}})',
+      greeting: 'Hi,',
+    },
+    materialRequestApprovalUnroutable: {
+      subject: 'Forethread — No One Can Approve Material Request {{mrNumber}}',
+      greeting: 'Hi,',
+    },
     footer: { privacyPolicy: 'Privacy policy', and: 'and', termsOfService: 'Terms of service' },
   }),
   { virtual: true },
@@ -673,6 +681,69 @@ describe('EmailService', () => {
 
       await expect(
         service.sendQuoteUpdatedEmail('user@test.com', 'RFQ-001', 'VendorCo', 'https://view.test'),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  // ── FOR-347: material request approval routing emails ──────────────────────
+  describe('sendMaterialRequestPendingApprovalEmail', () => {
+    it('should send the pending-approval email', async () => {
+      await service.sendMaterialRequestPendingApprovalEmail(
+        'user@test.com',
+        'MR-00001',
+        'Downtown Reno',
+        'https://view.test',
+      );
+
+      expect(mockSendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          from: 'test@forethread.local',
+          to: 'user@test.com',
+        }),
+      );
+    });
+
+    it('should not throw when sendMail fails', async () => {
+      mockSendMail.mockRejectedValue(new Error('SMTP error'));
+
+      await expect(
+        service.sendMaterialRequestPendingApprovalEmail(
+          'user@test.com',
+          'MR-00001',
+          'Downtown Reno',
+          'https://view.test',
+        ),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('sendMaterialRequestApprovalUnroutableEmail', () => {
+    it('should send the unroutable fallback email', async () => {
+      await service.sendMaterialRequestApprovalUnroutableEmail(
+        'admin@test.com',
+        'MR-00001',
+        'Downtown Reno',
+        'https://view.test',
+      );
+
+      expect(mockSendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          from: 'test@forethread.local',
+          to: 'admin@test.com',
+        }),
+      );
+    });
+
+    it('should not throw when sendMail fails', async () => {
+      mockSendMail.mockRejectedValue(new Error('SMTP error'));
+
+      await expect(
+        service.sendMaterialRequestApprovalUnroutableEmail(
+          'admin@test.com',
+          'MR-00001',
+          'Downtown Reno',
+          'https://view.test',
+        ),
       ).resolves.toBeUndefined();
     });
   });
