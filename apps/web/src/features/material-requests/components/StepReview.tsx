@@ -79,9 +79,6 @@ export function StepReview({
             </span>
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <p className="truncate text-sm font-medium text-foreground">{line.materialName}</p>
-              {line.description && (
-                <p className="truncate text-xs text-muted-foreground">{line.description}</p>
-              )}
               <p className="text-xs text-muted-foreground">
                 {t('review.qtyLabel', { quantity: line.quantity, unit: line.unit })}
               </p>

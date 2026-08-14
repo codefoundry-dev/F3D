@@ -149,12 +149,9 @@ export function StepMaterialDetails({
               return (
                 <Fragment key={line.key}>
                   <tr className="border-b border-border align-top last:border-b-0">
-                    {/* Material — name + description */}
+                    {/* Material */}
                     <td className={TD}>
                       <p className="font-medium text-foreground">{line.materialName}</p>
-                      {line.description && (
-                        <p className="mt-0.5 text-xs text-muted-foreground">{line.description}</p>
-                      )}
                     </td>
 
                     {/* Unit */}
