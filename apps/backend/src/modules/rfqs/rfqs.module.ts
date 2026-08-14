@@ -12,6 +12,7 @@ import { StorageModule } from '../storage/storage.module';
 import { QuoteResponseService } from './quote-response.service';
 import { RfqAvailabilityService } from './rfq-availability.service';
 import { RfqExportService } from './rfq-export.service';
+import { RfqVisibilityService } from './rfq-visibility.service';
 import { RfqsController } from './rfqs.controller';
 import { RfqsService } from './rfqs.service';
 
@@ -26,7 +27,13 @@ import { RfqsService } from './rfqs.service';
     MulterModule.register({ storage: multer.memoryStorage() }),
   ],
   controllers: [RfqsController],
-  providers: [RfqsService, RfqExportService, QuoteResponseService, RfqAvailabilityService],
+  providers: [
+    RfqsService,
+    RfqExportService,
+    QuoteResponseService,
+    RfqAvailabilityService,
+    RfqVisibilityService,
+  ],
   exports: [RfqsService, QuoteResponseService, RfqAvailabilityService],
 })
 export class RfqsModule {}

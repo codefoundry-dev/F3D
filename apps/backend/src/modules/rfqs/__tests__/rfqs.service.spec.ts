@@ -7,6 +7,7 @@ import {
   UserRole,
 } from '@prisma/client';
 
+import { RfqVisibilityService } from '../rfq-visibility.service';
 import { RfqsService } from '../rfqs.service';
 
 /** Build a query object that satisfies the DTO (including computed skip/take). */
@@ -80,6 +81,10 @@ const mockBranding = {
 const mockNotifications = {
   createForEmails: jest.fn().mockResolvedValue(undefined),
   createForUsers: jest.fn().mockResolvedValue(undefined),
+};
+
+const mockPermissions = {
+  filterActorsWithPermission: jest.fn(),
 };
 
 // ── Mock PrismaService ──────────────────────────────────────────────────────
@@ -176,6 +181,10 @@ describe('RfqsService', () => {
       mockConfig as never,
       mockBranding as never,
       mockNotifications as never,
+      // Real visibility service on the same prisma mocks — getRfq tests drive
+      // it through projectMember.findFirst / rfqVendor.findFirst below.
+      new RfqVisibilityService(mockPrisma as never),
+      mockPermissions as never,
     );
     mockAccessTokens.issueToken.mockResolvedValue({
       token: 'issued-token-xyz',
@@ -188,6 +197,11 @@ describe('RfqsService', () => {
     // overrides these with null to exercise the 403 paths.
     mockPrisma.projectMember.findFirst.mockResolvedValue({ id: 'pm-1' });
     mockPrisma.rfqVendor.findFirst.mockResolvedValue({ id: 'rv-1' });
+    // Default: everyone holds rfq.read — tests narrow this to exercise the
+    // notification permission filter.
+    mockPermissions.filterActorsWithPermission.mockImplementation((actors) =>
+      Promise.resolve(actors),
+    );
   });
 
   // ── listRfqs ────────────────────────────────────────────────────────────
@@ -3700,6 +3714,104 @@ describe('RfqsService', () => {
         entityId: 'rfq-1',
       });
     });
+
+    it('skips RFQ_SENT for members whose effective permissions lack rfq.read (FOR-351 follow-up)', async () => {
+      mockPrisma.rfq.findUnique
+        .mockResolvedValueOnce({
+          id: 'rfq-1',
+          status: 'DRAFT',
+          companyId: 'comp-1',
+          _count: { lineItems: 2, invitedVendors: 1 },
+        })
+        // generateInvitationTokensAndNotify — member-2 can read RFQs, the
+        // Foreman cannot and their deep link would 403.
+        .mockResolvedValueOnce({
+          rfqNumber: 'RFQ-1',
+          createdByUserId: 'someone-else',
+          ccEmails: [],
+          documents: [],
+          project: {
+            name: 'Proj',
+            members: [
+              {
+                user: {
+                  id: 'member-2',
+                  email: 'm2@acme.com',
+                  status: 'ACTIVE',
+                  role: 'PROCUREMENT_OFFICER',
+                },
+              },
+              {
+                user: {
+                  id: 'foreman-1',
+                  email: 'foreman@acme.com',
+                  status: 'ACTIVE',
+                  role: 'FOREMAN',
+                },
+              },
+            ],
+          },
+          projects: [],
+          invitedVendors: [
+            {
+              id: 'iv-1',
+              vendor: { id: 'v-1', users: [{ email: 'active@vendor.com', status: 'ACTIVE' }] },
+            },
+          ],
+        })
+        // getRfq
+        .mockResolvedValueOnce({
+          id: 'rfq-1',
+          rfqNumber: 'RFQ-1',
+          status: 'OPEN',
+          currency: 'AUD',
+          companyId: 'comp-1',
+          projectId: 'proj-1',
+          project: { name: 'Proj' },
+          createdBy: { id: 'po-1', name: 'PO' },
+          lineItems: [],
+          quoteResponses: [],
+          invitedVendors: [],
+          documents: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          deadlineStart: null,
+          deadlineEnd: null,
+          deliveryLocationId: null,
+          needByDate: null,
+          holdForRelease: false,
+          earliestDeliveryDate: null,
+          message: null,
+          totalRequestedQty: 0,
+          pickUpLocation: null,
+          pickUpDate: null,
+        });
+      mockPrisma.rfq.update.mockResolvedValue({});
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue(null);
+      mockEmailService.sendRfqReceivedEmail.mockResolvedValue(undefined);
+      mockPermissions.filterActorsWithPermission.mockImplementation((actors: { id: string }[]) =>
+        Promise.resolve(actors.filter((a) => a.id !== 'foreman-1')),
+      );
+
+      await service.sendRfq('rfq-1', {}, procOfficer);
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockPermissions.filterActorsWithPermission).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ id: 'foreman-1' })]),
+        'rfq.read',
+      );
+      // The Foreman still lands on the email CC (FOR-255 keeps the full member
+      // list) but not in the in-app feed, whose deep link they cannot open.
+      expect(mockEmailService.sendRfqReceivedEmail).toHaveBeenCalledWith(
+        'active@vendor.com',
+        'RFQ-1',
+        expect.any(String),
+        expect.objectContaining({ cc: ['m2@acme.com', 'foreman@acme.com'] }),
+      );
+      expect(mockNotifications.createForUsers).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'RFQ_SENT', userIds: ['member-2'] }),
+      );
+    });
   });
 
   // ── cancelRfq ────────────────────────────────────────────────────────
@@ -3979,11 +4091,11 @@ describe('RfqsService', () => {
       mockPrisma.rfq.findUnique.mockResolvedValue({
         rfqNumber: 'RFQ-100',
         companyId: 'comp-1',
-        createdBy: { email: 'ca@test.com', status: 'ACTIVE' },
+        createdBy: { id: 'ca-1', email: 'ca@test.com', status: 'ACTIVE' },
       });
       mockPrisma.user.findMany.mockResolvedValue([
-        { email: 'ca@test.com' },
-        { email: 'po@test.com' },
+        { id: 'ca-1', email: 'ca@test.com' },
+        { id: 'po-1', email: 'po@test.com' },
       ]);
       mockEmailService.sendQuoteUpdatedEmail.mockResolvedValue(undefined);
 
@@ -4068,9 +4180,9 @@ describe('RfqsService', () => {
       mockPrisma.rfq.findUnique.mockResolvedValue({
         rfqNumber: 'RFQ-200',
         companyId: 'comp-1',
-        createdBy: { email: 'ca@test.com', status: 'ACTIVE' },
+        createdBy: { id: 'ca-1', email: 'ca@test.com', status: 'ACTIVE' },
       });
-      mockPrisma.user.findMany.mockResolvedValue([{ email: 'ca@test.com' }]);
+      mockPrisma.user.findMany.mockResolvedValue([{ id: 'ca-1', email: 'ca@test.com' }]);
       mockEmailService.sendQuoteSubmittedEmail.mockResolvedValue(undefined);
 
       await service.notifyContractorOfQuoteSubmission('rfq-1', 'VendorCo');
@@ -4090,9 +4202,9 @@ describe('RfqsService', () => {
       mockPrisma.rfq.findUnique.mockResolvedValue({
         rfqNumber: 'RFQ-200',
         companyId: 'comp-1',
-        createdBy: { email: 'ca@test.com', status: 'ACTIVE' },
+        createdBy: { id: 'ca-1', email: 'ca@test.com', status: 'ACTIVE' },
       });
-      mockPrisma.user.findMany.mockResolvedValue([{ email: 'ca@test.com' }]);
+      mockPrisma.user.findMany.mockResolvedValue([{ id: 'ca-1', email: 'ca@test.com' }]);
       mockBranding.getEmailBrand.mockResolvedValue(brand);
       mockEmailService.sendQuoteSubmittedEmail.mockResolvedValue(undefined);
 
@@ -4121,11 +4233,13 @@ describe('RfqsService', () => {
       mockPrisma.rfq.findUnique.mockResolvedValue({
         rfqNumber: 'RFQ-300',
         companyId: 'comp-1',
-        createdBy: { email: 'creator@acme.com', status: 'ACTIVE' },
-        project: { members: [{ user: { email: 'member@acme.com' } }] },
-        projects: [{ project: { members: [{ user: { email: 'spanned@acme.com' } }] } }],
+        createdBy: { id: 'creator-1', email: 'creator@acme.com', status: 'ACTIVE' },
+        project: { members: [{ user: { id: 'member-1', email: 'member@acme.com' } }] },
+        projects: [
+          { project: { members: [{ user: { id: 'spanned-1', email: 'spanned@acme.com' } }] } },
+        ],
       });
-      mockPrisma.user.findMany.mockResolvedValue([{ email: 'admin@acme.com' }]);
+      mockPrisma.user.findMany.mockResolvedValue([{ id: 'admin-1', email: 'admin@acme.com' }]);
       mockEmailService.sendQuoteSubmittedEmail.mockResolvedValue(undefined);
 
       await service.notifyContractorOfQuoteSubmission('rfq-1', 'VendorCo');
@@ -4134,7 +4248,7 @@ describe('RfqsService', () => {
       // no longer hear about quotes on projects they aren't members of.
       expect(mockPrisma.user.findMany).toHaveBeenCalledWith({
         where: { companyId: 'comp-1', role: UserRole.COMPANY_ADMIN, status: 'ACTIVE' },
-        select: { email: true },
+        select: { id: true, email: true, status: true, role: true, customRoleId: true },
       });
       const recipients = mockEmailService.sendQuoteSubmittedEmail.mock.calls.map((c) => c[0]);
       expect(recipients.sort()).toEqual([
@@ -4145,6 +4259,41 @@ describe('RfqsService', () => {
       ]);
       expect(mockNotifications.createForEmails).toHaveBeenCalledWith(
         expect.arrayContaining(['admin@acme.com', 'member@acme.com', 'spanned@acme.com']),
+        expect.objectContaining({ type: 'QUOTE_SUBMITTED' }),
+      );
+    });
+
+    it('drops watchers whose effective permissions lack rfq.read (FOR-351 follow-up)', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue({
+        rfqNumber: 'RFQ-300',
+        companyId: 'comp-1',
+        createdBy: { id: 'creator-1', email: 'creator@acme.com', status: 'ACTIVE' },
+        project: {
+          members: [
+            { user: { id: 'member-1', email: 'member@acme.com', role: 'PROCUREMENT_OFFICER' } },
+            { user: { id: 'foreman-1', email: 'foreman@acme.com', role: 'FOREMAN' } },
+          ],
+        },
+        projects: [],
+      });
+      mockPrisma.user.findMany.mockResolvedValue([{ id: 'admin-1', email: 'admin@acme.com' }]);
+      mockEmailService.sendQuoteSubmittedEmail.mockResolvedValue(undefined);
+      // The Foreman cannot open the RFQ (no rfq.read) — the permission filter
+      // removes them from the watcher pool.
+      mockPermissions.filterActorsWithPermission.mockImplementation((actors: { id: string }[]) =>
+        Promise.resolve(actors.filter((a) => a.id !== 'foreman-1')),
+      );
+
+      await service.notifyContractorOfQuoteSubmission('rfq-1', 'VendorCo');
+
+      expect(mockPermissions.filterActorsWithPermission).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ id: 'foreman-1' })]),
+        'rfq.read',
+      );
+      const recipients = mockEmailService.sendQuoteSubmittedEmail.mock.calls.map((c) => c[0]);
+      expect(recipients.sort()).toEqual(['admin@acme.com', 'creator@acme.com', 'member@acme.com']);
+      expect(mockNotifications.createForEmails).toHaveBeenCalledWith(
+        ['admin@acme.com', 'member@acme.com', 'creator@acme.com'],
         expect.objectContaining({ type: 'QUOTE_SUBMITTED' }),
       );
     });

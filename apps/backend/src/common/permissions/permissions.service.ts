@@ -49,6 +49,45 @@ export class PermissionsService {
     return new Set(rows.map((r) => r.permission.key));
   }
 
+  /**
+   * Filter a batch of actors down to those whose effective permission set
+   * includes `key`, with the same custom-role-first resolution as
+   * getPermissionsForUser but in two queries for the whole batch instead of
+   * one per actor. Used by notification fan-outs (FOR-351) so users who
+   * cannot open an entity are not told about it.
+   */
+  async filterActorsWithPermission<T extends PermissionActor>(
+    actors: T[],
+    key: string,
+  ): Promise<T[]> {
+    if (actors.length === 0) return [];
+
+    const usesCustomRole = <A extends PermissionActor>(a: A): a is A & { customRoleId: string } =>
+      !!a.customRoleId && a.role !== UserRole.SUPER_ADMIN;
+
+    const customRoleIds = [...new Set(actors.filter(usesCustomRole).map((a) => a.customRoleId))];
+
+    const [roleRows, customRows] = await Promise.all([
+      this.prisma.rolePermission.findMany({
+        where: { permission: { key } },
+        select: { role: true },
+      }),
+      customRoleIds.length > 0
+        ? this.prisma.customRolePermission.findMany({
+            where: { customRoleId: { in: customRoleIds }, permission: { key } },
+            select: { customRoleId: true },
+          })
+        : [],
+    ]);
+
+    const grantedRoles = new Set(roleRows.map((r) => r.role));
+    const grantedCustomRoles = new Set(customRows.map((r) => r.customRoleId));
+
+    return actors.filter((a) =>
+      usesCustomRole(a) ? grantedCustomRoles.has(a.customRoleId) : grantedRoles.has(a.role),
+    );
+  }
+
   /** Custom-role-first single-key check; see getPermissionsForUser. */
   async userHasPermission(actor: PermissionActor, key: string): Promise<boolean> {
     if (actor.customRoleId && actor.role !== UserRole.SUPER_ADMIN) {

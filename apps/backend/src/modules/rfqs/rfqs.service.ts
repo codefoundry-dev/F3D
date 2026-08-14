@@ -39,6 +39,7 @@ import {
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { PermissionsService } from '../../common/permissions';
 import { loadMaterialSnapshots } from '../../common/utils/material-snapshot.util';
 import { nextSequentialNumber } from '../../common/utils/sequential-number.util';
 import { resolveSelectedRecipients } from '../../common/utils/vendor-recipients.util';
@@ -57,6 +58,7 @@ import {
   normalizeRfqLineItem,
   resolveRfqLineItemMaterialName,
 } from './rfq-line-item.util';
+import { RfqVisibilityService } from './rfq-visibility.service';
 import { VENDOR_STATUS_MAP, VENDOR_STATUS_TO_RFQ } from './vendor-status.constants';
 
 /**
@@ -150,6 +152,19 @@ const RFQ_DETAIL_INCLUDE = {
   },
 } satisfies Prisma.RfqInclude;
 
+/**
+ * Project-member slice for the RFQ notification fan-outs: email for the CC /
+ * email sends, id for the in-app feed, role + customRoleId so the recipients
+ * can be filtered to those whose effective permissions include rfq.read.
+ */
+const RFQ_MEMBER_USER_SELECT = {
+  id: true,
+  email: true,
+  status: true,
+  role: true,
+  customRoleId: true,
+} satisfies Prisma.UserSelect;
+
 export interface UpdateLineItemDto {
   materialId?: string;
   /** Only honoured on free-text / BOM lines — see `updateLineItem`. */
@@ -174,6 +189,8 @@ export class RfqsService {
     config: ConfigService,
     private readonly branding: BrandingService,
     private readonly notifications: NotificationService,
+    private readonly rfqVisibility: RfqVisibilityService,
+    private readonly permissions: PermissionsService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
   }
@@ -341,7 +358,7 @@ export class RfqsService {
 
     // Project-based visibility (FOR-351) — also closes the previous gap where
     // the detail read carried no company/invitation check at all.
-    await this.assertRfqVisible(user, rfq);
+    await this.rfqVisibility.assertRfqVisible(user, rfq);
 
     // Compute vendor status from the vendor's own quote response
     let vendorStatus: string | undefined;
@@ -2153,18 +2170,19 @@ export class RfqsService {
         // Members of every project the RFQ spans are auto-CC'd on the vendor
         // emails (FOR-255) and get the in-app RFQ_SENT mirror (FOR-351). Both
         // the primary project and the rfq_projects join are read so legacy rows
-        // (primary only on `project`) are covered.
+        // (primary only on `project`) are covered. role/customRoleId feed the
+        // rfq.read filter on the in-app fan-out below.
         project: {
           select: {
             name: true,
-            members: { select: { user: { select: { id: true, email: true, status: true } } } },
+            members: { select: { user: { select: RFQ_MEMBER_USER_SELECT } } },
           },
         },
         projects: {
           select: {
             project: {
               select: {
-                members: { select: { user: { select: { id: true, email: true, status: true } } } },
+                members: { select: { user: { select: RFQ_MEMBER_USER_SELECT } } },
               },
             },
           },
@@ -2277,16 +2295,25 @@ export class RfqsService {
 
     // Tell the project team the RFQ went out (FOR-351): every ACTIVE member of
     // every project the RFQ spans gets the in-app counterpart of the CC above —
-    // except whoever sent it, who doesn't need to hear about their own action.
-    const memberIds = new Set<string>();
+    // except whoever sent it, who doesn't need to hear about their own action,
+    // and members whose effective permissions lack rfq.read (e.g. a Foreman),
+    // whose notification would deep-link straight into a 403. The email CC
+    // deliberately keeps the full member list — it is informational and
+    // carries no deep link (FOR-255).
+    const members = new Map<string, { id: string; role: UserRole; customRoleId: string | null }>();
     for (const m of rfq.project?.members ?? []) {
-      if (m.user.status === UserStatus.ACTIVE) memberIds.add(m.user.id);
+      if (m.user.status === UserStatus.ACTIVE) members.set(m.user.id, m.user);
     }
     for (const rp of rfq.projects ?? []) {
       for (const m of rp.project.members ?? []) {
-        if (m.user.status === UserStatus.ACTIVE) memberIds.add(m.user.id);
+        if (m.user.status === UserStatus.ACTIVE) members.set(m.user.id, m.user);
       }
     }
+    const readers = await this.permissions.filterActorsWithPermission(
+      [...members.values()],
+      'rfq.read',
+    );
+    const memberIds = new Set(readers.map((u) => u.id));
     memberIds.delete(sentByUserId ?? rfq.createdByUserId);
     if (memberIds.size > 0) {
       await this.notifications.createForUsers({
@@ -2373,7 +2400,10 @@ export class RfqsService {
    * Who hears about quote activity on an RFQ (FOR-351): Company Admins keep
    * company-wide oversight; beyond them only the ACTIVE members of the projects
    * the RFQ spans — plus its creator — matching project-based RFQ visibility.
-   * Returns null when the RFQ doesn't exist.
+   * Watchers whose effective permissions lack rfq.read are dropped: the email
+   * links into the RFQ area and the in-app mirror deep-links to the RFQ, both
+   * dead ends for someone who cannot open it. Returns null when the RFQ
+   * doesn't exist.
    */
   private async resolveQuoteWatchers(
     rfqId: string,
@@ -2383,12 +2413,12 @@ export class RfqsService {
       select: {
         rfqNumber: true,
         companyId: true,
-        createdBy: { select: { email: true, status: true } },
+        createdBy: { select: RFQ_MEMBER_USER_SELECT },
         project: {
           select: {
             members: {
               where: { user: { status: UserStatus.ACTIVE } },
-              select: { user: { select: { email: true } } },
+              select: { user: { select: RFQ_MEMBER_USER_SELECT } },
             },
           },
         },
@@ -2398,7 +2428,7 @@ export class RfqsService {
               select: {
                 members: {
                   where: { user: { status: UserStatus.ACTIVE } },
-                  select: { user: { select: { email: true } } },
+                  select: { user: { select: RFQ_MEMBER_USER_SELECT } },
                 },
               },
             },
@@ -2415,16 +2445,30 @@ export class RfqsService {
         role: UserRole.COMPANY_ADMIN,
         status: UserStatus.ACTIVE,
       },
-      select: { email: true },
+      select: RFQ_MEMBER_USER_SELECT,
     });
 
-    const emails = normalizeCcEmails([
-      ...admins.map((u) => u.email),
-      ...collectProjectMemberEmails(rfq),
-      ...(rfq.createdBy.status === UserStatus.ACTIVE ? [rfq.createdBy.email] : []),
-    ]);
+    type WatcherUser = (typeof admins)[number];
+    const watchers = new Map<string, WatcherUser>();
+    for (const u of admins) watchers.set(u.id, u);
+    for (const m of rfq.project?.members ?? []) watchers.set(m.user.id, m.user);
+    for (const rp of rfq.projects ?? []) {
+      for (const m of rp.project.members ?? []) watchers.set(m.user.id, m.user);
+    }
+    if (rfq.createdBy.status === UserStatus.ACTIVE) {
+      watchers.set(rfq.createdBy.id, rfq.createdBy);
+    }
 
-    return { rfqNumber: rfq.rfqNumber, companyId: rfq.companyId, emails };
+    const readers = await this.permissions.filterActorsWithPermission(
+      [...watchers.values()],
+      'rfq.read',
+    );
+
+    return {
+      rfqNumber: rfq.rfqNumber,
+      companyId: rfq.companyId,
+      emails: normalizeCcEmails(readers.map((u) => u.email)),
+    };
   }
 
   async notifyContractorOfQuoteUpdate(
@@ -2489,44 +2533,6 @@ export class RfqsService {
     if (user.role !== UserRole.SUPER_ADMIN && user.companyId !== companyId) {
       throw new ForbiddenException(ERR.general.accessDenied);
     }
-  }
-
-  /**
-   * RFQ read access is project-based (FOR-351): SuperAdmin sees everything,
-   * CompanyAdmin everything in their company, a vendor only RFQs they were
-   * invited to, and every other role only the RFQs of projects they are a
-   * member of (any project the RFQ spans) or that they created themselves.
-   * Mirrors the scoping buildListWhere applies to the list.
-   */
-  private async assertRfqVisible(
-    user: AuthenticatedUser,
-    rfq: { id: string; companyId: string; createdByUserId: string },
-  ): Promise<void> {
-    if (user.role === UserRole.SUPER_ADMIN) return;
-
-    if (user.role === UserRole.VENDOR) {
-      const invited = await this.prisma.rfqVendor.findFirst({
-        where: { rfqId: rfq.id, vendor: { users: { some: { id: user.id } } } },
-        select: { id: true },
-      });
-      if (!invited) throw new ForbiddenException(ERR.general.accessDenied);
-      return;
-    }
-
-    this.assertCompanyAccess(user, rfq.companyId);
-    if (user.role === UserRole.COMPANY_ADMIN) return;
-    if (rfq.createdByUserId === user.id) return;
-
-    const membership = await this.prisma.projectMember.findFirst({
-      where: {
-        userId: user.id,
-        project: {
-          OR: [{ rfqs: { some: { id: rfq.id } } }, { rfqProjects: { some: { rfqId: rfq.id } } }],
-        },
-      },
-      select: { id: true },
-    });
-    if (!membership) throw new ForbiddenException(ERR.general.accessDenied);
   }
 
   // ── Multi-project helpers (US 5.05) ───────────────────────────────────────
