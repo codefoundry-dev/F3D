@@ -11,10 +11,12 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
   ApprovalStatus,
+  AuditAction,
   BulkOrderStatus,
   PoSourceOfCreation,
   PoStatus as PrismaPoStatus,
@@ -31,10 +33,42 @@ import {
 } from '../../common/utils/material-snapshot.util';
 import { nextSequentialNumber } from '../../common/utils/sequential-number.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class PurchaseOrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(PurchaseOrdersService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
+
+  /**
+   * Best-effort audit of a PO create/edit (FOR-353). Never throws — a logging
+   * failure must not fail the (already persisted) change, matching the
+   * fire-and-forget convention in po-status.service.ts.
+   */
+  private async auditPoEvent(
+    action: AuditAction,
+    poId: string,
+    user: AuthenticatedUser,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.auditService.log({
+        action,
+        performedById: user.id,
+        targetType: 'PurchaseOrder',
+        targetId: poId,
+        metadata: (metadata ?? {}) as Prisma.InputJsonValue,
+      });
+    } catch (err) {
+      this.logger.debug(
+        `Failed to audit PO event ${action}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
 
   // ── List Purchase Orders ───────────────────────────────────────────────────
 
@@ -642,6 +676,11 @@ export class PurchaseOrdersService {
       return created;
     });
 
+    await this.auditPoEvent(AuditAction.PO_CREATED, po.id, user, {
+      source: (dto.sourceOfCreation as string) ?? PoSourceOfCreation.MANUAL,
+      ...(isDrawdown && dto.bulkOrderId ? { bulkOrderId: dto.bulkOrderId } : {}),
+    });
+
     return this.getPurchaseOrder(po.id, user);
   }
 
@@ -919,6 +958,12 @@ export class PurchaseOrdersService {
       }
     }
 
+    // Record which DTO fields the draft edit touched (FOR-353).
+    const changedFields = Object.keys(dto).filter(
+      (key) => (dto as unknown as Record<string, unknown>)[key] !== undefined,
+    );
+    await this.auditPoEvent(AuditAction.PO_UPDATED, id, user, { changedFields });
+
     return this.getPurchaseOrder(id, user);
   }
 
@@ -996,6 +1041,12 @@ export class PurchaseOrdersService {
           })),
         },
       },
+    });
+
+    await this.auditPoEvent(AuditAction.PO_CREATED, copy.id, user, {
+      source: 'COPY',
+      copiedFromPoId: source.id,
+      copiedFromPoNumber: source.poNumber,
     });
 
     return { id: copy.id };

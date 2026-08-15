@@ -76,6 +76,10 @@ const mockPrisma = {
   $transaction: jest.fn(),
 };
 
+const mockAudit = {
+  log: jest.fn(),
+};
+
 describe('PurchaseOrdersService', () => {
   let service: PurchaseOrdersService;
 
@@ -84,7 +88,7 @@ describe('PurchaseOrdersService', () => {
     // Default: no catalogue snapshot rows, so each line keeps the codes the DTO
     // supplied (the snapshot fallback only fires when a material row matches).
     mockPrisma.material.findMany.mockResolvedValue([]);
-    service = new PurchaseOrdersService(mockPrisma as never);
+    service = new PurchaseOrdersService(mockPrisma as never, mockAudit as never);
     // createPurchaseOrder now runs its create + drawdown bookkeeping inside a
     // $transaction callback. Default: invoke the callback with mockPrisma so
     // `tx.*` resolves to the same mocks. updatePurchaseOrder uses the array
@@ -918,6 +922,14 @@ describe('PurchaseOrdersService', () => {
       const call = mockPrisma.purchaseOrder.create.mock.calls[0][0];
       expect(call.data.status).toBe('DRAFT');
       expect(call.data.lineItems.create).toHaveLength(1);
+      // FOR-353: the copy starts its own activity trail, pointing at the source.
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PO_CREATED',
+          targetId: 'po-copy-1',
+          metadata: expect.objectContaining({ source: 'COPY', copiedFromPoId: 'po-1' }),
+        }),
+      );
     });
 
     it('allows SuperAdmin to copy PO from any company', async () => {
@@ -1061,6 +1073,16 @@ describe('PurchaseOrdersService', () => {
       mockGetPoAfterMutation();
       const result = await service.createPurchaseOrder(baseDto as never, companyAdmin);
       expect(result.id).toBe('po-new');
+      // FOR-353: creation lands on the PO's activity trail.
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PO_CREATED',
+          performedById: companyAdmin.id,
+          targetType: 'PurchaseOrder',
+          targetId: 'po-new',
+          metadata: expect.objectContaining({ source: 'MANUAL' }),
+        }),
+      );
     });
 
     // A draft created from an approved RFQ quote omits delivery location +
@@ -1373,6 +1395,15 @@ describe('PurchaseOrdersService', () => {
       );
       expect(result.id).toBe('po-new');
       expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+      // FOR-353: a draft edit lands on the activity trail with the touched fields.
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PO_UPDATED',
+          targetType: 'PurchaseOrder',
+          targetId: 'po-1',
+          metadata: { changedFields: ['vendorId'] },
+        }),
+      );
     });
 
     it('updates with line items using transaction', async () => {

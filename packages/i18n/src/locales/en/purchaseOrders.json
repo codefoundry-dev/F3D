@@ -729,6 +729,10 @@
     "internal": "Internal"
   },
   "actionLog": {
+    "created": "Purchase order created",
+    "updated": "Purchase order updated",
+    "documentUploaded": "Document uploaded",
+    "documentRemoved": "Document removed",
     "issued": "Purchase order issued",
     "submittedForApproval": "Submitted for approval",
     "approved": "Purchase order approved",

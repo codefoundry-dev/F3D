@@ -15,12 +15,14 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   AccessTokenPurpose,
   AccessTokenSubject,
+  AuditAction,
   CompanyType,
   NotificationEntityType,
   NotificationType,
@@ -45,6 +47,7 @@ import { nextSequentialNumber } from '../../common/utils/sequential-number.util'
 import { resolveSelectedRecipients } from '../../common/utils/vendor-recipients.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
+import { AuditService } from '../audit/audit.service';
 import { BrandingService } from '../export/branding.service';
 import { NotificationService } from '../notification-feed/notification.service';
 import { EmailAttachment, EmailService } from '../notifications/email.service';
@@ -191,8 +194,36 @@ export class RfqsService {
     private readonly notifications: NotificationService,
     private readonly rfqVisibility: RfqVisibilityService,
     private readonly permissions: PermissionsService,
+    private readonly auditService: AuditService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
+  }
+
+  private readonly logger = new Logger(RfqsService.name);
+
+  /**
+   * Best-effort PO_CREATED entry for a PO born from an RFQ award, so its
+   * activity trail starts at creation (FOR-353). Never throws — a logging
+   * failure must not fail the (already committed) award.
+   */
+  private async auditAwardPoCreated(
+    poId: string,
+    user: AuthenticatedUser,
+    metadata: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.auditService.log({
+        action: AuditAction.PO_CREATED,
+        performedById: user.id,
+        targetType: 'PurchaseOrder',
+        targetId: poId,
+        metadata: metadata as Prisma.InputJsonValue,
+      });
+    } catch (err) {
+      this.logger.debug(
+        `Failed to audit awarded PO creation: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   // ── List RFQs ──────────────────────────────────────────────────────────────
@@ -1396,6 +1427,8 @@ export class RfqsService {
       return { quoteResult, purchaseOrder };
     });
 
+    await this.auditAwardPoCreated(purchaseOrder.id, user, { source: 'RFQ_AWARD', rfqId });
+
     // The PO is intentionally left as a DRAFT: the contractor reviews it and
     // issues it to the vendor manually from the PO detail page. Awarding a quote
     // does NOT auto-send the PO to the vendor.
@@ -1630,7 +1663,7 @@ export class RfqsService {
       groups.set(groupKey, group);
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const splitResult = await this.prisma.$transaction(async (tx) => {
       // 1. Persist per-vendor approved qty + APPROVED status on awarded lines.
       for (const a of dto.allocations) {
         await tx.quoteResponseLineItem.update({
@@ -1749,6 +1782,22 @@ export class RfqsService {
 
       return { parentPoId: parent.id, parentPoNumber: parent.poNumber, children };
     });
+
+    // Start every awarded PO's activity trail at creation — the SPLIT parent
+    // and each per-vendor child (FOR-353).
+    await this.auditAwardPoCreated(splitResult.parentPoId, user, {
+      source: 'RFQ_AWARD_SPLIT',
+      rfqId,
+    });
+    for (const child of splitResult.children) {
+      await this.auditAwardPoCreated(child.id, user, {
+        source: 'RFQ_AWARD_SPLIT',
+        rfqId,
+        parentPoId: splitResult.parentPoId,
+      });
+    }
+
+    return splitResult;
   }
 
   // ── Decline Quote ──────────────────────────────────────────────────────────

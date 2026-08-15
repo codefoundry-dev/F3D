@@ -11,6 +11,7 @@ const mockPoData = vi.hoisted(() => ({
       status: 'PENDING',
       lineItems: [],
       documents: [],
+      createdBy: { id: 'user-1' },
     },
     isLoading: false,
     isError: false,
@@ -29,9 +30,15 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
 }));
 
+vi.mock('@/features/auth/state/auth.store', () => ({
+  useAuthStore: (selector: (s: Record<string, unknown>) => unknown) =>
+    selector({ currentUser: { id: 'user-1' } }),
+}));
+
 vi.mock('@forethread/po-shared', () => ({
   CreatePoWizard: (_props: any) => <div data-testid="create-po-wizard" />,
   usePurchaseOrder: () => mockPoData.value,
+  usePoActionLog: () => ({ logs: [], isLoading: false }),
   PoDetailTabs: ({
     activeTab,
     onTabChange,
@@ -49,12 +56,20 @@ vi.mock('@forethread/po-shared', () => ({
       <button data-testid="tab-documents" onClick={() => onTabChange('documents')}>
         documents
       </button>
+      <button data-testid="tab-messages" onClick={() => onTabChange('messages')}>
+        messages
+      </button>
+      <button data-testid="tab-actionLog" onClick={() => onTabChange('actionLog')}>
+        actionLog
+      </button>
       <span>{activeTab}</span>
     </div>
   ),
   PoDetailsTab: () => <div data-testid="po-details-tab" />,
   PoLineItemsTab: () => <div data-testid="po-line-items-tab" />,
   PoDocumentsTab: () => <div data-testid="po-documents-tab" />,
+  PoMessagesTab: () => <div data-testid="po-messages-tab" />,
+  PoActionLogTab: () => <div data-testid="po-action-log-tab" />,
 }));
 
 vi.mock('./PoSendButton', () => ({
@@ -97,6 +112,7 @@ describe('PoDetailPanel', () => {
         status: 'PENDING',
         lineItems: [],
         documents: [],
+        createdBy: { id: 'user-1' },
       },
       isLoading: false,
       isError: false,
@@ -147,6 +163,18 @@ describe('PoDetailPanel', () => {
     render(<PoDetailPanel poId="po-1" onClose={onClose} />);
     fireEvent.click(screen.getByTestId('tab-documents'));
     expect(screen.getByTestId('po-documents-tab')).toBeInTheDocument();
+  });
+
+  it('switches to messages tab (FOR-353)', () => {
+    render(<PoDetailPanel poId="po-1" onClose={onClose} />);
+    fireEvent.click(screen.getByTestId('tab-messages'));
+    expect(screen.getByTestId('po-messages-tab')).toBeInTheDocument();
+  });
+
+  it('switches to action log tab (FOR-353)', () => {
+    render(<PoDetailPanel poId="po-1" onClose={onClose} />);
+    fireEvent.click(screen.getByTestId('tab-actionLog'));
+    expect(screen.getByTestId('po-action-log-tab')).toBeInTheDocument();
   });
 
   it('download button calls export on details tab', () => {

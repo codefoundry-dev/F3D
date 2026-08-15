@@ -79,6 +79,31 @@ describe('humanizeAuditAction', () => {
     expect(humanizeAuditAction(makeEntry({ action: 'PO_SOMETHING_NEW' }))).toBeNull();
   });
 
+  it('maps PO_CREATED and PO_UPDATED (FOR-353)', () => {
+    expect(
+      humanizeAuditAction(makeEntry({ action: 'PO_CREATED', metadata: { source: 'MANUAL' } }))
+        ?.action,
+    ).toBe('Purchase order created');
+    expect(
+      humanizeAuditAction(
+        makeEntry({ action: 'PO_UPDATED', metadata: { changedFields: ['vendorId'] } }),
+      )?.action,
+    ).toBe('Purchase order updated');
+  });
+
+  it('maps document events and appends the file name to the description (FOR-353)', () => {
+    const uploaded = humanizeAuditAction(
+      makeEntry({ action: 'FILE_UPLOADED', metadata: { filename: 'spec-sheet.pdf' } }),
+    );
+    expect(uploaded?.action).toBe('Document uploaded');
+    expect(uploaded?.description).toBe('Performed by Sarah — spec-sheet.pdf');
+
+    const removed = humanizeAuditAction(
+      makeEntry({ action: 'FILE_DELETED', metadata: { filename: 'spec-sheet.pdf' } }),
+    );
+    expect(removed?.action).toBe('Document removed');
+  });
+
   it('uses the supplied translate function for labels', () => {
     const t = (key: string, fallback: string) => `t:${key}:${fallback}`;
     const result = humanizeAuditAction(makeEntry({ action: 'PO_APPROVED' }), t);

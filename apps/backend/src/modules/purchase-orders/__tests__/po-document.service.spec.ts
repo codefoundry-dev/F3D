@@ -38,12 +38,20 @@ const mockStorageService = {
   delete: jest.fn(),
 };
 
+const mockAudit = {
+  log: jest.fn(),
+};
+
 describe('PoDocumentService', () => {
   let service: PoDocumentService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new PoDocumentService(mockPrisma as never, mockStorageService as never);
+    service = new PoDocumentService(
+      mockPrisma as never,
+      mockStorageService as never,
+      mockAudit as never,
+    );
   });
 
   describe('uploadDocument', () => {
@@ -113,6 +121,15 @@ describe('PoDocumentService', () => {
       expect(result.name).toBe('doc.pdf');
       expect(result.uploadedBy).toEqual({ name: 'CA User', email: 'ca@test.com', avatarUrl: null });
       expect(mockStorageService.upload).toHaveBeenCalled();
+      // FOR-353: the upload lands on the PO's activity trail.
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'FILE_UPLOADED',
+          targetType: 'PurchaseOrder',
+          targetId: 'po-1',
+          metadata: { filename: 'doc.pdf' },
+        }),
+      );
     });
 
     it('allows SuperAdmin to upload to any PO', async () => {
@@ -160,7 +177,7 @@ describe('PoDocumentService', () => {
       mockPrisma.poDocument.findFirst.mockResolvedValue({
         id: 'doc-1',
         fileId: 'f-1',
-        file: { key: 'po-documents/po-1/uuid.pdf' },
+        file: { key: 'po-documents/po-1/uuid.pdf', filename: 'doc.pdf' },
         purchaseOrder: { companyId: 'comp-1' },
       });
       mockStorageService.delete.mockResolvedValue(undefined);
@@ -173,6 +190,15 @@ describe('PoDocumentService', () => {
       expect(mockStorageService.delete).toHaveBeenCalledWith('po-documents/po-1/uuid.pdf');
       expect(mockPrisma.poDocument.delete).toHaveBeenCalledWith({ where: { id: 'doc-1' } });
       expect(mockPrisma.file.delete).toHaveBeenCalledWith({ where: { id: 'f-1' } });
+      // FOR-353: the removal lands on the PO's activity trail.
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'FILE_DELETED',
+          targetType: 'PurchaseOrder',
+          targetId: 'po-1',
+          metadata: { filename: 'doc.pdf' },
+        }),
+      );
     });
 
     it('allows SuperAdmin to delete any document', async () => {

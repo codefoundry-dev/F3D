@@ -87,6 +87,10 @@ const mockPermissions = {
   filterActorsWithPermission: jest.fn(),
 };
 
+const mockAudit = {
+  log: jest.fn(),
+};
+
 // ── Mock PrismaService ──────────────────────────────────────────────────────
 
 const mockPrisma = {
@@ -185,6 +189,7 @@ describe('RfqsService', () => {
       // it through projectMember.findFirst / rfqVendor.findFirst below.
       new RfqVisibilityService(mockPrisma as never),
       mockPermissions as never,
+      mockAudit as never,
     );
     mockAccessTokens.issueToken.mockResolvedValue({
       token: 'issued-token-xyz',
@@ -1494,6 +1499,15 @@ describe('RfqsService', () => {
       expect(mockPrisma.quoteAudit.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ action: 'APPROVED', quoteResponseId: 'quote-1' }),
       });
+      // FOR-353: the awarded PO starts its activity trail at creation.
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PO_CREATED',
+          targetType: 'PurchaseOrder',
+          targetId: 'po-1',
+          metadata: { source: 'RFQ_AWARD', rfqId: 'rfq-1' },
+        }),
+      );
     });
 
     it('leaves the created PO as a DRAFT for the contractor to review + issue (no auto-send)', async () => {
