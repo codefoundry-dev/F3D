@@ -187,11 +187,90 @@
       "adding": "Adding...",
       "noUsersAvailable": "No available users to add"
     },
-    "comingSoon": {
-      "title": "Coming soon",
-      "procurement": "Project RFQs, POs and drawdown history will appear here.",
-      "vendors": "Vendors and contracts linked to this project will appear here.",
-      "financials": "Budget tracking, invoices and financial summaries will appear here."
+    "loadError": "Failed to load data. Please try again.",
+    "showingFirst": "Showing the first {{shown}} of {{total}}.",
+    "procurementTab": {
+      "rfqs": "RFQs",
+      "purchaseOrders": "Purchase orders",
+      "bulkOrders": "Bulk orders & drawdowns",
+      "noRfqs": "No RFQs yet",
+      "noRfqsHint": "RFQs created for this project will appear here.",
+      "noPos": "No purchase orders yet",
+      "noPosHint": "Purchase orders raised for this project will appear here.",
+      "noBulkOrders": "No bulk orders yet",
+      "noBulkOrdersHint": "Bulk orders for this project will appear here.",
+      "noDrawdowns": "No drawdowns recorded against this bulk order yet.",
+      "expandDrawdowns": "Toggle drawdown history",
+      "rfqColumns": {
+        "number": "RFQ number",
+        "status": "Status",
+        "lineItems": "Line items",
+        "invitedVendors": "Invited vendors",
+        "quotes": "Quotes received",
+        "created": "Created",
+        "createdBy": "Created by"
+      },
+      "poColumns": {
+        "number": "PO number",
+        "type": "Type",
+        "vendor": "Vendor",
+        "status": "Status",
+        "lineItems": "Line items",
+        "total": "Total",
+        "created": "Created"
+      },
+      "bulkColumns": {
+        "number": "Bulk order",
+        "vendor": "Vendor",
+        "status": "Status",
+        "lineItems": "Line items",
+        "total": "Total",
+        "consumption": "Consumption",
+        "validUntil": "Valid until"
+      },
+      "drawdownColumns": {
+        "po": "PO",
+        "material": "Material",
+        "quantity": "Qty drawn",
+        "before": "Qty before",
+        "remaining": "Qty remaining",
+        "date": "Date"
+      }
+    },
+    "vendorsTab": {
+      "vendors": "Vendors involved in this project",
+      "bulkAgreements": "Linked bulk agreements",
+      "noVendors": "No vendors yet",
+      "noVendorsHint": "Vendors appear here once the project has purchase orders, bulk orders or invoices.",
+      "columns": {
+        "vendor": "Vendor",
+        "status": "Status",
+        "pos": "POs",
+        "poTotal": "PO total",
+        "bulkAgreements": "Bulk agreements",
+        "invoices": "Invoices",
+        "invoicedTotal": "Invoiced total"
+      }
+    },
+    "financialsTab": {
+      "plannedBudget": "Planned budget",
+      "committed": "PO commitments",
+      "committedHint": "Excludes draft and cancelled POs",
+      "invoiced": "Invoiced",
+      "invoicedHint": "Excludes rejected invoices",
+      "remaining": "Remaining budget",
+      "remainingHint": "Planned budget minus PO commitments",
+      "invoices": "Invoices",
+      "noInvoices": "No invoices yet",
+      "noInvoicesHint": "Invoices linked to this project will appear here.",
+      "columns": {
+        "number": "Invoice number",
+        "vendor": "Vendor",
+        "relatedPo": "Related PO",
+        "status": "Status",
+        "total": "Total",
+        "dueDate": "Due date"
+      }
     },
     "notFound": "Project not found."
   },
