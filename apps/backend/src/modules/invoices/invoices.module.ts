@@ -7,6 +7,7 @@ import { AuditModule } from '../audit/audit.module';
 import { DocIntelligenceModule } from '../doc-intelligence/doc-intelligence.module';
 import { ExportModule } from '../export/export.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PurchaseOrdersModule } from '../purchase-orders/purchase-orders.module';
 import { StorageModule } from '../storage/storage.module';
 
 import { InvoiceExportService } from './invoice-export.service';
@@ -25,6 +26,8 @@ import { ResendInboundController } from './resend-inbound.controller';
     DocIntelligenceModule,
     AuditModule,
     ApprovalsModule,
+    // The linked PO's PDF is served through the invoice scope (FOR-355).
+    PurchaseOrdersModule,
     MulterModule.register({ storage: multer.memoryStorage() }),
   ],
   controllers: [InvoicesController, ResendInboundController],

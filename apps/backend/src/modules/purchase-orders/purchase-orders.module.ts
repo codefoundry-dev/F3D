@@ -35,6 +35,8 @@ import { PurchaseOrdersService } from './purchase-orders.service';
     PoValidationService,
     PoChangeService,
   ],
-  exports: [PurchaseOrdersService, PoStatusService],
+  // PoExportService: the invoices module serves the linked PO's PDF through the
+  // invoice scope (FOR-355).
+  exports: [PurchaseOrdersService, PoStatusService, PoExportService],
 })
 export class PurchaseOrdersModule {}

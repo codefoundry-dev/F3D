@@ -103,6 +103,7 @@
   "invoiceDetail": {
     "tabs": {
       "details": "Invoice Details",
+      "po": "Purchase Order",
       "attachments": "Attachments ({{count}})",
       "history": "History"
     },
@@ -130,6 +131,31 @@
     "invoiceNumber": "Invoice #",
     "issuedDate": "Invoice Date",
     "lineItems": "Line Items"
+  },
+  "poTab": {
+    "loadFailed": "The purchase order details could not be loaded. Please refresh.",
+    "supplierInvoice": "Supplier invoice",
+    "invoiceReceived": "Received {{date}}",
+    "invoiceNotSent": "Invoice not sent",
+    "poSection": "Purchase order",
+    "viewPdf": "View PO PDF",
+    "preparingPdf": "Preparing PDF…",
+    "noPo": "No purchase order is linked to this invoice.",
+    "noPoHint": "Link a purchase order in the review form to see its details, PDF, and deliveries here.",
+    "deliveries": "Deliveries",
+    "noDeliveries": "No delivery is available for this invoice yet.",
+    "reportNumber": "Report #",
+    "deliveryDate": "Delivery date",
+    "location": "Location",
+    "received": "Received",
+    "receivedUnits": "{{quantity}} units ({{lines}} line(s))",
+    "deliveryStatus": "Status",
+    "submittedBy": "Submitted by",
+    "reportStatus": {
+      "SUBMITTED": "Submitted",
+      "APPROVED": "Approved",
+      "REJECTED": "Rejected"
+    }
   },
   "decision": {
     "approveTitle": "Approve invoice",

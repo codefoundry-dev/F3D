@@ -214,6 +214,36 @@ export interface InvoicePoMatchResult {
   };
 }
 
+/**
+ * One delivery report recorded against the resolved PO (FOR-355), mirroring
+ * shared-types — a summary row for the Invoice Details PO tab.
+ */
+export interface InvoicePoDeliveryReport {
+  id: string;
+  reportNumber: string;
+  status: 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+  source: 'INTERNAL' | 'EXTERNAL';
+  /** When the goods arrived; null when the submitter left it unset. */
+  deliveryDate: string | null;
+  /** The delivery location's label (or address when unlabelled); null when unset. */
+  locationName: string | null;
+  submitterName: string;
+  lineCount: number;
+  /** Total quantity received across the report's lines. */
+  quantityReceived: number;
+  createdAt: string;
+}
+
+/**
+ * The Invoice Details PO tab payload (FOR-355): the reconciliation report plus
+ * the delivery reports recorded against the resolved PO.
+ */
+export interface InvoicePoInfoResult {
+  match: InvoicePoMatchResult;
+  /** Newest first; [] when no PO resolved. */
+  deliveryReports: InvoicePoDeliveryReport[];
+}
+
 /** The reviewer's confirmed/corrected fields (FOR-291). Replace semantics. */
 export interface ReviewInvoicePayload {
   vendorId?: string | null;
@@ -336,6 +366,42 @@ export async function getInvoicePoMatch(
 ): Promise<InvoicePoMatchResult> {
   const { data } = await getApiClient().get<{ data: InvoicePoMatchResult }>(
     INVOICES_PATHS.poMatch(id),
+    { params: params?.poId ? { poId: params.poId } : undefined, ...config },
+  );
+  return data.data;
+}
+
+/**
+ * The Invoice Details PO tab payload (FOR-355): PO resolution + reconciliation
+ * plus the delivery reports recorded against the resolved PO. Read-gated, so it
+ * serves viewers who cannot review.
+ */
+export async function getInvoicePoInfo(
+  id: string,
+  config?: AxiosRequestConfig,
+): Promise<InvoicePoInfoResult> {
+  const { data } = await getApiClient().get<{ data: InvoicePoInfoResult }>(
+    INVOICES_PATHS.poInfo(id),
+    config,
+  );
+  return data.data;
+}
+
+/**
+ * Generate the system PO PDF for the invoice's resolved purchase order
+ * (FOR-355) and return its signed URL. Served through the invoice scope because
+ * invoice viewers (e.g. finance) do not necessarily hold `po.exportSingle`.
+ *
+ * `poId` names the PO the tab is displaying when it is auto-matched rather than
+ * saved on the invoice; it must belong to the invoice's company.
+ */
+export async function exportInvoiceRelatedPo(
+  id: string,
+  params?: { poId?: string | null },
+  config?: AxiosRequestConfig,
+): Promise<{ url: string }> {
+  const { data } = await getApiClient().get<{ data: { url: string } }>(
+    INVOICES_PATHS.poExport(id),
     { params: params?.poId ? { poId: params.poId } : undefined, ...config },
   );
   return data.data;

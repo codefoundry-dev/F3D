@@ -32,6 +32,8 @@ const mockIntakeService = {
 
 const mockMatchingService = {
   getPoMatch: jest.fn(),
+  getPoInfo: jest.fn(),
+  exportRelatedPoPdf: jest.fn(),
 };
 
 /** Approver Pool read model + withdrawal (FOR-309); the controller delegates. */
@@ -111,6 +113,50 @@ describe('InvoicesController', () => {
 
       await controller.getPoMatch('inv-1', mockUser, '');
       expect(mockMatchingService.getPoMatch).toHaveBeenCalledWith('inv-1', mockUser, undefined);
+    });
+  });
+
+  describe('getPoInfo (FOR-355)', () => {
+    it('delegates to the matching service', async () => {
+      const expected = { match: { resolution: 'LINKED' }, deliveryReports: [] };
+      mockMatchingService.getPoInfo.mockResolvedValue(expected);
+
+      const result = await controller.getPoInfo('inv-1', mockUser);
+      expect(mockMatchingService.getPoInfo).toHaveBeenCalledWith('inv-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('exportRelatedPo (FOR-355)', () => {
+    it('delegates to the matching service', async () => {
+      const expected = { url: 'https://signed/po.pdf' };
+      mockMatchingService.exportRelatedPoPdf.mockResolvedValue(expected);
+
+      const result = await controller.exportRelatedPo('inv-1', mockUser);
+      expect(mockMatchingService.exportRelatedPoPdf).toHaveBeenCalledWith(
+        'inv-1',
+        mockUser,
+        undefined,
+      );
+      expect(result).toEqual(expected);
+    });
+
+    it("passes the displayed PO's id through and treats an empty poId as absent", async () => {
+      mockMatchingService.exportRelatedPoPdf.mockResolvedValue({ url: 'u' });
+
+      await controller.exportRelatedPo('inv-1', mockUser, 'po-9');
+      expect(mockMatchingService.exportRelatedPoPdf).toHaveBeenCalledWith(
+        'inv-1',
+        mockUser,
+        'po-9',
+      );
+
+      await controller.exportRelatedPo('inv-1', mockUser, '');
+      expect(mockMatchingService.exportRelatedPoPdf).toHaveBeenLastCalledWith(
+        'inv-1',
+        mockUser,
+        undefined,
+      );
     });
   });
 

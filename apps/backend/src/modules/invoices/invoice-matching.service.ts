@@ -3,6 +3,8 @@ import {
   type InvoiceLineMatchFlag,
   type InvoiceMatchedPo,
   type InvoicePoDelivery,
+  type InvoicePoDeliveryReport,
+  type InvoicePoInfoResult,
   type InvoicePoMatchLine,
   type InvoicePoMatchPoLine,
   type InvoicePoMatchResult,
@@ -15,6 +17,7 @@ import { DocExtractionType, UserRole } from '@prisma/client';
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PoExportService } from '../purchase-orders/po-export.service';
 
 import {
   pairLines,
@@ -94,6 +97,7 @@ export class InvoiceMatchingService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly poExportService: PoExportService,
     config: ConfigService,
   ) {
     // FOR-218: variance thresholds configurable — ±2% price, exact qty default.
@@ -237,6 +241,92 @@ export class InvoiceMatchingService {
         unexpectedCount: lines.filter((line) => line.flags.includes('NOT_ON_PO')).length,
       },
     };
+  }
+
+  /**
+   * The Invoice Details PO tab payload (FOR-355): the reconciliation report the
+   * review form already uses, plus the delivery reports recorded against the
+   * resolved PO. Sits behind `invoice.read` (unlike po-match's `invoice.review`)
+   * because it never previews an unsaved PO pick — it only discloses the PO the
+   * invoice itself resolves to.
+   */
+  async getPoInfo(invoiceId: string, user: AuthenticatedUser): Promise<InvoicePoInfoResult> {
+    const match = await this.getPoMatch(invoiceId, user);
+    const deliveryReports = match.po ? await this.getDeliveryReports(match.po.id) : [];
+    return { match, deliveryReports };
+  }
+
+  /**
+   * Generate the system PO PDF for the invoice's resolved purchase order and
+   * return its signed URL (FOR-355). Served through the invoice scope because
+   * invoice viewers (finance) do not necessarily hold `po.exportSingle`.
+   *
+   * `poId` names the PO the tab is displaying when it is auto-matched rather
+   * than saved on the invoice. Like the po-match override, a PO outside the
+   * invoice's company is not the caller's to see.
+   */
+  async exportRelatedPoPdf(
+    invoiceId: string,
+    user: AuthenticatedUser,
+    poId?: string,
+  ): Promise<{ url: string }> {
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      select: { companyId: true, relatedPoId: true },
+    });
+    if (!invoice) throw new NotFoundException(ERR.invoices.notFound);
+
+    if (user.role !== UserRole.SUPER_ADMIN && user.companyId !== invoice.companyId) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
+
+    const targetPoId = poId ?? invoice.relatedPoId;
+    if (!targetPoId) throw new NotFoundException(ERR.purchaseOrders.notFound);
+
+    // getPurchaseOrder does no company scoping of its own (read access is
+    // normally gated at the PO controller), so the invoice link IS the
+    // authorisation here — the PO must belong to the invoice's company.
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id: targetPoId },
+      select: { id: true, companyId: true },
+    });
+    if (po?.companyId !== invoice.companyId) {
+      throw new NotFoundException(ERR.purchaseOrders.notFound);
+    }
+
+    return this.poExportService.exportSinglePo(po.id, 'pdf', user);
+  }
+
+  /** Delivery reports recorded against the PO, newest first, summarised to rows. */
+  private async getDeliveryReports(purchaseOrderId: string): Promise<InvoicePoDeliveryReport[]> {
+    const reports = await this.prisma.deliveryReport.findMany({
+      where: { purchaseOrderId },
+      orderBy: [{ deliveryDate: 'desc' }, { createdAt: 'desc' }],
+      select: {
+        id: true,
+        reportNumber: true,
+        status: true,
+        source: true,
+        deliveryDate: true,
+        submitterName: true,
+        createdAt: true,
+        deliveryLocation: { select: { label: true, address: true } },
+        lines: { select: { quantityReceived: true } },
+      },
+    });
+
+    return reports.map((report) => ({
+      id: report.id,
+      reportNumber: report.reportNumber,
+      status: report.status as InvoicePoDeliveryReport['status'],
+      source: report.source as InvoicePoDeliveryReport['source'],
+      deliveryDate: report.deliveryDate ? report.deliveryDate.toISOString() : null,
+      locationName: report.deliveryLocation?.label ?? report.deliveryLocation?.address ?? null,
+      submitterName: report.submitterName,
+      lineCount: report.lines.length,
+      quantityReceived: report.lines.reduce((sum, line) => sum + line.quantityReceived, 0),
+      createdAt: report.createdAt.toISOString(),
+    }));
   }
 
   /** PO references as extracted from the document (FOR-291); [] when none. */

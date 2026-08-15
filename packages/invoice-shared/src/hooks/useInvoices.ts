@@ -4,6 +4,8 @@ import {
   getInvoiceAuditTrail,
   getInvoiceIntakeAddress,
   getInvoicePoMatch,
+  getInvoicePoInfo,
+  exportInvoiceRelatedPo,
   approveInvoice,
   rejectInvoice,
   reviewInvoice,
@@ -55,6 +57,31 @@ export function useInvoicePoMatch(id: string | undefined, poId?: string | null) 
     // The previously-selected PO's report stays on screen while the newly
     // selected one loads, so the comparison table never blanks mid-review.
     placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * The Invoice Details PO tab payload (FOR-355): the invoice's resolved PO with
+ * reconciliation, plus the delivery reports recorded against it. Keyed under
+ * ['invoices'] so review/approve saves refresh it too.
+ */
+export function useInvoicePoInfo(id: string | undefined) {
+  return useQuery({
+    queryKey: ['invoices', id, 'po-info'],
+    queryFn: () => getInvoicePoInfo(id as string),
+    enabled: !!id,
+  });
+}
+
+/**
+ * Generate the system PDF of the invoice's resolved PO (FOR-355) and return
+ * its signed URL. `poId` names the displayed PO when it is auto-matched rather
+ * than saved on the invoice.
+ */
+export function useExportInvoiceRelatedPo() {
+  return useMutation({
+    mutationFn: ({ id, poId }: { id: string; poId?: string | null }) =>
+      exportInvoiceRelatedPo(id, { poId }),
   });
 }
 

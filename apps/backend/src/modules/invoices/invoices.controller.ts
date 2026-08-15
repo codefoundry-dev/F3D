@@ -148,6 +148,46 @@ export class InvoicesController {
     return this.invoiceMatchingService.getPoMatch(id, user, poId === '' ? undefined : poId);
   }
 
+  // ── GET /v1/invoices/:id/po-info ───────────────────────────────────────────
+
+  @Get(':id/po-info')
+  @RequirePermissions('invoice.read')
+  @ApiOperation({
+    summary:
+      "The invoice's resolved PO with reconciliation, plus its recorded delivery reports (FOR-355)",
+    description:
+      'Gated on invoice.read, not invoice.review: the Invoice Details PO tab is ' +
+      'a read surface. Unlike po-match it takes no poId preview, so it only ever ' +
+      'discloses the PO the invoice itself resolves to.',
+  })
+  @ApiResponse({ status: 200, description: 'PO reconciliation + delivery reports' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  async getPoInfo(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.invoiceMatchingService.getPoInfo(id, user);
+  }
+
+  // ── GET /v1/invoices/:id/po-export ─────────────────────────────────────────
+
+  @Get(':id/po-export')
+  @RequirePermissions('invoice.read')
+  @ApiOperation({
+    summary: "Generate the system PDF of the invoice's resolved PO (FOR-355)",
+    description:
+      'Served through the invoice scope because invoice viewers (finance) do ' +
+      "not necessarily hold po.exportSingle. `poId` names the tab's displayed " +
+      'PO when it is auto-matched rather than saved; it must belong to the ' +
+      "invoice's company.",
+  })
+  @ApiResponse({ status: 200, description: 'Signed URL of the generated PO PDF' })
+  @ApiResponse({ status: 404, description: 'Invoice not found, or no PO to export' })
+  async exportRelatedPo(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('poId') poId?: string,
+  ) {
+    return this.invoiceMatchingService.exportRelatedPoPdf(id, user, poId === '' ? undefined : poId);
+  }
+
   // ── PATCH /v1/invoices/:id/review ──────────────────────────────────────────
 
   @Patch(':id/review')

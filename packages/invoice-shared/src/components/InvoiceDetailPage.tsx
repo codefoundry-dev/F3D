@@ -28,27 +28,36 @@ import { useInvoice, useApproveInvoice, useRejectInvoice } from '../hooks/useInv
 
 import { InvoiceDecisionModal } from './InvoiceDecisionModal';
 import { InvoiceHistoryTab } from './InvoiceHistoryTab';
+import { InvoicePoTab } from './InvoicePoTab';
 import { InvoiceReviewPanel } from './InvoiceReviewPanel';
 
 export interface InvoiceDetailPageProps {
   canApprove?: boolean;
   /** Show the review/correct form on Pending invoices (FOR-291). */
   canReview?: boolean;
+  /**
+   * Show the Purchase Order tab (FOR-355) — the buyer/finance surfaces. The
+   * vendor surface keeps it off: the tab's data is the buying company's
+   * reconciliation view, and the backend forbids vendors anyway.
+   */
+  showPoTab?: boolean;
 }
 
-type Tab = 'details' | 'attachments' | 'history';
+type Tab = 'details' | 'po' | 'attachments' | 'history';
 
-const TABS: Tab[] = ['details', 'attachments', 'history'];
+const ALL_TABS: Tab[] = ['details', 'po', 'attachments', 'history'];
 
 export function InvoiceDetailPage({
   canApprove = false,
   canReview = false,
+  showPoTab = false,
 }: InvoiceDetailPageProps) {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation('invoices');
   const [searchParams, setSearchParams] = useSearchParams();
+  const tabs = showPoTab ? ALL_TABS : ALL_TABS.filter((tab) => tab !== 'po');
   const initialTab = (searchParams.get('tab') as Tab) ?? 'details';
-  const activeTab = TABS.includes(initialTab) ? initialTab : 'details';
+  const activeTab = tabs.includes(initialTab) ? initialTab : 'details';
 
   const { data: invoice, isLoading } = useInvoice(id);
   const { data: me } = useMe();
@@ -72,23 +81,16 @@ export function InvoiceDetailPage({
   };
 
   const docCount = invoice?.documents?.length ?? 0;
-  const tabItems: TabItem<Tab>[] = [
-    {
-      value: 'details',
-      label: t('invoiceDetail.tabs.details', { defaultValue: 'Invoice Details' }),
-    },
-    {
-      value: 'attachments',
-      label: t('invoiceDetail.tabs.attachments', {
-        defaultValue: `Attachments (${docCount})`,
-        count: docCount,
-      }),
-    },
-    {
-      value: 'history',
-      label: t('invoiceDetail.tabs.history', { defaultValue: 'History' }),
-    },
-  ];
+  const tabLabels: Record<Tab, string> = {
+    details: t('invoiceDetail.tabs.details', { defaultValue: 'Invoice Details' }),
+    po: t('invoiceDetail.tabs.po', { defaultValue: 'Purchase Order' }),
+    attachments: t('invoiceDetail.tabs.attachments', {
+      defaultValue: `Attachments (${docCount})`,
+      count: docCount,
+    }),
+    history: t('invoiceDetail.tabs.history', { defaultValue: 'History' }),
+  };
+  const tabItems: TabItem<Tab>[] = tabs.map((tab) => ({ value: tab, label: tabLabels[tab] }));
 
   const isPending = invoice?.status === 'PENDING';
   const showActions = canApprove && isPending;
@@ -175,6 +177,7 @@ export function InvoiceDetailPage({
           ) : (
             <InvoiceDetailsTab invoice={invoice} />
           ))}
+        {activeTab === 'po' && invoice && <InvoicePoTab invoice={invoice} />}
         {activeTab === 'attachments' && <AttachmentsTab documents={invoice?.documents ?? []} />}
         {activeTab === 'history' && invoice && <InvoiceHistoryTab invoice={invoice} />}
       </div>

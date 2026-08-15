@@ -5,6 +5,8 @@
  * review form. Builds on the extraction's `poReferences` (FOR-291).
  */
 
+import type { DeliveryReportSource, DeliveryReportStatus } from '../enums/index';
+
 /**
  * How the purchase order was (or wasn't) resolved for the invoice:
  * - LINKED — the invoice already carries `relatedPoId` (reviewer-confirmed).
@@ -115,6 +117,37 @@ export interface InvoicePoMatchThresholds {
   priceTolerancePct: number;
   /** |quantity delta| above this flags QTY_VARIANCE (exact by default). */
   quantityTolerance: number;
+}
+
+/**
+ * One delivery report recorded against the resolved PO (FOR-355) — the Invoice
+ * Details PO tab's evidence of what physically arrived, summarised to a row.
+ */
+export interface InvoicePoDeliveryReport {
+  id: string;
+  reportNumber: string;
+  status: DeliveryReportStatus;
+  source: DeliveryReportSource;
+  /** When the goods arrived; null when the submitter left it unset. */
+  deliveryDate: string | null;
+  /** The delivery location's label (or address when unlabelled); null when unset. */
+  locationName: string | null;
+  submitterName: string;
+  lineCount: number;
+  /** Total quantity received across the report's lines. */
+  quantityReceived: number;
+  createdAt: string;
+}
+
+/**
+ * The Invoice Details PO tab payload (FOR-355): the same reconciliation report
+ * the review form uses, plus the delivery reports recorded against the
+ * resolved PO. Served read-gated so non-reviewers see the PO context too.
+ */
+export interface InvoicePoInfoResult {
+  match: InvoicePoMatchResult;
+  /** Newest first; [] when no PO resolved. */
+  deliveryReports: InvoicePoDeliveryReport[];
 }
 
 export interface InvoicePoMatchResult {

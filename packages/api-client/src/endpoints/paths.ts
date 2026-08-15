@@ -239,6 +239,8 @@ export const INVOICES_PATHS = {
   reject: (id: string) => `/invoices/${id}/reject`,
   review: (id: string) => `/invoices/${id}/review`,
   poMatch: (id: string) => `/invoices/${id}/po-match`,
+  poInfo: (id: string) => `/invoices/${id}/po-info`,
+  poExport: (id: string) => `/invoices/${id}/po-export`,
   audit: (id: string) => `/invoices/${id}/audit`,
   BULK_APPROVE: '/invoices/bulk-approve',
   export: (format: 'csv' | 'xlsx' | 'pdf') => `/invoices/export/${format}`,
