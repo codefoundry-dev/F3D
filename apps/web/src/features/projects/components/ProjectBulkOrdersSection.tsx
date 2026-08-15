@@ -1,4 +1,5 @@
-import { useBulkOrder, useBulkOrders } from '@forethread/bulk-order-shared';
+import { getBulkOrders } from '@forethread/api-client';
+import { useBulkOrder } from '@forethread/bulk-order-shared';
 import { useTranslation } from '@forethread/i18n';
 import { BULK_ORDER_STATUS_COLORS, Spinner } from '@forethread/ui-components';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
@@ -9,7 +10,6 @@ import { ROUTES } from '@/app/route-config';
 
 import {
   HeadRow,
-  LIST_LIMIT,
   Section,
   SectionContent,
   StatusBadge,
@@ -20,6 +20,7 @@ import {
   humanizeStatus,
   type TranslationFn,
 } from './project-tab-shared';
+import { PAGE_SIZE, useAllRows } from './use-all-rows';
 
 /**
  * The project's bulk orders. The Procurement tab renders it with drawdown
@@ -42,7 +43,10 @@ export default function ProjectBulkOrdersSection({
   const t = tRaw as TranslationFn;
   const { t: tBulkRaw } = useTranslation('bulkOrders');
   const tBulk = tBulkRaw as TranslationFn;
-  const { data, isLoading, isError } = useBulkOrders({ projectId, limit: LIST_LIMIT });
+  const { data, isLoading, isError } = useAllRows(
+    ['bulk-orders', 'project-tab', projectId],
+    (page) => getBulkOrders({ projectId, limit: PAGE_SIZE, page }, { skipErrorHandler: true }),
+  );
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const items = data?.items ?? [];
@@ -58,7 +62,7 @@ export default function ProjectBulkOrdersSection({
   ];
 
   return (
-    <Section title={title} count={data?.meta.total}>
+    <Section title={title} count={data?.total}>
       <SectionContent
         isLoading={isLoading}
         isError={isError}
@@ -130,7 +134,7 @@ export default function ProjectBulkOrdersSection({
             ))}
           </tbody>
         </TableShell>
-        <TruncationNote shown={items.length} total={data?.meta.total} t={t} />
+        <TruncationNote shown={items.length} total={data?.total} t={t} />
       </SectionContent>
     </Section>
   );

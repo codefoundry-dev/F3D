@@ -1,8 +1,5 @@
-import { useBulkOrders } from '@forethread/bulk-order-shared';
+import { getBulkOrders, getInvoices, getPurchaseOrders, getVendors } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { useInvoices } from '@forethread/invoice-shared';
-import { usePurchaseOrders } from '@forethread/po-shared';
-import { useVendors } from '@forethread/vendor-shared';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -10,7 +7,6 @@ import { ROUTES } from '@/app/route-config';
 
 import {
   HeadRow,
-  LIST_LIMIT,
   Section,
   SectionContent,
   StatusBadge,
@@ -20,6 +16,7 @@ import {
   type TranslationFn,
 } from './project-tab-shared';
 import ProjectBulkOrdersSection from './ProjectBulkOrdersSection';
+import { PAGE_SIZE, useAllRows } from './use-all-rows';
 
 /** Mirrors the vendor list's chips: active = green, invited = orange. */
 const VENDOR_STATUS_COLORS: Record<string, string> = {
@@ -58,10 +55,19 @@ export default function ProjectVendorsTab({
   const { t: tVendorsRaw } = useTranslation('vendors');
   const tVendors = tVendorsRaw as TranslationFn;
 
-  const poQuery = usePurchaseOrders({ projectId, limit: LIST_LIMIT });
-  const bulkQuery = useBulkOrders({ projectId, limit: LIST_LIMIT });
-  const invoiceQuery = useInvoices({ projectId, limit: LIST_LIMIT });
-  const vendorsQuery = useVendors({ limit: LIST_LIMIT });
+  const poQuery = useAllRows(['purchase-orders', 'project-tab', projectId], (page) =>
+    getPurchaseOrders({ projectId, limit: PAGE_SIZE, page }, { skipErrorHandler: true }),
+  );
+  const bulkQuery = useAllRows(['bulk-orders', 'project-tab', projectId], (page) =>
+    getBulkOrders({ projectId, limit: PAGE_SIZE, page }, { skipErrorHandler: true }),
+  );
+  const invoiceQuery = useAllRows(['invoices', 'project-tab', projectId], (page) =>
+    getInvoices({ projectId, limit: PAGE_SIZE, page }, { skipErrorHandler: true }),
+  );
+  // Company-wide vendor list, used only to name-match ids for links.
+  const vendorsQuery = useAllRows(['vendors', 'project-tab-links'], (page) =>
+    getVendors({ limit: PAGE_SIZE, page }),
+  );
 
   const rows = useMemo<ProjectVendorRow[]>(() => {
     const map = new Map<string, ProjectVendorRow>();

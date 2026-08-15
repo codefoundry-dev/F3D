@@ -3,9 +3,6 @@ import type React from 'react';
 
 export type TranslationFn = (key: string, options?: Record<string, unknown>) => string;
 
-/** Backend list endpoints cap `limit` at 100 — the widest window one request allows. */
-export const LIST_LIMIT = 100;
-
 const DATE_FORMAT: Intl.DateTimeFormatOptions = { month: 'short', day: '2-digit', year: 'numeric' };
 
 export function formatShortDate(value: string | null | undefined): string {
@@ -122,7 +119,7 @@ export function HeadRow({ labels }: { labels: string[] }) {
   );
 }
 
-/** Footnote shown when the 100-row list window did not cover everything. */
+/** Footnote shown when useAllRows hit its safety cap and left rows unfetched. */
 export function TruncationNote({
   shown,
   total,

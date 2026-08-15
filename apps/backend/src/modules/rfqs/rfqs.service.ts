@@ -2102,7 +2102,22 @@ export class RfqsService {
         where.status = query.status as RfqStatus;
       }
     }
-    if (query.projectId) where.projectId = query.projectId;
+    // Match any project the RFQ spans — primary or rfq_projects (US 5.05) —
+    // mirroring the FOR-351 visibility clause. Primary-only matching hid
+    // multi-project RFQs from every project but their primary. Appended to AND
+    // so the search OR below can't widen the scope.
+    if (query.projectId) {
+      const existingAnd = Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : [];
+      where.AND = [
+        ...existingAnd,
+        {
+          OR: [
+            { projectId: query.projectId },
+            { projects: { some: { projectId: query.projectId } } },
+          ],
+        },
+      ];
+    }
 
     if (query.search) {
       where.OR = [

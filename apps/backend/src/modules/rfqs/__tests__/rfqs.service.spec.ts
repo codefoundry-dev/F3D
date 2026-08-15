@@ -293,10 +293,25 @@ describe('RfqsService', () => {
       expect(where.quoteResponses).toEqual({ none: {} });
     });
 
-    it('applies projectId filter', async () => {
+    it('applies projectId filter across primary and spanned projects', async () => {
       await service.listRfqs(q({ projectId: 'proj-1' }), companyAdmin);
       const where = mockPrisma.rfq.findMany.mock.calls[0][0].where;
-      expect(where.projectId).toBe('proj-1');
+      expect(where.projectId).toBeUndefined();
+      expect(where.AND).toEqual([
+        {
+          OR: [{ projectId: 'proj-1' }, { projects: { some: { projectId: 'proj-1' } } }],
+        },
+      ]);
+    });
+
+    it('appends projectId filter after the FOR-351 visibility clause', async () => {
+      await service.listRfqs(q({ projectId: 'proj-1' }), procOfficer);
+      const where = mockPrisma.rfq.findMany.mock.calls[0][0].where;
+      expect(where.AND).toHaveLength(2);
+      expect(where.AND[0].OR[0]).toEqual({ createdByUserId: 'po-1' });
+      expect(where.AND[1]).toEqual({
+        OR: [{ projectId: 'proj-1' }, { projects: { some: { projectId: 'proj-1' } } }],
+      });
     });
 
     it('returns paginated response with meta', async () => {

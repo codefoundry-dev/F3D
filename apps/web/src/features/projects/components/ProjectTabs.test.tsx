@@ -1,24 +1,26 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 
-const mockUseRfqs = vi.hoisted(() => vi.fn());
-const mockUsePurchaseOrders = vi.hoisted(() => vi.fn());
-const mockUseInvoices = vi.hoisted(() => vi.fn());
-const mockUseBulkOrders = vi.hoisted(() => vi.fn());
+const mockUseAllRows = vi.hoisted(() => vi.fn());
 const mockUseBulkOrder = vi.hoisted(() => vi.fn());
-const mockUseVendors = vi.hoisted(() => vi.fn());
+const mockGetRfqs = vi.hoisted(() => vi.fn());
+const mockGetPurchaseOrders = vi.hoisted(() => vi.fn());
+const mockGetInvoices = vi.hoisted(() => vi.fn());
+const mockGetBulkOrders = vi.hoisted(() => vi.fn());
+const mockGetVendors = vi.hoisted(() => vi.fn());
 
 vi.mock('@forethread/i18n', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@forethread/rfq-shared', () => ({ useRfqs: mockUseRfqs }));
-vi.mock('@forethread/po-shared', () => ({ usePurchaseOrders: mockUsePurchaseOrders }));
-vi.mock('@forethread/invoice-shared', () => ({ useInvoices: mockUseInvoices }));
-vi.mock('@forethread/bulk-order-shared', () => ({
-  useBulkOrders: mockUseBulkOrders,
-  useBulkOrder: mockUseBulkOrder,
+vi.mock('./use-all-rows', () => ({ PAGE_SIZE: 100, useAllRows: mockUseAllRows }));
+vi.mock('@forethread/api-client', () => ({
+  getRfqs: mockGetRfqs,
+  getPurchaseOrders: mockGetPurchaseOrders,
+  getInvoices: mockGetInvoices,
+  getBulkOrders: mockGetBulkOrders,
+  getVendors: mockGetVendors,
 }));
-vi.mock('@forethread/vendor-shared', () => ({ useVendors: mockUseVendors }));
+vi.mock('@forethread/bulk-order-shared', () => ({ useBulkOrder: mockUseBulkOrder }));
 
 vi.mock('@forethread/ui-components', () => ({
   Badge: ({ children }: any) => <span data-testid="badge">{children}</span>,
@@ -49,60 +51,78 @@ import ProjectProcurementTab from './ProjectProcurementTab';
 import ProjectVendorsTab from './ProjectVendorsTab';
 
 const loaded = (items: any[], total = items.length) => ({
-  data: { items, meta: { page: 1, limit: 100, total, totalPages: 1 } },
+  data: { items, total },
   isLoading: false,
   isError: false,
 });
 const loading = { data: undefined, isLoading: true, isError: false };
 
+// useAllRows is dispatched on queryKey[0] — the resource prefix each section
+// passes ('rfqs', 'purchase-orders', 'invoices', 'bulk-orders', 'vendors').
+const byResource: Record<string, unknown> = {};
+
 beforeEach(() => {
   vi.clearAllMocks();
-  mockUseRfqs.mockReturnValue(loaded([]));
-  mockUsePurchaseOrders.mockReturnValue(loaded([]));
-  mockUseInvoices.mockReturnValue(loaded([]));
-  mockUseBulkOrders.mockReturnValue(loaded([]));
-  mockUseVendors.mockReturnValue(loaded([]));
+  byResource.rfqs = loaded([]);
+  byResource['purchase-orders'] = loaded([]);
+  byResource.invoices = loaded([]);
+  byResource['bulk-orders'] = loaded([]);
+  byResource.vendors = loaded([]);
+  mockUseAllRows.mockImplementation((key: unknown[]) => byResource[key[0] as string]);
   mockUseBulkOrder.mockReturnValue({ data: undefined, isLoading: false, isError: false });
 });
 
 describe('ProjectProcurementTab', () => {
-  it('passes the projectId filter to every list hook', () => {
+  it('scopes every list query to the project', () => {
     render(<ProjectProcurementTab projectId="proj-1" currency="AUD" />);
-    expect(mockUseRfqs).toHaveBeenCalledWith({ projectId: 'proj-1', limit: 100 });
-    expect(mockUsePurchaseOrders).toHaveBeenCalledWith({ projectId: 'proj-1', limit: 100 });
-    expect(mockUseBulkOrders).toHaveBeenCalledWith({ projectId: 'proj-1', limit: 100 });
+    const keys = mockUseAllRows.mock.calls.map((c) => c[0]);
+    expect(keys).toContainEqual(['rfqs', 'project-tab', 'proj-1']);
+    expect(keys).toContainEqual(['purchase-orders', 'project-tab', 'proj-1']);
+    expect(keys).toContainEqual(['bulk-orders', 'project-tab', 'proj-1']);
+  });
+
+  it('pages through the api client with the projectId filter', () => {
+    render(<ProjectProcurementTab projectId="proj-1" currency="AUD" />);
+    const fetchRfqPage = mockUseAllRows.mock.calls.find((c) => c[0][0] === 'rfqs')![1];
+    fetchRfqPage(3);
+    expect(mockGetRfqs).toHaveBeenCalledWith(
+      { projectId: 'proj-1', limit: 100, page: 3 },
+      { skipErrorHandler: true },
+    );
+    const fetchPoPage = mockUseAllRows.mock.calls.find((c) => c[0][0] === 'purchase-orders')![1];
+    fetchPoPage(2);
+    expect(mockGetPurchaseOrders).toHaveBeenCalledWith(
+      { projectId: 'proj-1', limit: 100, page: 2 },
+      { skipErrorHandler: true },
+    );
   });
 
   it('renders RFQ and PO rows linking to their detail pages', () => {
-    mockUseRfqs.mockReturnValue(
-      loaded([
-        {
-          id: 'rfq-1',
-          rfqNumber: 'RFQ-001',
-          status: 'OPEN',
-          lineItems: 3,
-          invitedVendors: 2,
-          recQuotes: 1,
-          createdDate: '2026-08-01T00:00:00Z',
-          createdBy: 'Alice',
-        },
-      ]),
-    );
-    mockUsePurchaseOrders.mockReturnValue(
-      loaded([
-        {
-          id: 'po-1',
-          poNumber: 'PO-001',
-          poType: 'STANDARD',
-          vendorName: 'Acme Supplies',
-          status: 'SENT',
-          lineItemCount: 2,
-          totalAmount: 500,
-          currency: 'AUD',
-          createdDate: '2026-08-02T00:00:00Z',
-        },
-      ]),
-    );
+    byResource.rfqs = loaded([
+      {
+        id: 'rfq-1',
+        rfqNumber: 'RFQ-001',
+        status: 'OPEN',
+        lineItems: 3,
+        invitedVendors: 2,
+        recQuotes: 1,
+        createdDate: '2026-08-01T00:00:00Z',
+        createdBy: 'Alice',
+      },
+    ]);
+    byResource['purchase-orders'] = loaded([
+      {
+        id: 'po-1',
+        poNumber: 'PO-001',
+        poType: 'STANDARD',
+        vendorName: 'Acme Supplies',
+        status: 'SENT',
+        lineItemCount: 2,
+        totalAmount: 500,
+        currency: 'AUD',
+        createdDate: '2026-08-02T00:00:00Z',
+      },
+    ]);
     render(<ProjectProcurementTab projectId="proj-1" currency="AUD" />);
     expect(screen.getByText('RFQ-001').closest('a')).toHaveAttribute('href', '/rfqs/rfq-1');
     expect(screen.getByText('PO-001').closest('a')).toHaveAttribute(
@@ -119,21 +139,39 @@ describe('ProjectProcurementTab', () => {
     expect(screen.getByText('detail.procurementTab.noBulkOrders')).toBeInTheDocument();
   });
 
-  it('expands a bulk order row to show its drawdown history', () => {
-    mockUseBulkOrders.mockReturnValue(
-      loaded([
+  it('shows the truncation note only when the safety cap left rows unfetched', () => {
+    byResource.rfqs = loaded(
+      [
         {
-          id: 'bo-1',
-          bulkOrderNumber: 'BULK-0001',
-          vendorName: 'Acme Supplies',
-          status: 'ACTIVE',
-          lineItems: 2,
-          totalAmount: 10000,
-          consumptionPercent: 40,
-          validUntil: '2026-12-31T00:00:00Z',
+          id: 'rfq-1',
+          rfqNumber: 'RFQ-001',
+          status: 'OPEN',
+          lineItems: 3,
+          invitedVendors: 2,
+          recQuotes: 1,
+          createdDate: '2026-08-01T00:00:00Z',
+          createdBy: 'Alice',
         },
-      ]),
+      ],
+      2500,
     );
+    render(<ProjectProcurementTab projectId="proj-1" currency="AUD" />);
+    expect(screen.getByText('detail.showingFirst')).toBeInTheDocument();
+  });
+
+  it('expands a bulk order row to show its drawdown history', () => {
+    byResource['bulk-orders'] = loaded([
+      {
+        id: 'bo-1',
+        bulkOrderNumber: 'BULK-0001',
+        vendorName: 'Acme Supplies',
+        status: 'ACTIVE',
+        lineItems: 2,
+        totalAmount: 10000,
+        consumptionPercent: 40,
+        validUntil: '2026-12-31T00:00:00Z',
+      },
+    ]);
     mockUseBulkOrder.mockReturnValue({
       data: {
         id: 'bo-1',
@@ -165,33 +203,29 @@ describe('ProjectProcurementTab', () => {
 
 describe('ProjectVendorsTab', () => {
   it('derives vendors from POs, bulk orders and invoices, aggregating per vendor', () => {
-    mockUsePurchaseOrders.mockReturnValue(
-      loaded([
-        { id: 'po-1', vendorName: 'Acme Supplies', totalAmount: 100, status: 'SENT' },
-        { id: 'po-2', vendorName: 'Acme Supplies', totalAmount: 200, status: 'SENT' },
-        { id: 'po-3', vendorName: 'Beta Traders', totalAmount: 50, status: 'SENT' },
-      ]),
-    );
-    mockUseBulkOrders.mockReturnValue(
-      loaded([
-        {
-          id: 'bo-1',
-          bulkOrderNumber: 'BULK-0001',
-          vendorName: 'Acme Supplies',
-          status: 'ACTIVE',
-          lineItems: 1,
-          totalAmount: 2000,
-          consumptionPercent: 10,
-          validUntil: null,
-        },
-      ]),
-    );
-    mockUseInvoices.mockReturnValue(
-      loaded([{ id: 'inv-1', vendorName: 'Acme Supplies', totalAmount: 120, status: 'PENDING' }]),
-    );
-    mockUseVendors.mockReturnValue(
-      loaded([{ id: 'v-1', companyId: 'comp-1', companyName: 'Acme Supplies', status: 'ACTIVE' }]),
-    );
+    byResource['purchase-orders'] = loaded([
+      { id: 'po-1', vendorName: 'Acme Supplies', totalAmount: 100, status: 'SENT' },
+      { id: 'po-2', vendorName: 'Acme Supplies', totalAmount: 200, status: 'SENT' },
+      { id: 'po-3', vendorName: 'Beta Traders', totalAmount: 50, status: 'SENT' },
+    ]);
+    byResource['bulk-orders'] = loaded([
+      {
+        id: 'bo-1',
+        bulkOrderNumber: 'BULK-0001',
+        vendorName: 'Acme Supplies',
+        status: 'ACTIVE',
+        lineItems: 1,
+        totalAmount: 2000,
+        consumptionPercent: 10,
+        validUntil: null,
+      },
+    ]);
+    byResource.invoices = loaded([
+      { id: 'inv-1', vendorName: 'Acme Supplies', totalAmount: 120, status: 'PENDING' },
+    ]);
+    byResource.vendors = loaded([
+      { id: 'v-1', companyId: 'comp-1', companyName: 'Acme Supplies', status: 'ACTIVE' },
+    ]);
     render(<ProjectVendorsTab projectId="proj-1" currency="AUD" />);
 
     // The matched vendor links to its detail page; the unmatched one is plain
@@ -214,13 +248,11 @@ describe('ProjectVendorsTab', () => {
 
 describe('ProjectFinancialsTab', () => {
   it('computes committed spend excluding draft and cancelled POs', () => {
-    mockUsePurchaseOrders.mockReturnValue(
-      loaded([
-        { id: 'po-1', status: 'SENT', totalAmount: 1000 },
-        { id: 'po-2', status: 'DRAFT', totalAmount: 500 },
-        { id: 'po-3', status: 'CANCELLED', totalAmount: 300 },
-      ]),
-    );
+    byResource['purchase-orders'] = loaded([
+      { id: 'po-1', status: 'SENT', totalAmount: 1000 },
+      { id: 'po-2', status: 'DRAFT', totalAmount: 500 },
+      { id: 'po-3', status: 'CANCELLED', totalAmount: 300 },
+    ]);
     render(<ProjectFinancialsTab projectId="proj-1" plannedBudget={5000} currency="AUD" />);
     const committedCard = screen
       .getByText('detail.financialsTab.committed')
@@ -233,28 +265,26 @@ describe('ProjectFinancialsTab', () => {
   });
 
   it('computes invoiced total excluding rejected invoices and lists invoices with links', () => {
-    mockUseInvoices.mockReturnValue(
-      loaded([
-        {
-          id: 'inv-1',
-          invoiceNumber: 'INV-01',
-          vendorName: 'Acme Supplies',
-          relatedPo: 'PO-001',
-          status: 'APPROVED',
-          totalAmount: 750,
-          dueDate: '2026-09-01T00:00:00Z',
-        },
-        {
-          id: 'inv-2',
-          invoiceNumber: 'INV-02',
-          vendorName: 'Acme Supplies',
-          relatedPo: null,
-          status: 'REJECTED',
-          totalAmount: 999,
-          dueDate: null,
-        },
-      ]),
-    );
+    byResource.invoices = loaded([
+      {
+        id: 'inv-1',
+        invoiceNumber: 'INV-01',
+        vendorName: 'Acme Supplies',
+        relatedPo: 'PO-001',
+        status: 'APPROVED',
+        totalAmount: 750,
+        dueDate: '2026-09-01T00:00:00Z',
+      },
+      {
+        id: 'inv-2',
+        invoiceNumber: 'INV-02',
+        vendorName: 'Acme Supplies',
+        relatedPo: null,
+        status: 'REJECTED',
+        totalAmount: 999,
+        dueDate: null,
+      },
+    ]);
     render(<ProjectFinancialsTab projectId="proj-1" plannedBudget={null} currency="AUD" />);
     const invoicedCard = screen
       .getByText('detail.financialsTab.invoiced')
@@ -265,8 +295,8 @@ describe('ProjectFinancialsTab', () => {
   });
 
   it('shows a loading placeholder while the summary queries are in flight', () => {
-    mockUsePurchaseOrders.mockReturnValue(loading);
-    mockUseInvoices.mockReturnValue(loading);
+    byResource['purchase-orders'] = loading;
+    byResource.invoices = loading;
     render(<ProjectFinancialsTab projectId="proj-1" plannedBudget={5000} currency="AUD" />);
     const committedCard = screen
       .getByText('detail.financialsTab.committed')

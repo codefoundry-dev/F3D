@@ -1,6 +1,5 @@
+import { getInvoices, getPurchaseOrders } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { useInvoices } from '@forethread/invoice-shared';
-import { usePurchaseOrders } from '@forethread/po-shared';
 import { INVOICE_STATUS_COLORS } from '@forethread/ui-components';
 import { Link } from 'react-router-dom';
 
@@ -8,7 +7,6 @@ import { ROUTES } from '@/app/route-config';
 
 import {
   HeadRow,
-  LIST_LIMIT,
   Section,
   SectionContent,
   StatusBadge,
@@ -19,6 +17,7 @@ import {
   humanizeStatus,
   type TranslationFn,
 } from './project-tab-shared';
+import { PAGE_SIZE, useAllRows } from './use-all-rows';
 
 /** POs that never (or no longer) commit spend against the budget. */
 const NON_COMMITTED_PO_STATUSES = new Set([
@@ -48,8 +47,12 @@ export default function ProjectFinancialsTab({
   const { t: tInvRaw } = useTranslation('invoices');
   const tInv = tInvRaw as TranslationFn;
 
-  const poQuery = usePurchaseOrders({ projectId, limit: LIST_LIMIT });
-  const invoiceQuery = useInvoices({ projectId, limit: LIST_LIMIT });
+  const poQuery = useAllRows(['purchase-orders', 'project-tab', projectId], (page) =>
+    getPurchaseOrders({ projectId, limit: PAGE_SIZE, page }, { skipErrorHandler: true }),
+  );
+  const invoiceQuery = useAllRows(['invoices', 'project-tab', projectId], (page) =>
+    getInvoices({ projectId, limit: PAGE_SIZE, page }, { skipErrorHandler: true }),
+  );
 
   const committed = (poQuery.data?.items ?? [])
     .filter((po) => !NON_COMMITTED_PO_STATUSES.has(po.status))
@@ -87,7 +90,7 @@ export default function ProjectFinancialsTab({
         />
       </div>
 
-      <Section title={t('detail.financialsTab.invoices')} count={invoiceQuery.data?.meta.total}>
+      <Section title={t('detail.financialsTab.invoices')} count={invoiceQuery.data?.total}>
         <SectionContent
           isLoading={invoiceQuery.isLoading}
           isError={invoiceQuery.isError}
@@ -141,7 +144,7 @@ export default function ProjectFinancialsTab({
               ))}
             </tbody>
           </TableShell>
-          <TruncationNote shown={invoices.length} total={invoiceQuery.data?.meta.total} t={t} />
+          <TruncationNote shown={invoices.length} total={invoiceQuery.data?.total} t={t} />
         </SectionContent>
       </Section>
     </div>

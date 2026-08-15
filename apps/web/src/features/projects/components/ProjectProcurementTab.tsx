@@ -1,6 +1,5 @@
+import { getPurchaseOrders, getRfqs } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { usePurchaseOrders } from '@forethread/po-shared';
-import { useRfqs } from '@forethread/rfq-shared';
 import { PO_STATUS_COLORS, RFQ_STATUS_COLORS } from '@forethread/ui-components';
 import { Link } from 'react-router-dom';
 
@@ -8,7 +7,6 @@ import { ROUTES } from '@/app/route-config';
 
 import {
   HeadRow,
-  LIST_LIMIT,
   Section,
   SectionContent,
   StatusBadge,
@@ -20,6 +18,7 @@ import {
   type TranslationFn,
 } from './project-tab-shared';
 import ProjectBulkOrdersSection from './ProjectBulkOrdersSection';
+import { PAGE_SIZE, useAllRows } from './use-all-rows';
 
 /** FRD 4.3 — the project's RFQs, POs and bulk-order drawdown history. */
 export default function ProjectProcurementTab({
@@ -49,11 +48,13 @@ export default function ProjectProcurementTab({
 function RfqSection({ projectId, t }: { projectId: string; t: TranslationFn }) {
   const { t: tRfqRaw } = useTranslation('rfqs');
   const tRfq = tRfqRaw as TranslationFn;
-  const { data, isLoading, isError } = useRfqs({ projectId, limit: LIST_LIMIT });
+  const { data, isLoading, isError } = useAllRows(['rfqs', 'project-tab', projectId], (page) =>
+    getRfqs({ projectId, limit: PAGE_SIZE, page }, { skipErrorHandler: true }),
+  );
   const items = data?.items ?? [];
 
   return (
-    <Section title={t('detail.procurementTab.rfqs')} count={data?.meta.total}>
+    <Section title={t('detail.procurementTab.rfqs')} count={data?.total}>
       <SectionContent
         isLoading={isLoading}
         isError={isError}
@@ -105,7 +106,7 @@ function RfqSection({ projectId, t }: { projectId: string; t: TranslationFn }) {
             ))}
           </tbody>
         </TableShell>
-        <TruncationNote shown={items.length} total={data?.meta.total} t={t} />
+        <TruncationNote shown={items.length} total={data?.total} t={t} />
       </SectionContent>
     </Section>
   );
@@ -114,11 +115,14 @@ function RfqSection({ projectId, t }: { projectId: string; t: TranslationFn }) {
 function PoSection({ projectId, t }: { projectId: string; t: TranslationFn }) {
   const { t: tPoRaw } = useTranslation('purchaseOrders');
   const tPo = tPoRaw as TranslationFn;
-  const { data, isLoading, isError } = usePurchaseOrders({ projectId, limit: LIST_LIMIT });
+  const { data, isLoading, isError } = useAllRows(
+    ['purchase-orders', 'project-tab', projectId],
+    (page) => getPurchaseOrders({ projectId, limit: PAGE_SIZE, page }, { skipErrorHandler: true }),
+  );
   const items = data?.items ?? [];
 
   return (
-    <Section title={t('detail.procurementTab.purchaseOrders')} count={data?.meta.total}>
+    <Section title={t('detail.procurementTab.purchaseOrders')} count={data?.total}>
       <SectionContent
         isLoading={isLoading}
         isError={isError}
@@ -176,7 +180,7 @@ function PoSection({ projectId, t }: { projectId: string; t: TranslationFn }) {
             ))}
           </tbody>
         </TableShell>
-        <TruncationNote shown={items.length} total={data?.meta.total} t={t} />
+        <TruncationNote shown={items.length} total={data?.total} t={t} />
       </SectionContent>
     </Section>
   );
