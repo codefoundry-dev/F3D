@@ -4,7 +4,11 @@
   },
   "list": {
     "title": "Deliveries",
-    "subtitle": "Review and approve delivery reports raised against your purchase orders",
+    "subtitle": "Track expected deliveries and review delivery reports raised against your purchase orders",
+    "tabs": {
+      "expected": "Expected",
+      "reports": "Reports"
+    },
     "searchPlaceholder": "Search",
     "createNew": "Create new",
     "upload": "Upload",
@@ -29,6 +33,27 @@
       "status": "Status",
       "project": "Project",
       "location": "Location"
+    }
+  },
+  "expected": {
+    "searchPlaceholder": "Search",
+    "overdueOnly": "Overdue only",
+    "recordDelivery": "Record delivery",
+    "pendingReport": "Report pending review",
+    "empty": "No expected deliveries",
+    "emptyHint": "Purchase orders awaiting delivery will appear here automatically.",
+    "loadFailed": "Failed to load expected deliveries. Please try again.",
+    "fields": {
+      "expectedDate": "Expected delivery",
+      "project": "Project",
+      "vendor": "Vendor",
+      "location": "Location",
+      "items": "Line items"
+    },
+    "status": {
+      "AWAITING_DELIVERY": "Awaiting delivery",
+      "PARTIALLY_DELIVERED": "Partially delivered",
+      "OVERDUE": "Overdue"
     }
   },
   "create": {

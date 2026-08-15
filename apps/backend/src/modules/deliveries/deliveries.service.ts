@@ -2,6 +2,7 @@ import type {
   DeliveryReportDetailResponse,
   DeliveryReportLineResponse,
   DeliveryReportListItem,
+  ExpectedDeliveryListItem,
   DamageDisposition as DamageDispositionContract,
   DamageType as DamageTypeContract,
   DeliveryOutcome as DeliveryOutcomeContract,
@@ -33,7 +34,11 @@ import { AuditService } from '../audit/audit.service';
 import { DeliveryDeltaPo, PoStatusService } from '../purchase-orders/po-status.service';
 import { StorageService } from '../storage/storage.service';
 
-import { CreateDeliveryReportDto, ListDeliveryReportQueryDto } from './deliveries.dto';
+import {
+  CreateDeliveryReportDto,
+  ListDeliveryReportQueryDto,
+  ListExpectedDeliveryQueryDto,
+} from './deliveries.dto';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -245,6 +250,169 @@ export class DeliveriesService {
     return {
       items,
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  // ── Expected deliveries (FOR-356) ─────────────────────────────────────────────
+
+  /**
+   * List the POs that should surface on the Deliveries tab without anyone
+   * creating a report: every PO in a deliverable status (the same gate that
+   * allows recording a delivery), derived at read time — no Delivery row is
+   * materialised, so nothing has to be kept in sync with the PO lifecycle.
+   * A PO drops off automatically once delivery approval advances it to
+   * DELIVERED (or it leaves the deliverable set for any other reason).
+   */
+  async listExpected(
+    user: AuthenticatedUser,
+    query: ListExpectedDeliveryQueryDto,
+  ): Promise<{
+    items: ExpectedDeliveryListItem[];
+    meta: { page: number; limit: number; total: number; totalPages: number };
+  }> {
+    const where: Prisma.PurchaseOrderWhereInput = {
+      status: { in: [...DELIVERABLE_PO_STATUSES] },
+    };
+
+    // Company scoping (SUPER_ADMIN sees all; everyone else their own company).
+    if (user.role !== UserRole.SUPER_ADMIN) {
+      if (!user.companyId) {
+        return {
+          items: [],
+          meta: { page: 1, limit: query.limit ?? DEFAULT_LIMIT, total: 0, totalPages: 0 },
+        };
+      }
+      where.companyId = user.companyId;
+    }
+
+    if (query.vendorId) where.vendorId = query.vendorId;
+    if (query.projectId) where.projectId = query.projectId;
+    if (query.deliveryLocationId) where.deliveryLocationId = query.deliveryLocationId;
+    if (query.search?.trim()) {
+      const term = query.search.trim();
+      where.OR = [
+        { poNumber: { contains: term, mode: 'insensitive' } },
+        { vendor: { legalName: { contains: term, mode: 'insensitive' } } },
+      ];
+    }
+
+    // A delivery expected today is not overdue until tomorrow.
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    if (query.overdue) where.AND = [this.overdueWhere(startOfToday)];
+
+    const page = query.page && query.page > 0 ? query.page : DEFAULT_PAGE;
+    const limit = query.limit && query.limit > 0 ? query.limit : DEFAULT_LIMIT;
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.purchaseOrder.findMany({
+        where,
+        orderBy: [{ plannedDeliveryDate: { sort: 'asc', nulls: 'last' } }, { createdAt: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          id: true,
+          poNumber: true,
+          status: true,
+          plannedDeliveryDate: true,
+          deadlineEnd: true,
+          projectId: true,
+          vendorId: true,
+          deliveryLocationId: true,
+          createdAt: true,
+          project: { select: { name: true } },
+          vendor: { select: { legalName: true } },
+          deliveryLocation: { select: { label: true, address: true } },
+          deliveries: { select: { deliveryDate: true } },
+          lineItems: { select: { expectedDeliveryDate: true, quantityDelivered: true } },
+          deliveryReports: {
+            where: { status: DeliveryReportStatus.SUBMITTED },
+            select: { id: true },
+            take: 1,
+          },
+        },
+      }),
+      this.prisma.purchaseOrder.count({ where }),
+    ]);
+
+    const items: ExpectedDeliveryListItem[] = rows.map((po) => {
+      const expected = this.expectedDateOf(po);
+      return {
+        purchaseOrderId: po.id,
+        poNumber: po.poNumber,
+        poStatus: po.status,
+        progress: po.lineItems.some((li) => li.quantityDelivered > 0)
+          ? 'PARTIALLY_DELIVERED'
+          : 'AWAITING_DELIVERY',
+        expectedDeliveryDate: expected?.toISOString() ?? null,
+        isOverdue: !!expected && expected < startOfToday,
+        itemCount: po.lineItems.length,
+        projectId: po.projectId,
+        projectName: po.project?.name ?? null,
+        vendorId: po.vendorId,
+        vendorName: po.vendor?.legalName ?? null,
+        deliveryLocationId: po.deliveryLocationId,
+        deliveryLocationName: po.deliveryLocation
+          ? (po.deliveryLocation.label ?? po.deliveryLocation.address)
+          : null,
+        hasPendingReport: po.deliveryReports.length > 0,
+        createdAt: po.createdAt.toISOString(),
+      };
+    });
+
+    return {
+      items,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  /**
+   * Expected-delivery date of a PO: plannedDeliveryDate (required by the PO
+   * wizard, and what the delivery portal shows as "Expected delivery date"),
+   * falling back to deadlineEnd, then the earliest delivery-schedule row, then
+   * the earliest line-level expected date. Must stay in lockstep with
+   * overdueWhere(), which re-expresses this coalesce as a SQL predicate.
+   */
+  private expectedDateOf(po: {
+    plannedDeliveryDate: Date | null;
+    deadlineEnd: Date | null;
+    deliveries: { deliveryDate: Date | null }[];
+    lineItems: { expectedDeliveryDate: Date | null }[];
+  }): Date | null {
+    const earliest = (dates: (Date | null)[]) =>
+      dates.reduce<Date | null>((acc, d) => (d && (!acc || d < acc) ? d : acc), null);
+    return (
+      po.plannedDeliveryDate ??
+      po.deadlineEnd ??
+      earliest(po.deliveries.map((d) => d.deliveryDate)) ??
+      earliest(po.lineItems.map((li) => li.expectedDeliveryDate))
+    );
+  }
+
+  /**
+   * SQL form of `expectedDateOf(po) < before`, one OR branch per coalesce level
+   * (an earlier level being null is what admits the next). "Earliest date <
+   * before" is equivalent to "some date < before", which keeps the schedule-row
+   * and line-level branches expressible as `some`.
+   */
+  private overdueWhere(before: Date): Prisma.PurchaseOrderWhereInput {
+    const noScheduleDate = { deliveries: { none: { deliveryDate: { not: null } } } } as const;
+    return {
+      OR: [
+        { plannedDeliveryDate: { lt: before } },
+        { plannedDeliveryDate: null, deadlineEnd: { lt: before } },
+        {
+          plannedDeliveryDate: null,
+          deadlineEnd: null,
+          deliveries: { some: { deliveryDate: { lt: before } } },
+        },
+        {
+          plannedDeliveryDate: null,
+          deadlineEnd: null,
+          ...noScheduleDate,
+          lineItems: { some: { expectedDeliveryDate: { lt: before } } },
+        },
+      ],
     };
   }
 

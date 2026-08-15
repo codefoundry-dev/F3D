@@ -173,6 +173,7 @@ export const PURCHASE_ORDERS_PATHS = {
 // ── Delivery Reports (Epic 6 — Delivery) ──────────────────────────────────────
 export const DELIVERY_PATHS = {
   ROOT: '/delivery-reports',
+  EXPECTED: '/delivery-reports/expected',
   byId: (id: string) => `/delivery-reports/${id}`,
   approve: (id: string) => `/delivery-reports/${id}/approve`,
   reject: (id: string) => `/delivery-reports/${id}/reject`,

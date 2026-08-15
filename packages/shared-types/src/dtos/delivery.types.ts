@@ -87,6 +87,46 @@ export interface DeliveryReportListItem {
   createdAt: string;
 }
 
+// ── Expected deliveries (FOR-356) ─────────────────────────────────────────────
+
+/**
+ * Where an expected delivery stands on receipt, derived from the PO's line
+ * quantities the same way the delivery close-out derives the PO status: anything
+ * received → PARTIALLY_DELIVERED, else AWAITING_DELIVERY. Fully-delivered POs
+ * leave the deliverable status set and drop off the expected list entirely.
+ */
+export type ExpectedDeliveryProgress = 'AWAITING_DELIVERY' | 'PARTIALLY_DELIVERED';
+
+/**
+ * One PO awaiting delivery, derived at read time from deliverable-status POs —
+ * no Delivery row is materialised. `expectedDeliveryDate` coalesces the PO's
+ * plannedDeliveryDate → deadlineEnd → earliest delivery-schedule row → earliest
+ * line-level expected date; `isOverdue` flags a passed date on an undelivered PO.
+ */
+export interface ExpectedDeliveryListItem {
+  purchaseOrderId: string;
+  poNumber: string | null;
+  /** Raw PO lifecycle status (always one of the deliverable statuses). */
+  poStatus: string;
+  progress: ExpectedDeliveryProgress;
+  /** ISO-8601 expected delivery date, or null when the PO carries no date. */
+  expectedDeliveryDate: string | null;
+  /** True when the expected date has passed and the PO is not fully delivered. */
+  isOverdue: boolean;
+  /** Number of line items on the PO. */
+  itemCount: number;
+  projectId: string | null;
+  projectName: string | null;
+  vendorId: string | null;
+  vendorName: string | null;
+  deliveryLocationId: string | null;
+  deliveryLocationName: string | null;
+  /** True when a SUBMITTED delivery report is already pending review for this PO. */
+  hasPendingReport: boolean;
+  /** ISO-8601 PO creation timestamp. */
+  createdAt: string;
+}
+
 // ── Detail / review (screenshots 04/08) ───────────────────────────────────────
 
 export interface DeliveryReportDetailResponse {

@@ -18,6 +18,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEmail,
   IsEnum,
   IsInt,
@@ -170,6 +171,55 @@ export class ListDeliveryReportQueryDto {
   @IsOptional()
   @IsUUID()
   deliveryLocationId?: string;
+
+  @ApiPropertyOptional({ description: 'Page number (1-based)', default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ description: 'Page size', default: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number;
+}
+
+/**
+ * List / query filters for expected deliveries (FOR-356): POs in a deliverable
+ * status that should surface on the Deliveries tab without a manually-created
+ * report. Mirrors ListDeliveryReportQueryDto; `overdue` is a quick filter for
+ * POs whose expected delivery date has passed (same pattern as the
+ * material-request `overdue` quick filter).
+ */
+export class ListExpectedDeliveryQueryDto {
+  @ApiPropertyOptional({ description: 'Free-text search over PO number and vendor name' })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by vendor (a Company id)' })
+  @IsOptional()
+  @IsUUID()
+  vendorId?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by project' })
+  @IsOptional()
+  @IsUUID()
+  projectId?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by delivery location (a ProjectLocation id)' })
+  @IsOptional()
+  @IsUUID()
+  deliveryLocationId?: string;
+
+  @ApiPropertyOptional({ description: 'Quick filter: past their expected delivery date' })
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  overdue?: boolean;
 
   @ApiPropertyOptional({ description: 'Page number (1-based)', default: 1 })
   @IsOptional()

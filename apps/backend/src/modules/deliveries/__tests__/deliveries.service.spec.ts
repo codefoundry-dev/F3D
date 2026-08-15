@@ -78,7 +78,11 @@ function makeService() {
       create: jest.fn(),
       update: jest.fn().mockResolvedValue({}),
     },
-    purchaseOrder: { findUnique: jest.fn() },
+    purchaseOrder: {
+      findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
+    },
     rfq: { findMany: jest.fn().mockResolvedValue([]) },
     invoice: { findMany: jest.fn().mockResolvedValue([]) },
     user: { findUnique: jest.fn().mockResolvedValue({ name: 'Officer One' }) },
@@ -293,6 +297,203 @@ describe('DeliveriesService', () => {
       expect(res.items[0].deliveryLocationName).toBeNull();
       expect(res.items[0].linkedRfqNumber).toBeNull();
       expect(res.items[0].invoiceNumber).toBeNull();
+    });
+  });
+
+  // ── listExpected (FOR-356) ──────────────────────────────────────────────────
+  describe('listExpected', () => {
+    // A deliverable PO row as returned by the listExpected select.
+    function expectedPoRow(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'po-1',
+        poNumber: 'PO-00001',
+        status: 'ACCEPTED',
+        plannedDeliveryDate: null,
+        deadlineEnd: null,
+        projectId: 'proj-1',
+        vendorId: 'vendor-1',
+        deliveryLocationId: 'loc-1',
+        createdAt: new Date('2026-08-01'),
+        project: { name: 'Alpha' },
+        vendor: { legalName: 'VendorCo' },
+        deliveryLocation: { label: 'Gate A', address: 'Addr' },
+        deliveries: [],
+        lineItems: [{ expectedDeliveryDate: null, quantityDelivered: 0 }],
+        deliveryReports: [],
+        ...overrides,
+      };
+    }
+
+    it('returns an empty page for a non-super-admin with no company', async () => {
+      const { service } = makeService();
+      const noCompany = { ...officer, companyId: null };
+      const res = await service.listExpected(noCompany, {});
+      expect(res.items).toEqual([]);
+      expect(res.meta.total).toBe(0);
+    });
+
+    it('scopes to the caller company and the deliverable statuses', async () => {
+      const { service, prisma } = makeService();
+      await service.listExpected(officer, {});
+      const where = (prisma.purchaseOrder.findMany as jest.Mock).mock.calls[0][0].where;
+      expect(where.companyId).toBe('company-1');
+      expect(where.status.in).toEqual([
+        'SENT',
+        'ACKNOWLEDGED',
+        'ACCEPTED',
+        'SCHEDULED_FOR_DELIVERY',
+        'PARTIALLY_DELIVERED',
+        'LATE_FOR_DELIVERY',
+      ]);
+    });
+
+    it('does not company-scope a super admin', async () => {
+      const { service, prisma } = makeService();
+      await service.listExpected(superAdmin, {});
+      const where = (prisma.purchaseOrder.findMany as jest.Mock).mock.calls[0][0].where;
+      expect(where.companyId).toBeUndefined();
+    });
+
+    it('applies the optional filters and the search OR', async () => {
+      const { service, prisma } = makeService();
+      await service.listExpected(officer, {
+        vendorId: 'vendor-1',
+        projectId: 'proj-1',
+        deliveryLocationId: 'loc-1',
+        search: 'PO-0',
+      });
+      const where = (prisma.purchaseOrder.findMany as jest.Mock).mock.calls[0][0].where;
+      expect(where.vendorId).toBe('vendor-1');
+      expect(where.projectId).toBe('proj-1');
+      expect(where.deliveryLocationId).toBe('loc-1');
+      expect(where.OR).toEqual([
+        { poNumber: { contains: 'PO-0', mode: 'insensitive' } },
+        { vendor: { legalName: { contains: 'PO-0', mode: 'insensitive' } } },
+      ]);
+    });
+
+    it('flags a passed plannedDeliveryDate as overdue and maps the item', async () => {
+      const { service, prisma } = makeService();
+      (prisma.purchaseOrder.findMany as jest.Mock).mockResolvedValue([
+        expectedPoRow({ plannedDeliveryDate: new Date('2020-01-01') }),
+      ]);
+      (prisma.purchaseOrder.count as jest.Mock).mockResolvedValue(1);
+
+      const res = await service.listExpected(officer, {});
+      const item = res.items[0];
+      expect(item.purchaseOrderId).toBe('po-1');
+      expect(item.poNumber).toBe('PO-00001');
+      expect(item.poStatus).toBe('ACCEPTED');
+      expect(item.expectedDeliveryDate).toBe(new Date('2020-01-01').toISOString());
+      expect(item.isOverdue).toBe(true);
+      expect(item.progress).toBe('AWAITING_DELIVERY');
+      expect(item.itemCount).toBe(1);
+      expect(item.projectName).toBe('Alpha');
+      expect(item.vendorName).toBe('VendorCo');
+      expect(item.deliveryLocationName).toBe('Gate A');
+      expect(item.hasPendingReport).toBe(false);
+    });
+
+    it('does not flag a future or missing expected date as overdue', async () => {
+      const { service, prisma } = makeService();
+      const future = new Date();
+      future.setDate(future.getDate() + 30);
+      (prisma.purchaseOrder.findMany as jest.Mock).mockResolvedValue([
+        expectedPoRow({ id: 'po-future', plannedDeliveryDate: future }),
+        expectedPoRow({ id: 'po-dateless' }),
+      ]);
+      (prisma.purchaseOrder.count as jest.Mock).mockResolvedValue(2);
+
+      const res = await service.listExpected(officer, {});
+      expect(res.items[0].isOverdue).toBe(false);
+      expect(res.items[1].isOverdue).toBe(false);
+      expect(res.items[1].expectedDeliveryDate).toBeNull();
+    });
+
+    it('coalesces deadlineEnd, then the earliest schedule row, then the earliest line date', async () => {
+      const { service, prisma } = makeService();
+      (prisma.purchaseOrder.findMany as jest.Mock).mockResolvedValue([
+        expectedPoRow({ id: 'po-deadline', deadlineEnd: new Date('2026-01-10') }),
+        expectedPoRow({
+          id: 'po-schedule',
+          deliveries: [
+            { deliveryDate: new Date('2026-02-20') },
+            { deliveryDate: new Date('2026-02-05') },
+            { deliveryDate: null },
+          ],
+        }),
+        expectedPoRow({
+          id: 'po-lines',
+          lineItems: [
+            { expectedDeliveryDate: new Date('2026-03-15'), quantityDelivered: 0 },
+            { expectedDeliveryDate: new Date('2026-03-01'), quantityDelivered: 0 },
+          ],
+        }),
+      ]);
+      (prisma.purchaseOrder.count as jest.Mock).mockResolvedValue(3);
+
+      const res = await service.listExpected(officer, {});
+      expect(res.items[0].expectedDeliveryDate).toBe(new Date('2026-01-10').toISOString());
+      expect(res.items[1].expectedDeliveryDate).toBe(new Date('2026-02-05').toISOString());
+      expect(res.items[2].expectedDeliveryDate).toBe(new Date('2026-03-01').toISOString());
+    });
+
+    it('derives PARTIALLY_DELIVERED progress and a pending report', async () => {
+      const { service, prisma } = makeService();
+      (prisma.purchaseOrder.findMany as jest.Mock).mockResolvedValue([
+        expectedPoRow({
+          status: 'PARTIALLY_DELIVERED',
+          lineItems: [
+            { expectedDeliveryDate: null, quantityDelivered: 40 },
+            { expectedDeliveryDate: null, quantityDelivered: 0 },
+          ],
+          deliveryReports: [{ id: 'dr-9' }],
+        }),
+      ]);
+      (prisma.purchaseOrder.count as jest.Mock).mockResolvedValue(1);
+
+      const res = await service.listExpected(officer, {});
+      expect(res.items[0].progress).toBe('PARTIALLY_DELIVERED');
+      expect(res.items[0].hasPendingReport).toBe(true);
+      expect(res.items[0].itemCount).toBe(2);
+    });
+
+    it('adds the four-branch coalesce predicate for the overdue quick filter', async () => {
+      const { service, prisma } = makeService();
+      await service.listExpected(officer, { overdue: true });
+      const where = (prisma.purchaseOrder.findMany as jest.Mock).mock.calls[0][0].where;
+      const branches = where.AND[0].OR;
+      expect(branches).toHaveLength(4);
+      expect(branches[0].plannedDeliveryDate.lt).toBeInstanceOf(Date);
+      expect(branches[1]).toMatchObject({ plannedDeliveryDate: null });
+      expect(branches[1].deadlineEnd.lt).toBeInstanceOf(Date);
+      expect(branches[2].deliveries.some.deliveryDate.lt).toBeInstanceOf(Date);
+      expect(branches[3]).toMatchObject({
+        plannedDeliveryDate: null,
+        deadlineEnd: null,
+        deliveries: { none: { deliveryDate: { not: null } } },
+      });
+      expect(branches[3].lineItems.some.expectedDeliveryDate.lt).toBeInstanceOf(Date);
+    });
+
+    it('null-coalesces missing relations', async () => {
+      const { service, prisma } = makeService();
+      (prisma.purchaseOrder.findMany as jest.Mock).mockResolvedValue([
+        expectedPoRow({
+          projectId: null,
+          vendorId: null,
+          deliveryLocationId: null,
+          project: null,
+          vendor: null,
+          deliveryLocation: null,
+        }),
+      ]);
+      (prisma.purchaseOrder.count as jest.Mock).mockResolvedValue(1);
+
+      const res = await service.listExpected(officer, {});
+      expect(res.items[0].projectName).toBeNull();
+      expect(res.items[0].vendorName).toBeNull();
+      expect(res.items[0].deliveryLocationName).toBeNull();
     });
   });
 
