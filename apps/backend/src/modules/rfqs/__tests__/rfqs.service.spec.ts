@@ -384,6 +384,62 @@ describe('RfqsService', () => {
       expect(item.avgQuoteCost).toBe(2000); // (1000 + 3000) / 2 received quotes
     });
 
+    it('maps rows whose quotes lack line items and cost, and labelless delivery locations', async () => {
+      mockPrisma.rfq.findMany.mockResolvedValue([
+        {
+          id: 'rfq-3',
+          projectId: 'proj-1',
+          status: 'OPEN',
+          totalRequestedQty: 5,
+          pickUpLocation: null,
+          deliveryLocationId: 'loc-1',
+          // Label-less location falls back to the address in the list column.
+          deliveryLocation: { label: null, address: '9 Dock Rd' },
+          isPickUp: true,
+          deadlineStart: new Date('2026-04-01'),
+          deadlineEnd: null,
+          createdAt: new Date('2026-03-01'),
+          project: { name: 'Gamma' },
+          createdBy: { id: 'po-1', name: 'PO User' },
+          createdByUserId: 'po-1',
+          _count: { lineItems: 1, quoteResponses: 1, invitedVendors: 1 },
+          // Received quote with no lineItems array and no totalCost yet.
+          quoteResponses: [{ vendorId: 'v1', status: 'SUBMITTED', totalCost: null }],
+        },
+        {
+          id: 'rfq-4',
+          projectId: 'proj-1',
+          status: 'OPEN',
+          totalRequestedQty: 5,
+          pickUpLocation: null,
+          deliveryLocationId: 'loc-2',
+          deliveryLocation: { label: 'Depot', address: '12 Wharf St' },
+          deadlineStart: null,
+          deadlineEnd: new Date('2026-04-15'),
+          createdAt: new Date('2026-03-01'),
+          project: { name: 'Gamma' },
+          createdBy: { id: 'po-1', name: 'PO User' },
+          createdByUserId: 'po-1',
+          _count: { lineItems: 1, quoteResponses: 0, invitedVendors: 0 },
+          quoteResponses: [],
+        },
+      ]);
+      mockPrisma.rfq.count.mockResolvedValue(2);
+
+      const [first, second] = (await service.listRfqs(q(), companyAdmin)).items;
+      expect(first.approvedItems).toBe(0); // missing lineItems counts as none
+      expect(first.declinedItems).toBe(0);
+      expect(first.avgQuoteCost).toBe(0); // null totalCost treated as 0, not skipped
+      expect(first.deliveryLocation).toBe('9 Dock Rd');
+      expect(first.isPickUp).toBe(true);
+      expect(first.pickUp).toBe(true);
+      expect(first.deadlineRange).toBeNull(); // needs both start and end
+      expect(first.deadlineEnd).toBeNull();
+      expect(second.deliveryLocation).toBe('Depot');
+      expect(second.deadlineRange).toBeNull();
+      expect(second.deadlineEnd).toBe(new Date('2026-04-15').toISOString());
+    });
+
     it('returns avgQuoteCost null and zero metrics when no quotes received', async () => {
       mockPrisma.rfq.findMany.mockResolvedValue([
         {

@@ -2107,9 +2107,9 @@ export class RfqsService {
     // multi-project RFQs from every project but their primary. Appended to AND
     // so the search OR below can't widen the scope.
     if (query.projectId) {
-      const existingAnd = Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : [];
+      // where.AND is only ever assigned as an array in this builder.
       where.AND = [
-        ...existingAnd,
+        ...((where.AND as Prisma.RfqWhereInput[] | undefined) ?? []),
         {
           OR: [
             { projectId: query.projectId },
