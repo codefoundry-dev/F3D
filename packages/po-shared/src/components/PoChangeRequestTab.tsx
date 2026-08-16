@@ -13,6 +13,8 @@ import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
+import { hasAnyChange } from '../utils/change-diff';
+
 import { PoChangeDiff } from './PoChangeDiff';
 
 interface PoChangeRequestTabProps {
@@ -82,9 +84,7 @@ export function PoChangeRequestTab({
   const company = changeRequest.requestedByCompanyName ?? '';
   const requester = changeRequest.requestedByName ?? '';
 
-  const hasChanges =
-    Object.keys(changeRequest.changedFields?.fields ?? {}).length > 0 ||
-    (changeRequest.changedFields?.lineItems ?? []).length > 0;
+  const hasChanges = hasAnyChange(changeRequest.changedFields ?? {});
 
   return (
     <div className="bg-card rounded-lg border border-border p-6">

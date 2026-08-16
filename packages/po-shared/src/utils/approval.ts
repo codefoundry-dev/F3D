@@ -1,3 +1,5 @@
+import { exceedsApprovalCap } from '@forethread/approval-shared';
+
 // FOR-210: approval-gating decision logic for sending a PO.
 //
 // The current user's `poApprovalThreshold` (from GET /users/me) decides whether
@@ -20,15 +22,7 @@ export function requiresApproval(
   threshold: number | null | undefined,
   total: number | null | undefined,
 ): boolean {
-  // Unlimited authority — never requires approval.
-  if (threshold === null || threshold === undefined) return false;
-
-  const amount = total ?? 0;
-
-  // No positive amount can never trip the gate.
-  if (amount <= 0) return false;
-
-  // threshold === 0 → any positive total requires approval.
-  // threshold > 0   → only totals strictly above the threshold require approval.
-  return amount > threshold;
+  // The arithmetic is identical for POs and invoices, so it lives in
+  // approval-shared — this is the PO-send-flavoured name for it.
+  return exceedsApprovalCap(threshold, total);
 }

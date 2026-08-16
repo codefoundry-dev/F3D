@@ -4,6 +4,7 @@ import {
   type InvoiceDetail,
   type InvoiceDocument,
 } from '@forethread/api-client';
+import { ApproverPoolPanel, exceedsApprovalCap, useMe } from '@forethread/approval-shared';
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import {
@@ -27,29 +28,39 @@ import { useInvoice, useApproveInvoice, useRejectInvoice } from '../hooks/useInv
 
 import { InvoiceDecisionModal } from './InvoiceDecisionModal';
 import { InvoiceHistoryTab } from './InvoiceHistoryTab';
+import { InvoicePoTab } from './InvoicePoTab';
 import { InvoiceReviewPanel } from './InvoiceReviewPanel';
 
 export interface InvoiceDetailPageProps {
   canApprove?: boolean;
   /** Show the review/correct form on Pending invoices (FOR-291). */
   canReview?: boolean;
+  /**
+   * Show the Purchase Order tab (FOR-355) — the buyer/finance surfaces. The
+   * vendor surface keeps it off: the tab's data is the buying company's
+   * reconciliation view, and the backend forbids vendors anyway.
+   */
+  showPoTab?: boolean;
 }
 
-type Tab = 'details' | 'attachments' | 'history';
+type Tab = 'details' | 'po' | 'attachments' | 'history';
 
-const TABS: Tab[] = ['details', 'attachments', 'history'];
+const ALL_TABS: Tab[] = ['details', 'po', 'attachments', 'history'];
 
 export function InvoiceDetailPage({
   canApprove = false,
   canReview = false,
+  showPoTab = false,
 }: InvoiceDetailPageProps) {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation('invoices');
   const [searchParams, setSearchParams] = useSearchParams();
+  const tabs = showPoTab ? ALL_TABS : ALL_TABS.filter((tab) => tab !== 'po');
   const initialTab = (searchParams.get('tab') as Tab) ?? 'details';
-  const activeTab = TABS.includes(initialTab) ? initialTab : 'details';
+  const activeTab = tabs.includes(initialTab) ? initialTab : 'details';
 
   const { data: invoice, isLoading } = useInvoice(id);
+  const { data: me } = useMe();
   const approveMutation = useApproveInvoice();
   const rejectMutation = useRejectInvoice();
   const setTitle = usePageTitleStore((s) => s.setTitle);
@@ -70,23 +81,16 @@ export function InvoiceDetailPage({
   };
 
   const docCount = invoice?.documents?.length ?? 0;
-  const tabItems: TabItem<Tab>[] = [
-    {
-      value: 'details',
-      label: t('invoiceDetail.tabs.details', { defaultValue: 'Invoice Details' }),
-    },
-    {
-      value: 'attachments',
-      label: t('invoiceDetail.tabs.attachments', {
-        defaultValue: `Attachments (${docCount})`,
-        count: docCount,
-      }),
-    },
-    {
-      value: 'history',
-      label: t('invoiceDetail.tabs.history', { defaultValue: 'History' }),
-    },
-  ];
+  const tabLabels: Record<Tab, string> = {
+    details: t('invoiceDetail.tabs.details', { defaultValue: 'Invoice Details' }),
+    po: t('invoiceDetail.tabs.po', { defaultValue: 'Purchase Order' }),
+    attachments: t('invoiceDetail.tabs.attachments', {
+      defaultValue: `Attachments (${docCount})`,
+      count: docCount,
+    }),
+    history: t('invoiceDetail.tabs.history', { defaultValue: 'History' }),
+  };
+  const tabItems: TabItem<Tab>[] = tabs.map((tab) => ({ value: tab, label: tabLabels[tab] }));
 
   const isPending = invoice?.status === 'PENDING';
   const showActions = canApprove && isPending;
@@ -103,6 +107,20 @@ export function InvoiceDetailPage({
   const approveBlockedHint = t('invoiceDetail.approveBlocked', {
     defaultValue:
       'Set the vendor, project, and total amount in the review form and save before approving.',
+  });
+
+  // FOR-303: `invoice.approve` carries a configurable cap that the backend now
+  // enforces. A viewer whose cap is below the invoice total sees Approve
+  // disabled with the explanation rather than a silent 403. `me` still loading
+  // resolves to false (enabled) — the backend stays the authority and its
+  // message surfaces through the decision modal's error state. Decline stays
+  // available: rejecting an invoice does not need spend authority.
+  const overLimit = exceedsApprovalCap(me?.invoiceApprovalThreshold, invoice?.totalAmount);
+  const overLimitHint = t('invoiceDetail.overApprovalLimit', {
+    amount: (invoice?.totalAmount ?? 0).toLocaleString(),
+    limit: (me?.invoiceApprovalThreshold ?? 0).toLocaleString(),
+    defaultValue:
+      'This invoice totals {{amount}}, above your approval limit of {{limit}}. A higher-tier approver must approve it.',
   });
 
   if (isLoading) {
@@ -130,9 +148,10 @@ export function InvoiceDetailPage({
             </Button>
             <Button
               variant="primary"
-              disabled={isActioning || !reviewComplete}
-              title={reviewComplete ? undefined : approveBlockedHint}
+              disabled={isActioning || !reviewComplete || overLimit}
+              title={!reviewComplete ? approveBlockedHint : overLimit ? overLimitHint : undefined}
               leftIcon={<CheckCircleIcon className="size-4" />}
+              data-testid={overLimit ? 'invoice-approve-over-limit' : 'invoice-approve-button'}
               onClick={() => {
                 approveMutation.reset();
                 setDecision('approve');
@@ -144,6 +163,10 @@ export function InvoiceDetailPage({
         )}
       </div>
 
+      {/* Who the invoice is waiting on (FOR-309). The same component the PO
+          uses — self-hides when approval was never required. */}
+      {id && <ApproverPoolPanel entityType="INVOICE" entityId={id} />}
+
       {/* Tab content */}
       <div className="flex-1 overflow-auto rounded-[14px] border border-gray-100 bg-white shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
         {activeTab === 'details' &&
@@ -154,6 +177,7 @@ export function InvoiceDetailPage({
           ) : (
             <InvoiceDetailsTab invoice={invoice} />
           ))}
+        {activeTab === 'po' && invoice && <InvoicePoTab invoice={invoice} />}
         {activeTab === 'attachments' && <AttachmentsTab documents={invoice?.documents ?? []} />}
         {activeTab === 'history' && invoice && <InvoiceHistoryTab invoice={invoice} />}
       </div>

@@ -15,13 +15,15 @@ import {
   PoDocumentsTab,
   PoMessagesTab,
   PoActionLogTab,
+  PoCancelRequestModal,
   PoChangeRequestTab,
   PoChangeRequestTabLoading,
 } from '@forethread/po-shared';
 import type { PoTab, RelatedDocument } from '@forethread/po-shared';
 import { usePageTitleStore } from '@forethread/rfq-shared';
-import { Button, Spinner } from '@forethread/ui-components';
+import { Button, Spinner, notificationService } from '@forethread/ui-components';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
+import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -33,6 +35,7 @@ import { usePermissions } from '@/shared/role/usePermissions';
 
 import { PoVendorAcceptFields } from '../components/PoVendorAcceptFields';
 import { PoVendorActions } from '../components/PoVendorActions';
+import { useProposePoChange } from '../services/purchase-orders.service';
 
 const ACTIONABLE_STATUSES = ['SENT', 'ACKNOWLEDGED'];
 /** Statuses for which the backend accepts a change proposal (po-change.service). */
@@ -172,6 +175,30 @@ export default function PurchaseOrderDetailPage() {
   const isActionable = po ? ACTIONABLE_STATUSES.includes(po.status) : false;
   const canChange = po ? CHANGEABLE_STATUSES.includes(po.status) && has('po.proposeChange') : false;
 
+  // FOR-352 — request cancellation via the change-request workflow (the buyer
+  // must approve before the PO transitions to CANCELLED_BY_VENDOR).
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const proposeCancelMutation = useProposePoChange(id ?? '');
+  const handleRequestCancellation = useCallback(
+    (reason: string) => {
+      proposeCancelMutation.mutate(
+        {
+          changeType: 'COMMERCIAL',
+          changedFields: { cancelPo: true },
+          message: reason || undefined,
+        },
+        {
+          onSuccess: () => {
+            notificationService.success(t('cancelRequest.submitted'));
+            setShowCancelModal(false);
+          },
+          onError: () => notificationService.error(t('cancelRequest.submitError')),
+        },
+      );
+    },
+    [proposeCancelMutation, t],
+  );
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-16">
@@ -231,6 +258,16 @@ export default function PurchaseOrderDetailPage() {
                   }
                 >
                   {t('actions.changeRequest')}
+                </Button>
+              )}
+              {canChange && activeTab === 'details' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<CrossIcon className="w-3.5 h-3.5" />}
+                  onClick={() => setShowCancelModal(true)}
+                >
+                  {t('actions.requestCancellation')}
                 </Button>
               )}
             </div>
@@ -306,6 +343,15 @@ export default function PurchaseOrderDetailPage() {
           />
         )}
       </div>
+
+      {showCancelModal && (
+        <PoCancelRequestModal
+          poNumber={po.poNumber}
+          onClose={() => setShowCancelModal(false)}
+          onConfirm={handleRequestCancellation}
+          isSubmitting={proposeCancelMutation.isPending}
+        />
+      )}
     </div>
   );
 }

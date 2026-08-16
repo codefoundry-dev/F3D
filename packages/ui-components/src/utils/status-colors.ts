@@ -54,6 +54,17 @@ export const DELIVERY_STATUS_COLORS: Record<string, string> = {
 };
 
 /**
+ * Expected deliveries (FOR-356): POs awaiting goods on the Deliveries tab.
+ * Blue = on track, orange = partially received (mirrors PARTIALLY_DELIVERED
+ * app-wide), red OVERDUE = expected date has passed without full delivery.
+ */
+export const EXPECTED_DELIVERY_STATUS_COLORS: Record<string, string> = {
+  AWAITING_DELIVERY: 'bg-[hsl(var(--badge-blue))] text-[hsl(var(--badge-blue-text))]',
+  PARTIALLY_DELIVERED: 'bg-[hsl(var(--badge-orange))] text-[hsl(var(--badge-orange-text))]',
+  OVERDUE: 'bg-destructive/10 text-destructive',
+};
+
+/**
  * Per-line `DeliveryOutcome` colours. Distinct from DELIVERY_STATUS_COLORS above,
  * which colours the *report's* review state (Submitted/Approved/Rejected).
  *

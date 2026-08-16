@@ -55,6 +55,13 @@ vi.mock('@/app/route-config', () => ({
   },
 }));
 vi.mock('@/shared/role/usePermissions', () => ({ usePermissions: () => ({ has: mockHas }) }));
+// Current-user identity for the FOR-349 own-request gate. Defaults to a viewer
+// who is NOT the fixture requester ('u1'); own-request tests point it at 'u1'.
+const mockCurrentUser = vi.hoisted(() => ({ id: 'viewer-9' }));
+vi.mock('@/features/auth/state/auth.store', () => ({
+  useAuthStore: (selector: (s: { currentUser: { id: string } }) => unknown) =>
+    selector({ currentUser: { id: mockCurrentUser.id } }),
+}));
 vi.mock('../components/MrStatusBadge', () => ({
   MrStatusBadge: ({ status }: { status: string }) => <span>status:{status}</span>,
   MrPriorityBadge: ({ priority }: { priority: string }) => <span>prio:{priority}</span>,
@@ -77,6 +84,17 @@ vi.mock('../components/ConvertToPoModal', () => ({
     <div data-testid="convert-po-modal">
       <button onClick={() => onConfirm('vendor-9')}>confirm-po</button>
     </div>
+  ),
+}));
+// The Approver Pool panel has its own suite in @forethread/approval-shared; here
+// it is a stub like every other child, so this suite stays about page layout.
+vi.mock('@forethread/approval-shared', () => ({
+  ApproverPoolPanel: (props: { entityType: string; entityId: string }) => (
+    <div
+      data-testid="approver-pool-panel"
+      data-entity-type={props.entityType}
+      data-entity-id={props.entityId}
+    />
   ),
 }));
 vi.mock('../../services/material-requests.service', () => ({
@@ -121,6 +139,7 @@ describe('MaterialRequestDetailPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockHas.mockReturnValue(true);
+    mockCurrentUser.id = 'viewer-9';
     mockUseAudit.mockReturnValue({ data: [], isLoading: false });
   });
 
@@ -145,6 +164,14 @@ describe('MaterialRequestDetailPage', () => {
     expect(screen.getByTestId('activity')).toBeInTheDocument();
   });
 
+  it('mounts the Approver Pool panel for the material request (FOR-347)', () => {
+    mockUseMaterialRequest.mockReturnValue({ isLoading: false, data: detail({}) });
+    render(<MaterialRequestDetailPage />);
+    const panel = screen.getByTestId('approver-pool-panel');
+    expect(panel).toHaveAttribute('data-entity-type', 'MATERIAL_REQUEST');
+    expect(panel).toHaveAttribute('data-entity-id', 'mr-1');
+  });
+
   it('shows Approve + Decline for a SUBMITTED request with permissions', () => {
     mockUseMaterialRequest.mockReturnValue({
       isLoading: false,
@@ -154,6 +181,30 @@ describe('MaterialRequestDetailPage', () => {
     expect(screen.getByTestId('mr-approve')).toBeInTheDocument();
     expect(screen.getByTestId('mr-decline')).toBeInTheDocument();
     expect(screen.queryByTestId('mr-convert-rfq')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mr-own-request-note')).not.toBeInTheDocument();
+  });
+
+  it('hides Approve/Decline and explains when the viewer raised the request (FOR-349)', () => {
+    mockCurrentUser.id = 'u1'; // the fixture requester
+    mockUseMaterialRequest.mockReturnValue({
+      isLoading: false,
+      data: detail({ status: 'SUBMITTED' }),
+    });
+    render(<MaterialRequestDetailPage />);
+    expect(screen.queryByTestId('mr-approve')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mr-decline')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mr-own-request-note')).toBeInTheDocument();
+  });
+
+  it('shows no own-request note to a requester without review permissions (FOR-349)', () => {
+    mockCurrentUser.id = 'u1';
+    mockHas.mockReturnValue(false);
+    mockUseMaterialRequest.mockReturnValue({
+      isLoading: false,
+      data: detail({ status: 'SUBMITTED' }),
+    });
+    render(<MaterialRequestDetailPage />);
+    expect(screen.queryByTestId('mr-own-request-note')).not.toBeInTheDocument();
   });
 
   it('hides Approve/Decline when the user lacks the permissions', () => {

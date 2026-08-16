@@ -82,6 +82,7 @@ vi.mock('@forethread/po-shared', () => ({
   PoActionLogTab: () => <div data-testid="po-action-log-tab" />,
   PoChangeRequestTab: () => <div data-testid="po-change-request-tab" />,
   PoChangeRequestTabLoading: () => <div data-testid="po-change-request-tab-loading" />,
+  PoCancelRequestModal: () => <div data-testid="po-cancel-request-modal" />,
 }));
 
 vi.mock('@forethread/ui-components', () => ({
@@ -102,6 +103,7 @@ vi.mock('@forethread/ui-components', () => ({
     </button>
   ),
   Spinner: ({ size }: { size?: string }) => <div data-testid="spinner" data-size={size} />,
+  notificationService: { success: vi.fn(), error: vi.fn() },
   onPhoneOnly: vi.fn(),
   onDigitsOnly: vi.fn(),
   onDecimalOnly: vi.fn(),
@@ -117,6 +119,14 @@ vi.mock('@forethread/ui-components/assets/icons/edit-without-line.svg?react', ()
 
 vi.mock('../components/PoSendButton', () => ({
   PoSendButton: () => <div data-testid="po-send-button" />,
+}));
+
+// The Approver Pool panel has its own suite in @forethread/approval-shared; here
+// it is a stub like every other child, so this suite stays about page layout.
+vi.mock('@forethread/approval-shared', () => ({
+  ApproverPoolPanel: (props: { entityType: string; entityId: string }) => (
+    <div data-testid="approver-pool-panel" data-entity-type={props.entityType} />
+  ),
 }));
 
 import PurchaseOrderDetailPage from './PurchaseOrderDetailPage';

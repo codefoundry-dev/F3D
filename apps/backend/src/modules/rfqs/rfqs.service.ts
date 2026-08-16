@@ -15,12 +15,14 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   AccessTokenPurpose,
   AccessTokenSubject,
+  AuditAction,
   CompanyType,
   NotificationEntityType,
   NotificationType,
@@ -34,15 +36,18 @@ import {
   QuoteResponseStatus,
   RfqStatus,
   UserRole,
+  UserStatus,
 } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { PermissionsService } from '../../common/permissions';
 import { loadMaterialSnapshots } from '../../common/utils/material-snapshot.util';
 import { nextSequentialNumber } from '../../common/utils/sequential-number.util';
 import { resolveSelectedRecipients } from '../../common/utils/vendor-recipients.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
+import { AuditService } from '../audit/audit.service';
 import { BrandingService } from '../export/branding.service';
 import { NotificationService } from '../notification-feed/notification.service';
 import { EmailAttachment, EmailService } from '../notifications/email.service';
@@ -56,6 +61,7 @@ import {
   normalizeRfqLineItem,
   resolveRfqLineItemMaterialName,
 } from './rfq-line-item.util';
+import { RfqVisibilityService } from './rfq-visibility.service';
 import { VENDOR_STATUS_MAP, VENDOR_STATUS_TO_RFQ } from './vendor-status.constants';
 
 /**
@@ -73,7 +79,6 @@ const RFQ_LIST_INCLUDE = {
   project: { select: { id: true, name: true, code: true } },
   deliveryLocation: { select: { id: true, label: true, address: true } },
   createdBy: { select: { id: true, name: true } },
-  approvedBy: { select: { id: true, name: true } },
   invitedVendors: { select: { vendor: { select: { id: true, legalName: true } } } },
   _count: { select: { lineItems: true, quoteResponses: true, invitedVendors: true } },
   quoteResponses: {
@@ -123,7 +128,6 @@ const RFQ_DETAIL_INCLUDE = {
   projects: { include: { project: { select: { id: true, name: true, code: true } } } },
   deliveryLocation: { select: { id: true, label: true, address: true } },
   createdBy: { select: { id: true, name: true } },
-  approvedBy: { select: { id: true, name: true } },
   lineItems: {
     include: {
       material: { select: { id: true, name: true, uom: true } },
@@ -151,6 +155,19 @@ const RFQ_DETAIL_INCLUDE = {
   },
 } satisfies Prisma.RfqInclude;
 
+/**
+ * Project-member slice for the RFQ notification fan-outs: email for the CC /
+ * email sends, id for the in-app feed, role + customRoleId so the recipients
+ * can be filtered to those whose effective permissions include rfq.read.
+ */
+const RFQ_MEMBER_USER_SELECT = {
+  id: true,
+  email: true,
+  status: true,
+  role: true,
+  customRoleId: true,
+} satisfies Prisma.UserSelect;
+
 export interface UpdateLineItemDto {
   materialId?: string;
   /** Only honoured on free-text / BOM lines — see `updateLineItem`. */
@@ -175,8 +192,38 @@ export class RfqsService {
     config: ConfigService,
     private readonly branding: BrandingService,
     private readonly notifications: NotificationService,
+    private readonly rfqVisibility: RfqVisibilityService,
+    private readonly permissions: PermissionsService,
+    private readonly auditService: AuditService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
+  }
+
+  private readonly logger = new Logger(RfqsService.name);
+
+  /**
+   * Best-effort PO_CREATED entry for a PO born from an RFQ award, so its
+   * activity trail starts at creation (FOR-353). Never throws — a logging
+   * failure must not fail the (already committed) award.
+   */
+  private async auditAwardPoCreated(
+    poId: string,
+    user: AuthenticatedUser,
+    metadata: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.auditService.log({
+        action: AuditAction.PO_CREATED,
+        performedById: user.id,
+        targetType: 'PurchaseOrder',
+        targetId: poId,
+        metadata: metadata as Prisma.InputJsonValue,
+      });
+    } catch (err) {
+      this.logger.debug(
+        `Failed to audit awarded PO creation: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   // ── List RFQs ──────────────────────────────────────────────────────────────
@@ -295,8 +342,6 @@ export class RfqsService {
           createdDate: rfq.createdAt.toISOString(),
           createdBy: rfq.createdBy.name,
           createdByUserId: rfq.createdByUserId,
-          approvalStatus: rfq.approvalStatus,
-          approvedBy: rfq.approvedBy?.name ?? null,
           lastModifiedBy: null,
         };
       }),
@@ -341,6 +386,10 @@ export class RfqsService {
     });
 
     if (!rfq) throw new NotFoundException(ERR.rfqs.notFound);
+
+    // Project-based visibility (FOR-351) — also closes the previous gap where
+    // the detail read carried no company/invitation check at all.
+    await this.rfqVisibility.assertRfqVisible(user, rfq);
 
     // Compute vendor status from the vendor's own quote response
     let vendorStatus: string | undefined;
@@ -427,8 +476,6 @@ export class RfqsService {
       deadlineStart: rfq.deadlineStart?.toISOString() ?? null,
       deadlineEnd: rfq.deadlineEnd?.toISOString() ?? null,
       totalRequestedQty: rfq.totalRequestedQty,
-      approvalStatus: rfq.approvalStatus,
-      approvedBy: rfq.approvedBy ? { id: rfq.approvedBy.id, name: rfq.approvedBy.name } : null,
       createdBy: { id: rfq.createdBy.id, name: rfq.createdBy.name },
       lineItems: rfq.lineItems.map((li) => {
         const liAny = li as Record<string, unknown>;
@@ -1165,7 +1212,7 @@ export class RfqsService {
     });
 
     // Generate invitation tokens for each vendor and notify via email (fire-and-forget)
-    this.generateInvitationTokensAndNotify(rfq.id).catch(() => {});
+    this.generateInvitationTokensAndNotify(rfq.id, user.id).catch(() => {});
 
     return this.getRfq(id, user);
   }
@@ -1379,6 +1426,8 @@ export class RfqsService {
 
       return { quoteResult, purchaseOrder };
     });
+
+    await this.auditAwardPoCreated(purchaseOrder.id, user, { source: 'RFQ_AWARD', rfqId });
 
     // The PO is intentionally left as a DRAFT: the contractor reviews it and
     // issues it to the vendor manually from the PO detail page. Awarding a quote
@@ -1614,7 +1663,7 @@ export class RfqsService {
       groups.set(groupKey, group);
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const splitResult = await this.prisma.$transaction(async (tx) => {
       // 1. Persist per-vendor approved qty + APPROVED status on awarded lines.
       for (const a of dto.allocations) {
         await tx.quoteResponseLineItem.update({
@@ -1733,6 +1782,22 @@ export class RfqsService {
 
       return { parentPoId: parent.id, parentPoNumber: parent.poNumber, children };
     });
+
+    // Start every awarded PO's activity trail at creation — the SPLIT parent
+    // and each per-vendor child (FOR-353).
+    await this.auditAwardPoCreated(splitResult.parentPoId, user, {
+      source: 'RFQ_AWARD_SPLIT',
+      rfqId,
+    });
+    for (const child of splitResult.children) {
+      await this.auditAwardPoCreated(child.id, user, {
+        source: 'RFQ_AWARD_SPLIT',
+        rfqId,
+        parentPoId: splitResult.parentPoId,
+      });
+    }
+
+    return splitResult;
   }
 
   // ── Decline Quote ──────────────────────────────────────────────────────────
@@ -2007,6 +2072,22 @@ export class RfqsService {
       where.invitedVendors = { some: { vendor: { users: { some: { id: user.id } } } } };
     } else if (user.role !== UserRole.SUPER_ADMIN && user.companyId) {
       where.companyId = user.companyId;
+      // RFQ visibility is project-based (FOR-351): everyone below Company Admin
+      // sees only the RFQs of projects they are assigned to — any project the
+      // RFQ spans (primary or rfq_projects) — plus RFQs they created
+      // themselves, since creation doesn't require membership. Kept in AND so
+      // the search OR below can't widen the scope.
+      if (user.role !== UserRole.COMPANY_ADMIN) {
+        where.AND = [
+          {
+            OR: [
+              { createdByUserId: user.id },
+              { project: { members: { some: { userId: user.id } } } },
+              { projects: { some: { project: { members: { some: { userId: user.id } } } } } },
+            ],
+          },
+        ];
+      }
     }
 
     // Quick filters
@@ -2021,7 +2102,22 @@ export class RfqsService {
         where.status = query.status as RfqStatus;
       }
     }
-    if (query.projectId) where.projectId = query.projectId;
+    // Match any project the RFQ spans — primary or rfq_projects (US 5.05) —
+    // mirroring the FOR-351 visibility clause. Primary-only matching hid
+    // multi-project RFQs from every project but their primary. Appended to AND
+    // so the search OR below can't widen the scope.
+    if (query.projectId) {
+      // where.AND is only ever assigned as an array in this builder.
+      where.AND = [
+        ...((where.AND as Prisma.RfqWhereInput[] | undefined) ?? []),
+        {
+          OR: [
+            { projectId: query.projectId },
+            { projects: { some: { projectId: query.projectId } } },
+          ],
+        },
+      ];
+    }
 
     if (query.search) {
       where.OR = [
@@ -2114,10 +2210,6 @@ export class RfqsService {
         return { pickUpDate: sortDir };
       case 'createdBy':
         return { createdBy: { name: sortDir } };
-      case 'approvalStatus':
-        return { approvalStatus: sortDir };
-      case 'approvedBy':
-        return { approvedBy: { name: sortDir } };
       case 'createdDate':
       default:
         return { createdAt: sortDir };
@@ -2126,7 +2218,11 @@ export class RfqsService {
 
   // ── Email notifications ──────────────────────────────────────────────────
 
-  private async generateInvitationTokensAndNotify(rfqId: string): Promise<void> {
+  private async generateInvitationTokensAndNotify(
+    rfqId: string,
+    /** The user who triggered the send — excluded from the member fan-out. */
+    sentByUserId?: string,
+  ): Promise<void> {
     const rfq = await this.prisma.rfq.findUnique({
       where: { id: rfqId },
       select: {
@@ -2136,12 +2232,23 @@ export class RfqsService {
         ccEmails: true,
         needByDate: true,
         // Members of every project the RFQ spans are auto-CC'd on the vendor
-        // emails (FOR-255). Both the primary project and the rfq_projects join
-        // are read so legacy rows (primary only on `project`) are covered.
-        project: { select: { members: { select: { user: { select: { email: true } } } } } },
+        // emails (FOR-255) and get the in-app RFQ_SENT mirror (FOR-351). Both
+        // the primary project and the rfq_projects join are read so legacy rows
+        // (primary only on `project`) are covered. role/customRoleId feed the
+        // rfq.read filter on the in-app fan-out below.
+        project: {
+          select: {
+            name: true,
+            members: { select: { user: { select: RFQ_MEMBER_USER_SELECT } } },
+          },
+        },
         projects: {
           select: {
-            project: { select: { members: { select: { user: { select: { email: true } } } } } },
+            project: {
+              select: {
+                members: { select: { user: { select: RFQ_MEMBER_USER_SELECT } } },
+              },
+            },
           },
         },
         documents: {
@@ -2157,8 +2264,11 @@ export class RfqsService {
             id: true,
             // The reps the buyer explicitly chose (US 5.05). When present they are
             // the sole recipients; otherwise we fall back to the vendor's users.
+            // `status` is required: deactivated reps must be dropped before the
+            // send (CONTEXT.md), and the buyer's selection can outlive their
+            // deactivation.
             contacts: {
-              select: { user: { select: { email: true } } },
+              select: { user: { select: { email: true, status: true } } },
             },
             vendor: {
               select: {
@@ -2246,6 +2356,39 @@ export class RfqsService {
         entityId: rfqId,
       });
     }
+
+    // Tell the project team the RFQ went out (FOR-351): every ACTIVE member of
+    // every project the RFQ spans gets the in-app counterpart of the CC above —
+    // except whoever sent it, who doesn't need to hear about their own action,
+    // and members whose effective permissions lack rfq.read (e.g. a Foreman),
+    // whose notification would deep-link straight into a 403. The email CC
+    // deliberately keeps the full member list — it is informational and
+    // carries no deep link (FOR-255).
+    const members = new Map<string, { id: string; role: UserRole; customRoleId: string | null }>();
+    for (const m of rfq.project?.members ?? []) {
+      if (m.user.status === UserStatus.ACTIVE) members.set(m.user.id, m.user);
+    }
+    for (const rp of rfq.projects ?? []) {
+      for (const m of rp.project.members ?? []) {
+        if (m.user.status === UserStatus.ACTIVE) members.set(m.user.id, m.user);
+      }
+    }
+    const readers = await this.permissions.filterActorsWithPermission(
+      [...members.values()],
+      'rfq.read',
+    );
+    const memberIds = new Set(readers.map((u) => u.id));
+    memberIds.delete(sentByUserId ?? rfq.createdByUserId);
+    if (memberIds.size > 0) {
+      await this.notifications.createForUsers({
+        userIds: [...memberIds],
+        type: NotificationType.RFQ_SENT,
+        title: 'RFQ sent',
+        body: `RFQ ${rfqNumber} for ${rfq.project.name} was sent to vendors.`,
+        entityType: NotificationEntityType.RFQ,
+        entityId: rfqId,
+      });
+    }
   }
 
   /**
@@ -2282,24 +2425,8 @@ export class RfqsService {
     comment: string | null = null,
   ): Promise<void> {
     try {
-      const rfq = await this.prisma.rfq.findUnique({
-        where: { id: rfqId },
-        select: {
-          rfqNumber: true,
-          companyId: true,
-        },
-      });
-
+      const rfq = await this.resolveQuoteWatchers(rfqId);
       if (!rfq) return;
-
-      const contractors = await this.prisma.user.findMany({
-        where: {
-          companyId: rfq.companyId,
-          role: { in: [UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER] },
-          status: 'ACTIVE',
-        },
-        select: { email: true },
-      });
 
       const rfqNumber = rfq.rfqNumber ?? rfqId.slice(0, 8).toUpperCase();
       const viewUrl = `${this.webAppUrl}/rfqs`;
@@ -2309,9 +2436,9 @@ export class RfqsService {
       const brand = await this.branding.getEmailBrand(rfq.companyId);
 
       await Promise.all(
-        contractors.map((u) =>
+        rfq.emails.map((email) =>
           this.emailService.sendQuoteSubmittedEmail(
-            u.email,
+            email,
             rfqNumber,
             vendorName,
             viewUrl,
@@ -2321,19 +2448,91 @@ export class RfqsService {
         ),
       );
 
-      await this.notifications.createForEmails(
-        contractors.map((u) => u.email),
-        {
-          type: NotificationType.QUOTE_SUBMITTED,
-          title: 'New quote received',
-          body: `${vendorName} submitted a quote for RFQ ${rfqNumber}.`,
-          entityType: NotificationEntityType.RFQ,
-          entityId: rfqId,
-        },
-      );
+      await this.notifications.createForEmails(rfq.emails, {
+        type: NotificationType.QUOTE_SUBMITTED,
+        title: 'New quote received',
+        body: `${vendorName} submitted a quote for RFQ ${rfqNumber}.`,
+        entityType: NotificationEntityType.RFQ,
+        entityId: rfqId,
+      });
     } catch {
       // fire-and-forget: email failures are non-critical
     }
+  }
+
+  /**
+   * Who hears about quote activity on an RFQ (FOR-351): Company Admins keep
+   * company-wide oversight; beyond them only the ACTIVE members of the projects
+   * the RFQ spans — plus its creator — matching project-based RFQ visibility.
+   * Watchers whose effective permissions lack rfq.read are dropped: the email
+   * links into the RFQ area and the in-app mirror deep-links to the RFQ, both
+   * dead ends for someone who cannot open it. Returns null when the RFQ
+   * doesn't exist.
+   */
+  private async resolveQuoteWatchers(
+    rfqId: string,
+  ): Promise<{ rfqNumber: string | null; companyId: string; emails: string[] } | null> {
+    const rfq = await this.prisma.rfq.findUnique({
+      where: { id: rfqId },
+      select: {
+        rfqNumber: true,
+        companyId: true,
+        createdBy: { select: RFQ_MEMBER_USER_SELECT },
+        project: {
+          select: {
+            members: {
+              where: { user: { status: UserStatus.ACTIVE } },
+              select: { user: { select: RFQ_MEMBER_USER_SELECT } },
+            },
+          },
+        },
+        projects: {
+          select: {
+            project: {
+              select: {
+                members: {
+                  where: { user: { status: UserStatus.ACTIVE } },
+                  select: { user: { select: RFQ_MEMBER_USER_SELECT } },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!rfq) return null;
+
+    const admins = await this.prisma.user.findMany({
+      where: {
+        companyId: rfq.companyId,
+        role: UserRole.COMPANY_ADMIN,
+        status: UserStatus.ACTIVE,
+      },
+      select: RFQ_MEMBER_USER_SELECT,
+    });
+
+    type WatcherUser = (typeof admins)[number];
+    const watchers = new Map<string, WatcherUser>();
+    for (const u of admins) watchers.set(u.id, u);
+    for (const m of rfq.project?.members ?? []) watchers.set(m.user.id, m.user);
+    for (const rp of rfq.projects ?? []) {
+      for (const m of rp.project.members ?? []) watchers.set(m.user.id, m.user);
+    }
+    if (rfq.createdBy.status === UserStatus.ACTIVE) {
+      watchers.set(rfq.createdBy.id, rfq.createdBy);
+    }
+
+    const readers = await this.permissions.filterActorsWithPermission(
+      [...watchers.values()],
+      'rfq.read',
+    );
+
+    return {
+      rfqNumber: rfq.rfqNumber,
+      companyId: rfq.companyId,
+      emails: normalizeCcEmails(readers.map((u) => u.email)),
+    };
   }
 
   async notifyContractorOfQuoteUpdate(
@@ -2343,24 +2542,8 @@ export class RfqsService {
     comment: string | null = null,
   ): Promise<void> {
     try {
-      const rfq = await this.prisma.rfq.findUnique({
-        where: { id: rfqId },
-        select: {
-          rfqNumber: true,
-          companyId: true,
-        },
-      });
-
+      const rfq = await this.resolveQuoteWatchers(rfqId);
       if (!rfq) return;
-
-      const contractors = await this.prisma.user.findMany({
-        where: {
-          companyId: rfq.companyId,
-          role: { in: [UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER] },
-          status: 'ACTIVE',
-        },
-        select: { email: true },
-      });
 
       const rfqNumber = rfq.rfqNumber ?? rfqId.slice(0, 8).toUpperCase();
 
@@ -2371,9 +2554,9 @@ export class RfqsService {
       const brand = await this.branding.getEmailBrand(rfq.companyId);
 
       await Promise.all(
-        contractors.map((u) =>
+        rfq.emails.map((email) =>
           this.emailService.sendQuoteUpdatedEmail(
-            u.email,
+            email,
             rfqNumber,
             vendorName,
             viewUrl,
@@ -2383,16 +2566,13 @@ export class RfqsService {
         ),
       );
 
-      await this.notifications.createForEmails(
-        contractors.map((u) => u.email),
-        {
-          type: NotificationType.QUOTE_UPDATED,
-          title: 'Quote updated',
-          body: `${vendorName} updated their quote for RFQ ${rfqNumber}.`,
-          entityType: NotificationEntityType.RFQ,
-          entityId: rfqId,
-        },
-      );
+      await this.notifications.createForEmails(rfq.emails, {
+        type: NotificationType.QUOTE_UPDATED,
+        title: 'Quote updated',
+        body: `${vendorName} updated their quote for RFQ ${rfqNumber}.`,
+        entityType: NotificationEntityType.RFQ,
+        entityId: rfqId,
+      });
     } catch {
       // fire-and-forget: email failures are non-critical
     }

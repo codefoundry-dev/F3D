@@ -35,8 +35,6 @@ export const PO_CA_COLUMNS: ColumnDef[] = [
   { field: 'avgQuoteCost', key: 'avgQuoteCost' },
   { field: 'createdDate', key: 'createdDate' },
   { field: 'createdBy', key: 'createdBy' },
-  { field: 'approvalStatus', key: 'approvalStatus' },
-  { field: 'approvedBy', key: 'approvedBy' },
   { field: 'lastModifiedBy', key: 'lastModifiedBy' },
 ];
 

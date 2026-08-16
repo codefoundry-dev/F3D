@@ -72,6 +72,7 @@ model Company {
   purchaseOrdersAsVendor  PurchaseOrder[] @relation("PoVendor")
   bulkOrdersAsCompany   BulkOrder[]       @relation("BulkOrderCompany")
   bulkOrdersAsVendor    BulkOrder[]       @relation("BulkOrderVendor")
+  approvalNominations   ApprovalNomination[] @relation("ApprovalNominationCompany")
   invoicesAsCompany     Invoice[]         @relation("InvoiceCompany")
   invoicesAsVendor      Invoice[]         @relation("InvoiceVendor")
 

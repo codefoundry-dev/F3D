@@ -20,18 +20,25 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { AccessTokenPurpose, AccessTokenSubject, type AccessToken } from '@prisma/client';
+import {
+  AccessTokenPurpose,
+  AccessTokenSubject,
+  ApprovalEntityType,
+  type AccessToken,
+} from '@prisma/client';
 
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { RequirePermissions } from '../../common/permissions';
 import { CurrentAccessToken, RequireAccessToken } from '../access-tokens/access-token.decorators';
+import { NominateApproversDto } from '../approvals/approvals.dto';
+import { ApprovalsService } from '../approvals/approvals.service';
 
 import { CreatePoChangeRequestDto, RejectPoChangeRequestDto } from './po-change.dto';
 import { PoChangeService } from './po-change.service';
 import { PoDocumentService } from './po-document.service';
 import { PoExportService } from './po-export.service';
-import { DeclinePoDto, ReceivePoDto } from './po-status.dto';
+import { DeclinePoDto, IssuePoDto, ReceivePoDto } from './po-status.dto';
 import { PoStatusService } from './po-status.service';
 import { PoValidationService } from './po-validation.service';
 import { VendorAcceptPoDto, VendorDeclinePoDto } from './po-vendor.dto';
@@ -48,6 +55,7 @@ export class PurchaseOrdersController {
     private readonly poStatusService: PoStatusService,
     private readonly poValidationService: PoValidationService,
     private readonly poChangeService: PoChangeService,
+    private readonly approvalsService: ApprovalsService,
   ) {}
 
   // ── GET /v1/purchase-orders ────────────────────────────────────────────────
@@ -243,12 +251,76 @@ export class PurchaseOrdersController {
 
   @Post(':id/issue')
   @RequirePermissions('po.issue')
-  @ApiOperation({ summary: 'Issue a draft purchase order (DRAFT → SENT)' })
+  @ApiOperation({
+    summary: 'Issue a draft purchase order (DRAFT → SENT, or → PENDING_APPROVAL)',
+    description:
+      'Over the issuer’s po.approve limit the order is routed to the Approver ' +
+      'Pool instead of the vendor. The optional nomineeIds narrow who is ' +
+      'notified about it; they never change who may approve it.',
+  })
   @ApiResponse({ status: 200, description: 'Purchase order issued' })
-  @ApiResponse({ status: 400, description: 'PO is not in DRAFT status' })
+  @ApiResponse({
+    status: 400,
+    description: 'PO is not in DRAFT status, or a nominee is outside the Approver Pool',
+  })
   @ApiResponse({ status: 404, description: 'PO not found' })
-  async issuePurchaseOrder(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.poStatusService.issuePurchaseOrder(id, user);
+  async issuePurchaseOrder(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto?: IssuePoDto,
+  ) {
+    return this.poStatusService.issuePurchaseOrder(id, user, dto);
+  }
+
+  // ── POST /v1/purchase-orders/:id/nominations ─────────────────────────────
+
+  @Post(':id/nominations')
+  @RequirePermissions('po.read')
+  @ApiOperation({
+    summary: 'Nominate further Approver Pool members on a pending purchase order',
+    description:
+      'Routing only — gated on po.read because nominating is not an approval ' +
+      'act. Only the creator may nominate, only while the approval is open, and ' +
+      'only Pool members: a nomination can narrow who is notified, never widen ' +
+      'who may approve. Re-nominating an existing nominee is a no-op.',
+  })
+  @ApiResponse({ status: 201, description: 'Updated Approver Pool view' })
+  @ApiResponse({ status: 400, description: 'Nominee outside the Pool, or PO not pending' })
+  @ApiResponse({ status: 403, description: 'Caller did not create this purchase order' })
+  async nominatePurchaseOrderApprovers(
+    @Param('id') id: string,
+    @Body() dto: NominateApproversDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    // Routed through PoStatusService rather than ApprovalsService directly: the
+    // nominee has to be *notified*, and the PO's email templates and branding
+    // live with the PO. ApprovalsService stays entity-agnostic and email-free.
+    return this.poStatusService.nominateApprovers(id, dto.userIds, user);
+  }
+
+  // ── DELETE /v1/purchase-orders/:id/nominations/:userId ────────────────────
+
+  @Delete(':id/nominations/:userId')
+  @RequirePermissions('po.read')
+  @ApiOperation({
+    summary: 'Withdraw a nomination',
+    description:
+      'Removes the routing hint only. The withdrawn user keeps their place in ' +
+      'the Approver Pool and the PO stays in their dashboard queue.',
+  })
+  @ApiResponse({ status: 200, description: 'Updated Approver Pool view' })
+  @ApiResponse({ status: 404, description: 'No such nomination' })
+  async withdrawPurchaseOrderNomination(
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.approvalsService.withdrawNomination(
+      ApprovalEntityType.PURCHASE_ORDER,
+      id,
+      userId,
+      user,
+    );
   }
 
   // ── POST /v1/purchase-orders/:id/confirm ──────────────────────────────────
@@ -399,6 +471,26 @@ export class PurchaseOrdersController {
   @ApiResponse({ status: 404, description: 'PO not found' })
   async getPurchaseOrderAudit(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.poStatusService.getAuditTrail(id, user);
+  }
+
+  // ── GET /v1/purchase-orders/:id/approver-pool ─────────────────────────────
+
+  @Get(':id/approver-pool')
+  @RequirePermissions('po.read')
+  @ApiOperation({
+    summary: "The PO's Approver Pool, its nominees, and who resolved it",
+    description:
+      'Gated on po.read, not po.approve: the creator needs to see who they are ' +
+      'waiting on without holding approval authority themselves. The Pool is ' +
+      'recomputed live on every call and never carries a cap amount.',
+  })
+  @ApiResponse({ status: 200, description: 'Approver Pool view' })
+  @ApiResponse({ status: 404, description: 'Purchase order not found' })
+  async getPurchaseOrderApproverPool(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.approvalsService.getApproverPool(ApprovalEntityType.PURCHASE_ORDER, id, user);
   }
 
   // ── PATCH /v1/purchase-orders/:id/approve ────────────────────────────────

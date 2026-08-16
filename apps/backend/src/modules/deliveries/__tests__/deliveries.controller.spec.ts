@@ -20,6 +20,7 @@ const multerFile = { originalname: 'f.pdf' } as unknown as Express.Multer.File;
 describe('DeliveriesController', () => {
   const deliveries = {
     list: jest.fn().mockResolvedValue({ items: [], meta: {} }),
+    listExpected: jest.fn().mockResolvedValue({ items: [], meta: {} }),
     create: jest.fn().mockResolvedValue({ id: 'dr-1' }),
     get: jest.fn().mockResolvedValue({ id: 'dr-1' }),
     approve: jest.fn().mockResolvedValue({ id: 'dr-1' }),
@@ -39,6 +40,11 @@ describe('DeliveriesController', () => {
   it('lists', async () => {
     await controller.list({}, user);
     expect(deliveries.list).toHaveBeenCalledWith(user, {});
+  });
+
+  it('lists expected deliveries', async () => {
+    await controller.listExpected({ overdue: true }, user);
+    expect(deliveries.listExpected).toHaveBeenCalledWith(user, { overdue: true });
   });
 
   it('creates', async () => {

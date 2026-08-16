@@ -81,9 +81,7 @@ function bomItemToSourceItem(item: BomItemDto, bom: BomDetailDto): SourceItem {
   };
 }
 
-function materialListItemToSourceItem(
-  item: MaterialListDetailDto['items'][number],
-): SourceItem {
+function materialListItemToSourceItem(item: MaterialListDetailDto['items'][number]): SourceItem {
   return {
     id: item.id,
     name: item.material.name,

@@ -216,6 +216,9 @@ importers:
       '@forethread/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@forethread/approval-shared':
+        specifier: workspace:*
+        version: link:../../packages/approval-shared
       '@forethread/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -353,6 +356,49 @@ importers:
       typescript:
         specifier: ^5.5.4
         version: 5.9.3
+
+  packages/approval-shared:
+    dependencies:
+      '@forethread/api-client':
+        specifier: workspace:*
+        version: link:../api-client
+      '@forethread/i18n':
+        specifier: workspace:*
+        version: link:../i18n
+      '@forethread/ui-components':
+        specifier: workspace:*
+        version: link:../ui-components
+      '@tanstack/react-query':
+        specifier: ^5.0.0
+        version: 5.90.21(react@18.3.1)
+    devDependencies:
+      '@forethread/config':
+        specifier: workspace:*
+        version: link:../config
+      '@testing-library/jest-dom':
+        specifier: ^6.5.0
+        version: 6.9.1
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.2(@testing-library/dom@10.4.0)(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@types/react':
+        specifier: ^18.3.5
+        version: 18.3.28
+      jsdom:
+        specifier: ^25.0.0
+        version: 25.0.1
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.1
+        version: 18.3.1(react@18.3.1)
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.1
+        version: 2.1.9(@types/node@25.3.0)(jsdom@25.0.1)(lightningcss@1.32.0)(terser@5.46.0)
 
   packages/auth:
     devDependencies:
@@ -517,6 +563,9 @@ importers:
       '@forethread/api-client':
         specifier: workspace:*
         version: link:../api-client
+      '@forethread/approval-shared':
+        specifier: workspace:*
+        version: link:../approval-shared
       '@forethread/i18n':
         specifier: workspace:*
         version: link:../i18n
@@ -551,6 +600,9 @@ importers:
       '@forethread/api-client':
         specifier: workspace:*
         version: link:../api-client
+      '@forethread/approval-shared':
+        specifier: workspace:*
+        version: link:../approval-shared
       '@forethread/i18n':
         specifier: workspace:*
         version: link:../i18n

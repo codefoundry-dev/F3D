@@ -2,12 +2,14 @@ import { BadRequestException, ForbiddenException, NotFoundException } from '@nes
 import { UserRole } from '@prisma/client';
 
 import { QuoteResponseService } from '../quote-response.service';
+import { RfqVisibilityService } from '../rfq-visibility.service';
 
 const mockPrisma = {
   rfq: { findUnique: jest.fn() },
-  rfqVendor: { findUnique: jest.fn() },
+  rfqVendor: { findUnique: jest.fn(), findFirst: jest.fn() },
   quoteResponse: { findFirst: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
   quoteAudit: { findMany: jest.fn() },
+  projectMember: { findFirst: jest.fn() },
   $transaction: jest.fn(),
 };
 
@@ -82,7 +84,12 @@ describe('QuoteResponseService', () => {
       mockAccessTokens as never,
       mockStorage as never,
       mockDocIntelligence as never,
+      // Real visibility service on the same prisma mocks — the FOR-351 defaults
+      // below make reads pass; 403 tests override them with null.
+      new RfqVisibilityService(mockPrisma as never),
     );
+    mockPrisma.projectMember.findFirst.mockResolvedValue({ id: 'pm-1' });
+    mockPrisma.rfqVendor.findFirst.mockResolvedValue({ id: 'rv-1' });
     // Default: a valid QUOTE_SUBMIT token for RFQ rfq-1 / vendor vendor-co-1.
     mockAccessTokens.validateToken.mockResolvedValue({
       id: 'tok-1',
@@ -497,6 +504,36 @@ describe('QuoteResponseService', () => {
       mockPrisma.quoteResponse.findUnique.mockResolvedValue(quote);
 
       await expect(service.getQuoteDetail('rfq-1', 'quote-1', vendorUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('denies a buyer who is not a member of any project the RFQ spans (FOR-351)', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({
+        id: 'quote-1',
+        rfqId: 'rfq-1',
+        vendorId: 'vendor-co-1',
+        lineItems: [],
+        attachments: [],
+        vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
+        rfq: {
+          id: 'rfq-1',
+          companyId: 'contractor-co-1',
+          rfqNumber: 'RFQ-001',
+          createdByUserId: 'someone-else',
+        },
+        warehouseLocation: null,
+      });
+      mockPrisma.projectMember.findFirst.mockResolvedValue(null);
+
+      const officer = {
+        id: 'officer-1',
+        role: UserRole.PROCUREMENT_OFFICER,
+        companyId: 'contractor-co-1',
+        email: 'officer@test.com',
+      };
+
+      await expect(service.getQuoteDetail('rfq-1', 'quote-1', officer)).rejects.toThrow(
         ForbiddenException,
       );
     });
@@ -1417,6 +1454,31 @@ describe('QuoteResponseService', () => {
         ForbiddenException,
       );
     });
+
+    it('denies a vendor who was not invited to the RFQ (FOR-351)', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue({ id: 'rfq-1', companyId: 'contractor-co-1' });
+      mockPrisma.rfqVendor.findFirst.mockResolvedValue(null);
+
+      await expect(service.getQuoteAudit('rfq-1', vendorUser)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('denies a buyer who is not a member of any project the RFQ spans (FOR-351)', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue({
+        id: 'rfq-1',
+        companyId: 'contractor-co-1',
+        createdByUserId: 'someone-else',
+      });
+      mockPrisma.projectMember.findFirst.mockResolvedValue(null);
+
+      const officer = {
+        id: 'officer-1',
+        role: UserRole.PROCUREMENT_OFFICER,
+        companyId: 'contractor-co-1',
+        email: 'officer@test.com',
+      };
+
+      await expect(service.getQuoteAudit('rfq-1', officer)).rejects.toThrow(ForbiddenException);
+    });
   });
 
   // ── getQuoteComparison (FOR-208) ──────────────────────────────────────────────
@@ -1531,10 +1593,31 @@ describe('QuoteResponseService', () => {
       );
     });
 
-    it('denies a vendor — comparison is contractor-only', async () => {
+    it('denies a vendor — comparison is contractor-only, even for an invited vendor', async () => {
       mockPrisma.rfq.findUnique.mockResolvedValue(comparisonRfq);
+      // rfqVendor.findFirst is truthy by default: the vendor IS invited, and is
+      // still denied — competitors' pricing must never reach a vendor.
 
       await expect(service.getQuoteComparison('rfq-1', vendorUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('denies a buyer who is not a member of any project the RFQ spans (FOR-351)', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue({
+        ...comparisonRfq,
+        createdByUserId: 'someone-else',
+      });
+      mockPrisma.projectMember.findFirst.mockResolvedValue(null);
+
+      const officer = {
+        id: 'officer-1',
+        role: UserRole.PROCUREMENT_OFFICER,
+        companyId: 'contractor-co-1',
+        email: 'officer@test.com',
+      };
+
+      await expect(service.getQuoteComparison('rfq-1', officer)).rejects.toThrow(
         ForbiddenException,
       );
     });

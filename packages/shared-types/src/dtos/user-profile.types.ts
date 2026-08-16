@@ -26,4 +26,10 @@ export interface MeProfileResponse {
    * positive PO total requires approval before sending.
    */
   poApprovalThreshold: number | null;
+  /**
+   * FOR-303: the current user's `invoice.approve` threshold, with the same
+   * semantics as `poApprovalThreshold`. Drives the invoice Approve button's
+   * over-limit state; the backend enforces the cap authoritatively.
+   */
+  invoiceApprovalThreshold: number | null;
 }

@@ -1,5 +1,14 @@
+import { VendorCategory } from '@forethread/shared-types';
 import { Transform } from 'class-transformer';
-import { IsArray, IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+
+/**
+ * Filter sentinel for vendors carrying no Vendor Category at all. Category is
+ * only mandatory on the create-new path (ADR-0018), so untagged vendors exist
+ * by design — they must stay reachable rather than silently dropping out of
+ * every category-driven view.
+ */
+export const UNCATEGORISED = 'UNCATEGORISED';
 
 export class InviteVendorDto {
   @IsString()
@@ -15,6 +24,17 @@ export class InviteVendorDto {
 
   @IsEmail()
   userEmail!: string;
+
+  /**
+   * Optional Vendor Categories for the assignment this invite creates
+   * (ADR-0018). Optional by design: the invite flow often does not yet know
+   * what the vendor supplies, and a guessed category misroutes RFQs more
+   * damagingly than an empty one the buyer can see in the Uncategorised bucket.
+   */
+  @IsOptional()
+  @IsArray()
+  @IsEnum(VendorCategory, { each: true })
+  categories?: VendorCategory[];
 }
 
 export class VendorListQueryDto {
@@ -34,9 +54,21 @@ export class VendorListQueryDto {
   @IsString()
   status?: string;
 
+  /**
+   * Legacy free-text filter over `Company.specialisations`. Superseded by
+   * `category` (ADR-0018) and kept only so existing saved views keep working.
+   */
   @IsOptional()
   @IsString()
   specialisation?: string;
+
+  /**
+   * Comma-separated `VendorCategory` keys, optionally including
+   * {@link UNCATEGORISED}. Matches a vendor carrying **any** of them.
+   */
+  @IsOptional()
+  @IsString()
+  category?: string;
 
   @IsOptional()
   @IsString()
@@ -71,6 +103,33 @@ export class UpdateVendorProfileDto {
   @IsOptional() @IsString() contactPhone?: string;
   @IsOptional() @IsString() website?: string;
   @IsOptional() @IsArray() @IsString({ each: true }) specialisations?: string[];
+}
+
+/**
+ * Sets the Vendor Categories a contractor applies to one of its vendors
+ * (ADR-0018). Replace-semantics: the supplied array becomes the whole set, and
+ * an empty array clears it. Scoped to the caller's own `CompanyVendorAssignment`
+ * — one contractor's categorisation is invisible to every other.
+ */
+export class UpdateVendorCategoriesDto {
+  @IsArray()
+  @IsEnum(VendorCategory, { each: true })
+  categories!: VendorCategory[];
+}
+
+/**
+ * Resolves "add every vendor in this category" to concrete ids (ADR-0018).
+ * Deliberately not paginated: the whole point is completeness, and the browser
+ * must not be the thing that decides who is sendable.
+ */
+export class ResolveVendorSelectionDto {
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
 }
 
 export class CreateWarehouseDto {

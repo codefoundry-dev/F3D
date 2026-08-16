@@ -6,6 +6,7 @@ import type {
   DeliveryReportAttachmentResponse,
   DeliveryReportDetailResponse,
   DeliveryReportListItem,
+  ExpectedDeliveryListItem,
   PortalIdentifyInput,
   PortalIdentifyResponse,
   PortalSubmitInput,
@@ -22,20 +23,39 @@ import type { PaginationMeta } from './users';
 
 // ── Request interfaces ───────────────────────────────────────────────────────
 
+// Param names mirror ListDeliveryReportQueryDto — the backend's global
+// ValidationPipe runs forbidNonWhitelisted, so any other name is a 400.
 export interface DeliveryListParams {
   page?: number;
   limit?: number;
   search?: string;
-  vendor?: string;
+  vendorId?: string;
   status?: string;
-  project?: string;
-  location?: string;
+  projectId?: string;
+  deliveryLocationId?: string;
+}
+
+/** Filters for the expected-deliveries list (FOR-356). */
+export interface ExpectedDeliveryListParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  vendorId?: string;
+  projectId?: string;
+  deliveryLocationId?: string;
+  /** Only POs past their expected delivery date. Send `true` or omit. */
+  overdue?: boolean;
 }
 
 // ── Response interfaces ──────────────────────────────────────────────────────
 
 export interface PaginatedDeliveryReports {
   items: DeliveryReportListItem[];
+  meta: PaginationMeta;
+}
+
+export interface PaginatedExpectedDeliveries {
+  items: ExpectedDeliveryListItem[];
   meta: PaginationMeta;
 }
 
@@ -47,6 +67,21 @@ export async function getDeliveryReports(
 ): Promise<PaginatedDeliveryReports> {
   const { data } = await getApiClient().get<{ data: PaginatedDeliveryReports }>(
     DELIVERY_PATHS.ROOT,
+    { params, ...config },
+  );
+  return data.data;
+}
+
+/**
+ * Expected deliveries (FOR-356): POs in a deliverable status that populate the
+ * Deliveries tab automatically, each with a derived overdue flag.
+ */
+export async function getExpectedDeliveries(
+  params?: ExpectedDeliveryListParams,
+  config?: AxiosRequestConfig,
+): Promise<PaginatedExpectedDeliveries> {
+  const { data } = await getApiClient().get<{ data: PaginatedExpectedDeliveries }>(
+    DELIVERY_PATHS.EXPECTED,
     { params, ...config },
   );
   return data.data;

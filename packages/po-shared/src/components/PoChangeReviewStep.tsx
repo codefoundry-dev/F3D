@@ -4,6 +4,7 @@ import { Textarea } from '@forethread/ui-components';
 import type { UseFormRegister } from 'react-hook-form';
 
 import type { FormValues } from '../schemas/create-po.schema';
+import { hasAnyChange } from '../utils/change-diff';
 
 import { PoChangeDiff } from './PoChangeDiff';
 
@@ -31,9 +32,7 @@ export function PoChangeReviewStep({
 }: PoChangeReviewStepProps) {
   const { t } = useTranslation('purchaseOrders');
 
-  const hasChanges =
-    Object.keys(changedFields.fields ?? {}).length > 0 ||
-    (changedFields.lineItems ?? []).length > 0;
+  const hasChanges = hasAnyChange(changedFields);
 
   return (
     <section className="space-y-6">

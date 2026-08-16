@@ -70,8 +70,6 @@ const MOCK_RFQ = {
   deadlineEnd: '2024-03-15',
   needByDate: '2024-04-01',
   totalRequestedQty: 500,
-  approvalStatus: 'Pending',
-  approvedBy: { id: '2', name: 'Jane Smith' },
   createdBy: { id: '1', name: 'John Doe' },
   lastModifiedBy: { id: '3', name: 'Bob Wilson' },
   lineItems: [
@@ -211,26 +209,20 @@ describe('RfqDetailsTab', () => {
       render(<RfqDetailsTab rfq={MOCK_RFQ} layout="panel" />);
       expect(screen.getByText('detailFields.metadata')).toBeInTheDocument();
       expect(screen.getByText('John Doe')).toBeInTheDocument();
-      expect(screen.getByText('Jane Smith')).toBeInTheDocument();
       expect(screen.getByText('Bob Wilson')).toBeInTheDocument();
     });
 
-    it('renders approval status badge', () => {
+    // FOR-305: RFQs carry no approval gate, so the metadata block must not
+    // promise one. Both fields were permanently blank before removal.
+    it('does not render an Approved By or Approval status field', () => {
       render(<RfqDetailsTab rfq={MOCK_RFQ} layout="panel" />);
-      const badges = screen.getAllByTestId('badge');
-      const approvalBadge = badges.find((b) => b.textContent?.includes('Pending'));
-      expect(approvalBadge).toBeInTheDocument();
+      expect(screen.queryByText('detailFields.approvedBy')).not.toBeInTheDocument();
+      expect(screen.queryByText('detailFields.approvalStatus')).not.toBeInTheDocument();
     });
+
   });
 
   describe('panel layout – branch coverage', () => {
-    it('renders dash for null approvalStatus', () => {
-      const rfq = { ...MOCK_RFQ, approvalStatus: null };
-      render(<RfqDetailsTab rfq={rfq} layout="panel" />);
-      const dashes = screen.getAllByText('-');
-      expect(dashes.length).toBeGreaterThan(0);
-    });
-
     it('renders deadline with only deadlineEnd', () => {
       const rfq = { ...MOCK_RFQ, deadlineStart: null, deadlineEnd: '2024-04-01' };
       render(<RfqDetailsTab rfq={rfq} layout="panel" />);
@@ -241,13 +233,6 @@ describe('RfqDetailsTab', () => {
       const rfq = { ...MOCK_RFQ, deadlineStart: '2024-03-01', deadlineEnd: null };
       render(<RfqDetailsTab rfq={rfq} layout="panel" />);
       expect(screen.getByText('2024-03-01')).toBeInTheDocument();
-    });
-
-    it('renders dash for null approvedBy', () => {
-      const rfq = { ...MOCK_RFQ, approvedBy: null };
-      render(<RfqDetailsTab rfq={rfq} layout="panel" />);
-      const dashes = screen.getAllByText('-');
-      expect(dashes.length).toBeGreaterThan(0);
     });
 
     it('renders dash for null lastModifiedBy', () => {
@@ -283,13 +268,6 @@ describe('RfqDetailsTab', () => {
     it('renders vendor list directly in page layout', () => {
       render(<RfqDetailsTab rfq={MOCK_RFQ} layout="page" />);
       expect(screen.getByTestId('vendor-list')).toBeInTheDocument();
-    });
-
-    it('renders dash for null approvalStatus in page layout', () => {
-      const rfq = { ...MOCK_RFQ, approvalStatus: null };
-      render(<RfqDetailsTab rfq={rfq} layout="page" />);
-      const dashes = screen.getAllByText('-');
-      expect(dashes.length).toBeGreaterThan(0);
     });
 
     it('renders deadline fallback in page layout', () => {

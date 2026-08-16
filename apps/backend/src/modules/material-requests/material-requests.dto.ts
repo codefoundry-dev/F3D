@@ -117,6 +117,22 @@ export class CreateMaterialRequestDto {
   @IsBoolean()
   submit?: boolean;
 
+  /**
+   * Approver Pool members to nominate on submission (FOR-347). Routing only —
+   * a nomination narrows who is *notified*, never who may approve. Only valid
+   * with `submit: true` (the one-shot create is the wizard's submit door, so
+   * the nominees have to travel with it in one request). Omitted or empty =
+   * notify the whole Pool.
+   */
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Pool members to nominate at submit (requires submit: true)',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  nomineeIds?: string[];
+
   @ApiProperty({ type: [CreateMrLineItemDto] })
   @IsArray()
   @ArrayMinSize(1)
@@ -130,6 +146,23 @@ export class CreateMaterialRequestDto {
  * provided it replaces the whole set.
  */
 export class UpdateMaterialRequestDto extends PartialType(CreateMaterialRequestDto) {}
+
+/**
+ * Submit a DRAFT MR (POST …/submit). `nomineeIds` are Approver Pool members to
+ * nominate as part of the submission (FOR-347) — routing only, vetted against
+ * the Pool before the status write. Omitting the body (or sending an empty
+ * list) notifies the whole Pool. Mirrors IssuePoDto.
+ */
+export class SubmitMaterialRequestDto {
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Pool members to nominate as part of this submission',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  nomineeIds?: string[];
+}
 
 /**
  * Decline a submitted MR (POST …/decline). A reason is REQUIRED so the decline

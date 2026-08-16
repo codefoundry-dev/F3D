@@ -11,6 +11,11 @@ vi.mock('@forethread/i18n', () => ({
 vi.mock('@forethread/ui-components', () => ({
   formatCurrency: (v: unknown) => `$${String(v)}`,
   formatDate: (v: unknown) => `date(${String(v)})`,
+  Alert: ({ children, variant }: { children: React.ReactNode; variant?: string }) => (
+    <div data-testid="alert" data-variant={variant}>
+      {children}
+    </div>
+  ),
 }));
 
 vi.mock('@forethread/ui-components/assets/icons/arrow-right.svg?react', () => ({
@@ -77,5 +82,22 @@ describe('PoChangeDiff', () => {
       />,
     );
     expect(screen.getByText('change.edit')).toBeInTheDocument();
+  });
+
+  it('renders a destructive cancellation banner for a cancelPo request (FOR-352)', () => {
+    render(<PoChangeDiff changedFields={{ cancelPo: true }} />);
+    const alert = screen.getByTestId('alert');
+    expect(alert).toHaveAttribute('data-variant', 'destructive');
+    expect(screen.getByText('change.cancelBanner')).toBeInTheDocument();
+  });
+
+  it('renders removed line items struck-through with a Removed badge (FOR-352)', () => {
+    const changed: PoChangedFields = {
+      removedLineItems: [{ lineItemId: 'li-2', name: 'Copper Pipe' }],
+    };
+    render(<PoChangeDiff changedFields={changed} />);
+    expect(screen.getByText('change.removedLineItems')).toBeInTheDocument();
+    expect(screen.getByText('Copper Pipe')).toHaveClass('line-through');
+    expect(screen.getByText('change.removedBadge')).toBeInTheDocument();
   });
 });

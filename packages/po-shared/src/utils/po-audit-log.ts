@@ -13,6 +13,10 @@ const identityT: TranslateFn = (_key, fallback) => fallback;
 
 /** Lifecycle action → i18n key + English fallback label. */
 const ACTION_LABELS: Record<string, { key: string; fallback: string }> = {
+  PO_CREATED: { key: 'actionLog.created', fallback: 'Purchase order created' },
+  PO_UPDATED: { key: 'actionLog.updated', fallback: 'Purchase order updated' },
+  FILE_UPLOADED: { key: 'actionLog.documentUploaded', fallback: 'Document uploaded' },
+  FILE_DELETED: { key: 'actionLog.documentRemoved', fallback: 'Document removed' },
   PO_ISSUED: { key: 'actionLog.issued', fallback: 'Purchase order issued' },
   PO_APPROVED: { key: 'actionLog.approved', fallback: 'Purchase order approved' },
   PO_DECLINED: { key: 'actionLog.declined', fallback: 'Purchase order declined' },
@@ -89,6 +93,10 @@ export function humanizeAuditAction(
   }
   const reason = readString(entry.metadata, 'reason');
   if (reason) parts.push(`— ${reason}`);
+
+  // Document events carry the file name (FOR-353).
+  const filename = readString(entry.metadata, 'filename');
+  if (filename) parts.push(`— ${filename}`);
 
   return {
     id: entry.id,

@@ -1,4 +1,5 @@
 import { exportPurchaseOrders } from '@forethread/api-client';
+import { ApproverPoolPanel } from '@forethread/approval-shared';
 import { useTranslation } from '@forethread/i18n';
 import {
   usePurchaseOrder,
@@ -11,12 +12,14 @@ import {
   PoEmailLogTab,
   PoMessagesTab,
   PoActionLogTab,
+  PoCancelRequestModal,
   PoChangeRequestTab,
   PoChangeRequestTabLoading,
 } from '@forethread/po-shared';
 import type { PoTab, RelatedDocument } from '@forethread/po-shared';
 import { usePageTitleStore } from '@forethread/rfq-shared';
-import { Button, Spinner } from '@forethread/ui-components';
+import { Button, Spinner, notificationService } from '@forethread/ui-components';
+import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import EditWithoutLineIcon from '@forethread/ui-components/assets/icons/edit-without-line.svg?react';
 import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
@@ -33,7 +36,7 @@ import { PoApprovalActions } from '../components/PoApprovalActions';
 import { PoSendButton } from '../components/PoSendButton';
 import { ReceiveDeliveryModal } from '../components/ReceiveDeliveryModal';
 import { SplitPoSection } from '../components/SplitPoSection';
-import { useProjectDetail } from '../services/purchase-orders.service';
+import { useProjectDetail, useProposePoChange } from '../services/purchase-orders.service';
 
 /** Statuses for which the backend accepts a change proposal (po-change.service). */
 const CHANGEABLE_STATUSES = ['SENT', 'ACKNOWLEDGED', 'ACCEPTED'];
@@ -127,6 +130,29 @@ export default function PurchaseOrderDetailPage() {
 
   const [showReceiveModal, setShowReceiveModal] = useState(false);
 
+  // FOR-352 — request cancellation via the change-request workflow.
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const proposeCancelMutation = useProposePoChange(id ?? '');
+  const handleRequestCancellation = useCallback(
+    (reason: string) => {
+      proposeCancelMutation.mutate(
+        {
+          changeType: 'COMMERCIAL',
+          changedFields: { cancelPo: true },
+          message: reason || undefined,
+        },
+        {
+          onSuccess: () => {
+            notificationService.success(t('cancelRequest.submitted'));
+            setShowCancelModal(false);
+          },
+          onError: () => notificationService.error(t('cancelRequest.submitError')),
+        },
+      );
+    },
+    [proposeCancelMutation, t],
+  );
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-16">
@@ -174,6 +200,16 @@ export default function PurchaseOrderDetailPage() {
                     {t('actions.change')}
                   </Button>
                 )}
+                {canChange && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<CrossIcon className="w-3.5 h-3.5" />}
+                    onClick={() => setShowCancelModal(true)}
+                  >
+                    {t('actions.requestCancellation')}
+                  </Button>
+                )}
                 {canReceive && (
                   <Button
                     variant="outline"
@@ -206,6 +242,9 @@ export default function PurchaseOrderDetailPage() {
       <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-6 md:pb-8">
         {activeTab === 'details' && (
           <>
+            {/* Who the order is waiting on (FOR-304). Self-hides when approval
+                was never required, so it only appears where it means something. */}
+            <ApproverPoolPanel entityType="PURCHASE_ORDER" entityId={po.id} />
             <SplitPoSection po={po} />
             <PoDetailsTab
               po={po}
@@ -257,6 +296,15 @@ export default function PurchaseOrderDetailPage() {
 
       {showReceiveModal && (
         <ReceiveDeliveryModal po={po} onClose={() => setShowReceiveModal(false)} />
+      )}
+
+      {showCancelModal && (
+        <PoCancelRequestModal
+          poNumber={po.poNumber}
+          onClose={() => setShowCancelModal(false)}
+          onConfirm={handleRequestCancellation}
+          isSubmitting={proposeCancelMutation.isPending}
+        />
       )}
     </div>
   );

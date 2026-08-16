@@ -60,6 +60,9 @@ export function useCreateMaterialRequest() {
       createMaterialRequest(input, { skipErrorHandler: true }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.materialRequests.all() });
+      // A create-with-submit routes the MR for approval (FOR-347); drop any
+      // cached MR approver-pool views so the panel reflects the new nominees.
+      void queryClient.invalidateQueries({ queryKey: ['approver-pool', 'MATERIAL_REQUEST'] });
     },
   });
 }

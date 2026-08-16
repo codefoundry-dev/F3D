@@ -24,6 +24,7 @@ import { useAddressSearch } from '../hooks/useAddressSearch';
 import { useVendorProfileForm } from '../hooks/useVendorProfileForm';
 
 import { InfoItem } from './InfoItem';
+import { VendorCategoriesCard } from './VendorCategoriesCard';
 import { RepresentativesSection } from './RepresentativesSection';
 import { WarehouseCard } from './WarehouseCard';
 import { WarehouseLocationFields } from './WarehouseLocationFields';
@@ -46,12 +47,19 @@ interface VendorProfilePageProps {
   initialEdit?: boolean;
   /** When provided, each saved rep row shows a "View" eye (buyer rep detail page) */
   onViewRepresentative?: (userId: string) => void;
+  /**
+   * Show the Vendor Categories editor. Buyer-only: a category is the
+   * contractor's classification of this vendor, not something the vendor owns
+   * or should even see (ADR-0018). The vendor's own page leaves this false.
+   */
+  canManageCategories?: boolean;
 }
 
 export default function VendorProfilePage({
   vendorId,
   initialEdit,
   onViewRepresentative,
+  canManageCategories = false,
 }: VendorProfilePageProps) {
   const { t } = useTranslation(['vendors', 'common']);
   const handleAddressSearch = useAddressSearch();
@@ -265,6 +273,12 @@ export default function VendorProfilePage({
                 label={t('vendors:fields.legalAddress', { defaultValue: 'Legal Address' })}
                 value={profile.legalAddress}
               />
+
+              {canManageCategories && (
+                <div className="mt-4">
+                  <VendorCategoriesCard vendorId={vendorId} categories={profile.categories ?? []} />
+                </div>
+              )}
             </>
           )}
           <hr className="border-border mt-6" />

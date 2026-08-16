@@ -21,6 +21,7 @@ import {
   SortIcon,
   Spinner,
   TablePagination,
+  notificationService,
 } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
@@ -345,7 +346,22 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
                   leftIcon={<CheckCircleIcon className="size-4" />}
                   onClick={() =>
                     bulkApproveMutation.mutate([...selectedIds], {
-                      onSuccess: () => setSelectedIds(new Set()),
+                      onSuccess: (result) => {
+                        setSelectedIds(new Set());
+                        // FOR-303: some selected invoices may be above the
+                        // caller's invoice.approve cap and left pending. Say so
+                        // rather than reporting a clean success.
+                        if (result.skippedOverLimitCount > 0) {
+                          notificationService.info(
+                            t('list.bulkApproveSkippedOverLimit', {
+                              approved: result.approvedCount,
+                              skipped: result.skippedOverLimitCount,
+                              defaultValue:
+                                'Approved {{approved}}. {{skipped}} were above your approval limit and still need a higher-tier approver.',
+                            }),
+                          );
+                        }
+                      },
                     })
                   }
                 >

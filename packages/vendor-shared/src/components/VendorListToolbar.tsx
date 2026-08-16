@@ -21,9 +21,9 @@ interface VendorListToolbarProps {
   statusOptions: FilterOption[];
   statusFilter: string[];
   onStatusFilterChange: (values: string[]) => void;
-  specialisationOptions: FilterOption[];
-  specialisationFilter: string[];
-  onSpecialisationFilterChange: (values: string[]) => void;
+  categoryOptions: FilterOption[];
+  categoryFilter: string[];
+  onCategoryFilterChange: (values: string[]) => void;
   dateFrom: string;
   dateTo: string;
   onDateFromChange: (value: string) => void;
@@ -42,9 +42,9 @@ export function VendorListToolbar({
   statusOptions,
   statusFilter,
   onStatusFilterChange,
-  specialisationOptions,
-  specialisationFilter,
-  onSpecialisationFilterChange,
+  categoryOptions,
+  categoryFilter,
+  onCategoryFilterChange,
   dateFrom,
   dateTo,
   onDateFromChange,
@@ -83,11 +83,11 @@ export function VendorListToolbar({
             hideSearch
           />
           <FilterDropdownButton
-            label={t('filters.specialisation')}
-            popoverTitle={t('filters.specialisation')}
-            options={specialisationOptions}
-            selected={specialisationFilter}
-            onChange={onSpecialisationFilterChange}
+            label={t('filters.category')}
+            popoverTitle={t('filters.category')}
+            options={categoryOptions}
+            selected={categoryFilter}
+            onChange={onCategoryFilterChange}
           />
           <DateRangeFilterDropdown
             label={t('filters.date')}

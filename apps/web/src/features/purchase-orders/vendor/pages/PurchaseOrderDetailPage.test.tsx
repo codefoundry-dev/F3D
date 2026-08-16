@@ -61,6 +61,7 @@ vi.mock('@forethread/po-shared', () => ({
   PoPurchaseOrdersTab: () => <div>purchase-orders-tab</div>,
   PoChangeRequestTab: () => <div>change-request-tab</div>,
   PoChangeRequestTabLoading: () => <div>change-request-loading</div>,
+  PoCancelRequestModal: () => <div>cancel-request-modal</div>,
 }));
 
 vi.mock('@forethread/rfq-shared', () => ({
@@ -81,6 +82,7 @@ vi.mock('@forethread/ui-components', () => ({
     <button onClick={onClick}>{children}</button>
   ),
   Spinner: () => <div data-testid="spinner" />,
+  notificationService: { success: vi.fn(), error: vi.fn() },
 }));
 
 vi.mock('@forethread/ui-components/assets/icons/download.svg?react', () => ({

@@ -21,6 +21,8 @@ export const queryKeys = {
     all: () => ['delivery-reports'] as const,
     list: (params?: Record<string, unknown>) =>
       [...queryKeys.deliveries.all(), 'list', params] as const,
+    expected: (params?: Record<string, unknown>) =>
+      [...queryKeys.deliveries.all(), 'expected', params] as const,
     detail: (id: string) => [...queryKeys.deliveries.all(), id] as const,
   },
   rfqs: {

@@ -525,13 +525,22 @@ export async function updatePurchaseOrder(
   return data.data;
 }
 
+/**
+ * Submit a purchase order.
+ *
+ * Within the issuer's approval limit it goes straight to the vendor; over it,
+ * the backend routes it to the Approver Pool instead. `nomineeIds` narrows who
+ * is *notified* about that approval (FOR-306) — it never changes who may
+ * approve, and omitting it notifies the whole Pool.
+ */
 export async function issuePurchaseOrder(
   id: string,
+  body?: { nomineeIds?: string[] },
   config?: AxiosRequestConfig,
 ): Promise<PoDetail> {
   const { data } = await getApiClient().post<{ data: PoDetail }>(
     PURCHASE_ORDERS_PATHS.issue(id),
-    undefined,
+    body,
     config,
   );
   return data.data;
@@ -647,16 +656,28 @@ export interface PoChangeLineItem {
   changes: Record<string, PoChangeFieldDiff>;
 }
 
+/** A line item the change request proposes to delete from the PO (FOR-352). */
+export interface PoRemovedLineItem {
+  lineItemId: string;
+  name: string;
+}
+
 /**
  * The agreed cross-package `changedFields` shape (PLAN §B). `fields` are
  * PO-level attributes (paymentTermsDays, pickUpTimeExpectation, pickUpLocation,
  * plannedDeliveryDate, deliveryLocationId, deliveryNotes, …); `lineItems` are
  * per-line attribute diffs (unitPrice, costCode, expectedDeliveryDate, discount,
  * quantityOrdered, …). Approving applies these to the PO.
+ *
+ * FOR-352 extensions: `removedLineItems` lists lines the request deletes on
+ * approval, and `cancelPo: true` marks a cancellation request — approving it
+ * cancels the PO instead of applying field changes.
  */
 export interface PoChangedFields {
   fields?: Record<string, PoChangeFieldDiff>;
   lineItems?: PoChangeLineItem[];
+  removedLineItems?: PoRemovedLineItem[];
+  cancelPo?: boolean;
 }
 
 export interface CreatePoChangeRequestInput {

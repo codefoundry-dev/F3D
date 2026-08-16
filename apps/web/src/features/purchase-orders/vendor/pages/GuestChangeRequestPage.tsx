@@ -99,7 +99,7 @@ function GuestChangeForm({ po, token }: { po: PoDetail; token: string }) {
   const defaultValues = useMemo(() => poToFormDefaults(po).defaultValues, [po]);
   const form = useForm<FormValues>({ defaultValues });
   const { register, control, watch, getValues } = form;
-  const { fields } = useFieldArray({ control, name: 'lineItems' });
+  const { fields, remove } = useFieldArray({ control, name: 'lineItems' });
 
   // Live diff of the edited form vs the PO — drives the preview + submit gate.
   const watchedAll = watch();
@@ -192,12 +192,18 @@ function GuestChangeForm({ po, token }: { po: PoDetail; token: string }) {
                   <th className="py-2 px-3 font-medium w-44">
                     {t('guest.change.deliveryDateColumn')}
                   </th>
+                  <th className="py-2 px-3 font-medium w-28">
+                    {t('guest.change.deliveryTimeColumn')}
+                  </th>
                   <th className="py-2 pl-3 font-medium">{t('guest.change.notesColumn')}</th>
+                  <th className="py-2 pl-3 w-10" aria-hidden />
                 </tr>
               </thead>
               <tbody>
                 {fields.map((field, index) => {
-                  const source = po.lineItems[index];
+                  // Rows can be removed, so match the source PO line by id, not
+                  // by index (FOR-352).
+                  const source = po.lineItems.find((li) => li.id === field.lineItemId);
                   const name = source?.materialName ?? source?.description ?? '—';
                   return (
                     <tr key={field.id} className="border-b border-border last:border-0 align-top">
@@ -231,8 +237,37 @@ function GuestChangeForm({ po, token }: { po: PoDetail; token: string }) {
                           )}
                         />
                       </td>
+                      <td className="py-3 px-3">
+                        <Controller
+                          control={control}
+                          name={`lineItems.${index}.deliveryTime`}
+                          render={({ field: f }) => (
+                            <input
+                              type="time"
+                              value={f.value ?? ''}
+                              onChange={f.onChange}
+                              aria-label={t('guest.change.deliveryTimeColumn')}
+                              className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm text-foreground outline-none"
+                            />
+                          )}
+                        />
+                      </td>
                       <td className="py-3 pl-3">
                         <Input {...register(`lineItems.${index}.notes`)} />
+                      </td>
+                      <td className="py-3 pl-3">
+                        {/* At least one line must remain — removing them all is a
+                            cancellation, which has its own flow. */}
+                        {fields.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => remove(index)}
+                            aria-label={t('guest.change.removeLine')}
+                            className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                          >
+                            ✕
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

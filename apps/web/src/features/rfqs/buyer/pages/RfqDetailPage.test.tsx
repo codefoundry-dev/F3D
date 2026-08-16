@@ -203,8 +203,6 @@ const MOCK_RFQ = {
   deadlineEnd: '2024-03-15',
   needByDate: '2024-04-01',
   totalRequestedQty: 500,
-  approvalStatus: 'Pending',
-  approvedBy: null,
   createdBy: { id: '1', name: 'John Doe' },
   lastModifiedBy: null,
   lineItems: [],

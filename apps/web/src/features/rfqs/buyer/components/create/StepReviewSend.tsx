@@ -220,12 +220,10 @@ export function StepReviewSend({
         editLabel={t('create.review.edit')}
       >
         <div className="rounded-lg border border-border overflow-x-auto">
-          <table className="w-full text-sm min-w-[900px]" data-testid="review-line-items">
+          <table className="w-full text-sm min-w-[720px]" data-testid="review-line-items">
             <thead>
               <tr className={TABLE_HEADER_ROW}>
-                <th className={TABLE_TH}>{t('create.review.colLineItemId')}</th>
                 <th className={TABLE_TH}>{t('create.review.colItemMaterial')}</th>
-                <th className={TABLE_TH}>{t('create.review.colDescription')}</th>
                 <th className={TABLE_TH}>{t('create.review.colUnit')}</th>
                 <th className={TABLE_TH}>{t('create.review.colQuantity')}</th>
                 <th className={TABLE_TH}>{t('create.review.colExpDelivery')}</th>
@@ -237,7 +235,7 @@ export function StepReviewSend({
               return (
                 <tbody key={groupProjectId}>
                   <tr className="bg-muted/60">
-                    <td colSpan={7} className="py-2 px-3">
+                    <td colSpan={5} className="py-2 px-3">
                       <button
                         type="button"
                         className="flex items-center gap-2 text-sm text-foreground"
@@ -257,13 +255,7 @@ export function StepReviewSend({
                   {!isCollapsed &&
                     groupItems.map((item) => (
                       <tr key={item.key} className={TABLE_BODY_ROW}>
-                        <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">
-                          {item.serverId ? item.serverId.slice(0, 8).toUpperCase() : '—'}
-                        </td>
                         <td className="py-2.5 px-3 text-foreground">{item.materialName}</td>
-                        <td className="py-2.5 px-3 text-muted-foreground">
-                          {item.description ?? '—'}
-                        </td>
                         <td className="py-2.5 px-3">{item.uom}</td>
                         <td className="py-2.5 px-3">{item.quantity}</td>
                         <td className="py-2.5 px-3">{formatDate(item.expectedDeliveryDate)}</td>

@@ -2,6 +2,9 @@ import {
   isInvoiceExtractionResult,
   type InvoiceLineMatchFlag,
   type InvoiceMatchedPo,
+  type InvoicePoDelivery,
+  type InvoicePoDeliveryReport,
+  type InvoicePoInfoResult,
   type InvoicePoMatchLine,
   type InvoicePoMatchPoLine,
   type InvoicePoMatchResult,
@@ -14,6 +17,7 @@ import { DocExtractionType, UserRole } from '@prisma/client';
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PoExportService } from '../purchase-orders/po-export.service';
 
 import {
   pairLines,
@@ -26,10 +30,14 @@ type PoWithLines = {
   id: string;
   poNumber: string;
   status: string;
+  companyId: string;
   vendorId: string | null;
   projectId: string;
+  currency: string;
+  plannedDeliveryDate: Date | null;
   totalAmount: { toNumber(): number } | null;
   vendor: { legalName: string } | null;
+  project: { name: string } | null;
   lineItems: {
     id: string;
     lineNumber: number;
@@ -40,6 +48,7 @@ type PoWithLines = {
     unitOfMeasure: string;
     unitPrice: { toNumber(): number };
     lineTotal: { toNumber(): number };
+    costCode: string | null;
   }[];
 };
 
@@ -47,10 +56,16 @@ const PO_SELECT = {
   id: true,
   poNumber: true,
   status: true,
+  // Carried so a reviewer-selected PO can be proven to belong to the invoice's
+  // company before anything about it is disclosed.
+  companyId: true,
   vendorId: true,
   projectId: true,
+  currency: true,
+  plannedDeliveryDate: true,
   totalAmount: true,
   vendor: { select: { legalName: true } },
+  project: { select: { name: true } },
   lineItems: {
     orderBy: { lineNumber: 'asc' as const },
     select: {
@@ -63,6 +78,7 @@ const PO_SELECT = {
       unitOfMeasure: true,
       unitPrice: true,
       lineTotal: true,
+      costCode: true,
     },
   },
 };
@@ -81,6 +97,7 @@ export class InvoiceMatchingService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly poExportService: PoExportService,
     config: ConfigService,
   ) {
     // FOR-218: variance thresholds configurable — ±2% price, exact qty default.
@@ -90,7 +107,17 @@ export class InvoiceMatchingService {
     };
   }
 
-  async getPoMatch(invoiceId: string, user: AuthenticatedUser): Promise<InvoicePoMatchResult> {
+  /**
+   * @param poIdOverride The PO the reviewer has picked in the review form but not
+   *   yet saved. Lets the form show the pairing, status and delivery progress of a
+   *   PO before committing to it; ignored when it is not one of the invoice
+   *   company's POs.
+   */
+  async getPoMatch(
+    invoiceId: string,
+    user: AuthenticatedUser,
+    poIdOverride?: string,
+  ): Promise<InvoicePoMatchResult> {
     const invoice = await this.prisma.invoice.findUnique({
       where: { id: invoiceId },
       select: {
@@ -121,7 +148,11 @@ export class InvoiceMatchingService {
     }
 
     const poReferences = await this.getExtractedPoReferences(invoiceId);
-    const { resolution, po, poCandidates } = await this.resolvePo(invoice, poReferences);
+    const { resolution, po, poCandidates } = await this.resolvePo(
+      invoice,
+      poReferences,
+      poIdOverride,
+    );
 
     const invoiceLines: MatchableInvoiceLine[] = invoice.lines.map((line) => ({
       lineId: line.lineId,
@@ -199,6 +230,7 @@ export class InvoiceMatchingService {
       poReferences,
       vendorMismatch: !!(po && invoice.vendorId && po.vendorId && po.vendorId !== invoice.vendorId),
       lines,
+      poLines: (po?.lineItems ?? []).map(toPoLineDto),
       unbilledPoLines,
       thresholds: this.thresholds,
       summary: {
@@ -209,6 +241,92 @@ export class InvoiceMatchingService {
         unexpectedCount: lines.filter((line) => line.flags.includes('NOT_ON_PO')).length,
       },
     };
+  }
+
+  /**
+   * The Invoice Details PO tab payload (FOR-355): the reconciliation report the
+   * review form already uses, plus the delivery reports recorded against the
+   * resolved PO. Sits behind `invoice.read` (unlike po-match's `invoice.review`)
+   * because it never previews an unsaved PO pick — it only discloses the PO the
+   * invoice itself resolves to.
+   */
+  async getPoInfo(invoiceId: string, user: AuthenticatedUser): Promise<InvoicePoInfoResult> {
+    const match = await this.getPoMatch(invoiceId, user);
+    const deliveryReports = match.po ? await this.getDeliveryReports(match.po.id) : [];
+    return { match, deliveryReports };
+  }
+
+  /**
+   * Generate the system PO PDF for the invoice's resolved purchase order and
+   * return its signed URL (FOR-355). Served through the invoice scope because
+   * invoice viewers (finance) do not necessarily hold `po.exportSingle`.
+   *
+   * `poId` names the PO the tab is displaying when it is auto-matched rather
+   * than saved on the invoice. Like the po-match override, a PO outside the
+   * invoice's company is not the caller's to see.
+   */
+  async exportRelatedPoPdf(
+    invoiceId: string,
+    user: AuthenticatedUser,
+    poId?: string,
+  ): Promise<{ url: string }> {
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      select: { companyId: true, relatedPoId: true },
+    });
+    if (!invoice) throw new NotFoundException(ERR.invoices.notFound);
+
+    if (user.role !== UserRole.SUPER_ADMIN && user.companyId !== invoice.companyId) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
+
+    const targetPoId = poId ?? invoice.relatedPoId;
+    if (!targetPoId) throw new NotFoundException(ERR.purchaseOrders.notFound);
+
+    // getPurchaseOrder does no company scoping of its own (read access is
+    // normally gated at the PO controller), so the invoice link IS the
+    // authorisation here — the PO must belong to the invoice's company.
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id: targetPoId },
+      select: { id: true, companyId: true },
+    });
+    if (po?.companyId !== invoice.companyId) {
+      throw new NotFoundException(ERR.purchaseOrders.notFound);
+    }
+
+    return this.poExportService.exportSinglePo(po.id, 'pdf', user);
+  }
+
+  /** Delivery reports recorded against the PO, newest first, summarised to rows. */
+  private async getDeliveryReports(purchaseOrderId: string): Promise<InvoicePoDeliveryReport[]> {
+    const reports = await this.prisma.deliveryReport.findMany({
+      where: { purchaseOrderId },
+      orderBy: [{ deliveryDate: 'desc' }, { createdAt: 'desc' }],
+      select: {
+        id: true,
+        reportNumber: true,
+        status: true,
+        source: true,
+        deliveryDate: true,
+        submitterName: true,
+        createdAt: true,
+        deliveryLocation: { select: { label: true, address: true } },
+        lines: { select: { quantityReceived: true } },
+      },
+    });
+
+    return reports.map((report) => ({
+      id: report.id,
+      reportNumber: report.reportNumber,
+      status: report.status as InvoicePoDeliveryReport['status'],
+      source: report.source as InvoicePoDeliveryReport['source'],
+      deliveryDate: report.deliveryDate ? report.deliveryDate.toISOString() : null,
+      locationName: report.deliveryLocation?.label ?? report.deliveryLocation?.address ?? null,
+      submitterName: report.submitterName,
+      lineCount: report.lines.length,
+      quantityReceived: report.lines.reduce((sum, line) => sum + line.quantityReceived, 0),
+      createdAt: report.createdAt.toISOString(),
+    }));
   }
 
   /** PO references as extracted from the document (FOR-291); [] when none. */
@@ -223,11 +341,42 @@ export class InvoiceMatchingService {
   }
 
   /**
-   * Resolve the PO to reconcile against: the reviewer-confirmed link wins;
-   * otherwise the extracted references are matched against the company's PO
-   * numbers (tolerantly — "P/O 13603" cites "PO-13603").
+   * Resolve the PO to reconcile against: a PO the reviewer has picked in the form
+   * wins, then the reviewer-confirmed link, then the extracted references matched
+   * against the company's PO numbers (tolerantly — "P/O 13603" cites "PO-13603").
+   *
+   * The automatic resolution runs first even when a selection is supplied, so a
+   * selection that lands on the auto-matched PO still reports AUTO_MATCHED, and
+   * the candidates of an ambiguous match survive the reviewer picking one of them
+   * (the form's PO dropdown is built from them).
    */
   private async resolvePo(
+    invoice: { companyId: string; relatedPoId: string | null },
+    poReferences: string[],
+    poIdOverride?: string,
+  ): Promise<{
+    resolution: InvoicePoMatchResult['resolution'];
+    po: PoWithLines | null;
+    poCandidates: PoWithLines[];
+  }> {
+    const auto = await this.autoResolvePo(invoice, poReferences);
+    if (!poIdOverride || poIdOverride === auto.po?.id) return auto;
+
+    const selected = await this.prisma.purchaseOrder.findUnique({
+      where: { id: poIdOverride },
+      select: PO_SELECT,
+    });
+    // A PO outside the invoice's company is not the reviewer's to see — fall back
+    // to whatever the document itself resolved to.
+    if (selected?.companyId !== invoice.companyId) return auto;
+
+    // Always SELECTED here: a selection matching the saved link resolves to
+    // LINKED inside autoResolvePo and returns above, never reaching this point.
+    return { resolution: 'SELECTED', po: selected, poCandidates: auto.poCandidates };
+  }
+
+  /** The PO the invoice resolves to on its own: saved link, else extracted references. */
+  private async autoResolvePo(
     invoice: { companyId: string; relatedPoId: string | null },
     poReferences: string[],
   ): Promise<{
@@ -287,7 +436,47 @@ function toPoDto(po: PoWithLines): InvoiceMatchedPo {
     vendorId: po.vendorId,
     vendorName: po.vendor?.legalName ?? null,
     projectId: po.projectId,
+    projectName: po.project?.name ?? null,
+    currency: po.currency,
     totalAmount: po.totalAmount === null ? null : po.totalAmount.toNumber(),
+    delivery: toDeliveryDto(po),
+  };
+}
+
+/**
+ * Delivery progress derived from the PO's line quantities, mirroring how the
+ * delivery close-out advances the PO status (PoStatusService): all lines received
+ * in full → DELIVERED, anything received → PARTIALLY_DELIVERED, else awaiting.
+ * A lineless PO can never be "delivered", so it reports awaiting.
+ */
+function toDeliveryDto(po: PoWithLines): InvoicePoDelivery {
+  const lines = po.lineItems;
+  const quantityOrdered = lines.reduce((sum, line) => sum + line.quantityOrdered, 0);
+  const quantityDelivered = lines.reduce((sum, line) => sum + line.quantityDelivered, 0);
+  const linesDelivered = lines.filter(
+    (line) => line.quantityDelivered >= line.quantityOrdered,
+  ).length;
+
+  const status =
+    lines.length > 0 && linesDelivered === lines.length
+      ? 'DELIVERED'
+      : quantityDelivered > 0
+        ? 'PARTIALLY_DELIVERED'
+        : 'AWAITING_DELIVERY';
+
+  return {
+    status,
+    quantityOrdered,
+    quantityDelivered,
+    linesDelivered,
+    lineCount: lines.length,
+    // Over-receipt is allowed on a line, so the roll-up is capped at 100 rather
+    // than reporting a progress bar past full.
+    percentDelivered:
+      quantityOrdered === 0
+        ? 0
+        : Math.min(100, Math.round((quantityDelivered / quantityOrdered) * 100)),
+    plannedDeliveryDate: po.plannedDeliveryDate ? po.plannedDeliveryDate.toISOString() : null,
   };
 }
 
@@ -302,6 +491,7 @@ function toPoLineDto(line: PoWithLines['lineItems'][number]): InvoicePoMatchPoLi
     unitOfMeasure: line.unitOfMeasure,
     unitPrice: line.unitPrice.toNumber(),
     lineTotal: line.lineTotal.toNumber(),
+    costCode: line.costCode,
   };
 }
 

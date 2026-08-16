@@ -1,6 +1,7 @@
 import {
   getDeliveryReports,
   getDeliveryReport,
+  getExpectedDeliveries,
   createDeliveryReport,
   approveDeliveryReport,
   rejectDeliveryReport,
@@ -11,6 +12,7 @@ import {
   getCompanyVendors,
   queryKeys,
   type DeliveryListParams,
+  type ExpectedDeliveryListParams,
   type ProjectListParams,
 } from '@forethread/api-client';
 import type { CreateDeliveryReportInput } from '@forethread/shared-types/client';
@@ -25,6 +27,18 @@ export function useDeliveryReports(params?: DeliveryListParams) {
   return useQuery({
     queryKey: queryKeys.deliveries.list((params ?? {}) as Record<string, unknown>),
     queryFn: () => getDeliveryReports(params, { skipErrorHandler: true }),
+  });
+}
+
+/**
+ * Expected deliveries (FOR-356): POs in a deliverable status that populate the
+ * Deliveries tab automatically, with derived overdue flags. Keyed under the
+ * delivery key space so report mutations (create/approve/reject) refetch it.
+ */
+export function useExpectedDeliveries(params?: ExpectedDeliveryListParams) {
+  return useQuery({
+    queryKey: queryKeys.deliveries.expected((params ?? {}) as Record<string, unknown>),
+    queryFn: () => getExpectedDeliveries(params, { skipErrorHandler: true }),
   });
 }
 

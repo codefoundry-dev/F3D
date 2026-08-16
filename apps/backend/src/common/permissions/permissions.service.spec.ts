@@ -98,6 +98,71 @@ describe('PermissionsService', () => {
     });
   });
 
+  describe('filterActorsWithPermission (FOR-351)', () => {
+    it('returns an empty list without querying when there are no actors', async () => {
+      await expect(service.filterActorsWithPermission([], 'rfq.read')).resolves.toEqual([]);
+      expect(prisma.rolePermission.findMany).not.toHaveBeenCalled();
+      expect(prisma.customRolePermission.findMany).not.toHaveBeenCalled();
+    });
+
+    it('keeps actors whose role grants the key and drops the rest', async () => {
+      prisma.rolePermission.findMany.mockResolvedValue([
+        { role: UserRole.COMPANY_ADMIN },
+        { role: UserRole.PROCUREMENT_OFFICER },
+      ]);
+
+      const officer = { id: 'u1', role: UserRole.PROCUREMENT_OFFICER, customRoleId: null };
+      const foreman = { id: 'u2', role: UserRole.FOREMAN, customRoleId: null };
+
+      const result = await service.filterActorsWithPermission([officer, foreman], 'rfq.read');
+
+      expect(result).toEqual([officer]);
+      expect(prisma.rolePermission.findMany).toHaveBeenCalledWith({
+        where: { permission: { key: 'rfq.read' } },
+        select: { role: true },
+      });
+      // No custom roles in the batch → the custom-role query is skipped.
+      expect(prisma.customRolePermission.findMany).not.toHaveBeenCalled();
+    });
+
+    it('resolves custom-role actors via their custom role INSTEAD of the built-in role', async () => {
+      prisma.rolePermission.findMany.mockResolvedValue([{ role: UserRole.PROCUREMENT_OFFICER }]);
+      prisma.customRolePermission.findMany.mockResolvedValue([{ customRoleId: 'cr-granted' }]);
+
+      // Built-in FOREMAN lacks rfq.read but their custom role grants it; the
+      // officer's custom role does NOT grant it, overriding their built-in role.
+      const foremanWithGrant = { id: 'u1', role: UserRole.FOREMAN, customRoleId: 'cr-granted' };
+      const officerWithout = {
+        id: 'u2',
+        role: UserRole.PROCUREMENT_OFFICER,
+        customRoleId: 'cr-denied',
+      };
+
+      const result = await service.filterActorsWithPermission(
+        [foremanWithGrant, officerWithout],
+        'rfq.read',
+      );
+
+      expect(result).toEqual([foremanWithGrant]);
+      expect(prisma.customRolePermission.findMany).toHaveBeenCalledWith({
+        where: {
+          customRoleId: { in: ['cr-granted', 'cr-denied'] },
+          permission: { key: 'rfq.read' },
+        },
+        select: { customRoleId: true },
+      });
+    });
+
+    it('resolves a SUPER_ADMIN through the built-in role even with a custom role set', async () => {
+      prisma.rolePermission.findMany.mockResolvedValue([{ role: UserRole.SUPER_ADMIN }]);
+
+      const sa = { id: 'u1', role: UserRole.SUPER_ADMIN, customRoleId: 'cr-1' };
+
+      await expect(service.filterActorsWithPermission([sa], 'rfq.read')).resolves.toEqual([sa]);
+      expect(prisma.customRolePermission.findMany).not.toHaveBeenCalled();
+    });
+  });
+
   describe('userHasPermission (FOR-253)', () => {
     it('checks the custom role grant when assigned', async () => {
       prisma.customRolePermission.count.mockResolvedValue(1);

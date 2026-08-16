@@ -18,6 +18,8 @@
       "unitPriceColumn": "Unit price",
       "qtyColumn": "Quantity",
       "deliveryDateColumn": "Delivery date",
+      "deliveryTimeColumn": "Delivery time",
+      "removeLine": "Remove line item",
       "notesColumn": "Notes",
       "paymentTerms": "Payment terms (days)",
       "plannedDeliveryDate": "Requested delivery date",
@@ -383,6 +385,7 @@
     "approve": "Approve",
     "decline": "Decline",
     "changeRequest": "Change request",
+    "requestCancellation": "Request cancellation",
     "acknowledgeAlert": "This PO requires your acknowledgement and response. Please review and take action.",
     "recordDelivery": "Record delivery",
     "deliveryReport": "Delivery report"
@@ -681,11 +684,24 @@
       "quantityOrdered": "Qty. Ordered",
       "costCode": "Cost code",
       "expectedDeliveryDate": "Delivery date",
+      "deliveryTime": "Delivery time",
       "description": "Description",
       "unitOfMeasure": "Unit",
       "notes": "Notes"
     },
+    "cancelBanner": "This request cancels the purchase order. Approving it will cancel the PO.",
+    "removedLineItems": "Removed line items",
+    "removedBadge": "Removed",
     "empty": "-"
+  },
+  "cancelRequest": {
+    "title": "Request cancellation",
+    "description": "Request cancellation of {{poNumber}}. The other party must approve before the purchase order is cancelled.",
+    "reasonPlaceholder": "Reason for cancelling (optional)...",
+    "back": "Back",
+    "confirm": "Request cancellation",
+    "submitted": "Cancellation request submitted for review",
+    "submitError": "Failed to submit the cancellation request. Please try again."
   },
   "changeRequestTab": {
     "header": "{{reference}}",
@@ -713,6 +729,10 @@
     "internal": "Internal"
   },
   "actionLog": {
+    "created": "Purchase order created",
+    "updated": "Purchase order updated",
+    "documentUploaded": "Document uploaded",
+    "documentRemoved": "Document removed",
     "issued": "Purchase order issued",
     "submittedForApproval": "Submitted for approval",
     "approved": "Purchase order approved",

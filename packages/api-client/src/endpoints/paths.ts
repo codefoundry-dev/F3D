@@ -162,11 +162,18 @@ export const PURCHASE_ORDERS_PATHS = {
   rejectChange: (id: string, crId: string) =>
     `/purchase-orders/${id}/change-requests/${crId}/reject`,
   emails: (poId: string) => `/purchase-orders/${poId}/emails`,
+  // Approver Pool + Nomination (ADR-0006 amendment). The routes hang off each
+  // document's own controller rather than a shared /approvals root, so they
+  // stay RESTful; both delegate to the one ApprovalsService.
+  approverPool: (id: string) => `/purchase-orders/${id}/approver-pool`,
+  nominations: (id: string) => `/purchase-orders/${id}/nominations`,
+  nomination: (id: string, userId: string) => `/purchase-orders/${id}/nominations/${userId}`,
 } as const;
 
 // ── Delivery Reports (Epic 6 — Delivery) ──────────────────────────────────────
 export const DELIVERY_PATHS = {
   ROOT: '/delivery-reports',
+  EXPECTED: '/delivery-reports/expected',
   byId: (id: string) => `/delivery-reports/${id}`,
   approve: (id: string) => `/delivery-reports/${id}/approve`,
   reject: (id: string) => `/delivery-reports/${id}/reject`,
@@ -201,6 +208,13 @@ export const MATERIAL_REQUESTS_PATHS = {
   cancel: (id: string) => `/material-requests/${id}/cancel`,
   convertToRfq: (id: string) => `/material-requests/${id}/convert-to-rfq`,
   convertToPo: (id: string) => `/material-requests/${id}/convert-to-po`,
+  // Approver Pool + Nomination (FOR-347) — same shapes as the PO/Invoice routes.
+  approverPool: (id: string) => `/material-requests/${id}/approver-pool`,
+  nominations: (id: string) => `/material-requests/${id}/nominations`,
+  nomination: (id: string, userId: string) => `/material-requests/${id}/nominations/${userId}`,
+  // Prospective Pool: the wizard creates-and-submits in one call, so it needs
+  // the Pool before any MR exists. Company-scoped, no entity id.
+  PROSPECTIVE_APPROVER_POOL: '/material-requests/approver-pool',
 } as const;
 
 // ── Bulk Orders ──────────────────────────────────────────────────────────────
@@ -226,12 +240,18 @@ export const INVOICES_PATHS = {
   reject: (id: string) => `/invoices/${id}/reject`,
   review: (id: string) => `/invoices/${id}/review`,
   poMatch: (id: string) => `/invoices/${id}/po-match`,
+  poInfo: (id: string) => `/invoices/${id}/po-info`,
+  poExport: (id: string) => `/invoices/${id}/po-export`,
   audit: (id: string) => `/invoices/${id}/audit`,
   BULK_APPROVE: '/invoices/bulk-approve',
   export: (format: 'csv' | 'xlsx' | 'pdf') => `/invoices/export/${format}`,
   exportSingle: (id: string, format: 'csv' | 'xlsx' | 'pdf') => `/invoices/${id}/export/${format}`,
   documents: (invoiceId: string) => `/invoices/${invoiceId}/documents`,
   document: (invoiceId: string, docId: string) => `/invoices/${invoiceId}/documents/${docId}`,
+  // Approver Pool + Nomination — same shapes as the PO routes above.
+  approverPool: (id: string) => `/invoices/${id}/approver-pool`,
+  nominations: (id: string) => `/invoices/${id}/nominations`,
+  nomination: (id: string, userId: string) => `/invoices/${id}/nominations/${userId}`,
 } as const;
 
 // ── Views ───────────────────────────────────────────────────────────────────
@@ -263,6 +283,8 @@ export const MATERIALS_PATHS = {
 export const VENDORS_PATHS = {
   ROOT: '/vendors',
   INVITE: '/vendors/invite',
+  RESOLVE_SELECTION: '/vendors/selection/resolve',
+  categories: (id: string) => `/vendors/${id}/categories`,
   profile: (id: string) => `/vendors/${id}/profile`,
   warehouses: (id: string) => `/vendors/${id}/warehouses`,
   warehouse: (id: string, whId: string) => `/vendors/${id}/warehouses/${whId}`,

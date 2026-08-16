@@ -23,7 +23,10 @@ const mockPrisma = {
   invoice: { findUnique: jest.fn() },
   docExtraction: { findFirst: jest.fn() },
   purchaseOrder: { findUnique: jest.fn(), findMany: jest.fn() },
+  deliveryReport: { findMany: jest.fn() },
 };
+
+const mockPoExport = { exportSinglePo: jest.fn() };
 
 const mockConfig = { get: jest.fn() };
 
@@ -52,28 +55,36 @@ function invLine(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function poLineRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'pol-1',
+    lineNumber: 1,
+    materialCode: 'PVC-100',
+    description: 'DN100 PVC pipe',
+    quantityOrdered: 10,
+    quantityDelivered: 10,
+    unitOfMeasure: 'm',
+    unitPrice: dec(8.5),
+    lineTotal: dec(85),
+    costCode: 'CC-100',
+    ...overrides,
+  };
+}
+
 function poRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 'po-1',
     poNumber: 'PO-00042',
     status: 'SENT',
+    companyId: 'comp-1',
     vendorId: 'vendor-1',
     projectId: 'proj-1',
+    currency: 'AUD',
+    plannedDeliveryDate: new Date('2026-08-14T00:00:00.000Z'),
     totalAmount: dec(85),
     vendor: { legalName: 'VendorCo' },
-    lineItems: [
-      {
-        id: 'pol-1',
-        lineNumber: 1,
-        materialCode: 'PVC-100',
-        description: 'DN100 PVC pipe',
-        quantityOrdered: 10,
-        quantityDelivered: 10,
-        unitOfMeasure: 'm',
-        unitPrice: dec(8.5),
-        lineTotal: dec(85),
-      },
-    ],
+    project: { name: 'Plant Upgrade' },
+    lineItems: [poLineRow()],
     ...overrides,
   };
 }
@@ -108,7 +119,12 @@ describe('InvoiceMatchingService', () => {
     mockConfig.get.mockReturnValue(undefined); // default thresholds: ±2% price, exact qty
     mockPrisma.docExtraction.findFirst.mockResolvedValue(null);
     mockPrisma.purchaseOrder.findMany.mockResolvedValue([]);
-    service = new InvoiceMatchingService(mockPrisma as never, mockConfig as never);
+    mockPrisma.deliveryReport.findMany.mockResolvedValue([]);
+    service = new InvoiceMatchingService(
+      mockPrisma as never,
+      mockPoExport as never,
+      mockConfig as never,
+    );
   });
 
   describe('access control', () => {
@@ -215,6 +231,206 @@ describe('InvoiceMatchingService', () => {
     });
   });
 
+  // The reviewer's dropdown choice, previewed before it is saved as relatedPoId.
+  describe('reviewer-selected PO (poIdOverride)', () => {
+    it('reconciles against the selected PO and reports SELECTED', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow({ lines: [invLine()] }));
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(
+        poRow({ id: 'po-9', poNumber: 'PO-00099' }),
+      );
+
+      const result = await service.getPoMatch('inv-1', companyAdmin, 'po-9');
+
+      expect(result.resolution).toBe('SELECTED');
+      expect(result.po?.id).toBe('po-9');
+      // The selection is a real reconciliation, not just a header swap.
+      expect(result.lines[0].poLine?.id).toBe('pol-1');
+    });
+
+    it('reports LINKED when the selection is the PO already saved on the invoice', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow({ relatedPoId: 'po-1' }));
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(poRow());
+
+      const result = await service.getPoMatch('inv-1', companyAdmin, 'po-1');
+
+      expect(result.resolution).toBe('LINKED');
+      expect(result.po?.id).toBe('po-1');
+    });
+
+    it('keeps AUTO_MATCHED when the reviewer selects the PO the document already resolved to', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow());
+      mockPrisma.docExtraction.findFirst.mockResolvedValue(extractionWith(['PO-00042']));
+      mockPrisma.purchaseOrder.findMany
+        .mockResolvedValueOnce([{ id: 'po-1', poNumber: 'PO-00042' }])
+        .mockResolvedValueOnce([poRow()]);
+
+      const result = await service.getPoMatch('inv-1', companyAdmin, 'po-1');
+
+      expect(result.resolution).toBe('AUTO_MATCHED');
+      // No second read — the auto-resolved PO already is the selection.
+      expect(mockPrisma.purchaseOrder.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("retains the ambiguous candidates when the reviewer picks one, so the form's PO list keeps them", async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow());
+      mockPrisma.docExtraction.findFirst.mockResolvedValue(extractionWith(['PO-42', 'PO-43']));
+      mockPrisma.purchaseOrder.findMany
+        .mockResolvedValueOnce([
+          { id: 'po-1', poNumber: 'PO-00042' },
+          { id: 'po-2', poNumber: 'PO-00043' },
+        ])
+        .mockResolvedValueOnce([poRow(), poRow({ id: 'po-2', poNumber: 'PO-00043' })]);
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(
+        poRow({ id: 'po-2', poNumber: 'PO-00043' }),
+      );
+
+      const result = await service.getPoMatch('inv-1', companyAdmin, 'po-2');
+
+      expect(result.resolution).toBe('SELECTED');
+      expect(result.po?.id).toBe('po-2');
+      expect(result.poCandidates.map((po) => po.id)).toEqual(['po-1', 'po-2']);
+    });
+
+    it("ignores a PO belonging to another company and falls back to the document's own resolution", async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow());
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(poRow({ companyId: 'other-comp' }));
+
+      const result = await service.getPoMatch('inv-1', companyAdmin, 'po-1');
+
+      expect(result.resolution).toBe('NO_REFERENCE');
+      expect(result.po).toBeNull();
+    });
+
+    it('ignores an unknown PO id', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow());
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(null);
+
+      const result = await service.getPoMatch('inv-1', companyAdmin, 'nope');
+      expect(result.po).toBeNull();
+    });
+  });
+
+  // Everything the reviewer needs about the PO itself, so the invoice can be
+  // judged without leaving the review form.
+  describe('PO context: status, delivery progress and lines', () => {
+    const linkedTo = (po: Record<string, unknown>) => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow({ relatedPoId: 'po-1' }));
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(po);
+    };
+
+    /** Delivery roll-up of the linked PO, proving it resolved on the way through. */
+    const deliveryOf = async () => {
+      const result = await service.getPoMatch('inv-1', companyAdmin);
+      if (result.po === null) throw new Error('expected the linked PO to resolve');
+      return result.po.delivery;
+    };
+
+    it("carries the PO's status, currency, project and every one of its lines", async () => {
+      linkedTo(
+        poRow({
+          lineItems: [poLineRow(), poLineRow({ id: 'pol-2', lineNumber: 2, quantityDelivered: 0 })],
+        }),
+      );
+
+      const result = await service.getPoMatch('inv-1', companyAdmin);
+
+      expect(result.po).toMatchObject({
+        status: 'SENT',
+        currency: 'AUD',
+        projectName: 'Plant Upgrade',
+        vendorName: 'VendorCo',
+      });
+      // Every PO line, billed or not — the side-by-side reference.
+      expect(result.poLines.map((line) => line.id)).toEqual(['pol-1', 'pol-2']);
+      expect(result.poLines[0].costCode).toBe('CC-100');
+    });
+
+    it('reports DELIVERED when every line has been received in full', async () => {
+      linkedTo(poRow());
+
+      const delivery = await deliveryOf();
+
+      expect(delivery).toEqual({
+        status: 'DELIVERED',
+        quantityOrdered: 10,
+        quantityDelivered: 10,
+        linesDelivered: 1,
+        lineCount: 1,
+        percentDelivered: 100,
+        plannedDeliveryDate: '2026-08-14T00:00:00.000Z',
+      });
+    });
+
+    it('reports PARTIALLY_DELIVERED while any line is short', async () => {
+      linkedTo(
+        poRow({
+          lineItems: [
+            poLineRow({ quantityDelivered: 4 }),
+            poLineRow({ id: 'pol-2', lineNumber: 2, quantityDelivered: 0 }),
+          ],
+        }),
+      );
+
+      const delivery = await deliveryOf();
+
+      expect(delivery.status).toBe('PARTIALLY_DELIVERED');
+      expect(delivery.quantityDelivered).toBe(4);
+      expect(delivery.quantityOrdered).toBe(20);
+      expect(delivery.linesDelivered).toBe(0);
+      expect(delivery.percentDelivered).toBe(20);
+    });
+
+    it('reports AWAITING_DELIVERY when nothing has arrived', async () => {
+      linkedTo(poRow({ lineItems: [poLineRow({ quantityDelivered: 0 })] }));
+
+      const delivery = await deliveryOf();
+
+      expect(delivery.status).toBe('AWAITING_DELIVERY');
+      expect(delivery.percentDelivered).toBe(0);
+    });
+
+    it('caps the delivered percentage at 100 on an over-receipt', async () => {
+      linkedTo(poRow({ lineItems: [poLineRow({ quantityDelivered: 14 })] }));
+
+      const delivery = await deliveryOf();
+
+      expect(delivery.status).toBe('DELIVERED');
+      expect(delivery.percentDelivered).toBe(100);
+    });
+
+    it('treats a PO with no lines as awaiting delivery rather than delivered', async () => {
+      linkedTo(poRow({ lineItems: [], plannedDeliveryDate: null }));
+
+      const delivery = await deliveryOf();
+
+      expect(delivery).toMatchObject({
+        status: 'AWAITING_DELIVERY',
+        lineCount: 0,
+        percentDelivered: 0,
+        plannedDeliveryDate: null,
+      });
+    });
+
+    it('reports a vendorless, projectless, untotalled PO as nulls rather than crashing', async () => {
+      linkedTo(poRow({ vendor: null, project: null, totalAmount: null }));
+
+      const result = await service.getPoMatch('inv-1', companyAdmin);
+
+      expect(result.po).toMatchObject({
+        vendorName: null,
+        projectName: null,
+        totalAmount: null,
+      });
+    });
+
+    it('reports no PO lines when no PO resolved', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow({ lines: [invLine()] }));
+
+      const result = await service.getPoMatch('inv-1', companyAdmin);
+      expect(result.poLines).toEqual([]);
+    });
+  });
+
   describe('per-line variance flags', () => {
     beforeEach(() => {
       mockPrisma.docExtraction.findFirst.mockResolvedValue(extractionWith(['PO-00042']));
@@ -316,7 +532,11 @@ describe('InvoiceMatchingService', () => {
       mockConfig.get.mockImplementation((key: string) =>
         key === 'INVOICE_MATCH_PRICE_TOLERANCE_PCT' ? '15' : undefined,
       );
-      service = new InvoiceMatchingService(mockPrisma as never, mockConfig as never);
+      service = new InvoiceMatchingService(
+        mockPrisma as never,
+        mockPoExport as never,
+        mockConfig as never,
+      );
 
       mockPrisma.docExtraction.findFirst.mockResolvedValue(extractionWith(['PO-00042']));
       mockPrisma.purchaseOrder.findMany
@@ -331,6 +551,157 @@ describe('InvoiceMatchingService', () => {
 
       expect(result.thresholds.priceTolerancePct).toBe(15);
       expect(result.lines[0].flags).toEqual([]);
+    });
+  });
+
+  describe('getPoInfo (FOR-355)', () => {
+    it('returns the match with no delivery reports when no PO resolves', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow());
+
+      const result = await service.getPoInfo('inv-1', companyAdmin);
+
+      expect(result.match.resolution).toBe('NO_REFERENCE');
+      expect(result.deliveryReports).toEqual([]);
+      expect(mockPrisma.deliveryReport.findMany).not.toHaveBeenCalled();
+    });
+
+    it("summarises the resolved PO's delivery reports, newest first as queried", async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow({ relatedPoId: 'po-1' }));
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(poRow());
+      mockPrisma.deliveryReport.findMany.mockResolvedValue([
+        {
+          id: 'dr-1',
+          reportNumber: 'DR-0007',
+          status: 'APPROVED',
+          source: 'INTERNAL',
+          deliveryDate: new Date('2026-08-10T00:00:00.000Z'),
+          submitterName: 'Sam Site',
+          createdAt: new Date('2026-08-10T08:00:00.000Z'),
+          deliveryLocation: { label: 'North gate', address: '1 Plant Rd' },
+          lines: [{ quantityReceived: 6 }, { quantityReceived: 4 }],
+        },
+        {
+          id: 'dr-2',
+          reportNumber: 'DR-0006',
+          status: 'SUBMITTED',
+          source: 'EXTERNAL',
+          deliveryDate: null,
+          submitterName: 'Driver Dan',
+          createdAt: new Date('2026-08-09T08:00:00.000Z'),
+          deliveryLocation: null,
+          lines: [],
+        },
+      ]);
+
+      const result = await service.getPoInfo('inv-1', companyAdmin);
+
+      expect(result.match.resolution).toBe('LINKED');
+      expect(mockPrisma.deliveryReport.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { purchaseOrderId: 'po-1' } }),
+      );
+      expect(result.deliveryReports).toEqual([
+        expect.objectContaining({
+          id: 'dr-1',
+          reportNumber: 'DR-0007',
+          status: 'APPROVED',
+          deliveryDate: '2026-08-10T00:00:00.000Z',
+          locationName: 'North gate',
+          quantityReceived: 10,
+          lineCount: 2,
+        }),
+        expect.objectContaining({
+          id: 'dr-2',
+          status: 'SUBMITTED',
+          deliveryDate: null,
+          locationName: null,
+          quantityReceived: 0,
+          lineCount: 0,
+        }),
+      ]);
+    });
+
+    it('falls back to the location address when it has no label', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow({ relatedPoId: 'po-1' }));
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(poRow());
+      mockPrisma.deliveryReport.findMany.mockResolvedValue([
+        {
+          id: 'dr-1',
+          reportNumber: 'DR-0008',
+          status: 'SUBMITTED',
+          source: 'INTERNAL',
+          deliveryDate: null,
+          submitterName: 'Sam Site',
+          createdAt: new Date('2026-08-11T08:00:00.000Z'),
+          deliveryLocation: { label: null, address: '1 Plant Rd' },
+          lines: [{ quantityReceived: 1 }],
+        },
+      ]);
+
+      const result = await service.getPoInfo('inv-1', companyAdmin);
+      expect(result.deliveryReports[0].locationName).toBe('1 Plant Rd');
+    });
+  });
+
+  describe('exportRelatedPoPdf (FOR-355)', () => {
+    beforeEach(() => {
+      mockPoExport.exportSinglePo.mockResolvedValue({ url: 'https://signed/po.pdf' });
+    });
+
+    it('throws NotFoundException for a missing invoice', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(null);
+      await expect(service.exportRelatedPoPdf('missing', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("throws ForbiddenException for another company's invoice", async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow({ companyId: 'other-comp' }));
+      await expect(service.exportRelatedPoPdf('inv-1', companyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('throws NotFoundException when the invoice has no linked PO and no poId is given', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow());
+      await expect(service.exportRelatedPoPdf('inv-1', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockPoExport.exportSinglePo).not.toHaveBeenCalled();
+    });
+
+    it('exports the linked PO as PDF through the PO export service', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow({ relatedPoId: 'po-1' }));
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ id: 'po-1', companyId: 'comp-1' });
+
+      const result = await service.exportRelatedPoPdf('inv-1', companyAdmin);
+
+      expect(mockPoExport.exportSinglePo).toHaveBeenCalledWith('po-1', 'pdf', companyAdmin);
+      expect(result).toEqual({ url: 'https://signed/po.pdf' });
+    });
+
+    it('accepts a poId override for the displayed (auto-matched) PO', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow());
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ id: 'po-9', companyId: 'comp-1' });
+
+      await service.exportRelatedPoPdf('inv-1', companyAdmin, 'po-9');
+
+      expect(mockPrisma.purchaseOrder.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'po-9' } }),
+      );
+      expect(mockPoExport.exportSinglePo).toHaveBeenCalledWith('po-9', 'pdf', companyAdmin);
+    });
+
+    it("rejects a poId outside the invoice's company — the link is the authorisation", async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow({ relatedPoId: 'po-1' }));
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-foreign',
+        companyId: 'other-comp',
+      });
+
+      await expect(service.exportRelatedPoPdf('inv-1', companyAdmin, 'po-foreign')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockPoExport.exportSinglePo).not.toHaveBeenCalled();
     });
   });
 });

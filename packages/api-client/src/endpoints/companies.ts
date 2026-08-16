@@ -16,10 +16,15 @@ export interface CreateCompanyDto {
   website?: string;
   specialisations?: string[];
   assignedContractorIds?: string[];
+  /** Vendor Categories stamped on the assignment(s) created for this vendor
+   *  (ADR-0018) — NOT a field on the company itself. */
+  categories?: string[];
 }
 
 export interface AssignVendorsDto {
+  /** NB: despite the name these are VENDOR ids. */
   contractorIds: string[];
+  categories?: string[];
 }
 
 export interface VendorAssignment extends CompanyResponse {

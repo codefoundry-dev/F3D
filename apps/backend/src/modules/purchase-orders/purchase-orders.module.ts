@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { AccessTokensModule } from '../access-tokens/access-tokens.module';
+import { ApprovalsModule } from '../approvals/approvals.module';
 import { AuditModule } from '../audit/audit.module';
 import { ExportModule } from '../export/export.module';
 import { InventoryModule } from '../inventory/inventory.module';
@@ -23,6 +24,7 @@ import { PurchaseOrdersService } from './purchase-orders.service';
     AuditModule,
     InventoryModule,
     AccessTokensModule,
+    ApprovalsModule,
   ],
   controllers: [PurchaseOrdersController],
   providers: [
@@ -33,6 +35,8 @@ import { PurchaseOrdersService } from './purchase-orders.service';
     PoValidationService,
     PoChangeService,
   ],
-  exports: [PurchaseOrdersService, PoStatusService],
+  // PoExportService: the invoices module serves the linked PO's PDF through the
+  // invoice scope (FOR-355).
+  exports: [PurchaseOrdersService, PoStatusService, PoExportService],
 })
 export class PurchaseOrdersModule {}

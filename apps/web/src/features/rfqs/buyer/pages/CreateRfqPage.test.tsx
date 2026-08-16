@@ -35,6 +35,9 @@ const mockApi = vi.hoisted(() => ({
   getMaterialLists: vi.fn().mockResolvedValue([]),
   getMaterialList: vi.fn(),
   getProjects: vi.fn().mockResolvedValue({ items: [] }),
+  // Sentinel constant, not a function — SelectVendorsCard reads it at module
+  // scope to build the category filter options (ADR-0018).
+  UNCATEGORISED: 'UNCATEGORISED',
 }));
 
 vi.mock('react-router-dom', () => ({
@@ -68,6 +71,8 @@ vi.mock('../services/rfqs.service', () => ({
   useRfqMaterials: mockUseRfqMaterials,
   useRfqMaterialSuggestions: () => ({ data: undefined, isLoading: false }),
   useAssignedVendors: mockUseAssignedVendors,
+  // Add All resolves server-side (ADR-0018); tests drive it through the mock.
+  useResolveVendorSelection: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock('@/features/doc-intelligence', () => ({
@@ -146,6 +151,7 @@ vi.mock('@forethread/ui-components', async (importOriginal) => {
 import CreateRfqPage from './CreateRfqPage';
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
+const PROJECT_ID_2 = '66666666-6666-4666-8666-666666666666';
 const MATERIAL_ID = '22222222-2222-4222-8222-222222222222';
 // The assignment row id and the vendor's Company id differ on purpose — the
 // wizard must submit the Company id (what the RFQ backend validates).
@@ -155,7 +161,10 @@ const LOCATION_ID = '44444444-4444-4444-8444-444444444444';
 
 function setupData() {
   mockUseRfqProjects.mockReturnValue({
-    data: [{ id: PROJECT_ID, name: 'Tower 5' }],
+    data: [
+      { id: PROJECT_ID, name: 'Tower 5' },
+      { id: PROJECT_ID_2, name: 'Riverside' },
+    ],
     isLoading: false,
   });
   mockUseRfqMaterials.mockReturnValue({
@@ -467,6 +476,34 @@ describe('CreateRfqPage', () => {
     fireEvent.click(screen.getByTestId('save-as-draft'));
     await waitFor(() => expect(mockSaveDraft.mutateAsync).toHaveBeenCalled());
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/rfqs/rfq-1'));
+  });
+
+  it('reassigns a line item to another project from the row actions', () => {
+    renderPage();
+    fillBasics();
+    // Both projects selected → the row lands under the first group and the row
+    // actions offer the other project as a move target.
+    selectMulti('create.basicInfo.projectPlaceholder', [PROJECT_ID, PROJECT_ID_2]);
+    addMaterial();
+    expect(
+      within(screen.getByTestId(`project-group-${PROJECT_ID}`)).getByText('Cement'),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('create.lineItems.moveToProject'));
+    // Scoped to the source group — the target group's collapse toggle carries
+    // the project name too.
+    fireEvent.click(
+      within(screen.getByTestId(`project-group-${PROJECT_ID}`)).getByRole('button', {
+        name: 'Riverside',
+      }),
+    );
+
+    expect(
+      within(screen.getByTestId(`project-group-${PROJECT_ID_2}`)).getByText('Cement'),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId(`project-group-${PROJECT_ID}`)).queryByText('Cement'),
+    ).not.toBeInTheDocument();
   });
 
   it('keeps added line items visible before a project is picked (Unassigned group)', () => {

@@ -1,0 +1,56 @@
+// Approver Pool and Nomination (ADR-0006 amendment, 2026-08-07).
+//
+// The **Approver Pool** is not stored: it is the set of ACTIVE users in the
+// document's company whose effective `po.approve` / `invoice.approve` grant
+// covers the total, recomputed live on every read by
+// ApprovalAuthorizationService. Authorisation is evaluated live at approve
+// time, so a snapshotted Pool would name approvers who then hit a 403.
+//
+// A **Nomination** is the opposite: it is the creator's recorded intent to
+// route the document at specific Pool members, so it persists. It is routing
+// only — it confers no authority, and every Pool member can still approve a
+// document they were not nominated for.
+
+/// The documents that carry an Approver Pool. Deliberately narrower than
+/// NotificationEntityType: RFQs have no monetary value to test against a cap
+/// (FOR-305), and bulk orders are not in the Release-1 closed list.
+///
+/// MATERIAL_REQUEST (FOR-347) is the one member whose Pool is not cap-derived:
+/// an MR carries no money, so its Pool is everyone holding the (non-threshold)
+/// `materialRequest.approve` grant. See the ADR-0006 amendment.
+enum ApprovalEntityType {
+  PURCHASE_ORDER
+  INVOICE
+  MATERIAL_REQUEST
+}
+
+/// One creator→approver routing hint. Polymorphic over PO and Invoice, matching
+/// the entityType/entityId precedent set by Notification and delivering
+/// ADR-0006's "reusable across entities" intent.
+///
+/// Trade-off accepted: no FK on `entityId`, so cascade-on-delete is handled in
+/// code (ApprovalsService.deleteNominationsFor), not by the database.
+model ApprovalNomination {
+  id         String             @id @default(uuid())
+  entityType ApprovalEntityType @map("entity_type")
+  entityId   String             @map("entity_id")
+  /// The nominated Pool member.
+  userId     String             @map("user_id")
+  /// The document's creator (PO) or reviewer (Invoice) who nominated them.
+  nominatedById String          @map("nominated_by_id")
+  /// Denormalised from the document so the row satisfies the RLS model in
+  /// ADR-0009 without a join through a polymorphic, FK-less entityId.
+  companyId  String             @map("company_id")
+  nominatedAt DateTime          @default(now()) @map("nominated_at")
+
+  user        User    @relation("ApprovalNominee", fields: [userId], references: [id], onDelete: Cascade)
+  nominatedBy User    @relation("ApprovalNominator", fields: [nominatedById], references: [id])
+  company     Company @relation("ApprovalNominationCompany", fields: [companyId], references: [id])
+
+  /// Re-nominating an existing nominee is a no-op rather than a fresh email.
+  @@unique([entityType, entityId, userId], map: "uq_approval_nominations_entity_user")
+  @@index([entityType, entityId], map: "idx_approval_nominations_entity")
+  @@index([companyId], map: "idx_approval_nominations_company")
+  @@index([userId], map: "idx_approval_nominations_user")
+  @@map("approval_nominations")
+}

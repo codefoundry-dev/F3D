@@ -19,7 +19,13 @@ const vendorUser = {
 
 const mockTx = {
   purchaseOrder: { update: jest.fn() },
-  poLineItem: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+  poLineItem: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    update: jest.fn(),
+    count: jest.fn(),
+    deleteMany: jest.fn(),
+  },
   poChangeRequest: { update: jest.fn() },
 };
 
@@ -101,6 +107,10 @@ describe('PoChangeService', () => {
     mockTx.purchaseOrder.update.mockResolvedValue({});
     mockTx.poChangeRequest.update.mockResolvedValue({});
     mockTx.poLineItem.findMany.mockResolvedValue([]);
+    mockTx.poLineItem.count.mockResolvedValue(2);
+    mockTx.poLineItem.deleteMany.mockResolvedValue({ count: 0 });
+    // Propose-time removal validation reads the PO's current lines.
+    mockPrisma.poLineItem.findMany.mockResolvedValue([{ id: 'li-1' }, { id: 'li-2' }]);
     mockPrisma.$transaction.mockImplementation((cb: (tx: typeof mockTx) => unknown) => cb(mockTx));
   });
 
@@ -170,6 +180,55 @@ describe('PoChangeService', () => {
       await expect(service.proposeChange('po-1', dto as never, companyAdmin)).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    it('rejects a proposal that would remove every line item (FOR-352)', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(poWithRelations);
+      mockPrisma.poLineItem.findMany.mockResolvedValue([{ id: 'li-1' }, { id: 'li-2' }]);
+
+      const removeAllDto = {
+        changeType: 'COMMERCIAL',
+        changedFields: {
+          removedLineItems: [
+            { lineItemId: 'li-1', name: 'A' },
+            { lineItemId: 'li-2', name: 'B' },
+          ],
+        },
+      };
+      await expect(
+        service.proposeChange('po-1', removeAllDto as never, companyAdmin),
+      ).rejects.toThrow('Cannot remove every line item');
+      expect(mockPrisma.poChangeRequest.create).not.toHaveBeenCalled();
+    });
+
+    it('accepts a proposal that removes only some line items (FOR-352)', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(poWithRelations);
+      mockPrisma.poLineItem.findMany.mockResolvedValue([{ id: 'li-1' }, { id: 'li-2' }]);
+      mockPrisma.poChangeRequest.create.mockResolvedValue(
+        createdCr({
+          changedFields: { removedLineItems: [{ lineItemId: 'li-1', name: 'A' }] },
+        }),
+      );
+
+      const partialDto = {
+        changeType: 'COMMERCIAL',
+        changedFields: { removedLineItems: [{ lineItemId: 'li-1', name: 'A' }] },
+      };
+      const result = await service.proposeChange('po-1', partialDto as never, companyAdmin);
+      expect(result.id).toBe('cr-1');
+    });
+
+    it('skips the removal guard for a cancellation proposal (FOR-352)', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(poWithRelations);
+      mockPrisma.poChangeRequest.create.mockResolvedValue(
+        createdCr({ changedFields: { cancelPo: true } }),
+      );
+
+      const cancelDto = { changeType: 'COMMERCIAL', changedFields: { cancelPo: true } };
+      const result = await service.proposeChange('po-1', cancelDto as never, companyAdmin);
+      expect(result.id).toBe('cr-1');
+      // A cancellation never needs the PO's lines.
+      expect(mockPrisma.poLineItem.findMany).not.toHaveBeenCalled();
     });
 
     it('creates a change request with a sequential reference and returns the shaped response', async () => {
@@ -555,6 +614,20 @@ describe('PoChangeService', () => {
       );
     });
 
+    it('rejects a guest proposal that would remove every line item (FOR-352)', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(guestPo);
+      mockPrisma.poLineItem.findMany.mockResolvedValue([{ id: 'li-1' }]);
+
+      const removeAllDto = {
+        changeType: 'COMMERCIAL',
+        changedFields: { removedLineItems: [{ lineItemId: 'li-1', name: 'A' }] },
+      };
+      await expect(service.proposeChangeViaToken('po-1', removeAllDto as never)).rejects.toThrow(
+        'Cannot remove every line item',
+      );
+      expect(mockPrisma.poChangeRequest.create).not.toHaveBeenCalled();
+    });
+
     it('creates a CR with no requester user, attributed by the vendor label', async () => {
       mockPrisma.purchaseOrder.findUnique.mockResolvedValue(guestPo);
       mockPrisma.poChangeRequest.count.mockResolvedValue(2);
@@ -761,15 +834,58 @@ describe('PoChangeService', () => {
     function pendingCr(overrides: Record<string, unknown> = {}) {
       return {
         id: 'cr-1',
+        purchaseOrderId: 'po-1',
         reference: 'CR-002',
         requestedById: 'v-u-1',
         status: 'PENDING',
         changeType: 'COMMERCIAL',
         changedFields: { fields: { paymentTermsDays: { from: 30, to: 10 } } },
-        requestedBy: { id: 'v-u-1', name: 'Vendor User' },
+        requestedBy: { id: 'v-u-1', name: 'Vendor User', role: UserRole.VENDOR },
         ...overrides,
       };
     }
+
+    // The access-check PO load that now precedes the CR lookup. Tests that
+    // exercise the notify fan-out override this with a richer object.
+    beforeEach(() => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'SENT',
+        companyId: 'comp-1',
+        vendorId: 'vendor-comp-1',
+        poNumber: 'PO-0001',
+        rfqId: null,
+      });
+    });
+
+    it('throws NotFoundException when the PO is not found', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(null);
+      await expect(service.approveChange('missing', 'cr-1', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('denies an admin from a different company (validateAccess)', async () => {
+      const otherAdmin = {
+        id: 'ca-2',
+        email: 'x@test.com',
+        role: UserRole.COMPANY_ADMIN,
+        companyId: 'different-comp',
+      };
+      await expect(service.approveChange('po-1', 'cr-1', otherAdmin as never)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('throws NotFoundException when the CR belongs to a different PO', async () => {
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue(
+        pendingCr({ purchaseOrderId: 'po-OTHER' }),
+      );
+      await expect(service.approveChange('po-1', 'cr-1', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
 
     it('throws NotFoundException when change request not found', async () => {
       mockPrisma.poChangeRequest.findUnique.mockResolvedValue(null);
@@ -1126,7 +1242,14 @@ describe('PoChangeService', () => {
       mockPrisma.user.findUnique
         .mockResolvedValueOnce({ name: 'CA Admin' }) // resolver lookup
         .mockResolvedValueOnce({ email: 'vendor@test.com', role: UserRole.VENDOR }); // requester
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ poNumber: 'PO-0001' });
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'SENT',
+        companyId: 'comp-1',
+        vendorId: 'vendor-comp-1',
+        rfqId: null,
+        poNumber: 'PO-0001',
+      });
 
       await service.approveChange('po-1', 'cr-1', companyAdmin);
       await new Promise((r) => setTimeout(r, 10));
@@ -1147,6 +1270,10 @@ describe('PoChangeService', () => {
         .mockResolvedValueOnce({ name: 'CA Admin' }) // resolver lookup
         .mockResolvedValueOnce({ email: 'vendor@test.com', role: UserRole.VENDOR }); // requester
       mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'SENT',
+        vendorId: 'vendor-comp-1',
+        rfqId: null,
         poNumber: 'PO-0001',
         companyId: 'comp-1',
       });
@@ -1174,6 +1301,9 @@ describe('PoChangeService', () => {
       mockTx.poLineItem.findMany.mockResolvedValue([]);
       mockPrisma.user.findUnique.mockResolvedValue({ name: 'CA Admin' }); // resolver only
       mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'SENT',
+        companyId: 'comp-1',
         poNumber: 'PO-0001',
         vendorId: 'vendor-comp-1',
         rfqId: null,
@@ -1199,6 +1329,7 @@ describe('PoChangeService', () => {
         .mockResolvedValueOnce({ email: 'vendor@test.com' }); // requester
       mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
         id: 'po-1',
+        status: 'SENT',
         poNumber: 'PO-0001',
         companyId: 'comp-1',
         vendorId: 'vendor-comp-1',
@@ -1233,6 +1364,201 @@ describe('PoChangeService', () => {
         }),
       );
     });
+
+    // ── FOR-352: cancellation requests ──────────────────────────────────────
+
+    it('cancels the PO when approving a contractor-requested cancellation', async () => {
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue(
+        pendingCr({
+          changedFields: { cancelPo: true },
+          message: 'Project descoped',
+          requestedById: 'other-ca',
+          requestedBy: { id: 'other-ca', name: 'Other Admin', role: UserRole.COMPANY_ADMIN },
+        }),
+      );
+      mockPrisma.user.findUnique.mockResolvedValue({ name: 'CA Admin' });
+
+      const result = await service.approveChange('po-1', 'cr-1', companyAdmin);
+      expect(result).toEqual({ approved: true });
+
+      expect(mockTx.purchaseOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'po-1' },
+          data: expect.objectContaining({
+            status: 'CANCELLED',
+            cancellationReason: 'Project descoped',
+            lastModifiedById: 'ca-1',
+          }),
+        }),
+      );
+      expect(mockTx.poChangeRequest.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'cr-1' },
+          data: expect.objectContaining({ status: 'APPROVED', resolvedById: 'ca-1' }),
+        }),
+      );
+      // Cancellation supersedes the field-apply path: single PO update, no
+      // revision bump, no line recompute.
+      expect(mockTx.purchaseOrder.update).toHaveBeenCalledTimes(1);
+      expect(mockTx.purchaseOrder.update.mock.calls[0][0].data.revision).toBeUndefined();
+
+      // Both the CR resolution and the transition itself are audited.
+      expect(mockAuditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PO_CHANGE_APPROVED' }),
+      );
+      expect(mockAuditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PO_CANCELLED',
+          metadata: expect.objectContaining({
+            from: 'SENT',
+            to: 'CANCELLED',
+            reason: 'Project descoped',
+            changeRequestId: 'cr-1',
+          }),
+        }),
+      );
+    });
+
+    it('cancels to CANCELLED_BY_VENDOR when the requester is a vendor user', async () => {
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue(
+        pendingCr({ changedFields: { cancelPo: true }, message: null }),
+      );
+      mockPrisma.user.findUnique.mockResolvedValue({ name: 'CA Admin' });
+
+      await service.approveChange('po-1', 'cr-1', companyAdmin);
+
+      const update = mockTx.purchaseOrder.update.mock.calls[0][0];
+      expect(update.data.status).toBe('CANCELLED_BY_VENDOR');
+      // No message → cancellationReason left untouched.
+      expect(update.data).not.toHaveProperty('cancellationReason');
+    });
+
+    it('cancels to CANCELLED_BY_VENDOR when the requester was a guest (portal token)', async () => {
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue(
+        pendingCr({
+          changedFields: { cancelPo: true },
+          message: 'Cannot fulfil',
+          requestedById: null,
+          requestedBy: null,
+        }),
+      );
+      mockPrisma.user.findUnique.mockResolvedValue({ name: 'CA Admin' });
+
+      await service.approveChange('po-1', 'cr-1', companyAdmin);
+
+      expect(mockTx.purchaseOrder.update.mock.calls[0][0].data.status).toBe('CANCELLED_BY_VENDOR');
+    });
+
+    it('rejects a cancellation approval when the PO can no longer be cancelled', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'DELIVERED',
+        companyId: 'comp-1',
+        vendorId: 'vendor-comp-1',
+        poNumber: 'PO-0001',
+        rfqId: null,
+      });
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue(
+        pendingCr({ changedFields: { cancelPo: true } }),
+      );
+
+      await expect(service.approveChange('po-1', 'cr-1', companyAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockTx.purchaseOrder.update).not.toHaveBeenCalled();
+    });
+
+    // ── FOR-352: line-item removals ─────────────────────────────────────────
+
+    it('deletes removed line items and recomputes totals from the survivors', async () => {
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue(
+        pendingCr({
+          changedFields: { removedLineItems: [{ lineItemId: 'li-2', name: 'Copper pipe' }] },
+        }),
+      );
+      mockTx.poLineItem.findMany
+        // Removal-candidate lookup (with delivery counts)
+        .mockResolvedValueOnce([
+          { id: 'li-2', quantityDelivered: 0, _count: { deliveryReportLines: 0 } },
+        ])
+        // Totals recompute over the surviving lines
+        .mockResolvedValueOnce([{ lineTotal: 100, quantityOrdered: 2 }]);
+      mockTx.poLineItem.count.mockResolvedValue(2);
+      mockPrisma.user.findUnique.mockResolvedValue({ name: 'CA Admin' });
+
+      await service.approveChange('po-1', 'cr-1', companyAdmin);
+
+      expect(mockTx.poLineItem.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ['li-2'] } },
+      });
+      const totalsUpdate = mockTx.purchaseOrder.update.mock.calls.find(
+        (c) => c[0].data.subtotal !== undefined,
+      );
+      expect(totalsUpdate[0].data).toEqual(
+        expect.objectContaining({
+          subtotal: 100,
+          totalAmount: 100,
+          lineItemCount: 1,
+          totalRequestedQty: 2,
+        }),
+      );
+    });
+
+    it('refuses to remove a line that already has recorded deliveries', async () => {
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue(
+        pendingCr({
+          changedFields: { removedLineItems: [{ lineItemId: 'li-2', name: 'Copper pipe' }] },
+        }),
+      );
+      mockTx.poLineItem.findMany.mockResolvedValueOnce([
+        { id: 'li-2', quantityDelivered: 3, _count: { deliveryReportLines: 1 } },
+      ]);
+
+      await expect(service.approveChange('po-1', 'cr-1', companyAdmin)).rejects.toThrow(
+        'Cannot remove a line item that already has recorded deliveries',
+      );
+      expect(mockTx.poLineItem.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('refuses to remove every line item on apply', async () => {
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue(
+        pendingCr({
+          changedFields: {
+            removedLineItems: [
+              { lineItemId: 'li-1', name: 'A' },
+              { lineItemId: 'li-2', name: 'B' },
+            ],
+          },
+        }),
+      );
+      mockTx.poLineItem.findMany.mockResolvedValueOnce([
+        { id: 'li-1', quantityDelivered: 0, _count: { deliveryReportLines: 0 } },
+        { id: 'li-2', quantityDelivered: 0, _count: { deliveryReportLines: 0 } },
+      ]);
+      mockTx.poLineItem.count.mockResolvedValue(2);
+
+      await expect(service.approveChange('po-1', 'cr-1', companyAdmin)).rejects.toThrow(
+        'Cannot remove every line item',
+      );
+      expect(mockTx.poLineItem.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('ignores removal entries whose line does not belong to the PO', async () => {
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue(
+        pendingCr({
+          changedFields: { removedLineItems: [{ lineItemId: 'foreign-line', name: 'X' }] },
+        }),
+      );
+      // The scoped lookup finds nothing → nothing to delete.
+      mockTx.poLineItem.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ lineTotal: 50, quantityOrdered: 1 }]);
+      mockPrisma.user.findUnique.mockResolvedValue({ name: 'CA Admin' });
+
+      await service.approveChange('po-1', 'cr-1', companyAdmin);
+
+      expect(mockTx.poLineItem.deleteMany).toHaveBeenCalledWith({ where: { id: { in: [] } } });
+    });
   });
 
   // ── rejectChange ──────────────────────────────────────────────────────────
@@ -1241,6 +1567,7 @@ describe('PoChangeService', () => {
     function pendingCr(overrides: Record<string, unknown> = {}) {
       return {
         id: 'cr-1',
+        purchaseOrderId: 'po-1',
         reference: 'CR-002',
         requestedById: 'v-u-1',
         status: 'PENDING',
@@ -1250,6 +1577,44 @@ describe('PoChangeService', () => {
         ...overrides,
       };
     }
+
+    // The access-check PO load that now precedes the CR lookup.
+    beforeEach(() => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        companyId: 'comp-1',
+        vendorId: 'vendor-comp-1',
+      });
+    });
+
+    it('throws NotFoundException when the PO is not found', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(null);
+      await expect(
+        service.rejectChange('missing', 'cr-1', { reason: 'No' }, companyAdmin),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFoundException when the CR belongs to a different PO', async () => {
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue(
+        pendingCr({ purchaseOrderId: 'po-OTHER' }),
+      );
+      await expect(
+        service.rejectChange('po-1', 'cr-1', { reason: 'No' }, companyAdmin),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.poChangeRequest.update).not.toHaveBeenCalled();
+    });
+
+    it('denies an admin from a different company (validateAccess)', async () => {
+      const otherAdmin = {
+        id: 'ca-2',
+        email: 'x@test.com',
+        role: UserRole.COMPANY_ADMIN,
+        companyId: 'different-comp',
+      };
+      await expect(
+        service.rejectChange('po-1', 'cr-1', { reason: 'No' }, otherAdmin as never),
+      ).rejects.toThrow(ForbiddenException);
+    });
 
     it('throws NotFoundException when change request not found', async () => {
       mockPrisma.poChangeRequest.findUnique.mockResolvedValue(null);
@@ -1313,7 +1678,13 @@ describe('PoChangeService', () => {
       mockPrisma.user.findUnique
         .mockResolvedValueOnce({ name: 'CA Admin' })
         .mockResolvedValueOnce({ email: 'vendor@test.com', role: UserRole.VENDOR });
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ poNumber: 'PO-0001' });
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        companyId: 'comp-1',
+        vendorId: 'vendor-comp-1',
+        rfqId: null,
+        poNumber: 'PO-0001',
+      });
 
       await service.rejectChange('po-1', 'cr-1', { reason: 'No' }, companyAdmin);
       await new Promise((r) => setTimeout(r, 10));

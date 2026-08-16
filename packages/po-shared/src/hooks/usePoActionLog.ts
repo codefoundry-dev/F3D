@@ -14,8 +14,9 @@ import { humanizeAuditAction } from '../utils/po-audit-log';
  * Change-request actions (PO_CHANGE_*) and unknown actions are dropped here —
  * they are surfaced richly via the `changeRequests` prop on {@link PoActionLogTab}.
  *
- * Query key mirrors the mutation invalidations in the receive/decline flows
- * (`['po-action-log', poId]`).
+ * The query key nests under the PO's own key so every existing
+ * `['purchase-orders', poId]` (or broader `['purchase-orders']`) mutation
+ * invalidation refreshes the timeline too — no per-mutation wiring (FOR-353).
  */
 export function usePoActionLog(poId: string): {
   logs: PoActionLogEntry[];
@@ -24,7 +25,7 @@ export function usePoActionLog(poId: string): {
   const { t } = useTranslation('purchaseOrders');
 
   const query = useQuery({
-    queryKey: ['po-action-log', poId],
+    queryKey: ['purchase-orders', poId, 'action-log'],
     queryFn: () => getPurchaseOrderAuditTrail(poId),
     enabled: !!poId,
   });

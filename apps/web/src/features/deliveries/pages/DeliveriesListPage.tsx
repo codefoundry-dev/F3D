@@ -10,6 +10,7 @@ import {
   SearchInput,
   Spinner,
   TablePagination,
+  Tabs,
   getStatusColor,
   DELIVERY_STATUS_COLORS,
   useDebounce,
@@ -26,6 +27,7 @@ import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/app/route-config';
 import { usePermissions } from '@/shared/role/usePermissions';
 
+import { ExpectedDeliveriesTab } from '../components/ExpectedDeliveriesTab';
 import { RejectDeliveryModal } from '../components/RejectDeliveryModal';
 import { SelectPoModal } from '../components/SelectPoModal';
 import { DELIVERY_STATUS_FILTER_OPTIONS, formatDeliveryDateTime } from '../constants';
@@ -39,16 +41,21 @@ import {
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
+type DeliveriesTab = 'expected' | 'reports';
+
 /**
- * Deliveries management list (screenshot 01). Search + Vendor/Status/Project/
- * Location filters + Create new / Upload, over a list of report cards. SUBMITTED
- * cards expose inline Approve / Reject (revealed on hover, screenshot 16).
+ * Deliveries management list (screenshot 01), split into two tabs (FOR-356):
+ * "Expected" — POs awaiting delivery, populated automatically with overdue
+ * flags — and "Reports" — the report cards with Search + Vendor/Status/Project/
+ * Location filters + Create new / Upload. SUBMITTED cards expose inline
+ * Approve / Reject (revealed on hover, screenshot 16).
  */
 export default function DeliveriesListPage() {
   const { t } = useTranslation('deliveries');
   const navigate = useNavigate();
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
   const { has } = usePermissions();
+  const [tab, setTab] = useState<DeliveriesTab>('expected');
 
   useEffect(() => {
     setPageTitle(t('list.title'), t('list.subtitle'));
@@ -88,10 +95,10 @@ export default function DeliveriesListPage() {
       page,
       limit: pageSize,
       search: debouncedSearch || undefined,
-      vendor: vendor[0],
+      vendorId: vendor[0],
       status: status[0],
-      project: project[0],
-      location: location[0],
+      projectId: project[0],
+      deliveryLocationId: location[0],
     }),
     [page, pageSize, debouncedSearch, vendor, status, project, location],
   );
@@ -140,152 +147,172 @@ export default function DeliveriesListPage() {
 
   return (
     <div className="px-4 pb-6 pt-4 sm:px-8 sm:pb-8 sm:pt-6">
-      {/* ═══ Toolbar ═══ */}
-      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-1 flex-wrap items-center gap-3">
-          <SearchInput
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            placeholder={t('list.searchPlaceholder')}
-            className="w-full sm:w-[260px]"
-          />
-          <FilterDropdownButton
-            label={t('list.filters.vendor')}
-            popoverTitle={t('list.filters.vendor')}
-            options={vendorOptions}
-            selected={vendor}
-            onChange={(v) => {
-              setVendor(v.slice(-1));
-              setPage(1);
-            }}
-            buttonClassName="w-auto min-w-[120px]"
-          />
-          <FilterDropdownButton
-            label={t('list.filters.status')}
-            popoverTitle={t('list.filters.status')}
-            options={statusOptions}
-            selected={status}
-            onChange={(v) => {
-              setStatus(v.slice(-1));
-              setPage(1);
-            }}
-            hideSearch
-            buttonClassName="w-auto min-w-[120px]"
-          />
-          <FilterDropdownButton
-            label={t('list.filters.project')}
-            popoverTitle={t('list.filters.project')}
-            options={projectOptions}
-            selected={project}
-            onChange={(v) => {
-              setProject(v.slice(-1));
-              setPage(1);
-            }}
-            buttonClassName="w-auto min-w-[120px]"
-          />
-          <FilterDropdownButton
-            label={t('list.filters.location')}
-            popoverTitle={t('list.filters.location')}
-            options={locationOptions}
-            selected={location}
-            onChange={(v) => {
-              setLocation(v.slice(-1));
-              setPage(1);
-            }}
-            buttonClassName="w-auto min-w-[120px]"
-          />
-        </div>
+      {/* ═══ Expected / Reports tabs (FOR-356) ═══ */}
+      <Tabs<DeliveriesTab>
+        items={[
+          { value: 'expected', label: t('list.tabs.expected') },
+          { value: 'reports', label: t('list.tabs.reports') },
+        ]}
+        value={tab}
+        onValueChange={setTab}
+        className="mb-4"
+        aria-label={t('list.title')}
+      />
 
-        <div className="flex items-center gap-3">
-          {has('delivery.create') && (
-            <Button
-              variant="primary"
-              leftIcon={<PlusIcon className="w-[18px] h-[18px]" />}
-              onClick={() => setShowSelectPo(true)}
-              data-testid="delivery-create-new"
-            >
-              {t('list.createNew')}
-            </Button>
-          )}
-          {/* Upload: stubbed secondary action — opens the PO picker so an
+      {tab === 'expected' && <ExpectedDeliveriesTab />}
+
+      {tab === 'reports' && (
+        <>
+          {/* ═══ Toolbar ═══ */}
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-1 flex-wrap items-center gap-3">
+              <SearchInput
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                placeholder={t('list.searchPlaceholder')}
+                className="w-full sm:w-[260px]"
+              />
+              <FilterDropdownButton
+                label={t('list.filters.vendor')}
+                popoverTitle={t('list.filters.vendor')}
+                options={vendorOptions}
+                selected={vendor}
+                onChange={(v) => {
+                  setVendor(v.slice(-1));
+                  setPage(1);
+                }}
+                buttonClassName="w-auto min-w-[120px]"
+              />
+              <FilterDropdownButton
+                label={t('list.filters.status')}
+                popoverTitle={t('list.filters.status')}
+                options={statusOptions}
+                selected={status}
+                onChange={(v) => {
+                  setStatus(v.slice(-1));
+                  setPage(1);
+                }}
+                hideSearch
+                buttonClassName="w-auto min-w-[120px]"
+              />
+              <FilterDropdownButton
+                label={t('list.filters.project')}
+                popoverTitle={t('list.filters.project')}
+                options={projectOptions}
+                selected={project}
+                onChange={(v) => {
+                  setProject(v.slice(-1));
+                  setPage(1);
+                }}
+                buttonClassName="w-auto min-w-[120px]"
+              />
+              <FilterDropdownButton
+                label={t('list.filters.location')}
+                popoverTitle={t('list.filters.location')}
+                options={locationOptions}
+                selected={location}
+                onChange={(v) => {
+                  setLocation(v.slice(-1));
+                  setPage(1);
+                }}
+                buttonClassName="w-auto min-w-[120px]"
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              {has('delivery.create') && (
+                <Button
+                  variant="primary"
+                  leftIcon={<PlusIcon className="w-[18px] h-[18px]" />}
+                  onClick={() => setShowSelectPo(true)}
+                  data-testid="delivery-create-new"
+                >
+                  {t('list.createNew')}
+                </Button>
+              )}
+              {/* Upload: stubbed secondary action — opens the PO picker so an
               externally-prepared report could be attached to a PO. Flagged for
               confirmation (no dedicated upload endpoint exists yet). */}
-          <Button
-            variant="outline"
-            leftIcon={<UploadIcon className="w-[18px] h-[18px]" />}
-            onClick={() => setShowSelectPo(true)}
-            data-testid="delivery-upload"
-          >
-            {t('list.upload')}
-          </Button>
-        </div>
-      </div>
+              <Button
+                variant="outline"
+                leftIcon={<UploadIcon className="w-[18px] h-[18px]" />}
+                onClick={() => setShowSelectPo(true)}
+                data-testid="delivery-upload"
+              >
+                {t('list.upload')}
+              </Button>
+            </div>
+          </div>
 
-      {/* ═══ Cards ═══ */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16">
-          <Spinner size="md" />
-        </div>
-      ) : isError ? (
-        <div className="py-16 text-center text-muted-foreground">{t('list.loadFailed')}</div>
-      ) : items.length === 0 ? (
-        <div className="py-16 text-center">
-          <p className="text-sm font-medium text-foreground">{t('list.empty')}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{t('list.emptyHint')}</p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-4" data-testid="delivery-list">
-          {items.map((report) => (
-            <DeliveryCard
-              key={report.id}
-              report={report}
-              canReview={has('delivery.read')}
-              isApproving={approveMutation.isPending}
-              onView={() => goToDetail(report.id)}
-              onApprove={() => handleApprove(report.id)}
-              onReject={() => setRejectId(report.id)}
+          {/* ═══ Cards ═══ */}
+          {isLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Spinner size="md" />
+            </div>
+          ) : isError ? (
+            <div className="py-16 text-center text-muted-foreground">{t('list.loadFailed')}</div>
+          ) : items.length === 0 ? (
+            <div className="py-16 text-center">
+              <p className="text-sm font-medium text-foreground">{t('list.empty')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('list.emptyHint')}</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4" data-testid="delivery-list">
+              {items.map((report) => (
+                <DeliveryCard
+                  key={report.id}
+                  report={report}
+                  canReview={has('delivery.read')}
+                  isApproving={approveMutation.isPending}
+                  onView={() => goToDetail(report.id)}
+                  onApprove={() => handleApprove(report.id)}
+                  onReject={() => setRejectId(report.id)}
+                />
+              ))}
+            </div>
+          )}
+
+          {total > 0 && (
+            <div className="mt-2">
+              <TablePagination
+                page={page}
+                totalItems={total}
+                pageSize={pageSize}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
+                onPageChange={setPage}
+                onPageSizeChange={(size) => {
+                  setPageSize(size);
+                  setPage(1);
+                }}
+                rowsPerPageLabel={t('list.rowsPerPage')}
+                showingLabel={({ from, to, total: tot }) =>
+                  t('list.showing', { from, to, total: tot })
+                }
+              />
+            </div>
+          )}
+
+          {rejectId && (
+            <RejectDeliveryModal
+              onClose={() => setRejectId(null)}
+              onConfirm={handleReject}
+              isSubmitting={rejectMutation.isPending}
             />
-          ))}
-        </div>
-      )}
+          )}
 
-      {total > 0 && (
-        <div className="mt-2">
-          <TablePagination
-            page={page}
-            totalItems={total}
-            pageSize={pageSize}
-            pageSizeOptions={PAGE_SIZE_OPTIONS}
-            onPageChange={setPage}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setPage(1);
+          <SelectPoModal
+            open={showSelectPo}
+            onClose={() => setShowSelectPo(false)}
+            onSelect={(po: PoListItem) => {
+              setShowSelectPo(false);
+              navigate(`${ROUTES.deliveryNew}?poId=${po.id}`);
             }}
-            rowsPerPageLabel={t('list.rowsPerPage')}
-            showingLabel={({ from, to, total: tot }) => t('list.showing', { from, to, total: tot })}
           />
-        </div>
+        </>
       )}
-
-      {rejectId && (
-        <RejectDeliveryModal
-          onClose={() => setRejectId(null)}
-          onConfirm={handleReject}
-          isSubmitting={rejectMutation.isPending}
-        />
-      )}
-
-      <SelectPoModal
-        open={showSelectPo}
-        onClose={() => setShowSelectPo(false)}
-        onSelect={(po: PoListItem) => {
-          setShowSelectPo(false);
-          navigate(`${ROUTES.deliveryNew}?poId=${po.id}`);
-        }}
-      />
     </div>
   );
 }
@@ -367,7 +394,10 @@ function DeliveryCard({
 
       {/* Detail grid */}
       <div className="grid grid-cols-2 gap-y-3 px-5 pb-4 sm:grid-cols-3 lg:grid-cols-6">
-        <CardField label={t('list.fields.deliveryDate')} value={formatDeliveryDateTime(report.deliveryDate)} />
+        <CardField
+          label={t('list.fields.deliveryDate')}
+          value={formatDeliveryDateTime(report.deliveryDate)}
+        />
         <CardField label={t('list.fields.project')} value={report.projectName ?? '-'} />
         <CardField label={t('list.fields.vendor')} value={report.vendorName ?? '-'} />
         <CardField label={t('list.fields.location')} value={report.deliveryLocationName ?? '-'} />

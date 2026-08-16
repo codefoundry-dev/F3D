@@ -9,6 +9,7 @@ import {
   type InvoicePoMatchResult,
   type ReviewInvoicePayload,
 } from '@forethread/api-client';
+import { NominateApproversModal, exceedsApprovalCap } from '@forethread/approval-shared';
 import { useTranslation } from '@forethread/i18n';
 import {
   Alert,
@@ -29,6 +30,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useInvoicePoMatch, useReviewInvoice } from '../hooks/useInvoices';
 
+import { InvoicePoComparison } from './InvoicePoComparison';
+
 // ── Form state ───────────────────────────────────────────────────────────────
 // Every value is kept as a string while editing (numbers parse on save), so
 // clearing a field can never silently become NaN mid-edit.
@@ -38,6 +41,11 @@ interface ReviewLineForm {
   key: string;
   /** The saved InvoiceLineItem id this row came from; PO-match flags (FOR-293) key on it. */
   savedId?: string;
+  /**
+   * The line number printed on the document. Not shown or editable — it was
+   * noise for reviewers — but carried through save because the review PATCH
+   * replaces the line set and PO matching (FOR-293) falls back to it.
+   */
   lineId: string;
   description: string;
   quantity: string;
@@ -98,6 +106,7 @@ export interface InvoiceReviewPanelProps {
 export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
   const { t } = useTranslation('invoices');
   const reviewMutation = useReviewInvoice();
+  const [showNominate, setShowNominate] = useState(false);
 
   const me = useQuery({ queryKey: ['me'], queryFn: () => getMe() });
   const companyId = me.data?.companyId;
@@ -115,10 +124,6 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
     queryFn: () => getPurchaseOrders({ limit: 100 }),
   });
 
-  // Invoice↔PO reconciliation (FOR-293): PO suggestion + per-line variance flags.
-  const poMatch = useInvoicePoMatch(invoice.id);
-  const matchResult: InvoicePoMatchResult | undefined = poMatch.data;
-
   const extraction = invoice.extraction;
   const extractionRunning = extraction?.status === 'PENDING' || extraction?.status === 'PROCESSING';
   const extracted: InvoiceExtractionResult | null = extraction?.result ?? null;
@@ -126,6 +131,12 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
   const [form, setForm] = useState<ReviewFormState | null>(null);
   const [dirty, setDirty] = useState(false);
   const lineKey = useRef(0);
+
+  // Invoice↔PO reconciliation (FOR-293): PO suggestion + per-line variance flags.
+  // Reconciled against the PO currently chosen in the form, so picking one by
+  // hand shows its status, delivery progress and lines without saving first.
+  const poMatch = useInvoicePoMatch(invoice.id, form?.relatedPoId || null);
+  const matchResult: InvoicePoMatchResult | undefined = poMatch.data;
 
   const nextKey = () => {
     lineKey.current += 1;
@@ -322,7 +333,25 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
   const reviewComplete =
     invoice.vendorName !== null && invoice.projectId !== null && invoice.totalAmount !== null;
 
-  const onSave = () => {
+  /**
+   * FOR-309: will saving this review hand the invoice to the Approver Pool?
+   *
+   * An invoice arrives from a vendor rather than being raised by a spender, so
+   * review completion is its "submit for approval" moment and the *reviewer's*
+   * cap is what decides. Mirrors the button-labelling logic on `PoSendButton`,
+   * and like it is advisory only — the backend re-decides authoritatively.
+   */
+  const reviewedTotal = form ? parseNum(form.totalAmount) : null;
+  const routesForApproval = exceedsApprovalCap(me.data?.invoiceApprovalThreshold, reviewedTotal);
+
+  /**
+   * Save the review, optionally routing it at specific approvers (FOR-309).
+   *
+   * `nomineeIds` only means anything when the reviewed total is over the
+   * reviewer's own `invoice.approve` cap — the backend ignores it otherwise,
+   * because there is no approval to route.
+   */
+  const onSave = (nomineeIds?: string[]) => {
     if (!form) return;
     const payload: ReviewInvoicePayload = {
       vendorId: form.vendorId || null,
@@ -346,10 +375,11 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
         })),
     };
     reviewMutation.mutate(
-      { id: invoice.id, payload },
+      { id: invoice.id, payload: nomineeIds?.length ? { ...payload, nomineeIds } : payload },
       {
         onSuccess: () => {
           setDirty(false);
+          setShowNominate(false);
           // A save missing any approve-critical field is a draft, not a done
           // review — say so instead of a bare success.
           if (!payload.vendorId || !payload.projectId || payload.totalAmount === null) {
@@ -433,6 +463,13 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
 
   const showLineFlags = !!matchResult?.po && matchResult.lines.length > 0;
 
+  // The server flags the mismatch against the *saved* vendor; once the reviewer
+  // has picked one in the form that choice is the truthful comparison, so the
+  // warning clears as soon as they correct it rather than after the next save.
+  const vendorMismatch = form.vendorId
+    ? !!matchResult?.po?.vendorId && matchResult.po.vendorId !== form.vendorId
+    : !!matchResult?.vendorMismatch;
+
   const matchBanner = (() => {
     if (!matchResult) return null;
     const warnIcon = <InfoTriangleIcon className="size-4" />;
@@ -475,7 +512,7 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
       );
     }
 
-    // LINKED / AUTO_MATCHED
+    // LINKED / AUTO_MATCHED / SELECTED
     if (!matchResult.po) return null;
     const poNumber = matchResult.po.poNumber;
     const { lineCount, matchedCount, priceVarianceCount, quantityVarianceCount, unexpectedCount } =
@@ -491,6 +528,16 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
                 {t('review.match.autoMatched', {
                   defaultValue:
                     'This invoice cites {{poNumber}} — confirmed automatically from the document. Save to link it.',
+                  poNumber,
+                })}
+              </Alert>
+            </div>
+          ) : matchResult.resolution === 'SELECTED' ? (
+            <div data-testid="invoice-review-match-selected">
+              <Alert variant="info" icon={warnIcon}>
+                {t('review.match.selected', {
+                  defaultValue:
+                    'Comparing this invoice against {{poNumber}}. Save to link it — the line checks below run once the invoice lines are saved.',
                   poNumber,
                 })}
               </Alert>
@@ -522,7 +569,7 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
             </Alert>
           </div>
         )}
-        {matchResult.vendorMismatch && (
+        {vendorMismatch && (
           <div data-testid="invoice-review-match-vendor">
             <Alert variant="warning" icon={warnIcon}>
               {t('review.match.vendorMismatch', {
@@ -686,6 +733,10 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
       {/* ── PO match (FOR-293) ───────────────────────────────────────────── */}
       {matchBanner}
 
+      {/* The matched/selected PO itself: status, delivery progress and every one
+          of its lines beside what the invoice bills for them. */}
+      {matchResult?.po && <InvoicePoComparison match={matchResult} />}
+
       {/* ── Line items ───────────────────────────────────────────────────── */}
       <div>
         <div className="flex items-center justify-between">
@@ -711,12 +762,9 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
           </p>
         ) : (
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[960px] text-sm">
+            <table className="w-full min-w-[900px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="w-16 pb-2 pr-2 font-medium">
-                    {t('review.line.lineId', { defaultValue: '#' })}
-                  </th>
                   <th className="pb-2 pr-2 font-medium">
                     {t('review.line.description', { defaultValue: 'Description' })}
                   </th>
@@ -750,14 +798,6 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
               <tbody data-testid="invoice-review-lines">
                 {form.lines.map((line) => (
                   <tr key={line.key} className="border-b border-border last:border-b-0">
-                    <td className="py-1.5 pr-2 align-top">
-                      <Input
-                        inputSize="sm"
-                        value={line.lineId}
-                        onChange={(e) => updateLine(line.key, { lineId: e.target.value })}
-                        aria-label={t('review.line.lineId', { defaultValue: '#' })}
-                      />
-                    </td>
                     <td className="py-1.5 pr-2 align-top">
                       <Input
                         inputSize="sm"
@@ -859,14 +899,31 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
       {/* ── Save ─────────────────────────────────────────────────────────── */}
       <div className="flex justify-end border-t border-border pt-4">
         <Button
-          onClick={onSave}
+          // Explicit handler, never a bare `onClick={onSave}`: the click event
+          // would arrive as the `nomineeIds` argument.
+          onClick={() => (routesForApproval ? setShowNominate(true) : onSave())}
           disabled={reviewMutation.isPending}
-          isLoading={reviewMutation.isPending}
+          isLoading={reviewMutation.isPending && !showNominate}
           data-testid="invoice-review-save"
         >
           {t('review.save', { defaultValue: 'Save details' })}
         </Button>
       </div>
+
+      {/* Review completion is the invoice's "submit for approval" moment, so it
+          gets the same confirm step the PO does (FOR-309). The Pool is previewed
+          against the total being saved, not the one currently stored. */}
+      {showNominate && (
+        <NominateApproversModal
+          entityType="INVOICE"
+          entityId={invoice.id}
+          mode="submit"
+          previewAmount={reviewedTotal}
+          isSubmitting={reviewMutation.isPending}
+          onClose={() => setShowNominate(false)}
+          onConfirm={(nomineeIds) => onSave(nomineeIds)}
+        />
+      )}
     </div>
   );
 }

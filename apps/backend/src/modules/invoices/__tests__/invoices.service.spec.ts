@@ -1,6 +1,6 @@
 import { InvoiceListQueryDto } from '@forethread/shared-types';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 
 import { InvoicesService } from '../invoices.service';
 
@@ -85,6 +85,9 @@ const mockStorageService = {
 
 const mockEmailService = {
   sendInvoiceRejectedEmail: jest.fn().mockResolvedValue(undefined),
+  // FOR-307 approval routing: the Pool ask, and the empty-Pool fallback.
+  sendInvoicePendingApprovalEmail: jest.fn().mockResolvedValue(undefined),
+  sendInvoiceApprovalUnroutableEmail: jest.fn().mockResolvedValue(undefined),
 };
 
 const mockNotifications = {
@@ -102,12 +105,33 @@ const mockAudit = {
 
 const mockConfig = { get: jest.fn(() => 'http://localhost:5179') };
 
+const mockApprovalAuth = {
+  evaluate: jest.fn(),
+  resolveApproverPool: jest.fn(),
+  findCompanyAdminRecipients: jest.fn(),
+};
+
+/**
+ * Approver Pool + Nomination (FOR-307/309). `resolveNotificationTargets`
+ * defaults to "the whole pool" so a review that nominates nobody reproduces the
+ * plain broadcast.
+ */
+const mockApprovals = {
+  assertNomineesInPool: jest.fn(),
+  recordNominationsAtSubmit: jest.fn(),
+  resolveNotificationTargets: jest.fn(),
+  addNominations: jest.fn(),
+};
+
 describe('InvoicesService', () => {
   let service: InvoicesService;
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockEmailService.sendInvoiceRejectedEmail.mockResolvedValue(undefined);
+    mockEmailService.sendInvoicePendingApprovalEmail.mockResolvedValue(undefined);
+    mockEmailService.sendInvoiceApprovalUnroutableEmail.mockResolvedValue(undefined);
+    mockNotifications.createForUsers.mockResolvedValue(undefined);
     mockNotifications.createForEmails.mockResolvedValue(undefined);
     mockBranding.getEmailBrand.mockResolvedValue(undefined);
     mockConfig.get.mockReturnValue('http://localhost:5179');
@@ -118,6 +142,16 @@ describe('InvoicesService', () => {
     // The review transaction just resolves; each op is asserted individually.
     mockPrisma.$transaction.mockResolvedValue([]);
     mockAudit.log.mockResolvedValue(undefined);
+    // Default: the approver's cap is unlimited (null threshold), so existing
+    // approval tests behave exactly as they did before FOR-303.
+    mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
+    mockApprovalAuth.resolveApproverPool.mockResolvedValue([]);
+    mockApprovalAuth.findCompanyAdminRecipients.mockResolvedValue([]);
+    mockApprovals.assertNomineesInPool.mockResolvedValue(undefined);
+    mockApprovals.recordNominationsAtSubmit.mockResolvedValue([]);
+    mockApprovals.resolveNotificationTargets.mockImplementation(
+      (_type: unknown, _id: string, pool: unknown[]) => Promise.resolve(pool),
+    );
     service = new InvoicesService(
       mockPrisma as never,
       mockStorageService as never,
@@ -125,6 +159,8 @@ describe('InvoicesService', () => {
       mockNotifications as never,
       mockBranding as never,
       mockAudit as never,
+      mockApprovalAuth as never,
+      mockApprovals as never,
       mockConfig as never,
     );
   });
@@ -705,6 +741,421 @@ describe('InvoicesService', () => {
       const result = await service.reviewInvoice('inv-1', reviewDto, superAdmin);
       expect(result.id).toBe('inv-1');
     });
+
+    // ── FOR-307: review completion is the invoice's "submit for approval" ────
+    describe('approval routing at review completion (FOR-307)', () => {
+      const approver = {
+        id: 'appr-1',
+        name: 'Ama Boateng',
+        email: 'ama@test.com',
+        role: UserRole.COMPANY_ADMIN,
+        customRoleName: null,
+      };
+
+      /** Push the reviewed total over the reviewer's own invoice.approve cap. */
+      const overCap = () =>
+        mockApprovalAuth.evaluate.mockResolvedValue({
+          outcome: 'belowThreshold',
+          threshold: new Prisma.Decimal(1000),
+        });
+
+      it('routes to the Approver Pool when the reviewed total is over the reviewer’s cap', async () => {
+        overCap();
+        mockApprovalAuth.resolveApproverPool.mockResolvedValue([approver]);
+
+        await service.reviewInvoice('inv-1', reviewDto, companyAdmin);
+
+        // Measured against the REVIEWER's cap: an invoice arrives rather than
+        // being raised, so the reviewer stands in for the PO's creator.
+        expect(mockApprovalAuth.evaluate).toHaveBeenCalledWith(
+          companyAdmin,
+          'invoice.approve',
+          1234.5,
+        );
+        expect(mockPrisma.invoice.update.mock.calls[0][0].data.approvalStatus).toBe('PENDING');
+      });
+
+      it('leaves the invoice unrouted when the reviewer could approve it themselves', async () => {
+        // Default mock: outcome 'allowed'.
+        await service.reviewInvoice('inv-1', reviewDto, companyAdmin);
+
+        expect(mockPrisma.invoice.update.mock.calls[0][0].data.approvalStatus).toBe('NOT_REQUIRED');
+        expect(mockApprovalAuth.resolveApproverPool).not.toHaveBeenCalled();
+        expect(mockEmailService.sendInvoicePendingApprovalEmail).not.toHaveBeenCalled();
+      });
+
+      it('never adds a PENDING_APPROVAL document status — the two axes stay separate', async () => {
+        overCap();
+        mockApprovalAuth.resolveApproverPool.mockResolvedValue([approver]);
+
+        await service.reviewInvoice('inv-1', reviewDto, companyAdmin);
+
+        // ADR-0006 keeps approval state off InvoiceStatus; collapsing them would
+        // make the Pool logic entity-specific instead of shared with the PO.
+        expect(mockPrisma.invoice.update.mock.calls[0][0].data.status).toBeUndefined();
+      });
+
+      it('re-evaluates on a second review rather than keeping a stale status', async () => {
+        overCap();
+        mockApprovalAuth.resolveApproverPool.mockResolvedValue([approver]);
+        await service.reviewInvoice('inv-1', reviewDto, companyAdmin);
+        expect(mockPrisma.invoice.update.mock.calls[0][0].data.approvalStatus).toBe('PENDING');
+
+        // Reviewer corrects the total down to within their cap.
+        jest.clearAllMocks();
+        mockPrisma.invoice.findUnique
+          .mockResolvedValueOnce(pendingInvoice)
+          .mockResolvedValue(detailRow);
+        mockPrisma.company.findFirst.mockResolvedValue({ id: 'vendor-comp-1' });
+        mockPrisma.project.findFirst.mockResolvedValue({ id: 'proj-1' });
+        mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
+
+        await service.reviewInvoice('inv-1', { ...reviewDto, totalAmount: 10 }, companyAdmin);
+
+        expect(mockPrisma.invoice.update.mock.calls[0][0].data.approvalStatus).toBe('NOT_REQUIRED');
+      });
+
+      it('clears any previous approver, since a re-review reopens the question', async () => {
+        await service.reviewInvoice('inv-1', reviewDto, companyAdmin);
+        expect(mockPrisma.invoice.update.mock.calls[0][0].data.approvedById).toBeNull();
+      });
+
+      it('treats SUPER_ADMIN as unlimited, matching the PO issue path', async () => {
+        mockPrisma.invoice.findUnique
+          .mockReset()
+          .mockResolvedValueOnce({ id: 'inv-1', status: 'PENDING', companyId: 'comp-1' })
+          .mockResolvedValue(detailRow);
+
+        await service.reviewInvoice('inv-1', reviewDto, superAdmin);
+
+        expect(mockApprovalAuth.evaluate).not.toHaveBeenCalled();
+        expect(mockPrisma.invoice.update.mock.calls[0][0].data.approvalStatus).toBe('NOT_REQUIRED');
+      });
+
+      it('emails the whole Approver Pool when nobody was nominated', async () => {
+        overCap();
+        mockApprovalAuth.resolveApproverPool.mockResolvedValue([approver]);
+
+        await service.reviewInvoice('inv-1', reviewDto, companyAdmin);
+        await new Promise((r) => setTimeout(r, 10));
+
+        expect(mockEmailService.sendInvoicePendingApprovalEmail).toHaveBeenCalledWith(
+          'ama@test.com',
+          expect.stringMatching(/^INV-/),
+          '$1,234.50',
+          'http://localhost:5179/invoices/inv-1',
+          expect.objectContaining({ companyId: 'comp-1', invoiceId: 'inv-1' }),
+          undefined,
+        );
+        expect(mockNotifications.createForEmails).toHaveBeenCalledWith(
+          ['ama@test.com'],
+          expect.objectContaining({ type: 'INVOICE_PENDING_APPROVAL' }),
+        );
+      });
+
+      describe('nomination (FOR-309)', () => {
+        const kojo = { ...approver, id: 'appr-2', name: 'Kojo Owusu', email: 'kojo@test.com' };
+
+        it('records the nomination and narrows the fan-out', async () => {
+          overCap();
+          mockApprovalAuth.resolveApproverPool.mockResolvedValue([approver, kojo]);
+          mockApprovals.resolveNotificationTargets.mockResolvedValue([approver]);
+
+          await service.reviewInvoice(
+            'inv-1',
+            { ...reviewDto, nomineeIds: ['appr-1'] },
+            companyAdmin,
+          );
+          await new Promise((r) => setTimeout(r, 10));
+
+          expect(mockApprovals.recordNominationsAtSubmit).toHaveBeenCalledWith(
+            'INVOICE',
+            'inv-1',
+            'comp-1',
+            [approver, kojo],
+            ['appr-1'],
+            'ca-1',
+          );
+          expect(mockEmailService.sendInvoicePendingApprovalEmail).toHaveBeenCalledTimes(1);
+        });
+
+        it('vets the nominees before writing the review', async () => {
+          overCap();
+          mockApprovalAuth.resolveApproverPool.mockResolvedValue([approver]);
+          mockApprovals.assertNomineesInPool.mockRejectedValue(
+            new BadRequestException('outside pool'),
+          );
+
+          await expect(
+            service.reviewInvoice(
+              'inv-1',
+              { ...reviewDto, nomineeIds: ['stranger'] },
+              companyAdmin,
+            ),
+          ).rejects.toThrow(BadRequestException);
+
+          // A bad id must not leave a half-applied review behind.
+          expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+        });
+
+        it('ignores nominees when the total is within the reviewer’s cap', async () => {
+          await service.reviewInvoice(
+            'inv-1',
+            { ...reviewDto, nomineeIds: ['appr-1'] },
+            companyAdmin,
+          );
+
+          // There is no approval to route, so there is nobody to notify.
+          expect(mockApprovals.assertNomineesInPool).not.toHaveBeenCalled();
+          expect(mockApprovals.recordNominationsAtSubmit).not.toHaveBeenCalled();
+        });
+      });
+
+      describe('empty Approver Pool (FOR-302 parity)', () => {
+        const admin = {
+          id: 'admin-1',
+          name: 'Efua Sarpong',
+          email: 'admin@test.com',
+          role: UserRole.COMPANY_ADMIN,
+          customRoleName: null,
+        };
+
+        it('tells the Company Admins nobody can approve it', async () => {
+          overCap();
+          mockApprovalAuth.resolveApproverPool.mockResolvedValue([]);
+          mockApprovalAuth.findCompanyAdminRecipients.mockResolvedValue([admin]);
+
+          await service.reviewInvoice('inv-1', reviewDto, companyAdmin);
+          await new Promise((r) => setTimeout(r, 10));
+
+          expect(mockEmailService.sendInvoiceApprovalUnroutableEmail).toHaveBeenCalledWith(
+            'admin@test.com',
+            expect.stringMatching(/^INV-/),
+            '$1,234.50',
+            'http://localhost:5179/invoices/inv-1',
+            expect.objectContaining({ companyId: 'comp-1', invoiceId: 'inv-1' }),
+            undefined,
+          );
+          // Never the ordinary "needs your approval" mail — they cannot approve it.
+          expect(mockEmailService.sendInvoicePendingApprovalEmail).not.toHaveBeenCalled();
+        });
+
+        it('signals the reviewer so completing a review is not a silent dead end', async () => {
+          overCap();
+          mockApprovalAuth.resolveApproverPool.mockResolvedValue([]);
+          mockApprovalAuth.findCompanyAdminRecipients.mockResolvedValue([admin]);
+
+          await service.reviewInvoice('inv-1', reviewDto, companyAdmin);
+          await new Promise((r) => setTimeout(r, 10));
+
+          expect(mockNotifications.createForUsers).toHaveBeenCalledWith(
+            expect.objectContaining({
+              userIds: ['ca-1'],
+              type: 'INVOICE_APPROVAL_UNROUTABLE',
+              entityId: 'inv-1',
+            }),
+          );
+        });
+
+        it('never grants the Company Admins approval authority', async () => {
+          overCap();
+          mockApprovalAuth.resolveApproverPool.mockResolvedValue([]);
+          mockApprovalAuth.findCompanyAdminRecipients.mockResolvedValue([admin]);
+
+          await service.reviewInvoice('inv-1', reviewDto, companyAdmin);
+          await new Promise((r) => setTimeout(r, 10));
+
+          // Resolved as recipients, never folded into the Pool — their own cap
+          // still decides what they may approve.
+          await expect(mockApprovalAuth.resolveApproverPool.mock.results[0].value).resolves.toEqual(
+            [],
+          );
+        });
+      });
+
+      afterEach(() => {
+        mockPrisma.invoice.findUnique.mockReset();
+        mockEmailService.sendInvoicePendingApprovalEmail.mockClear();
+        mockEmailService.sendInvoiceApprovalUnroutableEmail.mockClear();
+      });
+    });
+  });
+
+  // ── FOR-309: nominate further invoice approvers after review ──────────────
+  describe('nominateApprovers (invoice)', () => {
+    const yaw = {
+      id: 'appr-3',
+      name: 'Yaw Mensah',
+      email: 'yaw@test.com',
+      role: UserRole.COMPANY_ADMIN,
+      customRoleName: null,
+    };
+    const poolView = { entityId: 'inv-1', members: [], nominations: [] };
+
+    beforeEach(() => {
+      mockPrisma.invoice.findUnique.mockReset().mockResolvedValue({
+        id: 'inv-1',
+        companyId: 'comp-1',
+        totalAmount: 1234.5,
+      });
+    });
+
+    it('emails only the newly nominated member', async () => {
+      mockApprovals.addNominations.mockResolvedValue({ view: poolView, notify: [yaw] });
+
+      const result = await service.nominateApprovers('inv-1', ['appr-3'], companyAdmin);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockEmailService.sendInvoicePendingApprovalEmail).toHaveBeenCalledTimes(1);
+      expect(mockEmailService.sendInvoicePendingApprovalEmail).toHaveBeenCalledWith(
+        'yaw@test.com',
+        expect.stringMatching(/^INV-/),
+        '$1,234.50',
+        'http://localhost:5179/invoices/inv-1',
+        expect.objectContaining({ companyId: 'comp-1', invoiceId: 'inv-1' }),
+        undefined,
+      );
+      expect(result).toBe(poolView);
+    });
+
+    it('sends nothing when the nominee was already asked', async () => {
+      mockApprovals.addNominations.mockResolvedValue({ view: poolView, notify: [] });
+
+      await service.nominateApprovers('inv-1', ['appr-3'], companyAdmin);
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Re-nominating is a no-op, not a second email.
+      expect(mockEmailService.sendInvoicePendingApprovalEmail).not.toHaveBeenCalled();
+    });
+
+    afterEach(() => mockPrisma.invoice.findUnique.mockReset());
+  });
+
+  // ── FOR-303: invoice.approve's configured cap is enforced on approve ───────
+  describe('approveInvoice threshold enforcement (FOR-303)', () => {
+    const reviewedInvoice = (totalAmount: Prisma.Decimal) => ({
+      id: 'inv-1',
+      status: 'PENDING',
+      companyId: 'comp-1',
+      projectId: 'proj-1',
+      vendorId: 'vend-1',
+      totalAmount,
+    });
+
+    const approvedRow = {
+      id: 'inv-1',
+      projectId: 'proj-1',
+      status: 'APPROVED',
+      totalAmount: 12_500,
+      dueDate: null,
+      project: { name: 'Alpha' },
+      vendor: { legalName: 'VendorCo' },
+      relatedPo: null,
+    };
+
+    it('approves when the total is within the caller cap', async () => {
+      mockApprovalAuth.evaluate.mockResolvedValue({
+        outcome: 'allowed',
+        threshold: new Prisma.Decimal(25_000),
+      });
+      mockPrisma.invoice.findUnique.mockResolvedValue(reviewedInvoice(new Prisma.Decimal(12_500)));
+      mockPrisma.invoice.update.mockResolvedValue(approvedRow);
+
+      await expect(service.approveInvoice('inv-1', {}, companyAdmin)).resolves.toMatchObject({
+        status: 'APPROVED',
+      });
+      expect(mockApprovalAuth.evaluate).toHaveBeenCalledWith(
+        companyAdmin,
+        'invoice.approve',
+        new Prisma.Decimal(12_500),
+      );
+    });
+
+    it('rejects when the total exceeds the caller cap, naming both figures', async () => {
+      mockApprovalAuth.evaluate.mockResolvedValue({
+        outcome: 'belowThreshold',
+        threshold: new Prisma.Decimal(25_000),
+      });
+      mockPrisma.invoice.findUnique.mockResolvedValue(reviewedInvoice(new Prisma.Decimal(90_000)));
+
+      await expect(service.approveInvoice('inv-1', {}, companyAdmin)).rejects.toThrow(
+        /90000.*25000/,
+      );
+      expect(mockPrisma.invoice.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects when the caller does not hold invoice.approve at all', async () => {
+      mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'notGranted' });
+      mockPrisma.invoice.findUnique.mockResolvedValue(reviewedInvoice(new Prisma.Decimal(100)));
+
+      await expect(service.approveInvoice('inv-1', {}, companyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(mockPrisma.invoice.update).not.toHaveBeenCalled();
+    });
+
+    it('approves any amount when the cap is null (unlimited)', async () => {
+      mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
+      mockPrisma.invoice.findUnique.mockResolvedValue(
+        reviewedInvoice(new Prisma.Decimal(5_000_000)),
+      );
+      mockPrisma.invoice.update.mockResolvedValue(approvedRow);
+
+      await expect(service.approveInvoice('inv-1', {}, companyAdmin)).resolves.toMatchObject({
+        status: 'APPROVED',
+      });
+    });
+
+    it('lets SUPER_ADMIN approve past any cap without an evaluate call (break-glass)', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(
+        reviewedInvoice(new Prisma.Decimal(5_000_000)),
+      );
+      mockPrisma.invoice.update.mockResolvedValue(approvedRow);
+
+      await expect(service.approveInvoice('inv-1', {}, superAdmin)).resolves.toMatchObject({
+        status: 'APPROVED',
+      });
+      expect(mockApprovalAuth.evaluate).not.toHaveBeenCalled();
+      // The acting user is still recorded for audit.
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ performedById: superAdmin.id, action: 'INVOICE_APPROVED' }),
+      );
+    });
+
+    it('resolves the cap through evaluate so custom-role-first applies (FOR-253)', async () => {
+      const customRoleUser = { ...companyAdmin, customRoleId: 'cr-junior' };
+      mockApprovalAuth.evaluate.mockResolvedValue({
+        outcome: 'belowThreshold',
+        threshold: new Prisma.Decimal(5_000),
+      });
+      mockPrisma.invoice.findUnique.mockResolvedValue(reviewedInvoice(new Prisma.Decimal(12_500)));
+
+      await expect(service.approveInvoice('inv-1', {}, customRoleUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+      // Custom-role resolution lives in evaluate — never reimplemented here.
+      expect(mockApprovalAuth.evaluate).toHaveBeenCalledWith(
+        customRoleUser,
+        'invoice.approve',
+        new Prisma.Decimal(12_500),
+      );
+    });
+
+    it('reports "not reviewed" before the cap check on an unreviewed invoice', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue({
+        id: 'inv-1',
+        status: 'PENDING',
+        companyId: 'comp-1',
+        projectId: null,
+        vendorId: null,
+        totalAmount: null,
+      });
+
+      await expect(service.approveInvoice('inv-1', {}, companyAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockApprovalAuth.evaluate).not.toHaveBeenCalled();
+    });
   });
 
   describe('approveInvoice', () => {
@@ -730,7 +1181,9 @@ describe('InvoicesService', () => {
       expect(mockPrisma.invoice.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'inv-1' },
-          data: { status: 'APPROVED' },
+          // FOR-307: the approval axis resolves alongside the document status,
+          // and records who did it — ADR-0006's audit wants a person.
+          data: { status: 'APPROVED', approvalStatus: 'APPROVED', approvedById: 'ca-1' },
         }),
       );
       // FOR-294 — the transition lands on the audit trail without a reason.
@@ -869,7 +1322,12 @@ describe('InvoicesService', () => {
       expect(mockPrisma.invoice.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'inv-1' },
-          data: { status: 'REJECTED', rejectionReason: null },
+          data: {
+            status: 'REJECTED',
+            rejectionReason: null,
+            approvalStatus: 'REJECTED',
+            approvedById: 'ca-1',
+          },
         }),
       );
     });
@@ -912,6 +1370,8 @@ describe('InvoicesService', () => {
           data: {
             status: 'REJECTED',
             rejectionReason: 'Quantities do not match the delivery note.',
+            approvalStatus: 'REJECTED',
+            approvedById: 'ca-1',
           },
         }),
       );
@@ -1258,6 +1718,90 @@ describe('InvoicesService', () => {
       await expect(service.bulkApproveInvoices([], companyAdmin)).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    // ── FOR-303: the single-approve cap applies per invoice here too ─────────
+    it('skips invoices over the caller cap and reports how many were skipped', async () => {
+      mockApprovalAuth.evaluate.mockResolvedValue({
+        outcome: 'allowed',
+        threshold: new Prisma.Decimal(25_000),
+      });
+      mockPrisma.invoice.findMany.mockResolvedValue([
+        { id: 'inv-under', totalAmount: new Prisma.Decimal(10_000) },
+        { id: 'inv-over', totalAmount: new Prisma.Decimal(90_000) },
+        { id: 'inv-equal', totalAmount: new Prisma.Decimal(25_000) },
+      ]);
+      mockPrisma.invoice.updateMany.mockResolvedValue({ count: 2 });
+
+      const result = await service.bulkApproveInvoices(
+        ['inv-under', 'inv-over', 'inv-equal'],
+        companyAdmin,
+      );
+
+      expect(result.skippedOverLimitCount).toBe(1);
+      expect(result.approvedCount).toBe(2);
+      expect(result.requestedCount).toBe(3);
+      // The over-cap row is excluded from the write, not merely uncounted.
+      expect(mockPrisma.invoice.updateMany.mock.calls[0][0].where.id).toEqual({
+        in: ['inv-under', 'inv-equal'],
+      });
+    });
+
+    it('does not audit an invoice that was skipped for being over the cap', async () => {
+      mockApprovalAuth.evaluate.mockResolvedValue({
+        outcome: 'allowed',
+        threshold: new Prisma.Decimal(25_000),
+      });
+      mockPrisma.invoice.findMany.mockResolvedValue([
+        { id: 'inv-under', totalAmount: new Prisma.Decimal(10_000) },
+        { id: 'inv-over', totalAmount: new Prisma.Decimal(90_000) },
+      ]);
+      mockPrisma.invoice.updateMany.mockResolvedValue({ count: 1 });
+
+      await service.bulkApproveInvoices(['inv-under', 'inv-over'], companyAdmin);
+
+      expect(mockAudit.log).toHaveBeenCalledTimes(1);
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ targetId: 'inv-under' }),
+      );
+    });
+
+    it('approves every selected invoice when the cap is unlimited', async () => {
+      mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'allowed', threshold: null });
+      mockPrisma.invoice.findMany.mockResolvedValue([
+        { id: 'inv-1', totalAmount: new Prisma.Decimal(5_000_000) },
+      ]);
+      mockPrisma.invoice.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.bulkApproveInvoices(['inv-1'], companyAdmin);
+
+      expect(result.skippedOverLimitCount).toBe(0);
+      expect(result.approvedCount).toBe(1);
+    });
+
+    it('never applies a cap to SUPER_ADMIN (break-glass)', async () => {
+      mockPrisma.invoice.findMany.mockResolvedValue([
+        { id: 'inv-1', totalAmount: new Prisma.Decimal(5_000_000) },
+      ]);
+      mockPrisma.invoice.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.bulkApproveInvoices(['inv-1'], superAdmin);
+
+      expect(result.approvedCount).toBe(1);
+      expect(result.skippedOverLimitCount).toBe(0);
+      expect(mockApprovalAuth.evaluate).not.toHaveBeenCalled();
+    });
+
+    it('refuses the whole run when the caller does not hold invoice.approve', async () => {
+      mockApprovalAuth.evaluate.mockResolvedValue({ outcome: 'notGranted' });
+      mockPrisma.invoice.findMany.mockResolvedValue([
+        { id: 'inv-1', totalAmount: new Prisma.Decimal(100) },
+      ]);
+
+      await expect(service.bulkApproveInvoices(['inv-1'], companyAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(mockPrisma.invoice.updateMany).not.toHaveBeenCalled();
     });
 
     it('scopes by company for non-SuperAdmin', async () => {

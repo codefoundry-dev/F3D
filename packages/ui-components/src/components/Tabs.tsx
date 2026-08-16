@@ -60,7 +60,11 @@ export function Tabs<T extends string = string>({
         role="tablist"
         aria-label={ariaLabel}
         className={cn(
-          'scrollbar-none flex items-center gap-1.5 overflow-x-auto overflow-y-hidden',
+          // -mb-px lets the buttons' active underline overlap the bar's border-b.
+          // It must live here, not on the buttons: inside this overflow-hidden
+          // scroll container a negative button margin pushes the 2px underline
+          // below the clip edge, where display scaling can round it away entirely.
+          'scrollbar-none -mb-px flex items-center gap-1.5 overflow-x-auto overflow-y-hidden',
           navClassName,
         )}
       >
@@ -76,7 +80,7 @@ export function Tabs<T extends string = string>({
               disabled={item.disabled}
               onClick={() => onValueChange(item.value)}
               className={cn(
-                'group relative -mb-px shrink-0 border-b-2 pb-px transition-colors',
+                'group relative shrink-0 border-b-2 pb-px transition-colors',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
                 'disabled:cursor-not-allowed',
                 active ? 'border-gray-900' : 'border-transparent',

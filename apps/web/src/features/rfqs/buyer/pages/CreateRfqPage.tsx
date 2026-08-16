@@ -14,7 +14,7 @@ import { Button, StatusErrorModal, StatusSuccessModal } from '@forethread/ui-com
 import ArrowRightIcon from '@forethread/ui-components/assets/icons/arrow-right.svg?react';
 import BackArrowIcon from '@forethread/ui-components/assets/icons/back-arrow.svg?react';
 import NewUserIcon from '@forethread/ui-components/assets/icons/new-user.svg?react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -27,7 +27,7 @@ import {
 } from '../components/create/availability';
 import { bomLineToRfqDraftFields } from '../components/create/bom-draft';
 import { EditMaterialModal } from '../components/create/EditMaterialModal';
-import { SelectVendorsCard } from '../components/create/SelectVendorsCard';
+import { SelectVendorsCard, type VendorSelection } from '../components/create/SelectVendorsCard';
 import { AddFromBomModal, AddFromMaterialListModal } from '../components/create/source-modals';
 import { StepBasicInfo } from '../components/create/StepBasicInfo';
 import { StepLineItems } from '../components/create/StepLineItems';
@@ -43,6 +43,7 @@ import {
   type WizardSeed,
 } from '../components/create/wizard-types';
 import { WizardAccordion } from '../components/create/WizardAccordion';
+import { resolvedToListItem, useVendorPicker } from '../hooks/useVendorPicker';
 import {
   useAssignedVendors,
   useRfqMaterials,
@@ -189,10 +190,34 @@ export default function CreateRfqPage() {
 
   // ── Data sources ──────────────────────────────────────────────────────────
   const { data: projects = [], isLoading: projectsLoading } = useRfqProjects();
-  const { data: vendors = [], isLoading: vendorsLoading } = useAssignedVendors();
+  const { data: vendors = [] } = useAssignedVendors();
   const { data: materials = [] } = useRfqMaterials(
     materialSearch ? { search: materialSearch } : undefined,
   );
+
+  // Owns the picker's server-side search/category filtering and the unpaginated
+  // "Add All" resolution (ADR-0018).
+  const vendorPicker = useVendorPicker(
+    useMemo(() => ({ vendorIds, repIds: salesRepIds }), [vendorIds, salesRepIds]),
+    useCallback(({ vendorIds: nextVendorIds, repIds }: VendorSelection) => {
+      setVendorIds(nextVendorIds);
+      setSalesRepIds(repIds);
+    }, []),
+  );
+
+  /**
+   * The review step must be able to name every selected vendor, including ones
+   * "Add All" matched beyond the page this component loaded — otherwise the
+   * summary would silently under-report who the RFQ is going to.
+   */
+  const reviewVendors = useMemo(() => {
+    const known = new Set(vendors.map((v) => v.companyId));
+    const selected = new Set(vendorIds);
+    const stubs = vendorPicker.extraSelected
+      .filter((v) => selected.has(v.companyId) && !known.has(v.companyId))
+      .map(resolvedToListItem);
+    return [...vendors, ...stubs];
+  }, [vendors, vendorIds, vendorPicker.extraSelected]);
 
   const selectedProjects = useMemo(
     () =>
@@ -533,14 +558,21 @@ export default function CreateRfqPage() {
                 testId="vendors-accordion"
               >
                 <SelectVendorsCard
-                  vendors={vendors}
+                  vendors={vendorPicker.vendors}
                   selectedVendorIds={vendorIds}
                   selectedRepIds={salesRepIds}
-                  isLoading={vendorsLoading || projectsLoading}
+                  isLoading={vendorPicker.isLoading || projectsLoading}
                   onChange={({ vendorIds: nextVendorIds, repIds }) => {
                     setVendorIds(nextVendorIds);
                     setSalesRepIds(repIds);
                   }}
+                  search={vendorPicker.search}
+                  onSearchChange={vendorPicker.setSearch}
+                  categoryFilter={vendorPicker.categoryFilter}
+                  onCategoryFilterChange={vendorPicker.setCategoryFilter}
+                  onAddAll={vendorPicker.addAll}
+                  isAddingAll={vendorPicker.isAddingAll}
+                  extraSelected={vendorPicker.extraSelected}
                   error={errors.vendorIds ? t('create.vendors.selectAtLeastOne') : undefined}
                 />
               </WizardAccordion>
@@ -583,7 +615,7 @@ export default function CreateRfqPage() {
               basicInfo={basicInfo}
               items={items}
               projects={projects}
-              vendors={vendors}
+              vendors={reviewVendors}
               selectedVendorIds={vendorIds}
               selectedRepIds={salesRepIds}
               attachments={attachments}
@@ -595,9 +627,12 @@ export default function CreateRfqPage() {
               onRemoveItem={(key) => setItems((prev) => prev.filter((item) => item.key !== key))}
               onRemoveVendor={(vendorId) => {
                 const repIdsOfVendor = new Set(
-                  (vendors.find((v) => v.companyId === vendorId)?.representatives ?? []).map(
-                    (rep) => rep.id,
-                  ),
+                  vendorPicker.extraSelected
+                    .find((v) => v.companyId === vendorId)
+                    ?.reps.map((rep) => rep.id) ??
+                    (vendors.find((v) => v.companyId === vendorId)?.representatives ?? []).map(
+                      (rep) => rep.id,
+                    ),
                 );
                 setVendorIds((prev) => prev.filter((id) => id !== vendorId));
                 setSalesRepIds((prev) => prev.filter((id) => !repIdsOfVendor.has(id)));

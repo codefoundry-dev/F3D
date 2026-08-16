@@ -53,24 +53,37 @@ const VENDORS = [
   makeVendor({ companyId: 'c2', companyName: 'NoRep Co', contactEmail: 'sales@norep.com' }),
 ] as never[];
 
-/** Controlled harness so successive toggles accumulate like the real wizard. */
+/** Controlled harness so successive toggles accumulate like the real wizard.
+ *  Search/category are now server-side, so the harness owns them as plain state
+ *  and simply hands the (already filtered) rows straight through. */
 function Harness({
   initial,
   onChange,
+  vendors = VENDORS,
+  onAddAll = vi.fn(),
 }: {
   initial?: VendorSelection;
   onChange: (n: VendorSelection) => void;
+  vendors?: never[];
+  onAddAll?: () => void;
 }) {
   const [sel, setSel] = useState<VendorSelection>(initial ?? { vendorIds: [], repIds: [] });
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState<string | null>(null);
   return (
     <SelectVendorsCard
-      vendors={VENDORS}
+      vendors={vendors}
       selectedVendorIds={sel.vendorIds}
       selectedRepIds={sel.repIds}
       onChange={(next) => {
         setSel(next);
         onChange(next);
       }}
+      search={search}
+      onSearchChange={setSearch}
+      categoryFilter={category}
+      onCategoryFilterChange={setCategory}
+      onAddAll={onAddAll}
     />
   );
 }
@@ -111,5 +124,65 @@ describe('SelectVendorsCard', () => {
     fireEvent.click(screen.getByTestId('rep-remove-r1'));
 
     expect(onChange).toHaveBeenLastCalledWith({ vendorIds: [], repIds: [] });
+  });
+
+  // ── Deactivated reps are unsendable (CONTEXT.md / ADR-0018) ─────────────────
+
+  const WITH_DEACTIVATED = [
+    makeVendor({
+      companyId: 'c3',
+      companyName: 'Half Dead Co',
+      representatives: [
+        {
+          id: 'live',
+          name: 'Live Rep',
+          email: 'live@hd.com',
+          phone: null,
+          position: null,
+          status: 'ACTIVE',
+          createdAt: '',
+        },
+        {
+          id: 'gone',
+          name: 'Gone Rep',
+          email: 'gone@hd.com',
+          phone: null,
+          position: null,
+          status: 'INACTIVE',
+          createdAt: '',
+        },
+      ],
+    }),
+  ] as never[];
+
+  it('"add all reps" never selects a deactivated rep', () => {
+    const onChange = vi.fn();
+    render(<Harness vendors={WITH_DEACTIVATED} onChange={onChange} />);
+
+    fireEvent.click(screen.getByTestId('vendor-toggle-c3'));
+
+    expect(onChange).toHaveBeenLastCalledWith({ vendorIds: ['c3'], repIds: ['live'] });
+  });
+
+  it('renders a deactivated rep but disables its checkbox', () => {
+    render(<Harness vendors={WITH_DEACTIVATED} onChange={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId('vendor-expand-c3'));
+
+    expect(within(screen.getByTestId('rep-row-gone')).getByRole('checkbox')).toBeDisabled();
+    expect(within(screen.getByTestId('rep-row-live')).getByRole('checkbox')).not.toBeDisabled();
+  });
+
+  it('delegates "Add all" to the server-side resolver rather than the loaded rows', () => {
+    const onAddAll = vi.fn();
+    const onChange = vi.fn();
+    render(<Harness onChange={onChange} onAddAll={onAddAll} />);
+
+    fireEvent.click(screen.getByTestId('vendor-add-all'));
+
+    expect(onAddAll).toHaveBeenCalledTimes(1);
+    // The card must not resolve the selection itself — a page-local loop is
+    // exactly the silent truncation this replaces.
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

@@ -122,15 +122,34 @@ export interface InvoiceDetail {
 
 // ── Invoice ↔ PO match (FOR-293), mirroring shared-types ────────────────────
 
-/** How the PO was (or wasn't) resolved for the invoice (FOR-293). */
+/**
+ * How the PO was (or wasn't) resolved for the invoice (FOR-293). `SELECTED` is a
+ * preview of the PO the reviewer picked in the form but has not saved yet.
+ */
 export type InvoicePoResolution =
   | 'LINKED'
   | 'AUTO_MATCHED'
+  | 'SELECTED'
   | 'AMBIGUOUS'
   | 'NOT_FOUND'
   | 'NO_REFERENCE';
 
 export type InvoiceLineMatchFlag = 'PRICE_VARIANCE' | 'QTY_VARIANCE' | 'NOT_ON_PO';
+
+/** Where the PO stands on delivery, derived from its line quantities. */
+export type InvoicePoDeliveryStatus = 'AWAITING_DELIVERY' | 'PARTIALLY_DELIVERED' | 'DELIVERED';
+
+/** Delivery progress on the matched PO — context for the invoice reviewer. */
+export interface InvoicePoDelivery {
+  status: InvoicePoDeliveryStatus;
+  quantityOrdered: number;
+  quantityDelivered: number;
+  linesDelivered: number;
+  lineCount: number;
+  /** Received / ordered as a 0–100 percentage, capped at 100. */
+  percentDelivered: number;
+  plannedDeliveryDate: string | null;
+}
 
 /** The resolved (or candidate) purchase order, header-level. */
 export interface InvoiceMatchedPo {
@@ -140,7 +159,10 @@ export interface InvoiceMatchedPo {
   vendorId: string | null;
   vendorName: string | null;
   projectId: string;
+  projectName: string | null;
+  currency: string;
   totalAmount: number | null;
+  delivery: InvoicePoDelivery;
 }
 
 /** A PO line as compared against the invoice. */
@@ -154,6 +176,7 @@ export interface InvoicePoMatchPoLine {
   unitOfMeasure: string;
   unitPrice: number;
   lineTotal: number;
+  costCode: string | null;
 }
 
 /** One saved invoice line with its PO pairing and variance flags. */
@@ -178,6 +201,8 @@ export interface InvoicePoMatchResult {
   poReferences: string[];
   vendorMismatch: boolean;
   lines: InvoicePoMatchLine[];
+  /** Every line on the resolved PO, in line-number order (billed or not). */
+  poLines: InvoicePoMatchPoLine[];
   unbilledPoLines: InvoicePoMatchPoLine[];
   thresholds: { priceTolerancePct: number; quantityTolerance: number };
   summary: {
@@ -187,6 +212,36 @@ export interface InvoicePoMatchResult {
     quantityVarianceCount: number;
     unexpectedCount: number;
   };
+}
+
+/**
+ * One delivery report recorded against the resolved PO (FOR-355), mirroring
+ * shared-types — a summary row for the Invoice Details PO tab.
+ */
+export interface InvoicePoDeliveryReport {
+  id: string;
+  reportNumber: string;
+  status: 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+  source: 'INTERNAL' | 'EXTERNAL';
+  /** When the goods arrived; null when the submitter left it unset. */
+  deliveryDate: string | null;
+  /** The delivery location's label (or address when unlabelled); null when unset. */
+  locationName: string | null;
+  submitterName: string;
+  lineCount: number;
+  /** Total quantity received across the report's lines. */
+  quantityReceived: number;
+  createdAt: string;
+}
+
+/**
+ * The Invoice Details PO tab payload (FOR-355): the reconciliation report plus
+ * the delivery reports recorded against the resolved PO.
+ */
+export interface InvoicePoInfoResult {
+  match: InvoicePoMatchResult;
+  /** Newest first; [] when no PO resolved. */
+  deliveryReports: InvoicePoDeliveryReport[];
 }
 
 /** The reviewer's confirmed/corrected fields (FOR-291). Replace semantics. */
@@ -210,6 +265,16 @@ export interface ReviewInvoicePayload {
     costCode?: string | null;
     glAccount?: string | null;
   }[];
+  /**
+   * Approver Pool members to notify, when the reviewed total goes over the
+   * reviewer's own `invoice.approve` cap and the invoice is routed for approval
+   * (FOR-309).
+   *
+   * Routing only: every Pool member keeps full authority whether nominated or
+   * not, and ids outside the Pool are rejected server-side. Omitted or empty
+   * notifies the whole Pool; ignored entirely when no approval is needed.
+   */
+  nomineeIds?: string[];
 }
 
 export interface InvoiceListItem {
@@ -289,14 +354,55 @@ export async function reviewInvoice(
  * Reconcile the invoice against its PO (FOR-293): PO resolution plus per-line
  * price/quantity variance and unexpected-line flags, computed from the saved
  * invoice lines. Recomputed server-side on every call.
+ *
+ * `poId` previews the report against a PO the reviewer has selected in the review
+ * form but not yet saved, so its status, delivery progress and lines can be
+ * compared side by side before the link is committed.
  */
 export async function getInvoicePoMatch(
   id: string,
+  params?: { poId?: string | null },
   config?: AxiosRequestConfig,
 ): Promise<InvoicePoMatchResult> {
   const { data } = await getApiClient().get<{ data: InvoicePoMatchResult }>(
     INVOICES_PATHS.poMatch(id),
+    { params: params?.poId ? { poId: params.poId } : undefined, ...config },
+  );
+  return data.data;
+}
+
+/**
+ * The Invoice Details PO tab payload (FOR-355): PO resolution + reconciliation
+ * plus the delivery reports recorded against the resolved PO. Read-gated, so it
+ * serves viewers who cannot review.
+ */
+export async function getInvoicePoInfo(
+  id: string,
+  config?: AxiosRequestConfig,
+): Promise<InvoicePoInfoResult> {
+  const { data } = await getApiClient().get<{ data: InvoicePoInfoResult }>(
+    INVOICES_PATHS.poInfo(id),
     config,
+  );
+  return data.data;
+}
+
+/**
+ * Generate the system PO PDF for the invoice's resolved purchase order
+ * (FOR-355) and return its signed URL. Served through the invoice scope because
+ * invoice viewers (e.g. finance) do not necessarily hold `po.exportSingle`.
+ *
+ * `poId` names the PO the tab is displaying when it is auto-matched rather than
+ * saved on the invoice; it must belong to the invoice's company.
+ */
+export async function exportInvoiceRelatedPo(
+  id: string,
+  params?: { poId?: string | null },
+  config?: AxiosRequestConfig,
+): Promise<{ url: string }> {
+  const { data } = await getApiClient().get<{ data: { url: string } }>(
+    INVOICES_PATHS.poExport(id),
+    { params: params?.poId ? { poId: params.poId } : undefined, ...config },
   );
   return data.data;
 }
@@ -351,11 +457,28 @@ export async function getInvoiceAuditTrail(
   return data.data;
 }
 
+export interface BulkApproveInvoicesResult {
+  /** Rows actually moved to APPROVED. */
+  approvedCount: number;
+  /** Ids the caller submitted, including ones that did not qualify. */
+  requestedCount: number;
+  /**
+   * FOR-303: qualifying rows left untouched because their total was above the
+   * caller's `invoice.approve` cap. They need a higher-tier approver.
+   */
+  skippedOverLimitCount: number;
+}
+
 export async function bulkApproveInvoices(
   ids: string[],
   config?: AxiosRequestConfig,
-): Promise<void> {
-  await getApiClient().post(INVOICES_PATHS.BULK_APPROVE, { ids }, config);
+): Promise<BulkApproveInvoicesResult> {
+  const { data } = await getApiClient().post<{ data: BulkApproveInvoicesResult }>(
+    INVOICES_PATHS.BULK_APPROVE,
+    { ids },
+    config,
+  );
+  return data.data;
 }
 
 // ── Export ───────────────────────────────────────────────────────────────

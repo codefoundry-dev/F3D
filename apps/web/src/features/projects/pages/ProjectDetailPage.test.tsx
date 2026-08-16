@@ -99,6 +99,28 @@ vi.mock('@/features/boms', () => ({
   BomTab: ({ projectId }: any) => <div data-testid="bom-tab">{projectId}</div>,
 }));
 
+vi.mock('../components/ProjectProcurementTab', () => ({
+  default: ({ projectId, currency }: any) => (
+    <div data-testid="procurement-tab">
+      {projectId}:{currency}
+    </div>
+  ),
+}));
+vi.mock('../components/ProjectVendorsTab', () => ({
+  default: ({ projectId, currency }: any) => (
+    <div data-testid="vendors-tab">
+      {projectId}:{currency}
+    </div>
+  ),
+}));
+vi.mock('../components/ProjectFinancialsTab', () => ({
+  default: ({ projectId, plannedBudget, currency }: any) => (
+    <div data-testid="financials-tab">
+      {projectId}:{plannedBudget}:{currency}
+    </div>
+  ),
+}));
+
 vi.mock('../services/projects.service', () => ({
   useProject: mockUseProject,
   useAddProjectMembers: mockUseAddProjectMembers,
@@ -260,25 +282,25 @@ describe('ProjectDetailPage', () => {
     expect(screen.getByTestId('bom-tab')).toHaveTextContent('proj-1');
   });
 
-  it('renders a coming-soon state on the procurement tab', () => {
+  it('renders the procurement tab with the project id and currency', () => {
     mockTabParam.value = 'procurement';
     mockUseProject.mockReturnValue({ data: mockProject, isLoading: false, isError: false });
     render(<ProjectDetailPage />);
-    expect(screen.getByText('detail.comingSoon.procurement')).toBeInTheDocument();
+    expect(screen.getByTestId('procurement-tab')).toHaveTextContent('proj-1:AUD');
   });
 
-  it('renders a coming-soon state on the vendors tab', () => {
+  it('renders the vendors tab with the project id and currency', () => {
     mockTabParam.value = 'vendors';
     mockUseProject.mockReturnValue({ data: mockProject, isLoading: false, isError: false });
     render(<ProjectDetailPage />);
-    expect(screen.getByText('detail.comingSoon.vendors')).toBeInTheDocument();
+    expect(screen.getByTestId('vendors-tab')).toHaveTextContent('proj-1:AUD');
   });
 
-  it('renders a coming-soon state on the financials tab', () => {
+  it('renders the financials tab with the planned budget', () => {
     mockTabParam.value = 'financials';
     mockUseProject.mockReturnValue({ data: mockProject, isLoading: false, isError: false });
     render(<ProjectDetailPage />);
-    expect(screen.getByText('detail.comingSoon.financials')).toBeInTheDocument();
+    expect(screen.getByTestId('financials-tab')).toHaveTextContent('proj-1:100000:AUD');
   });
 
   it('opens the add-members modal and lists available users', () => {

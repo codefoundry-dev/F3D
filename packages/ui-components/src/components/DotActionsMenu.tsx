@@ -21,6 +21,8 @@ export interface DotActionsMenuProps {
   triggerClassName?: string;
   /** Additional classes for the dropdown menu panel */
   menuClassName?: string;
+  /** Accessible name for the trigger when the menu isn't a generic action list */
+  ariaLabel?: string;
 }
 
 export function DotActionsMenu({
@@ -30,6 +32,7 @@ export function DotActionsMenu({
   trigger,
   triggerClassName,
   menuClassName,
+  ariaLabel = 'Actions',
 }: DotActionsMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -150,7 +153,7 @@ export function DotActionsMenu({
               : 'p-1.5',
           triggerClassName,
         )}
-        aria-label="Actions"
+        aria-label={ariaLabel}
         aria-expanded={isOpen}
         aria-haspopup="true"
       >

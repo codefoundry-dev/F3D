@@ -27,16 +27,19 @@ vi.mock('@forethread/api-client', () => ({
   getPublicPurchaseOrder: vi.fn(),
   exportPublicPurchaseOrder: (...args: unknown[]) => mockExportPublicPo.value(...args),
   isApiError: (...args: unknown[]) => mockIsApiError.value(...args),
+  proposePublicPoChange: vi.fn(),
 }));
 
 vi.mock('@tanstack/react-query', () => ({
   useQuery: () => mockQueryResult.value,
+  useMutation: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock('@forethread/po-shared', () => ({
   PoDetailTabs: ({ tabs }: { tabs: string[] }) => <div data-testid="po-tabs">{tabs.join(',')}</div>,
   PoDetailsTab: () => <div data-testid="po-details-tab" />,
   PoLineItemsTab: () => <div data-testid="po-line-items-tab" />,
+  PoCancelRequestModal: () => <div data-testid="po-cancel-request-modal" />,
 }));
 
 vi.mock('@forethread/ui-components', () => ({
@@ -50,6 +53,7 @@ vi.mock('@forethread/ui-components', () => ({
   Spinner: ({ size }: { size?: string }) => <div data-testid="spinner" data-size={size} />,
   getStatusColor: () => '',
   PO_STATUS_COLORS: {},
+  notificationService: { success: vi.fn(), error: vi.fn() },
 }));
 
 vi.mock('@forethread/ui-components/assets/icons/download.svg?react', () => ({

@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserRole } from '@prisma/client';
 
+import { ApprovalsService } from '../../approvals/approvals.service';
 import { InvoiceExportService } from '../invoice-export.service';
 import { InvoiceIntakeService } from '../invoice-intake.service';
 import { InvoiceMatchingService } from '../invoice-matching.service';
@@ -31,6 +32,14 @@ const mockIntakeService = {
 
 const mockMatchingService = {
   getPoMatch: jest.fn(),
+  getPoInfo: jest.fn(),
+  exportRelatedPoPdf: jest.fn(),
+};
+
+/** Approver Pool read model + withdrawal (FOR-309); the controller delegates. */
+const mockApprovalsService = {
+  getApproverPool: jest.fn(),
+  withdrawNomination: jest.fn(),
 };
 
 const mockUser = {
@@ -53,6 +62,7 @@ describe('InvoicesController', () => {
         { provide: InvoiceExportService, useValue: mockExportService },
         { provide: InvoiceIntakeService, useValue: mockIntakeService },
         { provide: InvoiceMatchingService, useValue: mockMatchingService },
+        { provide: ApprovalsService, useValue: mockApprovalsService },
       ],
     }).compile();
 
@@ -87,8 +97,66 @@ describe('InvoicesController', () => {
       mockMatchingService.getPoMatch.mockResolvedValue(expected);
 
       const result = await controller.getPoMatch('inv-1', mockUser);
-      expect(mockMatchingService.getPoMatch).toHaveBeenCalledWith('inv-1', mockUser);
+      expect(mockMatchingService.getPoMatch).toHaveBeenCalledWith('inv-1', mockUser, undefined);
       expect(result).toEqual(expected);
+    });
+
+    it("passes the reviewer's selected PO through as the reconciliation target", async () => {
+      mockMatchingService.getPoMatch.mockResolvedValue({ resolution: 'SELECTED', lines: [] });
+
+      await controller.getPoMatch('inv-1', mockUser, 'po-9');
+      expect(mockMatchingService.getPoMatch).toHaveBeenCalledWith('inv-1', mockUser, 'po-9');
+    });
+
+    it('treats an empty poId as no selection', async () => {
+      mockMatchingService.getPoMatch.mockResolvedValue({ resolution: 'NO_REFERENCE', lines: [] });
+
+      await controller.getPoMatch('inv-1', mockUser, '');
+      expect(mockMatchingService.getPoMatch).toHaveBeenCalledWith('inv-1', mockUser, undefined);
+    });
+  });
+
+  describe('getPoInfo (FOR-355)', () => {
+    it('delegates to the matching service', async () => {
+      const expected = { match: { resolution: 'LINKED' }, deliveryReports: [] };
+      mockMatchingService.getPoInfo.mockResolvedValue(expected);
+
+      const result = await controller.getPoInfo('inv-1', mockUser);
+      expect(mockMatchingService.getPoInfo).toHaveBeenCalledWith('inv-1', mockUser);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('exportRelatedPo (FOR-355)', () => {
+    it('delegates to the matching service', async () => {
+      const expected = { url: 'https://signed/po.pdf' };
+      mockMatchingService.exportRelatedPoPdf.mockResolvedValue(expected);
+
+      const result = await controller.exportRelatedPo('inv-1', mockUser);
+      expect(mockMatchingService.exportRelatedPoPdf).toHaveBeenCalledWith(
+        'inv-1',
+        mockUser,
+        undefined,
+      );
+      expect(result).toEqual(expected);
+    });
+
+    it("passes the displayed PO's id through and treats an empty poId as absent", async () => {
+      mockMatchingService.exportRelatedPoPdf.mockResolvedValue({ url: 'u' });
+
+      await controller.exportRelatedPo('inv-1', mockUser, 'po-9');
+      expect(mockMatchingService.exportRelatedPoPdf).toHaveBeenCalledWith(
+        'inv-1',
+        mockUser,
+        'po-9',
+      );
+
+      await controller.exportRelatedPo('inv-1', mockUser, '');
+      expect(mockMatchingService.exportRelatedPoPdf).toHaveBeenLastCalledWith(
+        'inv-1',
+        mockUser,
+        undefined,
+      );
     });
   });
 

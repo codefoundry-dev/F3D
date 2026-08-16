@@ -7,6 +7,7 @@ import {
   UserRole,
 } from '@prisma/client';
 
+import { RfqVisibilityService } from '../rfq-visibility.service';
 import { RfqsService } from '../rfqs.service';
 
 /** Build a query object that satisfies the DTO (including computed skip/take). */
@@ -82,6 +83,14 @@ const mockNotifications = {
   createForUsers: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockPermissions = {
+  filterActorsWithPermission: jest.fn(),
+};
+
+const mockAudit = {
+  log: jest.fn(),
+};
+
 // ── Mock PrismaService ──────────────────────────────────────────────────────
 
 const mockPrisma = {
@@ -127,7 +136,11 @@ const mockPrisma = {
     createMany: jest.fn(),
     create: jest.fn(),
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     update: jest.fn(),
+  },
+  projectMember: {
+    findFirst: jest.fn(),
   },
   rfqProject: {
     findMany: jest.fn().mockResolvedValue([]),
@@ -172,6 +185,11 @@ describe('RfqsService', () => {
       mockConfig as never,
       mockBranding as never,
       mockNotifications as never,
+      // Real visibility service on the same prisma mocks — getRfq tests drive
+      // it through projectMember.findFirst / rfqVendor.findFirst below.
+      new RfqVisibilityService(mockPrisma as never),
+      mockPermissions as never,
+      mockAudit as never,
     );
     mockAccessTokens.issueToken.mockResolvedValue({
       token: 'issued-token-xyz',
@@ -180,6 +198,15 @@ describe('RfqsService', () => {
     // Default: no company logo → unbranded email. Re-set every test because
     // clearAllMocks keeps a brand override a FOR-288 test may have installed.
     mockBranding.getEmailBrand.mockResolvedValue(undefined);
+    // Project-based visibility defaults (FOR-351): reads pass unless a test
+    // overrides these with null to exercise the 403 paths.
+    mockPrisma.projectMember.findFirst.mockResolvedValue({ id: 'pm-1' });
+    mockPrisma.rfqVendor.findFirst.mockResolvedValue({ id: 'rv-1' });
+    // Default: everyone holds rfq.read — tests narrow this to exercise the
+    // notification permission filter.
+    mockPermissions.filterActorsWithPermission.mockImplementation((actors) =>
+      Promise.resolve(actors),
+    );
   });
 
   // ── listRfqs ────────────────────────────────────────────────────────────
@@ -200,6 +227,26 @@ describe('RfqsService', () => {
       await service.listRfqs(q(), procOfficer);
       const where = mockPrisma.rfq.findMany.mock.calls[0][0].where;
       expect(where.companyId).toBe('comp-1');
+    });
+
+    it('scopes non-admin buyers to member projects or own RFQs (FOR-351)', async () => {
+      await service.listRfqs(q(), procOfficer);
+      const where = mockPrisma.rfq.findMany.mock.calls[0][0].where;
+      expect(where.AND).toEqual([
+        {
+          OR: [
+            { createdByUserId: 'po-1' },
+            { project: { members: { some: { userId: 'po-1' } } } },
+            { projects: { some: { project: { members: { some: { userId: 'po-1' } } } } } },
+          ],
+        },
+      ]);
+    });
+
+    it('does not project-scope CompanyAdmin (FOR-351)', async () => {
+      await service.listRfqs(q(), companyAdmin);
+      const where = mockPrisma.rfq.findMany.mock.calls[0][0].where;
+      expect(where.AND).toBeUndefined();
     });
 
     it('scopes Vendor to RFQs via include quoteResponses filter', async () => {
@@ -246,10 +293,25 @@ describe('RfqsService', () => {
       expect(where.quoteResponses).toEqual({ none: {} });
     });
 
-    it('applies projectId filter', async () => {
+    it('applies projectId filter across primary and spanned projects', async () => {
       await service.listRfqs(q({ projectId: 'proj-1' }), companyAdmin);
       const where = mockPrisma.rfq.findMany.mock.calls[0][0].where;
-      expect(where.projectId).toBe('proj-1');
+      expect(where.projectId).toBeUndefined();
+      expect(where.AND).toEqual([
+        {
+          OR: [{ projectId: 'proj-1' }, { projects: { some: { projectId: 'proj-1' } } }],
+        },
+      ]);
+    });
+
+    it('appends projectId filter after the FOR-351 visibility clause', async () => {
+      await service.listRfqs(q({ projectId: 'proj-1' }), procOfficer);
+      const where = mockPrisma.rfq.findMany.mock.calls[0][0].where;
+      expect(where.AND).toHaveLength(2);
+      expect(where.AND[0].OR[0]).toEqual({ createdByUserId: 'po-1' });
+      expect(where.AND[1]).toEqual({
+        OR: [{ projectId: 'proj-1' }, { projects: { some: { projectId: 'proj-1' } } }],
+      });
     });
 
     it('returns paginated response with meta', async () => {
@@ -282,12 +344,10 @@ describe('RfqsService', () => {
           deliveryLocationId: '123 St',
           deadlineStart: new Date('2026-04-01'),
           deadlineEnd: new Date('2026-04-15'),
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'Alpha' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 3, quoteResponses: 2, invitedVendors: 4 },
           quoteResponses: [
             {
@@ -324,6 +384,62 @@ describe('RfqsService', () => {
       expect(item.avgQuoteCost).toBe(2000); // (1000 + 3000) / 2 received quotes
     });
 
+    it('maps rows whose quotes lack line items and cost, and labelless delivery locations', async () => {
+      mockPrisma.rfq.findMany.mockResolvedValue([
+        {
+          id: 'rfq-3',
+          projectId: 'proj-1',
+          status: 'OPEN',
+          totalRequestedQty: 5,
+          pickUpLocation: null,
+          deliveryLocationId: 'loc-1',
+          // Label-less location falls back to the address in the list column.
+          deliveryLocation: { label: null, address: '9 Dock Rd' },
+          isPickUp: true,
+          deadlineStart: new Date('2026-04-01'),
+          deadlineEnd: null,
+          createdAt: new Date('2026-03-01'),
+          project: { name: 'Gamma' },
+          createdBy: { id: 'po-1', name: 'PO User' },
+          createdByUserId: 'po-1',
+          _count: { lineItems: 1, quoteResponses: 1, invitedVendors: 1 },
+          // Received quote with no lineItems array and no totalCost yet.
+          quoteResponses: [{ vendorId: 'v1', status: 'SUBMITTED', totalCost: null }],
+        },
+        {
+          id: 'rfq-4',
+          projectId: 'proj-1',
+          status: 'OPEN',
+          totalRequestedQty: 5,
+          pickUpLocation: null,
+          deliveryLocationId: 'loc-2',
+          deliveryLocation: { label: 'Depot', address: '12 Wharf St' },
+          deadlineStart: null,
+          deadlineEnd: new Date('2026-04-15'),
+          createdAt: new Date('2026-03-01'),
+          project: { name: 'Gamma' },
+          createdBy: { id: 'po-1', name: 'PO User' },
+          createdByUserId: 'po-1',
+          _count: { lineItems: 1, quoteResponses: 0, invitedVendors: 0 },
+          quoteResponses: [],
+        },
+      ]);
+      mockPrisma.rfq.count.mockResolvedValue(2);
+
+      const [first, second] = (await service.listRfqs(q(), companyAdmin)).items;
+      expect(first.approvedItems).toBe(0); // missing lineItems counts as none
+      expect(first.declinedItems).toBe(0);
+      expect(first.avgQuoteCost).toBe(0); // null totalCost treated as 0, not skipped
+      expect(first.deliveryLocation).toBe('9 Dock Rd');
+      expect(first.isPickUp).toBe(true);
+      expect(first.pickUp).toBe(true);
+      expect(first.deadlineRange).toBeNull(); // needs both start and end
+      expect(first.deadlineEnd).toBeNull();
+      expect(second.deliveryLocation).toBe('Depot');
+      expect(second.deadlineRange).toBeNull();
+      expect(second.deadlineEnd).toBe(new Date('2026-04-15').toISOString());
+    });
+
     it('returns avgQuoteCost null and zero metrics when no quotes received', async () => {
       mockPrisma.rfq.findMany.mockResolvedValue([
         {
@@ -335,12 +451,10 @@ describe('RfqsService', () => {
           deliveryLocationId: null,
           deadlineStart: null,
           deadlineEnd: null,
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'Beta' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 2, quoteResponses: 0, invitedVendors: 0 },
           quoteResponses: [],
         },
@@ -458,8 +572,6 @@ describe('RfqsService', () => {
       ['pickUpLocation', { pickUpLocation: 'asc' }],
       ['pickUp', { pickUpDate: 'asc' }],
       ['createdBy', { createdBy: { name: 'asc' } }],
-      ['approvalStatus', { approvalStatus: 'asc' }],
-      ['approvedBy', { approvedBy: { name: 'asc' } }],
       ['projectId', { projectId: 'asc' }],
     ])('sorts by %s', async (sortBy, expectedOrderBy) => {
       await service.listRfqs(q({ sortBy, sortDir: 'asc' }), companyAdmin);
@@ -576,12 +688,10 @@ describe('RfqsService', () => {
           deliveryLocationId: '123 St',
           deadlineStart: null,
           deadlineEnd: null,
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'Alpha' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 1, quoteResponses: 1 },
           quoteResponses: [{ vendorId: 'v-1', status: QuoteResponseStatus.SUBMITTED }],
         },
@@ -603,12 +713,10 @@ describe('RfqsService', () => {
           deliveryLocationId: '456 Ave',
           deadlineStart: null,
           deadlineEnd: null,
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'Beta' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 1, quoteResponses: 0 },
           quoteResponses: [],
         },
@@ -630,12 +738,10 @@ describe('RfqsService', () => {
           deliveryLocationId: '789 Blvd',
           deadlineStart: null,
           deadlineEnd: null,
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'Gamma' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 1, quoteResponses: 0 },
           quoteResponses: [],
         },
@@ -657,12 +763,10 @@ describe('RfqsService', () => {
           deliveryLocationId: null,
           deadlineStart: null,
           deadlineEnd: null,
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'Delta' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 1, quoteResponses: 1 },
           quoteResponses: [{ vendorId: 'v-1', status: QuoteResponseStatus.APPROVED }],
         },
@@ -684,12 +788,10 @@ describe('RfqsService', () => {
           deliveryLocationId: '100 Main',
           deadlineStart: null,
           deadlineEnd: null,
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'Epsilon' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 1, quoteResponses: 1 },
           quoteResponses: [{ vendorId: 'v-1', status: QuoteResponseStatus.DECLINED }],
         },
@@ -711,12 +813,10 @@ describe('RfqsService', () => {
           deliveryLocationId: '200 Elm',
           deadlineStart: null,
           deadlineEnd: null,
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'Zeta' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 1, quoteResponses: 0 },
           quoteResponses: [],
         },
@@ -738,12 +838,10 @@ describe('RfqsService', () => {
           deliveryLocationId: null,
           deadlineStart: null,
           deadlineEnd: null,
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'Pickup Project' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 1, quoteResponses: 0 },
           quoteResponses: [],
         },
@@ -765,12 +863,10 @@ describe('RfqsService', () => {
           deliveryLocationId: 'Addr',
           deadlineStart: null,
           deadlineEnd: null,
-          approvalStatus: null,
           createdAt: new Date('2026-03-01'),
           project: { name: 'NoDeadline' },
           createdBy: { id: 'po-1', name: 'PO User' },
           createdByUserId: 'po-1',
-          approvedBy: null,
           _count: { lineItems: 0, quoteResponses: 0 },
           quoteResponses: [],
         },
@@ -788,6 +884,7 @@ describe('RfqsService', () => {
     it('returns RFQ with relations', async () => {
       mockPrisma.rfq.findUnique.mockResolvedValue({
         id: 'rfq-1',
+        companyId: 'comp-1',
         projectId: 'proj-1',
         status: 'Open',
         pickUpDate: null,
@@ -796,12 +893,10 @@ describe('RfqsService', () => {
         deadlineStart: null,
         deadlineEnd: null,
         totalRequestedQty: 100,
-        approvalStatus: null,
         createdAt: new Date('2026-03-01'),
         updatedAt: new Date('2026-03-01'),
         project: { name: 'Alpha' },
         createdBy: { id: 'po-1', name: 'PO User' },
-        approvedBy: null,
         lineItems: [
           {
             id: 'li-1',
@@ -852,12 +947,10 @@ describe('RfqsService', () => {
         deadlineStart: null,
         deadlineEnd: null,
         totalRequestedQty: 50,
-        approvalStatus: null,
         createdAt: new Date('2026-03-01'),
         updatedAt: new Date('2026-03-01'),
         project: { name: 'VendorProj' },
         createdBy: { id: 'po-1', name: 'PO User' },
-        approvedBy: null,
         lineItems: [],
         quoteResponses: [
           {
@@ -894,12 +987,10 @@ describe('RfqsService', () => {
         deadlineStart: null,
         deadlineEnd: null,
         totalRequestedQty: 50,
-        approvalStatus: null,
         createdAt: new Date('2026-03-01'),
         updatedAt: new Date('2026-03-01'),
         project: { name: 'VendorProj2' },
         createdBy: { id: 'po-1', name: 'PO User' },
-        approvedBy: null,
         lineItems: [],
         quoteResponses: [
           {
@@ -936,12 +1027,10 @@ describe('RfqsService', () => {
         deadlineStart: null,
         deadlineEnd: null,
         totalRequestedQty: 50,
-        approvalStatus: null,
         createdAt: new Date('2026-03-01'),
         updatedAt: new Date('2026-03-01'),
         project: { name: 'VendorProj3' },
         createdBy: { id: 'po-1', name: 'PO User' },
-        approvedBy: null,
         lineItems: [],
         quoteResponses: [],
         documents: [],
@@ -967,6 +1056,7 @@ describe('RfqsService', () => {
     it('does not scope the quoteResponses or invitedVendors queries for buyers', async () => {
       mockPrisma.rfq.findUnique.mockResolvedValue({
         id: 'rfq-b1',
+        companyId: 'comp-1',
         projectId: 'proj-1',
         status: RfqStatus.OPEN,
         pickUpDate: null,
@@ -975,12 +1065,10 @@ describe('RfqsService', () => {
         deadlineStart: null,
         deadlineEnd: null,
         totalRequestedQty: 50,
-        approvalStatus: null,
         createdAt: new Date('2026-03-01'),
         updatedAt: new Date('2026-03-01'),
         project: { name: 'BuyerProj' },
         createdBy: { id: 'po-1', name: 'PO User' },
-        approvedBy: null,
         lineItems: [],
         quoteResponses: [],
         documents: [],
@@ -996,6 +1084,7 @@ describe('RfqsService', () => {
     it('maps documents correctly', async () => {
       mockPrisma.rfq.findUnique.mockResolvedValue({
         id: 'rfq-doc',
+        companyId: 'comp-1',
         projectId: 'proj-1',
         status: RfqStatus.OPEN,
         pickUpDate: null,
@@ -1004,12 +1093,10 @@ describe('RfqsService', () => {
         deadlineStart: new Date('2026-04-01'),
         deadlineEnd: new Date('2026-04-15'),
         totalRequestedQty: 50,
-        approvalStatus: 'APPROVED',
         createdAt: new Date('2026-03-01'),
         updatedAt: new Date('2026-03-02'),
         project: { name: 'DocProject' },
         createdBy: { id: 'po-1', name: 'PO User' },
-        approvedBy: { id: 'ca-1', name: 'CA User' },
         lineItems: [],
         quoteResponses: [],
         documents: [
@@ -1029,7 +1116,97 @@ describe('RfqsService', () => {
       expect(result.documents).toHaveLength(1);
       expect(result.documents[0].name).toBe('spec.pdf');
       expect(result.documents[0].uploadedBy?.name).toBe('PO User');
-      expect(result.approvedBy).toEqual({ id: 'ca-1', name: 'CA User' });
+    });
+  });
+
+  // ── getRfq – project-based visibility (FOR-351) ──────────────────────────
+
+  describe('getRfq – project-based visibility (FOR-351)', () => {
+    /** Minimal buyer-shaped detail fixture; access checks run before mapping. */
+    const detailRfq = (overrides: Record<string, unknown> = {}) => ({
+      id: 'rfq-vis',
+      companyId: 'comp-1',
+      projectId: 'proj-1',
+      status: RfqStatus.OPEN,
+      pickUpDate: null,
+      deliveryLocationId: null,
+      pickUpLocation: null,
+      deadlineStart: null,
+      deadlineEnd: null,
+      totalRequestedQty: 0,
+      createdAt: new Date('2026-03-01'),
+      updatedAt: new Date('2026-03-01'),
+      project: { name: 'VisProj' },
+      createdBy: { id: 'other-user', name: 'Other' },
+      createdByUserId: 'other-user',
+      lineItems: [],
+      quoteResponses: [],
+      documents: [],
+      ...overrides,
+    });
+
+    it('403s an officer who is neither a member of a spanned project nor the creator', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue(detailRfq());
+      mockPrisma.projectMember.findFirst.mockResolvedValue(null);
+
+      await expect(service.getRfq('rfq-vis', procOfficer)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('allows an officer who is a member of any project the RFQ spans', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue(detailRfq());
+      mockPrisma.projectMember.findFirst.mockResolvedValue({ id: 'pm-1' });
+
+      const result = await service.getRfq('rfq-vis', procOfficer);
+      expect(result.id).toBe('rfq-vis');
+      // The membership probe must cover the primary project AND the
+      // rfq_projects join, not just Rfq.projectId.
+      expect(mockPrisma.projectMember.findFirst).toHaveBeenCalledWith({
+        where: {
+          userId: 'po-1',
+          project: {
+            OR: [
+              { rfqs: { some: { id: 'rfq-vis' } } },
+              { rfqProjects: { some: { rfqId: 'rfq-vis' } } },
+            ],
+          },
+        },
+        select: { id: true },
+      });
+    });
+
+    it('allows the creator without project membership', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue(detailRfq({ createdByUserId: 'po-1' }));
+      mockPrisma.projectMember.findFirst.mockResolvedValue(null);
+
+      const result = await service.getRfq('rfq-vis', procOfficer);
+      expect(result.id).toBe('rfq-vis');
+      expect(mockPrisma.projectMember.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('does not project-scope a CompanyAdmin of the same company', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue(detailRfq());
+      mockPrisma.projectMember.findFirst.mockResolvedValue(null);
+
+      const result = await service.getRfq('rfq-vis', companyAdmin);
+      expect(result.id).toBe('rfq-vis');
+      expect(mockPrisma.projectMember.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('403s a buyer from another company', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue(detailRfq());
+
+      await expect(service.getRfq('rfq-vis', otherCompanyUser)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('403s a vendor who was not invited', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue(detailRfq());
+      mockPrisma.rfqVendor.findFirst.mockResolvedValue(null);
+
+      await expect(service.getRfq('rfq-vis', vendor)).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.rfqVendor.findFirst).toHaveBeenCalledWith({
+        where: { rfqId: 'rfq-vis', vendor: { users: { some: { id: 'v-1' } } } },
+        select: { id: true },
+      });
     });
   });
 
@@ -1393,6 +1570,15 @@ describe('RfqsService', () => {
       expect(mockPrisma.quoteAudit.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ action: 'APPROVED', quoteResponseId: 'quote-1' }),
       });
+      // FOR-353: the awarded PO starts its activity trail at creation.
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PO_CREATED',
+          targetType: 'PurchaseOrder',
+          targetId: 'po-1',
+          metadata: { source: 'RFQ_AWARD', rfqId: 'rfq-1' },
+        }),
+      );
     });
 
     it('leaves the created PO as a DRAFT for the contractor to review + issue (no auto-send)', async () => {
@@ -2360,7 +2546,6 @@ describe('RfqsService', () => {
         projectId: 'proj-1',
         project: { name: 'TestProj' },
         createdBy: { id: 'po-1', name: 'PO User' },
-        approvedBy: null,
         lineItems: [],
         quoteResponses: [],
         invitedVendors: [],
@@ -2377,7 +2562,6 @@ describe('RfqsService', () => {
         totalRequestedQty: 15,
         pickUpLocation: null,
         pickUpDate: null,
-        approvalStatus: null,
       });
     }
 
@@ -2535,7 +2719,6 @@ describe('RfqsService', () => {
         projectId: 'proj-1',
         project: { name: 'TestProj' },
         createdBy: { id: 'po-1', name: 'PO User' },
-        approvedBy: null,
         lineItems: [],
         quoteResponses: [],
         invitedVendors: [],
@@ -2552,7 +2735,6 @@ describe('RfqsService', () => {
         totalRequestedQty: 0,
         pickUpLocation: null,
         pickUpDate: null,
-        approvalStatus: null,
       });
     }
 
@@ -2744,7 +2926,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -2761,7 +2942,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.$transaction.mockResolvedValue([]);
 
@@ -2927,7 +3107,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -2944,7 +3123,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.rfq.update.mockResolvedValue({});
       mockPrisma.rfqVendor.update.mockResolvedValue({});
@@ -3019,7 +3197,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -3036,7 +3213,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.rfq.update.mockResolvedValue({});
       mockPrisma.rfqVendor.findUnique.mockResolvedValue(null);
@@ -3085,7 +3261,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -3102,7 +3277,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.rfq.update.mockResolvedValue({});
       mockPrisma.rfqVendor.update.mockResolvedValue({});
@@ -3155,7 +3329,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -3172,7 +3345,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.rfq.update.mockResolvedValue({});
       mockPrisma.rfqVendor.update.mockResolvedValue({});
@@ -3217,7 +3389,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -3234,7 +3405,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.rfq.update.mockResolvedValue({});
 
@@ -3269,7 +3439,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -3286,7 +3455,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.rfq.update.mockResolvedValue({});
 
@@ -3342,7 +3510,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -3359,7 +3526,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.rfq.update.mockResolvedValue({});
       mockPrisma.rfqVendor.update.mockResolvedValue({});
@@ -3425,7 +3591,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -3442,7 +3607,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.rfq.update.mockResolvedValue({});
       mockPrisma.rfqVendor.update.mockResolvedValue({});
@@ -3511,7 +3675,6 @@ describe('RfqsService', () => {
           projectId: 'proj-1',
           project: { name: 'Proj' },
           createdBy: { id: 'po-1', name: 'PO' },
-          approvedBy: null,
           lineItems: [],
           quoteResponses: [],
           invitedVendors: [],
@@ -3528,7 +3691,6 @@ describe('RfqsService', () => {
           totalRequestedQty: 0,
           pickUpLocation: null,
           pickUpDate: null,
-          approvalStatus: null,
         });
       mockPrisma.rfq.update.mockResolvedValue({});
       mockPrisma.rfqVendor.update.mockResolvedValue({});
@@ -3551,6 +3713,188 @@ describe('RfqsService', () => {
           attachments: [{ filename: 'ok.pdf', content: okPdf, contentType: 'application/pdf' }],
           log: expect.objectContaining({ rfqId: 'rfq-1' }),
         }),
+      );
+    });
+
+    it('notifies ACTIVE members of every spanned project in-app, excluding the sender (FOR-351)', async () => {
+      mockPrisma.rfq.findUnique
+        .mockResolvedValueOnce({
+          id: 'rfq-1',
+          status: 'DRAFT',
+          companyId: 'comp-1',
+          _count: { lineItems: 2, invitedVendors: 1 },
+        })
+        // generateInvitationTokensAndNotify — the sender (po-1) is a member of
+        // the primary project; a second member is INACTIVE; the spanned project
+        // adds one more ACTIVE member.
+        .mockResolvedValueOnce({
+          rfqNumber: 'RFQ-1',
+          createdByUserId: 'someone-else',
+          ccEmails: [],
+          documents: [],
+          project: {
+            name: 'Proj',
+            members: [
+              { user: { id: 'po-1', email: 'po@test.com', status: 'ACTIVE' } },
+              { user: { id: 'member-2', email: 'm2@acme.com', status: 'ACTIVE' } },
+              { user: { id: 'member-3', email: 'm3@acme.com', status: 'INACTIVE' } },
+            ],
+          },
+          projects: [
+            {
+              project: {
+                members: [{ user: { id: 'member-4', email: 'm4@acme.com', status: 'ACTIVE' } }],
+              },
+            },
+          ],
+          invitedVendors: [
+            {
+              id: 'iv-1',
+              vendor: { id: 'v-1', users: [{ email: 'active@vendor.com', status: 'ACTIVE' }] },
+            },
+          ],
+        })
+        // getRfq
+        .mockResolvedValueOnce({
+          id: 'rfq-1',
+          rfqNumber: 'RFQ-1',
+          status: 'OPEN',
+          currency: 'AUD',
+          companyId: 'comp-1',
+          projectId: 'proj-1',
+          project: { name: 'Proj' },
+          createdBy: { id: 'po-1', name: 'PO' },
+          lineItems: [],
+          quoteResponses: [],
+          invitedVendors: [],
+          documents: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          deadlineStart: null,
+          deadlineEnd: null,
+          deliveryLocationId: null,
+          needByDate: null,
+          holdForRelease: false,
+          earliestDeliveryDate: null,
+          message: null,
+          totalRequestedQty: 0,
+          pickUpLocation: null,
+          pickUpDate: null,
+        });
+      mockPrisma.rfq.update.mockResolvedValue({});
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue(null);
+      mockEmailService.sendRfqReceivedEmail.mockResolvedValue(undefined);
+
+      await service.sendRfq('rfq-1', {}, procOfficer);
+      await new Promise((r) => setTimeout(r, 50));
+
+      // The sender (po-1, who triggered the send) and the INACTIVE member are
+      // excluded; members of BOTH the primary and the spanned project are in.
+      expect(mockNotifications.createForUsers).toHaveBeenCalledWith({
+        userIds: ['member-2', 'member-4'],
+        type: 'RFQ_SENT',
+        title: 'RFQ sent',
+        body: 'RFQ RFQ-1 for Proj was sent to vendors.',
+        entityType: 'RFQ',
+        entityId: 'rfq-1',
+      });
+    });
+
+    it('skips RFQ_SENT for members whose effective permissions lack rfq.read (FOR-351 follow-up)', async () => {
+      mockPrisma.rfq.findUnique
+        .mockResolvedValueOnce({
+          id: 'rfq-1',
+          status: 'DRAFT',
+          companyId: 'comp-1',
+          _count: { lineItems: 2, invitedVendors: 1 },
+        })
+        // generateInvitationTokensAndNotify — member-2 can read RFQs, the
+        // Foreman cannot and their deep link would 403.
+        .mockResolvedValueOnce({
+          rfqNumber: 'RFQ-1',
+          createdByUserId: 'someone-else',
+          ccEmails: [],
+          documents: [],
+          project: {
+            name: 'Proj',
+            members: [
+              {
+                user: {
+                  id: 'member-2',
+                  email: 'm2@acme.com',
+                  status: 'ACTIVE',
+                  role: 'PROCUREMENT_OFFICER',
+                },
+              },
+              {
+                user: {
+                  id: 'foreman-1',
+                  email: 'foreman@acme.com',
+                  status: 'ACTIVE',
+                  role: 'FOREMAN',
+                },
+              },
+            ],
+          },
+          projects: [],
+          invitedVendors: [
+            {
+              id: 'iv-1',
+              vendor: { id: 'v-1', users: [{ email: 'active@vendor.com', status: 'ACTIVE' }] },
+            },
+          ],
+        })
+        // getRfq
+        .mockResolvedValueOnce({
+          id: 'rfq-1',
+          rfqNumber: 'RFQ-1',
+          status: 'OPEN',
+          currency: 'AUD',
+          companyId: 'comp-1',
+          projectId: 'proj-1',
+          project: { name: 'Proj' },
+          createdBy: { id: 'po-1', name: 'PO' },
+          lineItems: [],
+          quoteResponses: [],
+          invitedVendors: [],
+          documents: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          deadlineStart: null,
+          deadlineEnd: null,
+          deliveryLocationId: null,
+          needByDate: null,
+          holdForRelease: false,
+          earliestDeliveryDate: null,
+          message: null,
+          totalRequestedQty: 0,
+          pickUpLocation: null,
+          pickUpDate: null,
+        });
+      mockPrisma.rfq.update.mockResolvedValue({});
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue(null);
+      mockEmailService.sendRfqReceivedEmail.mockResolvedValue(undefined);
+      mockPermissions.filterActorsWithPermission.mockImplementation((actors: { id: string }[]) =>
+        Promise.resolve(actors.filter((a) => a.id !== 'foreman-1')),
+      );
+
+      await service.sendRfq('rfq-1', {}, procOfficer);
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockPermissions.filterActorsWithPermission).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ id: 'foreman-1' })]),
+        'rfq.read',
+      );
+      // The Foreman still lands on the email CC (FOR-255 keeps the full member
+      // list) but not in the in-app feed, whose deep link they cannot open.
+      expect(mockEmailService.sendRfqReceivedEmail).toHaveBeenCalledWith(
+        'active@vendor.com',
+        'RFQ-1',
+        expect.any(String),
+        expect.objectContaining({ cc: ['m2@acme.com', 'foreman@acme.com'] }),
+      );
+      expect(mockNotifications.createForUsers).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'RFQ_SENT', userIds: ['member-2'] }),
       );
     });
   });
@@ -3606,6 +3950,7 @@ describe('RfqsService', () => {
     it('maps invitedVendors with specialisations and contacts', async () => {
       mockPrisma.rfq.findUnique.mockResolvedValue({
         id: 'rfq-iv',
+        companyId: 'comp-1',
         projectId: 'proj-1',
         status: RfqStatus.OPEN,
         pickUpDate: null,
@@ -3614,12 +3959,10 @@ describe('RfqsService', () => {
         deadlineStart: null,
         deadlineEnd: null,
         totalRequestedQty: 50,
-        approvalStatus: null,
         createdAt: new Date('2026-03-01'),
         updatedAt: new Date('2026-03-01'),
         project: { name: 'Alpha' },
         createdBy: { id: 'po-1', name: 'PO User' },
-        approvedBy: null,
         lineItems: [],
         quoteResponses: [
           {
@@ -3722,7 +4065,6 @@ describe('RfqsService', () => {
       projectId: 'proj-1',
       project: { name: 'Proj' },
       createdBy: { id: 'po-1', name: 'PO' },
-      approvedBy: null,
       lineItems: [],
       quoteResponses: [],
       invitedVendors: [],
@@ -3739,7 +4081,6 @@ describe('RfqsService', () => {
       totalRequestedQty: 0,
       pickUpLocation: null,
       pickUpDate: null,
-      approvalStatus: null,
     };
 
     it('updates deliveryLocationId, needByDate, earliestDeliveryDate', async () => {
@@ -3835,10 +4176,11 @@ describe('RfqsService', () => {
       mockPrisma.rfq.findUnique.mockResolvedValue({
         rfqNumber: 'RFQ-100',
         companyId: 'comp-1',
+        createdBy: { id: 'ca-1', email: 'ca@test.com', status: 'ACTIVE' },
       });
       mockPrisma.user.findMany.mockResolvedValue([
-        { email: 'ca@test.com' },
-        { email: 'po@test.com' },
+        { id: 'ca-1', email: 'ca@test.com' },
+        { id: 'po-1', email: 'po@test.com' },
       ]);
       mockEmailService.sendQuoteUpdatedEmail.mockResolvedValue(undefined);
 
@@ -3859,6 +4201,7 @@ describe('RfqsService', () => {
       mockPrisma.rfq.findUnique.mockResolvedValue({
         rfqNumber: null,
         companyId: 'comp-1',
+        createdBy: { email: 'ca@test.com', status: 'ACTIVE' },
       });
       mockPrisma.user.findMany.mockResolvedValue([{ email: 'ca@test.com' }]);
       mockEmailService.sendQuoteUpdatedEmail.mockResolvedValue(undefined);
@@ -3879,6 +4222,7 @@ describe('RfqsService', () => {
       mockPrisma.rfq.findUnique.mockResolvedValue({
         rfqNumber: 'RFQ-1',
         companyId: 'comp-1',
+        createdBy: { email: 'ca@test.com', status: 'ACTIVE' },
       });
       mockPrisma.user.findMany.mockResolvedValue([{ email: 'ca@test.com' }]);
       mockEmailService.sendQuoteUpdatedEmail.mockRejectedValue(new Error('smtp'));
@@ -3890,7 +4234,11 @@ describe('RfqsService', () => {
 
     it('forwards the issuing company brand on the quote-updated email (FOR-288)', async () => {
       const brand = { name: 'TestCo', logoUrl: 'https://cdn.test/testco.png' };
-      mockPrisma.rfq.findUnique.mockResolvedValue({ rfqNumber: 'RFQ-100', companyId: 'comp-1' });
+      mockPrisma.rfq.findUnique.mockResolvedValue({
+        rfqNumber: 'RFQ-100',
+        companyId: 'comp-1',
+        createdBy: { email: 'ca@test.com', status: 'ACTIVE' },
+      });
       mockPrisma.user.findMany.mockResolvedValue([{ email: 'ca@test.com' }]);
       mockBranding.getEmailBrand.mockResolvedValue(brand);
       mockEmailService.sendQuoteUpdatedEmail.mockResolvedValue(undefined);
@@ -3914,8 +4262,12 @@ describe('RfqsService', () => {
 
   describe('notifyContractorOfQuoteSubmission', () => {
     it('emails contractor users with the RFQ number and no brand by default', async () => {
-      mockPrisma.rfq.findUnique.mockResolvedValue({ rfqNumber: 'RFQ-200', companyId: 'comp-1' });
-      mockPrisma.user.findMany.mockResolvedValue([{ email: 'ca@test.com' }]);
+      mockPrisma.rfq.findUnique.mockResolvedValue({
+        rfqNumber: 'RFQ-200',
+        companyId: 'comp-1',
+        createdBy: { id: 'ca-1', email: 'ca@test.com', status: 'ACTIVE' },
+      });
+      mockPrisma.user.findMany.mockResolvedValue([{ id: 'ca-1', email: 'ca@test.com' }]);
       mockEmailService.sendQuoteSubmittedEmail.mockResolvedValue(undefined);
 
       await service.notifyContractorOfQuoteSubmission('rfq-1', 'VendorCo');
@@ -3932,8 +4284,12 @@ describe('RfqsService', () => {
 
     it('forwards the issuing company brand on the quote-submitted email (FOR-288)', async () => {
       const brand = { name: 'TestCo', logoUrl: 'https://cdn.test/testco.png' };
-      mockPrisma.rfq.findUnique.mockResolvedValue({ rfqNumber: 'RFQ-200', companyId: 'comp-1' });
-      mockPrisma.user.findMany.mockResolvedValue([{ email: 'ca@test.com' }]);
+      mockPrisma.rfq.findUnique.mockResolvedValue({
+        rfqNumber: 'RFQ-200',
+        companyId: 'comp-1',
+        createdBy: { id: 'ca-1', email: 'ca@test.com', status: 'ACTIVE' },
+      });
+      mockPrisma.user.findMany.mockResolvedValue([{ id: 'ca-1', email: 'ca@test.com' }]);
       mockBranding.getEmailBrand.mockResolvedValue(brand);
       mockEmailService.sendQuoteSubmittedEmail.mockResolvedValue(undefined);
 
@@ -3956,6 +4312,75 @@ describe('RfqsService', () => {
       await service.notifyContractorOfQuoteSubmission('missing', 'VendorCo');
 
       expect(mockEmailService.sendQuoteSubmittedEmail).not.toHaveBeenCalled();
+    });
+
+    it('notifies Company Admins, project members and the creator — not company-wide officers (FOR-351)', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue({
+        rfqNumber: 'RFQ-300',
+        companyId: 'comp-1',
+        createdBy: { id: 'creator-1', email: 'creator@acme.com', status: 'ACTIVE' },
+        project: { members: [{ user: { id: 'member-1', email: 'member@acme.com' } }] },
+        projects: [
+          { project: { members: [{ user: { id: 'spanned-1', email: 'spanned@acme.com' } }] } },
+        ],
+      });
+      mockPrisma.user.findMany.mockResolvedValue([{ id: 'admin-1', email: 'admin@acme.com' }]);
+      mockEmailService.sendQuoteSubmittedEmail.mockResolvedValue(undefined);
+
+      await service.notifyContractorOfQuoteSubmission('rfq-1', 'VendorCo');
+
+      // The admin pool is queried for COMPANY_ADMIN only — Procurement Officers
+      // no longer hear about quotes on projects they aren't members of.
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith({
+        where: { companyId: 'comp-1', role: UserRole.COMPANY_ADMIN, status: 'ACTIVE' },
+        select: { id: true, email: true, status: true, role: true, customRoleId: true },
+      });
+      const recipients = mockEmailService.sendQuoteSubmittedEmail.mock.calls.map((c) => c[0]);
+      expect(recipients.sort()).toEqual([
+        'admin@acme.com',
+        'creator@acme.com',
+        'member@acme.com',
+        'spanned@acme.com',
+      ]);
+      expect(mockNotifications.createForEmails).toHaveBeenCalledWith(
+        expect.arrayContaining(['admin@acme.com', 'member@acme.com', 'spanned@acme.com']),
+        expect.objectContaining({ type: 'QUOTE_SUBMITTED' }),
+      );
+    });
+
+    it('drops watchers whose effective permissions lack rfq.read (FOR-351 follow-up)', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue({
+        rfqNumber: 'RFQ-300',
+        companyId: 'comp-1',
+        createdBy: { id: 'creator-1', email: 'creator@acme.com', status: 'ACTIVE' },
+        project: {
+          members: [
+            { user: { id: 'member-1', email: 'member@acme.com', role: 'PROCUREMENT_OFFICER' } },
+            { user: { id: 'foreman-1', email: 'foreman@acme.com', role: 'FOREMAN' } },
+          ],
+        },
+        projects: [],
+      });
+      mockPrisma.user.findMany.mockResolvedValue([{ id: 'admin-1', email: 'admin@acme.com' }]);
+      mockEmailService.sendQuoteSubmittedEmail.mockResolvedValue(undefined);
+      // The Foreman cannot open the RFQ (no rfq.read) — the permission filter
+      // removes them from the watcher pool.
+      mockPermissions.filterActorsWithPermission.mockImplementation((actors: { id: string }[]) =>
+        Promise.resolve(actors.filter((a) => a.id !== 'foreman-1')),
+      );
+
+      await service.notifyContractorOfQuoteSubmission('rfq-1', 'VendorCo');
+
+      expect(mockPermissions.filterActorsWithPermission).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ id: 'foreman-1' })]),
+        'rfq.read',
+      );
+      const recipients = mockEmailService.sendQuoteSubmittedEmail.mock.calls.map((c) => c[0]);
+      expect(recipients.sort()).toEqual(['admin@acme.com', 'creator@acme.com', 'member@acme.com']);
+      expect(mockNotifications.createForEmails).toHaveBeenCalledWith(
+        ['admin@acme.com', 'member@acme.com', 'creator@acme.com'],
+        expect.objectContaining({ type: 'QUOTE_SUBMITTED' }),
+      );
     });
   });
 });

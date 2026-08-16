@@ -153,6 +153,41 @@
     "body": "Purchase order {{poNumber}} for {{amount}} is awaiting internal approval before it can be sent to the vendor. Please review and approve or decline it.",
     "buttonLabel": "Review Order"
   },
+  "poApprovalUnroutable": {
+    "subject": "Forethread — No One Can Approve Purchase Order {{poNumber}}",
+    "greeting": "Hi,",
+    "heading": "A purchase order is awaiting approval, but no one is able to approve it.",
+    "body": "Purchase order {{poNumber}} for {{amount}} is waiting for internal approval, but no active user in your company has an approval limit that covers this amount. It cannot move forward until you either raise an approval limit under Roles & permissions, or the order is reduced below an existing limit.",
+    "buttonLabel": "Review Order"
+  },
+  "invoicePendingApproval": {
+    "subject": "Forethread — Invoice {{invoiceReference}} Awaiting Your Approval",
+    "greeting": "Hi,",
+    "heading": "An invoice is awaiting your approval.",
+    "body": "Invoice {{invoiceReference}} for {{amount}} is above the reviewer's approval limit and needs a higher-tier approver. Please review and approve or reject it.",
+    "buttonLabel": "Review Invoice"
+  },
+  "invoiceApprovalUnroutable": {
+    "subject": "Forethread — No One Can Approve Invoice {{invoiceReference}}",
+    "greeting": "Hi,",
+    "heading": "An invoice is awaiting approval, but no one is able to approve it.",
+    "body": "Invoice {{invoiceReference}} for {{amount}} is waiting for approval, but no active user in your company has an approval limit that covers this amount. It cannot move forward until you either raise an approval limit under Roles & permissions, or the invoice amount is corrected.",
+    "buttonLabel": "Review Invoice"
+  },
+  "materialRequestPendingApproval": {
+    "subject": "Forethread — Material Request Needs Your Approval ({{mrNumber}})",
+    "greeting": "Hi,",
+    "heading": "A material request needs your approval.",
+    "body": "Material request {{mrNumber}} for {{projectName}} has been submitted and is awaiting approval before procurement can proceed. Please review and approve or decline it.",
+    "buttonLabel": "Review Request"
+  },
+  "materialRequestApprovalUnroutable": {
+    "subject": "Forethread — No One Can Approve Material Request {{mrNumber}}",
+    "greeting": "Hi,",
+    "heading": "A material request is awaiting approval, but no one is able to approve it.",
+    "body": "Material request {{mrNumber}} for {{projectName}} has been submitted, but no active user in your company is eligible to approve it — a requester can never approve their own request. It cannot move forward until the approval permission is granted to another user under Roles & permissions.",
+    "buttonLabel": "Review Request"
+  },
   "invitationExpiredNotification": {
     "subject": "Forethread — Invitation Link Expired for {{invitedUserName}}",
     "greeting": "Hi {{name}},",

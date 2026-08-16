@@ -1,8 +1,8 @@
-import type { VendorListItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { notificationService, type DotAction } from '@forethread/ui-components';
 import { useCallback } from 'react';
 
+import type { VendorRowSubject } from '../components/VendorRow';
 import type { VendorGroup } from '../hooks/useGroupedVendors';
 import {
   useResendVendorInvitation,
@@ -114,7 +114,10 @@ export function useVendorActions(options?: UseVendorActionsOptions) {
   );
 
   const getVendorRowActions = useCallback(
-    (vendor: VendorListItem): DotAction[] => {
+    // Accepts a rep's tri-state status: an INACTIVE rep falls through to no
+    // invite actions, which is correct — a deactivated rep is never invited
+    // (ADR-0016).
+    (vendor: VendorRowSubject): DotAction[] => {
       if (vendor.status === 'INVITED' && vendor.userId) {
         return [
           {

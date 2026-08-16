@@ -2,10 +2,13 @@ import { exportPurchaseOrders } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
   usePurchaseOrder,
+  usePoActionLog,
   PoDetailTabs,
   PoDetailsTab,
   PoLineItemsTab,
   PoDocumentsTab,
+  PoMessagesTab,
+  PoActionLogTab,
 } from '@forethread/po-shared';
 import type { PoTab } from '@forethread/po-shared';
 import { Badge, cn, getStatusColor, PO_STATUS_COLORS, Spinner } from '@forethread/ui-components';
@@ -16,6 +19,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { useAuthStore } from '@/features/auth/state/auth.store';
 
 import { PoSendButton } from './PoSendButton';
 
@@ -24,11 +28,15 @@ interface PoDetailPanelProps {
   onClose: () => void;
 }
 
+const PANEL_TABS: PoTab[] = ['details', 'lineItems', 'messages', 'documents', 'actionLog'];
+
 export function PoDetailPanel({ poId, onClose }: PoDetailPanelProps) {
   const { t } = useTranslation('purchaseOrders');
   const navigate = useNavigate();
+  const currentUser = useAuthStore((s) => s.currentUser);
   const { data: po, isLoading, isError } = usePurchaseOrder(poId);
   const [activeTab, setActiveTab] = useState<PoTab>('details');
+  const { logs: actionLogs, isLoading: isLoadingLog } = usePoActionLog(po?.id ?? poId);
 
   const handleFullscreen = () => {
     onClose();
@@ -107,7 +115,12 @@ export function PoDetailPanel({ poId, onClose }: PoDetailPanelProps) {
 
           {/* Tabs + scrollable content */}
           <div className="flex flex-col gap-2 flex-1 min-h-0">
-            <PoDetailTabs activeTab={activeTab} onTabChange={setActiveTab} />
+            <PoDetailTabs
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              tabs={PANEL_TABS}
+              compact
+            />
 
             <div className="flex-1 overflow-y-auto">
               {activeTab === 'details' && <PoDetailsTab po={po} layout="panel" />}
@@ -116,6 +129,18 @@ export function PoDetailPanel({ poId, onClose }: PoDetailPanelProps) {
               )}
               {activeTab === 'documents' && (
                 <PoDocumentsTab poId={po.id} documents={po.documents ?? []} hideUpload />
+              )}
+              {activeTab === 'messages' && (
+                <PoMessagesTab
+                  poId={po.id}
+                  poStatus={po.status}
+                  currentUserId={currentUser?.id}
+                  creatorUserId={po.createdBy.id}
+                  height="h-[340px]"
+                />
+              )}
+              {activeTab === 'actionLog' && (
+                <PoActionLogTab logs={actionLogs} isLoading={isLoadingLog} />
               )}
             </div>
           </div>

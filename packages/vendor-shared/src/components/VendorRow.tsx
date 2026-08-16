@@ -1,4 +1,4 @@
-import type { VendorListItem } from '@forethread/api-client';
+import type { VendorListItem, VendorRepresentativeStatus } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { cn, Badge, DotActionsMenu, type DotAction } from '@forethread/ui-components';
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
@@ -6,8 +6,18 @@ import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react
 
 import { STATUS_COLORS, DATE_FORMAT_OPTIONS } from '../constants';
 
+/**
+ * What a vendor row renders: either a vendor company or one of its reps (the
+ * caller spreads a rep over the company). A company is only ever ACTIVE or
+ * INVITED, but a rep can also be INACTIVE — deactivated reps must show as such
+ * rather than being mislabelled "Invited" (CONTEXT.md → Sales Rep).
+ */
+export type VendorRowSubject = Omit<VendorListItem, 'status'> & {
+  status: VendorRepresentativeStatus;
+};
+
 interface VendorRowProps {
-  vendor: VendorListItem;
+  vendor: VendorRowSubject;
   actions: DotAction[];
   onView?: () => void;
   onEdit?: (userId: string) => void;

@@ -21,6 +21,7 @@ import { RequirePermissions } from '../../common/permissions';
 import {
   CreateDeliveryReportDto,
   ListDeliveryReportQueryDto,
+  ListExpectedDeliveryQueryDto,
   RejectDeliveryReportDto,
 } from './deliveries.dto';
 import { DeliveriesService } from './deliveries.service';
@@ -55,6 +56,22 @@ export class DeliveriesController {
   @ApiResponse({ status: 400, description: 'PO not deliverable or invalid lines' })
   async create(@Body() dto: CreateDeliveryReportDto, @CurrentUser() user: AuthenticatedUser) {
     return this.deliveriesService.create(user, dto);
+  }
+
+  // ── GET /v1/delivery-reports/expected ───────────────────────────────────────
+  // NOTE: declared before GET :id so "expected" is not swallowed as an id.
+
+  @Get('expected')
+  @RequirePermissions('delivery.list')
+  @ApiOperation({
+    summary: 'List expected deliveries: POs in a deliverable status, with overdue flags (FOR-356)',
+  })
+  @ApiResponse({ status: 200, description: 'Paginated list of expected deliveries' })
+  async listExpected(
+    @Query() query: ListExpectedDeliveryQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.deliveriesService.listExpected(user, query);
   }
 
   // ── GET /v1/delivery-reports/:id ────────────────────────────────────────────

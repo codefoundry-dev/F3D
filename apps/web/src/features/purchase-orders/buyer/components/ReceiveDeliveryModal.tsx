@@ -65,8 +65,8 @@ export function ReceiveDeliveryModal({ po, onClose, onReceived }: ReceiveDeliver
         lines: rows.map((r) => ({ lineItemId: r.id, quantityDelivered: Number(r.value) })),
       }),
     onSuccess: () => {
+      // Also covers the action-log timeline (['purchase-orders', poId, 'action-log']).
       void queryClient.invalidateQueries({ queryKey: ['purchase-orders', po.id] });
-      void queryClient.invalidateQueries({ queryKey: ['po-action-log', po.id] });
       onReceived?.();
       onClose();
     },

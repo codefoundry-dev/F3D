@@ -32,6 +32,7 @@ import type {
   UpdateQuoteDto,
   UpdateQuoteLineItemStatusDto,
 } from './quote-response.dto';
+import { RfqVisibilityService } from './rfq-visibility.service';
 
 /** Statuses that block vendor quote submission / update */
 const CLOSED_STATUSES: RfqStatus[] = [RfqStatus.CLOSED, RfqStatus.CANCELLED];
@@ -59,6 +60,7 @@ export class QuoteResponseService {
     private readonly accessTokens: AccessTokensService,
     private readonly storageService: StorageService,
     private readonly docIntelligence: DocIntelligenceService,
+    private readonly rfqVisibility: RfqVisibilityService,
   ) {}
 
   /** Standard relation graph returned by every quote create/update path. */
@@ -449,7 +451,7 @@ export class QuoteResponseService {
           include: { file: { select: { id: true, filename: true, mimeType: true, size: true } } },
         },
         vendor: { select: { id: true, legalName: true } },
-        rfq: { select: { id: true, companyId: true, rfqNumber: true } },
+        rfq: { select: { id: true, companyId: true, rfqNumber: true, createdByUserId: true } },
         warehouseLocation: true,
       },
     });
@@ -458,14 +460,15 @@ export class QuoteResponseService {
       throw new NotFoundException(ERR.rfqs.quoteNotFound);
     }
 
-    // Access control: vendor who submitted OR contractor of the RFQ's company
-    const isVendorOwner = user.role === UserRole.VENDOR && quote.vendorId === user.companyId;
-    const isContractor =
-      (user.role === UserRole.COMPANY_ADMIN || user.role === UserRole.PROCUREMENT_OFFICER) &&
-      quote.rfq.companyId === user.companyId;
-
-    if (!isVendorOwner && !isContractor) {
-      throw new ForbiddenException(ERR.general.accessDenied);
+    // Access control: a vendor sees only the quote they submitted themselves —
+    // an invitation to the RFQ must never expose a competitor's quote. Buyers
+    // follow project-based RFQ visibility (FOR-351).
+    if (user.role === UserRole.VENDOR) {
+      if (quote.vendorId !== user.companyId) {
+        throw new ForbiddenException(ERR.general.accessDenied);
+      }
+    } else {
+      await this.rfqVisibility.assertRfqVisible(user, quote.rfq);
     }
 
     // Convert Prisma Decimal fields to plain numbers and flatten nested objects
@@ -497,31 +500,26 @@ export class QuoteResponseService {
   // ── Quote Audit Trail (FOR-207) ───────────────────────────────────────────────
 
   /**
-   * Return the per-RFQ quote audit trail for the RFQ detail view. A contractor
-   * of the RFQ's company sees every vendor's entries; a vendor sees only their
-   * own company's. Anyone else is denied.
+   * Return the per-RFQ quote audit trail for the RFQ detail view. A buyer who
+   * can see the RFQ (project-based, FOR-351) sees every vendor's entries; an
+   * invited vendor sees only their own company's. Anyone else is denied.
    */
   async getQuoteAudit(rfqId: string, user: AuthenticatedUser) {
     const rfq = await this.prisma.rfq.findUnique({
       where: { id: rfqId },
-      select: { id: true, companyId: true },
+      select: { id: true, companyId: true, createdByUserId: true },
     });
     if (!rfq) throw new NotFoundException(ERR.rfqs.notFound);
 
-    const isContractor =
-      (user.role === UserRole.COMPANY_ADMIN || user.role === UserRole.PROCUREMENT_OFFICER) &&
-      rfq.companyId === user.companyId;
-    const isVendor = user.role === UserRole.VENDOR && !!user.companyId;
+    await this.rfqVisibility.assertRfqVisible(user, rfq);
 
-    if (!isContractor && !isVendor) {
-      throw new ForbiddenException(ERR.general.accessDenied);
-    }
+    const isVendor = user.role === UserRole.VENDOR;
 
     const audits = await this.prisma.quoteAudit.findMany({
       where: {
         rfqId,
         // Vendors are scoped to their own company's entries.
-        ...(isContractor ? {} : { vendorId: user.companyId as string }),
+        ...(isVendor ? { vendorId: user.companyId as string } : {}),
       },
       orderBy: { createdAt: 'desc' },
       include: {
@@ -571,6 +569,7 @@ export class QuoteResponseService {
       select: {
         id: true,
         companyId: true,
+        createdByUserId: true,
         currency: true,
         projectId: true,
         project: { select: { name: true } },
@@ -589,12 +588,13 @@ export class QuoteResponseService {
     });
     if (!rfq) throw new NotFoundException(ERR.rfqs.notFound);
 
-    const isContractor =
-      (user.role === UserRole.COMPANY_ADMIN || user.role === UserRole.PROCUREMENT_OFFICER) &&
-      rfq.companyId === user.companyId;
-    if (!isContractor) {
+    // Buyer-only: vendors must never see competitors' pricing, so an RFQ
+    // invitation is NOT enough here. Buyers follow project-based RFQ
+    // visibility (FOR-351).
+    if (user.role === UserRole.VENDOR) {
       throw new ForbiddenException(ERR.general.accessDenied);
     }
+    await this.rfqVisibility.assertRfqVisible(user, rfq);
 
     const quotes = await this.prisma.quoteResponse.findMany({
       where: { rfqId, status: { in: QuoteResponseService.COMPARISON_STATUSES } },

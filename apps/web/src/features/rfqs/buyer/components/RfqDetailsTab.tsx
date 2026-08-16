@@ -10,7 +10,6 @@ import {
   VendorList,
 } from '@forethread/rfq-shared';
 import { QuoteResponseStatus } from '@forethread/shared-types/client';
-import { Badge } from '@forethread/ui-components';
 import EyeClosedIcon from '@forethread/ui-components/assets/icons/eye-closed.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import { useState } from 'react';
@@ -138,20 +137,7 @@ export function RfqDetailsTab({ rfq, layout = 'panel' }: RfqDetailsTabProps) {
         <SectionTitle>{t('detailFields.metadata')}</SectionTitle>
         <div className="grid grid-cols-2 gap-x-3 gap-y-3">
           <DetailField label={t('detailFields.createdDate')} value={formatDate(rfq.createdAt)} />
-          <DetailField
-            label={t('detailFields.approvalStatus')}
-            value={
-              rfq.approvalStatus ? (
-                <Badge className="bg-muted text-muted-foreground text-xs">
-                  {t(`approvalStatus.${rfq.approvalStatus}` as never)}
-                </Badge>
-              ) : (
-                '-'
-              )
-            }
-          />
           <DetailField label={t('detailFields.createdBy')} value={rfq.createdBy.name} />
-          <DetailField label={t('detailFields.approvedBy')} value={rfq.approvedBy?.name ?? '-'} />
         </div>
         <DetailField
           label={t('detailFields.lastModifiedBy')}
@@ -267,20 +253,7 @@ function RfqDetailsTabPageLayout({ rfq }: { rfq: RfqDetail }) {
         <SectionTitle>{t('detailFields.metadata')}</SectionTitle>
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-2 mt-3">
           <DetailRow label={t('detailFields.createdDate')} value={formatDate(rfq.createdAt)} />
-          <DetailRow
-            label={t('detailFields.approvalStatus')}
-            value={
-              rfq.approvalStatus ? (
-                <Badge className="bg-muted text-muted-foreground text-xs">
-                  {t(`approvalStatus.${rfq.approvalStatus}` as never)}
-                </Badge>
-              ) : (
-                '-'
-              )
-            }
-          />
           <DetailRow label={t('detailFields.createdBy')} value={rfq.createdBy.name} />
-          <DetailRow label={t('detailFields.approvedBy')} value={rfq.approvedBy?.name ?? '-'} />
           <DetailRow
             label={t('detailFields.lastModifiedBy')}
             value={rfq.lastModifiedBy?.name ?? '-'}

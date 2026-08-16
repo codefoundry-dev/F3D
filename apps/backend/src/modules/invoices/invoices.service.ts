@@ -18,6 +18,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  ApprovalEntityType,
+  ApprovalStatus,
   CompanyType,
   DocExtractionStatus,
   DocExtractionType,
@@ -30,9 +32,11 @@ import {
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { ApprovalAuthorizationService, type ApproverPoolMember } from '../../common/permissions';
 import { invoiceReference } from '../../common/utils/invoice-reference.util';
 import { resolveVendorEmailRecipients } from '../../common/utils/vendor-recipients.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ApprovalsService } from '../approvals/approvals.service';
 import { AuditAction, AuditService } from '../audit/audit.service';
 import { BrandingService } from '../export/branding.service';
 import { NotificationService } from '../notification-feed/notification.service';
@@ -40,6 +44,17 @@ import { EmailService } from '../notifications/email.service';
 import { StorageService } from '../storage/storage.service';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
+/**
+ * Money as it reads in an invoice email. Invoices carry no currency column, so
+ * every invoice email formats in USD — matching `PaymentReminderService`, so two
+ * emails about one invoice never quote two different-looking amounts.
+ */
+function formatInvoiceAmount(amount: unknown): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
+    Number(amount ?? 0),
+  );
+}
 
 /** Reviewed text fields collapse to null when blank — '' is never stored. */
 function trimmedOrNull(value: string | null | undefined): string | null {
@@ -59,6 +74,8 @@ export class InvoicesService {
     private readonly notifications: NotificationService,
     private readonly branding: BrandingService,
     private readonly audit: AuditService,
+    private readonly approvalAuth: ApprovalAuthorizationService,
+    private readonly approvals: ApprovalsService,
     config: ConfigService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
@@ -360,6 +377,30 @@ export class InvoicesService {
       if (!po) throw new BadRequestException(ERR.invoices.reviewPoNotFound);
     }
 
+    // FOR-307: an invoice *arrives* from a vendor rather than being raised by a
+    // spender, so there is no "creator hits their threshold" moment. Review
+    // completion is the structural analogue of the PO's submit: the reviewer
+    // stands in for the creator, and their `invoice.approve` cap is what decides
+    // whether the invoice can be approved in-house or must go to the Pool.
+    //
+    // Recomputed on every review, so a corrected total re-routes rather than
+    // keeping a stale status — the review's replace-semantics apply here too.
+    const routing = await this.resolveInvoiceApprovalRouting(user, dto.totalAmount ?? null);
+    const nomineeIds = dto.nomineeIds ?? [];
+    let pool: ApproverPoolMember[] = [];
+    if (routing === ApprovalStatus.PENDING) {
+      pool = await this.approvalAuth.resolveApproverPool(
+        inv.companyId,
+        'invoice.approve',
+        dto.totalAmount ?? null,
+      );
+      // Vet nominees before the write, so a bad id is a 400 on the unchanged
+      // invoice rather than a half-applied review (FOR-309).
+      if (nomineeIds.length > 0) {
+        await this.approvals.assertNomineesInPool(inv.companyId, pool, nomineeIds);
+      }
+    }
+
     const now = new Date();
     await this.prisma.$transaction([
       this.prisma.invoice.update({
@@ -372,6 +413,11 @@ export class InvoicesService {
           issuedDate: dto.issuedDate ? new Date(dto.issuedDate) : null,
           dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
           totalAmount: dto.totalAmount ?? null,
+          approvalStatus: routing,
+          // A re-review re-opens the question, so any previous decision's actor
+          // is cleared with it — keeping it would credit an approval that no
+          // longer applies to these numbers.
+          approvedById: null,
           reviewedByUserId: user.id,
           reviewedAt: now,
           // Review moves dueDate, so the reminder ledger (US 8.09) must reset —
@@ -413,10 +459,246 @@ export class InvoicesService {
       }),
     ]);
 
+    if (routing === ApprovalStatus.PENDING) {
+      // Nominations are part of the record, so they are awaited; the fan-out is
+      // best-effort like every other notification path.
+      if (nomineeIds.length > 0) {
+        await this.approvals.recordNominationsAtSubmit(
+          ApprovalEntityType.INVOICE,
+          id,
+          inv.companyId,
+          pool,
+          nomineeIds,
+          user.id,
+        );
+      }
+      this.notifyApproversOfPendingInvoice(id, inv.companyId, pool, user.id).catch(() => {});
+    }
+
     return this.getInvoice(id, user);
   }
 
+  /**
+   * Whether a reviewed invoice needs a higher-tier approver (FOR-307).
+   *
+   * Measured against the **reviewer's** effective `invoice.approve` cap, using
+   * the same custom-role-first resolution the approve path enforces — so the
+   * routing decision and the later 403 can never disagree.
+   *
+   * `NOT_REQUIRED` does not mean "anyone may approve this": `approveInvoice`
+   * still evaluates the approver's own cap live (FOR-303). It means only that
+   * the reviewer could have approved it themselves, so nobody needed telling.
+   */
+  private async resolveInvoiceApprovalRouting(
+    user: AuthenticatedUser,
+    totalAmount: number | null,
+  ): Promise<ApprovalStatus> {
+    // SUPER_ADMIN is unlimited as break-glass, matching the PO issue path.
+    if (user.role === UserRole.SUPER_ADMIN) return ApprovalStatus.NOT_REQUIRED;
+
+    const decision = await this.approvalAuth.evaluate(user, 'invoice.approve', totalAmount);
+    return decision.outcome === 'allowed' ? ApprovalStatus.NOT_REQUIRED : ApprovalStatus.PENDING;
+  }
+
+  /**
+   * Tell the Approver Pool that a reviewed invoice is over the reviewer's cap.
+   *
+   * Mirrors `PoStatusService.notifyApproversOfPendingPo` deliberately, including
+   * the FOR-302 empty-Pool fallback: an invoice routed to nobody would sit
+   * silently forever, so Company Admins are told it cannot be approved as it
+   * stands. They are recipients, never granted authority — their own cap is
+   * untouched, and the way out is raising a limit or correcting the amount.
+   */
+  private async notifyApproversOfPendingInvoice(
+    invoiceId: string,
+    companyId: string,
+    pool: ApproverPoolMember[],
+    reviewedByUserId: string,
+  ): Promise<void> {
+    const inv = await this.prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      select: { id: true, totalAmount: true },
+    });
+    if (!inv) return;
+
+    const reference = invoiceReference(inv.id);
+    const amountLabel = formatInvoiceAmount(inv.totalAmount);
+    const viewUrl = `${this.webAppUrl}/invoices/${invoiceId}`;
+    const log = { companyId, invoiceId };
+    const brand = await this.branding.getEmailBrand(companyId);
+
+    if (pool.length === 0) {
+      const admins = await this.approvalAuth.findCompanyAdminRecipients(companyId);
+      const adminEmails = [...new Set(admins.map((a) => a.email))];
+      const title = 'Invoice has no eligible approver';
+      const body =
+        `Invoice ${reference} (${amountLabel}) is awaiting approval, but no one in ` +
+        `your company has an approval limit that covers this amount. Raise an approval ` +
+        `limit or correct the amount to move it forward.`;
+
+      await Promise.all(
+        adminEmails.map((email) =>
+          this.emailService.sendInvoiceApprovalUnroutableEmail(
+            email,
+            reference,
+            amountLabel,
+            viewUrl,
+            log,
+            brand,
+          ),
+        ),
+      );
+      await this.notifications.createForEmails(adminEmails, {
+        type: NotificationType.INVOICE_APPROVAL_UNROUTABLE,
+        title,
+        body,
+        entityType: NotificationEntityType.INVOICE,
+        entityId: invoiceId,
+      });
+
+      // The reviewer hears about it too, so completing a review is never a
+      // silent dead end. Skipped when they were already reached as an admin.
+      if (!admins.some((a) => a.id === reviewedByUserId)) {
+        await this.notifications.createForUsers({
+          userIds: [reviewedByUserId],
+          type: NotificationType.INVOICE_APPROVAL_UNROUTABLE,
+          title,
+          body,
+          entityType: NotificationEntityType.INVOICE,
+          entityId: invoiceId,
+        });
+      }
+      return;
+    }
+
+    // Nominating narrows the fan-out; nominating nobody notifies the whole Pool.
+    const targets = await this.approvals.resolveNotificationTargets(
+      ApprovalEntityType.INVOICE,
+      invoiceId,
+      pool,
+    );
+    const recipients = [...new Set(targets.map((m) => m.email))];
+
+    await Promise.all(
+      recipients.map((email) =>
+        this.emailService.sendInvoicePendingApprovalEmail(
+          email,
+          reference,
+          amountLabel,
+          viewUrl,
+          log,
+          brand,
+        ),
+      ),
+    );
+
+    await this.notifications.createForEmails(recipients, {
+      type: NotificationType.INVOICE_PENDING_APPROVAL,
+      title: 'Invoice awaiting approval',
+      body: `Invoice ${reference} (${amountLabel}) needs your approval.`,
+      entityType: NotificationEntityType.INVOICE,
+      entityId: invoiceId,
+    });
+  }
+
+  // ── Nomination (FOR-309) ──────────────────────────────────────────────────
+
+  /**
+   * Nominate further Approver Pool members on an invoice already awaiting
+   * approval, and notify exactly the people newly added. The invoice twin of
+   * `PoStatusService.nominateApprovers`: the rules live in the shared
+   * `ApprovalsService`, the email lives here with the invoice's templates.
+   */
+  async nominateApprovers(id: string, userIds: string[], user: AuthenticatedUser) {
+    const { view, notify } = await this.approvals.addNominations(
+      ApprovalEntityType.INVOICE,
+      id,
+      userIds,
+      user,
+    );
+
+    if (notify.length > 0) {
+      this.notifyNominatedInvoiceApprovers(id, notify).catch(() => {});
+    }
+
+    return view;
+  }
+
+  /**
+   * Tell newly nominated Pool members that an invoice is waiting on them.
+   * Deliberately the same INVOICE_PENDING_APPROVAL signal the review-time
+   * fan-out sends — from the nominee's side nothing is different, and a
+   * "you were nominated" type would imply the nomination granted them something.
+   */
+  private async notifyNominatedInvoiceApprovers(
+    invoiceId: string,
+    nominees: ApproverPoolMember[],
+  ): Promise<void> {
+    const inv = await this.prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      select: { id: true, companyId: true, totalAmount: true },
+    });
+    if (!inv) return;
+
+    const reference = invoiceReference(inv.id);
+    const amountLabel = formatInvoiceAmount(inv.totalAmount);
+    const viewUrl = `${this.webAppUrl}/invoices/${invoiceId}`;
+    const log = { companyId: inv.companyId, invoiceId };
+    const brand = await this.branding.getEmailBrand(inv.companyId);
+    const recipients = [...new Set(nominees.map((n) => n.email))];
+
+    await Promise.all(
+      recipients.map((email) =>
+        this.emailService.sendInvoicePendingApprovalEmail(
+          email,
+          reference,
+          amountLabel,
+          viewUrl,
+          log,
+          brand,
+        ),
+      ),
+    );
+
+    await this.notifications.createForEmails(recipients, {
+      type: NotificationType.INVOICE_PENDING_APPROVAL,
+      title: 'Invoice awaiting approval',
+      body: `Invoice ${reference} (${amountLabel}) needs your approval.`,
+      entityType: NotificationEntityType.INVOICE,
+      entityId: invoiceId,
+    });
+  }
+
   // ── Approve Invoice ────────────────────────────────────────────────────────
+
+  /**
+   * Reject the approval unless `user`'s effective `invoice.approve` grant covers
+   * `totalAmount` (FOR-303). Custom-role-first resolution and the null-cap
+   * (unlimited) rule both come from `ApprovalAuthorizationService.evaluate` —
+   * this must never reimplement them.
+   *
+   * SUPER_ADMIN is exempt, matching `PoStatusService.approvePurchaseOrder`: the
+   * role exists to break the glass on otherwise-locked workflows.
+   */
+  private async assertMayApproveAmount(
+    user: AuthenticatedUser,
+    totalAmount: Prisma.Decimal | number,
+  ): Promise<void> {
+    if (user.role === UserRole.SUPER_ADMIN) return;
+
+    const decision = await this.approvalAuth.evaluate(user, 'invoice.approve', totalAmount);
+    if (decision.outcome === 'belowThreshold') {
+      throw new ForbiddenException(
+        ERR.invoices.approvalThresholdExceeded(
+          totalAmount.toString(),
+          decision.threshold.toString(),
+        ),
+      );
+    }
+    if (decision.outcome === 'notGranted') {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
+  }
 
   async approveInvoice(id: string, dto: ApproveInvoiceDto, user: AuthenticatedUser) {
     const inv = await this.prisma.invoice.findUnique({
@@ -444,13 +726,31 @@ export class InvoicesService {
 
     // Intake-created invoices (FOR-290) stay unapprovable until review
     // (FOR-291) has filled in who it's from, what it's for, and how much.
+    // Runs BEFORE the threshold check — an unreviewed invoice has no total to
+    // test, so "not reviewed" is the accurate error.
     if (inv.vendorId === null || inv.projectId === null || inv.totalAmount === null) {
       throw new BadRequestException(ERR.invoices.notReviewed);
     }
 
+    // FOR-303: `invoice.approve` is threshold-aware and its cap is editable in
+    // the Approval configuration tab, but nothing enforced it — any holder
+    // could approve any amount. Mirrors the PO path's `evaluate` call.
+    // SUPER_ADMIN bypasses the threshold as break-glass; the approving user is
+    // still recorded for audit either way.
+    await this.assertMayApproveAmount(user, inv.totalAmount);
+
     const updated = await this.prisma.invoice.update({
       where: { id },
-      data: { status: PrismaInvoiceStatus.APPROVED },
+      data: {
+        status: PrismaInvoiceStatus.APPROVED,
+        // FOR-307: the approval axis resolves alongside the document status, and
+        // records WHO — ADR-0006's audit requirement wants a person, not just a
+        // state. Set unconditionally: an invoice approved within the reviewer's
+        // own cap was NOT_REQUIRED, and it is still true that this user approved
+        // it.
+        approvalStatus: ApprovalStatus.APPROVED,
+        approvedById: user.id,
+      },
       include: {
         project: { select: { name: true } },
         vendor: { select: { legalName: true } },
@@ -502,6 +802,9 @@ export class InvoicesService {
       data: {
         status: PrismaInvoiceStatus.REJECTED,
         rejectionReason: dto.reason ?? null,
+        // The approval question is settled by a rejection too (FOR-307).
+        approvalStatus: ApprovalStatus.REJECTED,
+        approvedById: user.id,
       },
       include: {
         project: { select: { name: true } },
@@ -634,15 +937,31 @@ export class InvoicesService {
     // Resolve the qualifying rows first so each approval lands on the audit
     // trail (FOR-294); the updateMany keeps the same guard so a row that
     // changed in between is not silently approved.
-    const qualifying = await this.prisma.invoice.findMany({ where, select: { id: true } });
+    const qualifying = await this.prisma.invoice.findMany({
+      where,
+      select: { id: true, totalAmount: true },
+    });
+
+    // FOR-303: the same `invoice.approve` cap the single-approve path enforces
+    // applies here, per invoice. The caller's effective grant is resolved once
+    // (custom-role-first, via `evaluate` with no amount, which returns the cap
+    // without comparing) and each total is then compared locally — a per-row
+    // `evaluate` would be one query per selected invoice.
+    const cap = await this.resolveBulkApprovalCap(user);
+    const withinCap = qualifying.filter((q) => cap === null || !q.totalAmount?.greaterThan(cap));
+    const skippedOverLimitCount = qualifying.length - withinCap.length;
 
     const result = await this.prisma.invoice.updateMany({
-      where,
-      data: { status: PrismaInvoiceStatus.APPROVED },
+      where: { ...where, id: { in: withinCap.map((q) => q.id) } },
+      data: {
+        status: PrismaInvoiceStatus.APPROVED,
+        approvalStatus: ApprovalStatus.APPROVED,
+        approvedById: user.id,
+      },
     });
 
     await Promise.all(
-      qualifying.map((q) =>
+      withinCap.map((q) =>
         this.auditTransition(
           AuditAction.INVOICE_APPROVED,
           q.id,
@@ -656,7 +975,24 @@ export class InvoicesService {
     return {
       approvedCount: result.count,
       requestedCount: ids.length,
+      skippedOverLimitCount,
     };
+  }
+
+  /**
+   * The caller's effective `invoice.approve` cap for a bulk run, or `null` for
+   * unlimited (FOR-303). SUPER_ADMIN is unlimited as break-glass; a caller who
+   * holds `invoice.bulkApprove` but not `invoice.approve` is refused outright
+   * rather than silently approving nothing, matching the single-approve path.
+   */
+  private async resolveBulkApprovalCap(user: AuthenticatedUser): Promise<Prisma.Decimal | null> {
+    if (user.role === UserRole.SUPER_ADMIN) return null;
+
+    const decision = await this.approvalAuth.evaluate(user, 'invoice.approve', null);
+    if (decision.outcome === 'notGranted') {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
+    return decision.threshold;
   }
 
   // ── Invoice audit trail (FOR-294) ─────────────────────────────────────────

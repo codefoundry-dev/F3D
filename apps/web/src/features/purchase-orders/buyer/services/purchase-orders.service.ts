@@ -82,9 +82,14 @@ export function useIssuePurchaseOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => issuePurchaseOrder(id),
-    onSuccess: () => {
+    // `nomineeIds` is the optional approver nomination (FOR-306); it only ever
+    // applies when the backend routes the PO for approval.
+    mutationFn: ({ id, nomineeIds }: { id: string; nomineeIds?: string[] }) =>
+      issuePurchaseOrder(id, nomineeIds?.length ? { nomineeIds } : undefined),
+    onSuccess: (_data, { id }) => {
       void queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+      // The PO may now be PENDING_APPROVAL with a fresh Pool + nominees.
+      void queryClient.invalidateQueries({ queryKey: ['approver-pool', 'PURCHASE_ORDER', id] });
     },
   });
 }

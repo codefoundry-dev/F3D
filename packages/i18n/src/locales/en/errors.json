@@ -139,10 +139,18 @@
     "cannotReject": "Cannot reject invoice with status \"{{status}}\". Only Pending invoices can be rejected.",
     "noIdsProvided": "No invoice IDs provided",
     "notReviewed": "This invoice hasn't been reviewed yet. Set the vendor, project, and amount before approving.",
+    "approvalThresholdExceeded": "Invoice total {{amount}} exceeds your approval threshold of {{threshold}}. A higher-tier approver must approve this invoice.",
     "cannotReview": "Cannot review invoice with status \"{{status}}\". Only Pending invoices can be reviewed.",
     "reviewVendorNotFound": "The selected vendor was not found",
     "reviewProjectNotFound": "The selected project was not found",
     "reviewPoNotFound": "The selected purchase order was not found"
+  },
+  "approvals": {
+    "notNominator": "Only the person who submitted this document for approval can choose who to notify.",
+    "notPending": "This document is not awaiting approval, so approvers can no longer be notified.",
+    "nomineeNotInPool": "{{name}} can't approve this amount, so they can't be asked to. Choosing people only narrows who is notified — it never grants approval authority.",
+    "nomineeUnknown": "One of the selected people is not in this document's approver pool.",
+    "nominationNotFound": "That nomination no longer exists."
   },
   "storage": {
     "noFileProvided": "No file provided",
@@ -179,7 +187,9 @@
     "cannotUpdateNonDraft": "Only Draft material requests can be edited",
     "cannotCancel": "Cannot cancel material request with status \"{{status}}\"",
     "cannotConvertNotApproved": "Only an approved material request can be converted",
-    "vendorRequired": "A vendor is required to convert a material request into a purchase order"
+    "vendorRequired": "A vendor is required to convert a material request into a purchase order",
+    "nomineesRequireSubmit": "Approvers can only be nominated when submitting the material request",
+    "cannotReviewOwn": "You cannot approve or decline your own material request"
   },
   "vendors": {
     "alreadyAssigned": "This vendor is already in your vendor list",
@@ -192,7 +202,8 @@
     "noPendingInvitation": "This representative has no pending invitation",
     "cannotRemoveActiveRepresentative": "An activated representative cannot be removed; the vendor manages their own active accounts",
     "cannotRemoveDeactivatedRepresentative": "A deactivated representative can only be removed by the vendor",
-    "representativeReferencedByRfqs": "This representative is a selected contact on one or more RFQs and cannot be removed"
+    "representativeReferencedByRfqs": "This representative is a selected contact on one or more RFQs and cannot be removed",
+    "categoriesNeedContractor": "Vendor categories record how your company classifies this vendor, so they can only be set by a contractor"
   },
   "messages": {
     "threadNotFound": "Message thread not found",

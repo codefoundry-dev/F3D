@@ -6,12 +6,11 @@ import {
   FormField,
   Button,
   Alert,
-  CustomDropdown,
+  FilterDropdownButton,
 } from '@forethread/ui-components';
 import EnvelopeIcon from '@forethread/ui-components/assets/icons/envelope-simple.svg?react';
 import InfoIcon from '@forethread/ui-components/assets/icons/info.svg?react';
 import VendorsIcon from '@forethread/ui-components/assets/icons/vendors.svg?react';
-import WrenchIcon from '@forethread/ui-components/assets/icons/wrench.svg?react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
@@ -22,7 +21,10 @@ import { useCreateVendorCompany } from '../services/vendors.service';
 const createVendorCompanySchema = z.object({
   companyName: z.string().min(1, 'Company name is required'),
   companyEmail: z.string().email('Invalid email address'),
-  specialisation: z.string().min(1, 'Specialisation is required'),
+  // Required here and only here (ADR-0018): someone creating a vendor knows
+  // what it supplies, so this is the one attach path where demanding a category
+  // costs nothing and keeps the category filter useful from day one.
+  categories: z.array(z.string()).min(1, 'Select at least one category'),
 });
 
 type CreateVendorCompanyFormValues = z.infer<typeof createVendorCompanySchema>;
@@ -49,9 +51,10 @@ export function CreateVendorCompanyModal({ onClose, onSuccess }: CreateVendorCom
     formState: { errors },
   } = useForm<CreateVendorCompanyFormValues>({
     resolver: zodResolver(createVendorCompanySchema),
+    defaultValues: { categories: [] },
   });
 
-  const specialisationOptions = useMemo(
+  const categoryOptions = useMemo(
     () =>
       Object.values(VendorCategory).map((cat) => ({
         value: cat,
@@ -67,7 +70,10 @@ export function CreateVendorCompanyModal({ onClose, onSuccess }: CreateVendorCom
         type: CompanyType.VENDOR,
         legalName: data.companyName,
         contactEmail: data.companyEmail,
-        specialisations: [data.specialisation],
+        // Lands on the CompanyVendorAssignment, not the company: this is how
+        // *we* classify them, not a claim they made about themselves. Their own
+        // `specialisations` stay theirs to declare (ADR-0018).
+        categories: data.categories,
       },
       {
         onSuccess: (response) => {
@@ -127,24 +133,34 @@ export function CreateVendorCompanyModal({ onClose, onSuccess }: CreateVendorCom
         />
       </FormField>
 
-      {/* Specialisation */}
-      <FormField
-        label={t('createCompanyModal.specialisation')}
-        error={errors.specialisation?.message}
-      >
+      {/* Vendor Categories (ADR-0018) — multi-select: a vendor that supplies
+          both Electrical and Lighting must be findable under either. */}
+      <FormField label={t('createCompanyModal.categories')} error={errors.categories?.message}>
         <Controller
-          name="specialisation"
+          name="categories"
           control={control}
           render={({ field }) => (
-            <CustomDropdown
-              options={specialisationOptions}
-              value={field.value}
-              onChange={field.onChange}
-              placeholder={t('createCompanyModal.specialisationPlaceholder')}
-              leftIcon={<WrenchIcon className="w-5 h-5" />}
-              searchable
-              error={Boolean(errors.specialisation)}
-            />
+            <div className="flex items-center gap-2 flex-wrap">
+              <FilterDropdownButton
+                label={
+                  field.value.length > 0
+                    ? t('createCompanyModal.categoriesSelected', { count: field.value.length })
+                    : t('createCompanyModal.categoriesPlaceholder')
+                }
+                popoverTitle={t('createCompanyModal.categories')}
+                options={categoryOptions}
+                selected={field.value}
+                onChange={field.onChange}
+              />
+              {field.value.map((value) => (
+                <span
+                  key={value}
+                  className="px-2.5 py-1 text-xs font-medium bg-muted text-foreground rounded-full"
+                >
+                  {categoryOptions.find((o) => o.value === value)?.label ?? value}
+                </span>
+              ))}
+            </div>
           )}
         />
       </FormField>

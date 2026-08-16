@@ -29,6 +29,9 @@ import { ROUTES } from '@/app/route-config';
 import { useAuthStore } from '@/features/auth/state/auth.store';
 import { BomTab } from '@/features/boms';
 
+import ProjectFinancialsTab from '../components/ProjectFinancialsTab';
+import ProjectProcurementTab from '../components/ProjectProcurementTab';
+import ProjectVendorsTab from '../components/ProjectVendorsTab';
 import {
   useProject,
   useAddProjectMembers,
@@ -135,21 +138,16 @@ export default function ProjectDetailPage() {
       {activeTab === 'bom' && <BomTab projectId={id ?? ''} />}
 
       {activeTab === 'procurement' && (
-        <ComingSoon
-          title={t('detail.comingSoon.title')}
-          description={t('detail.comingSoon.procurement')}
-        />
+        <ProjectProcurementTab projectId={id ?? ''} currency={project.currency} />
       )}
       {activeTab === 'vendors' && (
-        <ComingSoon
-          title={t('detail.comingSoon.title')}
-          description={t('detail.comingSoon.vendors')}
-        />
+        <ProjectVendorsTab projectId={id ?? ''} currency={project.currency} />
       )}
       {activeTab === 'financials' && (
-        <ComingSoon
-          title={t('detail.comingSoon.title')}
-          description={t('detail.comingSoon.financials')}
+        <ProjectFinancialsTab
+          projectId={id ?? ''}
+          plannedBudget={project.plannedBudget}
+          currency={project.currency}
         />
       )}
 
@@ -170,14 +168,6 @@ export default function ProjectDetailPage() {
           t={t}
         />
       )}
-    </div>
-  );
-}
-
-function ComingSoon({ title, description }: { title: string; description: string }) {
-  return (
-    <div className="bg-card rounded-lg border border-border">
-      <EmptyState title={title} description={description} />
     </div>
   );
 }

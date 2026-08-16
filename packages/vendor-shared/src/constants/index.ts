@@ -7,6 +7,10 @@ export const DEFAULT_PAGE_SIZE = 25;
 export const STATUS_COLORS: Record<string, string> = {
   INVITED: 'bg-amber-100 text-amber-800',
   ACTIVE: 'bg-emerald-100 text-emerald-800',
+  // The API reports a deactivated rep as INACTIVE (UserStatus); DEACTIVATED is
+  // the older UI-side spelling. Both map to the same badge so a deactivated rep
+  // never falls through to the neutral "unknown status" grey.
+  INACTIVE: 'bg-red-100 text-red-800',
   DEACTIVATED: 'bg-red-100 text-red-800',
 };
 

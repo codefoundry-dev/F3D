@@ -34,6 +34,7 @@ export {
   PoChangeReviewStep,
   PoChangeRequestTab,
   PoChangeRequestTabLoading,
+  PoCancelRequestModal,
   PoCommsPage,
   Stepper,
   PoBasicInfoStep,

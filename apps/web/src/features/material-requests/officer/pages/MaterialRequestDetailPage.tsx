@@ -1,3 +1,4 @@
+import { ApproverPoolPanel } from '@forethread/approval-shared';
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { Button, formatDate, formatDateTime, Spinner } from '@forethread/ui-components';
@@ -6,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { useAuthStore } from '@/features/auth/state/auth.store';
 import { usePermissions } from '@/shared/role/usePermissions';
 
 import {
@@ -30,6 +32,7 @@ export default function MaterialRequestDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { has } = usePermissions();
+  const currentUserId = useAuthStore((s) => s.currentUser?.id ?? null);
 
   const { data: mr, isLoading, isError } = useMaterialRequest(id);
   const { data: audit, isLoading: isLoadingAudit } = useMaterialRequestAudit(id);
@@ -74,9 +77,17 @@ export default function MaterialRequestDetailPage() {
   const rfqLink = mr.convertedToRfq?.id ?? '';
   const poLink = mr.convertedToPo?.id ?? '';
 
-  const canApprove = isSubmitted && has('materialRequest.approve');
-  const canDecline = isSubmitted && has('materialRequest.decline');
+  // FOR-349: separation of duties — the requester never reviews their own
+  // request, whatever grants they hold. The backend enforces the same rule
+  // with a 403; hiding the buttons keeps the page honest about it.
+  const isOwnRequest = mr.requestedBy.id === currentUserId;
+  const canApprove = isSubmitted && !isOwnRequest && has('materialRequest.approve');
+  const canDecline = isSubmitted && !isOwnRequest && has('materialRequest.decline');
   const canConvert = isApproved && has('materialRequest.convert');
+  const showOwnRequestNote =
+    isSubmitted &&
+    isOwnRequest &&
+    (has('materialRequest.approve') || has('materialRequest.decline'));
 
   const handleApprove = () => approve.mutate(mr.id);
 
@@ -112,6 +123,11 @@ export default function MaterialRequestDetailPage() {
         {t('detail.back')}
       </button>
 
+      {/* Approver Pool + nominees (FOR-347). Self-hides unless the MR is on its
+          approval axis; the requester sees who they are waiting on and may ask
+          someone else, approvers see it resolved. */}
+      <ApproverPoolPanel entityType="MATERIAL_REQUEST" entityId={mr.id} />
+
       {/* ═══ Header card ═══ */}
       <div className="rounded-lg border border-border bg-card p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -126,6 +142,11 @@ export default function MaterialRequestDetailPage() {
 
           {/* ═══ Action bar (status + permission gated) ═══ */}
           <div className="flex flex-wrap items-center gap-2" data-testid="mr-action-bar">
+            {showOwnRequestNote && (
+              <p className="text-xs text-muted-foreground" data-testid="mr-own-request-note">
+                {t('detail.actions.ownRequestNote')}
+              </p>
+            )}
             {canApprove && (
               <Button
                 variant="primary"

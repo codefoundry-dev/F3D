@@ -5,9 +5,13 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
+  ApprovalEntityType,
   AuditAction,
   MaterialRequestStatus,
+  NotificationEntityType,
+  NotificationType,
   PoSourceOfCreation,
   PoStatus,
   PoType,
@@ -18,15 +22,23 @@ import {
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { PermissionsService } from '../../common/permissions';
+import {
+  ApprovalAuthorizationService,
+  PermissionsService,
+  type ApproverPoolMember,
+} from '../../common/permissions';
 import {
   loadMaterialSnapshots,
   resolveMaterialSnapshot,
 } from '../../common/utils/material-snapshot.util';
 import { nextSequentialNumber } from '../../common/utils/sequential-number.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ApprovalsService } from '../approvals/approvals.service';
 import { AuditService } from '../audit/audit.service';
+import { BrandingService } from '../export/branding.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { NotificationService } from '../notification-feed/notification.service';
+import { EmailService } from '../notifications/email.service';
 
 import {
   ConvertToPoDto,
@@ -35,6 +47,7 @@ import {
   CreateMrLineItemDto,
   DeclineMaterialRequestDto,
   ListMaterialRequestQueryDto,
+  SubmitMaterialRequestDto,
   UpdateMaterialRequestDto,
 } from './material-requests.dto';
 import {
@@ -62,13 +75,22 @@ const MR_DETAIL_INCLUDE = {
 @Injectable()
 export class MaterialRequestsService {
   private readonly logger = new Logger(MaterialRequestsService.name);
+  private readonly webAppUrl: string;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     private readonly permissions: PermissionsService,
     private readonly inventoryService: InventoryService,
-  ) {}
+    private readonly approvals: ApprovalsService,
+    private readonly approvalAuth: ApprovalAuthorizationService,
+    private readonly emailService: EmailService,
+    private readonly notifications: NotificationService,
+    private readonly branding: BrandingService,
+    config: ConfigService,
+  ) {
+    this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
+  }
 
   // ── Audit helper ────────────────────────────────────────────────────────────
 
@@ -120,6 +142,22 @@ export class MaterialRequestsService {
     const status = submit ? MaterialRequestStatus.SUBMITTED : MaterialRequestStatus.DRAFT;
     const mrNumber = await this.nextMrNumber(companyId);
 
+    // FOR-347: the one-shot create is the wizard's submit door, so nominees ride
+    // on it. Vet them against the Pool BEFORE creating anything — a bad id is a
+    // 400 with no MR, not a submitted MR with dropped routing. A draft has no
+    // routing moment, so nominees without submit are a caller error.
+    const nomineeIds = dto.nomineeIds ?? [];
+    if (!submit && nomineeIds.length > 0) {
+      throw new BadRequestException(ERR.materialRequests.nomineesRequireSubmit);
+    }
+    let pool: ApproverPoolMember[] = [];
+    if (submit) {
+      pool = await this.resolveMrApproverPool(companyId, user.id);
+      if (nomineeIds.length > 0) {
+        await this.approvals.assertNomineesInPool(companyId, pool, nomineeIds);
+      }
+    }
+
     const created = await this.prisma.materialRequest.create({
       data: {
         mrNumber,
@@ -142,6 +180,21 @@ export class MaterialRequestsService {
         from: MaterialRequestStatus.DRAFT,
         to: MaterialRequestStatus.SUBMITTED,
       });
+
+      // Persist the routing choice before notifying, and await it: a Nomination
+      // is part of the document's record, not a best-effort side effect like
+      // the email itself (mirrors PoStatusService.issuePurchaseOrder).
+      if (nomineeIds.length > 0) {
+        await this.approvals.recordNominationsAtSubmit(
+          ApprovalEntityType.MATERIAL_REQUEST,
+          created.id,
+          companyId,
+          pool,
+          nomineeIds,
+          user.id,
+        );
+      }
+      this.notifyApproversOfPendingMr(created.id, companyId, pool).catch(() => {});
     }
 
     return this.get(created.id, user);
@@ -274,9 +327,19 @@ export class MaterialRequestsService {
 
   // ── Submit (DRAFT → SUBMITTED) ────────────────────────────────────────────────
 
-  async submit(id: string, user: AuthenticatedUser) {
+  async submit(id: string, user: AuthenticatedUser, dto?: SubmitMaterialRequestDto) {
     const mr = await this.findForTransition(id, user);
     assertTransitionOrThrow(mr.status, MaterialRequestStatus.SUBMITTED);
+
+    // FOR-347: resolve the Pool and vet the nominees BEFORE the transition, so
+    // an id outside the Pool is a 400 on a still-DRAFT request rather than a
+    // half-submitted one. The Pool depends on the company only (an MR has no
+    // amount), so it is the same set either side of the status change.
+    const nomineeIds = dto?.nomineeIds ?? [];
+    const pool = await this.resolveMrApproverPool(mr.companyId, mr.requestedById);
+    if (nomineeIds.length > 0) {
+      await this.approvals.assertNomineesInPool(mr.companyId, pool, nomineeIds);
+    }
 
     await this.prisma.materialRequest.update({
       where: { id },
@@ -286,6 +349,24 @@ export class MaterialRequestsService {
       from: mr.status,
       to: MaterialRequestStatus.SUBMITTED,
     });
+
+    // Persist the routing choice before notifying, and await it: a Nomination
+    // is part of the document's record, not a best-effort side effect.
+    if (nomineeIds.length > 0) {
+      await this.approvals.recordNominationsAtSubmit(
+        ApprovalEntityType.MATERIAL_REQUEST,
+        id,
+        mr.companyId,
+        pool,
+        nomineeIds,
+        user.id,
+      );
+    }
+
+    // Notify the users entitled to approve this MR (fire-and-forget). Nominees,
+    // when the requester chose any, narrow *who is notified* — never who may
+    // approve.
+    this.notifyApproversOfPendingMr(id, mr.companyId, pool).catch(() => {});
 
     return this.get(id, user);
   }
@@ -299,6 +380,7 @@ export class MaterialRequestsService {
         id: true,
         status: true,
         companyId: true,
+        requestedById: true,
         deliveryLocationId: true,
         lineItems: {
           select: { id: true, materialId: true, quantity: true, deliveryLocationId: true },
@@ -307,6 +389,12 @@ export class MaterialRequestsService {
     });
     if (!mr) throw new NotFoundException(ERR.materialRequests.notFound);
     this.assertCompanyAccess(user, mr.companyId);
+    // FOR-349: separation of duties — whatever grant the requester holds,
+    // another authorised user must resolve their request. Same identity-first
+    // ordering as cancel: who you are disqualifies you before status is judged.
+    if (mr.requestedById === user.id) {
+      throw new ForbiddenException(ERR.materialRequests.cannotReviewOwn);
+    }
     assertTransitionOrThrow(mr.status, MaterialRequestStatus.APPROVED);
 
     // Approve the MR and auto-issue any in-stock lines atomically: the status
@@ -372,6 +460,12 @@ export class MaterialRequestsService {
 
   async decline(id: string, user: AuthenticatedUser, dto: DeclineMaterialRequestDto) {
     const mr = await this.findForTransition(id, user);
+    // FOR-349: declining is the other half of the review act (it records the
+    // caller as the reviewer), so the requester is barred from it too — their
+    // own way out of a submitted request is cancel.
+    if (mr.requestedById === user.id) {
+      throw new ForbiddenException(ERR.materialRequests.cannotReviewOwn);
+    }
     assertTransitionOrThrow(mr.status, MaterialRequestStatus.DECLINED);
 
     await this.prisma.materialRequest.update({
@@ -634,6 +728,236 @@ export class MaterialRequestsService {
         : null,
       createdAt: log.createdAt.toISOString(),
     }));
+  }
+
+  // ── Approver routing (FOR-347) ──────────────────────────────────────────────
+
+  /**
+   * Nominate further Approver Pool members on an MR already awaiting approval
+   * (the unresponsive-approver remedy, mirroring PoStatusService). Routed
+   * through this service rather than ApprovalsService directly because the
+   * nominee has to be *notified*, and the MR's email templates live here.
+   */
+  async nominateApprovers(id: string, userIds: string[], user: AuthenticatedUser) {
+    const { view, notify } = await this.approvals.addNominations(
+      ApprovalEntityType.MATERIAL_REQUEST,
+      id,
+      userIds,
+      user,
+    );
+
+    if (notify.length > 0) {
+      // Best-effort: a mail failure must not undo a recorded nomination.
+      this.notifyNominatedApprovers(id, notify).catch(() => {});
+    }
+
+    return view;
+  }
+
+  /**
+   * The MR Approver Pool: every ACTIVE company user whose effective grant
+   * includes `materialRequest.approve`. The key is not threshold-aware and an
+   * MR carries no amount, so — unlike the PO/Invoice Pools — this is grant
+   * membership, not cap coverage (ADR-0006 amendment, FOR-347).
+   *
+   * The requester is excluded even when they hold the grant (FOR-349):
+   * separation of duties says another authorised user must approve, so they
+   * are neither a valid nominee nor a pending-approval notification target
+   * for their own request.
+   */
+  private async resolveMrApproverPool(
+    companyId: string,
+    requesterId: string,
+  ): Promise<ApproverPoolMember[]> {
+    const pool = await this.approvalAuth.resolveApproverPool(
+      companyId,
+      'materialRequest.approve',
+      null,
+    );
+    return pool.filter((m) => m.id !== requesterId);
+  }
+
+  /**
+   * Email + in-app-notify the users entitled to approve a just-submitted MR.
+   * Best-effort, called fire-and-forget. Mirrors notifyApproversOfPendingPo,
+   * minus the amount (an MR has none — the project name stands in as context).
+   */
+  private async notifyApproversOfPendingMr(
+    mrId: string,
+    companyId: string,
+    resolvedPool?: ApproverPoolMember[],
+  ): Promise<void> {
+    const mr = await this.prisma.materialRequest.findUnique({
+      where: { id: mrId },
+      select: {
+        mrNumber: true,
+        requestedById: true,
+        project: { select: { name: true } },
+      },
+    });
+    if (!mr) return;
+
+    // The submit path has already resolved the Pool to vet nominees against it;
+    // re-resolving here would be a second identical set of queries.
+    const pool = resolvedPool ?? (await this.resolveMrApproverPool(companyId, mr.requestedById));
+
+    const viewUrl = `${this.webAppUrl}/material-requests/${mrId}`;
+    const log = { companyId };
+    const brand = await this.branding.getEmailBrand(companyId);
+
+    // An empty Pool means the MR is already SUBMITTED with nobody able to
+    // approve it. Tell the Company Admins so the grant can be assigned, and the
+    // requester so the submit is not a silent success (FOR-302 precedent).
+    if (pool.length === 0) {
+      await this.notifyMrApprovalUnroutable(
+        mrId,
+        companyId,
+        mr.mrNumber,
+        mr.requestedById,
+        mr.project.name,
+        viewUrl,
+        log,
+        brand,
+      );
+      return;
+    }
+
+    // Nominating narrows the fan-out to the nominees. Everyone else in the Pool
+    // keeps full authority and still sees the MR under the awaiting-approval
+    // list filter — that queue is the safety net this narrowing leans on.
+    const targets = await this.approvals.resolveNotificationTargets(
+      ApprovalEntityType.MATERIAL_REQUEST,
+      mrId,
+      pool,
+    );
+    const recipients = [...new Set(targets.map((m) => m.email))];
+
+    await Promise.all(
+      recipients.map((email) =>
+        this.emailService.sendMaterialRequestPendingApprovalEmail(
+          email,
+          mr.mrNumber,
+          mr.project.name,
+          viewUrl,
+          log,
+          brand,
+        ),
+      ),
+    );
+
+    await this.notifications.createForEmails(recipients, {
+      type: NotificationType.MATERIAL_REQUEST_PENDING_APPROVAL,
+      title: 'Material request awaiting approval',
+      body: `Material request ${mr.mrNumber} for ${mr.project.name} needs your approval.`,
+      entityType: NotificationEntityType.MATERIAL_REQUEST,
+      entityId: mrId,
+    });
+  }
+
+  /**
+   * Tell newly nominated Pool members that an MR is waiting on them.
+   * Deliberately the same MATERIAL_REQUEST_PENDING_APPROVAL notification the
+   * submit-time fan-out sends: a separate "you were nominated" type would imply
+   * the nomination granted them something. It did not.
+   */
+  private async notifyNominatedApprovers(
+    mrId: string,
+    nominees: ApproverPoolMember[],
+  ): Promise<void> {
+    const mr = await this.prisma.materialRequest.findUnique({
+      where: { id: mrId },
+      select: { mrNumber: true, companyId: true, project: { select: { name: true } } },
+    });
+    if (!mr) return;
+
+    const viewUrl = `${this.webAppUrl}/material-requests/${mrId}`;
+    const log = { companyId: mr.companyId };
+    const brand = await this.branding.getEmailBrand(mr.companyId);
+    const recipients = [...new Set(nominees.map((n) => n.email))];
+
+    await Promise.all(
+      recipients.map((email) =>
+        this.emailService.sendMaterialRequestPendingApprovalEmail(
+          email,
+          mr.mrNumber,
+          mr.project.name,
+          viewUrl,
+          log,
+          brand,
+        ),
+      ),
+    );
+
+    await this.notifications.createForEmails(recipients, {
+      type: NotificationType.MATERIAL_REQUEST_PENDING_APPROVAL,
+      title: 'Material request awaiting approval',
+      body: `Material request ${mr.mrNumber} for ${mr.project.name} needs your approval.`,
+      entityType: NotificationEntityType.MATERIAL_REQUEST,
+      entityId: mrId,
+    });
+  }
+
+  /**
+   * Fallback fan-out for an MR whose Approver Pool is empty: nobody in the
+   * company holds `materialRequest.approve`. Company Admins are notified as
+   * *recipients* — the way out is granting the permission under Roles &
+   * permissions, not raising a limit (there is no amount here). The requester
+   * is told too, so submitting into a dead state is never a silent success.
+   */
+  private async notifyMrApprovalUnroutable(
+    mrId: string,
+    companyId: string,
+    mrNumber: string,
+    requestedById: string,
+    projectName: string,
+    viewUrl: string,
+    log: { companyId: string },
+    brand: Awaited<ReturnType<BrandingService['getEmailBrand']>>,
+  ): Promise<void> {
+    const admins = await this.approvalAuth.findCompanyAdminRecipients(companyId);
+    const adminEmails = [...new Set(admins.map((a) => a.email))];
+
+    const title = 'Material request has no eligible approver';
+    const body =
+      `Material request ${mrNumber} for ${projectName} is awaiting approval, but no one ` +
+      `in your company is eligible to approve it — a requester can never approve their ` +
+      `own request. Grant the approval permission to another user under Roles & ` +
+      `permissions to move it forward.`;
+
+    await Promise.all(
+      adminEmails.map((email) =>
+        this.emailService.sendMaterialRequestApprovalUnroutableEmail(
+          email,
+          mrNumber,
+          projectName,
+          viewUrl,
+          log,
+          brand,
+        ),
+      ),
+    );
+
+    await this.notifications.createForEmails(adminEmails, {
+      type: NotificationType.MATERIAL_REQUEST_APPROVAL_UNROUTABLE,
+      title,
+      body,
+      entityType: NotificationEntityType.MATERIAL_REQUEST,
+      entityId: mrId,
+    });
+
+    // The requester gets the same signal in-app even when they are not an
+    // admin; skip when they were already reached as one.
+    const requesterIsAdmin = admins.some((a) => a.id === requestedById);
+    if (!requesterIsAdmin) {
+      await this.notifications.createForUsers({
+        userIds: [requestedById],
+        type: NotificationType.MATERIAL_REQUEST_APPROVAL_UNROUTABLE,
+        title,
+        body,
+        entityType: NotificationEntityType.MATERIAL_REQUEST,
+        entityId: mrId,
+      });
+    }
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────────
