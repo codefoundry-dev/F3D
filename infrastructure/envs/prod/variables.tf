@@ -11,9 +11,14 @@ variable "vpc_cidr" {
 }
 
 variable "ec2_instance_type" {
-  description = "EC2 instance type for the backend host. Graviton (ARM64). t4g.small is the smallest size that comfortably runs the NestJS image + Caddy."
+  # Was t4g.small (2 GB), but the 62k-row catalogue extraction parse (exceljs)
+  # OOM-killed the backend container mid-job (2026-08-17: SIGKILL 28s into the
+  # parse, extraction orphaned in PROCESSING, requests 502 during the restart).
+  # Staging hit the same wall on t4g.micro and was bumped to t4g.medium (4 GB),
+  # which handles the parse with headroom — keep prod at parity or above.
+  description = "EC2 instance type for the backend host. Graviton (ARM64)."
   type        = string
-  default     = "t4g.small"
+  default     = "t4g.medium"
 }
 
 variable "ec2_root_volume_size_gb" {
