@@ -692,6 +692,8 @@
     "cancelBanner": "This request cancels the purchase order. Approving it will cancel the PO.",
     "removedLineItems": "Removed line items",
     "removedBadge": "Removed",
+    "addedLineItems": "Added line items",
+    "addedBadge": "New",
     "empty": "-"
   },
   "cancelRequest": {

@@ -111,7 +111,9 @@ export function PoLineItemsTab({
               return (
                 <tr key={item.id}>
                   <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
-                    {item.materialName}
+                    {/* Manual-name lines have no catalogue material — their name
+                        lives in `description` (create-payload convention). */}
+                    {item.materialName || item.description || '-'}
                   </td>
                   {isPageLayout && (
                     <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
@@ -228,7 +230,9 @@ function EditPoLineItemModal({ poId, lineItem, allLineItems, onClose }: EditPoLi
   const { t } = useTranslation(['purchaseOrders', 'common']);
   const queryClient = useQueryClient();
 
-  const [materialName, setMaterialName] = useState(lineItem.materialName ?? '');
+  const [materialName, setMaterialName] = useState(
+    lineItem.materialName ?? lineItem.description ?? '',
+  );
   const [description, setDescription] = useState(lineItem.description ?? '');
   const [quantityOrdered, setQuantityOrdered] = useState(String(lineItem.quantityOrdered));
   const [unitOfMeasure, setUnitOfMeasure] = useState(lineItem.unitOfMeasure);

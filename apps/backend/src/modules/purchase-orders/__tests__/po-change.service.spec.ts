@@ -25,6 +25,8 @@ const mockTx = {
     update: jest.fn(),
     count: jest.fn(),
     deleteMany: jest.fn(),
+    create: jest.fn(),
+    aggregate: jest.fn(),
   },
   poChangeRequest: { update: jest.fn() },
 };
@@ -39,6 +41,7 @@ const mockPrisma = {
     count: jest.fn(),
   },
   poLineItem: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+  material: { findMany: jest.fn() },
   user: { findUnique: jest.fn() },
   rfqVendorContact: { findMany: jest.fn() },
   $transaction: jest.fn(),
@@ -109,6 +112,10 @@ describe('PoChangeService', () => {
     mockTx.poLineItem.findMany.mockResolvedValue([]);
     mockTx.poLineItem.count.mockResolvedValue(2);
     mockTx.poLineItem.deleteMany.mockResolvedValue({ count: 0 });
+    mockTx.poLineItem.create.mockResolvedValue({});
+    mockTx.poLineItem.aggregate.mockResolvedValue({ _max: { lineNumber: 2 } });
+    // Added-lines snapshot resolution: no catalogue materials by default.
+    mockPrisma.material.findMany.mockResolvedValue([]);
     // Propose-time removal validation reads the PO's current lines.
     mockPrisma.poLineItem.findMany.mockResolvedValue([{ id: 'li-1' }, { id: 'li-2' }]);
     mockPrisma.$transaction.mockImplementation((cb: (tx: typeof mockTx) => unknown) => cb(mockTx));
@@ -1558,6 +1565,125 @@ describe('PoChangeService', () => {
       await service.approveChange('po-1', 'cr-1', companyAdmin);
 
       expect(mockTx.poLineItem.deleteMany).toHaveBeenCalledWith({ where: { id: { in: [] } } });
+    });
+
+    it('creates added line items with sequential line numbers, snapshots, and computed lineTotal', async () => {
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue(
+        pendingCr({
+          changedFields: {
+            addedLineItems: [
+              {
+                name: 'Steel Bolt M10',
+                quantityOrdered: 4,
+                unitOfMeasure: 'EA',
+                unitPrice: 2.5,
+                notes: 'urgent',
+              },
+              {
+                name: 'Catalogue Beam',
+                materialId: 'mat-1',
+                quantityOrdered: 2,
+                unitOfMeasure: 'EA',
+                unitPrice: 100,
+              },
+            ],
+          },
+        }),
+      );
+      mockPrisma.material.findMany.mockResolvedValue([
+        {
+          id: 'mat-1',
+          upc: 'UPC-1',
+          manufacturerPartNumber: 'MPN-1',
+          costCode: 'CC-1',
+          taxCode: 'TX-1',
+        },
+      ]);
+      mockTx.poLineItem.aggregate.mockResolvedValue({ _max: { lineNumber: 3 } });
+      mockTx.poLineItem.findMany.mockResolvedValue([
+        { lineTotal: 10, quantityOrdered: 4 },
+        { lineTotal: 200, quantityOrdered: 2 },
+      ]);
+      mockPrisma.user.findUnique.mockResolvedValue({ name: 'CA Admin' });
+
+      await service.approveChange('po-1', 'cr-1', companyAdmin);
+
+      expect(mockTx.poLineItem.create).toHaveBeenCalledTimes(2);
+      // Manual-name line: the name lands in description; no catalogue material.
+      expect(mockTx.poLineItem.create).toHaveBeenNthCalledWith(1, {
+        data: expect.objectContaining({
+          purchaseOrderId: 'po-1',
+          lineNumber: 4,
+          materialId: null,
+          description: 'Steel Bolt M10',
+          quantityOrdered: 4,
+          unitOfMeasure: 'EA',
+          unitPrice: 2.5,
+          lineTotal: 10,
+          notes: 'urgent',
+        }),
+      });
+      // Catalogue line: materialId kept, snapshot fields resolved from the material.
+      expect(mockTx.poLineItem.create).toHaveBeenNthCalledWith(2, {
+        data: expect.objectContaining({
+          lineNumber: 5,
+          materialId: 'mat-1',
+          upc: 'UPC-1',
+          manufacturerPartNumber: 'MPN-1',
+          costCode: 'CC-1',
+          taxCode: 'TX-1',
+          lineTotal: 200,
+        }),
+      });
+      // Totals recomputed over all lines, including the new ones.
+      const totalsUpdate = mockTx.purchaseOrder.update.mock.calls.find(
+        (c) => c[0].data.subtotal !== undefined,
+      );
+      expect(totalsUpdate[0].data).toEqual(
+        expect.objectContaining({ subtotal: 210, lineItemCount: 2, totalRequestedQty: 6 }),
+      );
+    });
+
+    it('skips invalid added entries and drops an unresolvable materialId', async () => {
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue(
+        pendingCr({
+          changedFields: {
+            addedLineItems: [
+              // qty < 1 → skipped
+              { name: 'No qty', quantityOrdered: 0, unitOfMeasure: 'EA', unitPrice: 5 },
+              // no unit of measure → skipped
+              { name: 'No uom', quantityOrdered: 2, unitPrice: 5 },
+              // ghost materialId → created without the material link
+              {
+                name: 'Ghost material',
+                materialId: 'mat-ghost',
+                quantityOrdered: 1,
+                unitOfMeasure: 'EA',
+                unitPrice: 5,
+              },
+            ],
+          },
+        }),
+      );
+      mockTx.poLineItem.findMany.mockResolvedValue([{ lineTotal: 5, quantityOrdered: 1 }]);
+      mockPrisma.user.findUnique.mockResolvedValue({ name: 'CA Admin' });
+
+      await service.approveChange('po-1', 'cr-1', companyAdmin);
+
+      expect(mockTx.poLineItem.create).toHaveBeenCalledTimes(1);
+      expect(mockTx.poLineItem.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ materialId: null, description: 'Ghost material' }),
+      });
+    });
+
+    it('does not touch the added-lines path when the CR carries none', async () => {
+      mockPrisma.poChangeRequest.findUnique.mockResolvedValue(pendingCr());
+      mockPrisma.user.findUnique.mockResolvedValue({ name: 'CA Admin' });
+
+      await service.approveChange('po-1', 'cr-1', companyAdmin);
+
+      expect(mockTx.poLineItem.aggregate).not.toHaveBeenCalled();
+      expect(mockTx.poLineItem.create).not.toHaveBeenCalled();
     });
   });
 

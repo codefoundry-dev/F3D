@@ -100,4 +100,41 @@ describe('PoChangeDiff', () => {
     expect(screen.getByText('Copper Pipe')).toHaveClass('line-through');
     expect(screen.getByText('change.removedBadge')).toBeInTheDocument();
   });
+
+  it('renders added line items with a New badge and their key values', () => {
+    const changed: PoChangedFields = {
+      addedLineItems: [
+        {
+          name: 'Steel Bolt M10',
+          quantityOrdered: 4,
+          unitOfMeasure: 'EA',
+          unitPrice: 2.5,
+          expectedDeliveryDate: '2025-02-01',
+          notes: 'urgent',
+        },
+      ],
+    };
+    render(<PoChangeDiff changedFields={changed} />);
+    expect(screen.getByText('change.addedLineItems')).toBeInTheDocument();
+    expect(screen.getByText('Steel Bolt M10')).toBeInTheDocument();
+    expect(screen.getByText('change.addedBadge')).toBeInTheDocument();
+    expect(screen.getByText('4')).toBeInTheDocument();
+    expect(screen.getByText('EA')).toBeInTheDocument();
+    expect(screen.getByText('$2.5')).toBeInTheDocument();
+    expect(screen.getByText('date(2025-02-01)')).toBeInTheDocument();
+    expect(screen.getByText('urgent')).toBeInTheDocument();
+  });
+
+  it('omits blank optional values on an added line item', () => {
+    const changed: PoChangedFields = {
+      addedLineItems: [
+        { name: 'Bare Line', quantityOrdered: 1, unitOfMeasure: 'EA', unitPrice: 9 },
+      ],
+    };
+    render(<PoChangeDiff changedFields={changed} />);
+    expect(screen.getByText('Bare Line')).toBeInTheDocument();
+    // The i18n mock resolves labels to their defaultValue (the raw field name).
+    expect(screen.queryByText('notes')).not.toBeInTheDocument();
+    expect(screen.queryByText('expectedDeliveryDate')).not.toBeInTheDocument();
+  });
 });

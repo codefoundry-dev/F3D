@@ -5,6 +5,7 @@ import {
   getInvoiceIntakeAddress,
   getInvoicePoMatch,
   getInvoicePoInfo,
+  previewInvoicePoMatch,
   exportInvoiceRelatedPo,
   approveInvoice,
   rejectInvoice,
@@ -61,14 +62,37 @@ export function useInvoicePoMatch(id: string | undefined, poId?: string | null) 
 }
 
 /**
+ * Live invoice↔PO reconciliation against the review form's current (unsaved)
+ * state: the picked PO and the lines as edited so far. The caller debounces the
+ * payload — the query re-runs whenever it settles, so the comparison and
+ * variance flags track the form without a save.
+ */
+export function useInvoicePoMatchPreview(
+  id: string | undefined,
+  payload: Parameters<typeof previewInvoicePoMatch>[1] | null,
+) {
+  return useQuery({
+    queryKey: ['invoices', id, 'po-match', payload],
+    queryFn: () => previewInvoicePoMatch(id as string, payload as NonNullable<typeof payload>),
+    enabled: !!id && payload !== null,
+    // The previous report stays on screen while the re-reconciliation loads, so
+    // the comparison table never blanks mid-edit.
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
  * The Invoice Details PO tab payload (FOR-355): the invoice's resolved PO with
  * reconciliation, plus the delivery reports recorded against it. Keyed under
  * ['invoices'] so review/approve saves refresh it too.
+ *
+ * `poId` previews the PO the reviewer has picked in the review form but not yet
+ * saved, so the tab shows it without waiting for the review to persist.
  */
-export function useInvoicePoInfo(id: string | undefined) {
+export function useInvoicePoInfo(id: string | undefined, poId?: string | null) {
   return useQuery({
-    queryKey: ['invoices', id, 'po-info'],
-    queryFn: () => getInvoicePoInfo(id as string),
+    queryKey: ['invoices', id, 'po-info', poId ?? null],
+    queryFn: () => getInvoicePoInfo(id as string, { poId }),
     enabled: !!id,
   });
 }

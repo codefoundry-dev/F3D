@@ -29,6 +29,12 @@ interface PoChangeRequestTabProps {
    * this is a UX guard, not the security boundary).
    */
   currentUserName?: string | null;
+  /**
+   * Hide Apply all / Reject entirely — the tokenised guest portal shows the
+   * change request for information only (resolving needs an authenticated
+   * contractor; the guest endpoints would 401).
+   */
+  readOnly?: boolean;
 }
 
 /**
@@ -47,6 +53,7 @@ export function PoChangeRequestTab({
   changeRequest,
   locationOptions,
   currentUserName,
+  readOnly,
 }: PoChangeRequestTabProps) {
   const { t } = useTranslation('purchaseOrders');
   const queryClient = useQueryClient();
@@ -79,7 +86,7 @@ export function PoChangeRequestTab({
   });
 
   const isProposer = Boolean(currentUserName) && currentUserName === changeRequest.requestedByName;
-  const canResolve = !isProposer;
+  const canResolve = !readOnly && !isProposer;
 
   const company = changeRequest.requestedByCompanyName ?? '';
   const requester = changeRequest.requestedByName ?? '';

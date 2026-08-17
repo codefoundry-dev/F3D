@@ -4,11 +4,13 @@ import {
   exportPublicPurchaseOrder,
   getPublicPurchaseOrder,
   isApiError,
+  listPublicPoChangeRequests,
   proposePublicPoChange,
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
   PoCancelRequestModal,
+  PoChangeRequestTab,
   PoDetailTabs,
   PoDetailsTab,
   PoLineItemsTab,
@@ -27,15 +29,19 @@ import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import EditWithoutLineIcon from '@forethread/ui-components/assets/icons/edit-without-line.svg?react';
 import InfoIcon from '@forethread/ui-components/assets/icons/info.svg?react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 
 import { PoVendorActions } from '../components/PoVendorActions';
 
-/** The tokenised vendor PO portal only exposes the read-only content tabs. */
+/**
+ * The tokenised vendor PO portal only exposes the read-only content tabs. A
+ * "Changes request" tab is appended while a pending change request exists (its
+ * diff is read-only — resolving needs an authenticated contractor).
+ */
 const GUEST_TABS: PoTab[] = ['details', 'lineItems'];
 
 /** Statuses where the vendor can still act on the PO from the portal link. */
@@ -102,9 +108,39 @@ export default function GuestPurchaseOrderPage() {
 function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
   const { t } = useTranslation('purchaseOrders');
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<PoTab>('details');
   const isActionable = ACTIONABLE_STATUSES.includes(po.status);
   const canChange = CHANGEABLE_STATUSES.includes(po.status);
+
+  // Change requests on this PO — a pending one (proposed by either party)
+  // surfaces in a read-only "Changes request" tab, mirroring the authenticated
+  // vendor detail view.
+  const { data: changeRequests } = useQuery({
+    queryKey: ['guest-po-crs', token],
+    queryFn: () => listPublicPoChangeRequests(token),
+    retry: false,
+  });
+  const pendingCr = useMemo(
+    () => changeRequests?.find((cr) => cr.status === 'PENDING'),
+    [changeRequests],
+  );
+  const guestTabs = useMemo<PoTab[]>(
+    () => (pendingCr ? ['details', 'changeRequest', 'lineItems'] : GUEST_TABS),
+    [pendingCr],
+  );
+  // If the open tab disappears (the pending CR resolves), fall back to Details.
+  const effectiveTab = guestTabs.includes(activeTab) ? activeTab : 'details';
+
+  // The PO detail carries only the delivery location *name*; one option is
+  // enough to label it in the change-request diff.
+  const locationOptions = useMemo(
+    () =>
+      po.deliveryLocationId && po.deliveryLocationName
+        ? [{ value: po.deliveryLocationId, label: po.deliveryLocationName }]
+        : [],
+    [po.deliveryLocationId, po.deliveryLocationName],
+  );
 
   const handleDownload = () => {
     void exportPublicPurchaseOrder(token).then(({ url }) => window.open(url, '_blank'));
@@ -118,6 +154,7 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
     onSuccess: () => {
       notificationService.success(t('cancelRequest.submitted'));
       setShowCancelModal(false);
+      void queryClient.invalidateQueries({ queryKey: ['guest-po-crs', token] });
     },
     onError: () => notificationService.error(t('cancelRequest.submitError')),
   });
@@ -191,9 +228,17 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
 
       {/* ═══ PO content ═══ */}
       <div className="flex-1 px-6 py-4 max-w-[1400px] mx-auto w-full space-y-4">
-        <PoDetailTabs activeTab={activeTab} onTabChange={setActiveTab} tabs={GUEST_TABS} />
-        {activeTab === 'details' && <PoDetailsTab po={po} layout="page" isVendorView />}
-        {activeTab === 'lineItems' && (
+        <PoDetailTabs activeTab={effectiveTab} onTabChange={setActiveTab} tabs={guestTabs} />
+        {effectiveTab === 'details' && <PoDetailsTab po={po} layout="page" isVendorView />}
+        {effectiveTab === 'changeRequest' && pendingCr && (
+          <PoChangeRequestTab
+            poId={po.id}
+            changeRequest={pendingCr}
+            locationOptions={locationOptions}
+            readOnly
+          />
+        )}
+        {effectiveTab === 'lineItems' && (
           <PoLineItemsTab lineItems={po.lineItems ?? []} layout="page" readOnly />
         )}
       </div>

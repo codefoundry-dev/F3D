@@ -156,10 +156,10 @@ function formLineValue(line: FormValues['lineItems'][number], key: PoLineChangeF
 /**
  * Diff the edited form against the existing PO into the `changedFields` payload.
  * Line items are matched by the form row's `lineItemId` (seeded from the PO line
- * `id` in change mode); rows with no match (newly added) are ignored because the
- * backend apply step only patches existing lines. PO lines whose id no longer
- * appears among the form rows were deleted in the editor and surface as
- * `removedLineItems` (FOR-352) — approving deletes them from the PO.
+ * `id` in change mode). Form rows with no `lineItemId` were added in the editor
+ * and surface as `addedLineItems` — approving creates them on the PO. PO lines
+ * whose id no longer appears among the form rows were deleted in the editor and
+ * surface as `removedLineItems` (FOR-352) — approving deletes them from the PO.
  */
 export function computePoChangedFields(form: FormValues, po: PoDetail): PoChangedFields {
   const fields: Record<string, PoChangeFieldDiff> = {};
@@ -172,10 +172,17 @@ export function computePoChangedFields(form: FormValues, po: PoDetail): PoChange
   }
 
   const lineItems: PoChangedFields['lineItems'] = [];
+  const addedLineItems: PoChangedFields['addedLineItems'] = [];
   const poLineById = new Map(po.lineItems.map((li) => [li.id, li]));
   for (const formLine of form.lineItems) {
     const id = formLine.lineItemId;
-    if (!id) continue;
+    if (!id) {
+      // A row with no `lineItemId` was added in the editor. Only complete rows
+      // count — the wizard keeps a blank trailing row that must not be sent.
+      if (formLine.materialName && formLine.unitOfMeasure && Number(formLine.quantityOrdered) >= 1)
+        addedLineItems.push(formToAddedLineItem(formLine));
+      continue;
+    }
     const existing = poLineById.get(id);
     if (!existing) continue;
 
@@ -211,7 +218,37 @@ export function computePoChangedFields(form: FormValues, po: PoDetail): PoChange
   if (Object.keys(fields).length > 0) payload.fields = fields;
   if (lineItems.length > 0) payload.lineItems = lineItems;
   if (removedLineItems.length > 0) payload.removedLineItems = removedLineItems;
+  if (addedLineItems.length > 0) payload.addedLineItems = addedLineItems;
   return payload;
+}
+
+/**
+ * Map an editor-added form row to the `addedLineItems` payload the backend
+ * creates on approval. The material name folds into `description` (mirroring
+ * the create-PO payload mapping) so manual-name lines keep their name on the
+ * created PO line; `name` is the display label for the diff.
+ */
+function formToAddedLineItem(
+  line: FormValues['lineItems'][number],
+): NonNullable<PoChangedFields['addedLineItems']>[number] {
+  return {
+    name: line.materialName,
+    materialId: line.materialId || undefined,
+    materialCode: line.materialCode || undefined,
+    description: line.materialName || line.description || undefined,
+    quantityOrdered: Number(line.quantityOrdered),
+    unitOfMeasure: line.unitOfMeasure,
+    unitPrice: Number(line.unitPrice) || 0,
+    costCode: line.costCode || undefined,
+    upc: line.upc || undefined,
+    manufacturerPartNumber: line.manufacturerPartNumber || undefined,
+    taxCode: line.taxCode || undefined,
+    expectedDeliveryDate: line.expectedDeliveryDate
+      ? line.expectedDeliveryDate.slice(0, 10)
+      : undefined,
+    deliveryTime: line.deliveryTime || undefined,
+    notes: line.notes || undefined,
+  };
 }
 
 /** True when the payload carries at least one PO-level or line-item change. */
@@ -220,18 +257,20 @@ export function hasAnyChange(changed: PoChangedFields): boolean {
     changed.cancelPo === true ||
     Object.keys(changed.fields ?? {}).length > 0 ||
     (changed.lineItems ?? []).length > 0 ||
-    (changed.removedLineItems ?? []).length > 0
+    (changed.removedLineItems ?? []).length > 0 ||
+    (changed.addedLineItems ?? []).length > 0
   );
 }
 
 /**
  * Derive the change type from the diff: COMMERCIAL if any money/quantity/date/
- * location field moved — or the request cancels the PO / removes line items
- * (FOR-352) — otherwise INTERNAL (note-only / cosmetic edits).
+ * location field moved — or the request cancels the PO / removes or adds line
+ * items (FOR-352) — otherwise INTERNAL (note-only / cosmetic edits).
  */
 export function deriveChangeType(changed: PoChangedFields): 'COMMERCIAL' | 'INTERNAL' {
   if (changed.cancelPo === true) return 'COMMERCIAL';
   if ((changed.removedLineItems ?? []).length > 0) return 'COMMERCIAL';
+  if ((changed.addedLineItems ?? []).length > 0) return 'COMMERCIAL';
   for (const key of Object.keys(changed.fields ?? {})) {
     if (COMMERCIAL_PO_FIELDS.has(key)) return 'COMMERCIAL';
   }

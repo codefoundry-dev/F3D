@@ -139,18 +139,51 @@ describe('computePoChangedFields', () => {
     expect(diff.lineItems?.[0].changes.costCode).toEqual({ from: '123456789', to: '8765432' });
   });
 
-  it('ignores form rows with no matching lineItemId (newly added lines)', () => {
+  it('reports form rows with no lineItemId as addedLineItems', () => {
     const po = makePo();
     const form = makeForm(po);
     form.lineItems.push({
       ...EMPTY_LINE_ITEM,
       materialName: 'New Material',
+      materialId: 'mat-9',
       unitOfMeasure: 'EA',
       unitPrice: 5,
       quantityOrdered: 2,
+      expectedDeliveryDate: '2025-02-01',
+      notes: 'urgent',
     });
     const diff = computePoChangedFields(form, po);
     expect(diff.lineItems).toBeUndefined();
+    expect(diff.addedLineItems).toEqual([
+      {
+        name: 'New Material',
+        materialId: 'mat-9',
+        materialCode: undefined,
+        description: 'New Material',
+        quantityOrdered: 2,
+        unitOfMeasure: 'EA',
+        unitPrice: 5,
+        costCode: undefined,
+        upc: undefined,
+        manufacturerPartNumber: undefined,
+        taxCode: undefined,
+        expectedDeliveryDate: '2025-02-01',
+        deliveryTime: undefined,
+        notes: 'urgent',
+      },
+    ]);
+    expect(hasAnyChange(diff)).toBe(true);
+    expect(deriveChangeType(diff)).toBe('COMMERCIAL');
+  });
+
+  it('skips incomplete added rows (the wizard blank trailing row)', () => {
+    const po = makePo();
+    const form = makeForm(po);
+    form.lineItems.push({ ...EMPTY_LINE_ITEM });
+    form.lineItems.push({ ...EMPTY_LINE_ITEM, materialName: 'No qty yet', unitOfMeasure: 'EA' });
+    const diff = computePoChangedFields(form, po);
+    expect(diff.addedLineItems).toBeUndefined();
+    expect(hasAnyChange(diff)).toBe(false);
   });
 
   it('treats empty/undefined/null as equal (no spurious diff)', () => {
@@ -238,6 +271,14 @@ describe('deriveChangeType', () => {
       'COMMERCIAL',
     );
   });
+
+  it('is COMMERCIAL when line items are added', () => {
+    expect(
+      deriveChangeType({
+        addedLineItems: [{ name: 'x', quantityOrdered: 1, unitOfMeasure: 'EA', unitPrice: 2 }],
+      }),
+    ).toBe('COMMERCIAL');
+  });
 });
 
 describe('hasAnyChange (FOR-352 extensions)', () => {
@@ -247,6 +288,14 @@ describe('hasAnyChange (FOR-352 extensions)', () => {
 
   it('is true for a removal-only payload', () => {
     expect(hasAnyChange({ removedLineItems: [{ lineItemId: 'li-1', name: 'x' }] })).toBe(true);
+  });
+
+  it('is true for an addition-only payload', () => {
+    expect(
+      hasAnyChange({
+        addedLineItems: [{ name: 'x', quantityOrdered: 1, unitOfMeasure: 'EA', unitPrice: 2 }],
+      }),
+    ).toBe(true);
   });
 
   it('stays false for an empty payload', () => {

@@ -28,7 +28,7 @@ import SpinnerIcon from '@forethread/ui-components/assets/icons/spinner.svg?reac
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { useInvoicePoMatch, useReviewInvoice } from '../hooks/useInvoices';
+import { useInvoicePoMatchPreview, useReviewInvoice } from '../hooks/useInvoices';
 
 import { InvoicePoComparison } from './InvoicePoComparison';
 
@@ -39,8 +39,6 @@ import { InvoicePoComparison } from './InvoicePoComparison';
 interface ReviewLineForm {
   /** Local list key — lines have no stable id until saved. */
   key: string;
-  /** The saved InvoiceLineItem id this row came from; PO-match flags (FOR-293) key on it. */
-  savedId?: string;
   /**
    * The line number printed on the document. Not shown or editable — it was
    * noise for reviewers — but carried through save because the review PATCH
@@ -96,6 +94,38 @@ function normalizeName(name: string): string {
 
 export interface InvoiceReviewPanelProps {
   invoice: InvoiceDetail;
+  /**
+   * Seed for the Related PO field when the form has no saved or extracted PO of
+   * its own — the pick made before a tab switch unmounted the form (FOR-355).
+   */
+  initialPoId?: string | null;
+  /**
+   * Reports the form's current PO pick, so the detail page can preview it on
+   * the Purchase Order tab before the review is saved (FOR-355).
+   */
+  onPoPreviewChange?: (poId: string | null) => void;
+}
+
+/**
+ * The debounced value: the first non-null payload applies immediately (the
+ * initial reconciliation should not wait), later ones settle for `delayMs` so
+ * per-keystroke line edits don't refetch the match on every character.
+ */
+function useSettledValue<T>(value: T | null, delayMs: number): T | null {
+  const [settled, setSettled] = useState<T | null>(value);
+  const hadValue = useRef(value !== null);
+
+  useEffect(() => {
+    if (value === null || !hadValue.current) {
+      hadValue.current = value !== null;
+      setSettled(value);
+      return undefined;
+    }
+    const timer = setTimeout(() => setSettled(value), delayMs);
+    return () => clearTimeout(timer);
+  }, [value, delayMs]);
+
+  return settled;
 }
 
 /**
@@ -103,7 +133,11 @@ export interface InvoiceReviewPanelProps {
  * vendor, invoice #, dates, total, line items — shown editable, seeded from
  * the Gemini extraction, and saved onto the invoice record.
  */
-export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
+export function InvoiceReviewPanel({
+  invoice,
+  initialPoId,
+  onPoPreviewChange,
+}: InvoiceReviewPanelProps) {
   const { t } = useTranslation('invoices');
   const reviewMutation = useReviewInvoice();
   const [showNominate, setShowNominate] = useState(false);
@@ -132,11 +166,38 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
   const [dirty, setDirty] = useState(false);
   const lineKey = useRef(0);
 
-  // Invoice↔PO reconciliation (FOR-293): PO suggestion + per-line variance flags.
-  // Reconciled against the PO currently chosen in the form, so picking one by
-  // hand shows its status, delivery progress and lines without saving first.
-  const poMatch = useInvoicePoMatch(invoice.id, form?.relatedPoId || null);
+  // Invoice↔PO reconciliation (FOR-293): PO suggestion + per-line variance
+  // flags, live against the form's *current* state — the PO picked and the
+  // lines as edited so far — so the side-by-side comparison and flags render
+  // without saving first. `keys` remembers which form row each submitted line
+  // came from, so the returned flags land back on the right rows.
+  const preview = useMemo(() => {
+    if (!form) return null;
+    const included = form.lines.filter((line) => line.description.trim() !== '');
+    return {
+      keys: included.map((line) => line.key),
+      payload: {
+        poId: form.relatedPoId || null,
+        lines: included.map((line) => ({
+          lineId: line.lineId.trim() || null,
+          description: line.description.trim(),
+          quantity: parseNum(line.quantity),
+          unitPrice: parseNum(line.unitPrice),
+          lineTotal: parseNum(line.lineTotal),
+        })),
+      },
+    };
+  }, [form]);
+  const settledPreview = useSettledValue(preview, 400);
+  const poMatch = useInvoicePoMatchPreview(invoice.id, settledPreview?.payload ?? null);
   const matchResult: InvoicePoMatchResult | undefined = poMatch.data;
+
+  // Let the detail page (and its Purchase Order tab) see the pick immediately.
+  const formRelatedPoId = form?.relatedPoId;
+  useEffect(() => {
+    if (formRelatedPoId === undefined) return;
+    onPoPreviewChange?.(formRelatedPoId || null);
+  }, [formRelatedPoId, onPoPreviewChange]);
 
   const nextKey = () => {
     lineKey.current += 1;
@@ -151,14 +212,13 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
       seededFrom: 'saved',
       vendorId: '', // resolved below — the detail payload carries names, not ids
       projectId: invoice.projectId ?? '',
-      relatedPoId: invoice.relatedPo ?? '',
+      relatedPoId: invoice.relatedPo ?? initialPoId ?? '',
       invoiceNumber: invoice.invoiceNumber ?? '',
       issuedDate: toDateInput(invoice.issuedDate),
       dueDate: toDateInput(invoice.dueDate),
       totalAmount: numToStr(invoice.totalAmount),
       lines: invoice.lines.map((line) => ({
         key: nextKey(),
-        savedId: line.id,
         lineId: line.lineId ?? '',
         description: line.description,
         quantity: numToStr(line.quantity),
@@ -174,7 +234,7 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
       seededFrom: 'extraction',
       vendorId: '',
       projectId: '',
-      relatedPoId: '',
+      relatedPoId: initialPoId ?? '',
       invoiceNumber: result.invoiceNumber ?? '',
       issuedDate: toDateInput(result.issuedDate),
       dueDate: toDateInput(result.dueDate),
@@ -208,7 +268,7 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
         seededFrom: 'blank',
         vendorId: '',
         projectId: '',
-        relatedPoId: '',
+        relatedPoId: initialPoId ?? '',
         invoiceNumber: '',
         issuedDate: '',
         dueDate: '',
@@ -270,13 +330,17 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot prefill; the functional update never clobbers a user choice
   }, [matchResult, dirty, form?.seededFrom]);
 
-  // PO-match flags are computed server-side from the *saved* lines, keyed here
-  // by the saved line id (rows added since the last save carry no flags yet).
-  const matchByLineId = useMemo(() => {
+  // PO-match flags land back on the form rows they were computed from: the
+  // report's lines come back in submission order, and `settledPreview.keys`
+  // remembers which form row sat at each position.
+  const matchByKey = useMemo(() => {
     const map = new Map<string, InvoicePoMatchLine>();
-    matchResult?.lines.forEach((line) => map.set(line.invoiceLineId, line));
+    matchResult?.lines.forEach((line, index) => {
+      const key = settledPreview?.keys[index];
+      if (key) map.set(key, line);
+    });
     return map;
-  }, [matchResult]);
+  }, [matchResult, settledPreview]);
 
   const update = (patch: Partial<ReviewFormState>) => {
     setForm((prev) => (prev ? { ...prev, ...patch } : prev));
@@ -537,7 +601,7 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
               <Alert variant="info" icon={warnIcon}>
                 {t('review.match.selected', {
                   defaultValue:
-                    'Comparing this invoice against {{poNumber}}. Save to link it — the line checks below run once the invoice lines are saved.',
+                    'Comparing this invoice against {{poNumber}} — saving the review links it.',
                   poNumber,
                 })}
               </Alert>
@@ -569,6 +633,14 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
             </Alert>
           </div>
         )}
+        {lineCount > 0 && matchResult.resolution !== 'LINKED' && (
+          <p className="text-xs text-muted-foreground" data-testid="invoice-review-match-unsaved">
+            {t('review.match.unsavedLink', {
+              defaultValue:
+                'This purchase order is not linked to the invoice yet — saving the review links it.',
+            })}
+          </p>
+        )}
         {vendorMismatch && (
           <div data-testid="invoice-review-match-vendor">
             <Alert variant="warning" icon={warnIcon}>
@@ -594,7 +666,7 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
   const signed = (value: number): string => (value > 0 ? `+${value}` : `${value}`);
 
   const lineFlagBadges = (line: ReviewLineForm) => {
-    const lineMatch = line.savedId ? matchByLineId.get(line.savedId) : undefined;
+    const lineMatch = matchByKey.get(line.key);
     if (!lineMatch) return <span className="text-muted-foreground">—</span>;
     if (lineMatch.flags.length === 0) {
       return (
@@ -881,18 +953,6 @@ export function InvoiceReviewPanel({ invoice }: InvoiceReviewPanelProps) {
               </tbody>
             </table>
           </div>
-        )}
-
-        {showLineFlags && dirty && (
-          <p
-            className="mt-2 text-xs text-muted-foreground"
-            data-testid="invoice-review-match-stale"
-          >
-            {t('review.match.saveToRefresh', {
-              defaultValue:
-                'Variance flags are checked against the saved lines — save to refresh them.',
-            })}
-          </p>
         )}
       </div>
 

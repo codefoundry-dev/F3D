@@ -222,4 +222,33 @@ describe('InvoicePoTab (FOR-355)', () => {
 
     expect(await screen.findByText('Invoice not sent')).toBeInTheDocument();
   });
+
+  it('previews the PO picked in the review form before the review is saved', async () => {
+    const info = makePoInfo();
+    mockGetInvoicePoInfo.mockResolvedValue({
+      ...info,
+      match: { ...info.match, resolution: 'SELECTED' },
+    });
+
+    render(<InvoicePoTab invoice={makeInvoice({ relatedPo: null })} previewPoId="po-1" />, {
+      wrapper,
+    });
+
+    expect(await screen.findByTestId('invoice-po-comparison')).toBeInTheDocument();
+    // The unsaved pick rides along on the request…
+    expect(mockGetInvoicePoInfo).toHaveBeenCalledWith('inv-1', { poId: 'po-1' });
+    // …and the tab says the link still needs a save to stick.
+    expect(screen.getByTestId('invoice-po-tab-unsaved')).toHaveTextContent(
+      'not linked to the invoice yet',
+    );
+  });
+
+  it('shows no unsaved-link hint for a saved (LINKED) PO', async () => {
+    mockGetInvoicePoInfo.mockResolvedValue(makePoInfo());
+
+    render(<InvoicePoTab invoice={makeInvoice()} />, { wrapper });
+
+    expect(await screen.findByTestId('invoice-po-comparison')).toBeInTheDocument();
+    expect(screen.queryByTestId('invoice-po-tab-unsaved')).not.toBeInTheDocument();
+  });
 });

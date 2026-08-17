@@ -310,6 +310,62 @@ describe('InvoiceMatchingService', () => {
     });
   });
 
+  // The review form reconciles its *unsaved* lines live: the comparison and
+  // flags answer for what is on screen, not the rows last saved.
+  describe('draft-lines preview (linesOverride)', () => {
+    it('pairs and flags the supplied lines instead of the saved ones', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(
+        invoiceRow({ relatedPoId: 'po-1', lines: [invLine({ description: 'stale saved row' })] }),
+      );
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(poRow());
+
+      const result = await service.getPoMatch('inv-1', companyAdmin, undefined, [
+        { description: 'DN100 PVC pipe', quantity: 10, unitPrice: 9.35, lineTotal: 93.5 },
+      ]);
+
+      expect(result.lines).toHaveLength(1);
+      expect(result.lines[0]).toMatchObject({
+        description: 'DN100 PVC pipe',
+        lineTotal: 93.5,
+        poLine: expect.objectContaining({ id: 'pol-1' }),
+        flags: ['PRICE_VARIANCE'],
+      });
+      expect(result.summary).toMatchObject({
+        lineCount: 1,
+        matchedCount: 1,
+        priceVarianceCount: 1,
+      });
+    });
+
+    it('drops blank-description rows the way the review save does', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow({ relatedPoId: 'po-1' }));
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(poRow());
+
+      const result = await service.getPoMatch('inv-1', companyAdmin, undefined, [
+        { description: '   ' },
+        { description: 'DN100 PVC pipe', quantity: 10, unitPrice: 8.5, lineTotal: 85 },
+      ]);
+
+      expect(result.lines).toHaveLength(1);
+      expect(result.lines[0].flags).toEqual([]);
+    });
+
+    it('composes with a reviewer-selected PO for a fully unsaved preview', async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow());
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(
+        poRow({ id: 'po-9', poNumber: 'PO-00099' }),
+      );
+
+      const result = await service.getPoMatch('inv-1', companyAdmin, 'po-9', [
+        { description: 'DN100 PVC pipe', quantity: 12, unitPrice: 8.5, lineTotal: 102 },
+      ]);
+
+      expect(result.resolution).toBe('SELECTED');
+      expect(result.lines[0].flags).toEqual(['QTY_VARIANCE']);
+      expect(result.lines[0].quantityDelta).toBe(2);
+    });
+  });
+
   // Everything the reviewer needs about the PO itself, so the invoice can be
   // judged without leaving the review form.
   describe('PO context: status, delivery progress and lines', () => {
@@ -563,6 +619,21 @@ describe('InvoiceMatchingService', () => {
       expect(result.match.resolution).toBe('NO_REFERENCE');
       expect(result.deliveryReports).toEqual([]);
       expect(mockPrisma.deliveryReport.findMany).not.toHaveBeenCalled();
+    });
+
+    it("previews the review form's unsaved PO pick, delivery reports included", async () => {
+      mockPrisma.invoice.findUnique.mockResolvedValue(invoiceRow());
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(
+        poRow({ id: 'po-9', poNumber: 'PO-00099' }),
+      );
+
+      const result = await service.getPoInfo('inv-1', companyAdmin, 'po-9');
+
+      expect(result.match.resolution).toBe('SELECTED');
+      expect(result.match.po?.id).toBe('po-9');
+      expect(mockPrisma.deliveryReport.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { purchaseOrderId: 'po-9' } }),
+      );
     });
 
     it("summarises the resolved PO's delivery reports, newest first as queried", async () => {

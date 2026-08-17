@@ -371,18 +371,48 @@ export async function getInvoicePoMatch(
   return data.data;
 }
 
+/** The review form's current (unsaved) state, for the live match preview. */
+export interface PreviewInvoicePoMatchPayload {
+  /** The PO selected in the form; null/omitted falls back to the invoice's own resolution. */
+  poId?: string | null;
+  lines: ReviewInvoicePayload['lines'];
+}
+
+/**
+ * Preview the invoice↔PO reconciliation against the review form's current PO
+ * pick and unsaved lines. Same report as getInvoicePoMatch, but pairing and
+ * variance flags are computed from the supplied lines instead of the saved
+ * ones, so the comparison is live while the reviewer edits. Nothing is written.
+ */
+export async function previewInvoicePoMatch(
+  id: string,
+  payload: PreviewInvoicePoMatchPayload,
+  config?: AxiosRequestConfig,
+): Promise<InvoicePoMatchResult> {
+  const { data } = await getApiClient().post<{ data: InvoicePoMatchResult }>(
+    INVOICES_PATHS.poMatch(id),
+    payload,
+    config,
+  );
+  return data.data;
+}
+
 /**
  * The Invoice Details PO tab payload (FOR-355): PO resolution + reconciliation
  * plus the delivery reports recorded against the resolved PO. Read-gated, so it
  * serves viewers who cannot review.
+ *
+ * `poId` previews the PO the reviewer has picked in the review form but not yet
+ * saved; it must belong to the invoice's company, otherwise it is ignored.
  */
 export async function getInvoicePoInfo(
   id: string,
+  params?: { poId?: string | null },
   config?: AxiosRequestConfig,
 ): Promise<InvoicePoInfoResult> {
   const { data } = await getApiClient().get<{ data: InvoicePoInfoResult }>(
     INVOICES_PATHS.poInfo(id),
-    config,
+    { params: params?.poId ? { poId: params.poId } : undefined, ...config },
   );
   return data.data;
 }

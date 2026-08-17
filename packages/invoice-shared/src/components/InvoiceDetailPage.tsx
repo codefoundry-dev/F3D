@@ -66,6 +66,10 @@ export function InvoiceDetailPage({
   const setTitle = usePageTitleStore((s) => s.setTitle);
   // Which decision modal is open (FOR-294) — both capture a reason for the trail.
   const [decision, setDecision] = useState<'approve' | 'decline' | null>(null);
+  // The PO picked in the review form but not yet saved (FOR-355). Held here so
+  // the Purchase Order tab can preview it, and so the pick survives the review
+  // form unmounting on a tab switch.
+  const [previewPoId, setPreviewPoId] = useState<string | null>(null);
 
   // Surface the title + Invoices breadcrumb in the app bar (back → list).
   useEffect(() => {
@@ -173,11 +177,21 @@ export function InvoiceDetailPage({
           // Pending invoices show the review/correct form (FOR-291); once the
           // invoice leaves Pending the details freeze into the read-only view.
           (canReview && isPending && invoice ? (
-            <InvoiceReviewPanel invoice={invoice} />
+            <InvoiceReviewPanel
+              invoice={invoice}
+              initialPoId={previewPoId}
+              onPoPreviewChange={setPreviewPoId}
+            />
           ) : (
             <InvoiceDetailsTab invoice={invoice} />
           ))}
-        {activeTab === 'po' && invoice && <InvoicePoTab invoice={invoice} />}
+        {activeTab === 'po' && invoice && (
+          <InvoicePoTab
+            invoice={invoice}
+            // An unsaved pick only exists while the review form is available.
+            previewPoId={canReview && isPending ? previewPoId : null}
+          />
+        )}
         {activeTab === 'attachments' && <AttachmentsTab documents={invoice?.documents ?? []} />}
         {activeTab === 'history' && invoice && <InvoiceHistoryTab invoice={invoice} />}
       </div>

@@ -42,6 +42,7 @@ export function PoChangeDiff({
   const fieldEntries = Object.entries(changedFields.fields ?? {});
   const lineItems = changedFields.lineItems ?? [];
   const removedLineItems = changedFields.removedLineItems ?? [];
+  const addedLineItems = changedFields.addedLineItems ?? [];
   const isCancellation = changedFields.cancelPo === true;
 
   const formatValue = (field: string, value: unknown): string => {
@@ -130,6 +131,60 @@ export function PoChangeDiff({
         </div>
       )}
 
+      {/* Added line items — created on the PO on approval */}
+      {addedLineItems.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-foreground">{t('change.addedLineItems')}</h3>
+            {onEditLineItems && (
+              <button
+                type="button"
+                onClick={onEditLineItems}
+                className="text-sm text-foreground hover:text-foreground/70 transition-colors"
+              >
+                {t('change.edit')}
+              </button>
+            )}
+          </div>
+          <div className="flex flex-col gap-3">
+            {addedLineItems.map((li, idx) => (
+              <div key={`${li.name}-${idx}`} className="rounded-lg border border-border p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="font-semibold text-foreground truncate">{li.name}</p>
+                  <span className="shrink-0 rounded-full bg-success/10 px-2.5 py-0.5 text-xs font-medium text-success">
+                    {t('change.addedBadge')}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
+                  <AddedValue
+                    label={lineFieldLabel('quantityOrdered')}
+                    value={String(li.quantityOrdered)}
+                  />
+                  <AddedValue label={lineFieldLabel('unitOfMeasure')} value={li.unitOfMeasure} />
+                  <AddedValue
+                    label={lineFieldLabel('unitPrice')}
+                    value={formatCurrency(li.unitPrice)}
+                  />
+                  {li.expectedDeliveryDate && (
+                    <AddedValue
+                      label={lineFieldLabel('expectedDeliveryDate')}
+                      value={formatDate(li.expectedDeliveryDate)}
+                    />
+                  )}
+                  {li.deliveryTime && (
+                    <AddedValue label={lineFieldLabel('deliveryTime')} value={li.deliveryTime} />
+                  )}
+                  {li.costCode && (
+                    <AddedValue label={lineFieldLabel('costCode')} value={li.costCode} />
+                  )}
+                  {li.notes && <AddedValue label={lineFieldLabel('notes')} value={li.notes} />}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Removed line items (FOR-352) — deleted from the PO on approval */}
       {removedLineItems.length > 0 && (
         <div>
@@ -170,6 +225,16 @@ interface DiffRowProps {
   label: string;
   diff: PoChangeFieldDiff;
   format: (value: unknown) => string;
+}
+
+/** A single `{label}` / `{value}` cell for an added line item (no old value). */
+function AddedValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="text-sm text-foreground truncate">{value}</p>
+    </div>
+  );
 }
 
 /** A single `{label}` / `{old struck} → {new}` diff cell. */

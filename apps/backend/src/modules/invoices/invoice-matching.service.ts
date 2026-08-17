@@ -1,5 +1,6 @@
 import {
   isInvoiceExtractionResult,
+  type PreviewInvoicePoMatchDto,
   type InvoiceLineMatchFlag,
   type InvoiceMatchedPo,
   type InvoicePoDelivery,
@@ -112,11 +113,15 @@ export class InvoiceMatchingService {
    *   yet saved. Lets the form show the pairing, status and delivery progress of a
    *   PO before committing to it; ignored when it is not one of the invoice
    *   company's POs.
+   * @param linesOverride The review form's current (unsaved) lines. When given,
+   *   pairing and variance flags are computed against them instead of the saved
+   *   invoice lines, so the comparison is live while the reviewer edits.
    */
   async getPoMatch(
     invoiceId: string,
     user: AuthenticatedUser,
     poIdOverride?: string,
+    linesOverride?: PreviewInvoicePoMatchDto['lines'],
   ): Promise<InvoicePoMatchResult> {
     const invoice = await this.prisma.invoice.findUnique({
       where: { id: invoiceId },
@@ -154,11 +159,36 @@ export class InvoiceMatchingService {
       poIdOverride,
     );
 
-    const invoiceLines: MatchableInvoiceLine[] = invoice.lines.map((line) => ({
+    // Preview lines (the form's unsaved edits) stand in for the saved rows when
+    // supplied; ids are synthetic since the rows don't exist yet. Blank
+    // descriptions are dropped the same way the review save drops them.
+    const sourceLines = linesOverride
+      ? linesOverride
+          .filter((line) => line.description.trim() !== '')
+          .map((line, index) => ({
+            id: `preview-${index}`,
+            position: index,
+            lineId: line.lineId ?? null,
+            description: line.description,
+            quantity: line.quantity ?? null,
+            unitPrice: line.unitPrice ?? null,
+            lineTotal: line.lineTotal ?? null,
+          }))
+      : invoice.lines.map((line) => ({
+          id: line.id,
+          position: line.position,
+          lineId: line.lineId,
+          description: line.description,
+          quantity: line.quantity === null ? null : Number(line.quantity),
+          unitPrice: line.unitPrice === null ? null : Number(line.unitPrice),
+          lineTotal: line.lineTotal === null ? null : Number(line.lineTotal),
+        }));
+
+    const invoiceLines: MatchableInvoiceLine[] = sourceLines.map((line) => ({
       lineId: line.lineId,
       description: line.description,
-      quantity: line.quantity === null ? null : Number(line.quantity),
-      unitPrice: line.unitPrice === null ? null : Number(line.unitPrice),
+      quantity: line.quantity,
+      unitPrice: line.unitPrice,
     }));
 
     const poLines: MatchablePoLine[] = (po?.lineItems ?? []).map((line) => ({
@@ -172,13 +202,12 @@ export class InvoiceMatchingService {
     const assignments = po ? pairLines(invoiceLines, poLines) : new Map<number, never>();
 
     const usedPoLineIndexes = new Set<number>();
-    const lines: InvoicePoMatchLine[] = invoice.lines.map((line, index) => {
+    const lines: InvoicePoMatchLine[] = sourceLines.map((line, index) => {
       const assignment = assignments.get(index);
       const poLine = assignment ? (po?.lineItems[assignment.poIndex] ?? null) : null;
       if (assignment) usedPoLineIndexes.add(assignment.poIndex);
 
-      const quantity = line.quantity === null ? null : Number(line.quantity);
-      const unitPrice = line.unitPrice === null ? null : Number(line.unitPrice);
+      const { quantity, unitPrice } = line;
 
       const flags: InvoiceLineMatchFlag[] = [];
       let priceVariancePct: number | null = null;
@@ -210,7 +239,7 @@ export class InvoiceMatchingService {
         description: line.description,
         quantity,
         unitPrice,
-        lineTotal: line.lineTotal === null ? null : Number(line.lineTotal),
+        lineTotal: line.lineTotal,
         poLine: poLine ? toPoLineDto(poLine) : null,
         matchConfidence: assignment ? round2(assignment.score) : null,
         priceVariancePct: priceVariancePct === null ? null : round2(priceVariancePct),
@@ -246,12 +275,20 @@ export class InvoiceMatchingService {
   /**
    * The Invoice Details PO tab payload (FOR-355): the reconciliation report the
    * review form already uses, plus the delivery reports recorded against the
-   * resolved PO. Sits behind `invoice.read` (unlike po-match's `invoice.review`)
-   * because it never previews an unsaved PO pick — it only discloses the PO the
-   * invoice itself resolves to.
+   * resolved PO.
+   *
+   * `poIdOverride` lets the tab show the PO the reviewer has picked in the
+   * review form before the link is saved. Like the po-export override it stays
+   * behind `invoice.read` and is company-scoped: a PO outside the invoice's
+   * company is ignored (resolvePo falls back to the invoice's own resolution),
+   * so it never discloses more than po-export already does.
    */
-  async getPoInfo(invoiceId: string, user: AuthenticatedUser): Promise<InvoicePoInfoResult> {
-    const match = await this.getPoMatch(invoiceId, user);
+  async getPoInfo(
+    invoiceId: string,
+    user: AuthenticatedUser,
+    poIdOverride?: string,
+  ): Promise<InvoicePoInfoResult> {
+    const match = await this.getPoMatch(invoiceId, user, poIdOverride);
     const deliveryReports = match.po ? await this.getDeliveryReports(match.po.id) : [];
     return { match, deliveryReports };
   }

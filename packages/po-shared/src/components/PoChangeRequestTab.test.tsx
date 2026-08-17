@@ -107,6 +107,13 @@ describe('PoChangeRequestTab', () => {
     expect(screen.queryByText('changeRequestTab.reject')).not.toBeInTheDocument();
   });
 
+  it('hides Apply all / Reject entirely in readOnly mode (guest portal)', () => {
+    renderTab({ currentUserName: 'Other Person', readOnly: true });
+    expect(screen.getByTestId('diff')).toBeInTheDocument();
+    expect(screen.queryByText('changeRequestTab.applyAll')).not.toBeInTheDocument();
+    expect(screen.queryByText('changeRequestTab.reject')).not.toBeInTheDocument();
+  });
+
   it('calls approvePoChange on Apply all', async () => {
     mockApprove.mockResolvedValue(undefined);
     renderTab({ currentUserName: 'Other Person' });

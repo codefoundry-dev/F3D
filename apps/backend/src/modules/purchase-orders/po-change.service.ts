@@ -21,6 +21,10 @@ import {
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import {
+  loadMaterialSnapshots,
+  resolveMaterialSnapshot,
+} from '../../common/utils/material-snapshot.util';
 import { resolveVendorRecipientsWithState } from '../../common/utils/vendor-recipients.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
@@ -50,11 +54,30 @@ interface RemovedLineItem {
   lineItemId: string;
   name?: string;
 }
+/** A brand-new line the request creates on approval (full line payload). */
+interface AddedLineItem {
+  name?: string;
+  materialId?: string;
+  materialCode?: string;
+  description?: string;
+  quantityOrdered?: number;
+  unitOfMeasure?: string;
+  unitPrice?: number;
+  costCode?: string;
+  upc?: string;
+  manufacturerPartNumber?: string;
+  taxCode?: string;
+  expectedDeliveryDate?: string;
+  deliveryTime?: string;
+  notes?: string;
+}
 interface ChangedFields {
   fields?: Record<string, ChangedFieldDiff>;
   lineItems?: ChangedLineItem[];
   // FOR-352: lines the request deletes on approval.
   removedLineItems?: RemovedLineItem[];
+  // Lines the request adds on approval.
+  addedLineItems?: AddedLineItem[];
   // FOR-352: approving cancels the PO instead of applying field changes.
   cancelPo?: boolean;
 }
@@ -612,6 +635,59 @@ export class PoChangeService {
           );
         }
         await tx.poLineItem.deleteMany({ where: { id: { in: removable.map((l) => l.id) } } });
+      }
+
+      // 2c) Create the brand-new lines the request adds. Incomplete entries are
+      // skipped rather than 400ing — the request already passed review, and a
+      // partial apply of the valid lines beats failing the whole approval.
+      // Catalogue snapshots (UPC/MPN/cost/tax code) resolve exactly like the
+      // create-PO path; a materialId that no longer resolves is dropped so a
+      // stale reference can't fail the insert.
+      const addedLines = (changedFields.addedLineItems ?? []).filter(
+        (li) =>
+          li &&
+          typeof li.unitOfMeasure === 'string' &&
+          li.unitOfMeasure.length > 0 &&
+          Math.trunc(Number(li.quantityOrdered)) >= 1,
+      );
+      if (addedLines.length > 0) {
+        const snapshots = await loadMaterialSnapshots(
+          this.prisma,
+          addedLines.map((li) => li.materialId),
+        );
+        const maxLine = await tx.poLineItem.aggregate({
+          where: { purchaseOrderId: poId },
+          _max: { lineNumber: true },
+        });
+        let nextLineNumber = (maxLine._max.lineNumber ?? 0) + 1;
+        for (const li of addedLines) {
+          const materialId = li.materialId && snapshots.has(li.materialId) ? li.materialId : null;
+          const snapshot = resolveMaterialSnapshot(li, materialId, snapshots);
+          const quantityOrdered = Math.trunc(Number(li.quantityOrdered));
+          const unitPrice = Math.max(0, Number(li.unitPrice) || 0);
+          await tx.poLineItem.create({
+            data: {
+              purchaseOrderId: poId,
+              lineNumber: nextLineNumber++,
+              materialId,
+              materialCode: toNullableString(li.materialCode),
+              // Manual-name lines carry their name in `description` (same
+              // convention as the create-PO payload mapping).
+              description: toNullableString(li.description) ?? toNullableString(li.name),
+              quantityOrdered,
+              unitOfMeasure: li.unitOfMeasure as string,
+              unitPrice,
+              lineTotal: unitPrice * quantityOrdered,
+              costCode: snapshot.costCode,
+              upc: snapshot.upc,
+              manufacturerPartNumber: snapshot.manufacturerPartNumber,
+              taxCode: snapshot.taxCode,
+              expectedDeliveryDate: toNullableDate(li.expectedDeliveryDate),
+              deliveryTime: toNullableString(li.deliveryTime),
+              notes: toNullableString(li.notes),
+            },
+          });
+        }
       }
 
       // 3) Recompute PO money + counts from the (now updated) line items

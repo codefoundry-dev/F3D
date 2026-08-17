@@ -352,7 +352,7 @@ describe('CreateRfqPage', () => {
     await waitFor(() => expect(mockApi.checkRfqAvailability).toHaveBeenCalledTimes(1));
   });
 
-  it('walks through to review & send and submits the RFQ', async () => {
+  it('walks through to review & send and submits the RFQ via the confirmation dialog', async () => {
     renderPage();
     fillStepOne();
     continueWizard();
@@ -360,11 +360,50 @@ describe('CreateRfqPage', () => {
     expect(screen.getByText('create.review.rfqInformation')).toBeInTheDocument();
     expect(screen.getByText('Structural steel package')).toBeInTheDocument();
 
+    // Submit opens the send confirmation (with optional CC) instead of firing.
     fireEvent.click(screen.getByTestId('submit-rfq'));
-    await waitFor(() => expect(mockSendRfq.mutateAsync).toHaveBeenCalledWith({ id: 'rfq-1' }));
+    expect(mockSendRfq.mutateAsync).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId('confirm-send-rfq'));
+    await waitFor(() =>
+      expect(mockSendRfq.mutateAsync).toHaveBeenCalledWith({ id: 'rfq-1', cc: [] }),
+    );
     // Success dialog with redirect countdown appears.
     expect(await screen.findByText('create.submit.successTitle')).toBeInTheDocument();
     expect(mockApi.confirmRfqCoverage).not.toHaveBeenCalled();
+  });
+
+  it('passes CC emails typed into the send dialog through to the send mutation', async () => {
+    renderPage();
+    fillStepOne();
+    continueWizard();
+    await screen.findByText(/create\.headings\.step4Title/);
+
+    fireEvent.click(screen.getByTestId('submit-rfq'));
+    fireEvent.change(screen.getByTestId('send-rfq-cc'), {
+      target: { value: 'pm@example.com, site@example.com' },
+    });
+    fireEvent.click(screen.getByTestId('confirm-send-rfq'));
+
+    await waitFor(() =>
+      expect(mockSendRfq.mutateAsync).toHaveBeenCalledWith({
+        id: 'rfq-1',
+        cc: ['pm@example.com', 'site@example.com'],
+      }),
+    );
+  });
+
+  it('does not send when the confirmation dialog is cancelled', async () => {
+    renderPage();
+    fillStepOne();
+    continueWizard();
+    await screen.findByText(/create\.headings\.step4Title/);
+
+    fireEvent.click(screen.getByTestId('submit-rfq'));
+    fireEvent.click(screen.getByText('Cancel'));
+
+    expect(screen.queryByTestId('confirm-send-rfq')).not.toBeInTheDocument();
+    expect(mockSendRfq.mutateAsync).not.toHaveBeenCalled();
   });
 
   it('confirms bulk-order coverage and shows the No-RFQ-Required state when fully covered', async () => {

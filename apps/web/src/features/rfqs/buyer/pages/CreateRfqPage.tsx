@@ -28,6 +28,7 @@ import {
 import { bomLineToRfqDraftFields } from '../components/create/bom-draft';
 import { EditMaterialModal } from '../components/create/EditMaterialModal';
 import { SelectVendorsCard, type VendorSelection } from '../components/create/SelectVendorsCard';
+import { SendRfqDialog } from '../components/create/SendRfqDialog';
 import { AddFromBomModal, AddFromMaterialListModal } from '../components/create/source-modals';
 import { StepBasicInfo } from '../components/create/StepBasicInfo';
 import { StepLineItems } from '../components/create/StepLineItems';
@@ -187,6 +188,12 @@ export default function CreateRfqPage() {
     'idle',
   );
   const [submitError, setSubmitError] = useState<string>('');
+  // Sending emails vendors, so Submit opens the same confirmation-with-CC dialog
+  // as the detail page instead of firing straight away.
+  const [showSendDialog, setShowSendDialog] = useState(false);
+  // The CC list from the last send attempt, so the error modal's Try Again
+  // doesn't silently drop what the user typed into the dialog.
+  const [ccEmails, setCcEmails] = useState<string[]>([]);
 
   // ── Data sources ──────────────────────────────────────────────────────────
   const { data: projects = [], isLoading: projectsLoading } = useRfqProjects();
@@ -420,16 +427,21 @@ export default function CreateRfqPage() {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (cc: string[]) => {
+    setCcEmails(cc);
     setSubmitState('submitting');
     try {
       const detail = await persist();
       for (const attachment of attachments) {
         await uploadRfqDocument(detail.id, attachment.file);
       }
-      await sendRfq.mutateAsync({ id: detail.id });
+      await sendRfq.mutateAsync({ id: detail.id, cc });
+      setShowSendDialog(false);
       setSubmitState('success');
     } catch (error) {
+      // Failures (persist, upload or send) all route to the StatusErrorModal,
+      // so the confirmation dialog closes rather than double-reporting.
+      setShowSendDialog(false);
       setSubmitError(error instanceof Error ? error.message : t('create.submit.genericError'));
       setSubmitState('error');
     }
@@ -673,7 +685,7 @@ export default function CreateRfqPage() {
               <Button
                 type="button"
                 size="lg"
-                onClick={() => void handleSubmit()}
+                onClick={() => setShowSendDialog(true)}
                 isLoading={submitState === 'submitting'}
                 data-testid="submit-rfq"
               >
@@ -724,6 +736,17 @@ export default function CreateRfqPage() {
         />
       )}
 
+      {showSendDialog && (
+        <SendRfqDialog
+          vendorCount={vendorIds.length}
+          isSending={submitState === 'submitting'}
+          // Errors surface via the StatusErrorModal below, never inline here.
+          isError={false}
+          onCancel={() => setShowSendDialog(false)}
+          onSend={(cc) => void handleSubmit(cc)}
+        />
+      )}
+
       {submitState === 'success' && (
         <StatusSuccessModal
           onClose={() => navigate(ROUTES.rfqs)}
@@ -741,7 +764,7 @@ export default function CreateRfqPage() {
           title={t('create.submit.errorTitle', { error: submitError })}
           description=""
           primaryButtonLabel={t('create.submit.tryAgain')}
-          onPrimaryClick={() => void handleSubmit()}
+          onPrimaryClick={() => void handleSubmit(ccEmails)}
           secondaryButtonLabel={t('create.submit.dismiss')}
           onSecondaryClick={() => setSubmitState('idle')}
         />
