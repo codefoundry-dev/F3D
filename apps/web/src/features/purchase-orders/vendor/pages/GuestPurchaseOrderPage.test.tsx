@@ -9,6 +9,11 @@ const mockQueryResult = vi.hoisted(() => ({
   },
 }));
 
+// The page's second query — the PO's change requests (guest-po-crs key).
+const mockCrsResult = vi.hoisted(() => ({
+  value: { data: [] as Record<string, unknown>[] },
+}));
+
 const mockIsApiError = vi.hoisted(() => ({ value: vi.fn((..._args: unknown[]) => false) }));
 const mockExportPublicPo = vi.hoisted(() => ({
   value: vi.fn((..._args: unknown[]) => Promise.resolve({ url: 'u' })),
@@ -28,18 +33,31 @@ vi.mock('@forethread/api-client', () => ({
   exportPublicPurchaseOrder: (...args: unknown[]) => mockExportPublicPo.value(...args),
   isApiError: (...args: unknown[]) => mockIsApiError.value(...args),
   proposePublicPoChange: vi.fn(),
+  listPublicPoChangeRequests: vi.fn(() => Promise.resolve([])),
 }));
 
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: () => mockQueryResult.value,
+  useQuery: (opts: { queryKey: unknown[] }) =>
+    opts.queryKey[0] === 'guest-po-crs' ? mockCrsResult.value : mockQueryResult.value,
   useMutation: () => ({ mutate: vi.fn(), isPending: false }),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
 vi.mock('@forethread/po-shared', () => ({
-  PoDetailTabs: ({ tabs }: { tabs: string[] }) => <div data-testid="po-tabs">{tabs.join(',')}</div>,
+  PoDetailTabs: ({ tabs, onTabChange }: { tabs: string[]; onTabChange: (t: string) => void }) => (
+    <div data-testid="po-tabs">
+      {tabs.join(',')}
+      {tabs.map((tab) => (
+        <button key={tab} data-testid={`tab-${tab}`} onClick={() => onTabChange(tab)} />
+      ))}
+    </div>
+  ),
   PoDetailsTab: () => <div data-testid="po-details-tab" />,
   PoLineItemsTab: () => <div data-testid="po-line-items-tab" />,
   PoCancelRequestModal: () => <div data-testid="po-cancel-request-modal" />,
+  PoChangeRequestTab: ({ readOnly }: { readOnly?: boolean }) => (
+    <div data-testid="po-change-request-tab" data-readonly={String(readOnly ?? false)} />
+  ),
 }));
 
 vi.mock('@forethread/ui-components', () => ({
@@ -84,6 +102,7 @@ describe('GuestPurchaseOrderPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockQueryResult.value = { data: null, isLoading: false, isError: false, error: null };
+    mockCrsResult.value = { data: [] };
     mockIsApiError.value = vi.fn((..._args: unknown[]) => false);
     mockExportPublicPo.value = vi.fn(() => Promise.resolve({ url: 'u' }));
     // jsdom has no window.open; stub it so the fire-and-forget download is quiet.
@@ -155,5 +174,34 @@ describe('GuestPurchaseOrderPage', () => {
     render(<GuestPurchaseOrderPage />);
     expect(screen.queryByTestId('po-vendor-actions')).not.toBeInTheDocument();
     expect(screen.getByText('guest.infoBanner')).toBeInTheDocument();
+  });
+
+  it('surfaces a pending change request as a read-only tab', () => {
+    mockQueryResult.value = { data: samplePo, isLoading: false, isError: false, error: null };
+    mockCrsResult.value = {
+      data: [
+        { id: 'cr-old', status: 'REJECTED' },
+        { id: 'cr-1', status: 'PENDING', changedFields: {} },
+      ],
+    };
+    render(<GuestPurchaseOrderPage />);
+    expect(screen.getByTestId('po-tabs')).toHaveTextContent('details,changeRequest,lineItems');
+  });
+
+  it('renders the pending change request read-only when its tab is opened', () => {
+    mockQueryResult.value = { data: samplePo, isLoading: false, isError: false, error: null };
+    mockCrsResult.value = { data: [{ id: 'cr-1', status: 'PENDING', changedFields: {} }] };
+    render(<GuestPurchaseOrderPage />);
+    fireEvent.click(screen.getByTestId('tab-changeRequest'));
+    const crTab = screen.getByTestId('po-change-request-tab');
+    expect(crTab).toHaveAttribute('data-readonly', 'true');
+  });
+
+  it('keeps the change-request tab hidden when no pending CR exists', () => {
+    mockQueryResult.value = { data: samplePo, isLoading: false, isError: false, error: null };
+    mockCrsResult.value = { data: [{ id: 'cr-old', status: 'APPROVED' }] };
+    render(<GuestPurchaseOrderPage />);
+    expect(screen.getByTestId('po-tabs')).toHaveTextContent('details,lineItems');
+    expect(screen.queryByTestId('po-change-request-tab')).not.toBeInTheDocument();
   });
 });

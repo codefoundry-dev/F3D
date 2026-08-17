@@ -663,6 +663,29 @@ export interface PoRemovedLineItem {
 }
 
 /**
+ * A brand-new line item the change request proposes to add to the PO. Unlike
+ * `lineItems` (diffs against an existing line) this carries the full line
+ * payload — approving creates the line on the PO.
+ */
+export interface PoAddedLineItem {
+  /** Display name for the diff (the typed/catalogue material name). */
+  name: string;
+  materialId?: string;
+  materialCode?: string;
+  description?: string;
+  quantityOrdered: number;
+  unitOfMeasure: string;
+  unitPrice: number;
+  costCode?: string;
+  upc?: string;
+  manufacturerPartNumber?: string;
+  taxCode?: string;
+  expectedDeliveryDate?: string;
+  deliveryTime?: string;
+  notes?: string;
+}
+
+/**
  * The agreed cross-package `changedFields` shape (PLAN §B). `fields` are
  * PO-level attributes (paymentTermsDays, pickUpTimeExpectation, pickUpLocation,
  * plannedDeliveryDate, deliveryLocationId, deliveryNotes, …); `lineItems` are
@@ -670,6 +693,7 @@ export interface PoRemovedLineItem {
  * quantityOrdered, …). Approving applies these to the PO.
  *
  * FOR-352 extensions: `removedLineItems` lists lines the request deletes on
+ * approval, `addedLineItems` lists brand-new lines the request creates on
  * approval, and `cancelPo: true` marks a cancellation request — approving it
  * cancels the PO instead of applying field changes.
  */
@@ -677,6 +701,7 @@ export interface PoChangedFields {
   fields?: Record<string, PoChangeFieldDiff>;
   lineItems?: PoChangeLineItem[];
   removedLineItems?: PoRemovedLineItem[];
+  addedLineItems?: PoAddedLineItem[];
   cancelPo?: boolean;
 }
 
