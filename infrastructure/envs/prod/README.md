@@ -12,7 +12,7 @@ Production environment composition. Wires the modules into a single Terraform st
 | Storage             | S3 uploads bucket (`forethread-prod-uploads`), versioned, AES256, CORS for `web_app_origin`.                                                              |
 | Secrets             | KMS key + Secrets Manager slots for `jwt-access-secret`, `jwt-refresh-secret`, `resend-api-key`, `gemini-api-key`, `google-places-api-key`, `sentry-dsn`. |
 | Queues              | None by default. Populate `queue_names` when workers come online.                                                                                         |
-| Compute             | EC2 `t4g.small` (Graviton, AL2023 ARM64) + IAM instance profile + ECR repo + Caddy/Compose user_data.                                                     |
+| Compute             | EC2 `t4g.medium` (Graviton, AL2023 ARM64) + IAM instance profile + ECR repo + Caddy/Compose user_data.                                                    |
 | Observability       | CloudWatch log groups (30-day retention), SNS alerts topic, alarms for EC2 / RDS / Redis / DLQs / error rate.                                             |
 | Cross-repo contract | All ARNs published to `/forethread/prod/*` in SSM Parameter Store.                                                                                        |
 
