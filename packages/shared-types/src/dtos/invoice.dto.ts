@@ -185,6 +185,26 @@ export class ReviewInvoiceLineDto {
 }
 
 /**
+ * Preview the invoice↔PO reconciliation against the review form's *current*
+ * (unsaved) state: the PO the reviewer has picked and the lines as edited so
+ * far. Returns the same report as GET /po-match, so the side-by-side
+ * comparison and variance flags render before anything is persisted.
+ */
+export class PreviewInvoicePoMatchDto {
+  /** The PO selected in the form; omitted falls back to the invoice's own resolution. */
+  @ApiPropertyOptional({ description: 'The purchase order (id) to reconcile against' })
+  @IsOptional()
+  @IsUUID()
+  poId?: string | null;
+
+  @ApiProperty({ type: [ReviewInvoiceLineDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ReviewInvoiceLineDto)
+  lines!: ReviewInvoiceLineDto[];
+}
+
+/**
  * The reviewer's confirmed/corrected invoice fields (FOR-291). Replace
  * semantics: every save writes the full set of reviewed fields — an omitted or
  * null field means "not identified on this invoice" — and `lines` replaces the

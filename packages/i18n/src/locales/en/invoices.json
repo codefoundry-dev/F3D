@@ -141,7 +141,8 @@
     "viewPdf": "View PO PDF",
     "preparingPdf": "Preparing PDF…",
     "noPo": "No purchase order is linked to this invoice.",
-    "noPoHint": "Link a purchase order in the review form to see its details, PDF, and deliveries here.",
+    "noPoHint": "Select a purchase order in the review form to see its details, PDF, and deliveries here.",
+    "unsavedLink": "This purchase order is not linked to the invoice yet — saving the review links it.",
     "deliveries": "Deliveries",
     "noDeliveries": "No delivery is available for this invoice yet.",
     "reportNumber": "Report #",
@@ -225,14 +226,14 @@
       "summaryClean": "All {{count}} line(s) match {{poNumber}} — no variances.",
       "summaryIssues": "Checked against {{poNumber}}: {{matched}} of {{count}} line(s) matched, {{price}} price variance(s), {{qty}} quantity variance(s), {{unexpected}} not on the PO.",
       "unbilled": "{{count}} PO line(s) are not billed on this invoice.",
-      "saveToRefresh": "Variance flags are checked against the saved lines — save to refresh them.",
+      "unsavedLink": "This purchase order is not linked to the invoice yet — saving the review links it.",
       "flag": {
         "matched": "Matched",
         "price": "Price {{pct}}%",
         "qty": "Qty {{delta}}",
         "notOnPo": "Not on PO"
       },
-      "selected": "Comparing this invoice against {{poNumber}}. Save to link it — the line checks below run once the invoice lines are saved.",
+      "selected": "Comparing this invoice against {{poNumber}} — saving the review links it.",
       "row": {
         "notBilled": "Not billed"
       },

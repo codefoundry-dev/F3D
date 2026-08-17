@@ -10,14 +10,14 @@ const {
   mockGetCompanyVendors,
   mockGetProjects,
   mockGetPurchaseOrders,
-  mockGetInvoicePoMatch,
+  mockPreviewInvoicePoMatch,
   mockReviewInvoice,
 } = vi.hoisted(() => ({
   mockGetMe: vi.fn(),
   mockGetCompanyVendors: vi.fn(),
   mockGetProjects: vi.fn(),
   mockGetPurchaseOrders: vi.fn(),
-  mockGetInvoicePoMatch: vi.fn(),
+  mockPreviewInvoicePoMatch: vi.fn(),
   mockReviewInvoice: vi.fn(),
 }));
 
@@ -26,7 +26,9 @@ vi.mock('@forethread/api-client', () => ({
   getCompanyVendors: (...args: unknown[]) => mockGetCompanyVendors(...args),
   getProjects: (...args: unknown[]) => mockGetProjects(...args),
   getPurchaseOrders: (...args: unknown[]) => mockGetPurchaseOrders(...args),
-  getInvoicePoMatch: (...args: unknown[]) => mockGetInvoicePoMatch(...args),
+  // The panel reconciles against the form's current (unsaved) state.
+  previewInvoicePoMatch: (...args: unknown[]) => mockPreviewInvoicePoMatch(...args),
+  getInvoicePoMatch: vi.fn(),
   reviewInvoice: (...args: unknown[]) => mockReviewInvoice(...args),
   // Pulled in by the rest of the invoice-shared barrel.
   getInvoices: vi.fn(),
@@ -209,7 +211,7 @@ describe('InvoiceReviewPanel', () => {
       items: [{ id: 'po-1', poNumber: 'PO-00042' }],
       meta: { page: 1, limit: 100, total: 1, totalPages: 1 },
     });
-    mockGetInvoicePoMatch.mockResolvedValue(makeMatch());
+    mockPreviewInvoicePoMatch.mockResolvedValue(makeMatch());
     mockReviewInvoice.mockResolvedValue(makeInvoice());
   });
 
@@ -481,7 +483,7 @@ describe('InvoiceReviewPanel', () => {
   });
 
   it('warns when the invoice cites no PO reference', async () => {
-    mockGetInvoicePoMatch.mockResolvedValue(
+    mockPreviewInvoicePoMatch.mockResolvedValue(
       makeMatch({ resolution: 'NO_REFERENCE', po: null, poReferences: [] }),
     );
 
@@ -492,7 +494,7 @@ describe('InvoiceReviewPanel', () => {
   });
 
   it('warns when the cited reference matches no purchase order', async () => {
-    mockGetInvoicePoMatch.mockResolvedValue(
+    mockPreviewInvoicePoMatch.mockResolvedValue(
       makeMatch({ resolution: 'NOT_FOUND', po: null, poReferences: ['PO 999'] }),
     );
 
@@ -545,7 +547,7 @@ describe('InvoiceReviewPanel', () => {
       lineTotal: 85,
       costCode: null,
     };
-    mockGetInvoicePoMatch.mockResolvedValue(
+    mockPreviewInvoicePoMatch.mockResolvedValue(
       makeMatch({
         resolution: 'LINKED',
         poLines: [poLine],
@@ -632,7 +634,7 @@ describe('InvoiceReviewPanel', () => {
       lineTotal: 85,
       costCode: null,
     };
-    mockGetInvoicePoMatch.mockResolvedValue(
+    mockPreviewInvoicePoMatch.mockResolvedValue(
       makeMatch({
         resolution: 'LINKED',
         poLines: [poLine],
@@ -712,7 +714,7 @@ describe('InvoiceReviewPanel', () => {
       });
 
     it('shows the PO status, its delivery status and delivery progress', async () => {
-      mockGetInvoicePoMatch.mockResolvedValue(
+      mockPreviewInvoicePoMatch.mockResolvedValue(
         makeMatch({ resolution: 'LINKED', poLines: [poLine()] }),
       );
 
@@ -741,7 +743,7 @@ describe('InvoiceReviewPanel', () => {
         unitPrice: 12,
         lineTotal: 48,
       });
-      mockGetInvoicePoMatch.mockResolvedValue(
+      mockPreviewInvoicePoMatch.mockResolvedValue(
         makeMatch({
           resolution: 'LINKED',
           poLines: [billed, unbilled],
@@ -783,7 +785,7 @@ describe('InvoiceReviewPanel', () => {
     });
 
     it('hides the PO lines behind the toggle and brings them back', async () => {
-      mockGetInvoicePoMatch.mockResolvedValue(
+      mockPreviewInvoicePoMatch.mockResolvedValue(
         makeMatch({ resolution: 'LINKED', poLines: [poLine()] }),
       );
 
@@ -808,16 +810,17 @@ describe('InvoiceReviewPanel', () => {
       });
       // The report answers for whichever PO is asked about — that is the whole
       // point of the manual selection: no save, but the real comparison.
-      mockGetInvoicePoMatch.mockImplementation((_id: string, params?: { poId?: string | null }) =>
-        Promise.resolve(
-          params?.poId === 'po-9'
-            ? makeMatch({
-                resolution: 'SELECTED',
-                po: { ...makeMatch().po!, id: 'po-9', poNumber: 'PO-00099', status: 'DELIVERED' },
-                poLines: [poLine()],
-              })
-            : makeMatch({ resolution: 'NO_REFERENCE', po: null, poReferences: [] }),
-        ),
+      mockPreviewInvoicePoMatch.mockImplementation(
+        (_id: string, params?: { poId?: string | null }) =>
+          Promise.resolve(
+            params?.poId === 'po-9'
+              ? makeMatch({
+                  resolution: 'SELECTED',
+                  po: { ...makeMatch().po!, id: 'po-9', poNumber: 'PO-00099', status: 'DELIVERED' },
+                  poLines: [poLine()],
+                })
+              : makeMatch({ resolution: 'NO_REFERENCE', po: null, poReferences: [] }),
+          ),
       );
 
       render(<InvoiceReviewPanel invoice={makeInvoice()} />, { wrapper });
@@ -828,12 +831,48 @@ describe('InvoiceReviewPanel', () => {
       fireEvent.click(await poField.findByRole('option', { name: 'PO-00099' }));
 
       await waitFor(() =>
-        expect(mockGetInvoicePoMatch).toHaveBeenCalledWith('inv-1', { poId: 'po-9' }),
+        // The form's current (unsaved) lines ride along, so the report's
+        // variance flags answer for what is on screen, not the saved rows.
+        expect(mockPreviewInvoicePoMatch).toHaveBeenCalledWith('inv-1', {
+          poId: 'po-9',
+          lines: [
+            {
+              lineId: '1',
+              description: 'DN100 PVC pipe',
+              quantity: 12,
+              unitPrice: 8.5,
+              lineTotal: 102,
+            },
+          ],
+        }),
       );
       const card = await screen.findByTestId('invoice-po-comparison');
       expect(card).toHaveTextContent('PO-00099');
       expect(within(card).getByTestId('invoice-po-comparison-status')).toHaveTextContent(
         'Delivered',
+      );
+      expect(mockReviewInvoice).not.toHaveBeenCalled();
+    });
+
+    it('re-reconciles with the edited lines after a line edit, without saving', async () => {
+      render(<InvoiceReviewPanel invoice={makeInvoice()} />, { wrapper });
+      await screen.findByTestId('invoice-review-panel');
+
+      fireEvent.change(screen.getAllByLabelText('Description')[0], {
+        target: { value: 'DN150 PVC pipe' },
+      });
+
+      // The refetch settles behind the keystroke debounce, then carries the
+      // form's current text — no save involved.
+      await waitFor(
+        () =>
+          expect(mockPreviewInvoicePoMatch).toHaveBeenCalledWith(
+            'inv-1',
+            expect.objectContaining({
+              lines: [expect.objectContaining({ description: 'DN150 PVC pipe' })],
+            }),
+          ),
+        { timeout: 3000 },
       );
       expect(mockReviewInvoice).not.toHaveBeenCalled();
     });

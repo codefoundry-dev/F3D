@@ -116,14 +116,57 @@ describe('InvoicesController', () => {
     });
   });
 
+  describe('previewPoMatch (draft-lines preview)', () => {
+    const lines = [{ description: 'DN100 PVC pipe', quantity: 10, unitPrice: 8.5 }];
+
+    it('passes the picked PO and the draft lines through to the matching service', async () => {
+      const expected = { resolution: 'SELECTED', lines: [] };
+      mockMatchingService.getPoMatch.mockResolvedValue(expected);
+
+      const result = await controller.previewPoMatch('inv-1', { poId: 'po-9', lines }, mockUser);
+      expect(mockMatchingService.getPoMatch).toHaveBeenCalledWith('inv-1', mockUser, 'po-9', lines);
+      expect(result).toEqual(expected);
+    });
+
+    it('treats an empty or null poId as no selection', async () => {
+      mockMatchingService.getPoMatch.mockResolvedValue({ resolution: 'NO_REFERENCE', lines: [] });
+
+      await controller.previewPoMatch('inv-1', { poId: null, lines }, mockUser);
+      expect(mockMatchingService.getPoMatch).toHaveBeenCalledWith(
+        'inv-1',
+        mockUser,
+        undefined,
+        lines,
+      );
+
+      await controller.previewPoMatch('inv-1', { poId: '', lines }, mockUser);
+      expect(mockMatchingService.getPoMatch).toHaveBeenLastCalledWith(
+        'inv-1',
+        mockUser,
+        undefined,
+        lines,
+      );
+    });
+  });
+
   describe('getPoInfo (FOR-355)', () => {
     it('delegates to the matching service', async () => {
       const expected = { match: { resolution: 'LINKED' }, deliveryReports: [] };
       mockMatchingService.getPoInfo.mockResolvedValue(expected);
 
       const result = await controller.getPoInfo('inv-1', mockUser);
-      expect(mockMatchingService.getPoInfo).toHaveBeenCalledWith('inv-1', mockUser);
+      expect(mockMatchingService.getPoInfo).toHaveBeenCalledWith('inv-1', mockUser, undefined);
       expect(result).toEqual(expected);
+    });
+
+    it("passes the review form's unsaved PO pick through and treats an empty poId as absent", async () => {
+      mockMatchingService.getPoInfo.mockResolvedValue({ match: {}, deliveryReports: [] });
+
+      await controller.getPoInfo('inv-1', mockUser, 'po-9');
+      expect(mockMatchingService.getPoInfo).toHaveBeenCalledWith('inv-1', mockUser, 'po-9');
+
+      await controller.getPoInfo('inv-1', mockUser, '');
+      expect(mockMatchingService.getPoInfo).toHaveBeenLastCalledWith('inv-1', mockUser, undefined);
     });
   });
 

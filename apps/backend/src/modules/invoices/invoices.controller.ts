@@ -2,6 +2,7 @@ import {
   ApproveInvoiceDto,
   BulkApproveInvoicesDto,
   InvoiceListQueryDto,
+  PreviewInvoicePoMatchDto,
   RejectInvoiceDto,
   ReviewInvoiceDto,
 } from '@forethread/shared-types';
@@ -148,6 +149,35 @@ export class InvoicesController {
     return this.invoiceMatchingService.getPoMatch(id, user, poId === '' ? undefined : poId);
   }
 
+  // ── POST /v1/invoices/:id/po-match ─────────────────────────────────────────
+
+  @Post(':id/po-match')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('invoice.review')
+  @ApiOperation({
+    summary:
+      "Preview the reconciliation against the review form's current PO pick and unsaved lines",
+    description:
+      'The same report as GET /po-match, but pairing and variance flags are ' +
+      'computed from the lines in the body (the review form as edited so far) ' +
+      'instead of the saved invoice lines, so the side-by-side comparison is ' +
+      'live before anything is persisted. Nothing is written.',
+  })
+  @ApiResponse({ status: 200, description: 'Match report for the draft lines' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  async previewPoMatch(
+    @Param('id') id: string,
+    @Body() dto: PreviewInvoicePoMatchDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.invoiceMatchingService.getPoMatch(
+      id,
+      user,
+      dto.poId === '' || dto.poId === null ? undefined : dto.poId,
+      dto.lines,
+    );
+  }
+
   // ── GET /v1/invoices/:id/po-info ───────────────────────────────────────────
 
   @Get(':id/po-info')
@@ -157,13 +187,18 @@ export class InvoicesController {
       "The invoice's resolved PO with reconciliation, plus its recorded delivery reports (FOR-355)",
     description:
       'Gated on invoice.read, not invoice.review: the Invoice Details PO tab is ' +
-      'a read surface. Unlike po-match it takes no poId preview, so it only ever ' +
-      'discloses the PO the invoice itself resolves to.',
+      'a read surface. `poId` previews the PO the reviewer has picked in the ' +
+      'review form but not yet saved; like the po-export override it must ' +
+      "belong to the invoice's company, otherwise it is ignored.",
   })
   @ApiResponse({ status: 200, description: 'PO reconciliation + delivery reports' })
   @ApiResponse({ status: 404, description: 'Invoice not found' })
-  async getPoInfo(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.invoiceMatchingService.getPoInfo(id, user);
+  async getPoInfo(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('poId') poId?: string,
+  ) {
+    return this.invoiceMatchingService.getPoInfo(id, user, poId === '' ? undefined : poId);
   }
 
   // ── GET /v1/invoices/:id/po-export ─────────────────────────────────────────

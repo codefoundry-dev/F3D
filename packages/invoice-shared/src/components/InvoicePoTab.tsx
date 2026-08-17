@@ -20,6 +20,11 @@ const deliveryRoute = (id: string) => `/deliveries/${id}`;
 
 export interface InvoicePoTabProps {
   invoice: InvoiceDetail;
+  /**
+   * The PO picked in the review form but not yet saved, so the tab shows it
+   * without waiting for the review to persist (FOR-355).
+   */
+  previewPoId?: string | null;
 }
 
 /**
@@ -28,9 +33,9 @@ export interface InvoicePoTabProps {
  * click away, the delivery reports recorded against that PO, and whether the
  * supplier's own invoice document has actually been received.
  */
-export function InvoicePoTab({ invoice }: InvoicePoTabProps) {
+export function InvoicePoTab({ invoice, previewPoId }: InvoicePoTabProps) {
   const { t } = useTranslation('invoices');
-  const { data, isLoading, isError } = useInvoicePoInfo(invoice.id);
+  const { data, isLoading, isError } = useInvoicePoInfo(invoice.id, previewPoId);
   const exportPo = useExportInvoiceRelatedPo();
 
   if (isLoading) return <PageLoader />;
@@ -106,6 +111,15 @@ export function InvoicePoTab({ invoice }: InvoicePoTabProps) {
           )}
         </div>
 
+        {po && data.match.resolution !== 'LINKED' && (
+          <p className="mb-3 text-sm text-muted-foreground" data-testid="invoice-po-tab-unsaved">
+            {t('poTab.unsavedLink', {
+              defaultValue:
+                'This purchase order is not linked to the invoice yet — saving the review links it.',
+            })}
+          </p>
+        )}
+
         {po ? (
           <InvoicePoComparison match={data.match} />
         ) : (
@@ -119,7 +133,7 @@ export function InvoicePoTab({ invoice }: InvoicePoTabProps) {
             <p className="mt-1 text-sm text-muted-foreground">
               {t('poTab.noPoHint', {
                 defaultValue:
-                  'Link a purchase order in the review form to see its details, PDF, and deliveries here.',
+                  'Select a purchase order in the review form to see its details, PDF, and deliveries here.',
               })}
             </p>
           </div>
