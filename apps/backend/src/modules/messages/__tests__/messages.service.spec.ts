@@ -845,6 +845,50 @@ describe('MessagesService', () => {
       expect(result.attachments[0].file.filename).toBe('doc.pdf');
     });
 
+    it('should allow an attachment-only message with empty content', async () => {
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue({ id: 'p-1' });
+      mockPrisma.messageThread.findUniqueOrThrow.mockResolvedValue({
+        id: 'thread-1',
+        contextType: 'RFQ',
+        contextId: 'rfq-1',
+      });
+      mockPrisma.rfq.findUnique.mockResolvedValue({ id: 'rfq-1', status: 'OPEN' });
+      mockPrisma.message.create.mockResolvedValue({
+        id: 'msg-3',
+        threadId: 'thread-1',
+        content: '',
+        sender: { id: 'user-1', name: 'Alice', email: 'a@t.com' },
+        attachments: [
+          {
+            id: 'att-1',
+            file: { id: 'file-1', filename: 'photo.png', mimeType: 'image/png', size: 2048 },
+          },
+        ],
+        createdAt: new Date(),
+      });
+      mockPrisma.messageThread.update.mockResolvedValue({});
+      mockPrisma.threadParticipant.findMany.mockResolvedValue([{ userId: 'user-2' }]);
+
+      const result = await service.sendMessage(
+        'thread-1',
+        { content: '', attachmentIds: ['file-1'] } as never,
+        currentUser,
+      );
+
+      expect(result.attachments).toHaveLength(1);
+      // The notification must not render a dangling "Alice: " for empty content.
+      expect(mockNotifications.createForUsers).toHaveBeenCalledWith(
+        expect.objectContaining({ body: 'Alice sent an attachment' }),
+      );
+    });
+
+    it('should throw BadRequestException when both content and attachments are empty', async () => {
+      await expect(
+        service.sendMessage('thread-1', { content: '   ' } as never, currentUser),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.message.create).not.toHaveBeenCalled();
+    });
+
     it('should throw BadRequestException for closed PURCHASE_ORDER context', async () => {
       mockPrisma.threadParticipant.findUnique.mockResolvedValue({ id: 'p-1' });
       mockPrisma.messageThread.findUniqueOrThrow.mockResolvedValue({

@@ -58,7 +58,11 @@ export interface MessageItem {
   content: string;
   createdAt: string;
   sender: MessageSender;
-  attachments: Array<{ id: string; fileId: string; filename: string }>;
+  /** Server shape: the attachment row plus its File record (id = fileId for downloads). */
+  attachments: Array<{
+    id: string;
+    file: { id: string; filename: string; mimeType: string; size: number };
+  }>;
 }
 
 export interface PaginatedThreadsResponse {

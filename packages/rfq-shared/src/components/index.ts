@@ -18,6 +18,9 @@ export { CopyRfqModal } from './CopyRfqModal';
 export { QuoteResponseDetailPage, QuoteResponseActions } from './QuoteResponseDetailPage';
 export { MessageThreadPanel } from './MessageThreadPanel';
 export type { MessageThreadPanelProps } from './MessageThreadPanel';
+export { MessageComposer } from './MessageComposer';
+export type { MessageComposerProps } from './MessageComposer';
+export { MessageAttachmentLinks } from './MessageAttachmentLinks';
 export type {
   QuoteResponseTab,
   QuoteResponseDetailPageProps,

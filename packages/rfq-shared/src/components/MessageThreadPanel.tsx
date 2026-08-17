@@ -1,17 +1,16 @@
 import { useTranslation } from '@forethread/i18n';
 import {
-  Button,
-  Input,
   Spinner,
   formatTime,
   formatDateLabel,
   groupMessagesByDate,
 } from '@forethread/ui-components';
-import PaperPlaneIcon from '@forethread/ui-components/assets/icons/paper-plane.svg?react';
-import PaperclipIcon from '@forethread/ui-components/assets/icons/paperclip.svg?react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { useMessageThread, type MessageContextType } from '../hooks/useMessageThread';
+
+import { MessageAttachmentLinks } from './MessageAttachmentLinks';
+import { MessageComposer } from './MessageComposer';
 
 export interface MessageThreadPanelProps {
   contextType: MessageContextType;
@@ -37,7 +36,6 @@ export function MessageThreadPanel({
   height,
 }: MessageThreadPanelProps) {
   const { t } = useTranslation('rfqs');
-  const [messageText, setMessageText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { messages, isLoading, isSending, send } = useMessageThread({ contextType, contextId });
@@ -46,16 +44,6 @@ export function MessageThreadPanel({
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages.length]);
-
-  const handleSend = useCallback(async () => {
-    if (!messageText.trim()) return;
-    try {
-      await send(messageText);
-      setMessageText('');
-    } catch {
-      // Keep the text in the box so the user can retry a failed send.
-    }
-  }, [messageText, send]);
 
   const grouped = groupMessagesByDate(messages);
 
@@ -127,21 +115,7 @@ export function MessageThreadPanel({
                       <p className="text-sm text-foreground mt-1 whitespace-pre-line leading-relaxed">
                         {msg.body}
                       </p>
-                      {msg.attachments.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {msg.attachments.map((att) => (
-                            <a
-                              key={att.id}
-                              href={`/api/v1/storage/files/${att.fileId}/download`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-primary underline"
-                            >
-                              {att.filename}
-                            </a>
-                          ))}
-                        </div>
-                      )}
+                      <MessageAttachmentLinks attachments={msg.attachments} />
                     </div>
                   </div>
                 ))}
@@ -159,32 +133,12 @@ export function MessageThreadPanel({
           </p>
         </div>
       ) : (
-        <div className="border-t border-border p-3 flex items-center gap-3">
-          <Input
-            value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && messageText.trim() && !isSending) {
-                e.preventDefault();
-                void handleSend();
-              }
-            }}
-            placeholder={t('quoteResponseDetail.typeMessage')}
-            leftIcon={<PaperclipIcon className="w-5 h-5" />}
-            className="flex-1 h-12"
-            disabled={isSending}
-          />
-          <Button
-            variant="primary"
-            size="lg"
-            className="h-12 px-8 rounded-xl"
-            onClick={() => void handleSend()}
-            disabled={!messageText.trim() || isSending}
-            leftIcon={<PaperPlaneIcon className="w-5 h-5" />}
-          >
-            {t('quoteResponseDetail.send')}
-          </Button>
-        </div>
+        <MessageComposer
+          send={send}
+          isSending={isSending}
+          placeholder={t('quoteResponseDetail.typeMessage')}
+          sendLabel={t('quoteResponseDetail.send')}
+        />
       )}
     </div>
   );

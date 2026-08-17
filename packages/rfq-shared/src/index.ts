@@ -34,6 +34,7 @@ export {
 export type {
   MessageContextType,
   ThreadMessage,
+  ThreadMessageAttachment,
   UseMessageThreadOptions,
   UseMessageThreadResult,
 } from './hooks';
@@ -50,6 +51,8 @@ export {
   QuoteResponseDetailPage,
   QuoteResponseActions,
   MessageThreadPanel,
+  MessageComposer,
+  MessageAttachmentLinks,
   QuoteComparisonTable,
   SortingDropdown,
   QUOTE_SORT_ORDERS,
@@ -77,6 +80,7 @@ export type {
   QuoteResponseDetailPageProps,
   QuoteResponseActionsProps,
   MessageThreadPanelProps,
+  MessageComposerProps,
   QuoteStatusFilter,
   QuoteComparisonTableProps,
   QuoteSortOrder,

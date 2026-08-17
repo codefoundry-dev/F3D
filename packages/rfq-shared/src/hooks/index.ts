@@ -13,6 +13,7 @@ export { useMessageThread } from './useMessageThread';
 export type {
   MessageContextType,
   ThreadMessage,
+  ThreadMessageAttachment,
   UseMessageThreadOptions,
   UseMessageThreadResult,
 } from './useMessageThread';

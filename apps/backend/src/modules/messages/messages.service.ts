@@ -352,6 +352,12 @@ export class MessagesService {
   }
 
   async sendMessage(threadId: string, dto: SendMessageDto, user: AuthenticatedUser) {
+    // The DTO allows empty content so attachment-only messages can be sent;
+    // a message with neither text nor attachments is meaningless.
+    if (!dto.content.trim() && !dto.attachmentIds?.length) {
+      throw new BadRequestException(ERR.messages.emptyMessage);
+    }
+
     await this.ensureThreadAccess(threadId, user);
 
     // Get the thread to check context document status
@@ -453,7 +459,8 @@ export class MessagesService {
         userIds: participants.map((p) => p.userId),
         type: NotificationType.MESSAGE_RECEIVED,
         title: 'New message',
-        body: `${senderName}: ${preview}`,
+        // Attachment-only messages have empty content — don't render "Jane: ".
+        body: preview ? `${senderName}: ${preview}` : `${senderName} sent an attachment`,
         ...(entityType ? { entityType, entityId: thread.contextId } : {}),
         ...(metadata ? { metadata } : {}),
       });

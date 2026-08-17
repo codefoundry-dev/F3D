@@ -280,6 +280,7 @@ export const ERR = {
     notParticipant: errors.messages.notParticipant,
     noContextAccess: errors.messages.noContextAccess,
     documentClosed: errors.messages.documentClosed,
+    emptyMessage: errors.messages.emptyMessage,
   },
 
   // ── Quotes ─────────────────────────────────────────────

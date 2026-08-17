@@ -1,16 +1,12 @@
 import { useTranslation } from '@forethread/i18n';
-import { useMessageThread } from '@forethread/rfq-shared';
+import { MessageAttachmentLinks, MessageComposer, useMessageThread } from '@forethread/rfq-shared';
 import {
-  Button,
-  Input,
   Spinner,
   formatTime,
   formatDateLabel,
   groupMessagesByDate,
 } from '@forethread/ui-components';
-import PaperPlaneIcon from '@forethread/ui-components/assets/icons/paper-plane.svg?react';
-import PaperclipIcon from '@forethread/ui-components/assets/icons/paperclip.svg?react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 const CLOSED_STATUSES = ['CLOSED', 'CANCELLED'];
 
@@ -29,7 +25,6 @@ interface PoMessagesTabProps {
 
 export function PoMessagesTab({ poId, poStatus, creatorUserId, height }: PoMessagesTabProps) {
   const { t } = useTranslation('purchaseOrders');
-  const [messageText, setMessageText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const isReadOnly = CLOSED_STATUSES.includes(poStatus ?? '');
@@ -53,16 +48,6 @@ export function PoMessagesTab({ poId, poStatus, creatorUserId, height }: PoMessa
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages.length]);
-
-  const handleSend = useCallback(async () => {
-    if (!messageText.trim()) return;
-    try {
-      await send(messageText);
-      setMessageText('');
-    } catch {
-      // Keep the draft so the user can retry.
-    }
-  }, [messageText, send]);
 
   // If no poId provided, show placeholder
   if (!poId) {
@@ -142,22 +127,7 @@ export function PoMessagesTab({ poId, poStatus, creatorUserId, height }: PoMessa
                     <p className="text-sm text-foreground mt-1 whitespace-pre-line leading-relaxed">
                       {msg.body}
                     </p>
-                    {/* Attachments */}
-                    {msg.attachments.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {msg.attachments.map((att) => (
-                          <a
-                            key={att.id}
-                            href={`/api/v1/storage/files/${att.fileId}/download`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-primary underline"
-                          >
-                            {att.filename}
-                          </a>
-                        ))}
-                      </div>
-                    )}
+                    <MessageAttachmentLinks attachments={msg.attachments} />
                   </div>
                 </div>
               ))}
@@ -174,32 +144,12 @@ export function PoMessagesTab({ poId, poStatus, creatorUserId, height }: PoMessa
           </p>
         </div>
       ) : (
-        <div className="border-t border-border p-3 flex items-center gap-3">
-          <Input
-            value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && messageText.trim()) {
-                e.preventDefault();
-                void handleSend();
-              }
-            }}
-            placeholder={t('comms.typeMessage')}
-            leftIcon={<PaperclipIcon className="w-5 h-5" />}
-            className="flex-1 h-12"
-            disabled={isSending}
-          />
-          <Button
-            variant="primary"
-            size="lg"
-            className="h-12 px-8 rounded-xl"
-            onClick={() => void handleSend()}
-            disabled={!messageText.trim() || isSending}
-            leftIcon={<PaperPlaneIcon className="w-5 h-5" />}
-          >
-            {t('comms.send')}
-          </Button>
-        </div>
+        <MessageComposer
+          send={send}
+          isSending={isSending}
+          placeholder={t('comms.typeMessage')}
+          sendLabel={t('comms.send')}
+        />
       )}
     </div>
   );

@@ -21,6 +21,9 @@
     "send": "Send",
     "attachFile": "Attach file",
     "fileTooLarge": "File must be less than 10 MB",
+    "fileTypeNotAllowed": "File type not supported. Allowed: images, PDF, Word documents",
+    "uploadFailed": "Failed to upload file. Please try again.",
+    "removeAttachment": "Remove attachment",
     "sendFailed": "Failed to send message. Please try again."
   },
   "attachments": {
