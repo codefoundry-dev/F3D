@@ -21,6 +21,7 @@ const mockPrisma = {
   threadParticipant: {
     findUnique: jest.fn(),
     findMany: jest.fn(),
+    createMany: jest.fn(),
   },
   rfq: {
     findUnique: jest.fn(),
@@ -88,7 +89,7 @@ describe('MessagesService', () => {
         participantIds: ['user-2', 'user-3'],
       };
 
-      mockPrisma.rfq.findUnique.mockResolvedValue({ id: 'rfq-1' });
+      mockPrisma.rfq.findUnique.mockResolvedValue({ id: 'rfq-1', companyId: 'comp-1' });
       mockPrisma.messageThread.create.mockResolvedValue({
         id: 'thread-1',
         contextType: 'RFQ',
@@ -135,7 +136,7 @@ describe('MessagesService', () => {
         participantIds: ['user-2'],
       };
 
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ id: 'po-1' });
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ id: 'po-1', companyId: 'comp-1' });
       mockPrisma.messageThread.create.mockResolvedValue({
         id: 'thread-2',
         contextType: 'PURCHASE_ORDER',
@@ -204,7 +205,7 @@ describe('MessagesService', () => {
       mockPrisma.quoteResponse.findUnique.mockResolvedValue({
         rfqId: 'rfq-1',
         vendorId: 'vend-1',
-        rfq: { createdByUserId: 'buyer-1' },
+        rfq: { createdByUserId: 'buyer-1', companyId: 'comp-1' },
       });
       mockPrisma.rfqVendor.findUnique.mockResolvedValue({
         contacts: [{ userId: 'rep-1' }, { userId: 'rep-2' }],
@@ -244,7 +245,7 @@ describe('MessagesService', () => {
       mockPrisma.quoteResponse.findUnique.mockResolvedValue({
         rfqId: 'rfq-1',
         vendorId: 'vend-1',
-        rfq: { createdByUserId: 'buyer-1' },
+        rfq: { createdByUserId: 'buyer-1', companyId: 'comp-1' },
       });
       mockPrisma.rfqVendor.findUnique.mockResolvedValue({ contacts: [] });
       // Vendor-company lookup returns one user; the id-existence filter still
@@ -298,7 +299,7 @@ describe('MessagesService', () => {
         participantIds: ['user-2'],
       };
 
-      mockPrisma.rfq.findUnique.mockResolvedValue({ id: 'rfq-1' });
+      mockPrisma.rfq.findUnique.mockResolvedValue({ id: 'rfq-1', companyId: 'comp-1' });
       mockPrisma.messageThread.create.mockResolvedValue({
         id: 'thread-1',
         contextType: 'RFQ',
@@ -321,6 +322,7 @@ describe('MessagesService', () => {
 
       mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
         id: 'po-1',
+        companyId: 'comp-1',
         createdByUserId: 'buyer-1',
         vendorId: 'vend-1',
       });
@@ -357,7 +359,7 @@ describe('MessagesService', () => {
         participantIds: ['company-1'],
       };
 
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ id: 'po-1' });
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ id: 'po-1', companyId: 'comp-1' });
       mockPrisma.user.findMany.mockImplementation(
         (args?: { where?: { id?: { in?: string[] } } }) => {
           const requested = args?.where?.id?.in ?? [];
@@ -381,7 +383,7 @@ describe('MessagesService', () => {
     it('joins the existing context thread (adding the caller) instead of creating a duplicate', async () => {
       const dto = { contextType: 'RFQ', contextId: 'rfq-1', participantIds: [] };
 
-      mockPrisma.rfq.findUnique.mockResolvedValue({ id: 'rfq-1' });
+      mockPrisma.rfq.findUnique.mockResolvedValue({ id: 'rfq-1', companyId: 'comp-1' });
       const existing = {
         id: 'thread-x',
         contextType: 'RFQ',
@@ -757,10 +759,14 @@ describe('MessagesService', () => {
         contextType: 'QUOTE_RESPONSE',
         contextId: 'quote-1',
       });
-      // status guard + target resolution both read the quote.
-      mockPrisma.quoteResponse.findUnique
-        .mockResolvedValueOnce({ rfq: { status: 'OPEN' } })
-        .mockResolvedValueOnce({ rfqId: 'rfq-42' });
+      // One quote superset serves the status guard, the participant heal, and
+      // the notification-target resolution.
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({
+        rfqId: 'rfq-42',
+        vendorId: 'vend-1',
+        rfq: { status: 'OPEN', createdByUserId: 'buyer-1' },
+      });
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue(null);
       mockPrisma.message.create.mockResolvedValue({
         id: 'msg-1',
         threadId: 'thread-1',
@@ -999,6 +1005,330 @@ describe('MessagesService', () => {
         currentUser,
       );
       expect(result.content).toBe('Hello');
+    });
+
+    it('repairs an orphaned PO thread on send: missing counterparties are joined and notified', async () => {
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue({ id: 'p-1' });
+      mockPrisma.messageThread.findUniqueOrThrow.mockResolvedValue({
+        id: 'thread-1',
+        contextType: 'PURCHASE_ORDER',
+        contextId: 'po-1',
+      });
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'SENT',
+        companyId: 'comp-1',
+        createdByUserId: 'user-1',
+        vendorId: 'vend-1',
+      });
+      // Vendor company has one user; the id-existence filter echoes ids.
+      mockPrisma.user.findMany.mockImplementation(
+        (args?: { where?: { companyId?: string; id?: { in?: string[] } } }) =>
+          Promise.resolve(
+            args?.where?.companyId
+              ? [{ id: 'vu-1' }]
+              : (args?.where?.id?.in ?? []).map((id) => ({ id })),
+          ),
+      );
+      // The thread holds only the sender (created before counterparty seeding);
+      // the post-heal recipient query sees the newly joined vendor user.
+      mockPrisma.threadParticipant.findMany.mockImplementation(
+        (args?: { where?: { userId?: unknown } }) =>
+          Promise.resolve(args?.where?.userId ? [{ userId: 'vu-1' }] : [{ userId: 'user-1' }]),
+      );
+      mockPrisma.message.create.mockResolvedValue({
+        id: 'msg-1',
+        threadId: 'thread-1',
+        content: 'Anyone there?',
+        sender: { id: 'user-1', name: 'Alice', email: 'a@t.com' },
+        attachments: [],
+        createdAt: new Date(),
+      });
+      mockPrisma.messageThread.update.mockResolvedValue({});
+
+      await service.sendMessage('thread-1', { content: 'Anyone there?' } as never, currentUser);
+
+      // The vendor user was missing and gets joined; the sender is not re-added.
+      expect(mockPrisma.threadParticipant.createMany).toHaveBeenCalledWith({
+        data: [{ threadId: 'thread-1', userId: 'vu-1' }],
+        skipDuplicates: true,
+      });
+      expect(mockNotifications.createForUsers).toHaveBeenCalledWith(
+        expect.objectContaining({ userIds: ['vu-1'], type: 'MESSAGE_RECEIVED' }),
+      );
+    });
+  });
+
+  // ── context access (visibility follows the document, not participation) ────
+
+  describe('context access', () => {
+    const poThread = {
+      id: 'thread-po',
+      contextType: 'PURCHASE_ORDER',
+      contextId: 'po-1',
+      participants: [
+        {
+          id: 'p-9',
+          userId: 'someone-else',
+          user: { id: 'someone-else', name: 'X', email: 'x@t.com' },
+          joinedAt: new Date(),
+        },
+      ],
+    };
+
+    it('listThreads joins a non-participant buyer colleague on document-scoped lookup', async () => {
+      mockPrisma.messageThread.findUnique.mockResolvedValue(poThread);
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        companyId: 'comp-1',
+        vendorId: 'vend-1',
+      });
+      mockPrisma.messageThread.findMany.mockResolvedValue([]);
+      mockPrisma.messageThread.count.mockResolvedValue(0);
+
+      await service.listThreads(
+        { contextType: 'PURCHASE_ORDER', contextId: 'po-1' } as never,
+        currentUser,
+      );
+
+      expect(mockPrisma.threadParticipant.createMany).toHaveBeenCalledWith({
+        data: [{ threadId: 'thread-po', userId: 'user-1' }],
+        skipDuplicates: true,
+      });
+    });
+
+    it('listThreads joins a vendor-company user on document-scoped lookup', async () => {
+      const vendorUser = {
+        id: 'vu-1',
+        role: UserRole.VENDOR,
+        companyId: 'vend-1',
+        email: 'v@t.com',
+      };
+      mockPrisma.messageThread.findUnique.mockResolvedValue(poThread);
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        companyId: 'comp-1',
+        vendorId: 'vend-1',
+      });
+      mockPrisma.messageThread.findMany.mockResolvedValue([]);
+      mockPrisma.messageThread.count.mockResolvedValue(0);
+
+      await service.listThreads(
+        { contextType: 'PURCHASE_ORDER', contextId: 'po-1' } as never,
+        vendorUser as never,
+      );
+
+      expect(mockPrisma.threadParticipant.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: [{ threadId: 'thread-po', userId: 'vu-1' }] }),
+      );
+    });
+
+    it('listThreads does NOT join a user whose company is not a party to the PO', async () => {
+      const outsider = {
+        id: 'user-9',
+        role: UserRole.COMPANY_ADMIN,
+        companyId: 'other-co',
+        email: 'o@t.com',
+      };
+      mockPrisma.messageThread.findUnique.mockResolvedValue(poThread);
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        companyId: 'comp-1',
+        vendorId: 'vend-1',
+      });
+      mockPrisma.messageThread.findMany.mockResolvedValue([]);
+      mockPrisma.messageThread.count.mockResolvedValue(0);
+
+      await service.listThreads(
+        { contextType: 'PURCHASE_ORDER', contextId: 'po-1' } as never,
+        outsider as never,
+      );
+
+      expect(mockPrisma.threadParticipant.createMany).not.toHaveBeenCalled();
+    });
+
+    it('listThreads skips the access check for an existing participant', async () => {
+      mockPrisma.messageThread.findUnique.mockResolvedValue({
+        ...poThread,
+        participants: [
+          {
+            id: 'p-1',
+            userId: 'user-1',
+            user: { id: 'user-1', name: 'A', email: 'a@t.com' },
+            joinedAt: new Date(),
+          },
+        ],
+      });
+      mockPrisma.messageThread.findMany.mockResolvedValue([]);
+      mockPrisma.messageThread.count.mockResolvedValue(0);
+
+      await service.listThreads(
+        { contextType: 'PURCHASE_ORDER', contextId: 'po-1' } as never,
+        currentUser,
+      );
+
+      expect(mockPrisma.threadParticipant.createMany).not.toHaveBeenCalled();
+      expect(mockPrisma.purchaseOrder.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('getMessages joins a non-participant with document access instead of 403-ing', async () => {
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue(null);
+      mockPrisma.messageThread.findUnique.mockResolvedValue({
+        contextType: 'PURCHASE_ORDER',
+        contextId: 'po-1',
+      });
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        companyId: 'comp-1',
+        vendorId: null,
+      });
+      mockPrisma.message.findMany.mockResolvedValue([]);
+      mockPrisma.message.count.mockResolvedValue(0);
+
+      const result = await service.getMessages(
+        'thread-1',
+        { page: 1, limit: 25 } as never,
+        currentUser,
+      );
+
+      expect(result.items).toEqual([]);
+      expect(mockPrisma.threadParticipant.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: [{ threadId: 'thread-1', userId: 'user-1' }] }),
+      );
+    });
+
+    it('getMessages still 403s a non-participant without document access', async () => {
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue(null);
+      mockPrisma.messageThread.findUnique.mockResolvedValue({
+        contextType: 'PURCHASE_ORDER',
+        contextId: 'po-1',
+      });
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        companyId: 'other-co',
+        vendorId: 'someone',
+      });
+
+      await expect(service.getMessages('thread-1', {} as never, currentUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('keeps MATERIAL_REQUEST threads participant-only', async () => {
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue(null);
+      mockPrisma.messageThread.findUnique.mockResolvedValue({
+        contextType: 'MATERIAL_REQUEST',
+        contextId: 'mr-1',
+      });
+
+      await expect(service.getMessages('thread-1', {} as never, currentUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('lets a super admin read any thread', async () => {
+      const superAdmin = {
+        id: 'sa-1',
+        role: UserRole.SUPER_ADMIN,
+        companyId: null,
+        email: 'sa@t.com',
+      };
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue(null);
+      mockPrisma.messageThread.findUnique.mockResolvedValue({
+        contextType: 'PURCHASE_ORDER',
+        contextId: 'po-1',
+      });
+      mockPrisma.message.findMany.mockResolvedValue([]);
+      mockPrisma.message.count.mockResolvedValue(0);
+
+      const result = await service.getMessages('thread-1', {} as never, superAdmin as never);
+      expect(result.items).toEqual([]);
+    });
+
+    it('grants RFQ thread access to a vendor on the RFQ (RfqVendor row)', async () => {
+      const vendorUser = {
+        id: 'vu-1',
+        role: UserRole.VENDOR,
+        companyId: 'vend-1',
+        email: 'v@t.com',
+      };
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue(null);
+      mockPrisma.messageThread.findUnique.mockResolvedValue({
+        contextType: 'RFQ',
+        contextId: 'rfq-1',
+      });
+      mockPrisma.rfq.findUnique.mockResolvedValue({ companyId: 'comp-1' });
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue({ rfqId: 'rfq-1' });
+      mockPrisma.message.findMany.mockResolvedValue([]);
+      mockPrisma.message.count.mockResolvedValue(0);
+
+      const result = await service.getMessages('thread-1', {} as never, vendorUser as never);
+
+      expect(result.items).toEqual([]);
+      expect(mockPrisma.rfqVendor.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { rfqId_vendorId: { rfqId: 'rfq-1', vendorId: 'vend-1' } },
+        }),
+      );
+    });
+
+    it('denies RFQ thread access to a vendor not on the RFQ', async () => {
+      const vendorUser = {
+        id: 'vu-1',
+        role: UserRole.VENDOR,
+        companyId: 'vend-2',
+        email: 'v@t.com',
+      };
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue(null);
+      mockPrisma.messageThread.findUnique.mockResolvedValue({
+        contextType: 'RFQ',
+        contextId: 'rfq-1',
+      });
+      mockPrisma.rfq.findUnique.mockResolvedValue({ companyId: 'comp-1' });
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.getMessages('thread-1', {} as never, vendorUser as never),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('grants QUOTE_RESPONSE thread access to the quote vendor', async () => {
+      const vendorUser = {
+        id: 'vu-1',
+        role: UserRole.VENDOR,
+        companyId: 'vend-1',
+        email: 'v@t.com',
+      };
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue(null);
+      mockPrisma.messageThread.findUnique.mockResolvedValue({
+        contextType: 'QUOTE_RESPONSE',
+        contextId: 'quote-1',
+      });
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({
+        vendorId: 'vend-1',
+        rfq: { companyId: 'comp-1' },
+      });
+      mockPrisma.message.findMany.mockResolvedValue([]);
+      mockPrisma.message.count.mockResolvedValue(0);
+
+      const result = await service.getMessages('thread-1', {} as never, vendorUser as never);
+      expect(result.items).toEqual([]);
+    });
+
+    it('createThread 403s a caller whose company is not a party to the PO', async () => {
+      const outsider = {
+        id: 'user-9',
+        role: UserRole.COMPANY_ADMIN,
+        companyId: 'other-co',
+        email: 'o@t.com',
+      };
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        companyId: 'comp-1',
+        vendorId: 'vend-1',
+      });
+
+      await expect(
+        service.createThread(
+          { contextType: 'PURCHASE_ORDER', contextId: 'po-1', participantIds: [] } as never,
+          outsider as never,
+        ),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

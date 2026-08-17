@@ -208,6 +208,7 @@
   "messages": {
     "threadNotFound": "Message thread not found",
     "notParticipant": "You are not a participant in this thread",
+    "noContextAccess": "You do not have access to this conversation",
     "documentClosed": "Cannot send messages — the related document is closed"
   },
   "quotes": {

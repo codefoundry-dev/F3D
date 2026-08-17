@@ -1,11 +1,5 @@
-import {
-  type MessageItem as ApiMessageItem,
-  createThread,
-  getMessages,
-  getThreads,
-  sendMessage,
-} from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { useMessageThread } from '@forethread/rfq-shared';
 import {
   Button,
   Input,
@@ -16,7 +10,6 @@ import {
 } from '@forethread/ui-components';
 import PaperPlaneIcon from '@forethread/ui-components/assets/icons/paper-plane.svg?react';
 import PaperclipIcon from '@forethread/ui-components/assets/icons/paperclip.svg?react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const CLOSED_STATUSES = ['CLOSED', 'CANCELLED'];
@@ -24,45 +17,52 @@ const CLOSED_STATUSES = ['CLOSED', 'CANCELLED'];
 interface PoMessagesTabProps {
   poId?: string;
   poStatus?: string;
-  /** Current user id — needed to auto-create thread with participants */
+  /** Unused — the server always adds the caller. Kept so call sites compile. */
   currentUserId?: string;
-  /** PO creator id — added as participant when creating thread. The vendor side
-   * is seeded server-side from the PO (the client only has the vendor *company*
-   * id, which is not a valid participant), so it is intentionally not passed. */
+  /** PO creator id — seeds a brand-new thread. The vendor side is seeded
+   * server-side from the PO (the client only has the vendor *company* id,
+   * which is not a valid participant), so it is intentionally not passed. */
   creatorUserId?: string;
   /** Override container height (default 520px, use smaller for panels) */
   height?: string;
 }
 
-/** Map API MessageItem to the shape used by groupMessagesByDate */
-function toDisplayMessage(msg: ApiMessageItem) {
-  return {
-    id: msg.id,
-    senderName: msg.sender.name,
-    senderAvatarUrl: msg.sender?.avatarUrl,
-    senderCompany: msg.sender.companyName ?? null,
-    senderCompanyLogoUrl: msg.sender.companyLogoUrl ?? null,
-    body: msg.content,
-    createdAt: msg.createdAt,
-    attachments: msg.attachments,
-  };
-}
-
-type DisplayMessage = ReturnType<typeof toDisplayMessage>;
-
-export function PoMessagesTab({
-  poId,
-  poStatus,
-  currentUserId,
-  creatorUserId,
-  height,
-}: PoMessagesTabProps) {
+export function PoMessagesTab({ poId, poStatus, creatorUserId, height }: PoMessagesTabProps) {
   const { t } = useTranslation('purchaseOrders');
-  const queryClient = useQueryClient();
   const [messageText, setMessageText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const isReadOnly = CLOSED_STATUSES.includes(poStatus ?? '');
+
+  // Thread lifecycle via the shared hook: find the PO's thread (the server
+  // joins any viewer who can see the PO, so colleagues and vendor reps get the
+  // existing conversation), poll messages, and create-then-post in a single
+  // action on first send — the previous inline wiring silently dropped the
+  // first message and required a second Send click.
+  const { messages, isLoading, isSending, send } = useMessageThread({
+    contextType: 'PURCHASE_ORDER',
+    contextId: poId,
+    participantIds: [creatorUserId],
+  });
+
+  const grouped = groupMessagesByDate(messages);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages.length]);
+
+  const handleSend = useCallback(async () => {
+    if (!messageText.trim()) return;
+    try {
+      await send(messageText);
+      setMessageText('');
+    } catch {
+      // Keep the draft so the user can retry.
+    }
+  }, [messageText, send]);
 
   // If no poId provided, show placeholder
   if (!poId) {
@@ -72,78 +72,6 @@ export function PoMessagesTab({
       </div>
     );
   }
-
-  // 1. Find or create thread for this PO
-  const { data: threadsData, isLoading: isLoadingThreads } = useQuery({
-    queryKey: ['message-threads', 'PURCHASE_ORDER', poId],
-    queryFn: () => getThreads({ contextType: 'PURCHASE_ORDER', contextId: poId, limit: 1 }),
-  });
-
-  const threadId = threadsData?.items?.[0]?.id ?? null;
-
-  // 2. Fetch messages for the thread
-  const { data: messagesData, isLoading: isLoadingMessages } = useQuery({
-    queryKey: ['messages', threadId],
-    queryFn: () => getMessages(threadId!, { limit: 100 }),
-    enabled: !!threadId,
-    refetchInterval: 15000,
-  });
-
-  const displayMessages: DisplayMessage[] = (messagesData?.items ?? []).map(toDisplayMessage);
-  const grouped = groupMessagesByDate(displayMessages);
-
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [displayMessages.length]);
-
-  // 3. Create thread mutation (if none exists yet)
-  const createThreadMutation = useMutation({
-    mutationFn: () => {
-      const participantIds = new Set<string>();
-      if (currentUserId) participantIds.add(currentUserId);
-      if (creatorUserId) participantIds.add(creatorUserId);
-      return createThread({
-        contextType: 'PURCHASE_ORDER',
-        contextId: poId,
-        participantIds: Array.from(participantIds),
-      });
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ['message-threads', 'PURCHASE_ORDER', poId],
-      });
-    },
-  });
-
-  // 4. Send message mutation
-  const sendMutation = useMutation({
-    mutationFn: (content: string) => sendMessage(threadId!, { content }),
-    onSuccess: () => {
-      setMessageText('');
-      void queryClient.invalidateQueries({ queryKey: ['messages', threadId] });
-    },
-  });
-
-  const handleSend = useCallback(async () => {
-    const text = messageText.trim();
-    if (!text) return;
-
-    if (!threadId) {
-      // Create thread first, then send after invalidation refreshes threadId
-      await createThreadMutation.mutateAsync();
-      // After thread creation, the query will refetch and threadId will be available
-      // We'll let the user click send again (thread will exist on next render)
-      return;
-    }
-
-    sendMutation.mutate(text);
-  }, [messageText, threadId, createThreadMutation, sendMutation]);
-
-  const isBusy = sendMutation.isPending || createThreadMutation.isPending;
-  const isLoading = isLoadingThreads || (!!threadId && isLoadingMessages);
 
   if (isLoading) {
     return (
@@ -259,14 +187,14 @@ export function PoMessagesTab({
             placeholder={t('comms.typeMessage')}
             leftIcon={<PaperclipIcon className="w-5 h-5" />}
             className="flex-1 h-12"
-            disabled={isBusy}
+            disabled={isSending}
           />
           <Button
             variant="primary"
             size="lg"
             className="h-12 px-8 rounded-xl"
             onClick={() => void handleSend()}
-            disabled={!messageText.trim() || isBusy}
+            disabled={!messageText.trim() || isSending}
             leftIcon={<PaperPlaneIcon className="w-5 h-5" />}
           >
             {t('comms.send')}
