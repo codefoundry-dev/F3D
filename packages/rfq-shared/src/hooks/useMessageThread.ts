@@ -16,6 +16,14 @@ import { useCallback } from 'react';
  */
 export type MessageContextType = 'PURCHASE_ORDER' | 'RFQ' | 'QUOTE_RESPONSE';
 
+/** An attachment flattened for rendering — `fileId` feeds the signed-URL download. */
+export interface ThreadMessageAttachment {
+  id: string;
+  fileId: string;
+  filename: string;
+  mimeType?: string;
+}
+
 /**
  * A message shaped for the shared chat tabs: the ui-components display fields
  * ({@link MessageItem} — sender name, body, company name + logo for branding)
@@ -23,7 +31,7 @@ export type MessageContextType = 'PURCHASE_ORDER' | 'RFQ' | 'QUOTE_RESPONSE';
  */
 export interface ThreadMessage extends MessageItem {
   senderAvatarUrl?: string;
-  attachments: ApiMessageItem['attachments'];
+  attachments: ThreadMessageAttachment[];
 }
 
 function toThreadMessage(msg: ApiMessageItem): ThreadMessage {
@@ -35,7 +43,12 @@ function toThreadMessage(msg: ApiMessageItem): ThreadMessage {
     senderCompanyLogoUrl: msg.sender.companyLogoUrl ?? null,
     body: msg.content,
     createdAt: msg.createdAt,
-    attachments: msg.attachments,
+    attachments: (msg.attachments ?? []).map((a) => ({
+      id: a.id,
+      fileId: a.file.id,
+      filename: a.file.filename,
+      mimeType: a.file.mimeType,
+    })),
   };
 }
 
@@ -56,8 +69,12 @@ export interface UseMessageThreadResult {
   messages: ThreadMessage[];
   isLoading: boolean;
   isSending: boolean;
-  /** Create the thread on first use if needed, then post `content`. */
-  send: (content: string) => Promise<void>;
+  /**
+   * Create the thread on first use if needed, then post `content` with any
+   * already-uploaded attachment file ids. Content may be empty when
+   * attachments are present (attachment-only message).
+   */
+  send: (content: string, attachmentIds?: string[]) => Promise<void>;
 }
 
 /**
@@ -101,7 +118,13 @@ export function useMessageThread({
   //    returns its id, so the very first message posts in a single action —
   //    without the "click send twice" the original stubs would have needed.
   const sendMutation = useMutation({
-    mutationFn: async (content: string) => {
+    mutationFn: async ({
+      content,
+      attachmentIds,
+    }: {
+      content: string;
+      attachmentIds?: string[];
+    }) => {
       let id = threadId;
       if (!id) {
         const seed = Array.from(new Set(participantIds.filter((p): p is string => Boolean(p))));
@@ -112,7 +135,10 @@ export function useMessageThread({
         });
         id = thread.id;
       }
-      return sendMessage(id, { content });
+      return sendMessage(id, {
+        content,
+        ...(attachmentIds?.length ? { attachmentIds } : {}),
+      });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: threadsKey });
@@ -121,10 +147,10 @@ export function useMessageThread({
   });
 
   const send = useCallback(
-    async (content: string) => {
+    async (content: string, attachmentIds?: string[]) => {
       const text = content.trim();
-      if (!text || !contextId) return;
-      await sendMutation.mutateAsync(text);
+      if ((!text && !attachmentIds?.length) || !contextId) return;
+      await sendMutation.mutateAsync({ content: text, attachmentIds });
     },
     [contextId, sendMutation],
   );

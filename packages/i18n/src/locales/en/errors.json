@@ -208,7 +208,9 @@
   "messages": {
     "threadNotFound": "Message thread not found",
     "notParticipant": "You are not a participant in this thread",
-    "documentClosed": "Cannot send messages — the related document is closed"
+    "noContextAccess": "You do not have access to this conversation",
+    "documentClosed": "Cannot send messages — the related document is closed",
+    "emptyMessage": "A message needs text or at least one attachment"
   },
   "quotes": {
     "rfqNotOpen": "Cannot submit quote — RFQ is not open for responses",

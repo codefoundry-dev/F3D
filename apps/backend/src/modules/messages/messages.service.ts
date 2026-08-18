@@ -32,6 +32,21 @@ const CLOSED_RFQ_STATUSES: RfqStatus[] = [RfqStatus.CLOSED, RfqStatus.CANCELLED]
 const CLOSED_PO_STATUSES: PoStatus[] = [PoStatus.CLOSED, PoStatus.CANCELLED];
 
 /**
+ * Context types whose threads are authorised by *access to the document* (being
+ * the buyer company or the vendor on it) rather than by prior thread
+ * participation. Participation is only a notification subscription for these —
+ * it must never gate reading, because only the users present at creation get
+ * seeded, which is how PO conversations ended up invisible to buyer colleagues
+ * and vendor reps. Material/warehouse requests stay participant-only until they
+ * get a real access model.
+ */
+const ACCESS_GATED_CONTEXTS: ReadonlySet<MessageContextType> = new Set([
+  MessageContextType.RFQ,
+  MessageContextType.PURCHASE_ORDER,
+  MessageContextType.QUOTE_RESPONSE,
+]);
+
+/**
  * Presign window for the sender company logos shown beside in-app messages
  * (FOR-288). Threads are viewed live — the tab re-fetches on a short interval,
  * which re-signs — so a modest TTL is ample and keeps the URLs from lingering.
@@ -85,6 +100,16 @@ export class MessagesService {
 
     // Validate context document exists
     await this.validateContextExists(contextType, dto.contextId);
+
+    // The caller must be a party to the document (its buyer company or its
+    // vendor) to open or join its thread — existence alone would let any
+    // authenticated user join any conversation by id.
+    if (
+      ACCESS_GATED_CONTEXTS.has(contextType) &&
+      !(await this.canAccessContext(contextType, dto.contextId, user))
+    ) {
+      throw new ForbiddenException(ERR.messages.noContextAccess);
+    }
 
     // Seed both sides automatically for contexts where they're derivable — a
     // QUOTE_RESPONSE thread gets the RFQ buyer AND that vendor's sales reps, and
@@ -171,6 +196,23 @@ export class MessagesService {
     const limit = Math.min(query.limit ?? 25, 100);
     const skip = (page - 1) * limit;
 
+    // Document-scoped lookup (the Messages tabs pass both filters): visibility
+    // follows access to the document, not prior participation. A viewer who can
+    // see the PO/RFQ/quote is joined on first read, so the existing
+    // conversation appears instead of an empty "No messages yet" — and being a
+    // participant from then on, they are notified of later messages.
+    if (query.contextType && query.contextId) {
+      const contextType = query.contextType as unknown as MessageContextType;
+      const thread = await this.findThreadByContext(contextType, query.contextId);
+      if (
+        thread &&
+        !thread.participants.some((p) => p.userId === user.id) &&
+        (await this.canAccessContext(contextType, query.contextId, user))
+      ) {
+        await this.joinParticipants(thread.id, [user.id]);
+      }
+    }
+
     const where: Record<string, unknown> = {
       participants: {
         some: { userId: user.id },
@@ -256,7 +298,7 @@ export class MessagesService {
   }
 
   async getMessages(threadId: string, query: ListMessagesQueryDto, user: AuthenticatedUser) {
-    await this.validateParticipant(threadId, user.id);
+    await this.ensureThreadAccess(threadId, user);
 
     const page = query.page ?? 1;
     const limit = Math.min(query.limit ?? 25, 100);
@@ -310,7 +352,13 @@ export class MessagesService {
   }
 
   async sendMessage(threadId: string, dto: SendMessageDto, user: AuthenticatedUser) {
-    await this.validateParticipant(threadId, user.id);
+    // The DTO allows empty content so attachment-only messages can be sent;
+    // a message with neither text nor attachments is meaningless.
+    if (!dto.content.trim() && !dto.attachmentIds?.length) {
+      throw new BadRequestException(ERR.messages.emptyMessage);
+    }
+
+    await this.ensureThreadAccess(threadId, user);
 
     // Get the thread to check context document status
     const thread = await this.prisma.messageThread.findUniqueOrThrow({
@@ -392,6 +440,12 @@ export class MessagesService {
     senderId: string,
   ): Promise<void> {
     try {
+      // Repair the participant list before resolving recipients: threads
+      // created before counterparty seeding hold only whoever the client passed
+      // (often just the sender), so their messages would otherwise notify no
+      // one, forever. Idempotent and cheap.
+      await this.healThreadParticipants(threadId, thread);
+
       const participants = await this.prisma.threadParticipant.findMany({
         where: { threadId, userId: { not: senderId } },
         select: { userId: true },
@@ -405,7 +459,8 @@ export class MessagesService {
         userIds: participants.map((p) => p.userId),
         type: NotificationType.MESSAGE_RECEIVED,
         title: 'New message',
-        body: `${senderName}: ${preview}`,
+        // Attachment-only messages have empty content — don't render "Jane: ".
+        body: preview ? `${senderName}: ${preview}` : `${senderName} sent an attachment`,
         ...(entityType ? { entityType, entityId: thread.contextId } : {}),
         ...(metadata ? { metadata } : {}),
       });
@@ -562,16 +617,115 @@ export class MessagesService {
     return vendorUsers.map((u) => u.id);
   }
 
-  private async validateParticipant(threadId: string, userId: string): Promise<void> {
+  /**
+   * Assert the user may read/write this thread. Participants pass outright.
+   * A non-participant passes when they can access the thread's context document
+   * (see {@link canAccessContext}) and is joined as a participant on the way
+   * through, so the thread shows up in their listings and they are notified of
+   * later messages.
+   */
+  private async ensureThreadAccess(threadId: string, user: AuthenticatedUser): Promise<void> {
     const participant = await this.prisma.threadParticipant.findUnique({
       where: {
-        threadId_userId: { threadId, userId },
+        threadId_userId: { threadId, userId: user.id },
       },
     });
+    if (participant) return;
 
-    if (!participant) {
-      throw new ForbiddenException(ERR.messages.notParticipant);
+    const thread = await this.prisma.messageThread.findUnique({
+      where: { id: threadId },
+      select: { contextType: true, contextId: true },
+    });
+    if (!thread || !(await this.canAccessContext(thread.contextType, thread.contextId, user))) {
+      throw new ForbiddenException(ERR.messages.noContextAccess);
     }
+    await this.joinParticipants(threadId, [user.id]);
+  }
+
+  /**
+   * Whether the user is a party to a thread's context document: a member of the
+   * buyer company, or of the vendor company, on the PO / RFQ / quote. This —
+   * not prior participation — is what gates a document conversation: colleagues
+   * of the creator and vendor reps must be able to read it even though only the
+   * users known at creation time were seeded as participants. Super admins pass
+   * unconditionally; context types without an access model return false (their
+   * threads stay participant-only).
+   */
+  private async canAccessContext(
+    contextType: MessageContextType,
+    contextId: string,
+    user: AuthenticatedUser,
+  ): Promise<boolean> {
+    if (user.role === UserRole.SUPER_ADMIN) return true;
+    if (!user.companyId) return false;
+
+    switch (contextType) {
+      case MessageContextType.PURCHASE_ORDER: {
+        const po = await this.prisma.purchaseOrder.findUnique({
+          where: { id: contextId },
+          select: { companyId: true, vendorId: true },
+        });
+        return !!po && (po.companyId === user.companyId || po.vendorId === user.companyId);
+      }
+      case MessageContextType.RFQ: {
+        const rfq = await this.prisma.rfq.findUnique({
+          where: { id: contextId },
+          select: { companyId: true },
+        });
+        if (!rfq) return false;
+        if (rfq.companyId === user.companyId) return true;
+        const rfqVendor = await this.prisma.rfqVendor.findUnique({
+          where: { rfqId_vendorId: { rfqId: contextId, vendorId: user.companyId } },
+          select: { rfqId: true },
+        });
+        return rfqVendor !== null;
+      }
+      case MessageContextType.QUOTE_RESPONSE: {
+        const quote = await this.prisma.quoteResponse.findUnique({
+          where: { id: contextId },
+          select: { vendorId: true, rfq: { select: { companyId: true } } },
+        });
+        return (
+          !!quote && (quote.vendorId === user.companyId || quote.rfq.companyId === user.companyId)
+        );
+      }
+      default:
+        return false;
+    }
+  }
+
+  /** Add users as thread participants, ignoring ones already on the thread. */
+  private async joinParticipants(threadId: string, userIds: string[]): Promise<void> {
+    if (userIds.length === 0) return;
+    await this.prisma.threadParticipant.createMany({
+      data: userIds.map((userId) => ({ threadId, userId })),
+      skipDuplicates: true,
+    });
+  }
+
+  /**
+   * Re-derive the thread's counterparties and join any that are missing.
+   * Threads created before counterparty seeding existed hold only the users the
+   * client passed, so without this repair their messages notify no one and stay
+   * invisible to the other side.
+   */
+  private async healThreadParticipants(
+    threadId: string,
+    thread: { contextType: MessageContextType; contextId: string },
+  ): Promise<void> {
+    const counterparties = await this.resolveThreadCounterparties(
+      thread.contextType,
+      thread.contextId,
+    );
+    if (counterparties.length === 0) return;
+
+    const existing = await this.prisma.threadParticipant.findMany({
+      where: { threadId },
+      select: { userId: true },
+    });
+    const known = new Set(existing.map((p) => p.userId));
+    const missing = await this.filterExistingUserIds(counterparties.filter((id) => !known.has(id)));
+    await this.joinParticipants(threadId, missing);
   }
 
   private async validateContextExists(

@@ -1,24 +1,26 @@
 import { type PoDetail, type RfqDocument, openFileInNewTab } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { DocumentRow, useMessageThread } from '@forethread/rfq-shared';
+import {
+  DocumentRow,
+  MessageAttachmentLinks,
+  MessageComposer,
+  useMessageThread,
+  type ThreadMessage,
+} from '@forethread/rfq-shared';
 import {
   Button,
-  Input,
   Spinner,
   formatTime,
   formatDateLabel,
   groupMessagesByDate,
-  type MessageItem,
 } from '@forethread/ui-components';
-import PaperclipIcon from '@forethread/ui-components/assets/icons/paperclip.svg?react';
-import LetterIcon from '@forethread/ui-components/assets/icons/letter.svg?react';
 import { useCallback, useState } from 'react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type PoCommsTab = 'messages' | 'lineItems' | 'attachments';
 
-type Message = MessageItem;
+type Message = ThreadMessage;
 
 export interface PoCommsPageProps {
   po: PoDetail;
@@ -31,7 +33,6 @@ export interface PoCommsPageProps {
 export function PoCommsPage({ po, initialTab = 'messages', onTabChange }: PoCommsPageProps) {
   const { t } = useTranslation('purchaseOrders');
   const [activeTab, setActiveTabState] = useState<PoCommsTab>(initialTab);
-  const [messageText, setMessageText] = useState('');
 
   const setActiveTab = (tab: PoCommsTab) => {
     setActiveTabState(tab);
@@ -51,16 +52,6 @@ export function PoCommsPage({ po, initialTab = 'messages', onTabChange }: PoComm
   });
 
   const isReadOnly = po.status === 'CLOSED' || po.status === 'CANCELLED';
-
-  const handleSendMessage = useCallback(async () => {
-    if (!messageText.trim()) return;
-    try {
-      await send(messageText);
-      setMessageText('');
-    } catch {
-      // Keep the text in the box so the user can retry a failed send.
-    }
-  }, [messageText, send]);
 
   const documents = po.documents ?? [];
   const lineItems = po.lineItems ?? [];
@@ -104,9 +95,7 @@ export function PoCommsPage({ po, initialTab = 'messages', onTabChange }: PoComm
             isLoading={isLoadingMessages}
             isReadOnly={isReadOnly}
             isSending={isSending}
-            messageText={messageText}
-            onMessageTextChange={setMessageText}
-            onSend={handleSendMessage}
+            send={send}
           />
         )}
         {activeTab === 'lineItems' && <LineItemsTab lineItems={lineItems} />}
@@ -125,17 +114,13 @@ function MessagesTab({
   isLoading,
   isReadOnly,
   isSending,
-  messageText,
-  onMessageTextChange,
-  onSend,
+  send,
 }: {
   messages: Message[];
   isLoading: boolean;
   isReadOnly: boolean;
   isSending: boolean;
-  messageText: string;
-  onMessageTextChange: (text: string) => void;
-  onSend: () => void;
+  send: (content: string, attachmentIds?: string[]) => Promise<void>;
 }) {
   const { t } = useTranslation('purchaseOrders');
   const grouped = groupMessagesByDate(messages);
@@ -194,6 +179,7 @@ function MessagesTab({
                       </span>
                     </div>
                     <p className="text-sm text-foreground mt-1 whitespace-pre-line">{msg.body}</p>
+                    <MessageAttachmentLinks attachments={msg.attachments} />
                   </div>
                 </div>
               ))}
@@ -209,27 +195,13 @@ function MessagesTab({
           </p>
         </div>
       ) : (
-        <div className="mt-6 flex items-center gap-3">
-          <Input
-            value={messageText}
-            onChange={(e) => onMessageTextChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && messageText.trim() && !isSending) {
-                onSend();
-              }
-            }}
-            placeholder={t('comms.typeMessage')}
-            leftIcon={<PaperclipIcon className="w-4 h-4" />}
-            disabled={isSending}
-          />
-          <Button
-            onClick={onSend}
-            disabled={!messageText.trim() || isSending}
-            leftIcon={<LetterIcon className="w-4 h-4" />}
-          >
-            {t('comms.send')}
-          </Button>
-        </div>
+        <MessageComposer
+          send={send}
+          isSending={isSending}
+          placeholder={t('comms.typeMessage')}
+          sendLabel={t('comms.send')}
+          variant="page"
+        />
       )}
     </div>
   );

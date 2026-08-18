@@ -8,7 +8,6 @@ import { useTranslation } from '@forethread/i18n';
 import {
   Badge,
   Button,
-  Input,
   Spinner,
   cn,
   formatCurrency,
@@ -17,20 +16,17 @@ import {
   formatDateLabel,
   groupMessagesByDate,
   toast,
-  type MessageItem,
 } from '@forethread/ui-components';
 import BackArrowIcon from '@forethread/ui-components/assets/icons/back-arrow.svg?react';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
-import LetterIcon from '@forethread/ui-components/assets/icons/letter.svg?react';
-import PaperclipIcon from '@forethread/ui-components/assets/icons/paperclip.svg?react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { PO_CREATE_ROUTE } from '../constants/routes';
-import { useMessageThread } from '../hooks/useMessageThread';
+import { useMessageThread, type ThreadMessage } from '../hooks/useMessageThread';
 import {
   useCreateDraftPoFromQuote,
   useQuoteDetail,
@@ -39,6 +35,8 @@ import {
 } from '../hooks/useRfqs';
 
 import { DocumentRow } from './DocumentCard';
+import { MessageAttachmentLinks } from './MessageAttachmentLinks';
+import { MessageComposer } from './MessageComposer';
 import { StartOrderModal } from './StartOrderModal';
 
 // ── Design tokens (sampled from the 5.06 Figma frames) ─────────────────────────
@@ -52,7 +50,7 @@ const SUGGESTION_BAND_BG = 'bg-[#F0C352]';
 
 export type QuoteResponseTab = 'messages' | 'lineItems' | 'attachments';
 
-type Message = MessageItem;
+type Message = ThreadMessage;
 
 export interface QuoteResponseDetailPageProps {
   rfqId: string;
@@ -195,7 +193,6 @@ export function QuoteResponseDetailPage({
   const isPanel = layout === 'panel';
   const { t } = useTranslation('rfqs');
   const [activeTab, setActiveTabState] = useState<QuoteResponseTab>(initialTab);
-  const [messageText, setMessageText] = useState('');
 
   const { data: quote, isLoading, isError } = useQuoteDetail(rfqId, quoteId);
 
@@ -214,16 +211,6 @@ export function QuoteResponseDetailPage({
     isSending,
     send,
   } = useMessageThread({ contextType: 'QUOTE_RESPONSE', contextId: quoteId });
-
-  const handleSendMessage = useCallback(async () => {
-    if (!messageText.trim()) return;
-    try {
-      await send(messageText);
-      setMessageText('');
-    } catch {
-      // Keep the text in the box so the user can retry a failed send.
-    }
-  }, [messageText, send]);
 
   const attachments = quote?.attachments ?? [];
 
@@ -275,9 +262,7 @@ export function QuoteResponseDetailPage({
           messages={messages}
           isLoading={isLoadingMessages}
           isSending={isSending}
-          messageText={messageText}
-          onMessageTextChange={setMessageText}
-          onSend={handleSendMessage}
+          send={send}
         />
       )}
       {activeTab === 'lineItems' && (
@@ -360,16 +345,12 @@ function MessagesTab({
   messages,
   isLoading,
   isSending,
-  messageText,
-  onMessageTextChange,
-  onSend,
+  send,
 }: {
   messages: Message[];
   isLoading: boolean;
   isSending: boolean;
-  messageText: string;
-  onMessageTextChange: (text: string) => void;
-  onSend: () => void;
+  send: (content: string, attachmentIds?: string[]) => Promise<void>;
 }) {
   const { t } = useTranslation('rfqs');
   const grouped = groupMessagesByDate(messages);
@@ -429,6 +410,7 @@ function MessagesTab({
                       </span>
                     </div>
                     <p className="text-sm text-foreground mt-1 whitespace-pre-line">{msg.body}</p>
+                    <MessageAttachmentLinks attachments={msg.attachments} />
                   </div>
                 </div>
               ))}
@@ -438,27 +420,13 @@ function MessagesTab({
       </div>
 
       {/* Message input */}
-      <div className="mt-6 flex items-center gap-3">
-        <Input
-          value={messageText}
-          onChange={(e) => onMessageTextChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && messageText.trim() && !isSending) {
-              onSend();
-            }
-          }}
-          placeholder={t('quoteResponseDetail.typeMessage')}
-          leftIcon={<PaperclipIcon className="w-4 h-4" />}
-          disabled={isSending}
-        />
-        <Button
-          onClick={onSend}
-          disabled={!messageText.trim() || isSending}
-          leftIcon={<LetterIcon className="w-4 h-4" />}
-        >
-          {t('quoteResponseDetail.send')}
-        </Button>
-      </div>
+      <MessageComposer
+        send={send}
+        isSending={isSending}
+        placeholder={t('quoteResponseDetail.typeMessage')}
+        sendLabel={t('quoteResponseDetail.send')}
+        variant="page"
+      />
     </div>
   );
 }

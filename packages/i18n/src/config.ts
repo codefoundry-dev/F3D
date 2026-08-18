@@ -26,6 +26,7 @@ import deliveriesEn from './locales/en/deliveries.json';
 import bomsEn from './locales/en/boms.json';
 import notificationsEn from './locales/en/notifications.json';
 import approvalsEn from './locales/en/approvals.json';
+import messagesEn from './locales/en/messages.json';
 
 export const defaultNS = 'common';
 
@@ -56,6 +57,7 @@ export const resources = {
     boms: bomsEn,
     notifications: notificationsEn,
     approvals: approvalsEn,
+    messages: messagesEn,
   },
 } as const;
 

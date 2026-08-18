@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsArray, IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsArray, IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export enum MessageContextTypeDto {
   RFQ = 'RFQ',
@@ -22,8 +22,9 @@ export class CreateThreadDto {
 }
 
 export class SendMessageDto {
+  // May be empty when the message carries attachments — the service enforces
+  // "text or at least one attachment" since class-validator can't express it.
   @IsString()
-  @IsNotEmpty()
   content!: string;
 
   @IsOptional()
