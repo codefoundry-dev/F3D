@@ -40,7 +40,13 @@ vi.mock('@forethread/i18n', () => ({
   }),
 }));
 
+const phone = vi.hoisted(() => ({ value: false }));
 vi.mock('@forethread/ui-components', () => ({
+  useIsPhone: () => phone.value,
+  useHideMobileNav: () => {},
+  MobileActionBar: ({ children }: { children: ReactNode }) => (
+    <div data-testid="mobile-action-bar">{children}</div>
+  ),
   Button: ({ children, onClick, disabled, ...props }: Record<string, unknown>) => (
     <button onClick={onClick as () => void} disabled={disabled as boolean} {...stripBtn(props)}>
       {children as ReactNode}
@@ -126,6 +132,7 @@ function poResponse(overrides: Partial<DeliveryPortalPoResponse> = {}): Delivery
 
 beforeEach(() => {
   vi.clearAllMocks();
+  phone.value = false;
   mockUseQuery.mockReturnValue({
     data: poResponse(),
     isLoading: false,
@@ -211,6 +218,25 @@ describe('PublicDeliveryPage', () => {
     // Step 4: submitted summary
     await screen.findByText('portal.submitted.title');
     expect(screen.getByTestId('portal-summary-delivered')).toHaveTextContent('1');
+  });
+
+  it('puts Submit in the fixed bottom bar on phones (FOR-380)', async () => {
+    phone.value = true;
+    render(<PublicDeliveryPage />);
+    fireEvent.change(screen.getByTestId('portal-identify-name'), {
+      target: { value: 'Alex Johnson' },
+    });
+    fireEvent.change(screen.getByTestId('portal-identify-email'), {
+      target: { value: 'alex@example.com' },
+    });
+    fireEvent.click(screen.getByTestId('portal-identify-submit'));
+    await screen.findByText('portal.code.title');
+    for (let i = 0; i < 6; i++) {
+      fireEvent.change(screen.getByTestId(`portal-code-digit-${i}`), { target: { value: '1' } });
+    }
+    fireEvent.click(screen.getByTestId('portal-code-verify'));
+    const submit = await screen.findByTestId('portal-submit');
+    expect(screen.getByTestId('mobile-action-bar')).toContainElement(submit);
   });
 
   it('"Change email" returns to the identify step', async () => {

@@ -16,7 +16,7 @@ import NoteIcon from '@forethread/ui-components/assets/icons/note.svg?react';
 import PaperclipIcon from '@forethread/ui-components/assets/icons/paperclip.svg?react';
 import { useRef } from 'react';
 
-import { DAMAGE_TYPE_OPTIONS, DELIVERY_ATTACHMENT_ACCEPT } from '../constants';
+import { DAMAGE_TYPE_OPTIONS, DELIVERY_PHOTO_ACCEPT } from '../constants';
 
 import { resolveOutcome, type PortalLineDraft, type PortalLineStatus } from './portalLines';
 
@@ -154,11 +154,11 @@ export function PortalLineItem({ line, onChange }: PortalLineItemProps) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex flex-col gap-2 md:flex-row">
             <input
               ref={fileInputRef}
               type="file"
-              accept={DELIVERY_ATTACHMENT_ACCEPT}
+              accept={DELIVERY_PHOTO_ACCEPT}
               multiple
               className="hidden"
               onChange={(e) => {
@@ -168,7 +168,8 @@ export function PortalLineItem({ line, onChange }: PortalLineItemProps) {
             />
             <Button
               variant="primary"
-              className="flex-1"
+              // Basis 0 collapses the height in the phone column; only flex on desktop.
+              className="min-h-11 md:flex-1"
               leftIcon={<PaperclipIcon className="h-4 w-4" />}
               onClick={() => fileInputRef.current?.click()}
               data-testid={`portal-line-add-photo-${line.id}`}
@@ -177,7 +178,7 @@ export function PortalLineItem({ line, onChange }: PortalLineItemProps) {
             </Button>
             <Button
               variant="outline"
-              className="flex-1"
+              className="min-h-11 md:flex-1"
               leftIcon={<CrossCircleIcon className="h-4 w-4" />}
               onClick={() => onChange({ status: null })}
             >
@@ -225,7 +226,7 @@ export function PortalLineItem({ line, onChange }: PortalLineItemProps) {
                 />
                 <ToggleButton
                   active={false}
-                  className="flex-1"
+                  className="shrink-0 px-3"
                   onClick={() => toggleStatus('NOT_DELIVERED')}
                   testId={`portal-line-not-delivered-${line.id}`}
                   icon={<CrossCircleIcon className="h-4 w-4" />}
@@ -283,7 +284,9 @@ function QtyStepper({
   const step = (delta: number) => onChange(String(Math.max(0, safe + delta)));
 
   return (
-    <div className={cn('flex items-stretch gap-2', className)}>
+    // min-w-0 + the input's w-0: a number input's intrinsic width otherwise stops
+    // the stepper shrinking, pushing "Not delivered" off a 390px screen.
+    <div className={cn('flex min-w-0 items-stretch gap-2', className)}>
       <button
         type="button"
         aria-label={`decrease ${ariaLabel}`}
@@ -300,7 +303,7 @@ function QtyStepper({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           aria-label={ariaLabel}
-          className="min-w-0 flex-1 bg-transparent text-sm font-medium text-foreground outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          className="w-0 min-w-0 flex-1 bg-transparent text-base font-medium text-foreground outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
         <span className="shrink-0 text-sm text-muted-foreground">{uom}</span>
       </div>

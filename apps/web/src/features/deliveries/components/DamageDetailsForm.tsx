@@ -4,7 +4,7 @@ import { Select, StepperInput, RadioGroup, Button, FileChip } from '@forethread/
 import PaperclipIcon from '@forethread/ui-components/assets/icons/paperclip.svg?react';
 import { useRef } from 'react';
 
-import { DAMAGE_TYPE_OPTIONS, DELIVERY_ATTACHMENT_ACCEPT } from '../constants';
+import { DAMAGE_TYPE_OPTIONS, DELIVERY_PHOTO_ACCEPT } from '../constants';
 
 /** The damage sub-form's draft state, owned by the create-page row. */
 export interface DamageDraft {
@@ -27,6 +27,8 @@ interface DamageDetailsFormProps {
   onChange: (next: DamageDraft) => void;
   /** Line ref, used to build accessible labels / testids. */
   lineRef?: string;
+  /** Drop the "Damage details" heading when the caller already labels the form (phone sheet). */
+  hideTitle?: boolean;
 }
 
 /**
@@ -35,7 +37,12 @@ interface DamageDetailsFormProps {
  * + photo evidence picker. Pure controlled component — the parent persists the
  * draft and uploads the photos after the report is created.
  */
-export function DamageDetailsForm({ value, onChange, lineRef }: DamageDetailsFormProps) {
+export function DamageDetailsForm({
+  value,
+  onChange,
+  lineRef,
+  hideTitle = false,
+}: DamageDetailsFormProps) {
   const { t } = useTranslation('deliveries');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -49,7 +56,9 @@ export function DamageDetailsForm({ value, onChange, lineRef }: DamageDetailsFor
 
   return (
     <div className="bg-card" data-testid={`delivery-damage-form-${lineRef ?? ''}`}>
-      <h4 className="text-sm font-semibold text-foreground mb-4">{t('damage.title')}</h4>
+      {!hideTitle && (
+        <h4 className="text-sm font-semibold text-foreground mb-4">{t('damage.title')}</h4>
+      )}
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-8">
         {/* Damaged qty */}
@@ -102,7 +111,7 @@ export function DamageDetailsForm({ value, onChange, lineRef }: DamageDetailsFor
           <input
             ref={fileInputRef}
             type="file"
-            accept={DELIVERY_ATTACHMENT_ACCEPT}
+            accept={DELIVERY_PHOTO_ACCEPT}
             multiple
             className="hidden"
             onChange={(e) => {
@@ -112,6 +121,7 @@ export function DamageDetailsForm({ value, onChange, lineRef }: DamageDetailsFor
           />
           <Button
             variant="outline"
+            className="max-lg:w-full"
             leftIcon={<PaperclipIcon className="w-4 h-4" />}
             onClick={() => fileInputRef.current?.click()}
             data-testid={`delivery-add-photo-${lineRef ?? ''}`}

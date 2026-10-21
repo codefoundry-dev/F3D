@@ -271,6 +271,15 @@ nav and footer bar (`Toaster mobileOffset`).
 - **Invoice review lines** (`InvoiceReviewPanel`): one `lineFields` list drives both the desktop
   grid's header and cells and the phone cards/sheet; PO-match badges show under the card title.
 
+**As built (delivery report + MR details, FOR-380):**
+
+- **Delivery report** (`CreateDeliveryReportPage`): Qty received and Outcome are `LineItemField`s
+  whose `input` the desktop cells render; phones get `LineItemEditor` cards (Ordered, Received,
+  Outcome) and a sheet that adds the damage form when Outcome is Damaged. Invalid lines are flagged.
+- **MR wizard step 2** (`StepMaterialDetails`, not in the original five): the cell inputs and the
+  notes-drawer fields are shared renderers; phones get cards + sheet with every field stacked, so no
+  notes drawer is needed.
+
 ## Phase 2: phone-first flows
 
 | Flow                                  | Status |
@@ -278,8 +287,8 @@ nav and footer bar (`Toaster mobileOffset`).
 | Vendor guest quote response (FOR-377) | ✅     |
 | Guest PO portal (FOR-378)             | ✅     |
 | Approvals (FOR-379)                   | ✅     |
-| Delivery + QR page (FOR-380)          | ⬜     |
-| Foreman MR check (FOR-380)            | ⬜     |
+| Delivery + QR page (FOR-380)          | ✅     |
+| Foreman MR check (FOR-380)            | ✅     |
 
 **Approvals, as built (FOR-379):**
 
@@ -295,6 +304,28 @@ nav and footer bar (`Toaster mobileOffset`).
 - **ui-components follow-ups (fixed, see B10):** `Input` / `Textarea` were 14px (iOS zoomed on
   focus), `GridModal`'s `p-6` overrode the sheet's safe-area padding, and `DashboardItemCard` kept
   its actions in the header row.
+
+**As built (FOR-380):**
+
+- **Warehouse:** a warehouse officer can't open PO detail (403), so "Record delivery" is reached
+  from the Deliveries → Expected cards; on phones that card stacks its header and the button is
+  full-width (44px). The create-report page puts Cancel / Submit in `MobileActionBar` and its line
+  grid is cards + `LineItemSheet` (see B10).
+- **Damage photos:** the photo pickers (create page and QR portal) accept `image/*`, so phones offer
+  the camera as well as the library (iOS hands HEIC over as JPEG). Attachments keep the extension
+  list.
+- **QR portal `/delivery/:token`:** the line cards were already the phone design (Figma 12/13), so
+  they stay inline-editable rather than moving to a sheet. Fixed: the qty stepper couldn't shrink (a
+  number input's intrinsic width pushed "Not delivered" off-screen, so the page laid out at 520px),
+  damaged-line buttons collapsed to ~22px in the phone column, and the 6 code boxes overflowed at
+  390px. Submit sits in `MobileActionBar` (the page calls `useHideMobileNav()` so it pins to the
+  bottom); inputs are ≥16px; the View PO sheet uses `dvh` + safe-area padding.
+- **Foreman MR flow:** the in-page `MobileHeader` repeated the top bar's title and back arrow; below
+  `md` it now shows only its subline and actions. Step 2 had become a sideways-scrolling input table
+  (B5) and is now cards + sheet. Wizard chrome from B8 (compact stepper, hidden nav, bar, exit
+  confirm) checked end to end.
+- **Audit gotcha:** with Playwright `isMobile`, an overflowing page widens the layout viewport
+  instead of scrolling, so `scrollWidth - innerWidth` reads 0. Compare against the device width.
 
 ## Phase 3: everything else
 
