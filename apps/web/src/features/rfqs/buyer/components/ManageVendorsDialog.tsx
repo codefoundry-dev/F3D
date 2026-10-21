@@ -53,7 +53,7 @@ export function ManageVendorsDialog({
       <ModalHeader onClose={onCancel} className="relative">
         {t('manageVendors.title')}
       </ModalHeader>
-      <ModalBody className="relative toolbar:flex-1 toolbar:min-h-0 toolbar:overflow-y-auto">
+      <ModalBody className="relative md:flex-1 md:min-h-0 md:overflow-y-auto">
         <p className="mb-4 text-sm text-muted-foreground">{t('manageVendors.subtitle')}</p>
 
         <SelectVendorsCard
