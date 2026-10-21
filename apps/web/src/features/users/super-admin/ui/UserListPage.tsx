@@ -28,6 +28,9 @@ import {
   type DotAction,
   type TabItem,
   ScrollTable,
+  FloatingActionButton,
+  MobileListToolbar,
+  useIsPhone,
 } from '@forethread/ui-components';
 import ChevronRightIcon from '@forethread/ui-components/assets/icons/chevron-right.svg?react';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock.svg?react';
@@ -85,6 +88,8 @@ const COUNT_PILL =
 
 export default function UserListPage() {
   const { t } = useTranslation(['users', 'common']);
+  // Phones: compact toolbar + floating Invite button (ADR-0019 B9).
+  const isPhone = useIsPhone();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') as (typeof TABS)[number] | null;
@@ -469,11 +474,12 @@ export default function UserListPage() {
   ];
 
   return (
-    <div className="flex flex-1 flex-col gap-3 px-6 py-4">
+    <div className="flex flex-1 flex-col gap-3 px-4 py-4 md:px-6">
       {/* ── Page header + tabs ── */}
       <div className="flex flex-col gap-2.5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+          {/* Phones: the top bar shows the title. */}
+          <div className="hidden items-center gap-3 md:flex">
             <span className="flex size-7 shrink-0 items-center justify-center rounded-[8px] border border-gray-100 bg-gradient-to-b from-[#F9F9FA] to-white p-px text-gray-700 shadow-[0_1px_3px_0_rgba(10,13,18,0.06),0_1px_1px_0_rgba(10,13,18,0.02)]">
               <UsersGroupIcon className="size-[15px]" />
             </span>
@@ -482,9 +488,13 @@ export default function UserListPage() {
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button onClick={openCreateModal} leftIcon={<NewUserIcon className="size-4" />}>
-              {t('inviteUser')}
-            </Button>
+            {isPhone ? (
+              <FloatingActionButton label={t('inviteUser')} onClick={openCreateModal} />
+            ) : (
+              <Button onClick={openCreateModal} leftIcon={<NewUserIcon className="size-4" />}>
+                {t('inviteUser')}
+              </Button>
+            )}
             <Button
               variant="secondary"
               onClick={openCreateSuperAdminModal}
@@ -512,100 +522,189 @@ export default function UserListPage() {
       {isTableTab && (
         <div className="flex flex-1 flex-col gap-4 rounded-[18px] border border-gray-100 bg-[#F9F9FA] p-3 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
           {/* Toolbar */}
-          <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-2">
-            {/* Left: result count, Clear all, and active-filter chips */}
-            <div className="flex min-h-[34px] min-w-0 flex-1 flex-wrap items-center gap-2 px-2">
-              <p className="text-sm font-medium leading-[1.4] tracking-[0.3px] text-gray-700">
-                {countLabel}
-              </p>
-              {hasActiveFilters && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  rightIcon={<CrossIcon className="size-3.5" />}
-                  onClick={handleClearAllFilters}
-                >
-                  {t('filters.clearAll')}
-                </Button>
-              )}
-              {activeFilterChips.map((chip) => (
-                <FilterTag
-                  key={chip.key}
-                  label={chip.label}
-                  onRemove={chip.onRemove}
-                  removeLabel={t('filters.removeFilter', { label: chip.label })}
-                />
-              ))}
-            </div>
-            {/* Right: filter dropdowns + search */}
-            <div className="flex min-h-[34px] flex-wrap items-center justify-end gap-2">
-              <FilterPopover
-                label={t('filters.status')}
-                popoverTitle={t('filters.status')}
-                clearLabel={t('filters.clear')}
-                options={statusOptions}
-                selected={selectedStatuses}
-                onChange={(v) => {
-                  setSelectedStatuses(v);
-                  setPage(1);
-                }}
-              />
-              {!isVendorsTab && (
+          {/* Phones: search + Filters sheet, active chips swipe sideways (ADR-0019 B9). */}
+          {isPhone ? (
+            <MobileListToolbar
+              className="px-1"
+              search={search}
+              onSearchChange={setSearch}
+              searchPlaceholder={t('searchPlaceholder')}
+              filtersLabel={t('filters.label', { defaultValue: 'Filters' })}
+              activeFilterCount={activeFilterChips.length}
+              onClearFilters={handleClearAllFilters}
+              clearFiltersLabel={t('filters.clearAll')}
+              filters={
+                <div className="flex flex-wrap items-center gap-2">
+                  <FilterPopover
+                    label={t('filters.status')}
+                    popoverTitle={t('filters.status')}
+                    clearLabel={t('filters.clear')}
+                    options={statusOptions}
+                    selected={selectedStatuses}
+                    onChange={(v) => {
+                      setSelectedStatuses(v);
+                      setPage(1);
+                    }}
+                  />
+                  {!isVendorsTab && (
+                    <FilterPopover
+                      label={t('filters.role')}
+                      popoverTitle={t('filters.role')}
+                      clearLabel={t('filters.clear')}
+                      options={roleOptions}
+                      selected={selectedRoles}
+                      onChange={(v) => {
+                        setSelectedRoles(v);
+                        setPage(1);
+                      }}
+                    />
+                  )}
+                  <FilterPopover
+                    label={t('filters.company')}
+                    popoverTitle={t('filters.company')}
+                    searchable
+                    searchPlaceholder={t('filters.searchCompany')}
+                    clearLabel={t('filters.clear')}
+                    options={companyOptions}
+                    selected={selectedCompanies}
+                    onChange={(v) => {
+                      setSelectedCompanies(v);
+                      setPage(1);
+                    }}
+                  />
+                  <DateRangeFilterPopover
+                    label={t('filters.date')}
+                    popoverTitle={t('filters.date')}
+                    clearLabel={t('filters.clear')}
+                    dateFrom={dateFrom}
+                    dateTo={dateTo}
+                    fromPlaceholder={t('filters.from')}
+                    toPlaceholder={t('filters.to')}
+                    onChangeFrom={(d) => {
+                      setDateFrom(d);
+                      setPage(1);
+                    }}
+                    onChangeTo={(d) => {
+                      setDateTo(d);
+                      setPage(1);
+                    }}
+                    onClear={() => {
+                      setDateFrom('');
+                      setDateTo('');
+                      setPage(1);
+                    }}
+                  />
+                </div>
+              }
+              quickFilters={
+                activeFilterChips.length > 0
+                  ? activeFilterChips.map((chip) => (
+                      <FilterTag
+                        key={chip.key}
+                        label={chip.label}
+                        onRemove={chip.onRemove}
+                        removeLabel={t('filters.removeFilter', { label: chip.label })}
+                      />
+                    ))
+                  : undefined
+              }
+            />
+          ) : (
+            <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-2">
+              {/* Left: result count, Clear all, and active-filter chips */}
+              <div className="flex min-h-[34px] min-w-0 flex-1 flex-wrap items-center gap-2 px-2">
+                <p className="text-sm font-medium leading-[1.4] tracking-[0.3px] text-gray-700">
+                  {countLabel}
+                </p>
+                {hasActiveFilters && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    rightIcon={<CrossIcon className="size-3.5" />}
+                    onClick={handleClearAllFilters}
+                  >
+                    {t('filters.clearAll')}
+                  </Button>
+                )}
+                {activeFilterChips.map((chip) => (
+                  <FilterTag
+                    key={chip.key}
+                    label={chip.label}
+                    onRemove={chip.onRemove}
+                    removeLabel={t('filters.removeFilter', { label: chip.label })}
+                  />
+                ))}
+              </div>
+              {/* Right: filter dropdowns + search */}
+              <div className="flex min-h-[34px] flex-wrap items-center justify-end gap-2">
                 <FilterPopover
-                  label={t('filters.role')}
-                  popoverTitle={t('filters.role')}
+                  label={t('filters.status')}
+                  popoverTitle={t('filters.status')}
                   clearLabel={t('filters.clear')}
-                  options={roleOptions}
-                  selected={selectedRoles}
+                  options={statusOptions}
+                  selected={selectedStatuses}
                   onChange={(v) => {
-                    setSelectedRoles(v);
+                    setSelectedStatuses(v);
                     setPage(1);
                   }}
                 />
-              )}
-              <FilterPopover
-                label={t('filters.company')}
-                popoverTitle={t('filters.company')}
-                searchable
-                searchPlaceholder={t('filters.searchCompany')}
-                clearLabel={t('filters.clear')}
-                options={companyOptions}
-                selected={selectedCompanies}
-                onChange={(v) => {
-                  setSelectedCompanies(v);
-                  setPage(1);
-                }}
-              />
-              <DateRangeFilterPopover
-                label={t('filters.date')}
-                popoverTitle={t('filters.date')}
-                clearLabel={t('filters.clear')}
-                dateFrom={dateFrom}
-                dateTo={dateTo}
-                fromPlaceholder={t('filters.from')}
-                toPlaceholder={t('filters.to')}
-                onChangeFrom={(d) => {
-                  setDateFrom(d);
-                  setPage(1);
-                }}
-                onChangeTo={(d) => {
-                  setDateTo(d);
-                  setPage(1);
-                }}
-                onClear={() => {
-                  setDateFrom('');
-                  setDateTo('');
-                  setPage(1);
-                }}
-              />
-              <SearchInput
-                className="w-[220px]"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={t('searchPlaceholder')}
-              />
+                {!isVendorsTab && (
+                  <FilterPopover
+                    label={t('filters.role')}
+                    popoverTitle={t('filters.role')}
+                    clearLabel={t('filters.clear')}
+                    options={roleOptions}
+                    selected={selectedRoles}
+                    onChange={(v) => {
+                      setSelectedRoles(v);
+                      setPage(1);
+                    }}
+                  />
+                )}
+                <FilterPopover
+                  label={t('filters.company')}
+                  popoverTitle={t('filters.company')}
+                  searchable
+                  searchPlaceholder={t('filters.searchCompany')}
+                  clearLabel={t('filters.clear')}
+                  options={companyOptions}
+                  selected={selectedCompanies}
+                  onChange={(v) => {
+                    setSelectedCompanies(v);
+                    setPage(1);
+                  }}
+                />
+                <DateRangeFilterPopover
+                  label={t('filters.date')}
+                  popoverTitle={t('filters.date')}
+                  clearLabel={t('filters.clear')}
+                  dateFrom={dateFrom}
+                  dateTo={dateTo}
+                  fromPlaceholder={t('filters.from')}
+                  toPlaceholder={t('filters.to')}
+                  onChangeFrom={(d) => {
+                    setDateFrom(d);
+                    setPage(1);
+                  }}
+                  onChangeTo={(d) => {
+                    setDateTo(d);
+                    setPage(1);
+                  }}
+                  onClear={() => {
+                    setDateFrom('');
+                    setDateTo('');
+                    setPage(1);
+                  }}
+                />
+                <SearchInput
+                  className="w-[220px]"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={t('searchPlaceholder')}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Content */}
           {isLoading ? (

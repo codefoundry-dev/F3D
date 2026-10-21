@@ -1,7 +1,19 @@
 import { type MaterialListItemDto, type MaterialListSummaryDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
-import { Button, Input, TablePagination, useDebounce } from '@forethread/ui-components';
+import {
+  Button,
+  FiltersButton,
+  FloatingActionButton,
+  Input,
+  Modal,
+  ModalBody,
+  ModalFooter,
+  ModalHeader,
+  TablePagination,
+  useDebounce,
+  useIsPhone,
+} from '@forethread/ui-components';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
 import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
@@ -66,6 +78,9 @@ interface PendingConfirm {
 
 export default function MaterialCataloguePage() {
   const { t } = useTranslation(['materialCatalogue']);
+  // Phones: facet filters in a sheet + floating Create button (ADR-0019 B9).
+  const isPhone = useIsPhone();
+  const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
   const { has } = usePermissions();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -293,8 +308,68 @@ export default function MaterialCataloguePage() {
       : []),
   ];
 
+  // Category / manufacturer / UoM / type / origin: inline on desktop, a sheet
+  // on phones (B9).
+  const facetFilters = (
+    <>
+      <FacetFilterSelect
+        value={categoryId}
+        onChange={(v) => {
+          setCategoryId(v);
+          setPage(1);
+        }}
+        placeholder={t('filters.allCategories')}
+        testId="filter-category"
+        options={(categories ?? []).map((c) => ({ value: c.id, label: c.name }))}
+      />
+      <FacetFilterSelect
+        value={manufacturer}
+        onChange={(v) => {
+          setManufacturer(v);
+          setPage(1);
+        }}
+        placeholder={t('filters.manufacturer')}
+        testId="filter-manufacturer"
+        options={facets.manufacturers.map((m) => ({ value: m, label: m }))}
+      />
+      <FacetFilterSelect
+        value={uom}
+        onChange={(v) => {
+          setUom(v);
+          setPage(1);
+        }}
+        placeholder={t('filters.uom')}
+        testId="filter-uom"
+        options={facets.uoms.map((u) => ({ value: u, label: u }))}
+      />
+      <FacetFilterSelect
+        value={materialType}
+        onChange={(v) => {
+          setMaterialType(v);
+          setPage(1);
+        }}
+        placeholder={t('filters.materialType')}
+        testId="filter-material-type"
+        options={facets.materialTypes.map((m) => ({ value: m, label: m }))}
+      />
+      <FacetFilterSelect
+        value={countryOfOrigin}
+        onChange={(v) => {
+          setCountryOfOrigin(v);
+          setPage(1);
+        }}
+        placeholder={t('filters.countryOfOrigin')}
+        testId="filter-country"
+        options={facets.countriesOfOrigin.map((c) => ({ value: c, label: c }))}
+      />
+    </>
+  );
+  const activeFacetCount = [categoryId, manufacturer, uom, materialType, countryOfOrigin].filter(
+    Boolean,
+  ).length;
+
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border">
         <div className="flex items-center gap-6" role="tablist" aria-label={t('page.title')}>
           {tabs.map((tab) => {
@@ -321,7 +396,14 @@ export default function MaterialCataloguePage() {
         </div>
 
         <div className="flex items-center gap-3 pb-2">
-          {has('material.create') && (
+          {has('material.create') && isPhone && (
+            <FloatingActionButton
+              label={t('actions.createNew')}
+              onClick={() => navigate(ROUTES.materialCatalogueNew)}
+              testId="material-create"
+            />
+          )}
+          {has('material.create') && !isPhone && (
             <Button
               leftIcon={<PlusIcon className="w-4 h-4" />}
               onClick={() => navigate(ROUTES.materialCatalogueNew)}
@@ -537,56 +619,20 @@ export default function MaterialCataloguePage() {
               )}
             </div>
 
-            <FacetFilterSelect
-              value={categoryId}
-              onChange={(v) => {
-                setCategoryId(v);
-                setPage(1);
-              }}
-              placeholder={t('filters.allCategories')}
-              testId="filter-category"
-              options={(categories ?? []).map((c) => ({ value: c.id, label: c.name }))}
-            />
-            <FacetFilterSelect
-              value={manufacturer}
-              onChange={(v) => {
-                setManufacturer(v);
-                setPage(1);
-              }}
-              placeholder={t('filters.manufacturer')}
-              testId="filter-manufacturer"
-              options={facets.manufacturers.map((m) => ({ value: m, label: m }))}
-            />
-            <FacetFilterSelect
-              value={uom}
-              onChange={(v) => {
-                setUom(v);
-                setPage(1);
-              }}
-              placeholder={t('filters.uom')}
-              testId="filter-uom"
-              options={facets.uoms.map((u) => ({ value: u, label: u }))}
-            />
-            <FacetFilterSelect
-              value={materialType}
-              onChange={(v) => {
-                setMaterialType(v);
-                setPage(1);
-              }}
-              placeholder={t('filters.materialType')}
-              testId="filter-material-type"
-              options={facets.materialTypes.map((m) => ({ value: m, label: m }))}
-            />
-            <FacetFilterSelect
-              value={countryOfOrigin}
-              onChange={(v) => {
-                setCountryOfOrigin(v);
-                setPage(1);
-              }}
-              placeholder={t('filters.countryOfOrigin')}
-              testId="filter-country"
-              options={facets.countriesOfOrigin.map((c) => ({ value: c, label: c }))}
-            />
+            {isPhone ? (
+              <FiltersButton
+                active={activeFacetCount > 0}
+                label={
+                  activeFacetCount > 0
+                    ? `${t('page.filters', { defaultValue: 'Filters' })} (${activeFacetCount})`
+                    : t('page.filters', { defaultValue: 'Filters' })
+                }
+                onClick={() => setFiltersSheetOpen(true)}
+                className="h-11"
+              />
+            ) : (
+              facetFilters
+            )}
           </div>
 
           {showNoResults ? (
@@ -672,6 +718,20 @@ export default function MaterialCataloguePage() {
           onConfirm={runConfirm}
           onClose={() => setConfirm(null)}
         />
+      )}
+
+      {filtersSheetOpen && (
+        <Modal onClose={() => setFiltersSheetOpen(false)} mobile="fullscreen" scrollBody>
+          <ModalHeader onClose={() => setFiltersSheetOpen(false)}>
+            {t('page.filters', { defaultValue: 'Filters' })}
+          </ModalHeader>
+          <ModalBody className="gap-3 [&>*]:w-full">{facetFilters}</ModalBody>
+          <ModalFooter className="pb-[calc(16px+env(safe-area-inset-bottom))] [&>*]:flex-1">
+            <Button type="button" variant="primary" onClick={() => setFiltersSheetOpen(false)}>
+              {t('page.done', { defaultValue: 'Done' })}
+            </Button>
+          </ModalFooter>
+        </Modal>
       )}
 
       {/* US 4.03 — add a material to one of the user's lists (from a row kebab). */}

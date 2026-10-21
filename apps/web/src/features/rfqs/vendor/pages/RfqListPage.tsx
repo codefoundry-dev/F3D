@@ -37,6 +37,8 @@ import {
   useDropdown,
   ViewSelectorDropdown,
   ScrollTable,
+  MobileListToolbar,
+  useIsPhone,
 } from '@forethread/ui-components';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 import DragHandleIcon from '@forethread/ui-components/assets/icons/drag-and-drop.svg?react';
@@ -48,6 +50,7 @@ import type React from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { buildListMenuActions, countActiveFilters } from '@/shared/layout/mobileListToolbar';
 
 import { RfqDetailPanel } from '../components/RfqDetailPanel';
 import { ALL_COLUMNS, DEFAULT_VISIBLE, TRUNCATE_COLUMNS, type SortableField } from '../constants';
@@ -84,6 +87,8 @@ export default function RfqListPage() {
   const [previewY, setPreviewY] = useState(0);
 
   /* dropdowns */
+  // Phones: compact toolbar (ADR-0019 B9).
+  const isPhone = useIsPhone();
   const viewDD = useDropdown();
   const groupDD = useDropdown();
   const exportDD = useDropdown();
@@ -276,119 +281,184 @@ export default function RfqListPage() {
 
   /* ─── JSX ───────────────────────────────────────────────────────────────── */
   return (
-    <div ref={containerRef} className="px-4 sm:px-8 pt-4 sm:pt-6 pb-6 sm:pb-8 relative">
+    <div ref={containerRef} className="px-4 md:px-8 pt-4 md:pt-6 pb-6 md:pb-8 relative">
       <div className="flex flex-col rounded-lg border border-border bg-background pb-4">
-        {/* ═══ Toolbar Row 1 ═══ */}
-        <div className="px-4 sm:px-8 pt-4">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
-            {/* Right – View / Save / Export / Settings (vendors cannot create RFQs) */}
-            <div className="flex items-center gap-3">
-              <ViewSelectorDropdown
-                activeView={activeView}
-                savedViews={s.savedViews}
-                onApplyView={s.applyView}
-                defaultViewLabel={t('list.viewDefault')}
-                defaultViewItemLabel={t('views.defaultView')}
-                noSavedViewsHint={t('views.noSavedViews')}
-                isOpen={viewDD.isOpen}
-                onOpenChange={viewDD.setIsOpen}
-                dropdownRef={viewDD.ref}
-              />
-
-              <ToolbarIconButton title={t('list.save')} onClick={() => s.setShowCreateView(true)}>
-                <FloppyDiskIcon className="w-6 h-6" />
-              </ToolbarIconButton>
-
-              <ExportDropdownButton
-                title="Export"
-                formats={[
-                  { key: 'csv', label: t('list.exportCsv') },
-                  { key: 'xlsx', label: t('list.exportXlsx') },
-                ]}
-                onExport={(fmt) => handleExport(fmt as 'csv' | 'xlsx')}
-                isOpen={exportDD.isOpen}
-                onOpenChange={exportDD.setIsOpen}
-                dropdownRef={exportDD.ref}
-              />
-
-              <ToolbarIconButton
-                title={t('list.settings')}
-                onClick={() => s.setShowTableMgmt(true)}
-              >
-                <SettingsIcon className="w-6 h-6" />
-              </ToolbarIconButton>
-            </div>
-          </div>
-        </div>
-
-        {/* divider */}
-        <div className="mt-4 px-8">
-          <div className="border-b border-border" />
-        </div>
-
-        {/* ═══ Toolbar Row 2 ═══ */}
-        <div className="px-8 pt-2 pb-4">
-          <div className="flex items-center justify-between gap-4 max-[899px]:flex-col max-[899px]:items-start max-[899px]:gap-3 py-1">
-            {/* Left – Quick Filters */}
-            <div className="flex items-center gap-3 min-w-0 flex-wrap">
-              <span className="text-sm text-foreground whitespace-nowrap">
-                {t('list.quickFiltersLabel')}
-              </span>
-              <div className="flex items-center gap-2 flex-wrap">
-                {VENDOR_QUICK_FILTERS.map((key) => (
-                  <FilterChip
-                    key={key}
-                    label={t(`quickFilters.${key}`)}
-                    active={s.quickFilter === key}
-                    onClick={() => s.setQuickFilter(s.quickFilter === key ? '' : key)}
+        {isPhone ? (
+          <div className="px-4 pt-4 pb-3">
+            <MobileListToolbar
+              search={s.search}
+              onSearchChange={s.setSearch}
+              searchPlaceholder={t('list.searchPlaceholder')}
+              filtersLabel={t('list.filters')}
+              filtersTitle={t('advancedFilters.title')}
+              activeFilterCount={countActiveFilters(s.advancedFilters)}
+              onClearFilters={() => s.clearAdvancedFilters()}
+              clearFiltersLabel={t('advancedFilters.clearAll')}
+              filters={
+                <>
+                  <GroupByButton
+                    groupBy={s.groupBy}
+                    onGroupByChange={s.setGroupBy}
+                    options={VENDOR_GROUP_OPTIONS}
+                    getOptionLabel={(opt) => t(`list.${opt}` as never)}
+                    label={t('list.group')}
+                    isOpen={groupDD.isOpen}
+                    onOpenChange={groupDD.setIsOpen}
+                    dropdownRef={groupDD.ref}
                   />
-                ))}
+                  <RfqAdvancedFilters
+                    advancedFilters={s.advancedFilters}
+                    setAdvancedFilters={s.setAdvancedFilters}
+                    items={allItems}
+                    statusKeys={VENDOR_RFQ_STATUS_KEYS}
+                  />
+                </>
+              }
+              quickFilters={VENDOR_QUICK_FILTERS.map((key) => (
+                <FilterChip
+                  key={key}
+                  label={t(`quickFilters.${key}`)}
+                  active={s.quickFilter === key}
+                  onClick={() => s.setQuickFilter(s.quickFilter === key ? '' : key)}
+                />
+              ))}
+              menuActions={buildListMenuActions({
+                views: {
+                  savedViews: s.savedViews,
+                  activeViewId: s.activeViewId,
+                  onApplyView: s.applyView,
+                  defaultViewLabel: t('views.defaultView'),
+                },
+                saveView: { label: t('list.save'), onClick: () => s.setShowCreateView(true) },
+                exports: [
+                  { key: 'csv', label: t('list.exportCsv'), onClick: () => handleExport('csv') },
+                  { key: 'xlsx', label: t('list.exportXlsx'), onClick: () => handleExport('xlsx') },
+                ],
+                columnSettings: {
+                  label: t('list.settings'),
+                  onClick: () => s.setShowTableMgmt(true),
+                },
+              })}
+            />
+          </div>
+        ) : (
+          <>
+            {/* ═══ Toolbar Row 1 ═══ */}
+            <div className="px-4 sm:px-8 pt-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
+                {/* Right – View / Save / Export / Settings (vendors cannot create RFQs) */}
+                <div className="flex items-center gap-3">
+                  <ViewSelectorDropdown
+                    activeView={activeView}
+                    savedViews={s.savedViews}
+                    onApplyView={s.applyView}
+                    defaultViewLabel={t('list.viewDefault')}
+                    defaultViewItemLabel={t('views.defaultView')}
+                    noSavedViewsHint={t('views.noSavedViews')}
+                    isOpen={viewDD.isOpen}
+                    onOpenChange={viewDD.setIsOpen}
+                    dropdownRef={viewDD.ref}
+                  />
+
+                  <ToolbarIconButton
+                    title={t('list.save')}
+                    onClick={() => s.setShowCreateView(true)}
+                  >
+                    <FloppyDiskIcon className="w-6 h-6" />
+                  </ToolbarIconButton>
+
+                  <ExportDropdownButton
+                    title="Export"
+                    formats={[
+                      { key: 'csv', label: t('list.exportCsv') },
+                      { key: 'xlsx', label: t('list.exportXlsx') },
+                    ]}
+                    onExport={(fmt) => handleExport(fmt as 'csv' | 'xlsx')}
+                    isOpen={exportDD.isOpen}
+                    onOpenChange={exportDD.setIsOpen}
+                    dropdownRef={exportDD.ref}
+                  />
+
+                  <ToolbarIconButton
+                    title={t('list.settings')}
+                    onClick={() => s.setShowTableMgmt(true)}
+                  >
+                    <SettingsIcon className="w-6 h-6" />
+                  </ToolbarIconButton>
+                </div>
               </div>
             </div>
 
-            {/* Right – Group / Filters / Search */}
-            <div className="flex items-center gap-2 shrink-0">
-              <GroupByButton
-                groupBy={s.groupBy}
-                onGroupByChange={s.setGroupBy}
-                options={VENDOR_GROUP_OPTIONS}
-                getOptionLabel={(opt) => t(`list.${opt}` as never)}
-                label={t('list.group')}
-                isOpen={groupDD.isOpen}
-                onOpenChange={groupDD.setIsOpen}
-                dropdownRef={groupDD.ref}
-              />
-
-              <FilterPanel
-                label={t('list.filters')}
-                title={t('advancedFilters.title')}
-                open={s.filtersOpen}
-                onOpenChange={s.setFiltersOpen}
-                onClearAll={() => s.clearAdvancedFilters()}
-                clearAllLabel={t('advancedFilters.clearAll')}
-                fullWidth
-              >
-                <RfqAdvancedFilters
-                  advancedFilters={s.advancedFilters}
-                  setAdvancedFilters={s.setAdvancedFilters}
-                  items={allItems}
-                  statusKeys={VENDOR_RFQ_STATUS_KEYS}
-                />
-              </FilterPanel>
-
-              <ToolbarSearchToggle
-                search={s.search}
-                onSearchChange={s.setSearch}
-                searchOpen={s.searchOpen}
-                onSearchOpenChange={s.setSearchOpen}
-                placeholder={t('list.searchPlaceholder')}
-              />
+            {/* divider */}
+            <div className="mt-4 px-8">
+              <div className="border-b border-border" />
             </div>
-          </div>
-        </div>
+
+            {/* ═══ Toolbar Row 2 ═══ */}
+            <div className="px-8 pt-2 pb-4">
+              <div className="flex items-center justify-between gap-4 max-[899px]:flex-col max-[899px]:items-start max-[899px]:gap-3 py-1">
+                {/* Left – Quick Filters */}
+                <div className="flex items-center gap-3 min-w-0 flex-wrap">
+                  <span className="text-sm text-foreground whitespace-nowrap">
+                    {t('list.quickFiltersLabel')}
+                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {VENDOR_QUICK_FILTERS.map((key) => (
+                      <FilterChip
+                        key={key}
+                        label={t(`quickFilters.${key}`)}
+                        active={s.quickFilter === key}
+                        onClick={() => s.setQuickFilter(s.quickFilter === key ? '' : key)}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right – Group / Filters / Search */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <GroupByButton
+                    groupBy={s.groupBy}
+                    onGroupByChange={s.setGroupBy}
+                    options={VENDOR_GROUP_OPTIONS}
+                    getOptionLabel={(opt) => t(`list.${opt}` as never)}
+                    label={t('list.group')}
+                    isOpen={groupDD.isOpen}
+                    onOpenChange={groupDD.setIsOpen}
+                    dropdownRef={groupDD.ref}
+                  />
+
+                  <FilterPanel
+                    label={t('list.filters')}
+                    title={t('advancedFilters.title')}
+                    open={s.filtersOpen}
+                    onOpenChange={s.setFiltersOpen}
+                    onClearAll={() => s.clearAdvancedFilters()}
+                    clearAllLabel={t('advancedFilters.clearAll')}
+                    fullWidth
+                  >
+                    <RfqAdvancedFilters
+                      advancedFilters={s.advancedFilters}
+                      setAdvancedFilters={s.setAdvancedFilters}
+                      items={allItems}
+                      statusKeys={VENDOR_RFQ_STATUS_KEYS}
+                    />
+                  </FilterPanel>
+
+                  <ToolbarSearchToggle
+                    search={s.search}
+                    onSearchChange={s.setSearch}
+                    searchOpen={s.searchOpen}
+                    onSearchOpenChange={s.setSearchOpen}
+                    placeholder={t('list.searchPlaceholder')}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* ═══ Table ═══ */}
-        <div className="px-8">
+        <div className="px-4 md:px-8">
           {isLoading ? (
             <div className="flex items-center justify-center py-16">
               <Spinner size="md" />
@@ -464,7 +534,7 @@ export default function RfqListPage() {
           )}
         </div>
         {totalCount >= 25 && (
-          <div className="px-8">
+          <div className="px-4 md:px-8">
             <TablePagination
               page={s.page}
               totalItems={totalCount}

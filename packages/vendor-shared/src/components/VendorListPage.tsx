@@ -122,8 +122,8 @@ export default function VendorListPage() {
   };
 
   return (
-    <div className="p-8">
-      <div className="bg-card rounded-lg border border-border p-6">
+    <div className="p-4 md:p-8">
+      <div className="bg-card rounded-lg border border-border p-4 md:p-6">
         <VendorListToolbar
           search={search}
           onSearchChange={(v) => {

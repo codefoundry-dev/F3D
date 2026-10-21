@@ -11,9 +11,11 @@ import {
   EmptyBoxIllustration,
   SearchEmptyIllustration,
   FilterPanel,
+  FloatingActionButton,
   FilterPopover,
   FilterTag,
   Input,
+  MobileListToolbar,
   getStatusColor,
   INVOICE_STATUS_COLORS,
   PageLoader,
@@ -23,6 +25,7 @@ import {
   TablePagination,
   notificationService,
   ScrollTable,
+  useIsPhone,
 } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
@@ -109,6 +112,8 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
   const [amountMin, setAmountMin] = useState('');
   const [amountMax, setAmountMax] = useState('');
   const searchTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  // Phones: compact toolbar + floating Create button (ADR-0019 B9).
+  const isPhone = useIsPhone();
 
   // App-bar breadcrumb / page title
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
@@ -310,180 +315,246 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
     return <PageLoader />;
   }
 
-  return (
-    <div className="flex flex-1 flex-col gap-3 px-6 py-4">
-      {/* ── Page header ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-[8px] border border-gray-100 bg-gradient-to-b from-[#F9F9FA] to-white p-px text-gray-700 shadow-[0_1px_3px_0_rgba(10,13,18,0.06),0_1px_1px_0_rgba(10,13,18,0.02)]">
-            <InvoiceIcon className="size-[15px]" />
-          </span>
-          <h1 className="text-[20px] font-medium leading-[1.4] tracking-[0.3px] text-gray-900">
-            {t('list.title')}
-          </h1>
-        </div>
-        <Button variant="primary" onClick={() => navigate(INVOICE_ROUTES.invoiceCreate)}>
-          {t('list.createNew')}
-        </Button>
+  // Bulk actions for the selected rows (desktop toolbar and phone).
+  const selectionActions = (
+    <>
+      <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
+        <CheckCircleIcon className="size-4 text-gray-500" />
+        {t('list.itemsSelected', { count: selectedIds.size })}
+      </span>
+      <Button
+        variant="primary"
+        size="sm"
+        isLoading={bulkApproveMutation.isPending}
+        disabled={bulkApproveMutation.isPending}
+        leftIcon={<CheckCircleIcon className="size-4" />}
+        onClick={() =>
+          bulkApproveMutation.mutate([...selectedIds], {
+            onSuccess: (result) => {
+              setSelectedIds(new Set());
+              // FOR-303: some selected invoices may be above the
+              // caller's invoice.approve cap and left pending. Say so
+              // rather than reporting a clean success.
+              if (result.skippedOverLimitCount > 0) {
+                notificationService.info(
+                  t('list.bulkApproveSkippedOverLimit', {
+                    approved: result.approvedCount,
+                    skipped: result.skippedOverLimitCount,
+                    defaultValue:
+                      'Approved {{approved}}. {{skipped}} were above your approval limit and still need a higher-tier approver.',
+                  }),
+                );
+              }
+            },
+          })
+        }
+      >
+        {t('list.approveAll')}
+      </Button>
+      <ExportAsButton
+        label={t('list.exportAs')}
+        isLoading={exportMutation.isPending}
+        onExport={handleBulkExport}
+      />
+    </>
+  );
+  // The status / date / amount filters, shared by the desktop toolbar and the
+  // phone Filters sheet (B9).
+  const statusAndDateFilters = (
+    <>
+      <FilterPopover
+        label={t('filters.status')}
+        popoverTitle={t('filters.status')}
+        clearLabel={t('filters.clear')}
+        options={statusOptions}
+        selected={statusFilter}
+        onChange={(v) => {
+          setStatusFilter(v);
+          setPage(1);
+        }}
+      />
+      <DateRangeFilterDropdown
+        label={t('filters.date')}
+        clearLabel={t('filters.clear')}
+        dateFrom={dueDateFrom}
+        dateTo={dueDateTo}
+        fromPlaceholder={t('filters.from')}
+        toPlaceholder={t('filters.to')}
+        onChangeFrom={(d) => {
+          setDueDateFrom(d);
+          setPage(1);
+        }}
+        onChangeTo={(d) => {
+          setDueDateTo(d);
+          setPage(1);
+        }}
+        onClear={() => {
+          setDueDateFrom('');
+          setDueDateTo('');
+          setPage(1);
+        }}
+      />
+    </>
+  );
+  const amountFields = (
+    <div className="grid grid-cols-2 gap-3">
+      <div>
+        <label className="mb-1.5 block text-xs font-medium text-gray-500">
+          {t('filters.amountMin')}
+        </label>
+        <Input
+          inputMode="decimal"
+          placeholder="0.00"
+          value={amountMin}
+          onKeyDown={blockNonNumericKey}
+          onPaste={sanitizeNumericPaste}
+          onChange={(e) => {
+            setAmountMin(e.target.value);
+            setPage(1);
+          }}
+        />
       </div>
+      <div>
+        <label className="mb-1.5 block text-xs font-medium text-gray-500">
+          {t('filters.amountMax')}
+        </label>
+        <Input
+          inputMode="decimal"
+          placeholder="0.00"
+          value={amountMax}
+          onKeyDown={blockNonNumericKey}
+          onPaste={sanitizeNumericPaste}
+          onChange={(e) => {
+            setAmountMax(e.target.value);
+            setPage(1);
+          }}
+        />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-1 flex-col gap-3 px-4 py-4 md:px-6">
+      {/* ── Page header (phones: the top bar shows the title, Create is the FAB) ── */}
+      {isPhone ? (
+        <FloatingActionButton
+          label={t('list.createNew')}
+          onClick={() => navigate(INVOICE_ROUTES.invoiceCreate)}
+        />
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-[8px] border border-gray-100 bg-gradient-to-b from-[#F9F9FA] to-white p-px text-gray-700 shadow-[0_1px_3px_0_rgba(10,13,18,0.06),0_1px_1px_0_rgba(10,13,18,0.02)]">
+              <InvoiceIcon className="size-[15px]" />
+            </span>
+            <h1 className="text-[20px] font-medium leading-[1.4] tracking-[0.3px] text-gray-900">
+              {t('list.title')}
+            </h1>
+          </div>
+          <Button variant="primary" onClick={() => navigate(INVOICE_ROUTES.invoiceCreate)}>
+            {t('list.createNew')}
+          </Button>
+        </div>
+      )}
 
       {/* ── Card: toolbar + table ── */}
       <div className="flex flex-1 flex-col gap-4 rounded-[18px] border border-gray-100 bg-[#F9F9FA] p-3 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
-        {/* Toolbar */}
-        <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-2">
-          {/* Left: selection actions OR result count + chips */}
-          <div className="flex min-h-[34px] min-w-0 flex-1 flex-wrap items-center gap-2 px-2">
-            {hasSelection ? (
-              <>
-                <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                  <CheckCircleIcon className="size-4 text-gray-500" />
-                  {t('list.itemsSelected', { count: selectedIds.size })}
-                </span>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  isLoading={bulkApproveMutation.isPending}
-                  disabled={bulkApproveMutation.isPending}
-                  leftIcon={<CheckCircleIcon className="size-4" />}
-                  onClick={() =>
-                    bulkApproveMutation.mutate([...selectedIds], {
-                      onSuccess: (result) => {
-                        setSelectedIds(new Set());
-                        // FOR-303: some selected invoices may be above the
-                        // caller's invoice.approve cap and left pending. Say so
-                        // rather than reporting a clean success.
-                        if (result.skippedOverLimitCount > 0) {
-                          notificationService.info(
-                            t('list.bulkApproveSkippedOverLimit', {
-                              approved: result.approvedCount,
-                              skipped: result.skippedOverLimitCount,
-                              defaultValue:
-                                'Approved {{approved}}. {{skipped}} were above your approval limit and still need a higher-tier approver.',
-                            }),
-                          );
-                        }
-                      },
-                    })
-                  }
-                >
-                  {t('list.approveAll')}
-                </Button>
-                <ExportAsButton
-                  label={t('list.exportAs')}
-                  isLoading={exportMutation.isPending}
-                  onExport={handleBulkExport}
-                />
-              </>
-            ) : (
-              <>
-                <p className="text-sm font-medium leading-[1.4] tracking-[0.3px] text-gray-700">
-                  {countLabel}
-                </p>
-                {(hasActiveFilters || debouncedSearch) && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    rightIcon={<CrossIcon className="size-3.5" />}
-                    onClick={handleClearAllFilters}
-                  >
-                    {t('filters.clearAll')}
-                  </Button>
-                )}
-                {activeFilterChips.map((chip) => (
-                  <FilterTag
-                    key={chip.key}
-                    label={chip.label}
-                    onRemove={chip.onRemove}
-                    removeLabel={t('filters.removeFilter', { label: chip.label })}
-                  />
-                ))}
-              </>
+        {/* Toolbar — phones: search + Filters sheet, chips swipe sideways (B9) */}
+        {isPhone ? (
+          <div className="flex flex-col gap-3 px-1">
+            <MobileListToolbar
+              search={search}
+              onSearchChange={setSearch}
+              searchPlaceholder={t('list.searchPlaceholder')}
+              filtersLabel={t('list.filters')}
+              activeFilterCount={
+                statusFilter.length +
+                (dueDateFrom || dueDateTo ? 1 : 0) +
+                (amountMin || amountMax ? 1 : 0)
+              }
+              onClearFilters={handleClearAllFilters}
+              clearFiltersLabel={t('filters.clearAll')}
+              filters={
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-wrap items-center gap-2">{statusAndDateFilters}</div>
+                  <div>
+                    <p className="mb-2 text-sm font-semibold text-gray-700">
+                      {t('filters.amount')}
+                    </p>
+                    {amountFields}
+                  </div>
+                </div>
+              }
+              quickFilters={
+                activeFilterChips.length > 0
+                  ? activeFilterChips.map((chip) => (
+                      <FilterTag
+                        key={chip.key}
+                        label={chip.label}
+                        onRemove={chip.onRemove}
+                        removeLabel={t('filters.removeFilter', { label: chip.label })}
+                      />
+                    ))
+                  : undefined
+              }
+            />
+            {hasSelection && (
+              <div className="flex flex-wrap items-center gap-2">{selectionActions}</div>
             )}
           </div>
+        ) : (
+          <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-2">
+            {/* Left: selection actions OR result count + chips */}
+            <div className="flex min-h-[34px] min-w-0 flex-1 flex-wrap items-center gap-2 px-2">
+              {hasSelection ? (
+                selectionActions
+              ) : (
+                <>
+                  <p className="text-sm font-medium leading-[1.4] tracking-[0.3px] text-gray-700">
+                    {countLabel}
+                  </p>
+                  {(hasActiveFilters || debouncedSearch) && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      rightIcon={<CrossIcon className="size-3.5" />}
+                      onClick={handleClearAllFilters}
+                    >
+                      {t('filters.clearAll')}
+                    </Button>
+                  )}
+                  {activeFilterChips.map((chip) => (
+                    <FilterTag
+                      key={chip.key}
+                      label={chip.label}
+                      onRemove={chip.onRemove}
+                      removeLabel={t('filters.removeFilter', { label: chip.label })}
+                    />
+                  ))}
+                </>
+              )}
+            </div>
 
-          {/* Right: filter dropdowns + search */}
-          <div className="flex min-h-[34px] flex-wrap items-center justify-end gap-2">
-            <FilterPopover
-              label={t('filters.status')}
-              popoverTitle={t('filters.status')}
-              clearLabel={t('filters.clear')}
-              options={statusOptions}
-              selected={statusFilter}
-              onChange={(v) => {
-                setStatusFilter(v);
-                setPage(1);
-              }}
-            />
-            <DateRangeFilterDropdown
-              label={t('filters.date')}
-              clearLabel={t('filters.clear')}
-              dateFrom={dueDateFrom}
-              dateTo={dueDateTo}
-              fromPlaceholder={t('filters.from')}
-              toPlaceholder={t('filters.to')}
-              onChangeFrom={(d) => {
-                setDueDateFrom(d);
-                setPage(1);
-              }}
-              onChangeTo={(d) => {
-                setDueDateTo(d);
-                setPage(1);
-              }}
-              onClear={() => {
-                setDueDateFrom('');
-                setDueDateTo('');
-                setPage(1);
-              }}
-            />
-            <FilterPanel
-              label={t('filters.amount')}
-              title={t('filters.amount')}
-              onClearAll={amountMin || amountMax ? clearAmount : undefined}
-              clearAllLabel={t('filters.clear')}
-            >
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-gray-500">
-                    {t('filters.amountMin')}
-                  </label>
-                  <Input
-                    inputMode="decimal"
-                    placeholder="0.00"
-                    value={amountMin}
-                    onKeyDown={blockNonNumericKey}
-                    onPaste={sanitizeNumericPaste}
-                    onChange={(e) => {
-                      setAmountMin(e.target.value);
-                      setPage(1);
-                    }}
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-gray-500">
-                    {t('filters.amountMax')}
-                  </label>
-                  <Input
-                    inputMode="decimal"
-                    placeholder="0.00"
-                    value={amountMax}
-                    onKeyDown={blockNonNumericKey}
-                    onPaste={sanitizeNumericPaste}
-                    onChange={(e) => {
-                      setAmountMax(e.target.value);
-                      setPage(1);
-                    }}
-                  />
-                </div>
-              </div>
-            </FilterPanel>
-            <SearchInput
-              className="w-[220px]"
-              placeholder={t('list.searchPlaceholder')}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+            {/* Right: filter dropdowns + search */}
+            <div className="flex min-h-[34px] flex-wrap items-center justify-end gap-2">
+              {statusAndDateFilters}
+              <FilterPanel
+                label={t('filters.amount')}
+                title={t('filters.amount')}
+                onClearAll={amountMin || amountMax ? clearAmount : undefined}
+                clearAllLabel={t('filters.clear')}
+              >
+                {amountFields}
+              </FilterPanel>
+              <SearchInput
+                className="w-[220px]"
+                placeholder={t('list.searchPlaceholder')}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Content */}
         {isLoading ? (

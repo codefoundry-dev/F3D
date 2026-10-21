@@ -17,6 +17,9 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  useIsPhone: () => false,
+  MobileListToolbar: () => null,
+  FloatingActionButton: () => null,
   ScrollTable: ({ children }: { children: JSX.Element }) => children,
   CustomDropdown: (props: any) => (
     <select

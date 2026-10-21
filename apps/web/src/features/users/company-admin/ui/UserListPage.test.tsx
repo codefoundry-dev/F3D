@@ -30,6 +30,9 @@ vi.mock('../../shared/userBadges', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  useIsPhone: () => false,
+  MobileListToolbar: () => null,
+  FloatingActionButton: () => null,
   ScrollTable: ({ children }: { children: JSX.Element }) => children,
   cn: (...args: any[]) => args.filter(Boolean).join(' '),
   useDebounce: (value: any) => value,

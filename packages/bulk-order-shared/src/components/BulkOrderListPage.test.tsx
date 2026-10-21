@@ -41,6 +41,9 @@ vi.mock('../hooks/useBulkOrderListState', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  useIsPhone: () => false,
+  MobileListToolbar: () => null,
+  FloatingActionButton: () => null,
   TablePagination: () => <div data-testid="pagination" />,
 }));
 

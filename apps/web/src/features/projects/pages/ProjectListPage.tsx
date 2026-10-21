@@ -16,6 +16,9 @@ import {
   cn,
   useDebounce,
   ScrollTable,
+  FloatingActionButton,
+  MobileListToolbar,
+  useIsPhone,
 } from '@forethread/ui-components';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
@@ -56,6 +59,8 @@ const COLUMNS: { key: string; sortField: string | null; truncate?: boolean }[] =
 
 export default function ProjectListPage() {
   const { t } = useTranslation(['projects', 'common']);
+  // Phones: compact toolbar + floating Create button (ADR-0019 B9).
+  const isPhone = useIsPhone();
   const navigate = useNavigate();
 
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
@@ -107,56 +112,86 @@ export default function ProjectListPage() {
     'px-4 py-3 text-left text-xs font-bold leading-4 tracking-[0.6px] whitespace-nowrap text-[hsl(var(--table-header-foreground))]';
   const td = 'px-4 py-3 text-sm text-foreground';
 
+  // Status / type dropdowns: inline on desktop, the Filters sheet on phones.
+  const listFilters = (
+    <>
+      <div className="w-36">
+        <CustomDropdown
+          options={statusOptions}
+          value={statusFilter}
+          onChange={(val) => {
+            setStatusFilter(val);
+            setPage(1);
+          }}
+          placeholder={t('list.allStatuses')}
+        />
+      </div>
+
+      <div className="w-36">
+        <CustomDropdown
+          options={typeOptions}
+          value={typeFilter}
+          onChange={(val) => {
+            setTypeFilter(val);
+            setPage(1);
+          }}
+          placeholder={t('list.allTypes')}
+        />
+      </div>
+    </>
+  );
+
   return (
     <div className="px-4 sm:px-8 pt-4 sm:pt-6 pb-6 sm:pb-8">
       <div className="flex flex-col rounded-lg border border-border bg-background pb-4">
         {/* Toolbar */}
-        <div className="flex flex-col gap-3 px-4 sm:px-8 pt-6 pb-4 lg:flex-row lg:items-center">
-          <div className="flex-1 min-w-0">
-            <SearchInput
-              placeholder={t('list.searchPlaceholder')}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full"
-              iconClassName="text-foreground"
+        {isPhone ? (
+          <div className="px-4 pt-4 pb-3">
+            <MobileListToolbar
+              search={search}
+              onSearchChange={setSearch}
+              searchPlaceholder={t('list.searchPlaceholder')}
+              filtersLabel={t('common:filters', { defaultValue: 'Filters' })}
+              activeFilterCount={(statusFilter ? 1 : 0) + (typeFilter ? 1 : 0)}
+              onClearFilters={() => {
+                setStatusFilter('');
+                setTypeFilter('');
+                setPage(1);
+              }}
+              clearFiltersLabel={t('common:clearAll', { defaultValue: 'Clear all' })}
+              filters={<div className="flex flex-col gap-3 [&>*]:w-full">{listFilters}</div>}
+            />
+            <FloatingActionButton
+              label={t('list.createNew')}
+              onClick={() => navigate(ROUTES.projectsNew)}
             />
           </div>
-
-          <div className="flex items-center gap-3">
-            <div className="w-36">
-              <CustomDropdown
-                options={statusOptions}
-                value={statusFilter}
-                onChange={(val) => {
-                  setStatusFilter(val);
-                  setPage(1);
-                }}
-                placeholder={t('list.allStatuses')}
+        ) : (
+          <div className="flex flex-col gap-3 px-4 sm:px-8 pt-6 pb-4 lg:flex-row lg:items-center">
+            <div className="flex-1 min-w-0">
+              <SearchInput
+                placeholder={t('list.searchPlaceholder')}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full"
+                iconClassName="text-foreground"
               />
             </div>
 
-            <div className="w-36">
-              <CustomDropdown
-                options={typeOptions}
-                value={typeFilter}
-                onChange={(val) => {
-                  setTypeFilter(val);
-                  setPage(1);
-                }}
-                placeholder={t('list.allTypes')}
-              />
-            </div>
+            <div className="flex items-center gap-3">
+              {listFilters}
 
-            <Button
-              variant="primary"
-              size="lg"
-              leftIcon={<PlusIcon className="w-4 h-4" />}
-              onClick={() => navigate(ROUTES.projectsNew)}
-            >
-              {t('list.createNew')}
-            </Button>
+              <Button
+                variant="primary"
+                size="lg"
+                leftIcon={<PlusIcon className="w-4 h-4" />}
+                onClick={() => navigate(ROUTES.projectsNew)}
+              >
+                {t('list.createNew')}
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Table */}
         <div className="px-4 sm:px-8">

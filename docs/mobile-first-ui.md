@@ -49,7 +49,7 @@ tracker.
 | B6  | Bottom-sheet modals (FOR-372)        | `Modal` (no wider than 560px becomes a sheet)      | ✅     |
 | B7  | Fixed footer bar (FOR-373)           | new `MobileActionBar` in ui-components             | ✅     |
 | B8  | Compact wizard stepper (FOR-374)     | shared stepper + hide bottom nav during wizards    | ✅     |
-| B9  | Compact list toolbar + FAB (FOR-375) | RFQ/PO list toolbar (shared), then the other lists | ⬜     |
+| B9  | Compact list toolbar + FAB (FOR-375) | RFQ/PO list toolbar (shared), then the other lists | ✅     |
 | B10 | Line-item edit sheet (FOR-376)       | new `LineItemSheet` in ui-components               | ⬜     |
 
 ### B2 — Phone top bar
@@ -190,6 +190,25 @@ Main action per detail page:
 - **Filters:** opens a full-screen sheet with the advanced filters and Group.
 - **⋯ menu:** view presets, Save view, Export and Column settings.
 - **Create new:** a floating action button at the bottom right, above the bottom nav.
+
+**As built:**
+
+- **Components:** `MobileListToolbar` and `FloatingActionButton` in ui-components. Pages switch on
+  `useIsPhone()`; desktop toolbars are unchanged. The FAB portals into the shell's action-bar slot.
+- **Helpers:** `apps/web/src/shared/layout/mobileListToolbar.ts` has `countActiveFilters` (the
+  Filters badge) and `buildListMenuActions` (the ⋯ menu: view presets with ✓ on the active one, Save
+  view, Export CSV/XLSX, Table settings).
+- **Several create options:** RFQ (buyer) and PO (buyer) FABs open a bottom sheet listing them
+  (manual / from BOM / from material list; manual / from RFQ / from bulk order).
+- **Migrated:**
+  - RFQ list (buyer + vendor) and PO list (buyer + vendor): full toolbar.
+  - Invoices (buyer + finance, shared page): search, filter sheet, active chips swipe, FAB.
+  - Users (company admin + super admin): search, filter sheet, chips, Invite as FAB.
+  - Vendors: search, filter sheet, ⋯ (create vendor company), Invite as FAB.
+  - Projects and deliveries (reports tab): search, filter sheet, FAB; deliveries Upload in ⋯.
+  - Catalogue: keeps its autocomplete search, facets move to a Filters sheet, Create as FAB.
+  - Bulk orders: already stacked on phones; Create became the FAB.
+- **Not migrated:** MR lists (Foreman / officer) — no filter toolbar to compact.
 
 ### B10 — Line-item edit sheet
 

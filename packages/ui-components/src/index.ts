@@ -205,6 +205,12 @@ export {
   __resetMobileChrome,
 } from './components/MobileChrome';
 
+export { MobileListToolbar, FloatingActionButton } from './components/MobileListToolbar';
+export type {
+  MobileListToolbarProps,
+  FloatingActionButtonProps,
+} from './components/MobileListToolbar';
+
 export { DotActionsMenu } from './components/DotActionsMenu';
 export type { DotActionsMenuProps, DotAction } from './components/DotActionsMenu';
 

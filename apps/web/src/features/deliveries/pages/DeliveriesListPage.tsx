@@ -15,6 +15,9 @@ import {
   DELIVERY_STATUS_COLORS,
   useDebounce,
   notificationService,
+  FloatingActionButton,
+  MobileListToolbar,
+  useIsPhone,
 } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
@@ -52,6 +55,8 @@ type DeliveriesTab = 'expected' | 'reports';
  */
 export default function DeliveriesListPage() {
   const { t } = useTranslation('deliveries');
+  // Phones: compact toolbar + floating Create button (ADR-0019 B9).
+  const isPhone = useIsPhone();
   const navigate = useNavigate();
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
   const { has } = usePermissions();
@@ -145,6 +150,57 @@ export default function DeliveriesListPage() {
 
   const goToDetail = (id: string) => navigate(ROUTES.deliveryDetail.replace(':id', id));
 
+  // Vendor / status / project / location: inline on desktop, the Filters sheet on phones.
+  const reportFilters = (
+    <>
+      <FilterDropdownButton
+        label={t('list.filters.vendor')}
+        popoverTitle={t('list.filters.vendor')}
+        options={vendorOptions}
+        selected={vendor}
+        onChange={(v) => {
+          setVendor(v.slice(-1));
+          setPage(1);
+        }}
+        buttonClassName="w-auto min-w-[120px]"
+      />
+      <FilterDropdownButton
+        label={t('list.filters.status')}
+        popoverTitle={t('list.filters.status')}
+        options={statusOptions}
+        selected={status}
+        onChange={(v) => {
+          setStatus(v.slice(-1));
+          setPage(1);
+        }}
+        hideSearch
+        buttonClassName="w-auto min-w-[120px]"
+      />
+      <FilterDropdownButton
+        label={t('list.filters.project')}
+        popoverTitle={t('list.filters.project')}
+        options={projectOptions}
+        selected={project}
+        onChange={(v) => {
+          setProject(v.slice(-1));
+          setPage(1);
+        }}
+        buttonClassName="w-auto min-w-[120px]"
+      />
+      <FilterDropdownButton
+        label={t('list.filters.location')}
+        popoverTitle={t('list.filters.location')}
+        options={locationOptions}
+        selected={location}
+        onChange={(v) => {
+          setLocation(v.slice(-1));
+          setPage(1);
+        }}
+        buttonClassName="w-auto min-w-[120px]"
+      />
+    </>
+  );
+
   return (
     <div className="px-4 pb-6 pt-4 sm:px-8 sm:pb-8 sm:pt-6">
       {/* ═══ Expected / Reports tabs (FOR-356) ═══ */}
@@ -164,88 +220,80 @@ export default function DeliveriesListPage() {
       {tab === 'reports' && (
         <>
           {/* ═══ Toolbar ═══ */}
-          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-1 flex-wrap items-center gap-3">
-              <SearchInput
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
+          {isPhone ? (
+            <div className="mb-4">
+              <MobileListToolbar
+                search={search}
+                onSearchChange={(v) => {
+                  setSearch(v);
                   setPage(1);
                 }}
-                placeholder={t('list.searchPlaceholder')}
-                className="w-full sm:w-[260px]"
-              />
-              <FilterDropdownButton
-                label={t('list.filters.vendor')}
-                popoverTitle={t('list.filters.vendor')}
-                options={vendorOptions}
-                selected={vendor}
-                onChange={(v) => {
-                  setVendor(v.slice(-1));
+                searchPlaceholder={t('list.searchPlaceholder')}
+                filtersLabel={t('list.filters.label', { defaultValue: 'Filters' })}
+                activeFilterCount={
+                  [vendor, status, project, location].filter((f) => f.length > 0).length
+                }
+                onClearFilters={() => {
+                  setVendor([]);
+                  setStatus([]);
+                  setProject([]);
+                  setLocation([]);
                   setPage(1);
                 }}
-                buttonClassName="w-auto min-w-[120px]"
+                clearFiltersLabel={t('list.filters.clearAll', { defaultValue: 'Clear all' })}
+                filters={<div className="flex flex-wrap items-center gap-2">{reportFilters}</div>}
+                menuActions={[
+                  { key: 'upload', label: t('list.upload'), onClick: () => setShowSelectPo(true) },
+                ]}
               />
-              <FilterDropdownButton
-                label={t('list.filters.status')}
-                popoverTitle={t('list.filters.status')}
-                options={statusOptions}
-                selected={status}
-                onChange={(v) => {
-                  setStatus(v.slice(-1));
-                  setPage(1);
-                }}
-                hideSearch
-                buttonClassName="w-auto min-w-[120px]"
-              />
-              <FilterDropdownButton
-                label={t('list.filters.project')}
-                popoverTitle={t('list.filters.project')}
-                options={projectOptions}
-                selected={project}
-                onChange={(v) => {
-                  setProject(v.slice(-1));
-                  setPage(1);
-                }}
-                buttonClassName="w-auto min-w-[120px]"
-              />
-              <FilterDropdownButton
-                label={t('list.filters.location')}
-                popoverTitle={t('list.filters.location')}
-                options={locationOptions}
-                selected={location}
-                onChange={(v) => {
-                  setLocation(v.slice(-1));
-                  setPage(1);
-                }}
-                buttonClassName="w-auto min-w-[120px]"
-              />
-            </div>
-
-            <div className="flex items-center gap-3">
               {has('delivery.create') && (
-                <Button
-                  variant="primary"
-                  leftIcon={<PlusIcon className="w-[18px] h-[18px]" />}
+                <FloatingActionButton
+                  label={t('list.createNew')}
                   onClick={() => setShowSelectPo(true)}
-                  data-testid="delivery-create-new"
-                >
-                  {t('list.createNew')}
-                </Button>
+                  testId="delivery-create-new-fab"
+                />
               )}
-              {/* Upload: stubbed secondary action — opens the PO picker so an
+            </div>
+          ) : (
+            <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-1 flex-wrap items-center gap-3">
+                <SearchInput
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                  placeholder={t('list.searchPlaceholder')}
+                  className="w-full sm:w-[260px]"
+                />
+                {reportFilters}
+              </div>
+
+              <div className="flex items-center gap-3">
+                {has('delivery.create') && (
+                  <Button
+                    variant="primary"
+                    leftIcon={<PlusIcon className="w-[18px] h-[18px]" />}
+                    onClick={() => setShowSelectPo(true)}
+                    data-testid="delivery-create-new"
+                  >
+                    {t('list.createNew')}
+                  </Button>
+                )}
+                {/* Upload: stubbed secondary action — opens the PO picker so an
               externally-prepared report could be attached to a PO. Flagged for
               confirmation (no dedicated upload endpoint exists yet). */}
-              <Button
-                variant="outline"
-                leftIcon={<UploadIcon className="w-[18px] h-[18px]" />}
-                onClick={() => setShowSelectPo(true)}
-                data-testid="delivery-upload"
-              >
-                {t('list.upload')}
-              </Button>
+                <Button
+                  variant="outline"
+                  leftIcon={<UploadIcon className="w-[18px] h-[18px]" />}
+                  onClick={() => setShowSelectPo(true)}
+                  data-testid="delivery-upload"
+                >
+                  {t('list.upload')}
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* ═══ Cards ═══ */}
           {isLoading ? (
