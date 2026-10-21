@@ -277,9 +277,24 @@ nav and footer bar (`Toaster mobileOffset`).
 | ------------------------------------- | ------ |
 | Vendor guest quote response (FOR-377) | ✅     |
 | Guest PO portal (FOR-378)             | ✅     |
-| Approvals (FOR-379)                   | ⬜     |
+| Approvals (FOR-379)                   | ✅     |
 | Delivery + QR page (FOR-380)          | ⬜     |
 | Foreman MR check (FOR-380)            | ⬜     |
+
+**Approvals, as built (FOR-379):**
+
+- **Detail pages:** PO, invoice and MR put Decline / Approve 50/50 in `MobileActionBar` (B7). Phones
+  have no hover, so a blocked Approve (over the approval limit, or invoice review not complete)
+  stays tappable, looks disabled, and explains why in a toast instead of a tooltip.
+- **Reason prompts:** the PO, invoice, MR and finance-reject reason modals are `GridModal` (480px),
+  so they already open as bottom sheets.
+- **Notifications:** on phones the bell opens a full-width bottom sheet instead of a dropdown (which
+  overflowed the left edge). Links resolve to the entity's detail page.
+- **Dashboard cards:** Approve / Decline on the PO and finance invoice cards are 44px tall on
+  phones; the PO card date is formatted instead of a raw ISO string.
+- **ui-components follow-ups (fixed, see B10):** `Input` / `Textarea` were 14px (iOS zoomed on
+  focus), `GridModal`'s `p-6` overrode the sheet's safe-area padding, and `DashboardItemCard` kept
+  its actions in the header row.
 
 ## Phase 3: everything else
 

@@ -16,6 +16,7 @@ vi.mock('@forethread/api-client', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  useIsPhone: () => false,
   Button: ({
     children,
     onClick,

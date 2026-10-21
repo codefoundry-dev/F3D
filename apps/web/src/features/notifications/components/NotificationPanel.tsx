@@ -11,6 +11,8 @@ export interface NotificationPanelProps {
   onSelect: (notification: NotificationItem) => void;
   onMarkAll: () => void;
   markAllPending: boolean;
+  /** Overrides the dropdown chrome (the phone bottom sheet drops it). */
+  className?: string;
 }
 
 export function NotificationPanel({
@@ -20,11 +22,17 @@ export function NotificationPanel({
   onSelect,
   onMarkAll,
   markAllPending,
+  className,
 }: NotificationPanelProps) {
   const { t } = useTranslation('notifications');
 
   return (
-    <div className="flex max-h-[70vh] w-[360px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl">
+    <div
+      className={cn(
+        'flex max-h-[70vh] w-[360px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl',
+        className,
+      )}
+    >
       <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
         <h2 className="text-sm font-semibold text-card-foreground">{t('title')}</h2>
         {unreadCount > 0 && (

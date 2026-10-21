@@ -77,7 +77,7 @@ function fromPendingPoItem(item: PendingPoItem): PoCardData {
     vendorName: item.vendorName,
     poNumber: item.poNumber,
     projectName: item.projectName,
-    date: item.date,
+    date: formatDate(item.date),
     totalCost: item.totalCost,
     itemCount: item.itemCount,
     deliveryType: item.deliveryType,
@@ -210,10 +210,10 @@ function PoCard({ item, canApprove }: { item: PoCardData; canApprove: boolean })
         }
         actions={
           canApprove ? (
-            <div className="flex items-center gap-3">
+            <div className="flex w-full items-center gap-3 md:w-auto">
               <button
                 type="button"
-                className="flex items-center gap-1.5 h-8 px-3 py-2 border border-black rounded-xl text-sm font-medium text-black hover:bg-black/5 transition-colors disabled:opacity-50"
+                className="flex flex-1 md:flex-none items-center justify-center gap-1.5 h-11 md:h-8 px-3 py-2 border border-black rounded-xl text-sm font-medium text-black hover:bg-black/5 transition-colors disabled:opacity-50"
                 disabled={isMutating}
                 onClick={() => setShowDeclineModal(true)}
               >
@@ -222,7 +222,7 @@ function PoCard({ item, canApprove }: { item: PoCardData; canApprove: boolean })
               </button>
               <button
                 type="button"
-                className="flex items-center gap-1.5 h-8 px-3 py-2 border border-black rounded-xl text-sm font-medium text-black hover:bg-black/5 transition-colors disabled:opacity-50"
+                className="flex flex-1 md:flex-none items-center justify-center gap-1.5 h-11 md:h-8 px-3 py-2 border border-black rounded-xl text-sm font-medium text-black hover:bg-black/5 transition-colors disabled:opacity-50"
                 disabled={isMutating}
                 onClick={() => approveMutation.mutate()}
               >

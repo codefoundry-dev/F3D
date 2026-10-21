@@ -17,6 +17,8 @@ import {
   PageLoader,
   type TabItem,
   ScrollTable,
+  notificationService,
+  useIsPhone,
 } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
@@ -55,6 +57,7 @@ export function InvoiceDetailPage({
   showPoTab = false,
 }: InvoiceDetailPageProps) {
   const { id } = useParams<{ id: string }>();
+  const isPhone = useIsPhone();
   const { t } = useTranslation('invoices');
   const [searchParams, setSearchParams] = useSearchParams();
   const tabs = showPoTab ? ALL_TABS : ALL_TABS.filter((tab) => tab !== 'po');
@@ -129,12 +132,18 @@ export function InvoiceDetailPage({
       'This invoice totals {{amount}}, above your approval limit of {{limit}}. A higher-tier approver must approve it.',
   });
 
+  const approveBlockedReason = !reviewComplete
+    ? approveBlockedHint
+    : overLimit
+      ? overLimitHint
+      : null;
+
   if (isLoading) {
     return <PageLoader />;
   }
 
   return (
-    <div className="flex h-full flex-1 flex-col gap-3 px-6 py-4">
+    <div className="flex h-full flex-1 flex-col gap-3 px-4 py-4 md:px-6">
       {/* Tab bar + actions */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs items={tabItems} value={activeTab} onValueChange={handleTabChange} />
@@ -157,13 +166,19 @@ export function InvoiceDetailPage({
                 </Button>
                 <Button
                   variant="primary"
-                  disabled={isActioning || !reviewComplete || overLimit}
-                  title={
-                    !reviewComplete ? approveBlockedHint : overLimit ? overLimitHint : undefined
-                  }
+                  disabled={isActioning || (!!approveBlockedReason && !isPhone)}
+                  // Phones have no hover for `title`: a blocked Approve stays
+                  // tappable (styled disabled) and explains itself (FOR-379).
+                  aria-disabled={(isPhone && !!approveBlockedReason) || undefined}
+                  className={isPhone && approveBlockedReason ? 'opacity-50' : undefined}
+                  title={approveBlockedReason ?? undefined}
                   leftIcon={<CheckCircleIcon className="size-4" />}
                   data-testid={overLimit ? 'invoice-approve-over-limit' : 'invoice-approve-button'}
                   onClick={() => {
+                    if (approveBlockedReason) {
+                      notificationService.info(approveBlockedReason);
+                      return;
+                    }
                     approveMutation.reset();
                     setDecision('approve');
                   }}

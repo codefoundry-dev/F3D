@@ -2,7 +2,7 @@ import { approvePurchaseOrder } from '@forethread/api-client';
 import type { PoDetail } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { requiresApproval } from '@forethread/po-shared';
-import { Button, Tooltip, notificationService } from '@forethread/ui-components';
+import { Button, Tooltip, notificationService, useIsPhone } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -50,6 +50,7 @@ export function PoApprovalActions({ po, size = 'sm' }: PoApprovalActionsProps) {
   const queryClient = useQueryClient();
   const { data: me } = useMe();
   const [showDeclineModal, setShowDeclineModal] = useState(false);
+  const isPhone = useIsPhone();
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['purchase-orders', po.id] });
@@ -84,6 +85,10 @@ export function PoApprovalActions({ po, size = 'sm' }: PoApprovalActionsProps) {
       })
     : null;
 
+  // Phones have no hover, so a tooltip on a disabled button never shows (FOR-379).
+  // There the over-limit Approve stays tappable (styled disabled) and explains
+  // itself in a toast instead.
+  const phoneOverLimit = isPhone && overLimitMessage !== null;
   const approveButton = (
     <Button
       type="button"
@@ -91,9 +96,13 @@ export function PoApprovalActions({ po, size = 'sm' }: PoApprovalActionsProps) {
       size={size}
       leftIcon={<CheckCircleIcon className="w-4 h-4" />}
       isLoading={approveMutation.isPending}
-      disabled={overLimit}
-      onClick={() => approveMutation.mutate()}
-      data-testid="po-approve-button"
+      disabled={overLimit && !phoneOverLimit}
+      aria-disabled={phoneOverLimit || undefined}
+      className={phoneOverLimit ? 'opacity-50' : undefined}
+      onClick={() =>
+        phoneOverLimit ? notificationService.info(overLimitMessage) : approveMutation.mutate()
+      }
+      data-testid={phoneOverLimit ? 'po-approve-over-limit' : 'po-approve-button'}
     >
       {t('actions.approve')}
     </Button>
@@ -111,7 +120,7 @@ export function PoApprovalActions({ po, size = 'sm' }: PoApprovalActionsProps) {
       >
         {t('actions.decline')}
       </Button>
-      {overLimitMessage ? (
+      {overLimitMessage && !isPhone ? (
         // Disabled buttons swallow pointer events, so the tooltip hangs off a
         // wrapping span instead of the button itself. side="left" keeps the
         // bubble inside the viewport (the button sits at the page's right edge).

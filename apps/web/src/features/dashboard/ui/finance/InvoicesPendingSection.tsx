@@ -81,7 +81,7 @@ function PendingInvoiceCard({ item }: { item: InvoicePendingItem }) {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className="flex items-center gap-1.5 h-8 px-3 py-2 border border-foreground rounded-xl text-sm font-medium text-foreground hover:bg-foreground/5 transition-colors disabled:opacity-50"
+              className="flex flex-1 md:flex-none items-center justify-center gap-1.5 h-11 md:h-8 px-3 py-2 border border-foreground rounded-xl text-sm font-medium text-foreground hover:bg-foreground/5 transition-colors disabled:opacity-50"
               disabled={isMutating}
               onClick={() => setIsRejecting(true)}
             >
@@ -90,7 +90,7 @@ function PendingInvoiceCard({ item }: { item: InvoicePendingItem }) {
             </button>
             <button
               type="button"
-              className="flex items-center gap-1.5 h-8 px-3 py-2 border border-foreground rounded-xl text-sm font-medium text-foreground hover:bg-foreground/5 transition-colors disabled:opacity-50"
+              className="flex flex-1 md:flex-none items-center justify-center gap-1.5 h-11 md:h-8 px-3 py-2 border border-foreground rounded-xl text-sm font-medium text-foreground hover:bg-foreground/5 transition-colors disabled:opacity-50"
               disabled={isMutating}
               onClick={() => approveMutation.mutate()}
             >
