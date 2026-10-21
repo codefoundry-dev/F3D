@@ -50,7 +50,7 @@ tracker.
 | B7  | Fixed footer bar (FOR-373)           | new `MobileActionBar` in ui-components             | ✅     |
 | B8  | Compact wizard stepper (FOR-374)     | shared stepper + hide bottom nav during wizards    | ✅     |
 | B9  | Compact list toolbar + FAB (FOR-375) | RFQ/PO list toolbar (shared), then the other lists | ✅     |
-| B10 | Line-item edit sheet (FOR-376)       | new `LineItemSheet` in ui-components               | ⬜     |
+| B10 | Line-item edit sheet (FOR-376)       | new `LineItemSheet` in ui-components               | ✅     |
 
 ### B2 — Phone top bar
 
@@ -101,7 +101,7 @@ leave the tab bar entirely (see B7).
   now opaque `color-mix(…)` equivalents. They look the same.
 - **Coverage:** all 57 read-only tables use it.
 - **Not migrated:**
-  - `PoCreateLineItemsStep`: an input grid whose dropdowns aren't portaled, so B10 handles it.
+  - `PoCreateLineItemsStep`: an input grid, so B10 handles it (cards + sheet on phones).
   - `VendorContactPopover`: a small desktop-only table.
 
 ### B6 — Modals
@@ -224,6 +224,49 @@ It applies to five grids:
 - Vendor quote response
 - Invoice review lines
 - BOM edit
+
+Also used by the delivery report, the guest PO change request and MR step 2.
+
+**Shared API:** a grid declares `LineItemField<T>[]` (`label`, `input(line, i)`, optional `value`
+for the card, `hidden`, `hint`, `required`). `LineItemEditor` renders the cards and owns the open
+sheet; `validateLine(i)` returning false keeps Save / Previous / Next on that line. Values stay in
+the grid's own form state, so Save only closes the sheet. Tests:
+`apps/web/src/shared/layout/LineItemSheet.test.tsx`.
+
+**Shared phone fixes made alongside (ui-components):** `Input` / `Textarea` use 16px text below `md`
+(no iOS focus zoom); `GridModal` cards keep the safe-area bottom padding as sheets;
+`DashboardItemCard` actions wrap full-width below the title on phones; toasts sit above the bottom
+nav and footer bar (`Toaster mobileOffset`).
+
+**As built (RFQ create, PO wizard, BOM edit):**
+
+- **Component:** `LineItemEditor` / `LineItemSheet` / `LineItemField<T>` in ui-components. Pages
+  switch on `useIsPhone()` and don't mount the table on phones, so each input mounts once.
+- **RFQ create** (`StepLineItems`): `lineFields` (qty, UoM, exp. delivery, availability, notes, plus
+  phone-only name and move-to-project) over `{ item, index }` rows. `LineItemRow` renders its cells
+  from them; the availability cell is its own `AvailabilityCell`. Phones show one card list per
+  project group; **Add line** adds a blank manual line (name with the same catalogue autocomplete)
+  and opens it; Save / Previous / Next stay on a line until it has a name, qty and UoM.
+- **PO wizard step 2** (`PoCreateLineItemsStep`, used for create, change and drawdown):
+  `buildPoLineFields` (`poLineFields.tsx`) is the single field list; `LineItemRow` renders every
+  cell from it. Phones get the same shown rows (filled lines + one trailing empty line, which is the
+  "add" card). The material search is the compact `MaterialSearchPanel`, already portaled, so it
+  works full-width in the sheet. A unit missing from the presets (e.g. "M") is now added as an
+  option, so it shows in the dropdown instead of the placeholder (desktop too).
+- **BOM edit + upload review** (`BomReviewStep`): `bomFields` drives both the table cells and the
+  phone cards/sheet. Unmatched lines are flagged on the card in the create wizard.
+
+**As built (vendor quote + invoice review):**
+
+- **Vendor quote response** (authenticated quote form and guest `/invitation/:token`, both via
+  `ResponseLineItemsTable`): the line fields live in `useQuoteLineFields` (`quoteLineFields.tsx`).
+  The desktop grid renders each field's `input` in its cell (`variant: 'cell'`); phones render
+  `LineItemEditor` with the same fields (`variant: 'sheet'`), plus line notes, back-order qty/date
+  and a substitute search (`MaterialSearchPopup` `inline`) that the desktop shows in its expanded
+  row. FOR-273 is enforced in the sheet: while Avail Qty exceeds Req Qty the card is flagged and
+  Save / Previous / Next stay on the line. Totals become a stacked summary card.
+- **Invoice review lines** (`InvoiceReviewPanel`): one `lineFields` list drives both the desktop
+  grid's header and cells and the phone cards/sheet; PO-match badges show under the card title.
 
 ## Phase 2: phone-first flows
 

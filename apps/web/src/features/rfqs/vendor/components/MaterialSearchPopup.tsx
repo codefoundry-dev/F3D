@@ -16,6 +16,8 @@ interface MaterialSearchPopupProps {
   searchQuery?: string;
   /** Override for the desktop dropdown position (e.g. to anchor under a table row) */
   positionClassName?: string;
+  /** Render the results in place (inside the phone line sheet) instead of a dropdown/overlay. */
+  inline?: boolean;
 }
 
 export function MaterialSearchPopup({
@@ -24,6 +26,7 @@ export function MaterialSearchPopup({
   onSelect,
   searchQuery,
   positionClassName,
+  inline = false,
 }: MaterialSearchPopupProps) {
   const { t } = useTranslation('rfqs');
   const popupRef = useRef<HTMLDivElement>(null);
@@ -71,9 +74,9 @@ export function MaterialSearchPopup({
 
   const close = useCallback(() => onClose(), [onClose]);
 
-  // Click outside (desktop only)
+  // Click outside (desktop dropdown only)
   useEffect(() => {
-    if (!open || isMobile) return;
+    if (!open || isMobile || inline) return;
     function handleClickOutside(e: MouseEvent) {
       const target = e.target as Node;
       if (popupRef.current && !popupRef.current.contains(target)) {
@@ -85,7 +88,7 @@ export function MaterialSearchPopup({
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [open, isMobile, close]);
+  }, [open, isMobile, inline, close]);
 
   // Escape key
   useEffect(() => {
@@ -209,6 +212,19 @@ export function MaterialSearchPopup({
       </div>
     </>
   );
+
+  /* ─── Inline: in-flow results (phone line sheet, B10) ─── */
+  if (inline) {
+    return (
+      <div
+        ref={popupRef}
+        data-testid="material-search-inline"
+        className="flex max-h-[50dvh] w-full flex-col overflow-hidden rounded-xl border border-border bg-card"
+      >
+        {panelContent}
+      </div>
+    );
+  }
 
   /* ─── Desktop: absolute dropdown ─── */
   if (!isMobile) {

@@ -9,6 +9,7 @@ import {
   Button,
   DatePicker,
   DotActionsMenu,
+  LineItemEditor,
   MaterialSearchPanel,
   StepperInput,
   Textarea,
@@ -16,6 +17,8 @@ import {
   type MaterialItem,
   todayIso,
   ScrollTable,
+  useIsPhone,
+  type LineItemField,
 } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
@@ -24,7 +27,7 @@ import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import NoteIcon from '@forethread/ui-components/assets/icons/note.svg?react';
 import ProjectsIcon from '@forethread/ui-components/assets/icons/projects.svg?react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 
 import {
   buildMatchIndex,
@@ -81,6 +84,26 @@ interface ManualDraft {
 
 const EMPTY_MANUAL_DRAFT: ManualDraft = { name: '', description: '', quantity: '', uom: '' };
 
+/** A line plus its position in `items` (bulk-order matches are keyed by it). */
+interface LineRow {
+  item: WizardLineItem;
+  index: number;
+}
+
+/** Field keys the desktop row renders from the shared field definitions. */
+type LineFieldKey = 'name' | 'qty' | 'uom' | 'delivery' | 'availability' | 'project' | 'notes';
+
+/** Borderless table-cell input vs the bordered, 16px input in the phone sheet. */
+const CELL_INPUT_CLASS =
+  'w-full h-9 px-2 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:bg-muted/40 rounded';
+const SHEET_INPUT_CLASS =
+  'w-full h-11 px-3 rounded-xl border border-border bg-background text-base text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-gray-300';
+
+/** A line can be saved once it has a name, a unit and a positive quantity. */
+function isLineComplete(item: WizardLineItem): boolean {
+  return item.materialName.trim() !== '' && item.uom.trim() !== '' && item.quantity >= 0.01;
+}
+
 function formatExpiration(value: string | null | undefined): string {
   if (!value) return '';
   const date = new Date(value);
@@ -121,6 +144,9 @@ export function StepLineItems({
   const [notesOpen, setNotesOpen] = useState<Record<string, boolean>>({});
   /** Per-project inline manual entry drafts. */
   const [manualDrafts, setManualDrafts] = useState<Record<string, ManualDraft>>({});
+  const isPhone = useIsPhone();
+  /** Phone sheet: lines that failed Save because a required field is empty. */
+  const [invalidKeys, setInvalidKeys] = useState<Set<string>>(new Set());
 
   const defaultProjectId = projects[0]?.id;
 
@@ -317,6 +343,176 @@ export function StepLineItems({
     cancel: t('create.availability.cancel'),
   };
 
+  // ── Line fields, defined once (ADR-0019 B10): the desktop row renders these
+  // inputs in its cells; on phones LineItemEditor stacks them in the sheet.
+  const inputClass = isPhone ? SHEET_INPUT_CLASS : CELL_INPUT_CLASS;
+  const lineFields: Array<LineItemField<LineRow> & { key: LineFieldKey }> = [
+    {
+      key: 'name',
+      label: t('create.lineItems.colMaterialName'),
+      required: true,
+      // Catalogue / BOM lines keep their name. A line added on a phone types it,
+      // with the same catalogue autocomplete as the desktop manual row.
+      input: ({ item }) =>
+        !isPhone || item.materialId || item.source !== 'CATALOG' ? (
+          <span className="text-foreground">{item.materialName}</span>
+        ) : (
+          <div className="rounded-xl border border-border bg-background [&_input]:h-11 [&_input]:text-base">
+            <ManualMaterialNameCell
+              value={item.materialName}
+              onValueChange={(name) => updateItem(item.key, { materialName: name })}
+              onSelectMaterial={(material) =>
+                updateItem(item.key, {
+                  materialName: material.name,
+                  materialId: material.id,
+                  uom: item.uom.trim() ? item.uom : (material.uom ?? ''),
+                  description: item.description ?? material.description ?? undefined,
+                })
+              }
+              onCommit={() => undefined}
+              placeholder={t('create.lineItems.manualNamePlaceholder')}
+              testId={`line-name-${item.key}`}
+            />
+          </div>
+        ),
+      hint: ({ item }) =>
+        invalidKeys.has(item.key) && !isLineComplete(item) ? (
+          <p className="text-xs text-destructive">
+            {t('create.lineItems.lineIncomplete', {
+              defaultValue: 'Add a name, a quantity and a unit to save this line.',
+            })}
+          </p>
+        ) : null,
+    },
+    {
+      key: 'qty',
+      label: t('create.lineItems.colQty'),
+      required: true,
+      value: ({ item }) => item.quantity,
+      input: ({ item }) => (
+        <StepperInput
+          value={String(item.quantity || '')}
+          onValueChange={(value) => updateItem(item.key, { quantity: Number(value) || 0 })}
+          min={0}
+          data-testid={`line-qty-${item.key}`}
+        />
+      ),
+    },
+    {
+      key: 'uom',
+      label: t('create.lineItems.colUom'),
+      required: true,
+      value: ({ item }) => item.uom || '-',
+      input: ({ item }) => (
+        <input
+          value={item.uom}
+          onChange={(e) => updateItem(item.key, { uom: e.target.value })}
+          placeholder={isPhone ? t('create.lineItems.manualUomPlaceholder') : undefined}
+          className={inputClass}
+          data-testid={`line-uom-${item.key}`}
+        />
+      ),
+    },
+    {
+      key: 'delivery',
+      label: t('create.lineItems.colExpDelivery'),
+      value: ({ item }) => item.expectedDeliveryDate ?? '-',
+      input: ({ item }) => (
+        <DatePicker
+          value={item.expectedDeliveryDate ?? ''}
+          onChange={(date) => updateItem(item.key, { expectedDeliveryDate: date || undefined })}
+          placeholder="mm/dd/yyyy"
+          minDate={todayIso()}
+          borderless={!isPhone}
+          editable
+        />
+      ),
+    },
+    {
+      key: 'availability',
+      label: t('create.lineItems.colAvailability'),
+      input: ({ item, index }) => (
+        <AvailabilityCell
+          itemIndex={index}
+          vendors={vendors}
+          matchIndex={matchIndex}
+          rowAllocations={allocations.get(item.key)}
+          remaining={remainingQty(item, allocations)}
+          availabilityChecked={availabilityChecked}
+          availabilityLoading={availabilityLoading}
+          onRequestCheck={onCheckAvailability}
+          onCoverBest={() => coverBest(item, index)}
+          onClearRow={() => clearRowAllocations(item.key)}
+          labels={availabilityLabels}
+        />
+      ),
+    },
+    {
+      // Phones only: desktop moves rows from the actions-column menu.
+      key: 'project',
+      label: t('create.lineItems.moveToProject'),
+      hidden: () => projectOptions.length < 2,
+      input: ({ item }) => (
+        <select
+          value={item.projectId ?? defaultProjectId ?? ''}
+          onChange={(e) => updateItem(item.key, { projectId: e.target.value })}
+          className={SHEET_INPUT_CLASS}
+          data-testid={`line-project-${item.key}`}
+        >
+          {projectOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      ),
+    },
+    {
+      key: 'notes',
+      label: (
+        <>
+          {t('create.lineItems.additionalNotes')}{' '}
+          <span className="text-muted-foreground font-normal">({t('create.optional')})</span>
+        </>
+      ),
+      input: ({ item }) => (
+        <Textarea
+          rows={2}
+          value={item.notes ?? ''}
+          onChange={(e) => updateItem(item.key, { notes: e.target.value || undefined })}
+          placeholder={t('create.lineItems.notesPlaceholder')}
+          data-testid={`line-notes-${item.key}`}
+        />
+      ),
+    },
+  ];
+  const renderField = (key: LineFieldKey, row: LineRow): ReactNode =>
+    lineFields.find((field) => field.key === key)?.input(row, row.index) ?? null;
+
+  /** Phone sheet Save / Previous / Next: block leaving an incomplete line. */
+  const validatePhoneLine = (rows: LineRow[]) => (i: number) => {
+    const row = rows[i];
+    if (!row || isLineComplete(row.item)) return true;
+    setInvalidKeys((prev) => new Set(prev).add(row.item.key));
+    return false;
+  };
+
+  /** Phone "Add line" in a project group: a blank manual line, opened in the sheet. */
+  const addPhoneLine = (groupId: string, rowCount: number) => {
+    onItemsChange([
+      ...items,
+      {
+        key: nextLineKey(),
+        source: 'CATALOG',
+        materialName: '',
+        quantity: 1,
+        uom: '',
+        projectId: groupId,
+      },
+    ]);
+    return rowCount;
+  };
+
   return (
     <div className="space-y-4">
       {/* ── Toolbar: catalogue search + add-from / check-availability buttons ── */}
@@ -380,158 +576,204 @@ export function StepLineItems({
         </Button>
       </div>
 
-      {/* ── Grouped line-items table ── */}
-      <div className="rounded-lg border border-border bg-card overflow-hidden">
-        <ScrollTable>
-          <table className={cn('w-full text-sm min-w-[900px]')} data-testid="line-items-table">
-            <thead>
-              <tr className={TABLE_HEADER_ROW}>
-                <th className={TABLE_TH}>{t('create.lineItems.colMaterialName')}</th>
-                <th className={cn(TABLE_TH, 'w-[120px]')}>
-                  {t('create.lineItems.colQty')} <span className="text-destructive">*</span>
-                </th>
-                <th className={cn(TABLE_TH, 'w-[140px]')}>
-                  {t('create.lineItems.colUom')} <span className="text-destructive">*</span>
-                </th>
-                <th className={cn(TABLE_TH, 'w-[150px]')}>
-                  {t('create.lineItems.colExpDelivery')}
-                </th>
-                <th className={cn(TABLE_TH, 'w-[210px]')}>
-                  {t('create.lineItems.colAvailability')}
-                </th>
-                <th className={cn(TABLE_TH, 'w-[120px]')}>{t('create.lineItems.colActions')}</th>
-              </tr>
-            </thead>
-
-            {grouped.map((group) => {
-              const { id: groupId, name: groupName, isUnassigned, rows } = group;
-              const isCollapsed = collapsed[groupId] ?? false;
-              const draft = manualDraftFor(groupId);
-              return (
-                <tbody key={groupId} data-testid={`project-group-${groupId}`}>
-                  {/* Group header */}
-                  <tr className="bg-[color:color-mix(in_srgb,hsl(var(--muted))_60%,hsl(var(--card)))]">
-                    <td colSpan={colCount} className="py-2 px-3">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          className="flex items-center gap-2 text-sm text-foreground"
-                          onClick={() =>
-                            setCollapsed((prev) => ({ ...prev, [groupId]: !isCollapsed }))
-                          }
-                        >
-                          {isCollapsed ? (
-                            <ChevronRightIcon className="w-4 h-4" />
-                          ) : (
-                            <ChevronDownIcon className="w-4 h-4" />
-                          )}
-                          {groupName}
-                        </button>
-                        {isUnassigned && (
-                          <span className="text-xs font-normal text-muted-foreground">
-                            {t('create.lineItems.unassignedHint')}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-
-                  {!isCollapsed &&
-                    rows.map(({ item, index }) => (
-                      <LineItemRow
-                        key={item.key}
-                        item={item}
-                        itemIndex={index}
-                        projectOptions={projectOptions}
-                        groupProjectId={groupId}
-                        moveLabel={t('create.lineItems.moveToProject')}
-                        notesOpen={notesOpen[item.key] ?? false}
-                        onToggleNotes={() =>
-                          setNotesOpen((prev) => ({
-                            ...prev,
-                            [item.key]: !(prev[item.key] ?? false),
-                          }))
-                        }
-                        onChange={(patch) => updateItem(item.key, patch)}
-                        onRemove={() => removeItem(item.key)}
-                        notesLabel={t('create.lineItems.additionalNotes')}
-                        notesOptionalLabel={t('create.optional')}
-                        notesPlaceholder={t('create.lineItems.notesPlaceholder')}
-                        colCount={colCount}
-                        vendors={vendors}
-                        matchIndex={matchIndex}
-                        allocations={allocations}
-                        remaining={remainingQty(item, allocations)}
-                        availabilityChecked={availabilityChecked}
-                        availabilityLoading={availabilityLoading}
-                        onRequestCheck={onCheckAvailability}
-                        onCoverBest={() => coverBest(item, index)}
-                        onClearRow={() => clearRowAllocations(item.key)}
-                        availabilityLabels={availabilityLabels}
-                      />
-                    ))}
-
-                  {/* Inline manual entry row (design: empty editable row per group).
-                      Suppressed for the catch-all group — manual rows need a project. */}
-                  {!isCollapsed && !isUnassigned && (
-                    <tr className={TABLE_BODY_ROW} data-testid={`manual-row-${groupId}`}>
-                      <td className="py-1.5 px-1">
-                        <ManualMaterialNameCell
-                          value={draft.name}
-                          onValueChange={(name) =>
-                            patchManualDraft(groupId, { name, materialId: undefined })
-                          }
-                          onSelectMaterial={(material) => selectManualMaterial(groupId, material)}
-                          onCommit={() => commitManualDraft(groupId)}
-                          placeholder={t('create.lineItems.manualNamePlaceholder')}
-                          testId={`manual-name-${groupId}`}
-                        />
-                      </td>
-                      <td className="py-1.5 px-1">
-                        <StepperInput
-                          value={draft.quantity}
-                          onValueChange={(value) => patchManualDraft(groupId, { quantity: value })}
-                          onBlur={() => commitManualDraft(groupId)}
-                          min={0}
-                          placeholder="0"
-                          data-testid={`manual-qty-${groupId}`}
-                        />
-                      </td>
-                      <td className="py-1.5 px-1">
-                        <input
-                          value={draft.uom}
-                          onChange={(e) => patchManualDraft(groupId, { uom: e.target.value })}
-                          onBlur={() => commitManualDraft(groupId)}
-                          placeholder={t('create.lineItems.manualUomPlaceholder')}
-                          className="w-full h-9 px-2 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:bg-muted/40 rounded"
-                          data-testid={`manual-uom-${groupId}`}
-                        />
-                      </td>
-                      <td className="py-1.5 px-1 text-muted-foreground" colSpan={colCount - 3} />
-                    </tr>
-                  )}
-                </tbody>
-              );
-            })}
-          </table>
-        </ScrollTable>
-
-        {/* Totals footer */}
-        <div className="flex items-center gap-8 border-t border-border px-4 py-3 text-sm">
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">{t('create.lineItems.totalItems')}</span>
-            <span className="font-semibold text-foreground" data-testid="total-items">
-              {items.length}
+      {/* ── Phones: one card list per project group + the line edit sheet (B10) ── */}
+      {isPhone && (
+        <div className="flex flex-col gap-4" data-testid="line-items-cards">
+          {grouped.length === 0 && (
+            <p className="text-sm text-muted-foreground">{t('create.lineItems.unassignedHint')}</p>
+          )}
+          {grouped.map(({ id: groupId, name: groupName, isUnassigned, rows }) => (
+            <section key={groupId} className="flex flex-col gap-2">
+              <h3 className="text-sm font-semibold text-foreground">
+                {groupName}
+                {isUnassigned && (
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    {t('create.lineItems.unassignedHint')}
+                  </span>
+                )}
+              </h3>
+              <LineItemEditor
+                lines={rows}
+                fields={lineFields}
+                getKey={({ item }) => item.key}
+                getTitle={({ item }) =>
+                  item.materialName || t('create.lineItems.manualNamePlaceholder')
+                }
+                validateLine={validatePhoneLine(rows)}
+                hasError={({ item }) => invalidKeys.has(item.key) && !isLineComplete(item)}
+                onRemove={(i) => {
+                  const row = rows[i];
+                  if (row) removeItem(row.item.key);
+                }}
+                removeLabel={t('create.lineItems.removeLine', { defaultValue: 'Remove line' })}
+                // Manual lines need a project, so the catch-all group gets no Add.
+                onAdd={isUnassigned ? undefined : () => addPhoneLine(groupId, rows.length)}
+                addLabel={t('create.lineItems.addLine', { defaultValue: 'Add line' })}
+              />
+            </section>
+          ))}
+          <div className="flex items-center gap-6 text-sm">
+            <span className="text-muted-foreground">
+              {t('create.lineItems.totalItems')}{' '}
+              <span className="font-semibold text-foreground" data-testid="total-items">
+                {items.length}
+              </span>
             </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">{t('create.lineItems.totalQty')}</span>
-            <span className="font-semibold text-foreground" data-testid="total-qty">
-              {totalQty}
+            <span className="text-muted-foreground">
+              {t('create.lineItems.totalQty')}{' '}
+              <span className="font-semibold text-foreground" data-testid="total-qty">
+                {totalQty}
+              </span>
             </span>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ── Grouped line-items table ── */}
+      {!isPhone && (
+        <div className="rounded-lg border border-border bg-card overflow-hidden">
+          <ScrollTable>
+            <table className={cn('w-full text-sm min-w-[900px]')} data-testid="line-items-table">
+              <thead>
+                <tr className={TABLE_HEADER_ROW}>
+                  <th className={TABLE_TH}>{t('create.lineItems.colMaterialName')}</th>
+                  <th className={cn(TABLE_TH, 'w-[120px]')}>
+                    {t('create.lineItems.colQty')} <span className="text-destructive">*</span>
+                  </th>
+                  <th className={cn(TABLE_TH, 'w-[140px]')}>
+                    {t('create.lineItems.colUom')} <span className="text-destructive">*</span>
+                  </th>
+                  <th className={cn(TABLE_TH, 'w-[150px]')}>
+                    {t('create.lineItems.colExpDelivery')}
+                  </th>
+                  <th className={cn(TABLE_TH, 'w-[210px]')}>
+                    {t('create.lineItems.colAvailability')}
+                  </th>
+                  <th className={cn(TABLE_TH, 'w-[120px]')}>{t('create.lineItems.colActions')}</th>
+                </tr>
+              </thead>
+
+              {grouped.map((group) => {
+                const { id: groupId, name: groupName, isUnassigned, rows } = group;
+                const isCollapsed = collapsed[groupId] ?? false;
+                const draft = manualDraftFor(groupId);
+                return (
+                  <tbody key={groupId} data-testid={`project-group-${groupId}`}>
+                    {/* Group header */}
+                    <tr className="bg-[color:color-mix(in_srgb,hsl(var(--muted))_60%,hsl(var(--card)))]">
+                      <td colSpan={colCount} className="py-2 px-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="flex items-center gap-2 text-sm text-foreground"
+                            onClick={() =>
+                              setCollapsed((prev) => ({ ...prev, [groupId]: !isCollapsed }))
+                            }
+                          >
+                            {isCollapsed ? (
+                              <ChevronRightIcon className="w-4 h-4" />
+                            ) : (
+                              <ChevronDownIcon className="w-4 h-4" />
+                            )}
+                            {groupName}
+                          </button>
+                          {isUnassigned && (
+                            <span className="text-xs font-normal text-muted-foreground">
+                              {t('create.lineItems.unassignedHint')}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+
+                    {!isCollapsed &&
+                      rows.map(({ item, index }) => (
+                        <LineItemRow
+                          key={item.key}
+                          row={{ item, index }}
+                          renderField={renderField}
+                          projectOptions={projectOptions}
+                          groupProjectId={groupId}
+                          moveLabel={t('create.lineItems.moveToProject')}
+                          notesOpen={notesOpen[item.key] ?? false}
+                          onToggleNotes={() =>
+                            setNotesOpen((prev) => ({
+                              ...prev,
+                              [item.key]: !(prev[item.key] ?? false),
+                            }))
+                          }
+                          onMove={(projectId) => updateItem(item.key, { projectId })}
+                          onRemove={() => removeItem(item.key)}
+                          notesLabel={t('create.lineItems.additionalNotes')}
+                          notesOptionalLabel={t('create.optional')}
+                          colCount={colCount}
+                        />
+                      ))}
+
+                    {/* Inline manual entry row (design: empty editable row per group).
+                      Suppressed for the catch-all group — manual rows need a project. */}
+                    {!isCollapsed && !isUnassigned && (
+                      <tr className={TABLE_BODY_ROW} data-testid={`manual-row-${groupId}`}>
+                        <td className="py-1.5 px-1">
+                          <ManualMaterialNameCell
+                            value={draft.name}
+                            onValueChange={(name) =>
+                              patchManualDraft(groupId, { name, materialId: undefined })
+                            }
+                            onSelectMaterial={(material) => selectManualMaterial(groupId, material)}
+                            onCommit={() => commitManualDraft(groupId)}
+                            placeholder={t('create.lineItems.manualNamePlaceholder')}
+                            testId={`manual-name-${groupId}`}
+                          />
+                        </td>
+                        <td className="py-1.5 px-1">
+                          <StepperInput
+                            value={draft.quantity}
+                            onValueChange={(value) =>
+                              patchManualDraft(groupId, { quantity: value })
+                            }
+                            onBlur={() => commitManualDraft(groupId)}
+                            min={0}
+                            placeholder="0"
+                            data-testid={`manual-qty-${groupId}`}
+                          />
+                        </td>
+                        <td className="py-1.5 px-1">
+                          <input
+                            value={draft.uom}
+                            onChange={(e) => patchManualDraft(groupId, { uom: e.target.value })}
+                            onBlur={() => commitManualDraft(groupId)}
+                            placeholder={t('create.lineItems.manualUomPlaceholder')}
+                            className="w-full h-9 px-2 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:bg-muted/40 rounded"
+                            data-testid={`manual-uom-${groupId}`}
+                          />
+                        </td>
+                        <td className="py-1.5 px-1 text-muted-foreground" colSpan={colCount - 3} />
+                      </tr>
+                    )}
+                  </tbody>
+                );
+              })}
+            </table>
+          </ScrollTable>
+
+          {/* Totals footer */}
+          <div className="flex items-center gap-8 border-t border-border px-4 py-3 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">{t('create.lineItems.totalItems')}</span>
+              <span className="font-semibold text-foreground" data-testid="total-items">
+                {items.length}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">{t('create.lineItems.totalQty')}</span>
+              <span className="font-semibold text-foreground" data-testid="total-qty">
+                {totalQty}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {availabilityChecked && !availabilityLoading && vendors.length === 0 && (
         <p className="text-xs text-muted-foreground" data-testid="no-coverage">
@@ -554,58 +796,34 @@ interface AvailabilityLabels {
   cancel: string;
 }
 
-interface LineItemRowProps {
-  item: WizardLineItem;
+interface AvailabilityCellProps {
   itemIndex: number;
-  projectOptions: Array<{ value: string; label: string }>;
-  /** Id of the group the row is rendered under — excluded from the move menu. */
-  groupProjectId: string;
-  moveLabel: string;
-  notesOpen: boolean;
-  onToggleNotes: () => void;
-  onChange: (patch: Partial<WizardLineItem>) => void;
-  onRemove: () => void;
-  notesLabel: string;
-  notesOptionalLabel: string;
-  notesPlaceholder: string;
-  colCount: number;
   vendors: Array<{ vendorId: string; vendorName: string }>;
   matchIndex: Map<number, Map<string, VendorCellMatch>>;
-  allocations: AllocationMap;
+  rowAllocations: Map<string, CoverageAllocation> | undefined;
   remaining: number;
   availabilityChecked: boolean;
   availabilityLoading: boolean;
   onRequestCheck: () => void;
   onCoverBest: () => void;
   onClearRow: () => void;
-  availabilityLabels: AvailabilityLabels;
+  labels: AvailabilityLabels;
 }
 
-function LineItemRow({
-  item,
+/** Per-line bulk-order coverage: the table's Availability cell and the phone sheet field. */
+function AvailabilityCell({
   itemIndex,
-  projectOptions,
-  groupProjectId,
-  moveLabel,
-  notesOpen,
-  onToggleNotes,
-  onChange,
-  onRemove,
-  notesLabel,
-  notesOptionalLabel,
-  notesPlaceholder,
-  colCount,
   vendors,
   matchIndex,
-  allocations,
+  rowAllocations,
   remaining,
   availabilityChecked,
   availabilityLoading,
   onRequestCheck,
   onCoverBest,
   onClearRow,
-  availabilityLabels,
-}: LineItemRowProps) {
+  labels: availabilityLabels,
+}: AvailabilityCellProps) {
   // Per-row bulk-order coverage summary, collapsed into the single Availability
   // column: the best (largest) vendor match drives the headline, the rest add up
   // into the total available quantity.
@@ -615,7 +833,6 @@ function LineItemRow({
   });
   const bestMatch = [...rowMatches].sort((a, b) => b.match.qtyRemaining - a.match.qtyRemaining)[0];
   const totalAvailable = rowMatches.reduce((sum, m) => sum + m.match.qtyRemaining, 0);
-  const rowAllocations = allocations.get(item.key);
   const coveredQty = rowAllocations
     ? [...rowAllocations.values()].reduce((sum, a) => sum + a.quantity, 0)
     : 0;
@@ -626,6 +843,116 @@ function LineItemRow({
   );
   const canCoverMore = remaining > 0 && hasSpareCapacity;
 
+  if (!availabilityChecked) {
+    return (
+      <button
+        type="button"
+        onClick={onRequestCheck}
+        className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-foreground border border-border rounded-full hover:bg-accent transition-colors"
+        data-testid={`row-check-${itemIndex}`}
+      >
+        <CheckCircleIcon className="w-3.5 h-3.5" />
+        {availabilityLabels.check}
+      </button>
+    );
+  }
+  if (availabilityLoading) {
+    return <span className="text-xs text-muted-foreground">{availabilityLabels.checking}</span>;
+  }
+  if (coveredQty > 0) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center gap-1 rounded-full bg-[#D6F5DE] px-2.5 py-1 text-xs font-medium text-foreground">
+          <CheckCircleIcon className="w-3.5 h-3.5" />
+          {coveredQty} {availabilityLabels.covered}
+        </span>
+        {canCoverMore && (
+          <button
+            type="button"
+            onClick={onCoverBest}
+            className="text-xs font-medium text-foreground underline-offset-2 hover:underline"
+            data-testid={`row-cover-${itemIndex}`}
+          >
+            {availabilityLabels.cover} {remaining}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onClearRow}
+          className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-foreground bg-background border border-border rounded-full hover:bg-accent transition-colors"
+          data-testid={`row-cancel-${itemIndex}`}
+        >
+          {availabilityLabels.cancel}
+          <CrossIcon className="w-2.5 h-2.5" />
+        </button>
+      </div>
+    );
+  }
+  if (bestMatch) {
+    return (
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-foreground whitespace-nowrap">
+            {totalAvailable} {availabilityLabels.available}
+          </div>
+          <div className="text-xs text-muted-foreground truncate">
+            {bestMatch.vendor.vendorName}
+            {bestMatch.match.expirationDate
+              ? ` · ${formatExpiration(bestMatch.match.expirationDate)}`
+              : ''}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onCoverBest}
+          disabled={remaining <= 0}
+          className={cn(
+            'flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-foreground border border-border rounded-full transition-colors shrink-0',
+            remaining <= 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-accent',
+          )}
+          data-testid={`row-cover-${itemIndex}`}
+        >
+          {availabilityLabels.cover}
+          <CheckCircleIcon className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    );
+  }
+  return <span className="text-xs text-muted-foreground">{availabilityLabels.none}</span>;
+}
+
+interface LineItemRowProps {
+  row: LineRow;
+  /** Renders one of the shared line fields (the same inputs the phone sheet uses). */
+  renderField: (key: LineFieldKey, row: LineRow) => ReactNode;
+  projectOptions: Array<{ value: string; label: string }>;
+  /** Id of the group the row is rendered under — excluded from the move menu. */
+  groupProjectId: string;
+  moveLabel: string;
+  notesOpen: boolean;
+  onToggleNotes: () => void;
+  onMove: (projectId: string) => void;
+  onRemove: () => void;
+  notesLabel: string;
+  notesOptionalLabel: string;
+  colCount: number;
+}
+
+function LineItemRow({
+  row,
+  renderField,
+  projectOptions,
+  groupProjectId,
+  moveLabel,
+  notesOpen,
+  onToggleNotes,
+  onMove,
+  onRemove,
+  notesLabel,
+  notesOptionalLabel,
+  colCount,
+}: LineItemRowProps) {
+  const { item, index: itemIndex } = row;
   // Reassignment lives in the row actions now that the Project column is gone:
   // every selected project except the group this row already sits under. Rows in
   // the "Unassigned" group match no group id, so they get the full list.
@@ -634,106 +961,14 @@ function LineItemRow({
   return (
     <>
       <tr className={TABLE_BODY_ROW} data-testid={`line-item-${item.key}`}>
-        <td className="py-1.5 px-3">
-          <span className="text-foreground">{item.materialName}</span>
-        </td>
-        <td className="py-1.5 px-1">
-          <StepperInput
-            value={String(item.quantity || '')}
-            onValueChange={(value) => onChange({ quantity: Number(value) || 0 })}
-            min={0}
-            data-testid={`line-qty-${item.key}`}
-          />
-        </td>
-        <td className="py-1.5 px-1">
-          <input
-            value={item.uom}
-            onChange={(e) => onChange({ uom: e.target.value })}
-            className="w-full h-9 px-2 bg-transparent text-sm text-foreground focus:outline-none focus:bg-muted/40 rounded"
-            data-testid={`line-uom-${item.key}`}
-          />
-        </td>
-        <td className="py-1.5 px-1">
-          <DatePicker
-            value={item.expectedDeliveryDate ?? ''}
-            onChange={(date) => onChange({ expectedDeliveryDate: date || undefined })}
-            placeholder="mm/dd/yyyy"
-            minDate={todayIso()}
-            borderless
-            editable
-          />
-        </td>
+        <td className="py-1.5 px-3">{renderField('name', row)}</td>
+        <td className="py-1.5 px-1">{renderField('qty', row)}</td>
+        <td className="py-1.5 px-1">{renderField('uom', row)}</td>
+        <td className="py-1.5 px-1">{renderField('delivery', row)}</td>
 
         {/* ── Availability (always-present bulk-order coverage column) ── */}
         <td className="py-1.5 px-3" data-testid={`availability-${itemIndex}`}>
-          {!availabilityChecked ? (
-            <button
-              type="button"
-              onClick={onRequestCheck}
-              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-foreground border border-border rounded-full hover:bg-accent transition-colors"
-              data-testid={`row-check-${itemIndex}`}
-            >
-              <CheckCircleIcon className="w-3.5 h-3.5" />
-              {availabilityLabels.check}
-            </button>
-          ) : availabilityLoading ? (
-            <span className="text-xs text-muted-foreground">{availabilityLabels.checking}</span>
-          ) : coveredQty > 0 ? (
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded-full bg-[#D6F5DE] px-2.5 py-1 text-xs font-medium text-foreground">
-                <CheckCircleIcon className="w-3.5 h-3.5" />
-                {coveredQty} {availabilityLabels.covered}
-              </span>
-              {canCoverMore && (
-                <button
-                  type="button"
-                  onClick={onCoverBest}
-                  className="text-xs font-medium text-foreground underline-offset-2 hover:underline"
-                  data-testid={`row-cover-${itemIndex}`}
-                >
-                  {availabilityLabels.cover} {remaining}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={onClearRow}
-                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-foreground bg-background border border-border rounded-full hover:bg-accent transition-colors"
-                data-testid={`row-cancel-${itemIndex}`}
-              >
-                {availabilityLabels.cancel}
-                <CrossIcon className="w-2.5 h-2.5" />
-              </button>
-            </div>
-          ) : bestMatch ? (
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <div className="text-foreground whitespace-nowrap">
-                  {totalAvailable} {availabilityLabels.available}
-                </div>
-                <div className="text-xs text-muted-foreground truncate">
-                  {bestMatch.vendor.vendorName}
-                  {bestMatch.match.expirationDate
-                    ? ` · ${formatExpiration(bestMatch.match.expirationDate)}`
-                    : ''}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={onCoverBest}
-                disabled={remaining <= 0}
-                className={cn(
-                  'flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-foreground border border-border rounded-full transition-colors shrink-0',
-                  remaining <= 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-accent',
-                )}
-                data-testid={`row-cover-${itemIndex}`}
-              >
-                {availabilityLabels.cover}
-                <CheckCircleIcon className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
-            <span className="text-xs text-muted-foreground">{availabilityLabels.none}</span>
-          )}
+          {renderField('availability', row)}
         </td>
 
         <td className="py-1.5 px-3">
@@ -743,7 +978,7 @@ function LineItemRow({
                 actions={moveTargets.map((option) => ({
                   key: option.value,
                   label: option.label,
-                  onClick: () => onChange({ projectId: option.value }),
+                  onClick: () => onMove(option.value),
                 }))}
                 bordered={false}
                 ariaLabel={moveLabel}
@@ -789,13 +1024,7 @@ function LineItemRow({
                 {notesLabel}{' '}
                 <span className="text-muted-foreground font-normal">({notesOptionalLabel})</span>
               </span>
-              <Textarea
-                rows={2}
-                value={item.notes ?? ''}
-                onChange={(e) => onChange({ notes: e.target.value || undefined })}
-                placeholder={notesPlaceholder}
-                data-testid={`line-notes-${item.key}`}
-              />
+              {renderField('notes', row)}
             </label>
           </td>
         </tr>

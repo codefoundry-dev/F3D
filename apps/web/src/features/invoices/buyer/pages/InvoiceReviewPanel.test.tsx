@@ -462,6 +462,36 @@ describe('InvoiceReviewPanel', () => {
     expect(screen.getByTestId('invoice-review-lines').children).toHaveLength(1);
   });
 
+  // ── Phones (ADR-0019 B10, FOR-376): cards + edit sheet, same fields ────────
+  it('edits a line in the phone sheet and saves it', async () => {
+    const realMatchMedia = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: true,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })) as unknown as typeof window.matchMedia;
+    try {
+      render(<InvoiceReviewPanel invoice={makeInvoice()} />, { wrapper });
+      await screen.findByTestId('invoice-review-panel');
+      expect(screen.queryByTestId('invoice-review-lines')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getAllByTestId('line-item-card')[0]);
+      const sheet = screen.getByTestId('line-item-sheet').closest('[role="dialog"]') as HTMLElement;
+      fireEvent.change(within(sheet).getByLabelText('Cost code'), { target: { value: '03-100' } });
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
+      expect(screen.queryByTestId('line-item-sheet')).not.toBeInTheDocument();
+      expect(screen.getAllByTestId('line-item-card')[0]).toHaveTextContent('03-100');
+
+      fireEvent.click(screen.getByTestId('invoice-review-save'));
+      await waitFor(() => expect(mockReviewInvoice).toHaveBeenCalledTimes(1));
+      const [, payload] = mockReviewInvoice.mock.calls[0] as [string, Record<string, unknown>];
+      expect(payload.lines).toMatchObject([{ costCode: '03-100' }]);
+    } finally {
+      window.matchMedia = realMatchMedia;
+    }
+  });
+
   // ── Invoice ↔ PO matching (FOR-293) ────────────────────────────────────────
 
   it('pre-selects the auto-matched PO and saves it as relatedPoId', async () => {

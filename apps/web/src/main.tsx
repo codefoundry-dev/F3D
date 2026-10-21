@@ -49,7 +49,12 @@ createRoot(rootEl).render(
   <React.StrictMode>
     <ThemeProvider defaultTheme="light">
       <App />
-      <Toaster position="bottom-right" duration={5000} />
+      {/* Phones: clear the bottom nav and the footer action bar (ADR-0019). */}
+      <Toaster
+        position="bottom-right"
+        duration={5000}
+        mobileOffset={{ bottom: 'calc(140px + env(safe-area-inset-bottom))' }}
+      />
     </ThemeProvider>
   </React.StrictMode>,
 );

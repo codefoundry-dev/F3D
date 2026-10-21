@@ -205,6 +205,13 @@ export {
   __resetMobileChrome,
 } from './components/MobileChrome';
 
+export { LineItemEditor, LineItemSheet } from './components/LineItemSheet';
+export type {
+  LineItemEditorProps,
+  LineItemField,
+  LineItemSheetProps,
+} from './components/LineItemSheet';
+
 export { MobileListToolbar, FloatingActionButton } from './components/MobileListToolbar';
 export type {
   MobileListToolbarProps,

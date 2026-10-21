@@ -12,6 +12,14 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('@forethread/ui-components', () => ({
   ScrollTable: ({ children }: { children: JSX.Element }) => children,
+  useIsPhone: () => false,
+  LineItemEditor: () => null,
+  Button: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
+    <button type="button" onClick={onClick}>
+      {children}
+    </button>
+  ),
+  Textarea: () => <textarea />,
   todayIso: () => new Date().toISOString().slice(0, 10),
   Checkbox: ({
     checked,

@@ -1,47 +1,25 @@
 import { useTranslation } from '@forethread/i18n';
-import {
-  Input,
-  CustomDropdown,
-  DatePicker,
-  MaterialSearchPanel,
-  onDigitsOnly,
-  onDecimalOnly,
-  todayIso,
-} from '@forethread/ui-components';
 import type { MaterialItem, SelectedMaterial, MaterialFilters } from '@forethread/ui-components';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import EditInSquareIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
 import { MessageBadgeIcon } from '@forethread/ui-components';
-import InfoIcon from '@forethread/ui-components/assets/icons/info.svg?react';
 import React from 'react';
 import {
   type Control,
   type FieldErrors,
   type UseFormRegister,
   type UseFormSetValue,
-  Controller,
 } from 'react-hook-form';
 
-import { UOM_OPTIONS, ACTION_ICON_SIZE, NAKED_INPUT_CLASS } from '../constants/line-items';
+import { ACTION_ICON_SIZE } from '../constants/line-items';
 import type { FormValues } from '../schemas/create-po.schema';
 
-/**
- * Fill a line-item row from a catalogue pick: link the material (materialId)
- * and pre-fill its identity/accounting codes so they persist onto the PO line.
- */
-function applyMaterialToRow(
-  setValue: UseFormSetValue<FormValues>,
-  index: number,
-  mat: MaterialItem,
-) {
-  setValue(`lineItems.${index}.materialName`, mat.name);
-  setValue(`lineItems.${index}.materialId`, mat.id);
-  setValue(`lineItems.${index}.materialCode`, mat.sku ?? '');
-  setValue(`lineItems.${index}.costCode`, mat.costCode ?? '');
-  setValue(`lineItems.${index}.upc`, mat.upc ?? '');
-  setValue(`lineItems.${index}.manufacturerPartNumber`, mat.manufacturerPartNumber ?? '');
-  setValue(`lineItems.${index}.taxCode`, mat.taxCode ?? '');
-}
+import {
+  buildPoLineFields,
+  exceedsAvailableQty,
+  type PoLineFieldKey,
+  type PoLineRow,
+} from './poLineFields';
 
 /** Grouped material search state to reduce prop drilling (ISP) */
 export interface MaterialSearchState {
@@ -108,212 +86,68 @@ export function LineItemRow({
   const rowBorder = isLast && !hasNotes ? '' : 'border-b';
   const cellBorder = `border-r border-border ${rowBorder}`;
   const cell = 'px-1 py-1';
-  // FOR-274 parity with the RFQ manual row: the cell popup is single-pick —
-  // clicking anywhere on a result row links the material to the line.
-  const pickMaterial = (mat: MaterialItem) => {
-    applyMaterialToRow(setValue, index, mat);
-    if (mat.unit) setValue(`lineItems.${index}.unitOfMeasure`, mat.unit);
-    materialSearch.onCellSearchClose();
-  };
-  // Drawdown over-limit flag: ordered qty exceeds the bulk-order remaining qty.
-  const exceedsAvailable =
-    isDrawdownMode &&
-    isFilled &&
-    item?.availableQty != null &&
-    Number(item?.quantityOrdered) > Number(item?.availableQty);
+  const row: PoLineRow = { index, item, isFilled, approvedQuotesCount, bulkOrdersCount };
+  // Cells render the shared line fields; phones stack the same inputs in a sheet (B10).
+  const fields = buildPoLineFields({
+    t,
+    register,
+    control,
+    errors,
+    setValue,
+    locationOptions,
+    materialSearch,
+    isDrawdownMode,
+    isPhone: false,
+    onApprRfqClick,
+    onBulkOrderClick,
+  });
+  const field = (key: PoLineFieldKey) => fields.find((f) => f.key === key)?.input(row, index);
+  const exceedsAvailable = exceedsAvailableQty(row, isDrawdownMode);
 
   return (
     <React.Fragment>
       <tr>
         {/* Material Name */}
-        <td className={`${cell} ${cellBorder} relative`}>
-          {isFilled ? (
-            <span className="text-sm text-foreground px-2">{item?.materialName}</span>
-          ) : (
-            <MaterialSearchPanel
-              search={materialSearch.cellSearchOpen === index ? materialSearch.cellSearchQuery : ''}
-              onSearchChange={(v) => materialSearch.onCellSearchChange(index, v)}
-              results={materialSearch.results}
-              selected={materialSearch.selected}
-              onSelect={pickMaterial}
-              onPickItem={pickMaterial}
-              onDeselect={materialSearch.onDeselect}
-              onQuantityChange={materialSearch.onQtyChange}
-              onAddToList={() => undefined}
-              filters={materialSearch.filters}
-              onFiltersChange={materialSearch.onFiltersChange}
-              open={materialSearch.cellSearchOpen === index}
-              onOpenChange={(open) => {
-                if (open) materialSearch.onCellSearchChange(index, materialSearch.cellSearchQuery);
-                else materialSearch.onCellSearchClose();
-              }}
-              searchPlaceholder={t('create.enterMaterialName')}
-              compact
-            />
-          )}
-        </td>
+        <td className={`${cell} ${cellBorder} relative`}>{field('name')}</td>
 
         {/* Material code */}
-        <td className={`${cell} ${cellBorder}`}>
-          <Input {...register(`lineItems.${index}.materialCode`)} className={NAKED_INPUT_CLASS} />
-        </td>
+        <td className={`${cell} ${cellBorder}`}>{field('materialCode')}</td>
 
         {/* Cost code */}
-        <td className={`${cell} ${cellBorder}`}>
-          <Input {...register(`lineItems.${index}.costCode`)} className={NAKED_INPUT_CLASS} />
-        </td>
+        <td className={`${cell} ${cellBorder}`}>{field('costCode')}</td>
 
         {/* UoM */}
-        <td className={`${cell} ${cellBorder}`}>
-          <Controller
-            name={`lineItems.${index}.unitOfMeasure`}
-            control={control}
-            render={({ field: f }) => (
-              <CustomDropdown
-                options={[...UOM_OPTIONS]}
-                value={f.value}
-                onChange={f.onChange}
-                placeholder="UoM"
-                error={!!errors.lineItems?.[index]?.unitOfMeasure}
-                borderless
-              />
-            )}
-          />
-        </td>
+        <td className={`${cell} ${cellBorder}`}>{field('uom')}</td>
 
         {/* Price/unit */}
-        <td className={`${cell} ${cellBorder}`}>
-          <Input
-            inputMode="decimal"
-            onKeyDown={onDecimalOnly}
-            {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true })}
-            className={NAKED_INPUT_CLASS}
-            placeholder="0"
-          />
-        </td>
+        <td className={`${cell} ${cellBorder}`}>{field('unitPrice')}</td>
 
         {/* Qty ordered */}
         <td className={`${cell} ${cellBorder} ${exceedsAvailable ? 'bg-destructive/5' : ''}`}>
-          <Input
-            onKeyDown={onDigitsOnly}
-            {...register(`lineItems.${index}.quantityOrdered`, { valueAsNumber: true })}
-            className={NAKED_INPUT_CLASS}
-            placeholder="0"
-            aria-invalid={exceedsAvailable || undefined}
-          />
+          {field('qty')}
         </td>
 
         {isDrawdownMode ? (
           /* Available qty (drawdown) — read-only bulk-order remaining qty */
-          <td className={`${cell} ${cellBorder}`}>
-            <div className="flex flex-col justify-center h-9 px-2">
-              {isFilled && (
-                <>
-                  <span
-                    className={`text-sm ${exceedsAvailable ? 'text-destructive font-medium' : 'text-foreground'}`}
-                  >
-                    {item?.availableQty ?? '-'}
-                  </span>
-                  {exceedsAvailable && (
-                    <span className="text-[10px] leading-tight text-destructive">
-                      {t('create.drawdownExceedsRemaining')}
-                    </span>
-                  )}
-                </>
-              )}
-            </div>
-          </td>
+          <td className={`${cell} ${cellBorder}`}>{field('availableQty')}</td>
         ) : (
           <>
             {/* Appr. RFQ */}
-            <td className={`${cell} ${cellBorder}`}>
-              <div className="flex items-center justify-end gap-1 h-9 pr-1">
-                {isFilled && (
-                  <span
-                    className={`text-xs ${approvedQuotesCount > 0 ? 'text-[hsl(var(--success))]' : 'text-foreground'}`}
-                  >
-                    {approvedQuotesCount} quotes
-                  </span>
-                )}
-                <button
-                  type="button"
-                  disabled={!isFilled}
-                  onClick={() => onApprRfqClick?.(index)}
-                  className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  <InfoIcon style={{ width: 13, height: 13 }} />
-                </button>
-              </div>
-            </td>
+            <td className={`${cell} ${cellBorder}`}>{field('apprRfq')}</td>
 
             {/* Bulk orders */}
-            <td className={`${cell} ${cellBorder}`}>
-              <div className="flex items-center justify-end gap-1 h-9 pr-1">
-                {isFilled && (
-                  <span className="text-xs text-foreground">{bulkOrdersCount} orders</span>
-                )}
-                <button
-                  type="button"
-                  disabled={!isFilled}
-                  onClick={() => onBulkOrderClick?.(index)}
-                  className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  <InfoIcon style={{ width: 13, height: 13 }} />
-                </button>
-              </div>
-            </td>
+            <td className={`${cell} ${cellBorder}`}>{field('bulkOrders')}</td>
           </>
         )}
 
         {/* Exp. delivery date — always editable */}
-        <td className={`${cell} ${cellBorder}`}>
-          <Controller
-            name={`lineItems.${index}.expectedDeliveryDate`}
-            control={control}
-            render={({ field: f }) => (
-              <DatePicker
-                value={f.value ?? ''}
-                onChange={f.onChange}
-                borderless
-                minDate={todayIso()}
-              />
-            )}
-          />
-        </td>
+        <td className={`${cell} ${cellBorder}`}>{field('delivery')}</td>
 
         {/* Delivery time — optional, always editable */}
-        <td className={`${cell} ${cellBorder}`}>
-          <Controller
-            name={`lineItems.${index}.deliveryTime`}
-            control={control}
-            render={({ field: f }) => (
-              <input
-                type="time"
-                value={f.value ?? ''}
-                onChange={f.onChange}
-                aria-label="Delivery time"
-                className="h-9 w-full bg-transparent px-1 text-sm text-foreground outline-none"
-              />
-            )}
-          />
-        </td>
+        <td className={`${cell} ${cellBorder}`}>{field('deliveryTime')}</td>
 
         {/* Delivery location — always editable */}
-        <td className={`${cell} ${cellBorder}`}>
-          <Controller
-            name={`lineItems.${index}.deliveryLocationId`}
-            control={control}
-            render={({ field: f }) => (
-              <CustomDropdown
-                options={locationOptions}
-                value={f.value ?? ''}
-                onChange={f.onChange}
-                placeholder="Location"
-                borderless
-              />
-            )}
-          />
-        </td>
+        <td className={`${cell} ${cellBorder}`}>{field('location')}</td>
 
         {/* Actions */}
         <td className={`px-1 py-1 ${rowBorder} border-border`}>
@@ -350,11 +184,7 @@ export function LineItemRow({
                 Additional Notes{' '}
                 <span className="text-muted-foreground font-normal">(optional)</span>
               </span>
-              <textarea
-                {...register(`lineItems.${index}.notes`)}
-                placeholder="Add any additional information about this material..."
-                className="w-full min-h-[80px] rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground/40 resize-y"
-              />
+              {field('notes')}
             </div>
           </td>
         </tr>

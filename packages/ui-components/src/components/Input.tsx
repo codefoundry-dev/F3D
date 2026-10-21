@@ -13,9 +13,10 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: boolean;
 }
 
+// Phones get 16px text so iOS Safari doesn't zoom on focus (ADR-0019).
 const sizeStyles: Record<InputSize, { box: string; text: string }> = {
-  sm: { box: 'h-7 rounded-[10px] px-2.5 gap-1.5', text: 'text-[12px]' },
-  md: { box: 'h-[34px] rounded-[12px] px-2.5 gap-2', text: 'text-[14px]' },
+  sm: { box: 'h-7 rounded-[10px] px-2.5 gap-1.5', text: 'text-base md:text-[12px]' },
+  md: { box: 'h-[34px] rounded-[12px] px-2.5 gap-2', text: 'text-base md:text-[14px]' },
   lg: { box: 'h-12 rounded-[14px] px-3.5 gap-2', text: 'text-[16px]' },
 };
 

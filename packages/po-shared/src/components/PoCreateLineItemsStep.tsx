@@ -1,5 +1,11 @@
 import { useTranslation } from '@forethread/i18n';
-import { Alert, Button, MaterialSearchPanel } from '@forethread/ui-components';
+import {
+  Alert,
+  Button,
+  LineItemEditor,
+  MaterialSearchPanel,
+  useIsPhone,
+} from '@forethread/ui-components';
 import WarningCircleIcon from '@forethread/ui-components/assets/icons/info.svg?react';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import { useState, useCallback, useMemo } from 'react';
@@ -25,6 +31,7 @@ import { BulkPriceWarningModal } from './BulkPriceWarningModal';
 import { RfqCoverageModal } from './RfqCoverageModal';
 import { LineItemRow } from './LineItemRow';
 import { LineItemsTableHeader } from './LineItemsTableHeader';
+import { buildPoLineFields, exceedsAvailableQty, type PoLineRow } from './poLineFields';
 
 interface PoCreateLineItemsStepProps {
   register: UseFormRegister<FormValues>;
@@ -111,6 +118,61 @@ export function PoCreateLineItemsStep({
   const hasApprovedQuotes =
     !alertDismissed && (watchedLineItems ?? []).some((li) => li.materialName);
 
+  const isPhone = useIsPhone();
+  const materialSearch = {
+    cellSearchOpen: crud.cellSearchOpen,
+    cellSearchQuery: crud.cellSearchQuery,
+    onCellSearchChange: crud.handleCellSearchChange,
+    onCellSearchClose: crud.handleCellSearchClose,
+    results: topSearch.results,
+    selected: topSearch.selected,
+    filters: topSearch.filters,
+    onFiltersChange: topSearch.setFilters,
+    onDeselect: topSearch.handleDeselect,
+    onQtyChange: topSearch.handleQtyChange,
+  };
+
+  // Rows the grid shows: every filled line plus a single trailing empty one
+  // (where a material is searched for). Desktop table and phone cards agree.
+  const shownRows: Array<PoLineRow & { id: string }> = [];
+  let emptyShown = false;
+  fields.forEach((field, index) => {
+    const item = watchedLineItems?.[index];
+    const isFilled = Boolean(item?.materialName);
+    if (!isFilled) {
+      if (emptyShown) return;
+      emptyShown = true;
+    }
+    const suggestion = validationSuggestions.find((s) => s.lineItemIndex === index);
+    shownRows.push({
+      id: field.id,
+      index,
+      item,
+      isFilled,
+      approvedQuotesCount: suggestion?.rfqMatch ? 1 : 0,
+      bulkOrdersCount: suggestion?.bulkOrderMatch ? 1 : 0,
+    });
+  });
+
+  // Phones (ADR-0019 B10): cards + the line sheet, built from the same fields.
+  const phoneFields = isPhone
+    ? buildPoLineFields({
+        t,
+        register,
+        control,
+        errors,
+        setValue,
+        locationOptions,
+        materialSearch,
+        isDrawdownMode,
+        isPhone: true,
+        onApprRfqClick: (index) =>
+          modals.openRfqCoverage(watchedLineItems?.[index]?.materialName ?? ''),
+        onBulkOrderClick: (index) =>
+          modals.openBulkCoverage(watchedLineItems?.[index]?.materialName ?? ''),
+      })
+    : [];
+
   const handleAddToList = useCallback(() => {
     crud.handleAddFromSearch([...topSearch.selected]);
     topSearch.reset();
@@ -181,78 +243,88 @@ export function PoCreateLineItemsStep({
           </Alert>
         )}
 
-        {/* Line items table + totals */}
-        <div className="rounded-lg border border-border bg-background overflow-visible">
-          <table
-            className="w-full text-sm table-fixed"
-            style={{ borderCollapse: 'separate', borderSpacing: 0 }}
-          >
-            <LineItemsTableHeader isDrawdownMode={isDrawdownMode} />
-            <tbody>
-              {(() => {
-                let emptyRendered = false;
-                return fields.map((field, index) => {
-                  const item = watchedLineItems?.[index];
-                  const isEmpty = !item?.materialName;
-                  if (isEmpty) {
-                    if (emptyRendered) return null;
-                    emptyRendered = true;
-                  }
-                  const suggestion = validationSuggestions.find((s) => s.lineItemIndex === index);
-                  return (
-                    <LineItemRow
-                      key={field.id}
-                      index={index}
-                      isFilled={!isEmpty}
-                      isLast={index === fields.length - 1}
-                      hasNotes={crud.notesOpenRow.has(index)}
-                      item={item}
-                      register={register}
-                      control={control}
-                      errors={errors}
-                      setValue={setValue}
-                      remove={crud.handleRemoveRow}
-                      locationOptions={locationOptions}
-                      onToggleNotes={crud.toggleNotes}
-                      materialSearch={{
-                        cellSearchOpen: crud.cellSearchOpen,
-                        cellSearchQuery: crud.cellSearchQuery,
-                        onCellSearchChange: crud.handleCellSearchChange,
-                        onCellSearchClose: crud.handleCellSearchClose,
-                        results: topSearch.results,
-                        selected: topSearch.selected,
-                        filters: topSearch.filters,
-                        onFiltersChange: topSearch.setFilters,
-                        onDeselect: topSearch.handleDeselect,
-                        onQtyChange: topSearch.handleQtyChange,
-                      }}
-                      approvedQuotesCount={suggestion?.rfqMatch ? 1 : 0}
-                      bulkOrdersCount={suggestion?.bulkOrderMatch ? 1 : 0}
-                      onApprRfqClick={() => {
-                        modals.openRfqCoverage(item?.materialName ?? '');
-                      }}
-                      onBulkOrderClick={() => {
-                        modals.openBulkCoverage(item?.materialName ?? '');
-                      }}
-                      isDrawdownMode={isDrawdownMode}
-                    />
-                  );
-                });
-              })()}
-            </tbody>
-          </table>
-
-          {/* Totals */}
-          <div className="flex gap-6 text-sm text-muted-foreground px-3 py-3 border-t border-border">
-            <span>
-              {t('create.totalItems')}{' '}
-              <span className="text-foreground font-medium">{totalItems}</span>
-            </span>
-            <span>
-              {t('create.totalQty')} <span className="text-foreground font-medium">{totalQty}</span>
-            </span>
+        {/* Phones: one card per line + the line edit sheet (B10) */}
+        {isPhone ? (
+          <div className="flex flex-col gap-3" data-testid="po-line-cards">
+            <LineItemEditor
+              lines={shownRows}
+              fields={phoneFields}
+              getKey={(row) => row.id}
+              getTitle={(row) =>
+                row.isFilled ? row.item?.materialName : t('create.enterMaterialName')
+              }
+              getSubtitle={(row) => row.item?.materialCode || undefined}
+              hasError={(row) =>
+                Boolean(errors.lineItems?.[row.index]) || exceedsAvailableQty(row, isDrawdownMode)
+              }
+              onRemove={(i) => {
+                const row = shownRows[i];
+                if (row) crud.handleRemoveRow(row.index);
+              }}
+            />
+            <div className="flex gap-6 text-sm text-muted-foreground">
+              <span>
+                {t('create.totalItems')}{' '}
+                <span className="text-foreground font-medium">{totalItems}</span>
+              </span>
+              <span>
+                {t('create.totalQty')}{' '}
+                <span className="text-foreground font-medium">{totalQty}</span>
+              </span>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Line items table + totals */
+          <div className="rounded-lg border border-border bg-background overflow-visible">
+            <table
+              className="w-full text-sm table-fixed"
+              style={{ borderCollapse: 'separate', borderSpacing: 0 }}
+            >
+              <LineItemsTableHeader isDrawdownMode={isDrawdownMode} />
+              <tbody>
+                {shownRows.map((row) => (
+                  <LineItemRow
+                    key={row.id}
+                    index={row.index}
+                    isFilled={row.isFilled}
+                    isLast={row.index === fields.length - 1}
+                    hasNotes={crud.notesOpenRow.has(row.index)}
+                    item={row.item}
+                    register={register}
+                    control={control}
+                    errors={errors}
+                    setValue={setValue}
+                    remove={crud.handleRemoveRow}
+                    locationOptions={locationOptions}
+                    onToggleNotes={crud.toggleNotes}
+                    materialSearch={materialSearch}
+                    approvedQuotesCount={row.approvedQuotesCount}
+                    bulkOrdersCount={row.bulkOrdersCount}
+                    onApprRfqClick={() => {
+                      modals.openRfqCoverage(row.item?.materialName ?? '');
+                    }}
+                    onBulkOrderClick={() => {
+                      modals.openBulkCoverage(row.item?.materialName ?? '');
+                    }}
+                    isDrawdownMode={isDrawdownMode}
+                  />
+                ))}
+              </tbody>
+            </table>
+
+            {/* Totals */}
+            <div className="flex gap-6 text-sm text-muted-foreground px-3 py-3 border-t border-border">
+              <span>
+                {t('create.totalItems')}{' '}
+                <span className="text-foreground font-medium">{totalItems}</span>
+              </span>
+              <span>
+                {t('create.totalQty')}{' '}
+                <span className="text-foreground font-medium">{totalQty}</span>
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Drawdown reduction banner (US 5.09) */}

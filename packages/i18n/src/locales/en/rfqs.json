@@ -732,7 +732,10 @@
       "unassignedGroup": "Unassigned",
       "unassignedHint": "Pick a project in RFQ Information to assign these items.",
       "totalItems": "Total Items:",
-      "totalQty": "Total Qty:"
+      "totalQty": "Total Qty:",
+      "addLine": "Add line",
+      "removeLine": "Remove line",
+      "lineIncomplete": "Add a name, a quantity and a unit to save this line."
     },
     "picker": {
       "search": "Search",

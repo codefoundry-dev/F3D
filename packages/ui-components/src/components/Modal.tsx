@@ -300,7 +300,7 @@ export function ModalGridBackground({ className }: { className?: string }) {
  * `cardClassName` alongside `decoration={<ModalGridBackground />}`.
  */
 export const REGISTRATION_MODAL_CARD_CLASS =
-  'items-center gap-8 overflow-y-auto p-6 md:min-w-[480px] md:max-w-[480px] md:gap-10 md:rounded-[32px] md:p-10';
+  'items-center gap-8 overflow-y-auto p-6 pb-[calc(24px+env(safe-area-inset-bottom))] md:min-w-[480px] md:max-w-[480px] md:gap-10 md:rounded-[32px] md:p-10 md:pb-10';
 
 export interface ModalGridHeaderProps {
   /** Raw header icon (~24px) rendered inside the DS white-gradient badge chip. */
