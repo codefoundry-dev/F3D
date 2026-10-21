@@ -38,8 +38,8 @@ export function BulkLevelDefaults({
   return (
     <div className="rounded-xl border border-border bg-card">
       {/* Header */}
-      <div className="flex items-center justify-between p-4">
-        <div className="flex items-baseline gap-2">
+      <div className="flex items-center justify-between gap-3 p-4">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
           <h3 className="text-sm font-semibold text-foreground">{t('response.bulkDefaults')}</h3>
           <span className="text-xs text-muted-foreground">{t('response.appliedToAll')}</span>
         </div>
@@ -55,7 +55,7 @@ export function BulkLevelDefaults({
       {expanded && (
         <div className="px-4 pb-4 flex flex-col gap-4">
           {/* Row 1 */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">
                 {t('response.bulkAvailability')}
@@ -104,7 +104,7 @@ export function BulkLevelDefaults({
           </div>
 
           {/* Row 2 */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">
                 {t('response.shipment')}

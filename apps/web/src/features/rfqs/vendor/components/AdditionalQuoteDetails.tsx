@@ -57,7 +57,7 @@ export function AdditionalQuoteDetails({
       </h2>
 
       {/* Row 1: Validity period + Additional notes */}
-      <div className="grid grid-cols-[283px_1fr] gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[283px_1fr]">
         <div>
           <label className="block text-sm font-medium text-foreground mb-1.5">
             {t('response.validityPeriod')}

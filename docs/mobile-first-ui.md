@@ -272,7 +272,7 @@ nav and footer bar (`Toaster mobileOffset`).
 
 | Flow                                  | Status |
 | ------------------------------------- | ------ |
-| Vendor guest quote response (FOR-377) | ⬜     |
+| Vendor guest quote response (FOR-377) | ✅     |
 | Guest PO portal (FOR-378)             | ⬜     |
 | Approvals (FOR-379)                   | ⬜     |
 | Delivery + QR page (FOR-380)          | ⬜     |
