@@ -7,7 +7,7 @@ import {
   RfqDocumentsTab,
   RfqLineItemsTab,
 } from '@forethread/rfq-shared';
-import { Button, Spinner } from '@forethread/ui-components';
+import { Button, PageActions, Spinner, useIsPhone } from '@forethread/ui-components';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import PaperPlaneIcon from '@forethread/ui-components/assets/icons/paper-plane.svg?react';
 import { useEffect } from 'react';
@@ -25,6 +25,7 @@ export default function RfqDetailPage() {
   const { data: rfq, isLoading, isError } = useRfq(id ?? '');
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
   const { canCreate, canEdit } = useCanRespond(rfq);
+  const isPhone = useIsPhone();
 
   useEffect(() => {
     if (rfq) setPageTitle(rfq.rfqNumber ?? rfq.id);
@@ -45,34 +46,45 @@ export default function RfqDetailPage() {
     );
   }
 
+  const handleExport = () => {
+    void exportRfqs('pdf', { search: rfq.id }).then(({ url }) => window.open(url, '_blank'));
+  };
+  const respondButton = (
+    <Button
+      variant="primary"
+      size="md"
+      className="h-[42px]"
+      leftIcon={<PaperPlaneIcon className="w-4 h-4" />}
+      onClick={() => navigate(ROUTES.rfqResponse.replace(':id', rfq.id))}
+      disabled={!canCreate && !canEdit}
+    >
+      {canEdit ? t('actions.editResponse') : t('actions.response')}
+    </Button>
+  );
+
   return (
     <div className="flex flex-col h-full w-full">
-      {/* Action buttons */}
-      <div className="px-4 sm:px-8 pt-6 pb-4 flex items-center gap-3">
-        <Button
-          variant="primary"
-          size="md"
-          className="h-[42px]"
-          leftIcon={<PaperPlaneIcon className="w-4 h-4" />}
-          onClick={() => navigate(ROUTES.rfqResponse.replace(':id', rfq.id))}
-          disabled={!canCreate && !canEdit}
-        >
-          {canEdit ? t('actions.editResponse') : t('actions.response')}
-        </Button>
-        <Button
-          variant="outline"
-          size="md"
-          className="h-[42px]"
-          rightIcon={<DownloadIcon className="w-4 h-4" />}
-          onClick={() => {
-            void exportRfqs('pdf', { search: rfq.id }).then(({ url }) =>
-              window.open(url, '_blank'),
-            );
-          }}
-        >
-          {t('actions.exportAs')}
-        </Button>
-      </div>
+      {/* Action buttons — on phones Respond moves to the footer bar and Export
+          to the top-bar ⋯ menu (B7). */}
+      {isPhone ? (
+        <PageActions
+          primary={respondButton}
+          secondary={[{ key: 'export', label: t('actions.exportAs'), onClick: handleExport }]}
+        />
+      ) : (
+        <div className="px-4 sm:px-8 pt-6 pb-4 flex items-center gap-3">
+          {respondButton}
+          <Button
+            variant="outline"
+            size="md"
+            className="h-[42px]"
+            rightIcon={<DownloadIcon className="w-4 h-4" />}
+            onClick={handleExport}
+          >
+            {t('actions.exportAs')}
+          </Button>
+        </div>
+      )}
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto px-4 sm:px-8 pb-8 space-y-6">

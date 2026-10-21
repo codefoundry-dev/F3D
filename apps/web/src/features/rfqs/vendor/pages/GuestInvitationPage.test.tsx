@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import type React from 'react';
 
 const mockQueryResult = vi.hoisted(() => ({
   value: {
@@ -79,6 +80,38 @@ vi.mock('@forethread/api-client', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  // B7 (FOR-373): desktop layout in tests; PageActions renders its actions inline.
+  useIsPhone: () => false,
+  useHideMobileNav: () => {},
+  MobileActionBar: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  PageActions: ({
+    primary,
+    secondary = [],
+  }: {
+    primary?: React.ReactNode;
+    secondary?: Array<{
+      key: string;
+      label: string;
+      onClick: () => void;
+      disabled?: boolean;
+      testId?: string;
+    }>;
+  }) => (
+    <div>
+      {secondary.map((a) => (
+        <button
+          key={a.key}
+          type="button"
+          onClick={a.onClick}
+          disabled={a.disabled}
+          data-testid={a.testId}
+        >
+          {a.label}
+        </button>
+      ))}
+      {primary}
+    </div>
+  ),
   Alert: ({ children }: { children: React.ReactNode }) => <div data-testid="alert">{children}</div>,
   Button: ({
     children,

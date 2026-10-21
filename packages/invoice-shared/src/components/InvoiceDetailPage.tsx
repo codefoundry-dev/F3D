@@ -13,6 +13,7 @@ import {
   Tabs,
   getStatusColor,
   INVOICE_STATUS_COLORS,
+  PageActions,
   PageLoader,
   type TabItem,
   ScrollTable,
@@ -138,33 +139,40 @@ export function InvoiceDetailPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs items={tabItems} value={activeTab} onValueChange={handleTabChange} />
 
+        {/* Inline on desktop; the fixed footer bar on phones (B7). */}
         {showActions && (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              disabled={isActioning}
-              leftIcon={<CrossInCircleIcon className="size-4" />}
-              onClick={() => {
-                rejectMutation.reset();
-                setDecision('decline');
-              }}
-            >
-              {t('invoiceDetail.decline', { defaultValue: 'Decline' })}
-            </Button>
-            <Button
-              variant="primary"
-              disabled={isActioning || !reviewComplete || overLimit}
-              title={!reviewComplete ? approveBlockedHint : overLimit ? overLimitHint : undefined}
-              leftIcon={<CheckCircleIcon className="size-4" />}
-              data-testid={overLimit ? 'invoice-approve-over-limit' : 'invoice-approve-button'}
-              onClick={() => {
-                approveMutation.reset();
-                setDecision('approve');
-              }}
-            >
-              {t('invoiceDetail.approve', { defaultValue: 'Approve' })}
-            </Button>
-          </div>
+          <PageActions
+            primary={
+              <>
+                <Button
+                  variant="secondary"
+                  disabled={isActioning}
+                  leftIcon={<CrossInCircleIcon className="size-4" />}
+                  onClick={() => {
+                    rejectMutation.reset();
+                    setDecision('decline');
+                  }}
+                >
+                  {t('invoiceDetail.decline', { defaultValue: 'Decline' })}
+                </Button>
+                <Button
+                  variant="primary"
+                  disabled={isActioning || !reviewComplete || overLimit}
+                  title={
+                    !reviewComplete ? approveBlockedHint : overLimit ? overLimitHint : undefined
+                  }
+                  leftIcon={<CheckCircleIcon className="size-4" />}
+                  data-testid={overLimit ? 'invoice-approve-over-limit' : 'invoice-approve-button'}
+                  onClick={() => {
+                    approveMutation.reset();
+                    setDecision('approve');
+                  }}
+                >
+                  {t('invoiceDetail.approve', { defaultValue: 'Approve' })}
+                </Button>
+              </>
+            }
+          />
         )}
       </div>
 

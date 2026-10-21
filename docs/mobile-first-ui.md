@@ -47,7 +47,7 @@ tracker.
 | B4  | Tab strip edge fade (FOR-370)        | `ui-components/Tabs`                               | ✅     |
 | B5  | Table scroll + pin + fade (FOR-371)  | shared table styles and wrappers (closes FOR-360)  | ✅     |
 | B6  | Bottom-sheet modals (FOR-372)        | `Modal` (no wider than 560px becomes a sheet)      | ✅     |
-| B7  | Fixed footer bar (FOR-373)           | new `MobileActionBar` in ui-components             | ⬜     |
+| B7  | Fixed footer bar (FOR-373)           | new `MobileActionBar` in ui-components             | ✅     |
 | B8  | Compact wizard stepper (FOR-374)     | shared stepper + hide bottom nav during wizards    | ⬜     |
 | B9  | Compact list toolbar + FAB (FOR-375) | RFQ/PO list toolbar (shared), then the other lists | ⬜     |
 | B10 | Line-item edit sheet (FOR-376)       | new `LineItemSheet` in ui-components               | ⬜     |
@@ -119,19 +119,40 @@ screen's main action. Approve/Reject-style pairs split it 50/50. Secondary actio
 menu in the top bar. Pages render their actions through one helper, which shows them inline on
 desktop and in the bar or the ⋯ menu on phones.
 
-Main action per detail page. This is a draft; confirm each one as its page is done.
+Main action per detail page:
 
-| Page                 | Main action (when shown)                           |
-| -------------------- | -------------------------------------------------- |
-| RFQ (buyer)          | Send to vendors (draft) · Review quotes (open)     |
-| RFQ (vendor / guest) | Submit quote                                       |
-| PO (buyer)           | Approve / Reject (pending approval) · Send (draft) |
-| PO (vendor / guest)  | Acknowledge · Accept / Decline                     |
-| Invoice              | Approve / Reject (pending)                         |
-| Material request     | Approve / Decline (submitted) · Convert (approved) |
-| Bulk order           | Create drawdown                                    |
-| Delivery             | Record delivery                                    |
-| Project              | none (edit lives in ⋯)                             |
+| Page                    | Main action (when shown)                                                   |
+| ----------------------- | -------------------------------------------------------------------------- |
+| RFQ (buyer)             | Send to vendors (draft) · Review quotes (open) · Create draft PO (awarded) |
+| RFQ (vendor)            | Respond / Edit response                                                    |
+| RFQ quote form (vendor) | Submit / Update quote                                                      |
+| RFQ (guest)             | Submit quote                                                               |
+| PO (buyer)              | Approve / Decline (pending) · Send (draft) · else Record delivery          |
+| PO (vendor / guest)     | Acknowledge + Decline · then Accept + Decline                              |
+| Invoice                 | Decline / Approve (pending)                                                |
+| Material request        | Approve / Decline (submitted) · Convert to RFQ / PO (approved)             |
+| Bulk order              | Review changes (change waiting on you) · else Create drawdown              |
+| Delivery report         | Approve / Reject (submitted)                                               |
+| Project                 | none (no page-level actions today)                                         |
+
+**As built:**
+
+- **Components (ui-components):** `PageActions` (`primary` node + `secondary: PageAction[]`) renders
+  inline on desktop; on phones `primary` goes to `MobileActionBar` and `secondary` to
+  `MobileHeaderActions` (the ⋯ in the top bar). The shell (`AppLayout`) mounts
+  `MobileHeaderActionsSlot` and `MobileActionBarSlot`; both portal in.
+- **Every tab:** on phones the actions show on every tab, not only Details (desktop is unchanged:
+  Details tab only).
+- **Guest pages** (guest RFQ, guest PO) have no shell: the actions render in place and the page
+  calls `useHideMobileNav()` so the bar sits at the very bottom.
+- **Vendor PO:** `PoVendorActions` owns the bar on phones (not in slide-over `compact` mode); the
+  page's Export / Change request / Cancel go to ⋯.
+- **Desktop deviations:** `PageActions` puts secondary buttons before the main one, so Export moved
+  before the main action on RFQ (buyer) and PO (buyer). The vendor PO "Change request" button lost
+  its chevron icon. Vendor RFQ detail, the quote form and bulk order keep their exact desktop markup
+  (phone-only branch).
+- **Tests** that fully mock `@forethread/ui-components` need `useIsPhone` (→ false), and
+  `PageActions` / `MobileActionBar` / `useHideMobileNav` pass-throughs.
 
 ### B8 — Wizards
 

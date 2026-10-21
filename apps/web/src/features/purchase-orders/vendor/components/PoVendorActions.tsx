@@ -7,7 +7,7 @@ import {
   type VendorAcceptPoInput,
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Alert, Button } from '@forethread/ui-components';
+import { Alert, Button, MobileActionBar, useIsPhone } from '@forethread/ui-components';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock-icon.svg?react';
 import CrossCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
@@ -38,6 +38,8 @@ export function PoVendorActions({ po, acceptInput, compact, token }: PoVendorAct
   const { t } = useTranslation('purchaseOrders');
   const queryClient = useQueryClient();
   const [showDeclineModal, setShowDeclineModal] = useState(false);
+  // Phones (not slide-over panels): the buttons move to the fixed footer bar (B7).
+  const inBar = useIsPhone() && !compact;
 
   const invalidatePo = () => {
     // The guest portal keys its PO query on the token; the authenticated detail
@@ -70,6 +72,47 @@ export function PoVendorActions({ po, acceptInput, compact, token }: PoVendorAct
   const isAcknowledged = po.status === 'ACKNOWLEDGED';
   const isBusy = acknowledgeMutation.isPending || acceptMutation.isPending;
 
+  const btnSize = compact ? 'sm' : 'lg';
+  const btnClass = compact ? 'h-[42px] px-3 gap-1.5 text-sm' : 'h-[42px] text-base';
+  const acknowledgeButton = (
+    <Button
+      variant="outline"
+      size={btnSize}
+      className={btnClass}
+      leftIcon={<EyeIcon className="w-[18px] h-[18px]" />}
+      onClick={() => acknowledgeMutation.mutate()}
+      disabled={isAcknowledged || isBusy}
+      isLoading={acknowledgeMutation.isPending}
+    >
+      {t('actions.acknowledge')}
+    </Button>
+  );
+  const acceptButton = (
+    <Button
+      variant="primary"
+      size={btnSize}
+      className={btnClass}
+      leftIcon={<MarkWithCircleIcon className="w-[18px] h-[18px]" />}
+      onClick={() => acceptMutation.mutate()}
+      disabled={!isAcknowledged || isBusy}
+      isLoading={acceptMutation.isPending}
+    >
+      {t('actions.approve')}
+    </Button>
+  );
+  const declineButton = (
+    <Button
+      variant="outline"
+      size={btnSize}
+      className={btnClass}
+      leftIcon={<CrossCircleIcon className="w-[18px] h-[18px]" />}
+      onClick={() => setShowDeclineModal(true)}
+      disabled={isBusy}
+    >
+      {t('actions.decline')}
+    </Button>
+  );
+
   return (
     <>
       <div
@@ -85,43 +128,22 @@ export function PoVendorActions({ po, acceptInput, compact, token }: PoVendorAct
         </Alert>
 
         {/* Action buttons */}
-        <div className="flex gap-3 items-start shrink-0 flex-wrap">
-          <Button
-            variant="outline"
-            size={compact ? 'sm' : 'lg'}
-            className={compact ? 'h-[42px] px-3 gap-1.5 text-sm' : 'h-[42px] text-base'}
-            leftIcon={<EyeIcon className="w-[18px] h-[18px]" />}
-            onClick={() => acknowledgeMutation.mutate()}
-            disabled={isAcknowledged || isBusy}
-            isLoading={acknowledgeMutation.isPending}
-          >
-            {t('actions.acknowledge')}
-          </Button>
-
-          <Button
-            variant="primary"
-            size={compact ? 'sm' : 'lg'}
-            className={compact ? 'h-[42px] px-3 gap-1.5 text-sm' : 'h-[42px] text-base'}
-            leftIcon={<MarkWithCircleIcon className="w-[18px] h-[18px]" />}
-            onClick={() => acceptMutation.mutate()}
-            disabled={!isAcknowledged || isBusy}
-            isLoading={acceptMutation.isPending}
-          >
-            {t('actions.approve')}
-          </Button>
-
-          <Button
-            variant="outline"
-            size={compact ? 'sm' : 'lg'}
-            className={compact ? 'h-[42px] px-3 gap-1.5 text-sm' : 'h-[42px] text-base'}
-            leftIcon={<CrossCircleIcon className="w-[18px] h-[18px]" />}
-            onClick={() => setShowDeclineModal(true)}
-            disabled={isBusy}
-          >
-            {t('actions.decline')}
-          </Button>
-        </div>
+        {!inBar && (
+          <div className="flex gap-3 items-start shrink-0 flex-wrap">
+            {acknowledgeButton}
+            {acceptButton}
+            {declineButton}
+          </div>
+        )}
       </div>
+
+      {/* Phones: Acknowledge (or Accept once acknowledged) beside Decline, 50/50. */}
+      {inBar && (
+        <MobileActionBar>
+          {isAcknowledged ? acceptButton : acknowledgeButton}
+          {declineButton}
+        </MobileActionBar>
+      )}
 
       {showDeclineModal && (
         <DeclinePoModal poId={po.id} token={token} onClose={() => setShowDeclineModal(false)} />

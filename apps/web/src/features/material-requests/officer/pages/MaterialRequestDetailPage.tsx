@@ -1,7 +1,13 @@
 import { ApproverPoolPanel } from '@forethread/approval-shared';
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
-import { Button, formatDate, formatDateTime, Spinner } from '@forethread/ui-components';
+import {
+  Button,
+  formatDate,
+  formatDateTime,
+  PageActions,
+  Spinner,
+} from '@forethread/ui-components';
 import ChevronRightIcon from '@forethread/ui-components/assets/icons/chevron-right.svg?react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -147,47 +153,57 @@ export default function MaterialRequestDetailPage() {
                 {t('detail.actions.ownRequestNote')}
               </p>
             )}
-            {canApprove && (
-              <Button
-                variant="primary"
-                size="sm"
-                isLoading={approve.isPending}
-                onClick={handleApprove}
-                data-testid="mr-approve"
-              >
-                {t('detail.actions.approve')}
-              </Button>
-            )}
-            {canDecline && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setShowDecline(true)}
-                data-testid="mr-decline"
-              >
-                {t('detail.actions.decline')}
-              </Button>
-            )}
-            {canConvert && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  isLoading={convertToRfq.isPending}
-                  onClick={handleConvertToRfq}
-                  data-testid="mr-convert-rfq"
-                >
-                  {t('detail.actions.convertToRfq')}
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setShowConvertPo(true)}
-                  data-testid="mr-convert-po"
-                >
-                  {t('detail.actions.convertToPo')}
-                </Button>
-              </>
+            {/* Inline on desktop; the fixed footer bar on phones (B7):
+                Approve / Decline while submitted, Convert to RFQ / PO once approved. */}
+            {(canApprove || canDecline || canConvert) && (
+              <PageActions
+                primary={
+                  <>
+                    {canApprove && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        isLoading={approve.isPending}
+                        onClick={handleApprove}
+                        data-testid="mr-approve"
+                      >
+                        {t('detail.actions.approve')}
+                      </Button>
+                    )}
+                    {canDecline && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setShowDecline(true)}
+                        data-testid="mr-decline"
+                      >
+                        {t('detail.actions.decline')}
+                      </Button>
+                    )}
+                    {canConvert && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          isLoading={convertToRfq.isPending}
+                          onClick={handleConvertToRfq}
+                          data-testid="mr-convert-rfq"
+                        >
+                          {t('detail.actions.convertToRfq')}
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => setShowConvertPo(true)}
+                          data-testid="mr-convert-po"
+                        >
+                          {t('detail.actions.convertToPo')}
+                        </Button>
+                      </>
+                    )}
+                  </>
+                }
+              />
             )}
           </div>
         </div>

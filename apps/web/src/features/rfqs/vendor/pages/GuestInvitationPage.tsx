@@ -4,9 +4,11 @@ import {
   Alert,
   Button,
   GridModal,
+  PageActions,
   SegmentedControl,
   Spinner,
   StatusErrorModal,
+  useHideMobileNav,
 } from '@forethread/ui-components';
 import FileTextIcon from '@forethread/ui-components/assets/icons/file-text.svg?react';
 import InfoIcon from '@forethread/ui-components/assets/icons/info.svg?react';
@@ -24,6 +26,8 @@ import { useGuestRfqResponse } from '../hooks/useGuestRfqResponse';
 export default function GuestInvitationPage() {
   const { t } = useTranslation('rfqs');
   const { token } = useParams<{ token: string }>();
+  // No app shell here, so no bottom nav: the phone action bar sits at the very bottom.
+  useHideMobileNav();
 
   const {
     data: rfq,
@@ -111,15 +115,20 @@ function GuestResponseContent({ rfq, token }: { rfq: GuestRfqDetail; token: stri
               })}
             </p>
           </div>
-          <Button
-            variant="primary"
-            size="lg"
-            leftIcon={<LetterIcon className="w-4 h-4" />}
-            onClick={handleSubmit}
-            disabled={submitDisabled}
-          >
-            {form.isSubmitting ? t('response.submitting') : t('response.submit')}
-          </Button>
+          {/* Inline on desktop; the fixed footer bar on phones (B7). */}
+          <PageActions
+            primary={
+              <Button
+                variant="primary"
+                size="lg"
+                leftIcon={<LetterIcon className="w-4 h-4" />}
+                onClick={handleSubmit}
+                disabled={submitDisabled}
+              >
+                {form.isSubmitting ? t('response.submitting') : t('response.submit')}
+              </Button>
+            }
+          />
         </div>
       </header>
 

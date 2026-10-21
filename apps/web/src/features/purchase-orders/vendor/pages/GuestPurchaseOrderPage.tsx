@@ -22,8 +22,10 @@ import {
   Button,
   getStatusColor,
   notificationService,
+  PageActions,
   PO_STATUS_COLORS,
   Spinner,
+  useHideMobileNav,
 } from '@forethread/ui-components';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
@@ -60,6 +62,8 @@ const CHANGEABLE_STATUSES = ['SENT', 'ACKNOWLEDGED', 'ACCEPTED'];
 export default function GuestPurchaseOrderPage() {
   const { t } = useTranslation('purchaseOrders');
   const { token } = useParams<{ token: string }>();
+  // No app shell here, so no bottom nav: the phone action bar sits at the very bottom.
+  useHideMobileNav();
 
   const {
     data: po,
@@ -177,38 +181,54 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
               {t('guest.subtitle', { contractor: po.company.name, vendor: po.vendor?.name ?? '' })}
             </p>
           </div>
-          <div className="flex items-center gap-3 shrink-0">
-            {canChange && (
-              <Button
-                variant="outline"
-                size="lg"
-                leftIcon={<EditWithoutLineIcon className="w-4 h-4" />}
-                onClick={() =>
-                  navigate(ROUTES.guestPurchaseOrderChangeRequest.replace(':token', token))
-                }
-              >
-                {t('guest.requestChanges')}
-              </Button>
-            )}
-            {canChange && (
-              <Button
-                variant="outline"
-                size="lg"
-                leftIcon={<CrossIcon className="w-3.5 h-3.5" />}
-                onClick={() => setShowCancelModal(true)}
-              >
-                {t('actions.requestCancellation')}
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="lg"
-              leftIcon={<DownloadIcon className="w-4 h-4" />}
-              onClick={handleDownload}
-            >
-              {t('guest.download')}
-            </Button>
-          </div>
+          {/* Desktop: inline. Phones: Download (when there's nothing to act on) in
+              the footer bar, the rest in a ⋯ menu (B7). */}
+          <PageActions
+            className="gap-3 shrink-0"
+            size="lg"
+            moreLabel={t('guest.moreActions', { defaultValue: 'More actions' })}
+            primary={
+              isActionable ? undefined : (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  leftIcon={<DownloadIcon className="w-4 h-4" />}
+                  onClick={handleDownload}
+                >
+                  {t('guest.download')}
+                </Button>
+              )
+            }
+            secondary={[
+              ...(canChange
+                ? [
+                    {
+                      key: 'requestChanges',
+                      label: t('guest.requestChanges'),
+                      icon: <EditWithoutLineIcon className="w-4 h-4" />,
+                      onClick: () =>
+                        navigate(ROUTES.guestPurchaseOrderChangeRequest.replace(':token', token)),
+                    },
+                    {
+                      key: 'cancel',
+                      label: t('actions.requestCancellation'),
+                      icon: <CrossIcon className="w-3.5 h-3.5" />,
+                      onClick: () => setShowCancelModal(true),
+                    },
+                  ]
+                : []),
+              ...(isActionable
+                ? [
+                    {
+                      key: 'download',
+                      label: t('guest.download'),
+                      icon: <DownloadIcon className="w-4 h-4" />,
+                      onClick: handleDownload,
+                    },
+                  ]
+                : []),
+            ]}
+          />
         </div>
       </header>
 

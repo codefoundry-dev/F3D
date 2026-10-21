@@ -11,6 +11,7 @@ import {
   formatDate,
   getStatusColor,
   notificationService,
+  PageActions,
   ScrollTable,
 } from '@forethread/ui-components';
 import CheckIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
@@ -90,26 +91,32 @@ export default function DeliveryReportDetailPage() {
   return (
     <div className="flex flex-col px-4 pb-6 pt-4 sm:px-8 sm:pb-8 sm:pt-6">
       {/* ═══ Action bar ═══ */}
+      {/* Inline on desktop; the fixed footer bar (50/50) on phones (B7). */}
       {canReview && (
-        <div className="mb-4 flex items-center justify-end gap-2">
-          <Button
-            variant="primary"
-            leftIcon={<CheckIcon className="h-4 w-4" />}
-            isLoading={approveMutation.isPending}
-            onClick={handleApprove}
-            data-testid="delivery-detail-approve"
-          >
-            {t('detail.approve')}
-          </Button>
-          <Button
-            variant="outline"
-            leftIcon={<CrossIcon className="h-4 w-4" />}
-            onClick={() => setShowReject(true)}
-            data-testid="delivery-detail-reject"
-          >
-            {t('detail.reject')}
-          </Button>
-        </div>
+        <PageActions
+          className="mb-4 justify-end"
+          primary={
+            <>
+              <Button
+                variant="primary"
+                leftIcon={<CheckIcon className="h-4 w-4" />}
+                isLoading={approveMutation.isPending}
+                onClick={handleApprove}
+                data-testid="delivery-detail-approve"
+              >
+                {t('detail.approve')}
+              </Button>
+              <Button
+                variant="outline"
+                leftIcon={<CrossIcon className="h-4 w-4" />}
+                onClick={() => setShowReject(true)}
+                data-testid="delivery-detail-reject"
+              >
+                {t('detail.reject')}
+              </Button>
+            </>
+          }
+        />
       )}
 
       {/* ═══ Information ═══ */}

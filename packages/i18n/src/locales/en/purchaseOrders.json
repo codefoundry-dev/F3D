@@ -1,6 +1,7 @@
 {
   "guest": {
     "title": "Purchase Order {{poNumber}}",
+    "moreActions": "More actions",
     "subtitle": "From {{contractor}} · To {{vendor}}",
     "infoBanner": "You're viewing this purchase order securely from your email link. This is a read-only view — no account needed.",
     "download": "Download PDF",

@@ -5,7 +5,12 @@ import {
   AvatarWithStatus,
   Breadcrumbs,
   ConfirmDialog,
+  MobileActionBarSlot,
+  MobileHeaderActionsSlot,
   Sidebar,
+  cn,
+  useMobileExit,
+  useMobileNavHidden,
   type BreadcrumbItem,
   type WorkStatusType,
 } from '@forethread/ui-components';
@@ -39,6 +44,9 @@ export function AppLayout() {
   const pageTitle = usePageTitleStore((s) => s.title);
   const pageBreadcrumbs = usePageTitleStore((s) => s.breadcrumbs);
   const pageBackTo = usePageTitleStore((s) => s.backTo);
+  // Wizards hide the bottom nav and may intercept the back arrow (B8).
+  const navHidden = useMobileNavHidden();
+  const mobileExit = useMobileExit();
 
   const sidebarItems = getSidebarItemsForRole(role, location.pathname, {
     adminPanel: t('nav:adminPanelNav', { defaultValue: 'Admin panel' }),
@@ -146,11 +154,11 @@ export function AppLayout() {
         <header className="sticky top-0 z-10 h-16 bg-card border-b border-gray-100 flex items-center justify-between gap-2 px-4 sm:px-6">
           {/* Phones: page title (+ back arrow) instead of the breadcrumb trail. */}
           <div className="flex min-w-0 flex-1 items-center gap-1 md:hidden">
-            {backTo && (
+            {(mobileExit ?? backTo) && (
               <button
                 type="button"
                 aria-label={t('common:back', { defaultValue: 'Back' })}
-                onClick={() => navigate(backTo)}
+                onClick={() => (mobileExit ? mobileExit() : backTo && navigate(backTo))}
                 className="-ml-2 flex size-10 shrink-0 items-center justify-center rounded-full text-gray-700 hover:bg-gray-50"
               >
                 <ChevronRightIcon className="size-5 rotate-180" />
@@ -160,6 +168,8 @@ export function AppLayout() {
           </div>
           <Breadcrumbs items={breadcrumbItems} className="hidden min-w-0 md:flex" />
           <div className="flex shrink-0 items-center gap-2">
+            {/* Phones: the page's secondary actions (⋯), portalled in by PageActions (B7). */}
+            <MobileHeaderActionsSlot />
             <NotificationCenter />
 
             {/* Phones: avatar opens the More sheet (profile, log out, other sections). */}
@@ -220,8 +230,15 @@ export function AppLayout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto pb-[calc(56px+env(safe-area-inset-bottom))] md:pb-0">
+        <main
+          className={cn(
+            'flex-1 overflow-auto md:pb-0',
+            !navHidden && 'pb-[calc(56px+env(safe-area-inset-bottom))]',
+          )}
+        >
           <Outlet />
+          {/* Phones: the page's main action bar (B7) mounts here, after the content. */}
+          <MobileActionBarSlot className="md:hidden" />
         </main>
       </div>
 

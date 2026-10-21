@@ -6,6 +6,7 @@ export { useClickOutside } from './hooks/useClickOutside';
 export { useEscapeKey } from './hooks/useEscapeKey';
 export { useMediaQuery } from './hooks/useMediaQuery';
 export { useScrollEdges } from './hooks/useScrollEdges';
+export { useIsPhone, PHONE_MEDIA_QUERY } from './hooks/useIsPhone';
 export type { ScrollEdges } from './hooks/useScrollEdges';
 
 // Utilities
@@ -183,6 +184,23 @@ export { Toaster, toast } from 'sonner';
 
 export { CustomToast, notificationService } from './components/CustomToast';
 export type { CustomToastProps, ToastType } from './components/CustomToast';
+
+export { MobileActionBar, MobileHeaderActions, PageActions } from './components/MobileActionBar';
+export type {
+  MobileActionBarProps,
+  MobileHeaderActionsProps,
+  PageAction,
+  PageActionsProps,
+} from './components/MobileActionBar';
+export {
+  MobileActionBarSlot,
+  MobileHeaderActionsSlot,
+  useHideMobileNav,
+  useMobileExit,
+  useMobileExitHandler,
+  useMobileNavHidden,
+  __resetMobileChrome,
+} from './components/MobileChrome';
 
 export { DotActionsMenu } from './components/DotActionsMenu';
 export type { DotActionsMenuProps, DotAction } from './components/DotActionsMenu';

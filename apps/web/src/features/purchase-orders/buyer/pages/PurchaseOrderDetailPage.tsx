@@ -18,7 +18,13 @@ import {
 } from '@forethread/po-shared';
 import type { PoTab, RelatedDocument } from '@forethread/po-shared';
 import { usePageTitleStore } from '@forethread/rfq-shared';
-import { Button, Spinner, notificationService } from '@forethread/ui-components';
+import {
+  Button,
+  PageActions,
+  Spinner,
+  notificationService,
+  useIsPhone,
+} from '@forethread/ui-components';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import EditWithoutLineIcon from '@forethread/ui-components/assets/icons/edit-without-line.svg?react';
@@ -120,6 +126,7 @@ export default function PurchaseOrderDetailPage() {
 
   // An entitled approver opening a PENDING_APPROVAL PO directly (not via the
   // dashboard "Awaiting approval" card) must still be able to action it here.
+  const isPhone = useIsPhone();
   const canApprove = po ? po.status === 'PENDING_APPROVAL' && has('po.approve') : false;
   const canChange = po ? CHANGEABLE_STATUSES.includes(po.status) && has('po.proposeChange') : false;
   const canReceive = po ? RECEIVABLE_STATUSES.includes(po.status) && has('po.receive') : false;
@@ -167,6 +174,81 @@ export default function PurchaseOrderDetailPage() {
     );
   }
 
+  const canSend = po.status === 'DRAFT' && po.poType !== 'SPLIT';
+  // Inline on the Details tab on desktop; on phones the main action sits in the
+  // fixed footer bar and the rest in the top-bar ⋯ menu on every tab (B7).
+  // Approve/Decline (pending) or Send (draft) is the main action; otherwise
+  // Record delivery when the PO can be received.
+  const primaryIsReceive = !canApprove && !canSend && canReceive;
+  const actions = (
+    <PageActions
+      primary={
+        canApprove ? (
+          <PoApprovalActions po={po} size="sm" />
+        ) : canSend ? (
+          <PoSendButton po={po} size="sm" />
+        ) : primaryIsReceive ? (
+          <Button
+            variant="outline"
+            size="sm"
+            leftIcon={<PackageIcon className="w-4 h-4" />}
+            onClick={() => setShowReceiveModal(true)}
+          >
+            {t('actions.recordDelivery', 'Record delivery')}
+          </Button>
+        ) : undefined
+      }
+      secondary={[
+        {
+          key: 'export',
+          label: t('actions.exportAs'),
+          icon: <DownloadIcon className="w-4 h-4" />,
+          onClick: () => {
+            void exportPurchaseOrders('pdf', { search: po.id }).then(({ url }) =>
+              window.open(url, '_blank'),
+            );
+          },
+        },
+        ...(canChange
+          ? [
+              {
+                key: 'change',
+                label: t('actions.change'),
+                icon: <EditWithoutLineIcon className="w-4 h-4" />,
+                onClick: () => navigate(ROUTES.purchaseOrderChange.replace(':id', po.id)),
+              },
+              {
+                key: 'cancel',
+                label: t('actions.requestCancellation'),
+                icon: <CrossIcon className="w-3.5 h-3.5" />,
+                onClick: () => setShowCancelModal(true),
+              },
+            ]
+          : []),
+        ...(canReceive && !primaryIsReceive
+          ? [
+              {
+                key: 'receive',
+                label: t('actions.recordDelivery', 'Record delivery'),
+                icon: <PackageIcon className="w-4 h-4" />,
+                onClick: () => setShowReceiveModal(true),
+              },
+            ]
+          : []),
+        ...(canCreateDelivery
+          ? [
+              {
+                key: 'deliveryReport',
+                label: t('actions.deliveryReport', 'Delivery report'),
+                icon: <ReportIcon className="w-4 h-4" />,
+                onClick: () => navigate(`${ROUTES.deliveryNew}?poId=${po.id}`),
+              },
+            ]
+          : []),
+      ]}
+    />
+  );
+
   return (
     <div className="flex flex-col h-full">
       {/* Tabs */}
@@ -175,68 +257,10 @@ export default function PurchaseOrderDetailPage() {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           tabs={validTabs}
-          rightSlot={
-            activeTab === 'details' ? (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  leftIcon={<DownloadIcon className="w-4 h-4" />}
-                  onClick={() => {
-                    void exportPurchaseOrders('pdf', { search: po.id }).then(({ url }) =>
-                      window.open(url, '_blank'),
-                    );
-                  }}
-                >
-                  {t('actions.exportAs')}
-                </Button>
-                {canChange && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    leftIcon={<EditWithoutLineIcon className="w-4 h-4" />}
-                    onClick={() => navigate(ROUTES.purchaseOrderChange.replace(':id', po.id))}
-                  >
-                    {t('actions.change')}
-                  </Button>
-                )}
-                {canChange && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    leftIcon={<CrossIcon className="w-3.5 h-3.5" />}
-                    onClick={() => setShowCancelModal(true)}
-                  >
-                    {t('actions.requestCancellation')}
-                  </Button>
-                )}
-                {canReceive && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    leftIcon={<PackageIcon className="w-4 h-4" />}
-                    onClick={() => setShowReceiveModal(true)}
-                  >
-                    {t('actions.recordDelivery', 'Record delivery')}
-                  </Button>
-                )}
-                {canCreateDelivery && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    leftIcon={<ReportIcon className="w-4 h-4" />}
-                    onClick={() => navigate(`${ROUTES.deliveryNew}?poId=${po.id}`)}
-                  >
-                    {t('actions.deliveryReport', 'Delivery report')}
-                  </Button>
-                )}
-                {canApprove && <PoApprovalActions po={po} size="sm" />}
-                <PoSendButton po={po} size="sm" />
-              </div>
-            ) : undefined
-          }
+          rightSlot={activeTab === 'details' && !isPhone ? actions : undefined}
         />
       </div>
+      {isPhone && actions}
 
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-6 md:pb-8">
