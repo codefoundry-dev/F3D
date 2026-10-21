@@ -1,6 +1,7 @@
 import type { RfqLineItem } from '@forethread/api-client';
 import { deleteLineItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import { ConfirmDialog, formatDate } from '@forethread/ui-components';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import EditRowIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
@@ -90,7 +91,12 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
             {lineItems.map((item) => (
               <tr key={item.id} className="border-t border-border">
                 <td className="p-3 text-foreground border border-border">{item.id}</td>
-                <td className="p-3 text-foreground border border-border">{item.materialName}</td>
+                <td className="p-3 text-foreground border border-border">
+                  <span className="flex items-center gap-2">
+                    <MaterialImageThumb url={item.imageUrl} name={item.materialName} />
+                    {item.materialName}
+                  </span>
+                </td>
                 <td className="p-3 text-foreground border border-border">{item.quantity}</td>
                 <td className="p-3 text-foreground border border-border">{item.unit}</td>
                 <td className="p-3 text-foreground border border-border">{item.costCode ?? '-'}</td>
@@ -193,7 +199,12 @@ function LineItemsPanelLayout({ lineItems }: { lineItems: RfqLineItem[] }) {
             {lineItems.map((item) => (
               <tr key={item.id} className="border-b border-foreground/10">
                 <td className="py-2.5 pr-3 text-foreground">{item.id}</td>
-                <td className="py-2.5 px-3 text-foreground">{item.materialName}</td>
+                <td className="py-2.5 px-3 text-foreground">
+                  <span className="flex items-center gap-2">
+                    <MaterialImageThumb url={item.imageUrl} name={item.materialName} />
+                    {item.materialName}
+                  </span>
+                </td>
                 <td className="py-2.5 px-3 text-foreground">{item.quantity}</td>
                 <td className="py-2.5 px-3 text-muted-foreground">{item.unit}</td>
               </tr>

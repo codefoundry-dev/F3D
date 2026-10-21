@@ -761,7 +761,7 @@ export class QuoteResponseService {
     rfq: {
       include: {
         lineItems: {
-          include: { material: { select: { id: true, name: true, uom: true } } },
+          include: { material: { select: { id: true, name: true, uom: true, imageUrl: true } } },
         },
         project: { select: { name: true } },
         company: { select: { legalName: true } },
@@ -839,6 +839,8 @@ export class QuoteResponseService {
         // (no catalogue material) before falling back to description. Without
         // this, manual RFQ lines render nameless on the guest quote portal.
         materialName: li.material?.name ?? li.materialName ?? li.description ?? '',
+        // Catalogue image so the guest vendor sees what's being quoted (FOR-361).
+        imageUrl: li.material?.imageUrl ?? null,
         unit: li.unit,
         quantity: li.quantity,
         description: li.description,

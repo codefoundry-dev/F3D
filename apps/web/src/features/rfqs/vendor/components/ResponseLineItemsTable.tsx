@@ -1,5 +1,6 @@
 import type { MaterialListItemDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import {
   Checkbox,
   cn,
@@ -244,11 +245,15 @@ function LineItemRow({
             />
           ) : (
             <span className="flex items-center gap-1.5 whitespace-nowrap">
-              {hasSubstitute && (
+              {hasSubstitute ? (
                 <CircleReloadIcon
                   className="w-4 h-4 shrink-0 text-foreground"
                   aria-label={t('response.substituteItem')}
                 />
+              ) : (
+                // The requested material's image — hidden once a substitute is
+                // picked, since it would no longer show the item being quoted.
+                <MaterialImageThumb url={item.imageUrl} name={item.materialName} />
               )}
               {item.materialId ? (
                 <Link

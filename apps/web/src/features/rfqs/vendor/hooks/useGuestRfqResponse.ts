@@ -87,6 +87,7 @@ function initGuestLineItems(lineItems: GuestRfqDetail['lineItems']): LineItemFor
     included: true,
     materialName: item.materialName,
     materialId: null,
+    imageUrl: item.imageUrl ?? null,
     unit: item.unit,
     requestedQty: item.quantity,
     availQty: '',

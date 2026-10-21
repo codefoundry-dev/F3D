@@ -28,6 +28,8 @@ export interface LineItemFormState {
   included: boolean;
   materialName: string;
   materialId: string | null;
+  /** Catalogue image of the requested material (FOR-361). */
+  imageUrl: string | null;
   unit: string;
   requestedQty: number;
   availQty: string;
@@ -63,6 +65,7 @@ function initLineItems(lineItems: RfqLineItem[]): LineItemFormState[] {
     included: true,
     materialName: item.materialName,
     materialId: ((item as unknown as Record<string, unknown>).materialId as string | null) ?? null,
+    imageUrl: item.imageUrl ?? null,
     unit: item.unit,
     requestedQty: item.quantity,
     availQty: '',
@@ -100,6 +103,7 @@ function initLineItemsFromQuote(
       materialName: item.materialName,
       materialId:
         ((item as unknown as Record<string, unknown>).materialId as string | null) ?? null,
+      imageUrl: item.imageUrl ?? null,
       unit: item.unit,
       requestedQty: item.quantity,
       availQty: isIncluded && qi ? String(qi.quotedQuantity) : '',

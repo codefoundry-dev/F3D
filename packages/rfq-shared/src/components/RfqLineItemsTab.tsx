@@ -4,6 +4,7 @@ import { MessageBadgeIcon } from '@forethread/ui-components';
 import EditInSquareIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
 
 import { formatDate } from './detail-primitives';
+import { MaterialImageThumb } from './MaterialImageThumb';
 
 interface RfqLineItemsTabProps {
   lineItems: RfqLineItem[];
@@ -52,7 +53,12 @@ export function RfqLineItemsTab({ lineItems, layout = 'panel' }: RfqLineItemsTab
             {lineItems.map((item) => (
               <tr key={item.id} className="border-b border-foreground/10">
                 <td className="py-2.5 pr-3 text-foreground">{item.id}</td>
-                <td className="py-2.5 px-3 text-foreground">{item.materialName}</td>
+                <td className="py-2.5 px-3 text-foreground">
+                  <span className="flex items-center gap-2">
+                    <MaterialImageThumb url={item.imageUrl} name={item.materialName} />
+                    {item.materialName}
+                  </span>
+                </td>
                 <td className="py-2.5 px-3 text-foreground">{item.quantity}</td>
                 <td className="py-2.5 px-3 text-muted-foreground">{item.unit}</td>
                 <td className="py-2.5 px-3 text-muted-foreground">

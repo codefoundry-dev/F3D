@@ -105,6 +105,8 @@ export interface RfqLineItem {
   /** Catalogue material id when the line references a catalogue material (null for free-text/BOM lines). */
   materialId?: string | null;
   materialName: string;
+  /** Catalogue material image URL (null for free-text/BOM lines or materials without one). */
+  imageUrl?: string | null;
   description: string | null;
   quantity: number;
   unit: string;
@@ -850,6 +852,8 @@ export interface GuestRfqDetail {
   lineItems: Array<{
     id: string;
     materialName: string;
+    /** Catalogue material image URL, when the line references one. */
+    imageUrl?: string | null;
     unit: string;
     quantity: number;
     description: string | null;

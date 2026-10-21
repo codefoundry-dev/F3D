@@ -130,7 +130,7 @@ const RFQ_DETAIL_INCLUDE = {
   createdBy: { select: { id: true, name: true } },
   lineItems: {
     include: {
-      material: { select: { id: true, name: true, uom: true } },
+      material: { select: { id: true, name: true, uom: true, imageUrl: true } },
       project: { select: { id: true, name: true } },
       deliveryLocation: { select: { id: true, label: true, address: true } },
     },
@@ -495,6 +495,10 @@ export class RfqsService {
           materialName: resolveRfqLineItemMaterialName(
             li as unknown as { material: { name: string } | null; materialName: string | null },
           ),
+          // Live catalogue image (FOR-361) so buyers and vendors see what's being
+          // quoted. Read through the material link rather than snapshotted, so a
+          // corrected catalogue image reaches open RFQs; free-text lines get null.
+          imageUrl: li.material?.imageUrl ?? null,
           description: li.description,
           notes,
           hasNotes: Boolean(notes),

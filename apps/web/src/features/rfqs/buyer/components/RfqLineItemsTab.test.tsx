@@ -52,6 +52,7 @@ const MOCK_LINE_ITEMS = [
     id: 'LI-001',
     projectName: 'Project Alpha',
     materialName: 'Steel Beam',
+    imageUrl: 'https://img/beam.png',
     description: 'W10x22 beam',
     quantity: 50,
     unit: 'pcs',
@@ -98,6 +99,19 @@ describe('RfqLineItemsTab', () => {
     expect(screen.queryByText('Project Alpha')).not.toBeInTheDocument();
     expect(screen.queryByText('W10x22 beam')).not.toBeInTheDocument();
   });
+
+  it.each(['panel', 'page'] as const)(
+    'shows a catalogue image thumbnail only for lines that have one (%s layout, FOR-361)',
+    (layout) => {
+      renderWithQuery(
+        <RfqLineItemsTab rfqId="rfq-1" lineItems={MOCK_LINE_ITEMS} layout={layout} />,
+      );
+      const thumbs = screen.getAllByTestId('material-image-thumb');
+      expect(thumbs).toHaveLength(1);
+      expect(thumbs[0]).toHaveAttribute('href', 'https://img/beam.png');
+      expect(thumbs[0].querySelector('img')).toHaveAttribute('alt', 'Steel Beam');
+    },
+  );
 
   it('renders total items footer', () => {
     render(<RfqLineItemsTab lineItems={MOCK_LINE_ITEMS} layout="panel" />);

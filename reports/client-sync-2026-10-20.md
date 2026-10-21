@@ -16,7 +16,7 @@ and cost codes.
 | [FOR-358](https://codefoundry.atlassian.net/browse/FOR-358) | Layout        | Responsive layout for 13–14" laptop screens             | ⬜     |
 | [FOR-359](https://codefoundry.atlassian.net/browse/FOR-359) | Layout        | Freeze table header row on scroll                       | ⬜     |
 | [FOR-360](https://codefoundry.atlassian.net/browse/FOR-360) | Layout        | Horizontal scrollbar on wide tables                     | ⬜     |
-| [FOR-361](https://codefoundry.atlassian.net/browse/FOR-361) | Catalogue     | Material images carry over from catalogue to RFQ        | ⬜     |
+| [FOR-361](https://codefoundry.atlassian.net/browse/FOR-361) | Catalogue     | Material images carry over from catalogue to RFQ        | ✅     |
 | [FOR-362](https://codefoundry.atlassian.net/browse/FOR-362) | Catalogue     | Editable material categories                            | ⬜     |
 | [FOR-363](https://codefoundry.atlassian.net/browse/FOR-363) | Catalogue     | Rename "Public" tab to "Global Materials"               | ✅     |
 | [FOR-364](https://codefoundry.atlassian.net/browse/FOR-364) | RFQ           | One "needed by" date/time that fills in every line item | ⬜     |
@@ -52,7 +52,15 @@ and cost codes.
 
 - **Client ask:** Images on catalogue materials don't show up on the RFQ, so suppliers lose context.
 - **Expected:** RFQ lines show the material image on both the buyer and vendor views.
-- **Resolution:** _TBD_
+- **Resolution:** RFQ lines now show the catalogue image next to the material name. It appears on
+  the buyer line-items tab (panel and page), the vendor's signed-in RFQ view, and the vendor quote
+  table, both signed-in and on the guest invitation link. Clicking the thumbnail opens the full
+  image in a new tab. Lines without a catalogue material, materials with no image, and image URLs
+  that fail to load show nothing. The requested image is also hidden once the vendor picks a
+  substitute. **Decision:** the image is read live through the line's material link rather than
+  copied onto the line, so no migration was needed and a corrected catalogue image reaches open
+  RFQs. Not covered here: RFQ emails and PDF exports. Shared component: `MaterialImageThumb` in
+  `@forethread/rfq-shared`.
 
 ### FOR-362 — Editable material categories
 

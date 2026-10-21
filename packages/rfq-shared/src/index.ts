@@ -60,6 +60,7 @@ export {
   TableManagementModal,
   DEFAULT_COLUMN_VISIBILITY,
   RfqLineItemsTab,
+  MaterialImageThumb,
   RfqDocumentsTab,
   DocumentRow,
   ToolbarIconButton,

@@ -301,6 +301,7 @@
     "edit": "Edit",
     "lineItemId": "Line Item ID",
     "materialName": "Material Name",
+    "viewImage": "View image of {{name}}",
     "description": "Description",
     "qty": "Qty",
     "uom": "UoM",

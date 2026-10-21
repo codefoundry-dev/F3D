@@ -901,9 +901,18 @@ describe('RfqsService', () => {
           {
             id: 'li-1',
             materialId: 'mat-steel-1',
-            material: { name: 'Steel' },
+            material: { name: 'Steel', imageUrl: 'https://img/steel.png' },
             quantity: 100,
             unit: 'tonnes',
+            description: null,
+          },
+          {
+            id: 'li-2',
+            materialId: null,
+            materialName: 'Bolts',
+            material: null,
+            quantity: 10,
+            unit: 'ea',
             description: null,
           },
         ],
@@ -926,7 +935,9 @@ describe('RfqsService', () => {
       const result = await service.getRfq('rfq-1', companyAdmin);
       expect(result.id).toBe('rfq-1');
       expect(result.projectName).toBe('Alpha');
-      expect(result.lineItems).toHaveLength(1);
+      expect(result.lineItems).toHaveLength(2);
+      // FOR-361: catalogue image read through the material link; null for free text.
+      expect(result.lineItems.map((li) => li.imageUrl)).toEqual(['https://img/steel.png', null]);
       expect(result.quoteResponses).toHaveLength(1);
       expect(result.quoteResponses[0].vendorName).toBe('VendorCo');
     });

@@ -51,6 +51,7 @@ const makeItem = (overrides: Partial<LineItemFormState> = {}): LineItemFormState
   included: true,
   materialName: 'Cement',
   materialId: null,
+  imageUrl: null,
   unit: 'kg',
   requestedQty: 100,
   availQty: '50',

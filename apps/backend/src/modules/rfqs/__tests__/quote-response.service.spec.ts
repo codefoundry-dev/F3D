@@ -754,6 +754,36 @@ describe('QuoteResponseService', () => {
       expect(result.lineItems[0].materialName).toBe('Steel');
     });
 
+    it('carries the catalogue image on each line, null when absent (FOR-361)', async () => {
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue({
+        ...baseRfqVendor,
+        rfq: {
+          ...baseRfqVendor.rfq,
+          lineItems: [
+            {
+              ...baseRfqVendor.rfq.lineItems[0],
+              material: {
+                id: 'mat-1',
+                name: 'Steel',
+                uom: 'KG',
+                imageUrl: 'https://img/steel.png',
+              },
+            },
+            {
+              ...baseRfqVendor.rfq.lineItems[0],
+              id: 'li-2',
+              material: null,
+              materialName: 'Bolts',
+            },
+          ],
+        },
+      });
+
+      const result = await service.getGuestRfq('valid-token');
+
+      expect(result.lineItems.map((li) => li.imageUrl)).toEqual(['https://img/steel.png', null]);
+    });
+
     it('should return null projectName when project is null', async () => {
       mockPrisma.rfqVendor.findUnique.mockResolvedValue({
         ...baseRfqVendor,
