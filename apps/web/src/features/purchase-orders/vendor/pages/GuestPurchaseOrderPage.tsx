@@ -22,6 +22,7 @@ import {
   Button,
   getStatusColor,
   notificationService,
+  MobileActionBarSlot,
   PageActions,
   PO_STATUS_COLORS,
   Spinner,
@@ -166,7 +167,7 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
   return (
     <div className="flex flex-col min-h-screen bg-background">
       {/* ═══ Header ═══ */}
-      <header className="border-b border-border bg-card px-6 py-4">
+      <header className="border-b border-border bg-card px-4 py-4 md:px-6">
         <div className="max-w-[1400px] mx-auto flex items-center justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
@@ -234,12 +235,12 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
 
       {/* ═══ Action band (FOR-247) — acknowledge / accept / decline via the token ═══ */}
       {isActionable ? (
-        <div className="px-6 pt-4 max-w-[1400px] mx-auto w-full">
+        <div className="px-4 pt-4 max-w-[1400px] mx-auto w-full md:px-6">
           <PoVendorActions po={po} token={token} />
         </div>
       ) : (
         /* ═══ Read-only info banner (terminal / non-actionable statuses) ═══ */
-        <div className="px-6 pt-4 max-w-[1400px] mx-auto w-full">
+        <div className="px-4 pt-4 max-w-[1400px] mx-auto w-full md:px-6">
           <Alert variant="info" icon={<InfoIcon className="w-4 h-4" />}>
             {t('guest.infoBanner')}
           </Alert>
@@ -247,7 +248,7 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
       )}
 
       {/* ═══ PO content ═══ */}
-      <div className="flex-1 px-6 py-4 max-w-[1400px] mx-auto w-full space-y-4">
+      <div className="flex-1 px-4 py-4 max-w-[1400px] mx-auto w-full space-y-4 md:px-6">
         <PoDetailTabs activeTab={effectiveTab} onTabChange={setActiveTab} tabs={guestTabs} />
         {effectiveTab === 'details' && <PoDetailsTab po={po} layout="page" isVendorView />}
         {effectiveTab === 'changeRequest' && pendingCr && (
@@ -262,6 +263,10 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
           <PoLineItemsTab lineItems={po.lineItems ?? []} layout="page" readOnly />
         )}
       </div>
+
+      {/* No app shell here: the footer bar (B7) portals to the end of the page so
+          its spacer doesn't open a gap mid-content. */}
+      <MobileActionBarSlot className="md:hidden" />
 
       {showCancelModal && (
         <PoCancelRequestModal

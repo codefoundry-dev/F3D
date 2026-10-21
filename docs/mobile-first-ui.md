@@ -238,7 +238,7 @@ the grid's own form state, so Save only closes the sheet. Tests:
 `DashboardItemCard` actions wrap full-width below the title on phones; toasts sit above the bottom
 nav and footer bar (`Toaster mobileOffset`).
 
-**As built (RFQ create, PO wizard, BOM edit):**
+**As built (RFQ create, PO wizard, BOM edit, guest change request):**
 
 - **Component:** `LineItemEditor` / `LineItemSheet` / `LineItemField<T>` in ui-components. Pages
   switch on `useIsPhone()` and don't mount the table on phones, so each input mounts once.
@@ -255,6 +255,9 @@ nav and footer bar (`Toaster mobileOffset`).
   option, so it shows in the dropdown instead of the placeholder (desktop too).
 - **BOM edit + upload review** (`BomReviewStep`): `bomFields` drives both the table cells and the
   phone cards/sheet. Unmatched lines are flagged on the card in the create wizard.
+- **Guest change request** (`/po/:token/change-request`, `GuestChangeRequestPage`): it doesn't use
+  `CreatePoWizard` (guest-safe lean form), so its five editable line fields became `lineFields` for
+  the table and the sheet. Back / Submit move to the footer bar.
 
 **As built (vendor quote + invoice review):**
 
@@ -273,7 +276,7 @@ nav and footer bar (`Toaster mobileOffset`).
 | Flow                                  | Status |
 | ------------------------------------- | ------ |
 | Vendor guest quote response (FOR-377) | ✅     |
-| Guest PO portal (FOR-378)             | ⬜     |
+| Guest PO portal (FOR-378)             | ✅     |
 | Approvals (FOR-379)                   | ⬜     |
 | Delivery + QR page (FOR-380)          | ⬜     |
 | Foreman MR check (FOR-380)            | ⬜     |

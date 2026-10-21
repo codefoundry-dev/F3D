@@ -64,6 +64,7 @@ vi.mock('@forethread/po-shared', () => ({
 vi.mock('@forethread/ui-components', () => ({
   // B7 (FOR-373): desktop layout in tests; PageActions renders its actions inline.
   useIsPhone: () => false,
+  MobileActionBarSlot: () => null,
   useHideMobileNav: () => {},
   MobileActionBar: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   PageActions: ({

@@ -55,6 +55,12 @@ vi.mock('@forethread/po-shared', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  // B7/B10: desktop layout in tests.
+  useIsPhone: () => false,
+  useHideMobileNav: () => {},
+  LineItemEditor: () => null,
+  MobileActionBar: () => null,
+  MobileActionBarSlot: () => null,
   ScrollTable: ({ children }: { children: JSX.Element }) => children,
   todayIso: () => new Date().toISOString().slice(0, 10),
   Button: ({
