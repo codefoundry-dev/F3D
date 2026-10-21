@@ -74,6 +74,7 @@ export function getSidebarItemsForRole(
     {
       icon: <UsersManagementIcon className="w-6 h-6" />,
       label: labels.usersManagement,
+      shortLabel: labels.usersManagementShort,
       href: ROUTES.users,
       roles: SUPER_ADMIN_ONLY,
       matchPathname: (p) => p === ROUTES.users || p.startsWith(ROUTES.users + '/'),
@@ -87,24 +88,28 @@ export function getSidebarItemsForRole(
     {
       icon: <RequestIcon className="w-6 h-6" />,
       label: labels.materialRequests,
+      shortLabel: labels.materialRequestsShort,
       href: ROUTES.materialRequests,
       roles: MATERIAL_REQUEST_VIEWERS,
     },
     {
       icon: <RequestIcon className="w-6 h-6" />,
       label: labels.rfqs,
+      shortLabel: labels.rfqsShort,
       href: ROUTES.rfqs,
       roles: RFQ_VIEWERS,
     },
     {
       icon: <PurchaseOrdersIcon className="w-6 h-6" />,
       label: labels.purchaseOrders,
+      shortLabel: labels.purchaseOrdersShort,
       href: ROUTES.purchaseOrders,
       roles: PO_VIEWERS,
     },
     {
       icon: <BulkOrdersIcon className="w-6 h-6" />,
       label: labels.bulkOrders,
+      shortLabel: labels.bulkOrdersShort,
       href: ROUTES.bulkOrders,
       roles: BULK_VIEWERS,
     },
@@ -129,6 +134,7 @@ export function getSidebarItemsForRole(
     {
       icon: <MaterialCatalogueIcon className="w-6 h-6" />,
       label: labels.materialCatalogue,
+      shortLabel: labels.materialCatalogueShort,
       href: ROUTES.materialCatalogue,
       roles: CATALOGUE_VIEWERS,
     },
@@ -151,4 +157,24 @@ export function getSidebarItemsForRole(
       ...rest,
       isActive: matchPathname ? matchPathname(pathname) : pathname.startsWith(rest.href),
     }));
+}
+
+/**
+ * Phone bottom bar (ADR-0019 / FOR-369): each role's main sections, in bar
+ * order. Only used when the role has more than 4 sidebar items — the rest go
+ * in "More". Roles with ≤4 items show them all and need no entry here.
+ */
+const MOBILE_PRIMARY_HREFS: Partial<Record<UserRole, readonly string[]>> = {
+  [UserRole.COMPANY_ADMIN]: [ROUTES.rfqs, ROUTES.purchaseOrders, ROUTES.invoices, ROUTES.projects],
+  [UserRole.PROCUREMENT_OFFICER]: [
+    ROUTES.rfqs,
+    ROUTES.purchaseOrders,
+    ROUTES.invoices,
+    ROUTES.projects,
+  ],
+  [UserRole.VENDOR]: [ROUTES.rfqs, ROUTES.purchaseOrders, ROUTES.invoices, ROUTES.bulkOrders],
+};
+
+export function getMobilePrimaryHrefs(role: UserRole | null): readonly string[] {
+  return (role ? MOBILE_PRIMARY_HREFS[role] : undefined) ?? [];
 }

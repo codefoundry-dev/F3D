@@ -41,12 +41,12 @@ tracker.
 
 | #   | Block                                | Where                                              | Status |
 | --- | ------------------------------------ | -------------------------------------------------- | ------ |
-| B1  | Phone breakpoint = `md` (FOR-368)    | `Modal`, `GridModal`, two local modals             | ⬜     |
-| B2  | Phone top bar (FOR-369)              | `AppLayout`                                        | ⬜     |
-| B3  | Bottom nav: 4 + More (FOR-369)       | `Sidebar` (mobile nav), `sidebarConfig`            | ⬜     |
-| B4  | Tab strip edge fade (FOR-370)        | `ui-components/Tabs`                               | ⬜     |
+| B1  | Phone breakpoint = `md` (FOR-368)    | `Modal`, `GridModal`, two local modals             | ✅     |
+| B2  | Phone top bar (FOR-369)              | `AppLayout`                                        | ✅     |
+| B3  | Bottom nav: 4 + More (FOR-369)       | `Sidebar` (mobile nav), `sidebarConfig`            | ✅     |
+| B4  | Tab strip edge fade (FOR-370)        | `ui-components/Tabs`                               | ✅     |
 | B5  | Table scroll + pin + fade (FOR-371)  | shared table styles and wrappers (closes FOR-360)  | ⬜     |
-| B6  | Bottom-sheet modals (FOR-372)        | `Modal` (no wider than 560px becomes a sheet)      | ⬜     |
+| B6  | Bottom-sheet modals (FOR-372)        | `Modal` (no wider than 560px becomes a sheet)      | ✅     |
 | B7  | Fixed footer bar (FOR-373)           | new `MobileActionBar` in ui-components             | ⬜     |
 | B8  | Compact wizard stepper (FOR-374)     | shared stepper + hide bottom nav during wizards    | ⬜     |
 | B9  | Compact list toolbar + FAB (FOR-375) | RFQ/PO list toolbar (shared), then the other lists | ⬜     |
@@ -68,7 +68,7 @@ than 4 sections. More opens a bottom sheet listing every other section, plus Pro
 | Company Admin / Procurement | RFQs, POs, Invoices, Projects          |
 | Financial Officer           | Invoices, Deliveries                   |
 | Warehouse Officer           | Deliveries, Material Requests          |
-| Foreman                     | Material Requests, Projects            |
+| Foreman                     | Material Requests (their only section) |
 | Vendor                      | RFQs, POs, Invoices, Bulk Orders       |
 | Super Admin                 | Admin panel, Users, Material Catalogue |
 

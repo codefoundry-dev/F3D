@@ -42,5 +42,13 @@
   "adminPanel": "Administration Panel",
   "adminPanelSubtitle": "Monitor external integrations, background jobs, and notification delivery.",
   "adminPanelNav": "Admin panel",
-  "usersManagement": "Users management"
+  "usersManagement": "Users management",
+  "more": "More",
+  "account": "Account",
+  "rfqsShort": "RFQs",
+  "purchaseOrdersShort": "POs",
+  "materialRequestsShort": "Requests",
+  "materialCatalogueShort": "Catalogue",
+  "usersManagementShort": "Users",
+  "bulkOrdersShort": "Bulk orders"
 }

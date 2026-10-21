@@ -171,6 +171,7 @@ export type { Theme, ThemeProviderProps } from './components/ThemeProvider';
 
 export { Sidebar } from './components/Sidebar';
 export type { SidebarProps, SidebarNavItem } from './components/Sidebar';
+export { splitMobileNav, MOBILE_BAR_SLOTS } from './components/Sidebar';
 
 export { PageHeader } from './components/PageHeader';
 export type { PageHeaderProps } from './components/PageHeader';
