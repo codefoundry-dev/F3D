@@ -1,6 +1,6 @@
 import { searchAddresses } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Stepper } from '@forethread/po-shared';
+import { Stepper, scrollToFirstInvalid, useWizardChrome } from '@forethread/po-shared';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import {
   createProjectSchema,
@@ -18,6 +18,8 @@ import {
   Button,
   Alert,
   AvatarWithStatus,
+  MobileActionBar,
+  useIsPhone,
   cn,
   DatePicker,
   onDecimalOnly,
@@ -124,8 +126,17 @@ export default function CreateProjectPage() {
     watch,
     setValue,
     trigger,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = form;
+
+  // Phones (ADR-0019 B8): no bottom nav, the back arrow confirms unsaved
+  // changes, and Cancel / Continue move into the fixed footer bar.
+  const isPhone = useIsPhone();
+  const exitToList = () => navigate(ROUTES.projects);
+  const { exitConfirm } = useWizardChrome({
+    isDirty: (isDirty || stagedFiles.length > 0) && !createMutation.isSuccess,
+    onExit: exitToList,
+  });
 
   const { fields: locationFields, append, remove } = useFieldArray({ control, name: 'locations' });
 
@@ -235,6 +246,7 @@ export default function CreateProjectPage() {
     // captured at render) so the toast reflects the trigger that just ran.
     setBlockedByValidation(true);
     toastInvalidFields(pickErrors(form.formState.errors, fields));
+    scrollToFirstInvalid();
   };
 
   // Step 3 renders no inputs of its own, so a validation failure here would
@@ -245,6 +257,7 @@ export default function CreateProjectPage() {
     setStep(failed.some((f) => STEP_FIELDS[1].includes(f)) ? 1 : 2);
     setBlockedByValidation(true);
     toastInvalidFields(formErrors);
+    scrollToFirstInvalid();
   };
 
   const submit = () => {
@@ -256,6 +269,28 @@ export default function CreateProjectPage() {
     createMutation.isError &&
     isAxiosError(createMutation.error) &&
     createMutation.error.response?.status === 409;
+
+  const cancelButton = (
+    <Button
+      type="button"
+      variant="outline"
+      size="lg"
+      leftIcon={<span className="text-base leading-none">✕</span>}
+      onClick={exitToList}
+    >
+      {t('create.cancel')}
+    </Button>
+  );
+  const nextButton =
+    step < 3 ? (
+      <Button type="button" size="lg" onClick={() => void goNext()}>
+        {t('create.continue')}
+      </Button>
+    ) : (
+      <Button type="button" size="lg" isLoading={createMutation.isPending} onClick={submit}>
+        {createMutation.isPending ? t('create.creating') : t('create.createProject')}
+      </Button>
+    );
 
   const stepHeading = t(`create.step${step}Heading`);
   const stepSubtext = t(`create.step${step}Subtext`);
@@ -338,32 +373,24 @@ export default function CreateProjectPage() {
         )}
 
         {/* Footer */}
-        <div className="mt-8 flex items-center justify-between">
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            leftIcon={<span className="text-base leading-none">✕</span>}
-            onClick={() => navigate(ROUTES.projects)}
-          >
-            {t('create.cancel')}
-          </Button>
-
-          {step < 3 ? (
-            <Button type="button" size="lg" onClick={() => void goNext()}>
-              {t('create.continue')}
-            </Button>
-          ) : (
-            <Button type="button" size="lg" isLoading={createMutation.isPending} onClick={submit}>
-              {createMutation.isPending ? t('create.creating') : t('create.createProject')}
-            </Button>
-          )}
-        </div>
+        {isPhone ? (
+          <MobileActionBar>
+            {cancelButton}
+            {nextButton}
+          </MobileActionBar>
+        ) : (
+          <div className="mt-8 flex items-center justify-between">
+            {cancelButton}
+            {nextButton}
+          </div>
+        )}
 
         {errors.assignedUserIds && step === 1 && (
           <p className="mt-2 text-xs text-destructive">{errors.assignedUserIds.message}</p>
         )}
       </form>
+
+      {exitConfirm}
     </div>
   );
 }

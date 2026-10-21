@@ -32,6 +32,8 @@ vi.mock('@forethread/rfq-shared', () => ({
 }));
 
 vi.mock('@forethread/po-shared', () => ({
+  scrollToFirstInvalid: () => {},
+  useWizardChrome: () => ({ exitConfirm: null, requestExit: () => {} }),
   Stepper: ({ step }: any) => <div data-testid="stepper">step-{step}</div>,
 }));
 
@@ -44,6 +46,13 @@ vi.mock('@forethread/api-client', () => ({ searchAddresses: vi.fn() }));
 vi.mock('@forethread/ui-components', async () => {
   const { forwardRef } = await import('react');
   return {
+    // ADR-0019 B8 phone chrome: desktop in tests.
+    useIsPhone: () => false,
+    useHideMobileNav: () => {},
+    useMobileExitHandler: () => {},
+    MobileActionBar: () => null,
+    CompactStepper: () => null,
+    ConfirmDialog: () => null,
     todayIso: () => new Date().toISOString().slice(0, 10),
     Input: forwardRef((props: any, ref: any) => <input ref={ref} {...props} />),
     AddressInput: (props: any) => (

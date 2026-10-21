@@ -55,6 +55,8 @@ vi.mock('@forethread/i18n', () => ({
 vi.mock('@forethread/api-client', () => mockApi);
 
 vi.mock('@forethread/po-shared', () => ({
+  scrollToFirstInvalid: () => {},
+  useWizardChrome: () => ({ exitConfirm: null, requestExit: () => {} }),
   Stepper: ({ step, labels }: { step: number; labels: string[] }) => (
     <div data-testid="stepper">
       {labels.join('|')} (step {step})

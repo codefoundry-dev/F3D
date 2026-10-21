@@ -1,6 +1,6 @@
 import { confirmDocExtraction, listSpreadsheetSheets } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Stepper } from '@forethread/po-shared';
+import { Stepper, useWizardChrome } from '@forethread/po-shared';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { isBomExtractionResult, type BomExtractionResult } from '@forethread/shared-types/client';
 import {
@@ -11,6 +11,8 @@ import {
   RadioButton,
   Spinner,
   notificationService,
+  MobileActionBar,
+  useIsPhone,
 } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
@@ -129,6 +131,14 @@ export default function CreateBomPage() {
     () => navigate(`${ROUTES.projectDetail.replace(':id', routeProjectId ?? '')}?tab=bom`),
     [navigate, routeProjectId],
   );
+
+  // Phones (ADR-0019 B8): no bottom nav, the back arrow confirms before
+  // dropping a picked file / extracted rows, and the footer moves to the bar.
+  const isPhone = useIsPhone();
+  const { exitConfirm } = useWizardChrome({
+    isDirty: (file !== null || rows.length > 0) && createdProjectName === null,
+    onExit: exitToProject,
+  });
 
   // App-bar breadcrumb: Bill of Materials (BOM) › Create BOM.
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
@@ -430,12 +440,13 @@ export default function CreateBomPage() {
   // ── Footer ────────────────────────────────────────────────────────────────
 
   const showFooter = phase === 'idle';
-  const footer = (
-    <div className="flex items-center justify-between mt-10">
-      <Button variant="outline" size="lg" className="h-12 text-sm" onClick={exitToProject}>
-        {t('create.cancel')}
-      </Button>
-
+  const cancelButton = (
+    <Button variant="outline" size="lg" className="h-12 text-sm" onClick={exitToProject}>
+      {t('create.cancel')}
+    </Button>
+  );
+  const primaryButton = (
+    <>
       {step === 1 && (
         <Button
           size="lg"
@@ -474,6 +485,17 @@ export default function CreateBomPage() {
           {t('create.createBom')}
         </Button>
       )}
+    </>
+  );
+  const footer = isPhone ? (
+    <MobileActionBar>
+      {cancelButton}
+      {primaryButton}
+    </MobileActionBar>
+  ) : (
+    <div className="flex items-center justify-between mt-10">
+      {cancelButton}
+      {primaryButton}
     </div>
   );
 
@@ -495,6 +517,8 @@ export default function CreateBomPage() {
 
         {showFooter && footer}
       </div>
+
+      {exitConfirm}
 
       {createdProjectName !== null && (
         <GridModal

@@ -1,5 +1,6 @@
 import { queryKeys, type MaterialDuplicateMatch } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { useWizardChrome } from '@forethread/po-shared';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { type CatalogueLineItem } from '@forethread/shared-types/client';
 import {
@@ -9,6 +10,8 @@ import {
   notificationService,
   TablePagination,
   ScrollTable,
+  MobileActionBar,
+  useIsPhone,
 } from '@forethread/ui-components';
 import CopyIcon from '@forethread/ui-components/assets/icons/copy.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
@@ -425,6 +428,12 @@ export default function UploadMaterialFilePage() {
   const isFailed = job?.status === 'FAILED';
   const isImporting = persisting || importMutation.isPending;
 
+  // Phones (ADR-0019 B8): no bottom nav, the back arrow confirms before
+  // dropping a picked file / extraction, and the header actions move into the
+  // fixed footer bar.
+  const isPhone = useIsPhone();
+  const { exitConfirm } = useWizardChrome({ isDirty: file !== null, onExit: cancel });
+
   const steps = [
     { label: t('upload.steps.upload'), icon: <UploadSimpleIcon className="size-[18px]" /> },
     { label: t('upload.steps.map'), icon: <GitDiffIcon className="size-[18px]" /> },
@@ -444,56 +453,63 @@ export default function UploadMaterialFilePage() {
     />
   );
 
+  const headerActions = (
+    <>
+      <Button variant="outline" onClick={cancel} data-testid="upload-cancel">
+        {t('upload.cancel')}
+      </Button>
+      {step === 1 && (
+        <Button
+          rightIcon={<PlusCircleIcon className="size-[18px]" />}
+          disabled={!file || isProcessing}
+          isLoading={isProcessing}
+          onClick={onProceed}
+          data-testid="upload-proceed"
+        >
+          {isProcessing
+            ? isUploading
+              ? t('upload.step1.uploading')
+              : t('upload.step1.processing')
+            : t('upload.step1.proceed')}
+        </Button>
+      )}
+      {step === 2 && (
+        <Button
+          rightIcon={<ArrowCircleRightIcon className="size-[18px]" />}
+          disabled={total === 0}
+          onClick={() => setStep(3)}
+          data-testid="upload-continue"
+        >
+          {t('upload.step2.continue')}
+        </Button>
+      )}
+      {step === 3 && (
+        <Button
+          rightIcon={<PlusCircleIcon className="size-[18px]" />}
+          disabled={total === 0 || isImporting}
+          isLoading={isImporting}
+          onClick={() => void onAddMaterials()}
+          data-testid="upload-add"
+        >
+          {isImporting ? t('upload.step3.adding') : t('upload.step3.add')}
+        </Button>
+      )}
+    </>
+  );
+
   return (
-    <div className="p-8" data-testid="upload-material-page">
+    <div className="p-4 md:p-8" data-testid="upload-material-page">
       {/* ── Header ────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      {/* Phones show the title in the top bar instead. */}
+      <div className="hidden flex-wrap items-center justify-between gap-4 md:flex">
         <div className="flex items-center gap-2.5">
           <FolderIcon className="size-5 text-muted-foreground" />
           <h1 className="text-2xl font-semibold text-foreground">{t('upload.title')}</h1>
         </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={cancel} data-testid="upload-cancel">
-            {t('upload.cancel')}
-          </Button>
-          {step === 1 && (
-            <Button
-              rightIcon={<PlusCircleIcon className="size-[18px]" />}
-              disabled={!file || isProcessing}
-              isLoading={isProcessing}
-              onClick={onProceed}
-              data-testid="upload-proceed"
-            >
-              {isProcessing
-                ? isUploading
-                  ? t('upload.step1.uploading')
-                  : t('upload.step1.processing')
-                : t('upload.step1.proceed')}
-            </Button>
-          )}
-          {step === 2 && (
-            <Button
-              rightIcon={<ArrowCircleRightIcon className="size-[18px]" />}
-              disabled={total === 0}
-              onClick={() => setStep(3)}
-              data-testid="upload-continue"
-            >
-              {t('upload.step2.continue')}
-            </Button>
-          )}
-          {step === 3 && (
-            <Button
-              rightIcon={<PlusCircleIcon className="size-[18px]" />}
-              disabled={total === 0 || isImporting}
-              isLoading={isImporting}
-              onClick={() => void onAddMaterials()}
-              data-testid="upload-add"
-            >
-              {isImporting ? t('upload.step3.adding') : t('upload.step3.add')}
-            </Button>
-          )}
-        </div>
+        {!isPhone && <div className="flex items-center gap-3">{headerActions}</div>}
       </div>
+
+      {isPhone && <MobileActionBar>{headerActions}</MobileActionBar>}
 
       {/* ── Stepper ───────────────────────────────────────────────────── */}
       <div className="mt-6">
@@ -550,6 +566,8 @@ export default function UploadMaterialFilePage() {
           />
         )}
       </div>
+
+      {exitConfirm}
     </div>
   );
 }

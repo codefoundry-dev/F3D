@@ -1,7 +1,14 @@
 import { useTranslation } from '@forethread/i18n';
+import { scrollToFirstInvalid, useWizardChrome } from '@forethread/po-shared';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { materialFormSchema, type MaterialFormValues } from '@forethread/shared-types/client';
-import { Button, buttonVariants, notificationService } from '@forethread/ui-components';
+import {
+  Button,
+  MobileActionBar,
+  buttonVariants,
+  notificationService,
+  useIsPhone,
+} from '@forethread/ui-components';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useState } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
@@ -58,6 +65,15 @@ export default function CreateMaterialPage() {
     mode: 'onBlur',
   });
 
+  // Phones (ADR-0019 B8): no bottom nav, the back arrow confirms unsaved
+  // changes, and the header actions move into the fixed footer bar (with Back,
+  // since the compact stepper can't be tapped to jump back).
+  const isPhone = useIsPhone();
+  const { exitConfirm } = useWizardChrome({
+    isDirty: methods.formState.isDirty && !createMutation.isSuccess,
+    onExit: () => navigate(ROUTES.materialCatalogue),
+  });
+
   const steps = [
     { label: t('create.steps.core'), icon: <InfoIcon className="size-[18px]" /> },
     { label: t('create.steps.details'), icon: <CubeIcon className="size-[18px]" /> },
@@ -67,7 +83,10 @@ export default function CreateMaterialPage() {
   const goToContinue = async () => {
     if (step === 1) {
       const valid = await methods.trigger([...STEP1_FIELDS]);
-      if (!valid) return;
+      if (!valid) {
+        scrollToFirstInvalid();
+        return;
+      }
       setStep(2);
       return;
     }
@@ -90,44 +109,71 @@ export default function CreateMaterialPage() {
     });
   };
 
+  const cancelLink = (
+    <Link
+      to={ROUTES.materialCatalogue}
+      className={buttonVariants({ variant: 'outline' })}
+      data-testid="create-material-cancel"
+    >
+      {t('form.cancel')}
+    </Link>
+  );
+  const nextButton =
+    step < 3 ? (
+      <Button
+        type="button"
+        rightIcon={<ArrowCircleRightIcon className="size-[18px]" />}
+        onClick={() => void goToContinue()}
+        data-testid="create-material-continue"
+      >
+        {t('create.continue')}
+      </Button>
+    ) : (
+      <Button
+        type="button"
+        rightIcon={<PlusCircleIcon className="size-[18px]" />}
+        isLoading={createMutation.isPending}
+        onClick={() => void methods.handleSubmit(handleCreate)()}
+        data-testid="create-material-submit"
+      >
+        {createMutation.isPending ? t('create.submitting') : t('create.submit')}
+      </Button>
+    );
+
   return (
-    <div className="p-8" data-testid="create-material-page">
+    <div className="p-4 md:p-8" data-testid="create-material-page">
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      {/* Phones show the title in the top bar instead. */}
+      <div className="hidden flex-wrap items-center justify-between gap-4 md:flex">
         <div className="flex items-center gap-2.5">
           <FolderIcon className="size-5 text-muted-foreground" />
           <h1 className="text-2xl font-semibold text-foreground">{t('create.title')}</h1>
         </div>
-        <div className="flex items-center gap-3">
-          <Link
-            to={ROUTES.materialCatalogue}
-            className={buttonVariants({ variant: 'outline' })}
-            data-testid="create-material-cancel"
-          >
-            {t('form.cancel')}
-          </Link>
-          {step < 3 ? (
+        {!isPhone && (
+          <div className="flex items-center gap-3">
+            {cancelLink}
+            {nextButton}
+          </div>
+        )}
+      </div>
+
+      {isPhone && (
+        <MobileActionBar>
+          {step > 1 ? (
             <Button
               type="button"
-              rightIcon={<ArrowCircleRightIcon className="size-[18px]" />}
-              onClick={() => void goToContinue()}
-              data-testid="create-material-continue"
+              variant="outline"
+              onClick={() => setStep((step - 1) as 1 | 2)}
+              data-testid="create-material-back"
             >
-              {t('create.continue')}
+              {t('create.back', { defaultValue: 'Back' })}
             </Button>
           ) : (
-            <Button
-              type="button"
-              rightIcon={<PlusCircleIcon className="size-[18px]" />}
-              isLoading={createMutation.isPending}
-              onClick={() => void methods.handleSubmit(handleCreate)()}
-              data-testid="create-material-submit"
-            >
-              {createMutation.isPending ? t('create.submitting') : t('create.submit')}
-            </Button>
+            cancelLink
           )}
-        </div>
-      </div>
+          {nextButton}
+        </MobileActionBar>
+      )}
 
       {/* ── Stepper ────────────────────────────────────────────────── */}
       <div className="mt-6">
@@ -161,6 +207,8 @@ export default function CreateMaterialPage() {
           )}
         </form>
       </FormProvider>
+
+      {exitConfirm}
     </div>
   );
 }

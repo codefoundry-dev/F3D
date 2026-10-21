@@ -15,6 +15,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 
 import { PoSourceOfCreation, PoType } from '@forethread/shared-types/client';
 
+import { scrollToFirstInvalid } from '../components/wizard-chrome';
 import { computePoChangedFields, deriveChangeType, hasAnyChange } from '../utils/change-diff';
 
 import {
@@ -157,6 +158,7 @@ export function usePoWizardForm({
     if (step === 1) {
       const valid = await form.trigger([...STEP1_FIELDS]);
       if (valid) setStep(2);
+      else scrollToFirstInvalid();
     } else if (step === 2) {
       // Check that at least one filled line item exists (ignore trailing empty row)
       const items = form.getValues('lineItems') ?? [];
@@ -192,6 +194,7 @@ export function usePoWizardForm({
         }
       }
       if (allValid) setStep(3);
+      else scrollToFirstInvalid();
     }
   }, [step, form, noLineItemsMsg, creationMode, drawdownExceedsMsg]);
 

@@ -1,4 +1,4 @@
-import { cn } from '@forethread/ui-components';
+import { CompactStepper, cn, useIsPhone } from '@forethread/ui-components';
 import CheckmarkIcon from '@forethread/ui-components/assets/icons/checkmark.svg?react';
 import { Fragment } from 'react';
 
@@ -31,6 +31,18 @@ const labelStyles: Record<StepState, string> = {
 };
 
 export function StepProgress({ steps, current }: StepProgressProps) {
+  const isPhone = useIsPhone();
+  // Phones: one line + progress bar instead of the badges (ADR-0019 B8).
+  if (isPhone) {
+    return (
+      <CompactStepper
+        current={current}
+        total={steps.length}
+        label={steps[current - 1] ?? ''}
+        className="mb-6"
+      />
+    );
+  }
   return (
     <div
       className="mb-6 flex w-full items-center overflow-x-auto rounded-[18px] border border-[#e8eaed] bg-[#f9f9fa] p-2"

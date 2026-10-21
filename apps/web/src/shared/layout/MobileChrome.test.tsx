@@ -1,13 +1,16 @@
 import {
+  CompactStepper,
   MobileActionBarSlot,
   MobileHeaderActionsSlot,
   PageActions,
+  Sidebar,
   __resetMobileChrome,
+  useHideMobileNav,
 } from '@forethread/ui-components';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// ADR-0019 B7 (FOR-373): phone-only chrome driven by useIsPhone, so
+// ADR-0019 B7–B8 (FOR-373/374): phone-only chrome driven by useIsPhone, so
 // these tests flip window.matchMedia to a phone viewport.
 const realMatchMedia = window.matchMedia;
 
@@ -84,5 +87,39 @@ describe('PageActions (B7)', () => {
     expect(screen.getByTestId('mobile-header-slot')).toContainElement(
       screen.getByRole('button', { name: 'More actions' }),
     );
+  });
+});
+
+describe('useHideMobileNav (B8)', () => {
+  function Wizard() {
+    useHideMobileNav();
+    return null;
+  }
+
+  it('hides the phone bottom nav while a wizard is mounted', () => {
+    setPhone(true);
+    const items = [{ icon: <span />, label: 'RFQs', href: '/rfqs', isActive: true }];
+    const { rerender } = render(<Sidebar items={items} onNavigate={() => {}} />);
+    const nav = () => screen.getByRole('navigation', { name: 'Primary', hidden: true });
+    expect(nav()).toHaveClass('flex');
+
+    rerender(
+      <>
+        <Sidebar items={items} onNavigate={() => {}} />
+        <Wizard />
+      </>,
+    );
+    expect(nav()).toHaveClass('hidden');
+
+    act(() => rerender(<Sidebar items={items} onNavigate={() => {}} />));
+    expect(nav()).toHaveClass('flex');
+  });
+});
+
+describe('CompactStepper (B8)', () => {
+  it('reads "Step n of N · label" with a progress bar', () => {
+    render(<CompactStepper current={2} total={3} label="Add line items" />);
+    expect(screen.getByTestId('compact-stepper')).toHaveTextContent('Step 2 of 3 · Add line items');
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '2');
   });
 });

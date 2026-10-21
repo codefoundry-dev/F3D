@@ -4,6 +4,7 @@ import ArrowRightIcon from '../assets/icons/arrow-right.svg?react';
 import OpenSidebarIcon from '../assets/icons/open-sidebar.svg?react';
 import { cn } from '../utils/cn';
 
+import { useMobileNavHidden } from './MobileChrome';
 import { Modal } from './Modal';
 import { Tooltip } from './Tooltip';
 
@@ -124,6 +125,8 @@ export function Sidebar({
     onMoreOpenChange?.(open);
   };
   const { bar, more } = splitMobileNav(items, mobilePrimaryHrefs);
+  // Wizards hide the phone bottom nav while open (ADR-0019 B8).
+  const navHidden = useMobileNavHidden();
   const moreActive = more.some((i) => i.isActive);
 
   const toggle = useCallback(
@@ -240,7 +243,10 @@ export function Sidebar({
       {/* Phone: bottom tab bar — up to 4 labelled sections + "More" (ADR-0019). */}
       <nav
         aria-label="Primary"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-stretch border-t border-[#E8EAED] bg-white pb-[env(safe-area-inset-bottom)]"
+        className={cn(
+          'md:hidden fixed bottom-0 left-0 right-0 z-40 items-stretch border-t border-[#E8EAED] bg-white pb-[env(safe-area-inset-bottom)]',
+          navHidden ? 'hidden' : 'flex',
+        )}
       >
         {bar.map((item) => (
           <MobileTab

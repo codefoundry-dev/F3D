@@ -2,8 +2,9 @@ import { type CreatePurchaseOrderInput } from '@forethread/api-client';
 import { useBulkOrder } from '@forethread/bulk-order-shared';
 import { useTranslation } from '@forethread/i18n';
 import { CreatePoWizard, bulkOrderToFormDefaults } from '@forethread/po-shared';
+import { usePageTitleStore } from '@forethread/rfq-shared';
 import { Alert, Spinner } from '@forethread/ui-components';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
@@ -29,6 +30,13 @@ export default function BulkOrderDrawdownPage() {
   const { id } = useParams<{ id: string }>();
   const bulkOrderId = id ?? '';
   const navigate = useNavigate();
+
+  // Phone top bar title + back arrow to the bulk order (ADR-0019 B8).
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  useEffect(() => {
+    setPageTitle(t('create.title'), null, ROUTES.bulkOrderDetail.replace(':id', bulkOrderId));
+    return () => setPageTitle(null);
+  }, [setPageTitle, t, bulkOrderId]);
 
   const { data: bulkOrder, isLoading, isError } = useBulkOrder(bulkOrderId);
   const { data: projectsData } = useProjectsList();

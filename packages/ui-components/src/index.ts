@@ -137,6 +137,9 @@ export type { CardProps } from './components/Card';
 export { Divider } from './components/Divider';
 export type { DividerProps } from './components/Divider';
 
+export { CompactStepper } from './components/CompactStepper';
+export type { CompactStepperProps } from './components/CompactStepper';
+
 export { StepCircle } from './components/StepCircle';
 export type { StepCircleProps } from './components/StepCircle';
 

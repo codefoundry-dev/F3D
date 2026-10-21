@@ -27,6 +27,8 @@ export { NoPurchaseOrderRequired } from './NoPurchaseOrderRequired';
 
 // PO creation components
 export { Stepper } from './Stepper';
+export { scrollToFirstInvalid, useWizardChrome } from './wizard-chrome';
+export type { UseWizardChromeOptions } from './wizard-chrome';
 export { PoBasicInfoStep } from './PoBasicInfoStep';
 export { PoDeliveriesSection } from './PoDeliveriesSection';
 export { PoCreateLineItemsStep } from './PoCreateLineItemsStep';

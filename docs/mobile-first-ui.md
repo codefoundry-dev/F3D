@@ -48,7 +48,7 @@ tracker.
 | B5  | Table scroll + pin + fade (FOR-371)  | shared table styles and wrappers (closes FOR-360)  | ✅     |
 | B6  | Bottom-sheet modals (FOR-372)        | `Modal` (no wider than 560px becomes a sheet)      | ✅     |
 | B7  | Fixed footer bar (FOR-373)           | new `MobileActionBar` in ui-components             | ✅     |
-| B8  | Compact wizard stepper (FOR-374)     | shared stepper + hide bottom nav during wizards    | ⬜     |
+| B8  | Compact wizard stepper (FOR-374)     | shared stepper + hide bottom nav during wizards    | ✅     |
 | B9  | Compact list toolbar + FAB (FOR-375) | RFQ/PO list toolbar (shared), then the other lists | ⬜     |
 | B10 | Line-item edit sheet (FOR-376)       | new `LineItemSheet` in ui-components               | ⬜     |
 
@@ -162,6 +162,25 @@ Main action per detail page:
 - **Validation:** on Next, the page scrolls to the first invalid field.
 - **Leaving:** the bottom nav is hidden while a wizard is open. The top-bar ✕/back exits, with an
   unsaved-changes confirm.
+
+**As built:**
+
+- **Stepper:** `CompactStepper` in ui-components. The po-shared `Stepper`, the catalogue
+  `WizardStepper` and the MR `StepProgress` switch to it when `useIsPhone()` is true.
+- **Chrome:** `useWizardChrome({ isDirty, onExit })` in po-shared. It hides the bottom nav, routes
+  the top-bar back arrow through a `ConfirmDialog` when the wizard is dirty, and returns
+  `exitConfirm` for the wizard to render. `scrollToFirstInvalid()` sits next to it and scrolls to
+  the first `[aria-invalid]`, `.border-destructive` or `p.text-destructive`.
+- **Footer:** each wizard defines its footer buttons once, then renders them inline on desktop or in
+  `MobileActionBar` on phones, so they never mount twice.
+- **Wizards covered:** RFQ, PO (create, change, drawdown and the guest change request), BOM,
+  project, material create, catalogue upload, the MR wizard, and bulk-order create. Bulk-order
+  create is a single form, so it uses the ui-components primitives directly.
+- **Desktop page headers** with their own title/back arrow (RFQ, material create/upload, MR) are
+  hidden on phones, because the top bar already shows the title and back arrow.
+- **Phone Back:** the material-create and MR wizards get a Back button in the bar, because the
+  compact stepper can't be tapped to go back. The MR review step drops its disabled "Raise PO"
+  placeholder on phones.
 
 ### B9 — List toolbar
 
