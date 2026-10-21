@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import { type ReactNode, useCallback, useState } from 'react';
 
 import ArrowRightIcon from '../assets/icons/arrow-right.svg?react';
 import OpenSidebarIcon from '../assets/icons/open-sidebar.svg?react';
@@ -6,7 +6,11 @@ import { cn } from '../utils/cn';
 
 import { Tooltip } from './Tooltip';
 
-const STORAGE_KEY = 'sidebar-collapsed';
+// v2: the v1 key was written on every mount, so a stored "false" never meant the
+// user chose to expand. v2 is only written when the user toggles the rail.
+const STORAGE_KEY = 'sidebar-collapsed-v2';
+/** Below this viewport width (13–14" laptops) the rail starts collapsed. */
+const AUTO_COLLAPSE_BELOW_PX = 1280;
 
 export interface SidebarNavItem {
   icon: ReactNode;
@@ -27,10 +31,12 @@ export interface SidebarProps {
 
 function readCollapsed(): boolean {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'true';
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored !== null) return stored === 'true';
   } catch {
-    return false;
+    /* storage blocked — fall through to the width default */
   }
+  return typeof window !== 'undefined' && window.innerWidth < AUTO_COLLAPSE_BELOW_PX;
 }
 
 /** A single 34px square icon-button used for the logo + collapse toggle. */
@@ -56,15 +62,18 @@ function RailIconButton({
 export function Sidebar({ items, onNavigate, logo, onLogoClick, companyName }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(readCollapsed);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, String(isCollapsed));
-    } catch {
-      /* noop */
-    }
-  }, [isCollapsed]);
-
-  const toggle = useCallback(() => setIsCollapsed((c) => !c), []);
+  const toggle = useCallback(
+    () =>
+      setIsCollapsed((c) => {
+        try {
+          localStorage.setItem(STORAGE_KEY, String(!c));
+        } catch {
+          /* noop */
+        }
+        return !c;
+      }),
+    [],
+  );
 
   return (
     <>

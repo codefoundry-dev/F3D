@@ -13,7 +13,7 @@ and cost codes.
 
 | Ticket                                                      | Area          | Ask                                                     | Status |
 | ----------------------------------------------------------- | ------------- | ------------------------------------------------------- | ------ |
-| [FOR-358](https://codefoundry.atlassian.net/browse/FOR-358) | Layout        | Responsive layout for 13–14" laptop screens             | ⬜     |
+| [FOR-358](https://codefoundry.atlassian.net/browse/FOR-358) | Layout        | Responsive layout for 13–14" laptop screens             | ✅     |
 | [FOR-359](https://codefoundry.atlassian.net/browse/FOR-359) | Layout        | Freeze table header row on scroll                       | ⬜     |
 | [FOR-360](https://codefoundry.atlassian.net/browse/FOR-360) | Layout        | Horizontal scrollbar on wide tables                     | ⬜     |
 | [FOR-361](https://codefoundry.atlassian.net/browse/FOR-361) | Catalogue     | Material images carry over from catalogue to RFQ        | ✅     |
@@ -30,7 +30,21 @@ and cost codes.
 - **Client ask:** The UI breaks on 13–14" laptops. The designs were made for large monitors.
 - **Expected:** Core flows are usable at 1280px wide and up. Nothing overlaps or clips, and modals
   and wizards fit the screen.
-- **Resolution:** _TBD_
+- **Resolution:** Audited every main screen against the local backend with real data, as Company
+  Admin, Procurement, Finance, Warehouse, Foreman, Vendor and Super Admin, at 1152×648 (a 14" laptop
+  at 125–150% scaling), 1280×800 and 1366×650. Nothing scrolled the page sideways. The real
+  breakages were content being cut off inside the page. Fixed:
+  - **Detail-page tabs:** on PO, RFQ and other detail pages the action buttons squeezed the tab bar,
+    so the last tabs ("Email log", "Audit trail") were hidden behind a scroll with no scrollbar. The
+    shared tab bar now moves the actions onto their own row above the tabs when both don't fit.
+  - **Sidebar:** now starts collapsed to the 56px icon rail below 1280px wide, which gives pages
+    about 170px more room. Clicking the toggle is remembered and always wins.
+  - **Dashboard summary cards:** on the buyer and Super Admin dashboards, "overdue", "Overall
+    Platform Status" and "Database Performance" spilled out of their cards. Cards are now 2×2 below
+    1280px, and their contents wrap or truncate instead of overflowing.
+  - **Modals:** checked; they already fit within 90% of the viewport height and scroll inside. No
+    change needed.
+  - Large monitors (1920×1080) are unchanged. Wide tables are left to FOR-359 and FOR-360.
 
 ### FOR-359 — Freeze table header row on scroll
 

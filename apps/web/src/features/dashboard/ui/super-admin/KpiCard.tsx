@@ -30,8 +30,10 @@ export function KpiCard({
         {icon}
       </div>
       <div className="min-w-0 flex flex-col gap-1">
-        <p className="text-sm font-medium text-muted-foreground whitespace-nowrap">{title}</p>
-        <div className="flex items-center gap-3">
+        <p className="truncate text-sm font-medium text-muted-foreground" title={title}>
+          {title}
+        </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           {statusIcon && <span className="flex items-center">{statusIcon}</span>}
           <span className={valueClassName}>{value}</span>
           {trend && (

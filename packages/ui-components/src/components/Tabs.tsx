@@ -54,7 +54,14 @@ export function Tabs<T extends string = string>({
 }: TabsProps<T>) {
   return (
     <div
-      className={cn('flex items-center justify-between gap-3 border-b border-gray-200', className)}
+      className={cn(
+        // wrap-reverse: when the tabs + rightSlot don't fit on one line (13–14"
+        // laptops), the rightSlot wraps ABOVE the tabs instead of squeezing the
+        // tablist until trailing tabs scroll out of sight. Tabs stay on the
+        // border-b rail; wide screens never wrap.
+        'flex flex-wrap-reverse items-center justify-between gap-x-3 gap-y-2 border-b border-gray-200',
+        className,
+      )}
     >
       <div
         role="tablist"
@@ -118,7 +125,7 @@ export function Tabs<T extends string = string>({
           );
         })}
       </div>
-      {rightSlot && <div className="shrink-0 pb-2">{rightSlot}</div>}
+      {rightSlot && <div className="ml-auto shrink-0 pb-2">{rightSlot}</div>}
     </div>
   );
 }

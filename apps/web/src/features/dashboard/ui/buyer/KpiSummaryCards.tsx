@@ -19,7 +19,7 @@ export function KpiSummaryCards({ data, isLoading }: KpiSummaryCardsProps) {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {Array.from({ length: 4 }, (_, i) => (
           <div key={i} className="h-[82px] animate-pulse rounded-[14px] bg-muted" />
         ))}
@@ -28,7 +28,7 @@ export function KpiSummaryCards({ data, isLoading }: KpiSummaryCardsProps) {
   }
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
       {cards.map(({ key, label }) => {
         const counts = data?.[key];
         return (
@@ -41,7 +41,7 @@ export function KpiSummaryCards({ data, isLoading }: KpiSummaryCardsProps) {
             </div>
             <div className="min-w-0">
               <p className="text-sm font-medium text-foreground">{t(label as never)}</p>
-              <div className="mt-1 flex items-center gap-4">
+              <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
                 <span className="flex items-baseline gap-1">
                   <span className="text-2xl font-semibold text-foreground">
                     {counts?.pending ?? 0}
