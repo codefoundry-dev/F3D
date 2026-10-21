@@ -674,7 +674,7 @@ function UploadStep({
 }: UploadStepProps) {
   const { t } = useTranslation(['materialCatalogue']);
 
-  // The wizard is reached from the Public Materials tab, so say up front where
+  // The wizard is reached from the Global Materials tab, so say up front where
   // the rows will actually land — a company import never touches the public
   // catalogue.
   const destinationNote = (

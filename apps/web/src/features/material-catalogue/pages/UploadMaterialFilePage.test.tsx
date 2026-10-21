@@ -193,15 +193,15 @@ describe('UploadMaterialFilePage', () => {
       "your company's private catalogue",
     );
     expect(screen.getByTestId('upload-destination')).not.toHaveTextContent(
-      'shared public catalogue',
+      'shared global catalogue',
     );
   });
 
-  it('tells the catalogue approver their import publishes to the public catalogue', () => {
+  it('tells the catalogue approver their import publishes to the global catalogue', () => {
     permissionSet.current = new Set(['material.approve']);
     renderPage();
 
-    expect(screen.getByTestId('upload-destination')).toHaveTextContent('shared public catalogue');
+    expect(screen.getByTestId('upload-destination')).toHaveTextContent('shared global catalogue');
   });
 
   it('rejects an unsupported file type client-side without uploading', () => {

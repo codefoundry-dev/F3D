@@ -315,7 +315,7 @@ describe('MaterialCataloguePage', () => {
     expect(screen.queryByTestId('material-table')).not.toBeInTheDocument();
   });
 
-  // The Public Materials tab lists only PUBLIC rows, so a company's own
+  // The Global Materials tab lists only PUBLIC rows, so a company's own
   // materials (uploads, create wizard, BOM/RFQ quick-add) are reachable only
   // through the Material list tab's "All company materials" drilldown.
   it('drills from the Material list tab into the company PRIVATE catalogue', async () => {
