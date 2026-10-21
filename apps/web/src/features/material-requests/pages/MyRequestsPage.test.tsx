@@ -17,6 +17,7 @@ vi.mock('@forethread/rfq-shared', () => ({
     selector({ setTitle: vi.fn() }),
 }));
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   PageLoader: () => <div data-testid="loader" />,
   formatDate: (d: string) => d,
 }));

@@ -1,6 +1,6 @@
 import type { RfqLineItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { MessageBadgeIcon } from '@forethread/ui-components';
+import { MessageBadgeIcon, ScrollTable } from '@forethread/ui-components';
 import EditInSquareIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
 
 import { formatDate } from './detail-primitives';
@@ -22,7 +22,7 @@ export function RfqLineItemsTab({ lineItems, layout = 'panel' }: RfqLineItemsTab
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <ScrollTable>
         <table className="w-full min-w-[600px] text-sm">
           <thead>
             <tr className="border-b border-foreground/10 text-left">
@@ -77,7 +77,7 @@ export function RfqLineItemsTab({ lineItems, layout = 'panel' }: RfqLineItemsTab
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollTable>
 
       <div className="flex justify-start mt-3 pt-3 border-t border-foreground/10">
         <span className="text-sm text-muted-foreground">

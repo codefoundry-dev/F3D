@@ -2,7 +2,7 @@ import type { RfqLineItem } from '@forethread/api-client';
 import { deleteLineItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { MaterialImageThumb } from '@forethread/rfq-shared';
-import { ConfirmDialog, formatDate } from '@forethread/ui-components';
+import { ConfirmDialog, formatDate, ScrollTable } from '@forethread/ui-components';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import EditRowIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -45,10 +45,10 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
         <h2 className="text-base font-bold text-foreground">{t('lineItemsTab.title')}</h2>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <ScrollTable className="rounded-lg border border-border">
         <table className="w-full min-w-[600px] text-sm">
           <thead>
-            <tr className="bg-foreground/5">
+            <tr className="bg-[color:color-mix(in_srgb,hsl(var(--foreground))_5%,hsl(var(--card)))]">
               <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
                 {t('lineItemsTab.lineItemId')}
               </th>
@@ -138,7 +138,7 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
             ))}
           </tbody>
           <tfoot>
-            <tr className="border-t border-border bg-muted/50">
+            <tr className="border-t border-border bg-[color:color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]">
               <td colSpan={12} className="px-6 py-3">
                 <span className="text-sm text-muted-foreground">
                   {t('lineItemsTab.totalItems')}:{' '}
@@ -148,7 +148,7 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
             </tr>
           </tfoot>
         </table>
-      </div>
+      </ScrollTable>
 
       {editingItem && (
         <EditLineItemModal
@@ -177,7 +177,7 @@ function LineItemsPanelLayout({ lineItems }: { lineItems: RfqLineItem[] }) {
   const { t } = useTranslation('rfqs');
   return (
     <div>
-      <div className="overflow-x-auto">
+      <ScrollTable>
         <table className="w-full min-w-[500px] text-sm">
           <thead>
             <tr className="border-b border-foreground/10 text-left">
@@ -211,7 +211,7 @@ function LineItemsPanelLayout({ lineItems }: { lineItems: RfqLineItem[] }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollTable>
 
       <div className="flex justify-end mt-3 pt-3 border-t border-foreground/10">
         <span className="text-sm text-muted-foreground">

@@ -15,6 +15,7 @@ import {
   INVOICE_STATUS_COLORS,
   PageLoader,
   type TabItem,
+  ScrollTable,
 } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
@@ -288,7 +289,7 @@ function InvoiceDetailsTab({ invoice }: { invoice: InvoiceDetail | undefined }) 
           <h3 className="text-base font-semibold text-foreground mb-4">
             {t('invoiceDetail.lineItems', { defaultValue: 'Line Items' })}
           </h3>
-          <div className="overflow-x-auto">
+          <ScrollTable>
             <table className="w-full min-w-[800px] text-sm" data-testid="invoice-detail-lines">
               <thead>
                 <tr className="border-b border-border text-left text-muted-foreground">
@@ -338,7 +339,7 @@ function InvoiceDetailsTab({ invoice }: { invoice: InvoiceDetail | undefined }) 
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollTable>
         </div>
       ) : null}
     </div>

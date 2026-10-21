@@ -30,6 +30,7 @@ vi.mock('../../shared/userBadges', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   cn: (...args: any[]) => args.filter(Boolean).join(' '),
   useDebounce: (value: any) => value,
   Button: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>,

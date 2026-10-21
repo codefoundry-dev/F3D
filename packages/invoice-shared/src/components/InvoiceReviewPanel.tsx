@@ -19,6 +19,7 @@ import {
   DatePicker,
   Input,
   notificationService,
+  ScrollTable,
 } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
@@ -833,7 +834,7 @@ export function InvoiceReviewPanel({
             })}
           </p>
         ) : (
-          <div className="mt-3 overflow-x-auto">
+          <ScrollTable wrapperClassName="mt-3">
             <table className="w-full min-w-[900px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
@@ -952,7 +953,7 @@ export function InvoiceReviewPanel({
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollTable>
         )}
       </div>
 

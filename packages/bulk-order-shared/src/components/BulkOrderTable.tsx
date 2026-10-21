@@ -10,6 +10,7 @@ import {
   getStatusColor,
   SortIcon,
   Spinner,
+  ScrollTable,
 } from '@forethread/ui-components';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 
@@ -69,7 +70,7 @@ export function BulkOrderTable({
   }
 
   return (
-    <div className="rounded-lg border border-border overflow-x-auto">
+    <ScrollTable className="rounded-lg border border-border">
       <table className="w-full min-w-[800px] text-sm">
         <thead>
           <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
@@ -151,6 +152,6 @@ export function BulkOrderTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollTable>
   );
 }

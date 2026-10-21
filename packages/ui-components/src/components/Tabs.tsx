@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 
+import { useScrollEdges } from '../hooks/useScrollEdges';
 import { cn } from '../utils/cn';
 
 /**
@@ -53,28 +54,10 @@ export function Tabs<T extends string = string>({
   'aria-label': ariaLabel,
 }: TabsProps<T>) {
   const listRef = useRef<HTMLDivElement>(null);
-  const [edges, setEdges] = useState({ left: false, right: false });
-
   // Edge fades (ADR-0019 / FOR-370): show which side still has tabs scrolled
   // out of view — the strip's scrollbar is hidden, so without them trailing
   // tabs look like they don't exist on phones.
-  useEffect(() => {
-    const el = listRef.current;
-    if (!el) return;
-    const update = () => {
-      const left = el.scrollLeft > 1;
-      const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
-      setEdges((prev) => (prev.left === left && prev.right === right ? prev : { left, right }));
-    };
-    update();
-    el.addEventListener('scroll', update, { passive: true });
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
-    ro?.observe(el);
-    return () => {
-      el.removeEventListener('scroll', update);
-      ro?.disconnect();
-    };
-  }, [items.length]);
+  const edges = useScrollEdges(listRef, [items.length]);
 
   // Keep the active tab visible when it changes (or on first render).
   useEffect(() => {

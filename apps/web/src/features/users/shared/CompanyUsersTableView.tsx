@@ -11,6 +11,7 @@ import {
   SortIcon,
   SearchInput,
   type DotAction,
+  ScrollTable,
 } from '@forethread/ui-components';
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
@@ -206,7 +207,7 @@ export function CompanyUsersTableView({
       ) : (
         <div className="flex flex-col gap-3">
           <div className="overflow-hidden rounded-[10px] border border-gray-100 bg-white shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
-            <div className="overflow-x-auto">
+            <ScrollTable>
               <table className="w-full min-w-[900px] table-fixed border-collapse text-sm">
                 <colgroup>
                   <col />
@@ -311,7 +312,7 @@ export function CompanyUsersTableView({
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollTable>
           </div>
 
           {total > 10 && (

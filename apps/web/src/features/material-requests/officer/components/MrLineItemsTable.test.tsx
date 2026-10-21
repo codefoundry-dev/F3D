@@ -6,6 +6,7 @@ vi.mock('@forethread/i18n', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   formatDate: (d: string) => `date:${d}`,
 }));
 

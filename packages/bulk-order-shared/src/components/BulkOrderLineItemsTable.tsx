@@ -1,6 +1,6 @@
 import type { BulkOrderLineItemDetail } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { formatCurrency } from '@forethread/ui-components';
+import { formatCurrency, ScrollTable } from '@forethread/ui-components';
 import EditInSquareIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
 
 export interface BulkOrderLineItemsTableProps {
@@ -23,10 +23,10 @@ export function BulkOrderLineItemsTable({
         <h2 className="text-base font-bold text-foreground">{t('detail.lineItemsTitle')}</h2>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <ScrollTable className="rounded-lg border border-border">
         <table className="w-full min-w-[600px] text-sm">
           <thead>
-            <tr className="bg-foreground/5">
+            <tr className="bg-[color:color-mix(in_srgb,hsl(var(--foreground))_5%,hsl(var(--card)))]">
               {LINE_ITEM_COLUMNS.map(({ key }) => (
                 <th
                   key={key}
@@ -78,7 +78,7 @@ export function BulkOrderLineItemsTable({
             ))}
           </tbody>
           <tfoot>
-            <tr className="border-t border-border bg-muted/50">
+            <tr className="border-t border-border bg-[color:color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]">
               <td colSpan={LINE_ITEM_COLUMNS.length + 1} className="px-6 py-3">
                 <span className="text-sm text-muted-foreground">
                   {t('detail.totalItems')}:{' '}
@@ -88,7 +88,7 @@ export function BulkOrderLineItemsTable({
             </tr>
           </tfoot>
         </table>
-      </div>
+      </ScrollTable>
     </div>
   );
 }

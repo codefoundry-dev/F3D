@@ -18,6 +18,7 @@ vi.mock('@forethread/po-shared', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   Alert: (p: any) => <div role="alert">{p.children}</div>,
   Badge: (p: any) => <span data-testid="badge">{p.children}</span>,
   Input: (p: any) => (

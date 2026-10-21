@@ -22,6 +22,7 @@ import {
   Spinner,
   TablePagination,
   notificationService,
+  ScrollTable,
 } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
@@ -513,7 +514,7 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
         ) : (
           <div className="flex flex-1 flex-col gap-1.5">
             <div className="overflow-hidden rounded-[10px] border border-gray-100 bg-white shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
-              <div className="overflow-x-auto">
+              <ScrollTable pinColumn={2}>
                 <table className="w-full min-w-[860px] border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-gray-100 bg-[#F9F9FA]">
@@ -664,7 +665,7 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </ScrollTable>
             </div>
             {totalItems > 0 && (
               <div className="pt-1">

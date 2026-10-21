@@ -11,6 +11,7 @@ import {
   cn,
   onDecimalOnly,
   type MaterialItem,
+  ScrollTable,
 } from '@forethread/ui-components';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 import CopyIcon from '@forethread/ui-components/assets/icons/copy.svg?react';
@@ -231,7 +232,7 @@ export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomRev
       )}
 
       <div className="bg-card border border-border rounded-lg overflow-visible">
-        <div className="overflow-x-auto overflow-y-visible">
+        <ScrollTable className="overflow-y-visible">
           <table className="w-full min-w-[1180px] text-sm" data-testid="bom-review-table">
             <thead>
               <tr className="bg-[hsl(var(--table-header))]">
@@ -395,7 +396,7 @@ export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomRev
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       </div>
 
       {createMaterialRow !== null && (

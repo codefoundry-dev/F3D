@@ -12,6 +12,7 @@ vi.mock('@forethread/api-client', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   Button: ({ children }: { children: React.ReactNode }) => (
     <button data-testid="btn">{children}</button>
   ),

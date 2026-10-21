@@ -17,6 +17,7 @@ import {
   cn,
   formatCurrency,
   toast,
+  ScrollTable,
 } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
@@ -1174,7 +1175,7 @@ export function QuoteComparisonTable({
       {visibleVendors.length === 0 ? (
         <p className="py-8 text-sm text-muted-foreground">{t('reviewTable.noQuotes')}</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-foreground/10">
+        <ScrollTable className="rounded-lg border border-foreground/10" pinColumn={false}>
           <table className="border-separate border-spacing-0 text-sm w-max min-w-full">
             <thead>
               <tr>
@@ -1449,7 +1450,7 @@ export function QuoteComparisonTable({
               </tr>
             </tfoot>
           </table>
-        </div>
+        </ScrollTable>
       )}
 
       {showTableManagement && (

@@ -5,6 +5,8 @@ export { useDebounce } from './hooks/useDebounce';
 export { useClickOutside } from './hooks/useClickOutside';
 export { useEscapeKey } from './hooks/useEscapeKey';
 export { useMediaQuery } from './hooks/useMediaQuery';
+export { useScrollEdges } from './hooks/useScrollEdges';
+export type { ScrollEdges } from './hooks/useScrollEdges';
 
 // Utilities
 export { cn } from './utils/cn';
@@ -234,6 +236,8 @@ export {
   TABLE_CELL,
   TABLE_CELL_CAPTION,
 } from './components/tableStyles';
+export { ScrollTable } from './components/ScrollTable';
+export type { ScrollTableProps } from './components/ScrollTable';
 
 export { SearchInput } from './components/SearchInput';
 export type { SearchInputProps } from './components/SearchInput';

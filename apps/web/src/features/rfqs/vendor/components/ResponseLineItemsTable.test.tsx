@@ -11,6 +11,7 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   todayIso: () => new Date().toISOString().slice(0, 10),
   Checkbox: ({
     checked,

@@ -7,6 +7,7 @@ import {
   PageLoader,
   formatDate,
   getStatusColor,
+  ScrollTable,
 } from '@forethread/ui-components';
 import EyeOpenedIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import { Link } from 'react-router-dom';
@@ -155,7 +156,7 @@ export function InvoicePoTab({ invoice, previewPoId }: InvoicePoTabProps) {
             })}
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-border">
+          <ScrollTable className="rounded-lg border border-border">
             <table className="w-full min-w-[640px] text-sm" data-testid="invoice-po-tab-deliveries">
               <thead>
                 <tr className="border-b border-border text-left text-muted-foreground">
@@ -185,7 +186,7 @@ export function InvoicePoTab({ invoice, previewPoId }: InvoicePoTabProps) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollTable>
         )}
       </section>
     </div>

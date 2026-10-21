@@ -23,6 +23,7 @@ import {
   notificationService,
   type DotAction,
   type TabItem,
+  ScrollTable,
 } from '@forethread/ui-components';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
@@ -494,7 +495,7 @@ export default function UserListPage() {
           ) : (
             <>
               <div className="overflow-hidden rounded-[10px] border border-gray-100 bg-white shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
-                <div className="overflow-x-auto">
+                <ScrollTable>
                   <table className="w-full min-w-[900px] table-fixed border-collapse text-sm">
                     <colgroup>
                       <col className="w-[180px]" />
@@ -596,7 +597,7 @@ export default function UserListPage() {
                       })}
                     </tbody>
                   </table>
-                </div>
+                </ScrollTable>
               </div>
 
               {data && (

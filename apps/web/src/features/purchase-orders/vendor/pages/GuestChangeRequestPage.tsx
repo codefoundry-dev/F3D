@@ -25,6 +25,7 @@ import {
   StatusSuccessModal,
   Textarea,
   todayIso,
+  ScrollTable,
 } from '@forethread/ui-components';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
@@ -180,7 +181,7 @@ function GuestChangeForm({ po, token }: { po: PoDetail; token: string }) {
           <h2 className="text-base font-semibold text-foreground mb-4">
             {t('guest.change.lineItemsHeading')}
           </h2>
-          <div className="overflow-x-auto">
+          <ScrollTable>
             <table className="w-full text-sm min-w-[720px]">
               <thead>
                 <tr className="text-left text-muted-foreground border-b border-border">
@@ -274,7 +275,7 @@ function GuestChangeForm({ po, token }: { po: PoDetail; token: string }) {
                 })}
               </tbody>
             </table>
-          </div>
+          </ScrollTable>
         </div>
 
         {/* Message */}

@@ -45,7 +45,7 @@ tracker.
 | B2  | Phone top bar (FOR-369)              | `AppLayout`                                        | ✅     |
 | B3  | Bottom nav: 4 + More (FOR-369)       | `Sidebar` (mobile nav), `sidebarConfig`            | ✅     |
 | B4  | Tab strip edge fade (FOR-370)        | `ui-components/Tabs`                               | ✅     |
-| B5  | Table scroll + pin + fade (FOR-371)  | shared table styles and wrappers (closes FOR-360)  | ⬜     |
+| B5  | Table scroll + pin + fade (FOR-371)  | shared table styles and wrappers (closes FOR-360)  | ✅     |
 | B6  | Bottom-sheet modals (FOR-372)        | `Modal` (no wider than 560px becomes a sheet)      | ✅     |
 | B7  | Fixed footer bar (FOR-373)           | new `MobileActionBar` in ui-components             | ⬜     |
 | B8  | Compact wizard stepper (FOR-374)     | shared stepper + hide bottom nav during wizards    | ⬜     |
@@ -83,13 +83,26 @@ leave the tab bar entirely (see B7).
 
 ### B5 — Tables
 
-- **Phones:** the table scrolls sideways inside its card, and the first column is pinned (max 120px,
-  with a divider shadow once scrolled).
+- **Phones:** the table scrolls sideways inside its card, and the first column is pinned (capped at
+  45vw, with a divider shadow once scrolled).
 - **Edge fade:** a fade on the right edge while more columns are hidden, and on the left once
   scrolled.
 - **Column drag handles:** hidden on phones.
 - **Laptops:** the same pin and fade apply, which closes FOR-360. FOR-359's sticky header row reuses
   the same scroll container.
+
+**As built:**
+
+- **Component:** `ScrollTable` in ui-components, with `pinColumn` (default 1; 2 when column 1 is a
+  checkbox or star; `false` for tables that pin themselves, like quote comparison). Layout classes
+  go on `wrapperClassName`.
+- **CSS:** the pinning lives in `apps/web/src/styles/globals.css` (`[data-scroll-table]`).
+- **Tints:** pinned cells must be opaque, so translucent row and header tints in these tables are
+  now opaque `color-mix(…)` equivalents. They look the same.
+- **Coverage:** all 57 read-only tables use it.
+- **Not migrated:**
+  - `PoCreateLineItemsStep`: an input grid whose dropdowns aren't portaled, so B10 handles it.
+  - `VendorContactPopover`: a small desktop-only table.
 
 ### B6 — Modals
 

@@ -18,6 +18,7 @@ import {
   onDecimalOnly,
   onDigitsOnly,
   todayIso,
+  ScrollTable,
 } from '@forethread/ui-components';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
@@ -354,10 +355,10 @@ export function ProposeChangePage({ isVendorView = false }: ProposeChangePagePro
             {t('changeRequests.proposePage.lineItems')}
           </h2>
 
-          <div className="overflow-x-auto rounded-lg border border-border">
+          <ScrollTable className="rounded-lg border border-border">
             <table className="w-full min-w-[900px] text-sm">
               <thead>
-                <tr className="bg-foreground/5">
+                <tr className="bg-[color:color-mix(in_srgb,hsl(var(--foreground))_5%,hsl(var(--card)))]">
                   <Th>{t('detail.lineItemId')}</Th>
                   <Th>{t('detail.itemReference')}</Th>
                   <Th>{t('detail.description')}</Th>
@@ -387,7 +388,10 @@ export function ProposeChangePage({ isVendorView = false }: ProposeChangePagePro
                 ))}
                 {/* New material rows */}
                 {newMaterials.map((m, idx) => (
-                  <tr key={`new-${idx}`} className="border-t border-border bg-success/5">
+                  <tr
+                    key={`new-${idx}`}
+                    className="border-t border-border bg-[color:color-mix(in_srgb,hsl(var(--success))_5%,hsl(var(--card)))]"
+                  >
                     <td className="p-3 text-muted-foreground border-r border-border text-xs italic">
                       new
                     </td>
@@ -458,7 +462,7 @@ export function ProposeChangePage({ isVendorView = false }: ProposeChangePagePro
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t border-border bg-muted/50">
+                <tr className="border-t border-border bg-[color:color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]">
                   <td colSpan={10} className="px-6 py-3">
                     <span className="text-sm text-muted-foreground">
                       {t('detail.totalItems')}:{' '}
@@ -470,7 +474,7 @@ export function ProposeChangePage({ isVendorView = false }: ProposeChangePagePro
                 </tr>
               </tfoot>
             </table>
-          </div>
+          </ScrollTable>
 
           <button
             type="button"

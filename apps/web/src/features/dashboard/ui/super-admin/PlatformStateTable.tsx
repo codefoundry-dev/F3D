@@ -1,5 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
-import { Badge, Spinner, SortIcon, ToggleSwitch } from '@forethread/ui-components';
+import { Badge, Spinner, SortIcon, ToggleSwitch, ScrollTable } from '@forethread/ui-components';
 import CircleReloadIcon from '@forethread/ui-components/assets/icons/circle-reload.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import { useNavigate } from 'react-router-dom';
@@ -71,10 +71,10 @@ export function PlatformStateTable() {
           <Spinner size="lg" />
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <ScrollTable>
           <table className="w-full min-w-[600px] text-sm">
             <thead>
-              <tr className="border-b border-border bg-muted/50">
+              <tr className="border-b border-border bg-[color:color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]">
                 {headers.map((header) => (
                   <th
                     key={header.key}
@@ -155,7 +155,7 @@ export function PlatformStateTable() {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       )}
     </div>
   );

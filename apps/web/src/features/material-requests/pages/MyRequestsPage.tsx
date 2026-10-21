@@ -1,7 +1,7 @@
 import type { MrListItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
-import { formatDate, PageLoader } from '@forethread/ui-components';
+import { formatDate, PageLoader, ScrollTable } from '@forethread/ui-components';
 import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
 import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
 import RequestIcon from '@forethread/ui-components/assets/icons/request.svg?react';
@@ -72,7 +72,7 @@ export default function MyRequestsPage() {
           <p className="max-w-sm text-xs text-muted-foreground">{t('myRequests.emptyHint')}</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
+        <ScrollTable className="rounded-xl border border-border bg-card">
           <table className="w-full text-sm" data-testid="mr-requests-list">
             <thead>
               <tr className="border-b border-border bg-[hsl(var(--table-header))] text-left text-[hsl(var(--table-header-foreground))]">
@@ -92,7 +92,7 @@ export default function MyRequestsPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       )}
     </MobileShell>
   );
@@ -101,7 +101,7 @@ export default function MyRequestsPage() {
 function RequestRow({ mr }: { mr: MrListItem }) {
   const { t } = useTranslation('materialRequests');
   return (
-    <tr className="border-b border-border transition-colors last:border-b-0 hover:bg-accent/50">
+    <tr className="border-b border-border transition-colors last:border-b-0 hover:bg-[color:color-mix(in_srgb,hsl(var(--accent))_50%,hsl(var(--card)))]">
       <td className="whitespace-nowrap px-4 py-3 font-medium text-foreground">{mr.mrNumber}</td>
       <td className="max-w-[220px] truncate px-4 py-3 text-foreground">{mr.project.name}</td>
       <td className="px-4 py-3 text-foreground">{mr.lineItemCount}</td>

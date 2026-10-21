@@ -17,6 +17,7 @@ import {
   EmptyState,
   DotActionsMenu,
   buttonVariants,
+  ScrollTable,
 } from '@forethread/ui-components';
 import FlagIcon from '@forethread/ui-components/assets/icons/flag.svg?react';
 import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
@@ -276,7 +277,7 @@ function DetailsTab({
           )}
         </div>
 
-        <div className="overflow-x-auto border border-border rounded-lg">
+        <ScrollTable className="border border-border rounded-lg">
           <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] text-left">
@@ -338,7 +339,7 @@ function DetailsTab({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       </section>
 
       {/* Attached Documents — no backend yet */}

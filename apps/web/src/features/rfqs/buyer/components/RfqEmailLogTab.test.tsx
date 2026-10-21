@@ -31,6 +31,7 @@ vi.mock('@forethread/shared-types/client', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   Alert: ({ children, variant }: any) => (
     <div data-testid="alert" data-variant={variant}>
       {children}

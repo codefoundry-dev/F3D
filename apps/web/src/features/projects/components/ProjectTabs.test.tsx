@@ -23,6 +23,7 @@ vi.mock('@forethread/api-client', () => ({
 vi.mock('@forethread/bulk-order-shared', () => ({ useBulkOrder: mockUseBulkOrder }));
 
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   Badge: ({ children }: any) => <span data-testid="badge">{children}</span>,
   Spinner: () => <div data-testid="spinner" />,
   EmptyState: (props: any) => (

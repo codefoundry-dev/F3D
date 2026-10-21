@@ -16,6 +16,7 @@ import {
   formatDateLabel,
   groupMessagesByDate,
   toast,
+  ScrollTable,
 } from '@forethread/ui-components';
 import BackArrowIcon from '@forethread/ui-components/assets/icons/back-arrow.svg?react';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
@@ -624,7 +625,7 @@ function QuoteLineItemsTab({
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-foreground/10">
+    <ScrollTable className="rounded-lg border border-foreground/10">
       <table
         className={cn(
           'border-separate border-spacing-0 text-sm w-full',
@@ -766,6 +767,6 @@ function QuoteLineItemsTab({
           </tr>
         </tfoot>
       </table>
-    </div>
+    </ScrollTable>
   );
 }

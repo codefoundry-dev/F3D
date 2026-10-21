@@ -27,6 +27,7 @@ import {
   notificationService,
   type DotAction,
   type TabItem,
+  ScrollTable,
 } from '@forethread/ui-components';
 import ChevronRightIcon from '@forethread/ui-components/assets/icons/chevron-right.svg?react';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock.svg?react';
@@ -994,7 +995,7 @@ function UserTable({
 
   return (
     <div className="border-t border-gray-50 p-2">
-      <div className="overflow-x-auto">
+      <ScrollTable>
         <table className="w-full min-w-[860px] table-fixed border-collapse text-sm">
           <colgroup>
             <col />
@@ -1039,7 +1040,7 @@ function UserTable({
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollTable>
     </div>
   );
 }

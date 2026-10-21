@@ -22,6 +22,7 @@ vi.mock('@forethread/rfq-shared', () => ({
   usePageTitleStore: (sel: (s: { setTitle: () => void }) => unknown) => sel({ setTitle: () => {} }),
 }));
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   Button: ({
     children,
     onClick,
@@ -62,7 +63,8 @@ vi.mock('../components/DamageDetailsForm', () => ({
   EMPTY_DAMAGE_DRAFT: { damagedQuantity: '0', damageType: '', damageDisposition: null, photos: [] },
 }));
 vi.mock('../components/SelectPoModal', () => ({
-  SelectPoModal: ({ open }: { open: boolean }) => (open ? <div data-testid="select-po-modal" /> : null),
+  SelectPoModal: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="select-po-modal" /> : null,
 }));
 vi.mock('../services/deliveries.service', () => ({
   useCreateDeliveryReport: () => ({ mutateAsync: mockCreate, isPending: false }),

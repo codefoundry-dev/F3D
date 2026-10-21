@@ -16,6 +16,7 @@ import {
   DateRangeFilterDropdown,
   notificationService,
   type DotAction,
+  ScrollTable,
 } from '@forethread/ui-components';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
@@ -272,7 +273,7 @@ export default function VendorUserListPage() {
         ) : (
           <div className="flex flex-1 flex-col gap-1.5">
             <div className="overflow-hidden rounded-[10px] border border-gray-100 bg-white shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]">
-              <div className="overflow-x-auto">
+              <ScrollTable>
                 <table className="w-full min-w-[800px] table-fixed border-collapse text-sm">
                   <colgroup>
                     <col />
@@ -367,7 +368,7 @@ export default function VendorUserListPage() {
                     })}
                   </tbody>
                 </table>
-              </div>
+              </ScrollTable>
             </div>
 
             {data && (

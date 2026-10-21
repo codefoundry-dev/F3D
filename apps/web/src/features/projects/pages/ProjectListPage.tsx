@@ -15,6 +15,7 @@ import {
   SortIcon,
   cn,
   useDebounce,
+  ScrollTable,
 } from '@forethread/ui-components';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
@@ -179,7 +180,7 @@ export default function ProjectListPage() {
           )}
 
           {data && data.items.length > 0 && (
-            <div className="rounded-lg border border-border overflow-x-auto">
+            <ScrollTable className="rounded-lg border border-border">
               <table className="w-full min-w-[1000px] text-sm">
                 <thead>
                   <tr className="border-b border-border bg-[hsl(var(--table-header))]">
@@ -221,7 +222,7 @@ export default function ProjectListPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollTable>
           )}
         </div>
 

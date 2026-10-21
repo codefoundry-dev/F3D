@@ -1,6 +1,6 @@
 import type { MrLineItemDetail } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { formatDate } from '@forethread/ui-components';
+import { formatDate, ScrollTable } from '@forethread/ui-components';
 
 interface MrLineItemsTableProps {
   lineItems: MrLineItemDetail[];
@@ -35,7 +35,7 @@ export function MrLineItemsTable({ lineItems }: MrLineItemsTableProps) {
   } as const;
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <ScrollTable className="rounded-lg border border-border">
       <table className="w-full text-sm" data-testid="mr-line-items">
         <thead>
           <tr className="border-b border-border bg-[hsl(var(--table-header))] text-left text-[hsl(var(--table-header-foreground))]">
@@ -73,6 +73,6 @@ export function MrLineItemsTable({ lineItems }: MrLineItemsTableProps) {
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollTable>
   );
 }

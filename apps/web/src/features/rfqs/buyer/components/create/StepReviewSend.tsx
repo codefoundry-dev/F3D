@@ -1,6 +1,6 @@
 import type { ProjectListItem, VendorListItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Button, FileChip, Textarea, cn } from '@forethread/ui-components';
+import { Button, FileChip, Textarea, cn, ScrollTable } from '@forethread/ui-components';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 import ChevronRightIcon from '@forethread/ui-components/assets/icons/chevron-right.svg?react';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
@@ -219,86 +219,88 @@ export function StepReviewSend({
         onEdit={() => onEditStep(0)}
         editLabel={t('create.review.edit')}
       >
-        <div className="rounded-lg border border-border overflow-x-auto">
-          <table className="w-full text-sm min-w-[720px]" data-testid="review-line-items">
-            <thead>
-              <tr className={TABLE_HEADER_ROW}>
-                <th className={TABLE_TH}>{t('create.review.colItemMaterial')}</th>
-                <th className={TABLE_TH}>{t('create.review.colUnit')}</th>
-                <th className={TABLE_TH}>{t('create.review.colQuantity')}</th>
-                <th className={TABLE_TH}>{t('create.review.colExpDelivery')}</th>
-                <th className={cn(TABLE_TH, 'w-[110px]')}>{t('create.review.colActions')}</th>
-              </tr>
-            </thead>
-            {grouped.map(([groupProjectId, groupItems]) => {
-              const isCollapsed = collapsed[groupProjectId] ?? false;
-              return (
-                <tbody key={groupProjectId}>
-                  <tr className="bg-muted/60">
-                    <td colSpan={5} className="py-2 px-3">
-                      <button
-                        type="button"
-                        className="flex items-center gap-2 text-sm text-foreground"
-                        onClick={() =>
-                          setCollapsed((prev) => ({ ...prev, [groupProjectId]: !isCollapsed }))
-                        }
-                      >
-                        {isCollapsed ? (
-                          <ChevronRightIcon className="w-4 h-4" />
-                        ) : (
-                          <ChevronDownIcon className="w-4 h-4" />
-                        )}
-                        {projectName(groupProjectId)}
-                      </button>
-                    </td>
-                  </tr>
-                  {!isCollapsed &&
-                    groupItems.map((item) => (
-                      <tr key={item.key} className={TABLE_BODY_ROW}>
-                        <td className="py-2.5 px-3 text-foreground">{item.materialName}</td>
-                        <td className="py-2.5 px-3">{item.uom}</td>
-                        <td className="py-2.5 px-3">{item.quantity}</td>
-                        <td className="py-2.5 px-3">{formatDate(item.expectedDeliveryDate)}</td>
-                        <td className="py-2.5 px-3">
-                          <div className="flex items-center gap-1">
-                            <span
-                              className={cn(
-                                'relative p-1.5 text-muted-foreground',
-                                !item.notes && 'opacity-40',
-                              )}
-                              title={item.notes}
-                            >
-                              <NoteIcon className="w-4 h-4" />
-                              {item.notes && (
-                                <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-destructive" />
-                              )}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => onEditItem(item)}
-                              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                              aria-label={t('create.review.editItem')}
-                              data-testid={`review-edit-${item.key}`}
-                            >
-                              <EditIcon className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onRemoveItem(item.key)}
-                              className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
-                              aria-label={t('create.review.removeItem')}
-                              data-testid={`review-remove-${item.key}`}
-                            >
-                              <DeleteIcon className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              );
-            })}
-          </table>
+        <div className="rounded-lg border border-border overflow-hidden">
+          <ScrollTable>
+            <table className="w-full text-sm min-w-[720px]" data-testid="review-line-items">
+              <thead>
+                <tr className={TABLE_HEADER_ROW}>
+                  <th className={TABLE_TH}>{t('create.review.colItemMaterial')}</th>
+                  <th className={TABLE_TH}>{t('create.review.colUnit')}</th>
+                  <th className={TABLE_TH}>{t('create.review.colQuantity')}</th>
+                  <th className={TABLE_TH}>{t('create.review.colExpDelivery')}</th>
+                  <th className={cn(TABLE_TH, 'w-[110px]')}>{t('create.review.colActions')}</th>
+                </tr>
+              </thead>
+              {grouped.map(([groupProjectId, groupItems]) => {
+                const isCollapsed = collapsed[groupProjectId] ?? false;
+                return (
+                  <tbody key={groupProjectId}>
+                    <tr className="bg-[color:color-mix(in_srgb,hsl(var(--muted))_60%,hsl(var(--card)))]">
+                      <td colSpan={5} className="py-2 px-3">
+                        <button
+                          type="button"
+                          className="flex items-center gap-2 text-sm text-foreground"
+                          onClick={() =>
+                            setCollapsed((prev) => ({ ...prev, [groupProjectId]: !isCollapsed }))
+                          }
+                        >
+                          {isCollapsed ? (
+                            <ChevronRightIcon className="w-4 h-4" />
+                          ) : (
+                            <ChevronDownIcon className="w-4 h-4" />
+                          )}
+                          {projectName(groupProjectId)}
+                        </button>
+                      </td>
+                    </tr>
+                    {!isCollapsed &&
+                      groupItems.map((item) => (
+                        <tr key={item.key} className={TABLE_BODY_ROW}>
+                          <td className="py-2.5 px-3 text-foreground">{item.materialName}</td>
+                          <td className="py-2.5 px-3">{item.uom}</td>
+                          <td className="py-2.5 px-3">{item.quantity}</td>
+                          <td className="py-2.5 px-3">{formatDate(item.expectedDeliveryDate)}</td>
+                          <td className="py-2.5 px-3">
+                            <div className="flex items-center gap-1">
+                              <span
+                                className={cn(
+                                  'relative p-1.5 text-muted-foreground',
+                                  !item.notes && 'opacity-40',
+                                )}
+                                title={item.notes}
+                              >
+                                <NoteIcon className="w-4 h-4" />
+                                {item.notes && (
+                                  <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-destructive" />
+                                )}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => onEditItem(item)}
+                                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                                aria-label={t('create.review.editItem')}
+                                data-testid={`review-edit-${item.key}`}
+                              >
+                                <EditIcon className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onRemoveItem(item.key)}
+                                className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
+                                aria-label={t('create.review.removeItem')}
+                                data-testid={`review-remove-${item.key}`}
+                              >
+                                <DeleteIcon className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                );
+              })}
+            </table>
+          </ScrollTable>
           <div className="flex items-center gap-2 border-t border-border px-4 py-3 text-sm">
             <span className="text-muted-foreground">{t('create.lineItems.totalItems')}</span>
             <span className="font-semibold text-foreground">{items.length}</span>

@@ -6,6 +6,7 @@ import {
   Select,
   SelectDropdown,
   todayIso,
+  ScrollTable,
 } from '@forethread/ui-components';
 import { Fragment, useState } from 'react';
 
@@ -118,7 +119,7 @@ export function StepMaterialDetails({
 
   return (
     <div className="p-5 sm:p-6" data-testid="mr-details-step">
-      <div className="overflow-x-auto rounded-lg border border-border bg-card">
+      <ScrollTable className="rounded-lg border border-border bg-card">
         <table className="w-full min-w-[1080px] text-sm">
           <thead>
             <tr className="border-b border-border bg-[hsl(var(--table-header))] text-left text-[hsl(var(--table-header-foreground))]">
@@ -335,7 +336,7 @@ export function StepMaterialDetails({
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollTable>
     </div>
   );
 }

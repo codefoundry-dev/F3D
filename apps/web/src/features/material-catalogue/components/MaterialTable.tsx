@@ -1,6 +1,6 @@
 import { type MaterialListItemDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Badge, DotActionsMenu, type DotAction } from '@forethread/ui-components';
+import { Badge, DotActionsMenu, type DotAction, ScrollTable } from '@forethread/ui-components';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
@@ -214,9 +214,12 @@ export function MaterialTable({
   }
 
   return (
-    <div className="overflow-x-auto border border-border rounded-xl bg-card">
+    <ScrollTable
+      className="border border-border rounded-xl bg-card"
+      pinColumn={showStarColumn ? 2 : 1}
+    >
       <table className="w-full text-sm" data-testid="material-table">
-        <thead className="bg-muted/40 text-xs text-muted-foreground border-b border-border">
+        <thead className="bg-[color:color-mix(in_srgb,hsl(var(--muted))_40%,hsl(var(--card)))] text-xs text-muted-foreground border-b border-border">
           <tr>
             {showStarColumn && (
               <th className="w-10 px-3 py-3">
@@ -374,6 +377,6 @@ export function MaterialTable({
           )}
         </tbody>
       </table>
-    </div>
+    </ScrollTable>
   );
 }

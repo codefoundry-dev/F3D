@@ -1,4 +1,4 @@
-import { Badge, EmptyState, Spinner, getStatusColor } from '@forethread/ui-components';
+import { Badge, EmptyState, Spinner, getStatusColor, ScrollTable } from '@forethread/ui-components';
 import type React from 'react';
 
 export type TranslationFn = (key: string, options?: Record<string, unknown>) => string;
@@ -94,11 +94,11 @@ export function TableShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="overflow-x-auto border border-border rounded-lg">
+    <ScrollTable className="border border-border rounded-lg">
       <table className="w-full text-sm" style={{ minWidth }}>
         {children}
       </table>
-    </div>
+    </ScrollTable>
   );
 }
 

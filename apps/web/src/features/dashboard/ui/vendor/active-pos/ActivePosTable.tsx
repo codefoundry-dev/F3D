@@ -1,5 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
-import { SortIcon, Spinner } from '@forethread/ui-components';
+import { SortIcon, Spinner, ScrollTable } from '@forethread/ui-components';
 import { useCallback, useMemo, useState } from 'react';
 
 import { ActivePosRow } from './ActivePosRow';
@@ -52,7 +52,7 @@ export function ActivePosTable({ items, isLoading }: ActivePosTableProps) {
         </div>
       ) : (
         <div className="px-4 pb-4">
-          <div className="rounded-lg border border-border overflow-auto">
+          <ScrollTable className="rounded-lg border border-border">
             <table className="w-full min-w-[600px] text-sm">
               <thead className="sticky top-0 z-10">
                 <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
@@ -81,7 +81,7 @@ export function ActivePosTable({ items, isLoading }: ActivePosTableProps) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollTable>
         </div>
       )}
     </div>

@@ -8,6 +8,7 @@ import {
   Input,
   notificationService,
   TablePagination,
+  ScrollTable,
 } from '@forethread/ui-components';
 import CopyIcon from '@forethread/ui-components/assets/icons/copy.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
@@ -847,7 +848,7 @@ function MapStep({
         <h3 className="mb-4 text-base font-semibold text-foreground">
           {t('upload.step2.mappingTitle')}
         </h3>
-        <div className="overflow-x-auto rounded-xl border border-border">
+        <ScrollTable className="rounded-xl border border-border">
           <table className="w-full text-sm" data-testid="map-table">
             <thead className="bg-[#f9f9fa] text-xs font-semibold text-muted-foreground">
               <tr>
@@ -970,7 +971,7 @@ function MapStep({
               )}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
         <div className="mt-4">{pagination}</div>
       </section>
     </>

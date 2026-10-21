@@ -4,7 +4,7 @@ import {
   type BomLineItem,
   isBomExtractionResult,
 } from '@forethread/shared-types/client';
-import { Badge, Button, CustomDropdown, Input } from '@forethread/ui-components';
+import { Badge, Button, CustomDropdown, Input, ScrollTable } from '@forethread/ui-components';
 import { useCallback, useMemo } from 'react';
 
 export interface MaterialOption {
@@ -214,9 +214,9 @@ export function BomReviewTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto border rounded-md">
+      <ScrollTable className="border rounded-md">
         <table className="w-full text-sm" data-testid="bom-items-table">
-          <thead className="bg-muted/50 text-xs uppercase">
+          <thead className="bg-[color:color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))] text-xs uppercase">
             <tr>
               <th className="text-left p-2 w-[26%]">{t('bom.columns.description')}</th>
               <th className="text-left p-2 w-[22%]">{t('bom.columns.match')}</th>
@@ -319,7 +319,7 @@ export function BomReviewTable({
             )}
           </tbody>
         </table>
-      </div>
+      </ScrollTable>
 
       {!readOnly ? (
         <div>

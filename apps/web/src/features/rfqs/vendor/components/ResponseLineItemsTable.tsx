@@ -11,6 +11,7 @@ import {
   StepperInput,
   ToggleSwitch,
   todayIso,
+  ScrollTable,
 } from '@forethread/ui-components';
 import CircleReloadIcon from '@forethread/ui-components/assets/icons/circle-reload.svg?react';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
@@ -70,7 +71,7 @@ export function ResponseLineItemsTable({
         <h2 className="text-base font-medium text-foreground">{t('response.lineItems')}</h2>
       </div>
 
-      <div className="p-4 overflow-x-auto">
+      <ScrollTable className="p-4">
         <table className="min-w-[1200px] w-full text-sm border border-border rounded-lg">
           <thead>
             <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
@@ -168,7 +169,7 @@ export function ResponseLineItemsTable({
             </tr>
           </tbody>
         </table>
-      </div>
+      </ScrollTable>
     </div>
   );
 }

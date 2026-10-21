@@ -8,6 +8,7 @@ import {
   notificationService,
   formatCurrency,
   formatDate,
+  ScrollTable,
 } from '@forethread/ui-components';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock-icon.svg?react';
 import MarkIcon from '@forethread/ui-components/assets/icons/mark-with-cyrcle.svg?react';
@@ -261,82 +262,87 @@ export function ReviewChangesPage({ isVendorView = false }: ReviewChangesPagePro
             {t('changeRequests.reviewPage.lineItems')}
           </h2>
 
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full min-w-[900px] text-sm">
-              <thead>
-                <tr className="bg-foreground/5">
-                  <Th>{t('detail.lineItemId')}</Th>
-                  <Th>{t('detail.itemReference')}</Th>
-                  <Th>{t('detail.description')}</Th>
-                  <Th>{t('detail.unit')}</Th>
-                  <Th>{t('detail.qty')}</Th>
-                  <Th>{t('detail.qtyRemaining')}</Th>
-                  <Th>{t('changeRequests.reviewPage.newQty')}</Th>
-                  <Th>{t('changeRequests.reviewPage.currentPrice')}</Th>
-                  <Th>{t('changeRequests.reviewPage.newPrice')}</Th>
-                  <Th>{t('columns.actions')}</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.lineItems
-                  .filter((li) => !removedIds.has(li.lineItemId))
-                  .map((item) => {
-                    const change = changeMap.get(item.lineItemId);
-                    return (
-                      <ReadOnlyLineItemRow
-                        key={item.lineItemId}
-                        item={item}
-                        proposedQty={change?.quantity}
-                        proposedPrice={change?.unitPrice}
-                      />
-                    );
-                  })}
-                {/* Added items */}
-                {addedItems.map((added, idx) => (
-                  <tr key={`added-${idx}`} className="border-t border-border bg-success/5">
-                    <td className="p-3 text-muted-foreground border border-border text-xs italic">
-                      new
-                    </td>
-                    <td className="p-3 text-foreground border border-border">
-                      {added.itemReference ?? '-'}
-                    </td>
-                    <td className="p-3 text-foreground border border-border">
-                      {added.description ?? '-'}
-                    </td>
-                    <td className="p-3 text-foreground border border-border">
-                      {added.uom ?? 'EA'}
-                    </td>
-                    <td className="p-3 border border-border" />
-                    <td className="p-3 border border-border" />
-                    <td className="p-3 text-foreground border border-border font-medium">
-                      {added.quantity ?? '-'}
-                    </td>
-                    <td className="p-3 border border-border" />
-                    <td className="p-3 text-foreground border border-border font-medium">
-                      {added.unitPrice !== undefined ? formatCurrency(added.unitPrice) : '-'}
-                    </td>
-                    <td className="p-3 border border-border">
-                      <div className="flex items-center justify-center">
-                        <MessageIcon className="w-4 h-4 text-muted-foreground" />
-                      </div>
+          <div className="rounded-lg border border-border overflow-hidden">
+            <ScrollTable>
+              <table className="w-full min-w-[900px] text-sm">
+                <thead>
+                  <tr className="bg-[color:color-mix(in_srgb,hsl(var(--foreground))_5%,hsl(var(--card)))]">
+                    <Th>{t('detail.lineItemId')}</Th>
+                    <Th>{t('detail.itemReference')}</Th>
+                    <Th>{t('detail.description')}</Th>
+                    <Th>{t('detail.unit')}</Th>
+                    <Th>{t('detail.qty')}</Th>
+                    <Th>{t('detail.qtyRemaining')}</Th>
+                    <Th>{t('changeRequests.reviewPage.newQty')}</Th>
+                    <Th>{t('changeRequests.reviewPage.currentPrice')}</Th>
+                    <Th>{t('changeRequests.reviewPage.newPrice')}</Th>
+                    <Th>{t('columns.actions')}</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.lineItems
+                    .filter((li) => !removedIds.has(li.lineItemId))
+                    .map((item) => {
+                      const change = changeMap.get(item.lineItemId);
+                      return (
+                        <ReadOnlyLineItemRow
+                          key={item.lineItemId}
+                          item={item}
+                          proposedQty={change?.quantity}
+                          proposedPrice={change?.unitPrice}
+                        />
+                      );
+                    })}
+                  {/* Added items */}
+                  {addedItems.map((added, idx) => (
+                    <tr
+                      key={`added-${idx}`}
+                      className="border-t border-border bg-[color:color-mix(in_srgb,hsl(var(--success))_5%,hsl(var(--card)))]"
+                    >
+                      <td className="p-3 text-muted-foreground border border-border text-xs italic">
+                        new
+                      </td>
+                      <td className="p-3 text-foreground border border-border">
+                        {added.itemReference ?? '-'}
+                      </td>
+                      <td className="p-3 text-foreground border border-border">
+                        {added.description ?? '-'}
+                      </td>
+                      <td className="p-3 text-foreground border border-border">
+                        {added.uom ?? 'EA'}
+                      </td>
+                      <td className="p-3 border border-border" />
+                      <td className="p-3 border border-border" />
+                      <td className="p-3 text-foreground border border-border font-medium">
+                        {added.quantity ?? '-'}
+                      </td>
+                      <td className="p-3 border border-border" />
+                      <td className="p-3 text-foreground border border-border font-medium">
+                        {added.unitPrice !== undefined ? formatCurrency(added.unitPrice) : '-'}
+                      </td>
+                      <td className="p-3 border border-border">
+                        <div className="flex items-center justify-center">
+                          <MessageIcon className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-border bg-[color:color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]">
+                    <td colSpan={10} className="px-6 py-3">
+                      <span className="text-sm text-muted-foreground">
+                        {t('detail.totalItems')}:{' '}
+                        <span className="text-foreground">
+                          {data.lineItems.filter((li) => !removedIds.has(li.lineItemId)).length +
+                            addedItems.length}
+                        </span>
+                      </span>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-border bg-muted/50">
-                  <td colSpan={10} className="px-6 py-3">
-                    <span className="text-sm text-muted-foreground">
-                      {t('detail.totalItems')}:{' '}
-                      <span className="text-foreground">
-                        {data.lineItems.filter((li) => !removedIds.has(li.lineItemId)).length +
-                          addedItems.length}
-                      </span>
-                    </span>
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+                </tfoot>
+              </table>
+            </ScrollTable>
           </div>
         </div>
       </div>

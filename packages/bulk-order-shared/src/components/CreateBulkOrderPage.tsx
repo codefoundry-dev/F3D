@@ -11,6 +11,7 @@ import {
   formatCurrency,
   notificationService,
   todayIso,
+  ScrollTable,
 } from '@forethread/ui-components';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
@@ -181,10 +182,10 @@ export function CreateBulkOrderPage({ isVendorView = false }: CreateBulkOrderPag
 
         {/* Populated line items */}
         {isPopulated && (
-          <div className="mt-6 overflow-x-auto rounded-lg border border-border">
+          <ScrollTable className="rounded-lg border border-border" wrapperClassName="mt-6">
             <table className="w-full min-w-[800px] text-sm">
               <thead>
-                <tr className="bg-foreground/5">
+                <tr className="bg-[color:color-mix(in_srgb,hsl(var(--foreground))_5%,hsl(var(--card)))]">
                   {LINE_ITEM_COLUMN_KEYS.map((key) => (
                     <th
                       key={key}
@@ -218,7 +219,7 @@ export function CreateBulkOrderPage({ isVendorView = false }: CreateBulkOrderPag
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t border-border bg-muted/50">
+                <tr className="border-t border-border bg-[color:color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]">
                   <td colSpan={4} />
                   <td className="px-3 py-4 align-top" colSpan={2}>
                     <p className="text-sm text-muted-foreground">
@@ -245,7 +246,7 @@ export function CreateBulkOrderPage({ isVendorView = false }: CreateBulkOrderPag
                 </tr>
               </tfoot>
             </table>
-          </div>
+          </ScrollTable>
         )}
       </div>
 

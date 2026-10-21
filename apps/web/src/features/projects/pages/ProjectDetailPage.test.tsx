@@ -30,6 +30,7 @@ vi.mock('@forethread/shared-types/client', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   Spinner: () => <div data-testid="spinner" />,
   Badge: ({ children }: any) => <span data-testid="badge">{children}</span>,
   Button: (props: any) => (

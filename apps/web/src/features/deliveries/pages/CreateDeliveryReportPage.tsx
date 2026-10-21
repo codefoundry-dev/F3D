@@ -14,6 +14,7 @@ import {
   Textarea,
   cn,
   notificationService,
+  ScrollTable,
 } from '@forethread/ui-components';
 import CheckIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
@@ -22,7 +23,11 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 
-import { DamageDetailsForm, EMPTY_DAMAGE_DRAFT, type DamageDraft } from '../components/DamageDetailsForm';
+import {
+  DamageDetailsForm,
+  EMPTY_DAMAGE_DRAFT,
+  type DamageDraft,
+} from '../components/DamageDetailsForm';
 import { SelectPoModal } from '../components/SelectPoModal';
 import { DELIVERY_ATTACHMENT_ACCEPT, DELIVERY_OUTCOME_OPTIONS } from '../constants';
 import {
@@ -134,7 +139,7 @@ export default function CreateDeliveryReportPage() {
         ...(r.outcome === DeliveryOutcome.DAMAGED
           ? {
               damagedQuantity: Number(r.damage.damagedQuantity),
-              damageType: (r.damage.damageType || undefined),
+              damageType: r.damage.damageType || undefined,
               damageDisposition: r.damage.damageDisposition ?? undefined,
             }
           : {}),
@@ -187,7 +192,11 @@ export default function CreateDeliveryReportPage() {
         <div className="py-16 text-center">
           <p className="text-sm font-medium text-foreground">{t('create.noPo')}</p>
           <p className="mt-1 mb-4 text-xs text-muted-foreground">{t('create.noPoHint')}</p>
-          <Button variant="primary" onClick={() => setShowPicker(true)} data-testid="delivery-pick-po">
+          <Button
+            variant="primary"
+            onClick={() => setShowPicker(true)}
+            data-testid="delivery-pick-po"
+          >
             {t('create.selectPo')}
           </Button>
         </div>
@@ -221,7 +230,7 @@ export default function CreateDeliveryReportPage() {
       <div className="rounded-[14px] border border-border bg-card p-4 sm:p-6">
         <h2 className="mb-4 text-lg font-semibold text-foreground">{t('create.lineItems')}</h2>
 
-        <div className="overflow-x-auto rounded-lg border border-border">
+        <ScrollTable className="rounded-lg border border-border">
           <table className="w-full text-sm" data-testid="delivery-create-table">
             <thead>
               <tr className="border-b border-border bg-[hsl(var(--table-header))] text-left text-[hsl(var(--table-header-foreground))]">
@@ -260,7 +269,9 @@ export default function CreateDeliveryReportPage() {
                       data-testid={`delivery-row-${row.poLineItemId}`}
                     >
                       <td className="px-3 py-2.5 text-foreground">{row.lineItemRef}</td>
-                      <td className="px-3 py-2.5 font-medium text-foreground">{row.materialName}</td>
+                      <td className="px-3 py-2.5 font-medium text-foreground">
+                        {row.materialName}
+                      </td>
                       <td className="max-w-[260px] truncate px-3 py-2.5 text-foreground">
                         {row.description ?? '-'}
                       </td>
@@ -333,7 +344,7 @@ export default function CreateDeliveryReportPage() {
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       </div>
 
       {/* ═══ Attachments + Report ═══ */}

@@ -1,7 +1,7 @@
 import { getBulkOrders } from '@forethread/api-client';
 import { useBulkOrder } from '@forethread/bulk-order-shared';
 import { useTranslation } from '@forethread/i18n';
-import { BULK_ORDER_STATUS_COLORS, Spinner } from '@forethread/ui-components';
+import { BULK_ORDER_STATUS_COLORS, Spinner, ScrollTable } from '@forethread/ui-components';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -76,7 +76,7 @@ export default function ProjectBulkOrdersSection({
           <tbody>
             {items.map((bo) => (
               <Fragment key={bo.id}>
-                <tr className="border-t border-border hover:bg-muted/30">
+                <tr className="border-t border-border hover:bg-[color:color-mix(in_srgb,hsl(var(--muted))_30%,hsl(var(--card)))]">
                   {withDrawdowns && (
                     <td className="pl-4 py-3 w-8">
                       <button
@@ -124,7 +124,7 @@ export default function ProjectBulkOrdersSection({
                   </td>
                 </tr>
                 {withDrawdowns && expandedId === bo.id && (
-                  <tr className="border-t border-border bg-muted/20">
+                  <tr className="border-t border-border bg-[color:color-mix(in_srgb,hsl(var(--muted))_20%,hsl(var(--card)))]">
                     <td colSpan={columns.length} className="px-4 py-3">
                       <DrawdownHistory bulkOrderId={bo.id} t={t} />
                     </td>
@@ -164,42 +164,44 @@ function DrawdownHistory({ bulkOrderId, t }: { bulkOrderId: string; t: Translati
   }
 
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="text-left text-xs font-bold text-muted-foreground">
-          <th className="px-2 py-1.5">{t('detail.procurementTab.drawdownColumns.po')}</th>
-          <th className="px-2 py-1.5">{t('detail.procurementTab.drawdownColumns.material')}</th>
-          <th className="px-2 py-1.5">{t('detail.procurementTab.drawdownColumns.quantity')}</th>
-          <th className="px-2 py-1.5">{t('detail.procurementTab.drawdownColumns.before')}</th>
-          <th className="px-2 py-1.5">{t('detail.procurementTab.drawdownColumns.remaining')}</th>
-          <th className="px-2 py-1.5">{t('detail.procurementTab.drawdownColumns.date')}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {drawdowns.map((d) => (
-          <tr key={d.id} className="border-t border-border/60">
-            <td className="px-2 py-1.5">
-              {d.purchaseOrderId ? (
-                <Link
-                  to={ROUTES.purchaseOrderDetail.replace(':id', d.purchaseOrderId)}
-                  className="text-primary hover:underline"
-                >
-                  {d.poNumber ?? '-'}
-                </Link>
-              ) : (
-                <span className="text-muted-foreground">{d.poNumber ?? '-'}</span>
-              )}
-            </td>
-            <td className="px-2 py-1.5 text-foreground">{d.material ?? '-'}</td>
-            <td className="px-2 py-1.5 text-foreground">{d.quantity}</td>
-            <td className="px-2 py-1.5 text-muted-foreground">{d.qtyBeforeDrawdown ?? '-'}</td>
-            <td className="px-2 py-1.5 text-muted-foreground">{d.remainingQty ?? '-'}</td>
-            <td className="px-2 py-1.5 text-muted-foreground whitespace-nowrap">
-              {formatShortDate(d.date)}
-            </td>
+    <ScrollTable>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs font-bold text-muted-foreground">
+            <th className="px-2 py-1.5">{t('detail.procurementTab.drawdownColumns.po')}</th>
+            <th className="px-2 py-1.5">{t('detail.procurementTab.drawdownColumns.material')}</th>
+            <th className="px-2 py-1.5">{t('detail.procurementTab.drawdownColumns.quantity')}</th>
+            <th className="px-2 py-1.5">{t('detail.procurementTab.drawdownColumns.before')}</th>
+            <th className="px-2 py-1.5">{t('detail.procurementTab.drawdownColumns.remaining')}</th>
+            <th className="px-2 py-1.5">{t('detail.procurementTab.drawdownColumns.date')}</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {drawdowns.map((d) => (
+            <tr key={d.id} className="border-t border-border/60">
+              <td className="px-2 py-1.5">
+                {d.purchaseOrderId ? (
+                  <Link
+                    to={ROUTES.purchaseOrderDetail.replace(':id', d.purchaseOrderId)}
+                    className="text-primary hover:underline"
+                  >
+                    {d.poNumber ?? '-'}
+                  </Link>
+                ) : (
+                  <span className="text-muted-foreground">{d.poNumber ?? '-'}</span>
+                )}
+              </td>
+              <td className="px-2 py-1.5 text-foreground">{d.material ?? '-'}</td>
+              <td className="px-2 py-1.5 text-foreground">{d.quantity}</td>
+              <td className="px-2 py-1.5 text-muted-foreground">{d.qtyBeforeDrawdown ?? '-'}</td>
+              <td className="px-2 py-1.5 text-muted-foreground">{d.remainingQty ?? '-'}</td>
+              <td className="px-2 py-1.5 text-muted-foreground whitespace-nowrap">
+                {formatShortDate(d.date)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ScrollTable>
   );
 }

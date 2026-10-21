@@ -53,6 +53,7 @@ import {
   useColumnResize,
   useDropdown,
   ViewSelectorDropdown,
+  ScrollTable,
 } from '@forethread/ui-components';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 import DragHandleIcon from '@forethread/ui-components/assets/icons/drag-and-drop.svg?react';
@@ -526,7 +527,7 @@ export default function PurchaseOrderListPage() {
           ) : items.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">{t('list.noPosFound')}</div>
           ) : (
-            <div className="rounded-lg border border-border overflow-x-auto">
+            <ScrollTable className="rounded-lg border border-border">
               <table
                 ref={tableRef}
                 className="w-full text-sm"
@@ -557,7 +558,7 @@ export default function PurchaseOrderListPage() {
                         >
                           <span className="flex items-center justify-between gap-2">
                             <span className="flex items-center gap-1.5">
-                              <DragHandleIcon className="w-[6px] h-[10px] shrink-0 text-[hsl(var(--sort-icon))] cursor-grab" />
+                              <DragHandleIcon className="hidden w-[6px] h-[10px] shrink-0 text-[hsl(var(--sort-icon))] cursor-grab md:block" />
                               {t(`columns.${key}` as never)}
                             </span>
                             <SortIcon
@@ -599,7 +600,7 @@ export default function PurchaseOrderListPage() {
                     : items.map((po) => renderPoRow(po))}
                 </tbody>
               </table>
-            </div>
+            </ScrollTable>
           )}
         </div>
 

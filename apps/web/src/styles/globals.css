@@ -219,3 +219,65 @@
       'calt' 1;
   }
 }
+
+/* ── ScrollTable (ADR-0019 / FOR-371) ─────────────────────────────────────────
+   One column stays pinned while a table scrolls sideways. A pinned cell must be
+   opaque, so it inherits its row's background and rows default to the card
+   colour. All background rules are fully inside :where() (zero specificity) so
+   any row/cell tint class — hover, selected, a header band on <tr> or <th> —
+   still wins. */
+/* Body rows default to the card colour; header/footer rows inherit their
+   section's colour (some tables tint <thead>, not <tr>), which defaults to card. */
+:where([data-scroll-table] > table > :is(thead, tfoot)),
+:where([data-scroll-table] > table > tbody > tr) {
+  background-color: hsl(var(--card));
+}
+:where([data-scroll-table] > table > :is(thead, tfoot) > tr) {
+  background-color: inherit;
+}
+:where(
+  [data-scroll-table][data-pin='1'] > table > :is(thead, tbody, tfoot) > tr > :nth-child(1),
+  [data-scroll-table][data-pin='2'] > table > :is(thead, tbody, tfoot) > tr > :nth-child(2),
+  [data-scroll-table][data-pin='3'] > table > :is(thead, tbody, tfoot) > tr > :nth-child(3)
+) {
+  background-color: inherit;
+}
+[data-scroll-table][data-pin='1'] > table > :is(thead, tbody, tfoot) > tr > :nth-child(1),
+[data-scroll-table][data-pin='2'] > table > :is(thead, tbody, tfoot) > tr > :nth-child(2),
+[data-scroll-table][data-pin='3'] > table > :is(thead, tbody, tfoot) > tr > :nth-child(3) {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+/* Divider + soft shadow on the pinned column once columns slide under it. */
+[data-scroll-table][data-scrolled][data-pin='1']
+  > table
+  > :is(thead, tbody, tfoot)
+  > tr
+  > :nth-child(1),
+[data-scroll-table][data-scrolled][data-pin='2']
+  > table
+  > :is(thead, tbody, tfoot)
+  > tr
+  > :nth-child(2),
+[data-scroll-table][data-scrolled][data-pin='3']
+  > table
+  > :is(thead, tbody, tfoot)
+  > tr
+  > :nth-child(3) {
+  box-shadow:
+    inset -1px 0 0 hsl(var(--border)),
+    6px 0 8px -6px rgb(0 0 0 / 0.18);
+}
+/* Phones: cap the pinned column so it never eats the screen (long material
+   names); its text wraps, or truncates where the cell asks for it. */
+@media (max-width: 767px) {
+  [data-scroll-table][data-pin='1'] > table > :is(thead, tbody, tfoot) > tr > :nth-child(1),
+  [data-scroll-table][data-pin='2'] > table > :is(thead, tbody, tfoot) > tr > :nth-child(2),
+  [data-scroll-table][data-pin='3'] > table > :is(thead, tbody, tfoot) > tr > :nth-child(3) {
+    max-width: 45vw;
+    min-width: 96px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}

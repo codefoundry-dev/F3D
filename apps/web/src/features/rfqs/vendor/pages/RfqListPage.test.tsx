@@ -158,6 +158,7 @@ vi.mock('@forethread/rfq-shared', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   Badge: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
   CreateViewModal: () => <div data-testid="create-view-modal" />,

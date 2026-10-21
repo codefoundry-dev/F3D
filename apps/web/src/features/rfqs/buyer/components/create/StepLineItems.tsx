@@ -15,6 +15,7 @@ import {
   cn,
   type MaterialItem,
   todayIso,
+  ScrollTable,
 } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
@@ -380,134 +381,140 @@ export function StepLineItems({
       </div>
 
       {/* ── Grouped line-items table ── */}
-      <div className="rounded-lg border border-border overflow-x-auto bg-card">
-        <table className={cn('w-full text-sm min-w-[900px]')} data-testid="line-items-table">
-          <thead>
-            <tr className={TABLE_HEADER_ROW}>
-              <th className={TABLE_TH}>{t('create.lineItems.colMaterialName')}</th>
-              <th className={cn(TABLE_TH, 'w-[120px]')}>
-                {t('create.lineItems.colQty')} <span className="text-destructive">*</span>
-              </th>
-              <th className={cn(TABLE_TH, 'w-[140px]')}>
-                {t('create.lineItems.colUom')} <span className="text-destructive">*</span>
-              </th>
-              <th className={cn(TABLE_TH, 'w-[150px]')}>{t('create.lineItems.colExpDelivery')}</th>
-              <th className={cn(TABLE_TH, 'w-[210px]')}>{t('create.lineItems.colAvailability')}</th>
-              <th className={cn(TABLE_TH, 'w-[120px]')}>{t('create.lineItems.colActions')}</th>
-            </tr>
-          </thead>
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
+        <ScrollTable>
+          <table className={cn('w-full text-sm min-w-[900px]')} data-testid="line-items-table">
+            <thead>
+              <tr className={TABLE_HEADER_ROW}>
+                <th className={TABLE_TH}>{t('create.lineItems.colMaterialName')}</th>
+                <th className={cn(TABLE_TH, 'w-[120px]')}>
+                  {t('create.lineItems.colQty')} <span className="text-destructive">*</span>
+                </th>
+                <th className={cn(TABLE_TH, 'w-[140px]')}>
+                  {t('create.lineItems.colUom')} <span className="text-destructive">*</span>
+                </th>
+                <th className={cn(TABLE_TH, 'w-[150px]')}>
+                  {t('create.lineItems.colExpDelivery')}
+                </th>
+                <th className={cn(TABLE_TH, 'w-[210px]')}>
+                  {t('create.lineItems.colAvailability')}
+                </th>
+                <th className={cn(TABLE_TH, 'w-[120px]')}>{t('create.lineItems.colActions')}</th>
+              </tr>
+            </thead>
 
-          {grouped.map((group) => {
-            const { id: groupId, name: groupName, isUnassigned, rows } = group;
-            const isCollapsed = collapsed[groupId] ?? false;
-            const draft = manualDraftFor(groupId);
-            return (
-              <tbody key={groupId} data-testid={`project-group-${groupId}`}>
-                {/* Group header */}
-                <tr className="bg-muted/60">
-                  <td colSpan={colCount} className="py-2 px-3">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        className="flex items-center gap-2 text-sm text-foreground"
-                        onClick={() =>
-                          setCollapsed((prev) => ({ ...prev, [groupId]: !isCollapsed }))
-                        }
-                      >
-                        {isCollapsed ? (
-                          <ChevronRightIcon className="w-4 h-4" />
-                        ) : (
-                          <ChevronDownIcon className="w-4 h-4" />
+            {grouped.map((group) => {
+              const { id: groupId, name: groupName, isUnassigned, rows } = group;
+              const isCollapsed = collapsed[groupId] ?? false;
+              const draft = manualDraftFor(groupId);
+              return (
+                <tbody key={groupId} data-testid={`project-group-${groupId}`}>
+                  {/* Group header */}
+                  <tr className="bg-[color:color-mix(in_srgb,hsl(var(--muted))_60%,hsl(var(--card)))]">
+                    <td colSpan={colCount} className="py-2 px-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="flex items-center gap-2 text-sm text-foreground"
+                          onClick={() =>
+                            setCollapsed((prev) => ({ ...prev, [groupId]: !isCollapsed }))
+                          }
+                        >
+                          {isCollapsed ? (
+                            <ChevronRightIcon className="w-4 h-4" />
+                          ) : (
+                            <ChevronDownIcon className="w-4 h-4" />
+                          )}
+                          {groupName}
+                        </button>
+                        {isUnassigned && (
+                          <span className="text-xs font-normal text-muted-foreground">
+                            {t('create.lineItems.unassignedHint')}
+                          </span>
                         )}
-                        {groupName}
-                      </button>
-                      {isUnassigned && (
-                        <span className="text-xs font-normal text-muted-foreground">
-                          {t('create.lineItems.unassignedHint')}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-
-                {!isCollapsed &&
-                  rows.map(({ item, index }) => (
-                    <LineItemRow
-                      key={item.key}
-                      item={item}
-                      itemIndex={index}
-                      projectOptions={projectOptions}
-                      groupProjectId={groupId}
-                      moveLabel={t('create.lineItems.moveToProject')}
-                      notesOpen={notesOpen[item.key] ?? false}
-                      onToggleNotes={() =>
-                        setNotesOpen((prev) => ({
-                          ...prev,
-                          [item.key]: !(prev[item.key] ?? false),
-                        }))
-                      }
-                      onChange={(patch) => updateItem(item.key, patch)}
-                      onRemove={() => removeItem(item.key)}
-                      notesLabel={t('create.lineItems.additionalNotes')}
-                      notesOptionalLabel={t('create.optional')}
-                      notesPlaceholder={t('create.lineItems.notesPlaceholder')}
-                      colCount={colCount}
-                      vendors={vendors}
-                      matchIndex={matchIndex}
-                      allocations={allocations}
-                      remaining={remainingQty(item, allocations)}
-                      availabilityChecked={availabilityChecked}
-                      availabilityLoading={availabilityLoading}
-                      onRequestCheck={onCheckAvailability}
-                      onCoverBest={() => coverBest(item, index)}
-                      onClearRow={() => clearRowAllocations(item.key)}
-                      availabilityLabels={availabilityLabels}
-                    />
-                  ))}
-
-                {/* Inline manual entry row (design: empty editable row per group).
-                    Suppressed for the catch-all group — manual rows need a project. */}
-                {!isCollapsed && !isUnassigned && (
-                  <tr className={TABLE_BODY_ROW} data-testid={`manual-row-${groupId}`}>
-                    <td className="py-1.5 px-1">
-                      <ManualMaterialNameCell
-                        value={draft.name}
-                        onValueChange={(name) =>
-                          patchManualDraft(groupId, { name, materialId: undefined })
-                        }
-                        onSelectMaterial={(material) => selectManualMaterial(groupId, material)}
-                        onCommit={() => commitManualDraft(groupId)}
-                        placeholder={t('create.lineItems.manualNamePlaceholder')}
-                        testId={`manual-name-${groupId}`}
-                      />
+                      </div>
                     </td>
-                    <td className="py-1.5 px-1">
-                      <StepperInput
-                        value={draft.quantity}
-                        onValueChange={(value) => patchManualDraft(groupId, { quantity: value })}
-                        onBlur={() => commitManualDraft(groupId)}
-                        min={0}
-                        placeholder="0"
-                        data-testid={`manual-qty-${groupId}`}
-                      />
-                    </td>
-                    <td className="py-1.5 px-1">
-                      <input
-                        value={draft.uom}
-                        onChange={(e) => patchManualDraft(groupId, { uom: e.target.value })}
-                        onBlur={() => commitManualDraft(groupId)}
-                        placeholder={t('create.lineItems.manualUomPlaceholder')}
-                        className="w-full h-9 px-2 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:bg-muted/40 rounded"
-                        data-testid={`manual-uom-${groupId}`}
-                      />
-                    </td>
-                    <td className="py-1.5 px-1 text-muted-foreground" colSpan={colCount - 3} />
                   </tr>
-                )}
-              </tbody>
-            );
-          })}
-        </table>
+
+                  {!isCollapsed &&
+                    rows.map(({ item, index }) => (
+                      <LineItemRow
+                        key={item.key}
+                        item={item}
+                        itemIndex={index}
+                        projectOptions={projectOptions}
+                        groupProjectId={groupId}
+                        moveLabel={t('create.lineItems.moveToProject')}
+                        notesOpen={notesOpen[item.key] ?? false}
+                        onToggleNotes={() =>
+                          setNotesOpen((prev) => ({
+                            ...prev,
+                            [item.key]: !(prev[item.key] ?? false),
+                          }))
+                        }
+                        onChange={(patch) => updateItem(item.key, patch)}
+                        onRemove={() => removeItem(item.key)}
+                        notesLabel={t('create.lineItems.additionalNotes')}
+                        notesOptionalLabel={t('create.optional')}
+                        notesPlaceholder={t('create.lineItems.notesPlaceholder')}
+                        colCount={colCount}
+                        vendors={vendors}
+                        matchIndex={matchIndex}
+                        allocations={allocations}
+                        remaining={remainingQty(item, allocations)}
+                        availabilityChecked={availabilityChecked}
+                        availabilityLoading={availabilityLoading}
+                        onRequestCheck={onCheckAvailability}
+                        onCoverBest={() => coverBest(item, index)}
+                        onClearRow={() => clearRowAllocations(item.key)}
+                        availabilityLabels={availabilityLabels}
+                      />
+                    ))}
+
+                  {/* Inline manual entry row (design: empty editable row per group).
+                      Suppressed for the catch-all group — manual rows need a project. */}
+                  {!isCollapsed && !isUnassigned && (
+                    <tr className={TABLE_BODY_ROW} data-testid={`manual-row-${groupId}`}>
+                      <td className="py-1.5 px-1">
+                        <ManualMaterialNameCell
+                          value={draft.name}
+                          onValueChange={(name) =>
+                            patchManualDraft(groupId, { name, materialId: undefined })
+                          }
+                          onSelectMaterial={(material) => selectManualMaterial(groupId, material)}
+                          onCommit={() => commitManualDraft(groupId)}
+                          placeholder={t('create.lineItems.manualNamePlaceholder')}
+                          testId={`manual-name-${groupId}`}
+                        />
+                      </td>
+                      <td className="py-1.5 px-1">
+                        <StepperInput
+                          value={draft.quantity}
+                          onValueChange={(value) => patchManualDraft(groupId, { quantity: value })}
+                          onBlur={() => commitManualDraft(groupId)}
+                          min={0}
+                          placeholder="0"
+                          data-testid={`manual-qty-${groupId}`}
+                        />
+                      </td>
+                      <td className="py-1.5 px-1">
+                        <input
+                          value={draft.uom}
+                          onChange={(e) => patchManualDraft(groupId, { uom: e.target.value })}
+                          onBlur={() => commitManualDraft(groupId)}
+                          placeholder={t('create.lineItems.manualUomPlaceholder')}
+                          className="w-full h-9 px-2 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:bg-muted/40 rounded"
+                          data-testid={`manual-uom-${groupId}`}
+                        />
+                      </td>
+                      <td className="py-1.5 px-1 text-muted-foreground" colSpan={colCount - 3} />
+                    </tr>
+                  )}
+                </tbody>
+              );
+            })}
+          </table>
+        </ScrollTable>
 
         {/* Totals footer */}
         <div className="flex items-center gap-8 border-t border-border px-4 py-3 text-sm">
@@ -775,7 +782,7 @@ function LineItemRow({
 
       {/* Expandable notes row (design: "RFQ manually-add note") */}
       {notesOpen && (
-        <tr className="border-t border-border bg-muted/20">
+        <tr className="border-t border-border bg-[color:color-mix(in_srgb,hsl(var(--muted))_20%,hsl(var(--card)))]">
           <td colSpan={colCount} className="py-3 px-4">
             <label className="flex flex-col gap-1.5">
               <span className="text-sm font-medium text-foreground">

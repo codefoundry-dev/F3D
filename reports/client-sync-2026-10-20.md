@@ -15,7 +15,7 @@ and cost codes.
 | ----------------------------------------------------------- | ------------- | ------------------------------------------------------- | ------ |
 | [FOR-358](https://codefoundry.atlassian.net/browse/FOR-358) | Layout        | Responsive layout for 13–14" laptop screens             | ✅     |
 | [FOR-359](https://codefoundry.atlassian.net/browse/FOR-359) | Layout        | Freeze table header row on scroll                       | ⬜     |
-| [FOR-360](https://codefoundry.atlassian.net/browse/FOR-360) | Layout        | Horizontal scrollbar on wide tables                     | ⬜     |
+| [FOR-360](https://codefoundry.atlassian.net/browse/FOR-360) | Layout        | Horizontal scrollbar on wide tables                     | ✅     |
 | [FOR-361](https://codefoundry.atlassian.net/browse/FOR-361) | Catalogue     | Material images carry over from catalogue to RFQ        | ✅     |
 | [FOR-362](https://codefoundry.atlassian.net/browse/FOR-362) | Catalogue     | Editable material categories                            | ⬜     |
 | [FOR-363](https://codefoundry.atlassian.net/browse/FOR-363) | Catalogue     | Rename "Public" tab to "Global Materials"               | ✅     |
@@ -58,7 +58,10 @@ and cost codes.
 - **Client ask:** Add a horizontal scrollbar so extra columns stay reachable on smaller screens.
 - **Expected:** Tables scroll sideways inside their container, the page doesn't, and columns keep a
   readable minimum width.
-- **Resolution:** _TBD_
+- **Resolution:** Delivered through the mobile epic (FOR-371). Every read-only table now scrolls
+  sideways inside its own card, never the page. The first column (the row's ID or name) stays pinned
+  while the rest slide under it, and a fade on the edge shows there are more columns. The same
+  behaviour works on laptops and phones. Shared component: `ScrollTable`.
 
 ## 2. Material catalogue
 

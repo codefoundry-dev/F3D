@@ -23,6 +23,7 @@ vi.mock('@forethread/rfq-shared', () => ({
   usePageTitleStore: (sel: (s: { setTitle: () => void }) => unknown) => sel({ setTitle: () => {} }),
 }));
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   Button: ({
     children,
     onClick,

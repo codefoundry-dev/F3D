@@ -2,7 +2,13 @@ import { UNCATEGORISED } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { VendorCategory } from '@forethread/shared-types/client';
-import { Spinner, EmptyState, TablePagination, type DotAction } from '@forethread/ui-components';
+import {
+  Spinner,
+  EmptyState,
+  TablePagination,
+  type DotAction,
+  ScrollTable,
+} from '@forethread/ui-components';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -256,7 +262,7 @@ function VendorTable({
   onViewUser,
 }: VendorTableProps) {
   return (
-    <div className="border border-border rounded-lg overflow-x-auto">
+    <ScrollTable className="border border-border rounded-lg">
       <table className="w-full min-w-[800px] text-sm">
         <VendorTableHeader sortField={sortField} sortDir={sortDir} onSort={onSort} />
         <tbody className="divide-y divide-border">
@@ -278,7 +284,7 @@ function VendorTable({
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollTable>
   );
 }
 

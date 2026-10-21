@@ -11,6 +11,7 @@ import {
   formatDate,
   getStatusColor,
   notificationService,
+  ScrollTable,
 } from '@forethread/ui-components';
 import CheckIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
@@ -144,7 +145,7 @@ export default function DeliveryReportDetailPage() {
       {/* ═══ Line Items ═══ */}
       <div className="mt-4 rounded-[14px] border border-border bg-card p-4 sm:p-6">
         <h2 className="mb-4 text-base font-semibold text-foreground">{t('detail.lineItems')}</h2>
-        <div className="overflow-x-auto rounded-lg border border-border">
+        <ScrollTable className="rounded-lg border border-border">
           <table className="w-full text-sm" data-testid="delivery-detail-table">
             <thead>
               <tr className="border-b border-border bg-[hsl(var(--table-header))] text-left text-[hsl(var(--table-header-foreground))]">
@@ -175,7 +176,7 @@ export default function DeliveryReportDetailPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       </div>
 
       {showReject && (

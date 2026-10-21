@@ -4,7 +4,13 @@ import {
   type CatalogueLineItem,
   isCatalogueExtractionResult,
 } from '@forethread/shared-types/client';
-import { Button, Input, TablePagination, useDebounce } from '@forethread/ui-components';
+import {
+  Button,
+  Input,
+  TablePagination,
+  useDebounce,
+  ScrollTable,
+} from '@forethread/ui-components';
 import { useCallback, useMemo, useState } from 'react';
 
 export interface CatalogueReviewTableProps {
@@ -107,9 +113,9 @@ export function CatalogueReviewTable({ value, readOnly, onChange }: CatalogueRev
         </p>
       </div>
 
-      <div className="overflow-x-auto border rounded-md">
+      <ScrollTable className="border rounded-md">
         <table className="w-full text-sm" data-testid="catalogue-items-table">
-          <thead className="bg-muted/50 text-xs uppercase">
+          <thead className="bg-[color:color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))] text-xs uppercase">
             <tr>
               <th className="text-left p-2 w-[24%]">{t('review.columns.name')}</th>
               <th className="text-left p-2 w-[14%]">{t('review.columns.sku')}</th>
@@ -173,7 +179,7 @@ export function CatalogueReviewTable({ value, readOnly, onChange }: CatalogueRev
             )}
           </tbody>
         </table>
-      </div>
+      </ScrollTable>
 
       <TablePagination
         page={page}

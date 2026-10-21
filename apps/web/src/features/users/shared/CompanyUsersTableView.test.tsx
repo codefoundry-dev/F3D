@@ -12,6 +12,7 @@ vi.mock('@forethread/i18n', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   Spinner: () => <div data-testid="spinner" />,
   TablePagination: () => <div data-testid="pagination" />,
   EmptyState: ({ title, illustration }: any) => (

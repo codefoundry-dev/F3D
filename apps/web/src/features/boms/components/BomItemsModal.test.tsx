@@ -7,6 +7,7 @@ vi.mock('@forethread/i18n', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   Badge: (p: any) => (
     <span data-testid="badge" className={p.className}>
       {p.children}
