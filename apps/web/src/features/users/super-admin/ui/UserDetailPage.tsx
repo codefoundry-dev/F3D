@@ -94,15 +94,15 @@ export default function UserDetailPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       {/* Single card wrapping all content */}
-      <div className="bg-card rounded-xl border border-border p-8 space-y-6">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-5">
+      <div className="bg-card rounded-xl border border-border p-4 md:p-8 space-y-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-4 md:gap-5">
             <AvatarUpload name={user.name} avatarUrl={user.avatarUrl} editable={false} />
-            <div>
+            <div className="min-w-0">
               <h2 className="text-2xl font-semibold text-foreground">{user.name}</h2>
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
+              <div className="flex min-w-0 items-center gap-1.5 break-all text-sm text-muted-foreground mt-1">
                 <EnvelopeIcon className="w-4 h-4" />
                 {user.email}
               </div>

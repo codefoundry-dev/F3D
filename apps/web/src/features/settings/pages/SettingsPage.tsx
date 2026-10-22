@@ -30,7 +30,7 @@ function SettingsLink({ icon, title, subtitle, onClick }: SettingsLinkProps) {
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-gray-900">{title}</p>
-        <p className="truncate text-xs text-gray-500">{subtitle}</p>
+        <p className="line-clamp-2 text-xs text-gray-500 md:truncate">{subtitle}</p>
       </div>
       <ChevronRightIcon className="size-4 shrink-0 text-gray-400" />
     </button>

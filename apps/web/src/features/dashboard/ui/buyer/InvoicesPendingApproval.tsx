@@ -31,7 +31,7 @@ export function InvoicesPendingApproval({ items, isLoading }: InvoicesPendingApp
   }
 
   return (
-    <div className="bg-white rounded-[14px] border border-black/20 overflow-hidden flex flex-col h-[420px]">
+    <div className="bg-white rounded-[14px] border border-black/20 overflow-hidden flex flex-col max-md:max-h-[480px] md:h-[420px]">
       <div className="px-4 pt-4 pb-3">
         <h2 className="text-base font-semibold text-foreground">
           {t('invoicesPendingApproval.title')}

@@ -74,16 +74,19 @@ export function QuoteResponsesSection({
   }
 
   return (
-    <div className="bg-white rounded-[14px] border border-black/20 overflow-hidden flex flex-col h-[420px]">
-      <div className="flex items-center justify-between px-4 pt-4 pb-3">
+    <div className="bg-white rounded-[14px] border border-black/20 overflow-hidden flex flex-col max-md:max-h-[480px] md:h-[420px]">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4 pb-3">
         <h2 className="text-base font-semibold text-foreground">{t('quoteResponses.title')}</h2>
-        <div className="flex gap-2">
+        <div
+          data-swipe-row
+          className="flex gap-2 max-md:-mx-4 max-md:w-[calc(100%+2rem)] max-md:overflow-x-auto max-md:px-4 [scrollbar-width:none]"
+        >
           {(['all', 'pending', 'approved'] as const).map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setActiveTab(tab)}
-              className={`rounded-full px-2.5 py-1 text-sm font-normal transition-colors ${
+              className={`shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-sm font-normal transition-colors max-md:min-h-11 max-md:px-4 ${
                 activeTab === tab
                   ? 'bg-accent text-foreground'
                   : 'border border-border text-foreground hover:bg-accent/50'

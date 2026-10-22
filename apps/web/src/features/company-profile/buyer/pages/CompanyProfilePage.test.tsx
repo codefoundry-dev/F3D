@@ -25,6 +25,8 @@ vi.mock('@forethread/i18n', () => ({
 
 vi.mock('@forethread/ui-components', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
+  useIsPhone: () => false,
+  PageActions: () => null,
   Spinner: () => <div data-testid="spinner" />,
   Button: ({ children, onClick, leftIcon: _l, isLoading: _il, ...props }: any) => (
     <button onClick={onClick} {...props}>

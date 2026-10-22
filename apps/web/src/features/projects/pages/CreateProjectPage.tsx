@@ -481,7 +481,7 @@ function Step1({
                 type="button"
                 onClick={() => setValue('status', s, { shouldValidate: true })}
                 className={cn(
-                  'px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
+                  'px-3 py-1.5 rounded-full text-sm font-medium transition-colors max-md:min-h-11 max-md:px-4',
                   status === s
                     ? 'bg-foreground text-background'
                     : 'bg-muted text-foreground hover:bg-muted/80',
@@ -667,7 +667,7 @@ function LocationGroup({
                 type="button"
                 onClick={() => !isDefault && onSetDefault(index)}
                 className={cn(
-                  'shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                  'shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors max-md:min-h-11',
                   isDefault
                     ? 'bg-foreground text-background cursor-default'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80',
@@ -680,7 +680,7 @@ function LocationGroup({
                   type="button"
                   onClick={() => onRemove(index)}
                   aria-label={removeLabel}
-                  className="shrink-0 p-2 text-muted-foreground hover:text-foreground transition-colors"
+                  className="shrink-0 p-2 max-md:p-3.5 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <DeleteIcon className="w-4 h-4" />
                 </button>

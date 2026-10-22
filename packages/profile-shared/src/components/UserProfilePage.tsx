@@ -95,26 +95,28 @@ export default function UserProfilePage({
   if (!profile) return null;
 
   return (
-    <div className="p-6">
-      {/* Profile Card */}
-      <div className="bg-card rounded-xl border border-border p-8">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-5">
+    <div className="p-4 md:p-6">
+      {/* Profile Card — phones stack the header and put the two actions side by side */}
+      <div className="bg-card rounded-xl border border-border p-4 md:p-8">
+        <div className="flex items-start justify-between gap-4 max-md:flex-col max-md:items-stretch">
+          <div className="flex min-w-0 items-center gap-4 md:gap-5">
             <AvatarUpload
               name={profile.name}
               avatarUrl={avatarUrl}
               isUploading={uploadAvatarMutation.isPending}
               onUpload={(file) => uploadAvatarMutation.mutate(file)}
             />
-            <div>
-              <h2 className="text-2xl font-normal text-foreground">{profile.name}</h2>
-              <div className="flex items-center gap-1.5 text-base text-muted-foreground mt-1">
-                <EnvelopeIcon className="w-4 h-4" />
-                {profile.email}
+            <div className="min-w-0">
+              <h2 className="break-words text-xl font-normal text-foreground md:text-2xl">
+                {profile.name}
+              </h2>
+              <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground mt-1 md:text-base">
+                <EnvelopeIcon className="w-4 h-4 shrink-0" />
+                <span className="truncate">{profile.email}</span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 max-md:[&>*]:flex-1">
             <Button variant="outline" onClick={() => setIsChangePasswordOpen(true)}>
               <LockSimpleIcon className="w-4 h-4 mr-2" />
               {t('changePassword')}

@@ -139,7 +139,7 @@ function DraftRow({ draft, errors, onChange, onBlur, onRemove }: DraftRowProps) 
   );
 
   return (
-    <div className="grid grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-4 md:gap-6">
       <FormField
         label={t('vendors:fields.fullName', { defaultValue: 'Full name' })}
         error={errors?.name}
@@ -192,7 +192,7 @@ function DraftRow({ draft, errors, onChange, onBlur, onRemove }: DraftRowProps) 
           {onRemove && (
             <button
               type="button"
-              className="p-2 text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              className="p-2 max-md:p-3 text-muted-foreground hover:text-foreground transition-colors shrink-0"
               onClick={onRemove}
             >
               <DeleteIcon className="w-4 h-4" />

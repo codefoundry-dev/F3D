@@ -371,7 +371,11 @@ export default function MaterialCataloguePage() {
   return (
     <div className="p-4 md:p-8 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border">
-        <div className="flex items-center gap-6" role="tablist" aria-label={t('page.title')}>
+        <div
+          className="flex items-center gap-6 max-md:-mx-4 max-md:min-w-0 max-md:max-w-[calc(100%+2rem)] max-md:overflow-x-auto max-md:px-4 [scrollbar-width:none]"
+          role="tablist"
+          aria-label={t('page.title')}
+        >
           {tabs.map((tab) => {
             const isActive = activeTab === tab.key;
             return (
@@ -383,7 +387,7 @@ export default function MaterialCataloguePage() {
                 onClick={() => setActiveTab(tab.key)}
                 data-testid={`material-tab-${tab.key}`}
                 className={
-                  'pb-3 -mb-px text-sm font-medium border-b-2 transition-colors ' +
+                  'pb-3 -mb-px whitespace-nowrap text-sm font-medium border-b-2 transition-colors max-md:min-h-11 max-md:pt-3 max-md:pb-2.5 ' +
                   (isActive
                     ? 'border-foreground text-foreground'
                     : 'border-transparent text-muted-foreground hover:text-foreground')

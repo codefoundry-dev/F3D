@@ -141,7 +141,8 @@ export default function MaterialDetailPage() {
           <button
             type="button"
             onClick={() => navigate(ROUTES.materialCatalogue)}
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            // Phones: the top bar already has the back arrow.
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground max-md:hidden"
             aria-label={t('detail.back')}
             data-testid="material-detail-back"
           >

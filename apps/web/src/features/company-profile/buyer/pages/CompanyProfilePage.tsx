@@ -12,6 +12,8 @@ import {
   Button,
   Tabs,
   DotActionsMenu,
+  PageActions,
+  useIsPhone,
   StatusActionModal,
   notificationService,
   type DotAction,
@@ -47,6 +49,7 @@ export default function CompanyProfilePage() {
   const { t } = useTranslation(['company', 'common', 'users']);
   const companyId = useAuthStore((s) => s.currentUser?.companyId);
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  const isPhone = useIsPhone();
   const queryClient = useQueryClient();
 
   const { data: company, isLoading } = useQuery({
@@ -163,9 +166,9 @@ export default function CompanyProfilePage() {
   ];
 
   return (
-    <div className="flex flex-1 flex-col gap-4 px-6 py-4">
-      {/* Section header */}
-      <div className="flex items-center gap-3">
+    <div className="flex flex-1 flex-col gap-4 px-4 py-4 md:px-6">
+      {/* Section header (phones: the top bar already shows the title) */}
+      <div className="flex items-center gap-3 max-md:hidden">
         <span className="flex size-7 shrink-0 items-center justify-center rounded-[8px] border border-gray-100 bg-gradient-to-b from-[#F9F9FA] to-white p-px text-gray-700 shadow-[0_1px_3px_0_rgba(10,13,18,0.06),0_1px_1px_0_rgba(10,13,18,0.02)]">
           <DepartmentIcon className="size-[15px]" />
         </span>
@@ -192,14 +195,27 @@ export default function CompanyProfilePage() {
         onAvatarClick={openFilePicker}
         isUploadingLogo={isPending}
         actions={
-          <>
+          isPhone ? undefined : (
+            <>
+              <Button onClick={openCreateModal} leftIcon={<NewUserIcon className="size-5" />}>
+                {t('users:inviteUser')}
+              </Button>
+              <DotActionsMenu actions={dotActions} />
+            </>
+          )
+        }
+      />
+      {/* Phones: Invite user in the footer bar, the ⋮ actions in the top-bar ⋯ (B7). */}
+      {isPhone && (
+        <PageActions
+          primary={
             <Button onClick={openCreateModal} leftIcon={<NewUserIcon className="size-5" />}>
               {t('users:inviteUser')}
             </Button>
-            <DotActionsMenu actions={dotActions} />
-          </>
-        }
-      />
+          }
+          secondary={dotActions}
+        />
+      )}
 
       {/* Tabs */}
       <Tabs items={tabs} value={activeTab} onValueChange={setActiveTab} />

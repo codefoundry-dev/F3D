@@ -92,7 +92,7 @@ export default function RoleListPage() {
                   <p className="truncate text-sm font-semibold text-gray-900">
                     {t(`roleNames.${role}`)}
                   </p>
-                  <p className="truncate text-xs text-gray-500">
+                  <p className="line-clamp-2 text-xs text-gray-500 md:truncate">
                     {t('permissionCount', { count })}
                   </p>
                 </div>
@@ -150,7 +150,7 @@ export default function RoleListPage() {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-gray-900">{role.name}</p>
-                <p className="truncate text-xs text-gray-500">
+                <p className="line-clamp-2 text-xs text-gray-500 md:truncate">
                   {role.description ?? t('permissionCount', { count: role.permissionCount })}
                 </p>
               </div>

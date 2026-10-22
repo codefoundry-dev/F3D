@@ -375,15 +375,18 @@ export default function EditProjectPage() {
                   isDefault: false,
                 })
               }
-              className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+              className="text-sm text-muted-foreground hover:text-foreground hover:underline max-md:min-h-11 max-md:px-2"
             >
               {t('create.addLocation')}
             </button>
           </div>
 
           {deliveryLocations.map(({ index }) => (
-            <div key={locationFields[index].id} className="flex gap-3 items-start">
-              <div className="flex-1">
+            <div
+              key={locationFields[index].id}
+              className="flex flex-wrap gap-3 items-start md:flex-nowrap"
+            >
+              <div className="flex-1 max-md:basis-full">
                 <AddressInput
                   value={watchedLocations[index]?.address ?? ''}
                   placeholder={t('create.addressPlaceholder')}
@@ -396,7 +399,7 @@ export default function EditProjectPage() {
                   <p className="mt-1.5 text-xs text-destructive">{locationRowError(index)}</p>
                 )}
               </div>
-              <div className="w-40">
+              <div className="w-40 max-md:flex-1">
                 <Input
                   {...register(`locations.${index}.label`)}
                   placeholder={t('create.labelPlaceholder')}
@@ -414,7 +417,7 @@ export default function EditProjectPage() {
                 <button
                   type="button"
                   onClick={() => removeLocation(index)}
-                  className="p-1.5 pt-2.5 text-muted-foreground hover:text-foreground transition-colors"
+                  className="p-1.5 pt-2.5 max-md:p-3.5 text-muted-foreground hover:text-foreground transition-colors"
                   aria-label={t('create.removeLocation')}
                 >
                   <DeleteIcon className="w-4 h-4" />
@@ -441,15 +444,18 @@ export default function EditProjectPage() {
                   isDefault: false,
                 })
               }
-              className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+              className="text-sm text-muted-foreground hover:text-foreground hover:underline max-md:min-h-11 max-md:px-2"
             >
               {t('create.addLocation')}
             </button>
           </div>
 
           {storageLocations.map(({ index }) => (
-            <div key={locationFields[index].id} className="flex gap-3 items-start">
-              <div className="flex-1">
+            <div
+              key={locationFields[index].id}
+              className="flex flex-wrap gap-3 items-start md:flex-nowrap"
+            >
+              <div className="flex-1 max-md:basis-full">
                 <AddressInput
                   value={watchedLocations[index]?.address ?? ''}
                   placeholder={t('create.addressPlaceholder')}
@@ -462,7 +468,7 @@ export default function EditProjectPage() {
                   <p className="mt-1.5 text-xs text-destructive">{locationRowError(index)}</p>
                 )}
               </div>
-              <div className="w-40">
+              <div className="w-40 max-md:flex-1">
                 <Input
                   {...register(`locations.${index}.label`)}
                   placeholder={t('create.labelPlaceholder')}
@@ -480,7 +486,7 @@ export default function EditProjectPage() {
                 <button
                   type="button"
                   onClick={() => removeLocation(index)}
-                  className="p-1.5 pt-2.5 text-muted-foreground hover:text-foreground transition-colors"
+                  className="p-1.5 pt-2.5 max-md:p-3.5 text-muted-foreground hover:text-foreground transition-colors"
                   aria-label={t('create.removeLocation')}
                 >
                   <DeleteIcon className="w-4 h-4" />

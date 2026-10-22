@@ -55,7 +55,7 @@ export function RepresentativeRow({
 
   if (isEditing && editData && onFieldChange) {
     return (
-      <div className="grid grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4 md:gap-6">
         <FormField
           label={t('vendors:fields.fullName', { defaultValue: 'Full name' })}
           error={errors?.name}
@@ -102,7 +102,7 @@ export function RepresentativeRow({
             {onRemove && (
               <button
                 type="button"
-                className="p-2 text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                className="p-2 max-md:p-3 text-muted-foreground hover:text-foreground transition-colors shrink-0"
                 onClick={onRemove}
               >
                 <DeleteIcon className="w-4 h-4" />
@@ -116,7 +116,7 @@ export function RepresentativeRow({
 
   return (
     <div className="flex items-start gap-2">
-      <div className="grid grid-cols-4 gap-6 flex-1">
+      <div className="grid flex-1 grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
         <InfoItem
           icon={<UserIcon className="w-4 h-4" />}
           label={t('vendors:fields.fullName', { defaultValue: 'Full name' })}
@@ -141,7 +141,7 @@ export function RepresentativeRow({
       {onView && (
         <button
           type="button"
-          className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          className="p-1.5 max-md:p-3 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"
           aria-label="View"
           onClick={onView}
         >

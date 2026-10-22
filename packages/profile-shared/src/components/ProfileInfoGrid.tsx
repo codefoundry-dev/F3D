@@ -41,7 +41,7 @@ export function ProfileInfoGrid({
 
   return (
     <div className="mt-8 space-y-6">
-      <div className="grid grid-cols-4 gap-y-6">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-6 md:grid-cols-4 md:gap-x-0">
         {/* Row 1 */}
         <InfoField label={t('phone')}>
           <PhoneIcon className="w-4 h-4 text-muted-foreground" />
@@ -89,7 +89,7 @@ export function ProfileInfoGrid({
 
       {/* Assigned project row — only shown when there are projects */}
       {hasProjects && (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
           <InfoField label={t('assignedProject')}>
             <HammerIcon className="w-4 h-4 text-muted-foreground" />
             {projects.map((p) => p.name).join(', ')}
@@ -110,7 +110,9 @@ function InfoField({ label, children }: { label: string; children: React.ReactNo
   return (
     <div>
       <p className="text-xs text-muted-foreground mb-1.5">{label}</p>
-      <div className="flex items-center gap-2 text-sm text-foreground">{children}</div>
+      <div className="flex min-w-0 items-center gap-2 break-words text-sm text-foreground">
+        {children}
+      </div>
     </div>
   );
 }

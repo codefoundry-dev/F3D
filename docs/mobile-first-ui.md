@@ -331,6 +331,11 @@ nav and footer bar (`Toaster mobileOffset`).
 
 Tracked as FOR-381 (RFQ, PO, bulk order, invoices) and FOR-382 (everything else).
 
+| Area                                                                                    | Status |
+| --------------------------------------------------------------------------------------- | ------ |
+| RFQ, PO, bulk order, invoices (FOR-381)                                                 | ✅     |
+| Dashboards, projects/BOM, catalogue, vendors, users, settings, company, `/me` (FOR-382) | ✅     |
+
 Screen by screen per area:
 
 - Dashboards (single column; quick actions become a swipeable row)
@@ -343,6 +348,41 @@ Screen by screen per area:
 - `/me` (currently overflows)
 - Bulk orders
 - Deliveries list
+
+**As built (FOR-381 / FOR-382):**
+
+- **One phone control height (44px), in the shared components:** `Button` sm/md (and icon-only),
+  `Input` sm/md, `Select`, `SelectDropdown`, `SearchInput`, `CustomDropdown`, `DatePicker`, the
+  `Tabs` strip, `SegmentedControl` (38px + its 3px padding), the bordered `DotActionsMenu` trigger,
+  the `MobileListToolbar` quick-filter pills, `TablePagination` Back/Next. All written as `max-md:`
+  overrides, so desktop and any caller's own height class are unchanged. Buttons no longer wrap
+  their label (`whitespace-nowrap`). Small icon buttons (message, attachment, document
+  view/download, rep view/delete, avatar edit badge) get a 44px box or an invisible hit area.
+- **16px inputs:** `SelectDropdown`, `Select`, `SearchInput`, `CustomDropdown`, `AddressInput`, the
+  date picker's DD/MM/YYYY sections and the RFQ vendor search.
+- **Pagination on phones:** Back · "page / total" · Next; the numbered buttons are desktop-only.
+- **Pinned table column floor:** `min(144px, 45vw)`. The old 96px let `overflow-wrap: anywhere`
+  break names one letter per line.
+- **Dashboard:** single column; quick actions are one row that swipes sideways, and Create PO /
+  Create RFQ open a bottom sheet on phones (a dropdown would be clipped by the row). Section filter
+  pills swipe and are 44px; sections size to their content (max 480px) instead of a fixed 420px.
+- **Profile-style headers** (`/me`, company profile + SA company detail, vendor profile, user and
+  rep detail): stacked on phones, smaller avatar, wrapping name, 16px page padding; info grids go to
+  2 columns (1 while editing). Company "Invite user" moves to `MobileActionBar` and its ⋮ items to
+  the top-bar ⋯ (B7); the duplicate "Company details" heading is hidden on phones.
+- **Project detail** now uses the shared `Tabs` (edge fades, active tab kept in view); section
+  headers wrap. Project edit location rows stack (address full width).
+- **Also:** RFQ create's Add from BOM / material list stack on phones; the catalogue tab row
+  scrolls; the material detail page's own back arrow is hidden (top bar has one); settings and role
+  descriptions wrap to 2 lines; PO comms and quote-response detail use 16px side padding.
+- **Audit:** `node .tmp/for358/audit-p3.mjs 360x780 390x844 430x932` (all FOR-381/382 routes, as any
+  `EMAIL=` role; also flags <44px targets and <16px inputs) and
+  `.tmp/for358/tabs-audit.mjs <width> <routes…>` (clicks every tab). Result: no page overflow at
+  360/390/430 for the company admin, vendor and finance roles; the only remaining
+  flags are intentional ellipses (long emails/names). Desktop 1280/1920 flags are the same as before
+  the change (dashboard card ellipses, catalogue upload stepper at 1280).
+- **Not covered locally:** bulk-order detail/drawdown (no bulk orders in the local seed), and the
+  real-device check.
 
 ## Definition of done (each screen)
 
