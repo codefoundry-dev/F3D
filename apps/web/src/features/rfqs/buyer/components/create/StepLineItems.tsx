@@ -416,7 +416,10 @@ export function StepLineItems({
     {
       key: 'delivery',
       label: t('create.lineItems.colExpDelivery'),
-      value: ({ item }) => item.expectedDeliveryDate ?? '-',
+      value: ({ item }) =>
+        item.expectedDeliveryDate
+          ? [item.expectedDeliveryDate, item.deliveryTime].filter(Boolean).join(' ')
+          : (item.deliveryTime ?? '-'),
       input: ({ item }) => (
         <DatePicker
           value={item.expectedDeliveryDate ?? ''}

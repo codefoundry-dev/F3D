@@ -47,6 +47,12 @@ function formatDate(value: string | undefined): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+/** Date plus the optional "HH:MM" time of day, e.g. "Oct 24, 2026 09:30". */
+function formatDateTime(date: string | undefined, time: string | undefined): string {
+  if (!date) return time ?? '—';
+  return time ? `${formatDate(date)} ${time}` : formatDate(date);
+}
+
 function ReviewCard({
   title,
   onEdit,
@@ -173,7 +179,9 @@ export function StepReviewSend({
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">{t('create.review.needByDate')}</dt>
-              <dd className="text-foreground mt-1">{formatDate(basicInfo.needByDate)}</dd>
+              <dd className="text-foreground mt-1">
+                {formatDateTime(basicInfo.needByDate, basicInfo.needByTime)}
+              </dd>
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">
@@ -259,7 +267,9 @@ export function StepReviewSend({
                           <td className="py-2.5 px-3 text-foreground">{item.materialName}</td>
                           <td className="py-2.5 px-3">{item.uom}</td>
                           <td className="py-2.5 px-3">{item.quantity}</td>
-                          <td className="py-2.5 px-3">{formatDate(item.expectedDeliveryDate)}</td>
+                          <td className="py-2.5 px-3">
+                            {formatDateTime(item.expectedDeliveryDate, item.deliveryTime)}
+                          </td>
                           <td className="py-2.5 px-3">
                             <div className="flex items-center gap-1">
                               <span

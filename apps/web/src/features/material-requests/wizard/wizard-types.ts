@@ -47,6 +47,11 @@ export interface MrWizardLine {
   /** Wanted delivery time of day, 24-hour "HH:MM". Persisted as a real API field
    * and carried through to the RFQ / PO created from this request. */
   deliveryTime?: string;
+  /** The foreman set this line's date by hand, so the "Need by" for all lines
+   * no longer fills it (FOR-364). Never sent to the API. */
+  needByDateOverridden?: boolean;
+  /** Same as `needByDateOverridden`, for the time of day. */
+  needByTimeOverridden?: boolean;
   /** Per-line delivery location id (project DELIVERY location). */
   deliveryLocationId?: string;
   /** Usage instructions (sent to the API as the line's notes). */

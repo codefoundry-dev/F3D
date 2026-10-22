@@ -38,6 +38,9 @@ export interface StepMaterialDetailsProps {
   /** Project members available to CC on a line. */
   memberOptions: MemberOption[];
   onPatchLine: (key: string, patch: Partial<MrWizardLine>) => void;
+  /** "Need by" for all lines (FOR-364). Omit to hide the control. */
+  needBy?: { date: string; time: string };
+  onNeedByChange?: (patch: Partial<{ date: string; time: string }>) => void;
 }
 
 /** Header cell — bold, letter-spaced 12px label matching the RFQ/PO list tables. */
@@ -114,6 +117,8 @@ export function StepMaterialDetails({
   locationOptions,
   memberOptions,
   onPatchLine,
+  needBy,
+  onNeedByChange,
 }: StepMaterialDetailsProps) {
   const { t } = useTranslation('materialRequests');
   const [notesOpen, setNotesOpen] = useState<Record<string, boolean>>({});
@@ -281,9 +286,40 @@ export function StepMaterialDetails({
     },
   ];
 
+  // One date/time that fills every line; lines changed by hand keep their value.
+  const needByAll =
+    needBy && onNeedByChange ? (
+      <div className="mb-4 flex flex-col gap-1.5" data-testid="mr-need-by-all">
+        <span className="text-sm font-medium text-foreground">
+          {t('materialDetails.needByAll')}
+        </span>
+        <div className="flex flex-wrap gap-2">
+          <div className="w-full sm:w-[200px]">
+            <DatePicker
+              value={needBy.date}
+              onChange={(date) => onNeedByChange({ date })}
+              placeholder={t('materialDetails.pickDate')}
+              minDate={todayIso()}
+              editable
+            />
+          </div>
+          <Input
+            type="time"
+            value={needBy.time}
+            onChange={(e) => onNeedByChange({ time: e.target.value })}
+            aria-label={t('materialDetails.needByAllTime')}
+            className="w-32"
+            data-testid="mr-need-by-all-time"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">{t('materialDetails.needByAllHint')}</p>
+      </div>
+    ) : null;
+
   if (isPhone) {
     return (
       <div className="p-4" data-testid="mr-details-step">
+        {needByAll}
         <LineItemEditor
           lines={lines}
           fields={phoneFields}
@@ -298,6 +334,7 @@ export function StepMaterialDetails({
 
   return (
     <div className="p-5 sm:p-6" data-testid="mr-details-step">
+      {needByAll}
       <ScrollTable className="rounded-lg border border-border bg-card">
         <table className="w-full min-w-[1080px] text-sm">
           <thead>

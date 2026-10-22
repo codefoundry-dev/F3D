@@ -25,6 +25,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 import { useConfirmedBoms } from '@/features/doc-intelligence';
+import { applyNeedByDefault, trackNeedByOverrides } from '@/shared/need-by/lineNeedBy';
 
 import {
   autoCoverAllocations,
@@ -304,6 +305,22 @@ export default function CreateRfqPage() {
   }, [seed]);
 
   const projectLocked = Boolean(seed?.source === 'BOM' && seed.projectIds?.length);
+
+  // ── RFQ-level "Need by" (FOR-364) ─────────────────────────────────────────
+  // The header date/time fills every line the user hasn't changed by hand,
+  // including lines added later. Per-line values stay the saved truth.
+  const needBy = useMemo(
+    () => ({ date: basicInfo.needByDate, time: basicInfo.needByTime }),
+    [basicInfo.needByDate, basicInfo.needByTime],
+  );
+  useEffect(() => {
+    setItems((prev) => applyNeedByDefault(prev, needBy));
+  }, [items, needBy]);
+  /** User edits to lines go through here so hand-set dates/times stick. */
+  const editItems = useCallback(
+    (next: WizardLineItem[]) => setItems((prev) => trackNeedByOverrides(prev, next, needBy)),
+    [needBy],
+  );
 
   // ── Mutations ─────────────────────────────────────────────────────────────
   const saveDraft = useSaveRfqDraft();
@@ -673,7 +690,7 @@ export default function CreateRfqPage() {
               >
                 <StepLineItems
                   items={items}
-                  onItemsChange={setItems}
+                  onItemsChange={editItems}
                   projects={selectedProjects}
                   materials={materials}
                   search={materialSearch}
@@ -770,8 +787,8 @@ export default function CreateRfqPage() {
         <EditMaterialModal
           item={editingItem}
           onConfirm={(patch) =>
-            setItems((prev) =>
-              prev.map((item) => (item.key === editingItem.key ? { ...item, ...patch } : item)),
+            editItems(
+              items.map((item) => (item.key === editingItem.key ? { ...item, ...patch } : item)),
             )
           }
           onClose={() => setEditingItem(null)}

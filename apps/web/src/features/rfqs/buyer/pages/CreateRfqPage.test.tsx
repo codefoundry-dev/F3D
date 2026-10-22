@@ -479,6 +479,58 @@ describe('CreateRfqPage', () => {
     expect(screen.getByTestId('total-qty')).toHaveTextContent('12');
   });
 
+  it('fills every line from the RFQ-level Need by and keeps hand-set line dates (FOR-364)', async () => {
+    mockUseLocation.mockReturnValue({
+      state: {
+        seed: {
+          source: 'BOM',
+          projectIds: [PROJECT_ID],
+          items: [
+            { source: 'BOM', materialName: 'Rebar', quantity: 1, uom: 'ea', projectId: PROJECT_ID },
+            { source: 'BOM', materialName: 'Mesh', quantity: 2, uom: 'ea', projectId: PROJECT_ID },
+          ],
+        },
+      },
+    });
+    renderPage();
+    fillBasics();
+
+    // Second date input = RFQ-level "Need by".
+    fireEvent.change(screen.getAllByLabelText('date')[1], { target: { value: '2026-12-01' } });
+    fireEvent.change(screen.getByTestId('rfq-need-by-time'), { target: { value: '08:00' } });
+
+    const table = screen.getByTestId('line-items-table');
+    const lineDates = () =>
+      within(table)
+        .getAllByLabelText<HTMLInputElement>('date')
+        .map((input) => input.value);
+    expect(lineDates()).toEqual(['2026-12-01', '2026-12-01']);
+
+    // Override the first line, then move the RFQ-level date: only the second follows.
+    fireEvent.change(within(table).getAllByLabelText('date')[0], {
+      target: { value: '2026-12-05' },
+    });
+    fireEvent.change(screen.getAllByLabelText('date')[1], { target: { value: '2026-12-10' } });
+    expect(lineDates()).toEqual(['2026-12-05', '2026-12-10']);
+
+    continueWizard();
+    await waitFor(() => expect(mockSaveDraft.mutateAsync).toHaveBeenCalledTimes(1));
+    const payload = mockSaveDraft.mutateAsync.mock.calls[0][0];
+    expect(payload.needByDate).toBe('2026-12-10T00:00:00.000Z');
+    expect(payload.lineItems).toEqual([
+      expect.objectContaining({
+        expectedDeliveryDate: '2026-12-05T00:00:00.000Z',
+        deliveryTime: '08:00',
+      }),
+      expect.objectContaining({
+        expectedDeliveryDate: '2026-12-10T00:00:00.000Z',
+        deliveryTime: '08:00',
+      }),
+    ]);
+    // Override flags are client-only and never reach the API.
+    expect(payload.lineItems[0]).not.toHaveProperty('needByDateOverridden');
+  });
+
   it('seeds from a confirmed BOM extraction passed via route state (FOR-200)', () => {
     mockUseLocation.mockReturnValue({ state: { bomExtractionId: 'ext-1' } });
     mockUseConfirmedBoms.mockReturnValue({

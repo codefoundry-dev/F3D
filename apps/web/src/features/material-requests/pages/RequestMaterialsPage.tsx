@@ -9,6 +9,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 import { useAuthStore } from '@/features/auth/state/auth.store';
+import {
+  applyNeedByDefault,
+  trackNeedByOverrides,
+  type NeedByDefault,
+} from '@/shared/need-by/lineNeedBy';
 
 import { PrimaryButton, SecondaryButton } from '../components/MobileButtons';
 import { MobileHeader } from '../components/MobileHeader';
@@ -59,6 +64,9 @@ export default function RequestMaterialsPage() {
 
   const [step, setStep] = useState<WizardStep>(0);
   const [lines, setLines] = useState<MrWizardLine[]>([]);
+  // "Need by" for all lines (FOR-364): fills every line the foreman hasn't
+  // changed by hand, including lines added later.
+  const [needBy, setNeedBy] = useState<NeedByDefault>({ date: '', time: '' });
   const [detailErrors, setDetailErrors] = useState<MrDetailsErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showNominate, setShowNominate] = useState(false);
@@ -136,16 +144,29 @@ export default function RequestMaterialsPage() {
     setLines((prev) => prev.filter((l) => l.key !== key));
   }, []);
 
-  const patchLine = useCallback((key: string, patch: Partial<MrWizardLine>) => {
-    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
-    // Clear that line's errors as the foreman edits.
-    setDetailErrors((prev) => {
-      if (!prev[key]) return prev;
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-  }, []);
+  useEffect(() => {
+    setLines((prev) => applyNeedByDefault(prev, needBy));
+  }, [lines, needBy]);
+
+  const patchLine = useCallback(
+    (key: string, patch: Partial<MrWizardLine>) => {
+      setLines((prev) =>
+        trackNeedByOverrides(
+          prev,
+          prev.map((l) => (l.key === key ? { ...l, ...patch } : l)),
+          needBy,
+        ),
+      );
+      // Clear that line's errors as the foreman edits.
+      setDetailErrors((prev) => {
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    },
+    [needBy],
+  );
 
   const goBack = () => {
     if (step === 0) {
@@ -277,6 +298,8 @@ export default function RequestMaterialsPage() {
             locationOptions={locationOptions}
             memberOptions={memberOptions}
             onPatchLine={patchLine}
+            needBy={needBy}
+            onNeedByChange={(patch) => setNeedBy((prev) => ({ ...prev, ...patch }))}
           />
         )}
         {step === 2 && (
