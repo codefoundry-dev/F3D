@@ -48,15 +48,18 @@ export class BrandingService {
   }
 
   /**
-   * Resolve a company's email brand: display name + a presigned logo URL. Returns
-   * `undefined` when the company is unknown or has no logo, so the email simply
-   * renders without a logo header. The uploads bucket blocks public access, so the
-   * raw object URL 403s in mail clients — a presigned URL is required (see
-   * {@link EMAIL_LOGO_URL_TTL_SECONDS} for the expiry caveat).
+   * Resolve a company's email brand: display name, plus a presigned logo URL when
+   * the company has a logo. Every known company is branded (FOR-383) — a missing
+   * logo only drops the image, never the company name — so `undefined` means the
+   * company is unknown and the email renders the plain platform layout. The
+   * uploads bucket blocks public access, so the raw object URL 403s in mail
+   * clients — a presigned URL is required (see {@link EMAIL_LOGO_URL_TTL_SECONDS}
+   * for the expiry caveat).
    */
   async getEmailBrand(companyId?: string | null): Promise<EmailBrand | undefined> {
     const company = await this.findCompany(companyId);
-    if (!company?.logoUrl) return undefined;
+    if (!company) return undefined;
+    if (!company.logoUrl) return { name: company.legalName };
 
     return {
       name: company.legalName,

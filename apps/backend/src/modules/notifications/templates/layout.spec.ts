@@ -31,6 +31,13 @@ describe('email layout branding (FOR-288)', () => {
     expect(html).toMatch(/<div[^>]*>\s*Acme Builders\s*<\/div>/);
   });
 
+  it('renders the company name without an image when the brand has no logo (FOR-383)', () => {
+    const html = layout({ ...baseVars, brand: { name: 'Acme Builders' } });
+
+    expect(html).not.toContain('<img');
+    expect(html).toMatch(/<div[^>]*>\s*Acme Builders\s*<\/div>/);
+  });
+
   it('renders neither logo nor name line when no brand is provided', () => {
     const html = layout(baseVars);
 

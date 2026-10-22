@@ -863,6 +863,43 @@ describe('EmailService', () => {
       },
     );
 
+    it.each(brandedCalls)(
+      '%s sends from "{company} via Forethread" on the configured address (FOR-383)',
+      async (_name, invoke) => {
+        await invoke();
+
+        expect(mockSendMail).toHaveBeenCalledWith(
+          expect.objectContaining({
+            from: expect.stringMatching(/^"Acme Builders via Forethread" <[^<>"]+@[^<>"]+>$/),
+          }),
+        );
+      },
+    );
+
+    it('passes the company as the Resend sender display name on branded emails (FOR-383)', async () => {
+      resendService.isConfigured.mockReturnValue(true);
+
+      await service.sendPoIssuedEmail(
+        'vendor@test.com',
+        'PO-001',
+        'https://view.test',
+        undefined,
+        undefined,
+        { name: 'Acme Builders' },
+      );
+
+      const payload = resendService.send.mock.calls[0][0] as Record<string, unknown>;
+      expect(payload).toMatchObject({ fromName: 'Acme Builders' });
+      expect(payload).not.toHaveProperty('from');
+    });
+
+    it('keeps the plain configured sender when an email is sent without a brand', async () => {
+      await service.sendChangeRequestApprovedEmail('to@test.com', 'BULK-1', 'https://view.test');
+
+      const { from } = mockSendMail.mock.calls[0][0] as { from: string };
+      expect(from).not.toContain('via Forethread');
+    });
+
     it('omits the brand from the layout when a transactional email is sent without one', async () => {
       const layoutFn = require('handlebars').compile();
 

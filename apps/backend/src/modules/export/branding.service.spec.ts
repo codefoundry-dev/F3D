@@ -81,9 +81,14 @@ describe('BrandingService', () => {
       expect(mockFindUnique).not.toHaveBeenCalled();
     });
 
-    it('returns undefined when the company has no logo', async () => {
-      mockFindUnique.mockResolvedValue({ legalName: 'Acme', logoUrl: null });
+    it('returns undefined when the company is not found', async () => {
+      mockFindUnique.mockResolvedValue(null);
       expect(await service.getEmailBrand('comp-1')).toBeUndefined();
+    });
+
+    it('still names the company when it has no logo (FOR-383)', async () => {
+      mockFindUnique.mockResolvedValue({ legalName: 'Acme', logoUrl: null });
+      expect(await service.getEmailBrand('comp-1')).toEqual({ name: 'Acme' });
       expect(mockGetSignedUrl).not.toHaveBeenCalled();
     });
 

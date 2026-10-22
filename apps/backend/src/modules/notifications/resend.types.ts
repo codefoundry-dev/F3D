@@ -21,6 +21,8 @@ export interface ResendSendOptions {
   html?: string;
   text?: string;
   from?: string;
+  /** Company display name for the default sender (FOR-383); ignored when `from` is set. */
+  fromName?: string;
   replyTo?: string | string[];
   attachments?: ResendAttachment[];
   headers?: Record<string, string>;
