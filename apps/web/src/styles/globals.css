@@ -258,6 +258,20 @@
   position: sticky;
   left: 0;
   z-index: 1;
+  /* A translucent tint (e.g. `hover:bg-accent/50`) would let the columns
+     sliding underneath show through. Paint an opaque card base over the cell's
+     own (inherited) colour, then re-apply that colour on top via ::before. */
+  background-image: linear-gradient(hsl(var(--card)), hsl(var(--card)));
+}
+[data-scroll-table][data-pin='1'] > table > :is(thead, tbody, tfoot) > tr > :nth-child(1)::before,
+[data-scroll-table][data-pin='2'] > table > :is(thead, tbody, tfoot) > tr > :nth-child(2)::before,
+[data-scroll-table][data-pin='3'] > table > :is(thead, tbody, tfoot) > tr > :nth-child(3)::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: inherit;
 }
 /* Divider + soft shadow on the pinned column once columns slide under it. */
 [data-scroll-table][data-scrolled][data-pin='1']
