@@ -154,3 +154,32 @@ describe('MaterialTable canManage ownership gate', () => {
     expect(screen.getByText('Delete')).toBeInTheDocument();
   });
 });
+
+describe('MaterialTable inline cost / tax codes (FOR-365)', () => {
+  it('renders the codes as plain text without onSaveCode', () => {
+    renderTable({ items: [material({ costCode: 'CC-1', taxCode: 'TX-1' })] });
+    expect(screen.getByTestId('material-costCode-m-1').tagName).toBe('SPAN');
+    expect(screen.getByTestId('material-taxCode-m-1')).toHaveTextContent('TX-1');
+  });
+
+  it('saves an edited code through onSaveCode', async () => {
+    const onSaveCode = vi.fn().mockResolvedValue(undefined);
+    renderTable({ items: [material({ costCode: 'CC-1' })], onSaveCode });
+    fireEvent.click(screen.getByTestId('material-costCode-m-1'));
+    const input = screen.getByTestId('material-costCode-m-1-input');
+    fireEvent.change(input, { target: { value: 'CC-2' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await vi.waitFor(() =>
+      expect(onSaveCode).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'm-1' }),
+        'costCode',
+        'CC-2',
+      ),
+    );
+  });
+
+  it('keeps rows that canEditCodes rejects read-only', () => {
+    renderTable({ onSaveCode: vi.fn(), canEditCodes: () => false });
+    expect(screen.getByTestId('material-taxCode-m-1').tagName).toBe('SPAN');
+  });
+});

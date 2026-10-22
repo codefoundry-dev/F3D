@@ -41,6 +41,7 @@ import {
   useMaterialChangeRequestMutations,
   useMaterialChangeRequests,
 } from '../hooks/useMaterialChangeRequests';
+import { useMaterialCodeMutation } from '../hooks/useMaterialCodeMutation';
 import { useMaterialFacets } from '../hooks/useMaterialFacets';
 import { useMaterialFavouriteMutations } from '../hooks/useMaterialFavouriteMutations';
 import { useMaterialLists, useMaterialListMutations } from '../hooks/useMaterialLists';
@@ -101,6 +102,7 @@ export default function MaterialCataloguePage() {
   // NOT being an approver so the Super-Admin catalogue stays exactly as-is.
   const showApprovalTabs = canApprove;
   const showContributorTabs = !canApprove;
+  const materialCodeMutation = useMaterialCodeMutation();
 
   // Valid tab keys for the current role — drives both the tab bar and ?tab=
   // resolution so an out-of-role tab param falls back to 'public'.
@@ -697,6 +699,19 @@ export default function MaterialCataloguePage() {
                   showContributorTabs && canFavourite
                     ? (m) => favouriteMutations.toggle(m.id, Boolean(m.isFavourite))
                     : undefined
+                }
+                onSaveCode={
+                  has('material.update') && !isArchivedView
+                    ? (m, field, value) =>
+                        materialCodeMutation.mutateAsync({ id: m.id, field, value })
+                    : undefined
+                }
+                canEditCodes={
+                  // In place only where the edit applies directly (FOR-365): the
+                  // catalogue admin, or a company's own not-yet-global material.
+                  // A contractor edit of a Global row is a change request with a
+                  // reason, so it keeps the full edit page.
+                  canApprove ? undefined : (m) => Boolean(m.companyId) && m.status !== 'PUBLIC'
                 }
                 onAddToList={
                   showContributorTabs && has('materialList.manageItems')

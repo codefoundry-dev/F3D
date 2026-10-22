@@ -1,8 +1,14 @@
 import type { RfqLineItem } from '@forethread/api-client';
-import { deleteLineItem } from '@forethread/api-client';
+import { deleteLineItem, updateLineItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { MaterialImageThumb } from '@forethread/rfq-shared';
-import { ConfirmDialog, formatDate, ScrollTable } from '@forethread/ui-components';
+import {
+  ConfirmDialog,
+  formatDate,
+  InlineEditCell,
+  ScrollTable,
+  toast,
+} from '@forethread/ui-components';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import EditRowIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -37,6 +43,17 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
       void queryClient.invalidateQueries({ queryKey: ['rfqs', rfqId] });
       setDeletingItem(null);
     },
+  });
+
+  // Cost code is edited in place (FOR-365); the other fields keep the modal.
+  const costCodeMutation = useMutation({
+    mutationFn: ({ lineItemId, costCode }: { lineItemId: string; costCode: string }) =>
+      updateLineItem(rfqId, lineItemId, { costCode: costCode || null }),
+    onSuccess: () => {
+      toast.success(t('lineItemsTab.costCodeSaved'));
+      return queryClient.invalidateQueries({ queryKey: ['rfqs', rfqId] });
+    },
+    onError: () => toast.error(t('lineItemsTab.costCodeSaveError')),
   });
 
   return (
@@ -99,7 +116,18 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
                 </td>
                 <td className="p-3 text-foreground border border-border">{item.quantity}</td>
                 <td className="p-3 text-foreground border border-border">{item.unit}</td>
-                <td className="p-3 text-foreground border border-border">{item.costCode ?? '-'}</td>
+                <td className="px-3 py-2 text-foreground border border-border">
+                  <InlineEditCell
+                    value={item.costCode}
+                    label={t('lineItemsTab.costCode')}
+                    emptyDisplay="-"
+                    maxLength={100}
+                    onSave={(costCode) =>
+                      costCodeMutation.mutateAsync({ lineItemId: item.id, costCode })
+                    }
+                    data-testid={`rfq-line-cost-code-${item.id}`}
+                  />
+                </td>
                 <td className="p-3 text-foreground border border-border">{item.upc ?? '-'}</td>
                 <td className="p-3 text-foreground border border-border">
                   {item.manufacturerPartNumber ?? '-'}

@@ -78,7 +78,9 @@
       "lastPrice": "Last Price",
       "updated": "Updated",
       "actions": "Actions"
-    }
+    },
+    "codeSaved": "{{field}} saved",
+    "codeSaveError": "Could not save the {{field}}"
   },
   "pending": {
     "loading": "Loading pending materials…",

@@ -307,6 +307,8 @@
     "qty": "Qty",
     "uom": "UoM",
     "costCode": "Cost code",
+    "costCodeSaved": "Cost code saved",
+    "costCodeSaveError": "Could not save the cost code",
     "upc": "UPC",
     "mpn": "MPN",
     "taxCode": "Tax code",

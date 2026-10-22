@@ -41,6 +41,9 @@ export type { ButtonProps, ButtonVariant, ButtonSize } from './components/Button
 export { Input } from './components/Input';
 export type { InputProps, InputSize } from './components/Input';
 
+export { InlineEditCell } from './components/InlineEditCell';
+export type { InlineEditCellProps } from './components/InlineEditCell';
+
 export { StepperInput } from './components/StepperInput';
 export type { StepperInputProps } from './components/StepperInput';
 
