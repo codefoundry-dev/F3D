@@ -38,6 +38,7 @@ import { AuditService } from '../audit/audit.service';
 import { BrandingService } from '../export/branding.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { NotificationService } from '../notification-feed/notification.service';
+import { SYSTEM_SENDER } from '../notification-feed/notification.types';
 import { EmailService } from '../notifications/email.service';
 
 import {
@@ -748,7 +749,7 @@ export class MaterialRequestsService {
 
     if (notify.length > 0) {
       // Best-effort: a mail failure must not undo a recorded nomination.
-      this.notifyNominatedApprovers(id, notify).catch(() => {});
+      this.notifyNominatedApprovers(id, notify, user.id).catch(() => {});
     }
 
     return view;
@@ -851,6 +852,7 @@ export class MaterialRequestsService {
       body: `Material request ${mr.mrNumber} for ${mr.project.name} needs your approval.`,
       entityType: NotificationEntityType.MATERIAL_REQUEST,
       entityId: mrId,
+      sender: { userId: mr.requestedById },
     });
   }
 
@@ -863,6 +865,7 @@ export class MaterialRequestsService {
   private async notifyNominatedApprovers(
     mrId: string,
     nominees: ApproverPoolMember[],
+    nominatedByUserId: string,
   ): Promise<void> {
     const mr = await this.prisma.materialRequest.findUnique({
       where: { id: mrId },
@@ -894,6 +897,7 @@ export class MaterialRequestsService {
       body: `Material request ${mr.mrNumber} for ${mr.project.name} needs your approval.`,
       entityType: NotificationEntityType.MATERIAL_REQUEST,
       entityId: mrId,
+      sender: { userId: nominatedByUserId },
     });
   }
 
@@ -943,6 +947,7 @@ export class MaterialRequestsService {
       body,
       entityType: NotificationEntityType.MATERIAL_REQUEST,
       entityId: mrId,
+      sender: SYSTEM_SENDER,
     });
 
     // The requester gets the same signal in-app even when they are not an
@@ -956,6 +961,7 @@ export class MaterialRequestsService {
         body,
         entityType: NotificationEntityType.MATERIAL_REQUEST,
         entityId: mrId,
+        sender: SYSTEM_SENDER,
       });
     }
   }

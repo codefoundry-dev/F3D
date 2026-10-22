@@ -280,6 +280,7 @@ describe('RfqsController', () => {
         'rfq-1',
         'A vendor',
         null,
+        mockUser.id,
       );
     });
 
@@ -296,6 +297,7 @@ describe('RfqsController', () => {
         'rfq-1',
         'VendorCo',
         'Lead time extended to 3 weeks.',
+        mockUser.id,
       );
     });
   });

@@ -33,6 +33,7 @@ import { AuditService } from '../audit/audit.service';
 import { BrandingService } from '../export/branding.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { NotificationService } from '../notification-feed/notification.service';
+import { SYSTEM_SENDER } from '../notification-feed/notification.types';
 import { EmailService } from '../notifications/email.service';
 
 import { PoExportService } from './po-export.service';
@@ -724,6 +725,7 @@ export class PoStatusService {
       po.vendor?.legalName ?? 'Vendor',
       po.company?.users ?? [],
       dto?.reason,
+      user.id,
     ).catch(() => {});
 
     return this.purchaseOrdersService.getPurchaseOrder(id, user);
@@ -785,6 +787,7 @@ export class PoStatusService {
       po.vendor?.legalName ?? 'Vendor',
       po.company?.users ?? [],
       dto?.reason,
+      null,
     ).catch(() => {});
 
     return this.purchaseOrdersService.getPurchaseOrderById(poId);
@@ -1307,6 +1310,7 @@ export class PoStatusService {
         body: `You have received purchase order ${poNumber}.`,
         entityType: NotificationEntityType.PURCHASE_ORDER,
         entityId: poId,
+        sender: { userId: user.id },
       },
     );
   }
@@ -1316,7 +1320,9 @@ export class PoStatusService {
     poNumber: string,
     vendorName: string,
     companyAdmins: Array<{ email: string }>,
-    reason?: string,
+    reason: string | undefined,
+    /** Null for a guest declining through the portal link. */
+    declinedByUserId: string | null,
   ): Promise<void> {
     if (companyAdmins.length === 0) return;
 
@@ -1354,6 +1360,8 @@ export class PoStatusService {
         body: `${vendorName} declined purchase order ${poNumber}.`,
         entityType: NotificationEntityType.PURCHASE_ORDER,
         entityId: poId,
+        // A guest has no account — the vendor company stands in.
+        sender: declinedByUserId ? { userId: declinedByUserId } : { companyName: vendorName },
       },
     );
   }
@@ -1381,7 +1389,7 @@ export class PoStatusService {
     if (notify.length > 0) {
       // Best-effort, like every other notification on this path: a mail failure
       // must not undo a nomination that is already recorded.
-      this.notifyNominatedApprovers(poId, notify).catch(() => {});
+      this.notifyNominatedApprovers(poId, notify, user.id).catch(() => {});
     }
 
     return view;
@@ -1398,6 +1406,7 @@ export class PoStatusService {
   private async notifyNominatedApprovers(
     poId: string,
     nominees: ApproverPoolMember[],
+    nominatedByUserId: string,
   ): Promise<void> {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id: poId },
@@ -1430,6 +1439,7 @@ export class PoStatusService {
       body: `Purchase order ${po.poNumber} (${amountLabel}) needs your approval.`,
       entityType: NotificationEntityType.PURCHASE_ORDER,
       entityId: poId,
+      sender: { userId: nominatedByUserId },
     });
   }
 
@@ -1517,6 +1527,7 @@ export class PoStatusService {
       body: `Purchase order ${po.poNumber} (${amountLabel}) needs your approval.`,
       entityType: NotificationEntityType.PURCHASE_ORDER,
       entityId: poId,
+      sender: { userId: po.createdByUserId },
     });
   }
 
@@ -1568,6 +1579,7 @@ export class PoStatusService {
       body,
       entityType: NotificationEntityType.PURCHASE_ORDER,
       entityId: poId,
+      sender: SYSTEM_SENDER,
     });
 
     // The creator gets the same signal in-app even when they are not an admin.
@@ -1582,6 +1594,7 @@ export class PoStatusService {
         body,
         entityType: NotificationEntityType.PURCHASE_ORDER,
         entityId: poId,
+        sender: SYSTEM_SENDER,
       });
     }
   }

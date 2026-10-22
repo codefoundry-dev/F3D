@@ -1,3 +1,4 @@
+import { formatSenderLabel, SenderParts } from '@forethread/shared-types';
 import { Injectable, Logger } from '@nestjs/common';
 import { Notification, Prisma, UserStatus } from '@prisma/client';
 
@@ -10,6 +11,7 @@ import {
   CreateNotificationInput,
   NotificationContent,
   NotificationDto,
+  NotificationSender,
 } from './notification.types';
 
 @Injectable()
@@ -33,6 +35,9 @@ export class NotificationService {
     if (userIds.length === 0) return;
 
     try {
+      const sender = await this.resolveSender(input.sender);
+      const metadata: Record<string, unknown> = { ...(input.metadata ?? {}), sender };
+
       // Create individually (not createMany) so we get each row back — including
       // its id and timestamp — to push over SSE. Recipient counts per event are
       // small (a handful of buyer/vendor users), so this is cheap.
@@ -46,7 +51,7 @@ export class NotificationService {
               body: input.body ?? null,
               entityType: input.entityType ?? null,
               entityId: input.entityId ?? null,
-              metadata: (input.metadata ?? undefined) as Prisma.InputJsonValue | undefined,
+              metadata: metadata as Prisma.InputJsonValue,
             },
           }),
         ),
@@ -145,7 +150,39 @@ export class NotificationService {
     return { updated: result.count };
   }
 
+  /**
+   * Snapshot the sender's name and company onto the row (FOR-366), so the feed
+   * keeps showing who acted even after a rename or a deactivation. Explicit
+   * values (a guest's typed name) win over the ones resolved from `userId`.
+   */
+  private async resolveSender(sender: NotificationSender): Promise<SenderParts> {
+    let name = sender.name ?? null;
+    let companyName = sender.companyName ?? null;
+    if (sender.userId && (!name || !companyName)) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: sender.userId },
+        select: { name: true, company: { select: { legalName: true, tradeName: true } } },
+      });
+      name ??= user?.name ?? null;
+      companyName ??= user?.company?.legalName ?? user?.company?.tradeName ?? null;
+    }
+    return { name, companyName };
+  }
+
+  /** The stored sender, or undefined for rows written before FOR-366 recorded one. */
+  private readSender(metadata: Prisma.JsonValue | null): SenderParts | undefined {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return undefined;
+    const sender = (metadata as Record<string, unknown>)['sender'];
+    if (!sender || typeof sender !== 'object' || Array.isArray(sender)) return undefined;
+    const { name, companyName } = sender as Record<string, unknown>;
+    return {
+      name: typeof name === 'string' ? name : null,
+      companyName: typeof companyName === 'string' ? companyName : null,
+    };
+  }
+
   private toDto(notification: Notification): NotificationDto {
+    const sender = this.readSender(notification.metadata);
     return {
       id: notification.id,
       type: notification.type,
@@ -156,6 +193,9 @@ export class NotificationService {
       metadata: notification.metadata ?? null,
       readAt: notification.readAt ? notification.readAt.toISOString() : null,
       createdAt: notification.createdAt.toISOString(),
+      // Formatted at read time so every row — whatever emitted it — shows the
+      // sender the same way.
+      sender: sender ? formatSenderLabel(sender) : null,
     };
   }
 }

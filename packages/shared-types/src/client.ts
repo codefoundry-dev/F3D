@@ -17,6 +17,7 @@ export * from './dtos/delivery.types';
 
 // Validation utils
 export * from './validation';
+export * from './sender-label';
 
 // Zod schemas (client-side validation)
 export * from './schemas/auth.schema';

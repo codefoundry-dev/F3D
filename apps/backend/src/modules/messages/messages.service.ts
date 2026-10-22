@@ -459,10 +459,12 @@ export class MessagesService {
         userIds: participants.map((p) => p.userId),
         type: NotificationType.MESSAGE_RECEIVED,
         title: 'New message',
-        // Attachment-only messages have empty content — don't render "Jane: ".
-        body: preview ? `${senderName}: ${preview}` : `${senderName} sent an attachment`,
+        // The sender is its own line in the feed (FOR-366), so the body is just
+        // the message; attachment-only messages have no content to preview.
+        body: preview || 'Sent an attachment',
         ...(entityType ? { entityType, entityId: thread.contextId } : {}),
         ...(metadata ? { metadata } : {}),
+        sender: { userId: senderId, name: senderName },
       });
     } catch {
       // best-effort — a notification failure must not fail the message send

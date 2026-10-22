@@ -50,6 +50,12 @@ export interface NotificationItem {
   /** ISO timestamp, or null when unread. */
   readAt: string | null;
   createdAt: string;
+  /**
+   * Who it came from, formatted server-side (FOR-366): "{name} · {company}",
+   * the company alone, or "Forethread" for system events. Null on rows that
+   * predate the sender being recorded.
+   */
+  sender: string | null;
 }
 
 export interface NotificationListMeta {

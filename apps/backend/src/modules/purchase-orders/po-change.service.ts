@@ -425,6 +425,8 @@ export class PoChangeService {
         ...feed,
         entityType: NotificationEntityType.PURCHASE_ORDER,
         entityId: po.id,
+        // A guest proposer has no account — the vendor company stands in.
+        sender: proposerUserId ? { userId: proposerUserId } : { companyName: proposedBy },
       });
 
     if (proposerIsVendor) {
@@ -1122,6 +1124,7 @@ export class PoChangeService {
           : `The change request for purchase order ${po.poNumber} was rejected.`,
       entityType: NotificationEntityType.PURCHASE_ORDER,
       entityId: poId,
+      sender: { userId: resolverUserId },
     });
   }
 

@@ -14,6 +14,7 @@ const item = (over: Partial<NotificationItem> = {}): NotificationItem => ({
   metadata: null,
   readAt: null,
   createdAt: new Date().toISOString(),
+  sender: null,
   ...over,
 });
 
@@ -62,6 +63,28 @@ describe('NotificationPanel', () => {
     expect(screen.getByText('Purchase order received')).toBeInTheDocument();
     fireEvent.click(screen.getByText('New quote received'));
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'n-2' }));
+  });
+
+  it('shows the sender line in the one standard format, and none for legacy rows (FOR-366)', () => {
+    render(
+      <NotificationPanel
+        items={[
+          item({ sender: 'Jane Doe · Acme Builders' }),
+          item({ id: 'n-2', title: 'Payment due soon', sender: 'Forethread' }),
+          item({ id: 'n-3', title: 'Legacy row', sender: null }),
+        ]}
+        isLoading={false}
+        unreadCount={0}
+        onSelect={vi.fn()}
+        onMarkAll={vi.fn()}
+        markAllPending={false}
+      />,
+    );
+
+    expect(screen.getByText('Jane Doe · Acme Builders')).toBeInTheDocument();
+    expect(screen.getByText('Forethread')).toBeInTheDocument();
+    const legacy = screen.getByText('Legacy row').closest('button');
+    expect(legacy?.querySelectorAll('span.font-medium.text-xs')).toHaveLength(0);
   });
 
   it('shows "mark all as read" only when there are unread items and wires it up', () => {

@@ -2358,6 +2358,7 @@ export class RfqsService {
         body: `You have been invited to quote on RFQ ${rfqNumber}.`,
         entityType: NotificationEntityType.RFQ,
         entityId: rfqId,
+        sender: { userId: sentByUserId ?? rfq.createdByUserId },
       });
     }
 
@@ -2391,6 +2392,7 @@ export class RfqsService {
         body: `RFQ ${rfqNumber} for ${rfq.project.name} was sent to vendors.`,
         entityType: NotificationEntityType.RFQ,
         entityId: rfqId,
+        sender: { userId: sentByUserId ?? rfq.createdByUserId },
       });
     }
   }
@@ -2427,6 +2429,8 @@ export class RfqsService {
     vendorName: string,
     /** The vendor's note on the quote, rendered as the user comment. */
     comment: string | null = null,
+    /** The vendor rep who submitted — the in-app sender (FOR-366). */
+    submittedByUserId: string | null = null,
   ): Promise<void> {
     try {
       const rfq = await this.resolveQuoteWatchers(rfqId);
@@ -2458,6 +2462,7 @@ export class RfqsService {
         body: `${vendorName} submitted a quote for RFQ ${rfqNumber}.`,
         entityType: NotificationEntityType.RFQ,
         entityId: rfqId,
+        sender: submittedByUserId ? { userId: submittedByUserId } : { companyName: vendorName },
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -2544,6 +2549,8 @@ export class RfqsService {
     vendorName: string,
     /** The vendor's note on the revised quote, rendered as the user comment. */
     comment: string | null = null,
+    /** The vendor rep who revised it — the in-app sender (FOR-366). */
+    submittedByUserId: string | null = null,
   ): Promise<void> {
     try {
       const rfq = await this.resolveQuoteWatchers(rfqId);
@@ -2576,6 +2583,7 @@ export class RfqsService {
         body: `${vendorName} updated their quote for RFQ ${rfqNumber}.`,
         entityType: NotificationEntityType.RFQ,
         entityId: rfqId,
+        sender: submittedByUserId ? { userId: submittedByUserId } : { companyName: vendorName },
       });
     } catch {
       // fire-and-forget: email failures are non-critical

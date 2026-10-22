@@ -3808,6 +3808,7 @@ describe('RfqsService', () => {
         body: 'RFQ RFQ-1 for Proj was sent to vendors.',
         entityType: 'RFQ',
         entityId: 'rfq-1',
+        sender: { userId: 'po-1' },
       });
     });
 

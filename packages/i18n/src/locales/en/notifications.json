@@ -5,6 +5,7 @@
   "emptyHint": "New notifications will show up here.",
   "loading": "Loading notifications…",
   "close": "Close",
+  "from": "From {{sender}}",
   "ariaBell": "Notifications",
   "unreadBadge": "{{count}} unread",
   "goTo": {

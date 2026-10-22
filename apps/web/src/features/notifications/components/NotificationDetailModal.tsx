@@ -44,6 +44,11 @@ export function NotificationDetailModal({
     <Modal onClose={onClose} maxWidth="max-w-md">
       <ModalHeader onClose={onClose}>{notification.title}</ModalHeader>
       <ModalBody>
+        {notification.sender && (
+          <p className="mb-2 text-xs font-medium text-card-foreground/80">
+            {t('from', { sender: notification.sender })}
+          </p>
+        )}
         {notification.body && (
           <p className="whitespace-pre-line text-sm text-muted-foreground">{notification.body}</p>
         )}

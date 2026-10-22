@@ -11,6 +11,7 @@ const sample = (over: Partial<NotificationDto> = {}): NotificationDto => ({
   metadata: null,
   readAt: null,
   createdAt: new Date('2026-07-24').toISOString(),
+  sender: null,
   ...over,
 });
 

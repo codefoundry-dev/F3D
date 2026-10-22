@@ -85,6 +85,11 @@ export function NotificationPanel({
                       >
                         {n.title}
                       </span>
+                      {n.sender && (
+                        <span className="mt-0.5 block truncate text-xs font-medium text-card-foreground/80">
+                          {n.sender}
+                        </span>
+                      )}
                       {n.body && (
                         <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
                           {n.body}

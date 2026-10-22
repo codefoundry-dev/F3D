@@ -11,6 +11,7 @@ import { invoiceReference } from '../../common/utils/invoice-reference.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BrandingService } from '../export/branding.service';
 import { NotificationService } from '../notification-feed/notification.service';
+import { SYSTEM_SENDER } from '../notification-feed/notification.types';
 import { EmailService } from '../notifications/email.service';
 
 /** How many days before the due date the "payment due" reminder goes out. */
@@ -181,6 +182,7 @@ export class PaymentReminderService {
       body: `Invoice ${context.params.invoiceReference} from ${context.params.vendorName} is due on ${context.params.dueDate}.`,
       entityType: NotificationEntityType.INVOICE,
       entityId: invoice.id,
+      sender: SYSTEM_SENDER,
     });
   }
 
@@ -205,6 +207,7 @@ export class PaymentReminderService {
       body: `Invoice ${context.params.invoiceReference} from ${context.params.vendorName} was due on ${context.params.dueDate}.`,
       entityType: NotificationEntityType.INVOICE,
       entityId: invoice.id,
+      sender: SYSTEM_SENDER,
     });
   }
 
