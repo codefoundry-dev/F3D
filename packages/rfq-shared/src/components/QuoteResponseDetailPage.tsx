@@ -327,7 +327,7 @@ export function QuoteResponseDetailPage({
   return (
     <div className="flex flex-col h-full">
       {/* Tabs + Actions */}
-      <div className="px-8 pt-6 pb-4">
+      <div className="px-4 pt-4 pb-4 md:px-8 md:pt-6">
         <div className="flex items-center justify-between">
           {tabChips}
           {actionButtons}
@@ -335,7 +335,7 @@ export function QuoteResponseDetailPage({
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto px-8 pb-8">{content}</div>
+      <div className="flex-1 overflow-y-auto px-4 pb-8 md:px-8">{content}</div>
     </div>
   );
 }

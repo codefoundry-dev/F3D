@@ -542,7 +542,7 @@ export function StepLineItems({
             }
           />
         </div>
-        <div className="flex items-start gap-3 shrink-0">
+        <div className="flex flex-col gap-3 shrink-0 sm:flex-row sm:items-start">
           <Button type="button" size="lg" onClick={onOpenAddFromBom} data-testid="add-from-bom">
             {t('create.lineItems.addFromBom')}
           </Button>

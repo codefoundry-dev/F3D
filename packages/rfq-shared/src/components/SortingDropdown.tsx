@@ -44,7 +44,7 @@ export function SortingDropdown({ value, onChange, className }: SortingDropdownP
       <button
         type="button"
         onClick={() => setIsOpen((p) => !p)}
-        className="flex items-center gap-1.5 h-9 px-3 text-sm font-medium text-foreground border border-border rounded-xl hover:bg-accent transition-colors"
+        className="flex items-center gap-1.5 h-9 max-md:h-11 px-3 text-sm font-medium text-foreground border border-border rounded-xl hover:bg-accent transition-colors"
       >
         {t('responsesTab.sorting')}
         <ChevronDownIcon className="w-4 h-4" />

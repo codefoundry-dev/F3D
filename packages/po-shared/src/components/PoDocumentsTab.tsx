@@ -74,7 +74,7 @@ export function PoDocumentsTab({
                 <p className="text-sm font-medium text-foreground">{rd.label}</p>
                 <button
                   type="button"
-                  className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                  className="flex items-center justify-center w-8 h-8 max-md:size-11 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
                   onClick={() => window.open(rd.url, '_blank')}
                 >
                   <EyeIcon className="w-6 h-6" />

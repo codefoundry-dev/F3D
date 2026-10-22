@@ -150,7 +150,7 @@ export function DotActionsMenu({
           trigger
             ? 'px-4 py-2 border border-foreground/20 rounded-xl text-sm'
             : bordered
-              ? 'w-[50px] h-[38px] border border-foreground/20'
+              ? 'w-[50px] h-[38px] max-md:h-11 border border-foreground/20'
               : 'p-1.5',
           triggerClassName,
         )}

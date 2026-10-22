@@ -111,7 +111,8 @@ export function Tabs<T extends string = string>({
               >
                 <span
                   className={cn(
-                    'flex items-center gap-1.5 rounded-[10px] font-semibold leading-none tracking-[0.3px] transition-colors',
+                    // 42px + the 2px underline = a 44px touch target on phones.
+                    'flex items-center gap-1.5 rounded-[10px] font-semibold leading-none tracking-[0.3px] transition-colors max-md:min-h-[42px]',
                     sizeStyles[size],
                     item.disabled
                       ? 'text-gray-300'

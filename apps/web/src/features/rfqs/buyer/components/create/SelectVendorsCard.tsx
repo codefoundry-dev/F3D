@@ -191,7 +191,7 @@ export function SelectVendorsCard({
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder={t('create.vendors.searchPlaceholder')}
-              className="w-full h-10 rounded-lg border border-border bg-background pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground/40"
+              className="w-full h-10 max-md:h-11 rounded-lg border border-border bg-background pl-9 pr-3 text-base md:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground/40"
               data-testid="vendor-search"
             />
           </div>

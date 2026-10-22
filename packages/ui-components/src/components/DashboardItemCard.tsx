@@ -83,7 +83,7 @@ export function DashboardItemCard({
             >
               <button
                 type="button"
-                className="inline-flex items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                className="inline-flex items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors max-md:size-11"
                 onClick={onAttachmentClick}
               >
                 <PaperclipIcon className="w-4 h-4" />

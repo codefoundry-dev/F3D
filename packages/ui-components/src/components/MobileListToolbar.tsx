@@ -120,8 +120,9 @@ export function MobileListToolbar({
 
       {quickFilters && (
         <div
-          className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0"
+          className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:min-h-11 [&>*]:shrink-0"
           data-testid="mobile-quick-filters"
+          data-swipe-row
         >
           {quickFilters}
         </div>

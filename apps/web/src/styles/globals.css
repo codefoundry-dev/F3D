@@ -270,13 +270,14 @@
     6px 0 8px -6px rgb(0 0 0 / 0.18);
 }
 /* Phones: cap the pinned column so it never eats the screen (long material
-   names); its text wraps, or truncates where the cell asks for it. */
+   names); its text wraps, or truncates where the cell asks for it. The
+   144px floor stops `anywhere` from shrinking it to one letter per line. */
 @media (max-width: 767px) {
   [data-scroll-table][data-pin='1'] > table > :is(thead, tbody, tfoot) > tr > :nth-child(1),
   [data-scroll-table][data-pin='2'] > table > :is(thead, tbody, tfoot) > tr > :nth-child(2),
   [data-scroll-table][data-pin='3'] > table > :is(thead, tbody, tfoot) > tr > :nth-child(3) {
     max-width: 45vw;
-    min-width: 96px;
+    min-width: min(144px, 45vw);
     white-space: normal;
     overflow-wrap: anywhere;
   }

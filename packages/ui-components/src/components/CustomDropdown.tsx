@@ -159,7 +159,7 @@ export function CustomDropdown({
         disabled={disabled}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
         className={cn(
-          'w-full flex items-center py-2.5 text-sm transition-colors',
+          'w-full flex items-center py-2.5 max-md:min-h-11 text-base md:text-sm transition-colors',
           'focus:outline-none',
           'disabled:opacity-50 disabled:cursor-not-allowed',
           leftIcon ? 'pl-10 pr-3' : 'px-3',

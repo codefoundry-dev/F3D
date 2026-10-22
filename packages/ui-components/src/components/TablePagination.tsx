@@ -95,14 +95,17 @@ export function TablePagination({
           type="button"
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
-          className="px-3 py-1.5 border border-input rounded-md hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed text-foreground"
+          className="px-3 py-1.5 max-md:min-h-11 max-md:px-4 border border-input rounded-md hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed text-foreground"
         >
           {backLabel}
         </button>
 
         {pageNumbers.map((p, i) =>
           p === 'ellipsis' ? (
-            <span key={`ellipsis-${i}`} className="px-2 text-muted-foreground select-none">
+            <span
+              key={`ellipsis-${i}`}
+              className="px-2 text-muted-foreground select-none max-md:hidden"
+            >
               ...
             </span>
           ) : (
@@ -111,7 +114,8 @@ export function TablePagination({
               type="button"
               onClick={() => onPageChange(p)}
               className={cn(
-                'w-9 h-9 rounded-md text-sm font-medium transition-colors',
+                // Phones show "page / total" between Back and Next instead.
+                'w-9 h-9 rounded-md text-sm font-medium transition-colors max-md:hidden',
                 page === p ? 'bg-foreground text-background' : 'hover:bg-accent text-foreground',
               )}
             >
@@ -119,12 +123,15 @@ export function TablePagination({
             </button>
           ),
         )}
+        <span className="px-3 tabular-nums text-foreground md:hidden">
+          {page} / {totalPages}
+        </span>
 
         <button
           type="button"
           disabled={page >= totalPages}
           onClick={() => onPageChange(page + 1)}
-          className="px-3 py-1.5 border border-input rounded-md hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed text-foreground"
+          className="px-3 py-1.5 max-md:min-h-11 max-md:px-4 border border-input rounded-md hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed text-foreground"
         >
           {nextLabel}
         </button>

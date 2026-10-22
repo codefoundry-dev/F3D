@@ -9,6 +9,8 @@ import { cn } from '../utils/cn';
  * (white + border), tertiary (ghost), destructive (red), link (text).
  * Legacy aliases kept for back-compat: `outline` → secondary, `ghost` → tertiary,
  * `info` → legacy blue solid. Sizes map to the DS Small/Medium/Large (h 28/34/48).
+ * Below `md` sm/md grow to 44px so every button is a full touch target
+ * (ADR-0019); `max-md:` keeps a caller's own height class winning on desktop.
  */
 const variantStyles = {
   primary:
@@ -31,14 +33,14 @@ const variantStyles = {
 } as const;
 
 const sizeStyles = {
-  sm: 'h-7 gap-1.5 rounded-[10px] px-2.5 text-[12px]',
-  md: 'h-[34px] gap-2 rounded-[12px] px-3 text-[14px]',
+  sm: 'h-7 max-md:h-11 gap-1.5 rounded-[10px] px-2.5 text-[12px]',
+  md: 'h-[34px] max-md:h-11 gap-2 rounded-[12px] px-3 text-[14px]',
   lg: 'h-12 gap-2.5 rounded-[14px] px-5 text-[16px]',
 } as const;
 
 const iconOnlySizeStyles = {
-  sm: 'size-7 rounded-[10px]',
-  md: 'size-[34px] rounded-[12px]',
+  sm: 'size-7 max-md:size-11 rounded-[10px]',
+  md: 'size-[34px] max-md:size-11 rounded-[12px]',
   lg: 'size-12 rounded-[14px]',
 } as const;
 
@@ -64,7 +66,7 @@ export function buttonVariants({
   className?: string;
 } = {}) {
   const base =
-    'inline-flex items-center justify-center font-semibold leading-none tracking-[0.3px] transition-[color,background-color,border-color,box-shadow] disabled:cursor-not-allowed select-none focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
+    'inline-flex items-center justify-center whitespace-nowrap font-semibold leading-none tracking-[0.3px] transition-[color,background-color,border-color,box-shadow] disabled:cursor-not-allowed select-none focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 
   const sizing =
     variant === 'link'

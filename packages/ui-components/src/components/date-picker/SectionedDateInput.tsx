@@ -125,7 +125,8 @@ export function SectionedDateInput({
   );
 
   const sectionClass =
-    'bg-transparent outline-none text-center text-foreground tabular-nums selection:bg-primary/20 p-0';
+    // 16px on phones so iOS Safari doesn't zoom on focus (ADR-0019).
+    'bg-transparent outline-none text-center text-base md:text-sm text-foreground tabular-nums selection:bg-primary/20 p-0';
 
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
@@ -137,7 +138,7 @@ export function SectionedDateInput({
         maxLength={2}
         value={day}
         placeholder="DD"
-        className={cn(sectionClass, 'w-6')}
+        className={cn(sectionClass, 'w-7 md:w-6')}
         onChange={(e) => handleInput(e, onChangeDay, 31, 2, monthRef)}
         onKeyDown={(e) => handleKey(e, day, onChangeDay, 31, 2, null, monthRef)}
         onFocus={(e) => {
@@ -153,7 +154,7 @@ export function SectionedDateInput({
         maxLength={2}
         value={month}
         placeholder="MM"
-        className={cn(sectionClass, 'w-6')}
+        className={cn(sectionClass, 'w-7 md:w-6')}
         onChange={(e) => handleInput(e, onChangeMonth, 12, 2, yearRef)}
         onKeyDown={(e) => handleKey(e, month, onChangeMonth, 12, 2, dayRef, yearRef)}
         onFocus={(e) => {
@@ -169,7 +170,7 @@ export function SectionedDateInput({
         maxLength={4}
         value={year}
         placeholder="YYYY"
-        className={cn(sectionClass, 'w-11')}
+        className={cn(sectionClass, 'w-12 md:w-11')}
         onChange={(e) => handleInput(e, onChangeYear, 2099, 4, null)}
         onKeyDown={(e) => handleKey(e, year, onChangeYear, 2099, 4, monthRef, null)}
         onFocus={(e) => {

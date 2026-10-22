@@ -219,7 +219,7 @@ export function DatePicker({
       {editable ? (
         <div
           className={cn(
-            'flex items-center w-full h-10 px-3 text-sm transition-colors',
+            'flex items-center w-full h-10 max-md:h-11 px-3 text-sm transition-colors',
             borderless
               ? 'bg-transparent border-0'
               : cn(
@@ -267,7 +267,7 @@ export function DatePicker({
           type="button"
           onClick={() => setIsOpen((p) => !p)}
           className={cn(
-            'flex items-center justify-between w-full h-10 px-3 text-sm transition-colors',
+            'flex items-center justify-between w-full h-10 max-md:h-11 px-3 text-sm transition-colors',
             borderless
               ? 'bg-transparent border-0'
               : cn(

@@ -60,7 +60,7 @@ export function DocumentRow({ doc, onView, onDelete, isDeleting }: DocumentRowPr
       <div className="flex items-center gap-2 shrink-0 ml-4">
         <button
           type="button"
-          className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          className="flex shrink-0 items-center justify-center w-8 h-8 max-md:size-11 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
           title={t('actions.view')}
           onClick={() => onView?.(doc)}
         >
@@ -68,7 +68,7 @@ export function DocumentRow({ doc, onView, onDelete, isDeleting }: DocumentRowPr
         </button>
         <button
           type="button"
-          className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          className="flex shrink-0 items-center justify-center w-8 h-8 max-md:size-11 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
           title={t('actions.download')}
           onClick={handleDownload}
         >
@@ -77,7 +77,7 @@ export function DocumentRow({ doc, onView, onDelete, isDeleting }: DocumentRowPr
         {onDelete && (
           <button
             type="button"
-            className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-50"
+            className="flex shrink-0 items-center justify-center w-8 h-8 max-md:size-11 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-50"
             title={t('actions.delete')}
             onClick={() => onDelete(doc)}
             disabled={isDeleting}
