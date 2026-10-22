@@ -54,7 +54,7 @@ export function ActivePosTable({ items, isLoading }: ActivePosTableProps) {
         <div className="px-4 pb-4">
           <ScrollTable className="rounded-lg border border-border">
             <table className="w-full min-w-[600px] text-sm">
-              <thead className="sticky top-0 z-10">
+              <thead>
                 <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
                   {columns.map((col) => (
                     <th key={col.key} className={TH_CLASS} onClick={() => handleSort(col.field)}>

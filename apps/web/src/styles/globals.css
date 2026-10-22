@@ -220,6 +220,16 @@
   }
 }
 
+/* ── Frozen table header (FOR-359) ────────────────────────────────────────────
+   useStickyTableHeader shifts the <thead> down with a transform while the page
+   scrolls past the table. Lift it above body rows — including pinned cells
+   (z-index 1 below) — so rows slide under it instead of over it. Its background
+   comes from the ScrollTable rules below or the header row's own tint. */
+[data-sticky-header] > table > thead {
+  position: relative;
+  z-index: 2;
+}
+
 /* ── ScrollTable (ADR-0019 / FOR-371) ─────────────────────────────────────────
    One column stays pinned while a table scrolls sideways. A pinned cell must be
    opaque, so it inherits its row's background and rows default to the card

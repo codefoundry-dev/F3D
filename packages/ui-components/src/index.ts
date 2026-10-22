@@ -8,6 +8,7 @@ export { useMediaQuery } from './hooks/useMediaQuery';
 export { useScrollEdges } from './hooks/useScrollEdges';
 export { useIsPhone, PHONE_MEDIA_QUERY } from './hooks/useIsPhone';
 export type { ScrollEdges } from './hooks/useScrollEdges';
+export { useStickyTableHeader, STICKY_TOP_VAR } from './hooks/useStickyTableHeader';
 
 // Utilities
 export { cn } from './utils/cn';

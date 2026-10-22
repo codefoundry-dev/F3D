@@ -150,7 +150,8 @@ export function AppLayout() {
         />
       </div>
 
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* --sticky-top = the h-16 top bar, so frozen table headers stop under it (FOR-359). */}
+      <div className="flex-1 flex flex-col min-w-0 [--sticky-top:64px]">
         <header className="sticky top-0 z-10 h-16 bg-card border-b border-gray-100 flex items-center justify-between gap-2 px-4 sm:px-6">
           {/* Phones: page title (+ back arrow) instead of the breadcrumb trail. */}
           <div className="flex min-w-0 flex-1 items-center gap-1 md:hidden">

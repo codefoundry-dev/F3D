@@ -280,7 +280,7 @@ export function SelectVendorsCard({
           ) : (
             <ScrollTable>
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-[color:color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))] z-10">
+                <thead className="bg-[color:color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]">
                   <tr className={TABLE_HEADER_ROW}>
                     <th className={TABLE_TH}>{t('create.vendors.colName')}</th>
                     <th className={TABLE_TH}>{t('create.vendors.colDeclared')}</th>

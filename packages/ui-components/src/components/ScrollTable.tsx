@@ -1,6 +1,7 @@
 import { useRef, type ReactNode } from 'react';
 
 import { useScrollEdges } from '../hooks/useScrollEdges';
+import { useStickyTableHeader } from '../hooks/useStickyTableHeader';
 import { cn } from '../utils/cn';
 
 export interface ScrollTableProps {
@@ -26,6 +27,8 @@ export interface ScrollTableProps {
  * `[data-scroll-table]`), and an edge fade marks whichever side still has
  * columns out of view — on phones a table otherwise looks like it only has the
  * 2 columns that fit. Desktop gets the same behaviour (this is FOR-360).
+ * The header row also stays in view while the page scrolls past the table
+ * (FOR-359, `useStickyTableHeader`).
  */
 export function ScrollTable({
   children,
@@ -35,12 +38,14 @@ export function ScrollTable({
 }: ScrollTableProps) {
   const ref = useRef<HTMLDivElement>(null);
   const edges = useScrollEdges(ref);
+  useStickyTableHeader(ref);
 
   return (
     <div className={cn('relative', wrapperClassName)}>
       <div
         ref={ref}
         data-scroll-table=""
+        data-sticky-header=""
         data-pin={pinColumn || undefined}
         data-scrolled={edges.left || undefined}
         className={cn('overflow-x-auto', className)}

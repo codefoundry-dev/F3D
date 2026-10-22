@@ -14,7 +14,7 @@ and cost codes.
 | Ticket                                                      | Area          | Ask                                                     | Status |
 | ----------------------------------------------------------- | ------------- | ------------------------------------------------------- | ------ |
 | [FOR-358](https://codefoundry.atlassian.net/browse/FOR-358) | Layout        | Responsive layout for 13–14" laptop screens             | ✅     |
-| [FOR-359](https://codefoundry.atlassian.net/browse/FOR-359) | Layout        | Freeze table header row on scroll                       | ⬜     |
+| [FOR-359](https://codefoundry.atlassian.net/browse/FOR-359) | Layout        | Freeze table header row on scroll                       | ✅     |
 | [FOR-360](https://codefoundry.atlassian.net/browse/FOR-360) | Layout        | Horizontal scrollbar on wide tables                     | ✅     |
 | [FOR-361](https://codefoundry.atlassian.net/browse/FOR-361) | Catalogue     | Material images carry over from catalogue to RFQ        | ✅     |
 | [FOR-362](https://codefoundry.atlassian.net/browse/FOR-362) | Catalogue     | Editable material categories                            | ⬜     |
@@ -51,7 +51,14 @@ and cost codes.
 - **Client ask:** The table header row (for example on Material Request) should stay in place on
   scroll, like Excel.
 - **Expected:** Sticky headers in the shared table component, aligned with their columns.
-- **Resolution:** _TBD_
+- **Resolution:** Every table's header row now stays visible while you scroll down a long list. It
+  stops just under the top bar, or at the top of a modal or scrolling panel. It stays lined up with
+  its columns when the table also scrolls sideways, and the pinned first column stays pinned. The
+  header is opaque and sits above the rows, and it lets go at the bottom of the table. Plain CSS
+  `sticky` couldn't do this, because the sideways scroll box from FOR-360 traps it. So the shared
+  `ScrollTable` moves the header down as the page scrolls (`useStickyTableHeader`). The PO
+  line-items grid, which isn't a `ScrollTable`, uses the same hook. Works the same on laptops and
+  phones.
 
 ### FOR-360 — Horizontal scrollbar on wide tables
 

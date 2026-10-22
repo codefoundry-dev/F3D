@@ -5,10 +5,11 @@ import {
   LineItemEditor,
   MaterialSearchPanel,
   useIsPhone,
+  useStickyTableHeader,
 } from '@forethread/ui-components';
 import WarningCircleIcon from '@forethread/ui-components/assets/icons/info.svg?react';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, type ReactNode } from 'react';
 import {
   type Control,
   type FieldErrors,
@@ -275,7 +276,7 @@ export function PoCreateLineItemsStep({
           </div>
         ) : (
           /* Line items table + totals */
-          <div className="rounded-lg border border-border bg-background overflow-visible">
+          <LineItemsTableBox>
             <table
               className="w-full text-sm table-fixed"
               style={{ borderCollapse: 'separate', borderSpacing: 0 }}
@@ -323,7 +324,7 @@ export function PoCreateLineItemsStep({
                 <span className="text-foreground font-medium">{totalQty}</span>
               </span>
             </div>
-          </div>
+          </LineItemsTableBox>
         )}
       </div>
 
@@ -422,5 +423,24 @@ export function PoCreateLineItemsStep({
         />
       )}
     </section>
+  );
+}
+
+/**
+ * Bordered box for the line-items grid. It stays `overflow-visible` so cell
+ * dropdowns can escape it, so it can't be a ScrollTable; it still freezes the
+ * header row while the page scrolls (FOR-359).
+ */
+function LineItemsTableBox({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useStickyTableHeader(ref);
+  return (
+    <div
+      ref={ref}
+      data-sticky-header=""
+      className="rounded-lg border border-border bg-background overflow-visible"
+    >
+      {children}
+    </div>
   );
 }
