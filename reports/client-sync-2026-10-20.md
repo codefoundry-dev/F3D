@@ -17,11 +17,11 @@ and cost codes.
 | [FOR-359](https://codefoundry.atlassian.net/browse/FOR-359) | Layout        | Freeze table header row on scroll                       | ✅     |
 | [FOR-360](https://codefoundry.atlassian.net/browse/FOR-360) | Layout        | Horizontal scrollbar on wide tables                     | ✅     |
 | [FOR-361](https://codefoundry.atlassian.net/browse/FOR-361) | Catalogue     | Material images carry over from catalogue to RFQ        | ✅     |
-| [FOR-362](https://codefoundry.atlassian.net/browse/FOR-362) | Catalogue     | Editable material categories                            | ⬜     |
+| [FOR-362](https://codefoundry.atlassian.net/browse/FOR-362) | Catalogue     | Editable material categories                            | ✅     |
 | [FOR-363](https://codefoundry.atlassian.net/browse/FOR-363) | Catalogue     | Rename "Public" tab to "Global Materials"               | ✅     |
-| [FOR-364](https://codefoundry.atlassian.net/browse/FOR-364) | RFQ           | One "needed by" date/time that fills in every line item | ⬜     |
-| [FOR-365](https://codefoundry.atlassian.net/browse/FOR-365) | Cost codes    | Click-to-edit cost codes directly in the table          | ⬜     |
-| [FOR-366](https://codefoundry.atlassian.net/browse/FOR-366) | Notifications | Standardise sender format in in-app notifications       | ⬜     |
+| [FOR-364](https://codefoundry.atlassian.net/browse/FOR-364) | RFQ           | One "needed by" date/time that fills in every line item | ✅     |
+| [FOR-365](https://codefoundry.atlassian.net/browse/FOR-365) | Cost codes    | Click-to-edit cost codes directly in the table          | ✅     |
+| [FOR-366](https://codefoundry.atlassian.net/browse/FOR-366) | Notifications | Standardise sender format in in-app notifications       | ✅     |
 
 ## 1. Layout and responsiveness
 
@@ -91,7 +91,16 @@ and cost codes.
 - **Client ask:** The category list looks hard-coded. Confirm whether it can be edited, and if not,
   make it editable.
 - **Expected:** Admins can create, rename and deactivate categories without a deploy.
-- **Resolution:** _TBD_
+- **Resolution:** Categories were never hard-coded. They live in the `material_categories` table and
+  every catalogue, filter and BOM dropdown already read them from the API. What was missing was any
+  way to manage them: new categories only appeared as a side effect of a spreadsheet upload. Now
+  categories are **global, managed by Super Admin** (permission `material.manageCategories`), to
+  match the global catalogue. A "Manage categories" button on the catalogue opens a modal to add,
+  rename (case-insensitive duplicate check) and deactivate or reactivate categories, with a material
+  count per category. Deactivated categories stay on existing materials and in the filters, but are
+  not offered for new materials. Import rows that name one fall back to Uncategorised.
+  "Uncategorised" itself is locked. Migration `20261022120000_material_category_active` (adds
+  `is_active`, `updated_at`; every existing category stays active).
 
 ### FOR-363 — Rename "Public" tab to "Global Materials"
 
@@ -111,7 +120,14 @@ and cost codes.
 - **Client ask:** Setting "needed by" on each line one at a time is too slow.
 - **Expected:** An RFQ-level date/time fills in every line, and individual lines can still be
   overridden.
-- **Resolution:** _TBD_
+- **Resolution:** The RFQ wizard's "Need by" now has a date **and time**, and fills every line.
+  Changing it updates every line that hasn't been edited by hand. Lines edited by hand keep their
+  value; setting one back to the header value makes it follow again. Lines added later (catalogue,
+  BOM, list) get the header value. Lines also gained a per-line delivery time in the Edit material
+  modal, and the review step shows it. Line values are still what gets saved, so vendor view and PO
+  carry-through are unchanged and no migration was needed. **Same pattern added to the Material
+  Request wizard** ("Need by (all lines)" above the line table). Shared logic:
+  `apps/web/src/shared/need-by/lineNeedBy.ts`.
 
 ## 4. Cost codes
 
@@ -119,7 +135,14 @@ and cost codes.
 
 - **Client ask:** Editing a cost code takes about 5 clicks.
 - **Expected:** Edit in place in the table. Enter or blur saves, Esc cancels.
-- **Resolution:** _TBD_
+- **Resolution:** New shared `InlineEditCell` (`@forethread/ui-components`): click, Enter or F2
+  opens the cell; Enter or blur saves; Esc cancels; Tab moves between cells. The new value shows
+  straight away with a spinner, rolls back with an inline error if the save fails, and confirms with
+  a toast. Used for **cost code and tax code on the material catalogue table** (where the edit
+  applies directly; a contractor edit of a Global row is still a change request through the edit
+  page) and **cost code on RFQ line items**. Invoice review lines and PO wizard lines already have
+  always-open inputs inside a form that saves as a whole, so they're unchanged. There is no separate
+  cost-code settings page in the app.
 
 ## 5. Notifications
 
@@ -127,4 +150,14 @@ and cost codes.
 
 - **Client ask:** Senders show up in different formats ("I", "idea", "I, company name").
 - **Expected:** One sender format across every notification type, with clean fallbacks.
-- **Resolution:** _TBD_
+- **Resolution:** Notifications had no sender field. Each event wrote the actor into the body text
+  in its own way, or left it out. Every notification now stores a structured sender (user name and
+  company, looked up from the actor), and the API formats it the same way for every type: **"{Full
+  name} · {Company}"**, then the company alone, then **"Forethread"** for system events (payment
+  reminders, "no eligible approver"). Guest portal actions show the vendor company. Empty parts and
+  stray separators are dropped. The bell panel shows the sender on its own line and the detail modal
+  shows "From …". Message notification bodies are now just the preview. The avatar initial in
+  message threads is now hidden from copied text and screen readers, which is the likely source of
+  the "I" prefix. Notifications created before this change show no sender line. Helper:
+  `formatSenderLabel` in `@forethread/shared-types`; no migration. **Email:** a separate gap was
+  found, not fixed. The branded email header only names the sending company when it has a logo.
