@@ -32,6 +32,7 @@ import {
   PlusCircleIcon,
   SealCheckIcon,
 } from '../icons/phosphor';
+import { assignableCategories } from '../lib/categories';
 import { emptyMaterialForm, formToCreateInput } from '../lib/materialForm';
 
 /** The step-1 fields that must validate before advancing past Core Identification. */
@@ -195,7 +196,7 @@ export default function CreateMaterialPage() {
           className="mt-6 space-y-6"
           noValidate
         >
-          {step === 1 && <CoreIdentificationFields categories={categories} />}
+          {step === 1 && <CoreIdentificationFields categories={assignableCategories(categories)} />}
           {step === 2 && <AdditionalPropertiesFields categories={categories} />}
           {step === 3 && (
             <MaterialReviewSummary

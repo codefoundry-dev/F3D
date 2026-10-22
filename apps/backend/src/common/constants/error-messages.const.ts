@@ -235,6 +235,11 @@ export const ERR = {
     changeRequestNotFound: errors.materials.changeRequestNotFound,
     changeRequestNotPending: errors.materials.changeRequestNotPending,
     publicReadOnly: errors.materials.publicReadOnly,
+    categoryNotFound: errors.materials.categoryNotFound,
+    categoryNameRequired: errors.materials.categoryNameRequired,
+    categoryDuplicateName: errors.materials.categoryDuplicateName,
+    categoryInactive: errors.materials.categoryInactive,
+    categoryProtected: errors.materials.categoryProtected,
   },
 
   // ── Material lists (US 5.05) ───────────────────────────────

@@ -30,7 +30,7 @@ const mockedGet = apiClient.getMaterial as unknown as ReturnType<typeof vi.fn>;
 const mockedUpdate = apiClient.updateMaterial as unknown as ReturnType<typeof vi.fn>;
 const mockedCategories = apiClient.getMaterialCategories as unknown as ReturnType<typeof vi.fn>;
 
-const CATEGORIES = [{ id: 'cat-roofing', name: 'Roofing', parentId: null }];
+const CATEGORIES = [{ id: 'cat-roofing', name: 'Roofing', isActive: true, materialCount: 0 }];
 
 function material(over: Partial<apiClient.MaterialDetailDto> = {}): apiClient.MaterialDetailDto {
   return {

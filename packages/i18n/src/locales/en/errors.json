@@ -172,7 +172,12 @@
     "invalidStatusTransition": "Cannot perform this action while the material is {{status}}",
     "publicReadOnly": "The global catalogue is read-only. You can only archive or delete your own company's materials.",
     "changeRequestNotFound": "Change request not found",
-    "changeRequestNotPending": "This change request has already been resolved"
+    "changeRequestNotPending": "This change request has already been resolved",
+    "categoryNotFound": "Material category not found",
+    "categoryNameRequired": "Category name is required",
+    "categoryDuplicateName": "A category with this name already exists",
+    "categoryInactive": "This category has been deactivated. Choose an active category.",
+    "categoryProtected": "The Uncategorised fallback category can't be renamed or deactivated"
   },
   "materialLists": {
     "notFound": "Material list not found",

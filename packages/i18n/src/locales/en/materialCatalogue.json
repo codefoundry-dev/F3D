@@ -27,6 +27,7 @@
   "actions": {
     "createNew": "Create new",
     "upload": "Upload",
+    "manageCategories": "Manage categories",
     "view": "View material",
     "edit": "Edit material",
     "archive": "Archive",
@@ -594,5 +595,35 @@
     "description": "Your updates have been saved and sent for review by a Super Admin before being published to the global catalogue.",
     "button": "Back to Material Catalogue page",
     "redirect": "Redirecting to Material Catalogue page in {{seconds}} seconds…"
+  },
+  "categories": {
+    "title": "Manage categories",
+    "subtitle": "Categories are shared across the global catalogue and every company's materials. Deactivated categories stay on their materials but can't be picked for new ones.",
+    "addLabel": "New category",
+    "addPlaceholder": "e.g. Pipe fittings",
+    "add": "Add",
+    "filterPlaceholder": "Search categories",
+    "empty": "No categories match your search.",
+    "materialCount_one": "{{count}} material",
+    "materialCount_other": "{{count}} materials",
+    "active": "Active",
+    "inactive": "Inactive",
+    "system": "System",
+    "rename": "Rename",
+    "renameLabel": "Rename {{name}}",
+    "save": "Save",
+    "cancel": "Cancel",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "toasts": {
+      "created": "Category \"{{name}}\" added",
+      "renamed": "Category renamed to \"{{name}}\"",
+      "activated": "\"{{name}}\" is active again",
+      "deactivated": "\"{{name}}\" deactivated"
+    },
+    "errors": {
+      "nameRequired": "Enter a category name",
+      "saveFailed": "Couldn't save the category. Try again."
+    }
   }
 }

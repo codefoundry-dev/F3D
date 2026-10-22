@@ -264,6 +264,7 @@ export const VIEWS_PATHS = {
 export const MATERIALS_PATHS = {
   ROOT: '/materials',
   CATEGORIES: '/materials/categories',
+  categoryById: (id: string) => `/materials/categories/${id}`,
   FACETS: '/materials/facets',
   SUGGESTIONS: '/materials/suggestions',
   CATALOGUE_IMPORT: '/materials/catalogue-import',

@@ -13,7 +13,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 
 /** Pull a human message off an axios error, falling back to a translated default. */
-function errorMessage(error: unknown, fallback: string): string {
+export function errorMessage(error: unknown, fallback: string): string {
   if (isAxiosError(error)) {
     const data = error.response?.data as { message?: string | string[] } | undefined;
     const message = data?.message;

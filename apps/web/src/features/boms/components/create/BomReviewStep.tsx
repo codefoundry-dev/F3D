@@ -232,7 +232,11 @@ export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomRev
   };
 
   const categoryOptionsFor = (value: string) => {
-    const base = categories.map((c) => ({ value: c.name, label: c.name }));
+    // Deactivated categories aren't offered (FOR-362); a row already holding
+    // one keeps it via the unshift below.
+    const base = categories
+      .filter((c) => c.isActive !== false)
+      .map((c) => ({ value: c.name, label: c.name }));
     if (value && !base.some((o) => o.value === value)) base.unshift({ value, label: value });
     return base;
   };

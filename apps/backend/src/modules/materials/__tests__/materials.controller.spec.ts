@@ -2,7 +2,6 @@ import { MaterialsController } from '../materials.controller';
 
 const mockService = {
   listMaterials: jest.fn(),
-  listCategories: jest.fn(),
   getFacets: jest.fn(),
   suggestions: jest.fn(),
   createMaterial: jest.fn(),
@@ -24,6 +23,12 @@ const mockStatusService = {
   restore: jest.fn(),
 };
 
+const mockCategoriesService = {
+  listCategories: jest.fn(),
+  createCategory: jest.fn(),
+  updateCategory: jest.fn(),
+};
+
 const user = { id: 'u-1', email: 'u@test.com', role: 'COMPANY_ADMIN', companyId: 'c-1' };
 
 describe('MaterialsController', () => {
@@ -31,7 +36,11 @@ describe('MaterialsController', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new MaterialsController(mockService as never, mockStatusService as never);
+    controller = new MaterialsController(
+      mockService as never,
+      mockStatusService as never,
+      mockCategoriesService as never,
+    );
   });
 
   it('listMaterials delegates to service', async () => {
@@ -44,12 +53,30 @@ describe('MaterialsController', () => {
     expect(mockService.listMaterials).toHaveBeenCalledWith(query, user);
   });
 
-  it('listCategories delegates to service', async () => {
-    const expected = [{ id: 'c-1', name: 'Steel' }];
-    mockService.listCategories.mockResolvedValue(expected);
+  it('listCategories delegates to the categories service', async () => {
+    const expected = [{ id: 'c-1', name: 'Steel', isActive: true, materialCount: 3 }];
+    mockCategoriesService.listCategories.mockResolvedValue(expected);
 
     const result = await controller.listCategories();
     expect(result).toBe(expected);
+  });
+
+  it('createCategory delegates to the categories service', async () => {
+    const expected = { id: 'c-2', name: 'Timber', isActive: true, materialCount: 0 };
+    mockCategoriesService.createCategory.mockResolvedValue(expected);
+
+    const result = await controller.createCategory({ name: 'Timber' });
+    expect(result).toBe(expected);
+    expect(mockCategoriesService.createCategory).toHaveBeenCalledWith({ name: 'Timber' });
+  });
+
+  it('updateCategory delegates id + body to the categories service', async () => {
+    const expected = { id: 'c-2', name: 'Timber', isActive: false, materialCount: 4 };
+    mockCategoriesService.updateCategory.mockResolvedValue(expected);
+
+    const result = await controller.updateCategory('c-2', { isActive: false });
+    expect(result).toBe(expected);
+    expect(mockCategoriesService.updateCategory).toHaveBeenCalledWith('c-2', { isActive: false });
   });
 
   it('facets delegates to service with the current user', async () => {

@@ -53,6 +53,8 @@ export const PERMISSIONS = {
   // ── Materials ───────────────────────────────────────────────────────────
   'material.list': 'List materials',
   'material.listCategories': 'List material categories',
+  // Categories are global (FOR-362): SUPER_ADMIN only, via ALL_KEYS_LIST.
+  'material.manageCategories': 'Create, rename and deactivate material categories',
   'material.suggestions': 'Material autocomplete suggestions',
   'material.create': 'Create materials',
   'material.import': 'Bulk-import materials from a confirmed catalogue extraction',

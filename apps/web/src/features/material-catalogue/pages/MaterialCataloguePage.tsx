@@ -30,6 +30,7 @@ import {
 } from '../components/ConfirmMaterialModal';
 import { CreateEditMaterialListModal } from '../components/CreateEditMaterialListModal';
 import { FacetFilterSelect } from '../components/FacetFilterSelect';
+import { ManageCategoriesModal } from '../components/ManageCategoriesModal';
 import { MaterialListsPanel } from '../components/MaterialListsPanel';
 import { MaterialNoResults } from '../components/MaterialNoResults';
 import { MaterialSearchDropdown } from '../components/MaterialSearchDropdown';
@@ -138,6 +139,8 @@ export default function MaterialCataloguePage() {
   const [createListOpen, setCreateListOpen] = useState(false);
   const [editList, setEditList] = useState<MaterialListSummaryDto | null>(null);
   const [deleteList, setDeleteList] = useState<MaterialListSummaryDto | null>(null);
+  // Global category management (FOR-362) — Super Admin only.
+  const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false);
 
   // Search autocomplete dropdown (US 4.04) — focus state + a short debounce so
   // suggestions fire while typing without hammering the endpoint.
@@ -424,6 +427,15 @@ export default function MaterialCataloguePage() {
               data-testid="material-upload"
             >
               {t('actions.upload')}
+            </Button>
+          )}
+          {has('material.manageCategories') && (
+            <Button
+              variant="outline"
+              onClick={() => setManageCategoriesOpen(true)}
+              data-testid="material-manage-categories"
+            >
+              {t('actions.manageCategories')}
             </Button>
           )}
         </div>
@@ -743,6 +755,14 @@ export default function MaterialCataloguePage() {
         <AddToMaterialListModal
           material={{ id: addToListMaterial.id, name: addToListMaterial.name }}
           onClose={() => setAddToListMaterial(null)}
+        />
+      )}
+
+      {/* FOR-362 — global category management. */}
+      {manageCategoriesOpen && (
+        <ManageCategoriesModal
+          categories={categories ?? []}
+          onClose={() => setManageCategoriesOpen(false)}
         />
       )}
 

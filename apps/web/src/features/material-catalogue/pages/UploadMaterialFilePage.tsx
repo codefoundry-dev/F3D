@@ -35,6 +35,7 @@ import {
 import { WizardStepper } from '../components/WizardStepper';
 import { useCatalogueImport } from '../hooks/useCatalogueImport';
 import { mapDuplicateResults, useDetectDuplicates } from '../hooks/useDetectDuplicates';
+import { useMaterialCategories } from '../hooks/useMaterials';
 import { FieldIcon } from '../icons/fieldIcons';
 import {
   ArrowCircleRightIcon,
@@ -835,6 +836,8 @@ interface MapStepProps {
   pagination: React.ReactNode;
 }
 
+const CATEGORY_DATALIST_ID = 'catalogue-category-options';
+
 function MapStep({
   rows,
   loading,
@@ -849,9 +852,19 @@ function MapStep({
   pagination,
 }: MapStepProps) {
   const { t } = useTranslation(['materialCatalogue']);
+  // Suggest the managed categories (FOR-362) so rows land in an existing one
+  // instead of spawning near-duplicates; free text still creates a new one.
+  const { data: categories = [] } = useMaterialCategories();
 
   return (
     <>
+      <datalist id={CATEGORY_DATALIST_ID}>
+        {categories
+          .filter((c) => c.isActive !== false)
+          .map((c) => (
+            <option key={c.id} value={c.name} />
+          ))}
+      </datalist>
       {hasDuplicates || dupOnly ? (
         <DuplicateBanner
           testId="map-duplicate-banner"
@@ -915,6 +928,7 @@ function MapStep({
                       <td className="p-1.5">
                         <Input
                           aria-label={t('upload.step2.columns.category')}
+                          list={CATEGORY_DATALIST_ID}
                           value={item.mainCategory ?? ''}
                           onChange={(e) =>
                             onUpdate(index, { mainCategory: e.target.value || null })
