@@ -420,15 +420,26 @@ export function StepLineItems({
         item.expectedDeliveryDate
           ? [item.expectedDeliveryDate, item.deliveryTime].filter(Boolean).join(' ')
           : (item.deliveryTime ?? '-'),
+      // Date + time, both filled from the RFQ-level "Need by" until edited here.
       input: ({ item }) => (
-        <DatePicker
-          value={item.expectedDeliveryDate ?? ''}
-          onChange={(date) => updateItem(item.key, { expectedDeliveryDate: date || undefined })}
-          placeholder="mm/dd/yyyy"
-          minDate={todayIso()}
-          borderless={!isPhone}
-          editable
-        />
+        <div className="flex flex-col">
+          <DatePicker
+            value={item.expectedDeliveryDate ?? ''}
+            onChange={(date) => updateItem(item.key, { expectedDeliveryDate: date || undefined })}
+            placeholder="mm/dd/yyyy"
+            minDate={todayIso()}
+            borderless={!isPhone}
+            editable
+          />
+          <input
+            type="time"
+            value={item.deliveryTime ?? ''}
+            onChange={(e) => updateItem(item.key, { deliveryTime: e.target.value || undefined })}
+            aria-label={t('create.editMaterial.deliveryTime')}
+            className={cn(inputClass, !isPhone && 'px-3', isPhone && 'mt-2')}
+            data-testid={`line-time-${item.key}`}
+          />
+        </div>
       ),
     },
     {
@@ -646,7 +657,7 @@ export function StepLineItems({
                   <th className={cn(TABLE_TH, 'w-[140px]')}>
                     {t('create.lineItems.colUom')} <span className="text-destructive">*</span>
                   </th>
-                  <th className={cn(TABLE_TH, 'w-[150px]')}>
+                  <th className={cn(TABLE_TH, 'w-[170px]')}>
                     {t('create.lineItems.colExpDelivery')}
                   </th>
                   <th className={cn(TABLE_TH, 'w-[210px]')}>

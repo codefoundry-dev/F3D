@@ -160,14 +160,17 @@ export function StepBasicInfo({
                 editable
               />
             </div>
-            <Input
-              type="time"
-              value={values.needByTime}
-              onChange={(e) => onChange({ needByTime: e.target.value })}
-              aria-label={t('create.basicInfo.needByTime')}
-              className="w-32 shrink-0"
-              data-testid="rfq-need-by-time"
-            />
+            {/* Input's own wrapper is w-full, so size the time field from outside —
+                a className here only reaches the inner <input>. */}
+            <div className="w-36 shrink-0">
+              <Input
+                type="time"
+                value={values.needByTime}
+                onChange={(e) => onChange({ needByTime: e.target.value })}
+                aria-label={t('create.basicInfo.needByTime')}
+                data-testid="rfq-need-by-time"
+              />
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">{t('create.basicInfo.needByHint')}</p>
         </div>

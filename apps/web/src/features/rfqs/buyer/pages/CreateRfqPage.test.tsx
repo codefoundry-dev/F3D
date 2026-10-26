@@ -505,6 +505,12 @@ describe('CreateRfqPage', () => {
         .getAllByLabelText<HTMLInputElement>('date')
         .map((input) => input.value);
     expect(lineDates()).toEqual(['2026-12-01', '2026-12-01']);
+    // The header time shows on every line too, not just in the saved payload.
+    expect(
+      within(table)
+        .getAllByLabelText<HTMLInputElement>('create.editMaterial.deliveryTime')
+        .map((input) => input.value),
+    ).toEqual(['08:00', '08:00']);
 
     // Override the first line, then move the RFQ-level date: only the second follows.
     fireEvent.change(within(table).getAllByLabelText('date')[0], {

@@ -303,14 +303,15 @@ export function StepMaterialDetails({
               editable
             />
           </div>
-          <Input
-            type="time"
-            value={needBy.time}
-            onChange={(e) => onNeedByChange({ time: e.target.value })}
-            aria-label={t('materialDetails.needByAllTime')}
-            className="w-32"
-            data-testid="mr-need-by-all-time"
-          />
+          <div className="w-36">
+            <Input
+              type="time"
+              value={needBy.time}
+              onChange={(e) => onNeedByChange({ time: e.target.value })}
+              aria-label={t('materialDetails.needByAllTime')}
+              data-testid="mr-need-by-all-time"
+            />
+          </div>
         </div>
         <p className="text-xs text-muted-foreground">{t('materialDetails.needByAllHint')}</p>
       </div>
