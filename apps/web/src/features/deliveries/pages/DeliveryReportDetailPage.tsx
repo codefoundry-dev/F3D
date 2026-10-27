@@ -158,7 +158,6 @@ export default function DeliveryReportDetailPage() {
               <tr className="border-b border-border bg-[hsl(var(--table-header))] text-left text-[hsl(var(--table-header-foreground))]">
                 {(
                   [
-                    'lineItemId',
                     'itemMaterial',
                     'description',
                     'unit',
@@ -207,7 +206,6 @@ function LineRow({ line }: { line: DeliveryReportLineResponse }) {
         className="border-b border-border last:border-b-0"
         data-testid={`delivery-detail-row-${line.id}`}
       >
-        <td className="px-3 py-2.5 text-foreground">{line.lineItemRef}</td>
         <td className="px-3 py-2.5 font-medium text-foreground">{line.materialName}</td>
         <td className="max-w-[260px] truncate px-3 py-2.5 text-foreground">
           {line.description ?? '-'}
@@ -235,7 +233,7 @@ function LineRow({ line }: { line: DeliveryReportLineResponse }) {
 
       {line.notes && (
         <tr className="border-b border-border">
-          <td colSpan={8} className="px-3 py-3">
+          <td colSpan={7} className="px-3 py-3">
             <p className="text-xs font-semibold text-foreground">{t('detail.notes')}</p>
             <p className="mt-1 text-sm text-muted-foreground">{line.notes}</p>
           </td>
@@ -244,7 +242,7 @@ function LineRow({ line }: { line: DeliveryReportLineResponse }) {
 
       {isDamaged && (
         <tr className="border-b border-border">
-          <td colSpan={8} className="px-3 py-4">
+          <td colSpan={7} className="px-3 py-4">
             <p className="mb-3 text-sm font-semibold text-foreground">{t('damage.title')}</p>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="grid grid-cols-3 gap-x-10 gap-y-2">

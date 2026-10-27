@@ -67,9 +67,6 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
           <thead>
             <tr className="bg-[color:color-mix(in_srgb,hsl(var(--foreground))_5%,hsl(var(--card)))]">
               <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
-                {t('lineItemsTab.lineItemId')}
-              </th>
-              <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
                 {t('lineItemsTab.materialName')}
               </th>
               <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
@@ -107,7 +104,6 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
           <tbody>
             {lineItems.map((item) => (
               <tr key={item.id} className="border-t border-border">
-                <td className="p-3 text-foreground border border-border">{item.id}</td>
                 <td className="p-3 text-foreground border border-border">
                   <span className="flex items-center gap-2">
                     <MaterialImageThumb url={item.imageUrl} name={item.materialName} />
@@ -167,7 +163,7 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
           </tbody>
           <tfoot>
             <tr className="border-t border-border bg-[color:color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]">
-              <td colSpan={12} className="px-6 py-3">
+              <td colSpan={11} className="px-6 py-3">
                 <span className="text-sm text-muted-foreground">
                   {t('lineItemsTab.totalItems')}:{' '}
                   <span className="text-foreground">{lineItems.length}</span>
@@ -210,9 +206,6 @@ function LineItemsPanelLayout({ lineItems }: { lineItems: RfqLineItem[] }) {
           <thead>
             <tr className="border-b border-foreground/10 text-left">
               <th className="pb-2 pr-3 font-medium text-muted-foreground text-xs">
-                {t('lineItemsTab.lineItemId')}
-              </th>
-              <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
                 {t('lineItemsTab.materialName')}
               </th>
               <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
@@ -226,8 +219,7 @@ function LineItemsPanelLayout({ lineItems }: { lineItems: RfqLineItem[] }) {
           <tbody>
             {lineItems.map((item) => (
               <tr key={item.id} className="border-b border-foreground/10">
-                <td className="py-2.5 pr-3 text-foreground">{item.id}</td>
-                <td className="py-2.5 px-3 text-foreground">
+                <td className="py-2.5 pr-3 text-foreground">
                   <span className="flex items-center gap-2">
                     <MaterialImageThumb url={item.imageUrl} name={item.materialName} />
                     {item.materialName}

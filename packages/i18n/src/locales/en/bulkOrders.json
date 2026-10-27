@@ -77,7 +77,6 @@
     "endDate": "End date",
     "createdBy": "Created by:",
     "lineItemsTitle": "Line Items",
-    "lineItemId": "Line Item ID",
     "itemReference": "Item/Material",
     "description": "Description",
     "qty": "Qty. Ordered",

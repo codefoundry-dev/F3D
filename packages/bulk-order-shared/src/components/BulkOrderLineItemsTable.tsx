@@ -43,7 +43,6 @@ export function BulkOrderLineItemsTable({
           <tbody>
             {lineItems.map((item) => (
               <tr key={item.lineItemId} className="border-t border-border">
-                <td className="p-3 text-foreground border border-border">{item.lineItemId}</td>
                 <td className="p-3 text-foreground border border-border">{item.itemReference}</td>
                 <td className="p-3 text-foreground border border-border truncate max-w-[200px]">
                   {item.description}
@@ -94,7 +93,6 @@ export function BulkOrderLineItemsTable({
 }
 
 const LINE_ITEM_COLUMNS = [
-  { key: 'lineItemId' },
   { key: 'itemReference' },
   { key: 'description' },
   { key: 'unit' },

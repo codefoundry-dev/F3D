@@ -300,7 +300,6 @@
   "lineItemsTab": {
     "title": "Line Items",
     "edit": "Edit",
-    "lineItemId": "Line Item ID",
     "materialName": "Material Name",
     "viewImage": "View image of {{name}}",
     "description": "Description",
@@ -773,7 +772,6 @@
       "lineItemsSelected_one": "{{count}} line item selected",
       "lineItemsSelected_other": "{{count}} line items selected",
       "coverAll": "Cover all",
-      "colLineItemId": "Line Item ID",
       "colMaterialName": "Material Name",
       "colUom": "UoM",
       "colRequestedQty": "Requested Qty",

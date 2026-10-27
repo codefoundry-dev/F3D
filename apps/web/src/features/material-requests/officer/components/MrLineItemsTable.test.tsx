@@ -62,8 +62,9 @@ describe('MrLineItemsTable', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(4);
   });
 
-  it('renders a short line-item id', () => {
+  it('does not show the internal line-item id', () => {
     render(<MrLineItemsTable lineItems={[li({ id: 'abcdef1234567890' })]} />);
-    expect(screen.getByText('abcdef12')).toBeInTheDocument();
+    expect(screen.queryByText('abcdef12')).not.toBeInTheDocument();
+    expect(screen.queryByText('detail.columns.lineId')).not.toBeInTheDocument();
   });
 });

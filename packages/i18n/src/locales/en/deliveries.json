@@ -61,7 +61,6 @@
     "subtitle": "Record what was received against the purchase order",
     "lineItems": "Line Items",
     "columns": {
-      "lineItemId": "Line Item ID",
       "itemMaterial": "Item/Material",
       "description": "Description",
       "unit": "Unit",
@@ -108,7 +107,6 @@
       "rejectionReason": "Rejection reason"
     },
     "columns": {
-      "lineItemId": "Line Item ID",
       "itemMaterial": "Item/Material",
       "description": "Description",
       "unit": "Unit",

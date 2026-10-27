@@ -27,9 +27,6 @@ export function RfqLineItemsTab({ lineItems, layout = 'panel' }: RfqLineItemsTab
           <thead>
             <tr className="border-b border-foreground/10 text-left">
               <th className="pb-2 pr-3 font-medium text-muted-foreground text-xs">
-                {t('lineItemsTab.lineItemId')}
-              </th>
-              <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
                 {t('lineItemsTab.materialName')}
               </th>
               <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
@@ -52,8 +49,7 @@ export function RfqLineItemsTab({ lineItems, layout = 'panel' }: RfqLineItemsTab
           <tbody>
             {lineItems.map((item) => (
               <tr key={item.id} className="border-b border-foreground/10">
-                <td className="py-2.5 pr-3 text-foreground">{item.id}</td>
-                <td className="py-2.5 px-3 text-foreground">
+                <td className="py-2.5 pr-3 text-foreground">
                   <span className="flex items-center gap-2">
                     <MaterialImageThumb url={item.imageUrl} name={item.materialName} />
                     {item.materialName}

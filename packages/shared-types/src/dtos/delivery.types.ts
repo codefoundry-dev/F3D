@@ -39,7 +39,7 @@ export interface DeliveryReportAttachmentResponse {
 export interface DeliveryReportLineResponse {
   id: string;
   poLineItemId: string;
-  /** The PO line's human reference rendered in the "Line Item ID" column. */
+  /** The PO line's human reference (material code, else line number). */
   lineItemRef: string;
   /** Material snapshot for inventory; null for free-text PO lines. */
   materialId: string | null;

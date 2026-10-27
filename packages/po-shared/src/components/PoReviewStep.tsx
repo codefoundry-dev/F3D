@@ -178,10 +178,7 @@ export function PoReviewStep({
           >
             <thead>
               <tr className="text-left bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
-                <th className={TH_CLASS} style={{ width: '8%' }}>
-                  {t('create.lineItemId')}
-                </th>
-                <th className={TH_CLASS} style={{ width: '14%' }}>
+                <th className={TH_CLASS} style={{ width: '22%' }}>
                   {t('create.itemMaterial')}
                 </th>
                 <th className={TH_CLASS} style={{ width: '12%' }}>
@@ -218,7 +215,6 @@ export function PoReviewStep({
                 const lineTotal = Number(item.unitPrice) * Number(item.quantityOrdered);
                 return (
                   <tr key={i}>
-                    <td className={TD_CLASS}>{i + 1}</td>
                     <td className={TD_CLASS}>{item.materialName}</td>
                     <td className={TD_CLASS}>{item.description ?? '-'}</td>
                     <td className={TD_CLASS}>{item.unitOfMeasure}</td>

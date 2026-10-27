@@ -10,8 +10,9 @@ const DASH = '—';
 
 /**
  * Detail line-items table (US 2.08), columns sourced from Figma node 5914:85044:
- * Line Item ID / Material name / Description / Qty ordered / UoM /
- * Exp. delivery date / Delivery time / Delivery location / Notes.
+ * Material name / Description / Qty ordered / UoM / Exp. delivery date /
+ * Delivery time / Delivery location / Notes. Figma's Line Item ID column is
+ * left out on purpose: internal ids mean nothing to users.
  */
 export function MrLineItemsTable({ lineItems }: MrLineItemsTableProps) {
   const { t } = useTranslation('materialRequests');
@@ -23,7 +24,6 @@ export function MrLineItemsTable({ lineItems }: MrLineItemsTableProps) {
   }
 
   const columnKeys = {
-    lineId: 'detail.columns.lineId',
     materialName: 'detail.columns.materialName',
     description: 'detail.columns.description',
     quantity: 'detail.columns.quantity',
@@ -52,9 +52,6 @@ export function MrLineItemsTable({ lineItems }: MrLineItemsTableProps) {
         <tbody>
           {lineItems.map((li) => (
             <tr key={li.id} className="border-b border-border last:border-b-0 text-foreground">
-              <td className="px-3 py-3 font-mono text-xs text-muted-foreground">
-                {li.id.slice(0, 8)}
-              </td>
               <td className="px-3 py-3">{li.materialName ?? DASH}</td>
               <td className="max-w-[220px] truncate px-3 py-3 text-muted-foreground">
                 {li.description ?? DASH}

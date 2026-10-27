@@ -359,7 +359,6 @@ export function ProposeChangePage({ isVendorView = false }: ProposeChangePagePro
             <table className="w-full min-w-[900px] text-sm">
               <thead>
                 <tr className="bg-[color:color-mix(in_srgb,hsl(var(--foreground))_5%,hsl(var(--card)))]">
-                  <Th>{t('detail.lineItemId')}</Th>
                   <Th>{t('detail.itemReference')}</Th>
                   <Th>{t('detail.description')}</Th>
                   <Th>{t('detail.unit')}</Th>
@@ -392,9 +391,6 @@ export function ProposeChangePage({ isVendorView = false }: ProposeChangePagePro
                     key={`new-${idx}`}
                     className="border-t border-border bg-[color:color-mix(in_srgb,hsl(var(--success))_5%,hsl(var(--card)))]"
                   >
-                    <td className="p-3 text-muted-foreground border-r border-border text-xs italic">
-                      new
-                    </td>
                     <td className="p-3 border-r border-border last:border-r-0">
                       <Input
                         type="text"
@@ -463,7 +459,7 @@ export function ProposeChangePage({ isVendorView = false }: ProposeChangePagePro
               </tbody>
               <tfoot>
                 <tr className="border-t border-border bg-[color:color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]">
-                  <td colSpan={10} className="px-6 py-3">
+                  <td colSpan={9} className="px-6 py-3">
                     <span className="text-sm text-muted-foreground">
                       {t('detail.totalItems')}:{' '}
                       <span className="text-foreground">
@@ -555,7 +551,6 @@ function LineItemRow({
 
   return (
     <tr className="border-t border-border">
-      <td className="p-3 text-foreground border-r border-border">{item.lineItemId}</td>
       <td className="p-3 text-foreground border-r border-border">{item.itemReference}</td>
       <td className="p-3 text-foreground border-r border-border truncate max-w-[200px]">
         {item.description}

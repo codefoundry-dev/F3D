@@ -346,7 +346,6 @@ export default function CreateDeliveryReportPage() {
                 <tr className="border-b border-border bg-[hsl(var(--table-header))] text-left text-[hsl(var(--table-header-foreground))]">
                   {(
                     [
-                      'lineItemId',
                       'itemMaterial',
                       'description',
                       'unit',
@@ -374,7 +373,6 @@ export default function CreateDeliveryReportPage() {
                         className="border-b border-border last:border-b-0"
                         data-testid={`delivery-row-${row.poLineItemId}`}
                       >
-                        <td className="px-3 py-2.5 text-foreground">{row.lineItemRef}</td>
                         <td className="px-3 py-2.5 font-medium text-foreground">
                           {row.materialName}
                         </td>
@@ -407,7 +405,7 @@ export default function CreateDeliveryReportPage() {
                       </tr>
                       {isDamaged && row.damageOpen && (
                         <tr className="border-b border-border">
-                          <td colSpan={8} className="px-3 py-4">
+                          <td colSpan={7} className="px-3 py-4">
                             {renderDamageForm(row)}
                           </td>
                         </tr>

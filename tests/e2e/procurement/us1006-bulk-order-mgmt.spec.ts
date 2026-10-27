@@ -120,7 +120,7 @@ test.describe('US-10.06 - Bulk Order Management', () => {
       await expect(lineItemTable).toBeVisible();
 
       // Verify key line item columns
-      await expect(sharedPage.locator('th', { hasText: 'Line Item ID' })).toBeVisible();
+      await expect(sharedPage.locator('th', { hasText: 'Item/Material' })).toBeVisible();
       await expect(sharedPage.locator('th', { hasText: 'Description' })).toBeVisible();
       await expect(sharedPage.locator('th', { hasText: 'Qty' })).toBeVisible();
 
