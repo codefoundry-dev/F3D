@@ -13,7 +13,7 @@ enum BulkOrderChangeRequestStatus {
 
 model BulkOrder {
   id              String          @id @default(uuid())
-  bulkOrderNumber String?         @unique @map("bulk_order_number") @db.VarChar(50)
+  bulkOrderNumber String?         @map("bulk_order_number") @db.VarChar(50)
   projectId       String          @map("project_id")
   companyId       String          @map("company_id")
   vendorId        String          @map("vendor_id")
@@ -35,6 +35,9 @@ model BulkOrder {
   lineItems      BulkOrderLineItem[]
   drawdowns      Drawdown[]
   changeRequests BulkOrderChangeRequest[]
+
+  // Numbers are sequenced per company, so they are unique per company only.
+  @@unique([companyId, bulkOrderNumber], map: "uq_bulk_orders_company_bulk_order_number")
 
   @@map("bulk_orders")
 }

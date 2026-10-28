@@ -141,7 +141,7 @@ export class MaterialRequestsService {
 
     const submit = dto.submit === true;
     const status = submit ? MaterialRequestStatus.SUBMITTED : MaterialRequestStatus.DRAFT;
-    const mrNumber = await this.nextMrNumber(companyId);
+    const mrNumber = await nextSequentialNumber(this.prisma, 'materialRequest', 'MR', companyId);
 
     // FOR-347: the one-shot create is the wizard's submit door, so nominees ride
     // on it. Vet them against the Pool BEFORE creating anything — a bad id is a
@@ -992,11 +992,6 @@ export class MaterialRequestsService {
   }
 
   /** Next "MR-00001" number for a company, sequential by existing MR count. */
-  private async nextMrNumber(companyId: string): Promise<string> {
-    const count = await this.prisma.materialRequest.count({ where: { companyId } });
-    return `MR-${String(count + 1).padStart(5, '0')}`;
-  }
-
   /**
    * Each line must carry a catalogue material id OR a free-text name, and every
    * referenced catalogue material id must exist (mirrors RfqsService line-item

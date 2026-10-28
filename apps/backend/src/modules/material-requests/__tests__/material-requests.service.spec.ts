@@ -248,7 +248,11 @@ describe('MaterialRequestsService', () => {
     it('creates a DRAFT MR, numbers it sequentially, and audits CREATED only', async () => {
       const { service, prisma, audit } = makeService();
       prisma.project.findUnique.mockResolvedValue({ id: 'project-1', companyId: 'company-1' });
-      prisma.materialRequest.count.mockResolvedValue(4); // → MR-00005
+      // max + 1 over the company's canonical numbers, gaps and all (not a count).
+      prisma.materialRequest.findMany.mockResolvedValueOnce([
+        { mrNumber: 'MR-00001' },
+        { mrNumber: 'MR-00004' },
+      ]); // → MR-00005
       prisma.materialRequest.create.mockResolvedValue({ id: 'mr-1' });
       prisma.materialRequest.findUnique.mockResolvedValue(makeMr());
 
