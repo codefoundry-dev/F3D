@@ -42,6 +42,8 @@ import {
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
+/** Tries at allocating a report number before a concurrent-submit clash is surfaced. */
+const REPORT_NUMBER_ATTEMPTS = 3;
 
 /** PO statuses against which a delivery may be recorded / a link generated. */
 export const DELIVERABLE_PO_STATUSES = [
@@ -494,9 +496,8 @@ export class DeliveriesService {
 
     const poLineById = new Map(po.lineItems.map((li) => [li.id, li]));
 
-    const created = await this.prisma.$transaction(async (tx) => {
-      const reportNumber = await this.nextReportNumber(po.companyId, tx);
-      return tx.deliveryReport.create({
+    const created = await this.withFreshReportNumber(po.companyId, (reportNumber, tx) =>
+      tx.deliveryReport.create({
         data: {
           reportNumber,
           purchaseOrderId: po.id,
@@ -532,8 +533,8 @@ export class DeliveriesService {
           },
         },
         select: { id: true },
-      });
-    });
+      }),
+    );
 
     await this.audit(AuditAction.DELIVERY_REPORT_CREATED, created.id, submitter.userId, {
       purchaseOrderId: po.id,
@@ -726,9 +727,31 @@ export class DeliveriesService {
   }
 
   /**
+   * Run `create` in a transaction with the company's next report number. Two
+   * concurrent submits can read the same count; the loser hits the
+   * (company, report_number) unique index and is retried with a fresh number
+   * instead of surfacing a 500.
+   */
+  private async withFreshReportNumber<T>(
+    companyId: string,
+    create: (reportNumber: string, tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(async (tx) =>
+          create(await this.nextReportNumber(companyId, tx), tx),
+        );
+      } catch (err) {
+        const numberTaken =
+          err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
+        if (!numberTaken || attempt >= REPORT_NUMBER_ATTEMPTS) throw err;
+      }
+    }
+  }
+
+  /**
    * Next "DR-00001" report number for a company, sequential by existing report
-   * count. Mirrors MaterialRequestsService.nextMrNumber; run inside the create
-   * transaction so the count + insert are consistent.
+   * count; run inside the create transaction so the count + insert are consistent.
    */
   async nextReportNumber(
     companyId: string,

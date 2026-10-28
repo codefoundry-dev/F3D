@@ -6,7 +6,7 @@ import {
   DeliveryReportStatus,
 } from '@forethread/shared-types';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 
 import { AuthenticatedUser } from '../../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -863,6 +863,42 @@ describe('DeliveriesService', () => {
       expect(audit.log).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'DELIVERY_REPORT_CREATED' }),
       );
+    });
+
+    it('retries with a fresh number when a concurrent submit took it (FOR-386)', async () => {
+      const { service, prisma, tx } = makeService();
+      (prisma.purchaseOrder.findUnique as jest.Mock).mockResolvedValue(deliverablePo());
+      (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue(
+        detailRow({ companyId: 'company-1' }),
+      );
+      tx.deliveryReport.count.mockResolvedValueOnce(4).mockResolvedValueOnce(5);
+      tx.deliveryReport.create.mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: 'test',
+        }),
+      );
+
+      await service.create(officer, dto);
+
+      const numbers = tx.deliveryReport.create.mock.calls.map(
+        ([arg]: [{ data: { reportNumber: string } }]) => arg.data.reportNumber,
+      );
+      expect(numbers).toEqual(['DR-00005', 'DR-00006']);
+    });
+
+    it('gives up after repeated number clashes instead of looping', async () => {
+      const { service, prisma, tx } = makeService();
+      (prisma.purchaseOrder.findUnique as jest.Mock).mockResolvedValue(deliverablePo());
+      tx.deliveryReport.create.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: 'test',
+        }),
+      );
+
+      await expect(service.create(officer, dto)).rejects.toThrow(/Unique constraint/);
+      expect(tx.deliveryReport.create).toHaveBeenCalledTimes(3);
     });
 
     it('honours explicit header fields + persists a DAMAGED line snapshot', async () => {

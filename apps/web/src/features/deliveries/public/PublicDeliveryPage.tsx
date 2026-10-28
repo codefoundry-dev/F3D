@@ -6,6 +6,7 @@ import {
   uploadDeliveryPortalLinePhoto,
   uploadDeliveryPortalAttachment,
   finalizeDeliveryPortal,
+  ApiRequestError,
   isApiError,
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
@@ -101,7 +102,11 @@ export default function PublicDeliveryPage() {
   }
 
   // A 403 means the token is expired / revoked — distinct from a malformed link.
+  // A 429 means too many failed tries locked the link; a new QR is the way out.
   if (isError) {
+    if (isApiError(error, 429)) {
+      return <PortalError title={t('portal.lockedToken')} hint={t('portal.expiredTokenHint')} />;
+    }
     const expired = isApiError(error, 403);
     return (
       <PortalError
@@ -334,7 +339,12 @@ function CodeStep({
       setSubmitting(true);
       setErrorKey(null);
       try {
-        const { sessionToken } = await verifyDeliveryPortal(token, { email, code: value });
+        // Trimmed exactly like identify, or a keyboard's trailing space makes the
+        // code lookup miss and every code reads as "incorrect".
+        const { sessionToken } = await verifyDeliveryPortal(token, {
+          email: email.trim(),
+          code: value,
+        });
         onVerified(sessionToken);
       } catch (err) {
         // 429 (or a locked 403) → lockout copy; anything else → invalid code.
@@ -497,12 +507,20 @@ function ReportFormStep({
       for (const file of attachments) {
         uploads.push(uploadDeliveryPortalAttachment(sessionToken, file));
       }
-      await Promise.allSettled(uploads);
+      const results = await Promise.allSettled(uploads);
+      const failedUploads = results.filter((r) => r.status === 'rejected').length;
 
       await finalizeDeliveryPortal(sessionToken);
+      // The report is saved either way; say so rather than dropping evidence silently.
+      if (failedUploads > 0) {
+        notificationService.info(t('portal.report.uploadsFailed', { count: failedUploads }));
+      }
       onSubmitted(lines);
-    } catch {
-      notificationService.error(t('portal.report.submitFailed'));
+    } catch (err) {
+      // A 400 carries the server's reason (e.g. the PO can't take a delivery in
+      // its current status) — show it instead of a generic retry prompt.
+      const reason = err instanceof ApiRequestError && err.statusCode === 400 ? err.message : null;
+      notificationService.error(reason ?? t('portal.report.submitFailed'));
     } finally {
       setSubmitting(false);
     }

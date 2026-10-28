@@ -189,27 +189,38 @@ describe('AccessTokensService', () => {
   });
 
   describe('validateToken', () => {
-    it('returns the row for a valid token and records the attempt', async () => {
+    it('returns the row for a valid token and records the audit without counting it', async () => {
       const secret = 'super-random-secret-value';
       const row = makeRow({ tokenHash: createHash('sha256').update(secret).digest('hex') });
       prisma.accessToken.findUnique.mockResolvedValue(row);
-      prisma.accessToken.update.mockResolvedValue({
-        ...row,
-        attempts: 1,
-        lastAttemptIp: '1.2.3.4',
-      });
+      prisma.accessToken.update.mockResolvedValue({ ...row, lastAttemptIp: '1.2.3.4' });
 
       const result = await service.validateToken(`${row.lookupId}.${secret}`, { ip: '1.2.3.4' });
 
-      expect(result.attempts).toBe(1);
+      expect(result.attempts).toBe(0);
       expect(prisma.accessToken.update).toHaveBeenCalledWith({
         where: { id: row.id },
-        data: {
-          attempts: { increment: 1 },
-          lastAttemptAt: expect.any(Date),
-          lastAttemptIp: '1.2.3.4',
-        },
+        data: { lastAttemptAt: expect.any(Date), lastAttemptIp: '1.2.3.4' },
       });
+    });
+
+    it('keeps accepting a long-lived link past maxAttempts successful uses (FOR-386)', async () => {
+      const secret = 'qr-secret';
+      const row = makeRow({
+        purpose: AccessTokenPurpose.DELIVERY_SUBMIT,
+        attempts: 0,
+        maxAttempts: 10,
+        tokenHash: createHash('sha256').update(secret).digest('hex'),
+      });
+      prisma.accessToken.findUnique.mockResolvedValue(row);
+      prisma.accessToken.update.mockResolvedValue(row);
+
+      for (let i = 0; i < 25; i += 1) {
+        await expect(service.validateToken(`${row.lookupId}.${secret}`)).resolves.toBe(row);
+      }
+      for (const [call] of prisma.accessToken.update.mock.calls as [{ data: object }][]) {
+        expect(call.data).not.toHaveProperty('attempts');
+      }
     });
 
     it('throws 403 when the raw token is missing', async () => {
@@ -293,32 +304,39 @@ describe('AccessTokensService', () => {
       ).rejects.toThrow(/not valid for this action/i);
     });
 
-    it('locks the token with 429 once attempts exceed maxAttempts', async () => {
+    it('locks the token with 429 once maxAttempts failures are recorded', async () => {
       const secret = 'good-secret';
       const row = makeRow({
-        attempts: 9,
+        attempts: 10,
         maxAttempts: 10,
         tokenHash: createHash('sha256').update(secret).digest('hex'),
       });
       prisma.accessToken.findUnique.mockResolvedValue(row);
-      // Simulate the increment putting attempts above maxAttempts.
-      prisma.accessToken.update.mockResolvedValue({ ...row, attempts: 11 });
 
+      // Even the correct secret is refused once the failure budget is spent.
       await expect(service.validateToken(`${row.lookupId}.${secret}`)).rejects.toThrow(
         HttpException,
       );
       await expect(service.validateToken(`${row.lookupId}.${secret}`)).rejects.toThrow(
         /too many attempts/i,
       );
+      expect(prisma.accessToken.update).not.toHaveBeenCalled();
     });
 
-    it('bumps attempts even when the secret is wrong (brute-force protection)', async () => {
+    it('counts a wrong secret as a failed attempt (brute-force protection)', async () => {
       const row = makeRow({ tokenHash: createHash('sha256').update('correct').digest('hex') });
       prisma.accessToken.findUnique.mockResolvedValue(row);
       prisma.accessToken.update.mockResolvedValue({ ...row, attempts: 1 });
 
-      await expect(service.validateToken(`${row.lookupId}.wrong`)).rejects.toThrow();
-      expect(prisma.accessToken.update).toHaveBeenCalledTimes(1);
+      await expect(service.validateToken(`${row.lookupId}.wrong`)).rejects.toThrow(/invalid/i);
+      expect(prisma.accessToken.update).toHaveBeenCalledWith({
+        where: { id: row.id },
+        data: {
+          attempts: { increment: 1 },
+          lastAttemptAt: expect.any(Date),
+          lastAttemptIp: null,
+        },
+      });
     });
   });
 

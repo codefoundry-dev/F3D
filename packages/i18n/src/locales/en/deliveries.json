@@ -153,6 +153,7 @@
     "loadFailed": "We couldn't load this delivery. Please try again.",
     "expiredToken": "This delivery link has expired or is no longer valid.",
     "expiredTokenHint": "Ask the buyer to share a new delivery QR code or link.",
+    "lockedToken": "This delivery link has been locked after too many failed attempts.",
     "invalidToken": "This delivery link is invalid.",
     "invalidTokenHint": "Check the link you scanned and try again.",
     "identify": {
@@ -204,6 +205,8 @@
       "hideContact": "Hide email",
       "showContact": "Show email",
       "submitFailed": "Couldn't submit your delivery report. Please try again.",
+      "uploadsFailed_one": "Your report was submitted, but {{count}} photo or attachment could not be uploaded.",
+      "uploadsFailed_other": "Your report was submitted, but {{count}} photos or attachments could not be uploaded.",
       "filters": {
         "all": "All"
       },

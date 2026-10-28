@@ -147,13 +147,15 @@ export class DeliveryAttachmentService {
     lineId: string,
     file: Express.Multer.File,
   ): Promise<DeliveryDamagePhotoDto> {
+    // The portal only knows PO line ids (submit returns no report-line ids), so
+    // accept either id; both are confined to this session's report (FOR-386).
     const line = await this.prisma.deliveryReportLine.findFirst({
-      where: { id: lineId, deliveryReportId: reportId },
+      where: { deliveryReportId: reportId, OR: [{ id: lineId }, { poLineItemId: lineId }] },
       select: { id: true },
     });
     if (!line) throw new NotFoundException('Delivery report line not found');
     const ownerId = await this.resolveReportOwnerUserId(reportId);
-    return this.storeDamagePhoto(lineId, file, ownerId);
+    return this.storeDamagePhoto(line.id, file, ownerId);
   }
 
   // ── Shared store helpers ─────────────────────────────────────────────────────

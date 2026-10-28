@@ -202,10 +202,12 @@ export async function createPoDeliveryLink(
 const ACCESS_TOKEN_HEADER = 'X-Access-Token';
 
 function portalConfig(token: string, config?: AxiosRequestConfig): AxiosRequestConfig {
+  // `headers` goes LAST: spreading `config` after it would replace the merged
+  // headers wholesale (e.g. an upload's Content-Type) and drop the access token.
   return {
-    headers: { [ACCESS_TOKEN_HEADER]: token, ...(config?.headers ?? {}) },
     skipErrorHandler: true,
     ...config,
+    headers: { ...(config?.headers ?? {}), [ACCESS_TOKEN_HEADER]: token },
   };
 }
 

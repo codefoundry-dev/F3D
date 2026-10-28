@@ -131,8 +131,9 @@ export class AccessTokensService {
   }
 
   /**
-   * Validate an access token. Bumps the per-token attempt counter on every call
-   * and locks the token once `maxAttempts` is reached. Does NOT mark the token
+   * Validate an access token. Bumps the per-token attempt counter on every
+   * FAILED call and locks the token once `maxAttempts` failures have been
+   * recorded; successful calls only refresh the last-attempt audit. Does NOT mark the token
    * as used — callers must call `consumeToken()` after the request succeeds for
    * single-use enforcement to apply.
    *
@@ -157,47 +158,49 @@ export class AccessTokensService {
       throw new ForbiddenException(ERR.accessTokens.invalid);
     }
 
-    // Always bump attempts + last-attempt audit so brute-forcing a specific
-    // lookupId is bounded by `maxAttempts`, regardless of whether the secret
-    // matches.
-    const bumped = await this.prisma.accessToken.update({
-      where: { id: record.id },
-      data: {
-        attempts: { increment: 1 },
-        lastAttemptAt: new Date(),
-        lastAttemptIp: opts.ip ?? null,
-      },
-    });
-
-    if (bumped.attempts > bumped.maxAttempts) {
+    if (record.attempts >= record.maxAttempts) {
       throw new HttpException(ERR.accessTokens.tooManyAttempts, HttpStatus.TOO_MANY_REQUESTS);
     }
 
-    if (record.revokedAt) {
-      throw new ForbiddenException(ERR.accessTokens.revoked);
+    const failure = this.rejectionFor(record, secret, opts);
+    const audit = { lastAttemptAt: new Date(), lastAttemptIp: opts.ip ?? null };
+
+    // Only FAILED validations count toward `maxAttempts`, so brute-forcing a
+    // lookupId stays bounded while a legitimate holder can reuse a long-lived
+    // link (90-day delivery QR, 30-day PO portal) as often as they need. Counting
+    // successes too locked those links after ten page loads (FOR-386).
+    if (failure) {
+      await this.prisma.accessToken.update({
+        where: { id: record.id },
+        data: { attempts: { increment: 1 }, ...audit },
+      });
+      throw failure;
     }
 
+    return this.prisma.accessToken.update({ where: { id: record.id }, data: audit });
+  }
+
+  /** The error a presented token fails with, or `null` when it is valid. */
+  private rejectionFor(
+    record: AccessToken,
+    secret: string,
+    opts: ValidateTokenOptions,
+  ): ForbiddenException | null {
+    if (record.revokedAt) return new ForbiddenException(ERR.accessTokens.revoked);
     if (record.expiresAt.getTime() <= Date.now()) {
-      throw new ForbiddenException(ERR.accessTokens.expired);
+      return new ForbiddenException(ERR.accessTokens.expired);
     }
-
-    if (record.usedAt) {
-      throw new ForbiddenException(ERR.accessTokens.alreadyUsed);
-    }
-
+    if (record.usedAt) return new ForbiddenException(ERR.accessTokens.alreadyUsed);
     if (!secretMatches(secret, record.tokenHash)) {
-      throw new ForbiddenException(ERR.accessTokens.invalid);
+      return new ForbiddenException(ERR.accessTokens.invalid);
     }
-
     if (opts.expectedPurpose && record.purpose !== opts.expectedPurpose) {
-      throw new ForbiddenException(ERR.accessTokens.wrongPurpose);
+      return new ForbiddenException(ERR.accessTokens.wrongPurpose);
     }
-
     if (opts.expectedSubjectType && record.subjectType !== opts.expectedSubjectType) {
-      throw new ForbiddenException(ERR.accessTokens.wrongPurpose);
+      return new ForbiddenException(ERR.accessTokens.wrongPurpose);
     }
-
-    return bumped;
+    return null;
   }
 
   /**
