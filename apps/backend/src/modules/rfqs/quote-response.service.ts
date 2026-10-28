@@ -32,6 +32,7 @@ import type {
   UpdateQuoteDto,
   UpdateQuoteLineItemStatusDto,
 } from './quote-response.dto';
+import { formatRfqLocation } from './rfq-location.util';
 import { RfqVisibilityService } from './rfq-visibility.service';
 
 /** Statuses that block vendor quote submission / update */
@@ -761,7 +762,10 @@ export class QuoteResponseService {
     rfq: {
       include: {
         lineItems: {
-          include: { material: { select: { id: true, name: true, uom: true, imageUrl: true } } },
+          include: {
+            material: { select: { id: true, name: true, uom: true, imageUrl: true } },
+            deliveryLocation: { select: { label: true, address: true } },
+          },
         },
         project: { select: { name: true } },
         company: { select: { legalName: true } },
@@ -830,7 +834,7 @@ export class QuoteResponseService {
       contractorName: rfq.company.legalName,
       projectName: rfq.project?.name ?? null,
       status: rfq.status,
-      deliveryLocation: rfq.deliveryLocation?.label ?? rfq.deliveryLocation?.address ?? null,
+      deliveryLocation: formatRfqLocation(rfq.deliveryLocation),
       needByDate: rfq.needByDate?.toISOString() ?? null,
       message: rfq.message,
       lineItems: rfq.lineItems.map((li) => ({
@@ -845,6 +849,10 @@ export class QuoteResponseService {
         quantity: li.quantity,
         description: li.description,
         costCode: li.costCode,
+        // Per-line delivery (FOR-387), falling back to the RFQ's location like
+        // the logged-in vendor view does.
+        expectedDeliveryDate: li.expectedDeliveryDate?.toISOString() ?? null,
+        deliveryLocation: formatRfqLocation(li.deliveryLocation ?? rfq.deliveryLocation),
       })),
       attachments,
       vendorName: rfqVendor.vendor.legalName,

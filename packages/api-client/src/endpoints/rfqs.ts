@@ -48,6 +48,7 @@ export interface RfqListItem {
   status: string;
   reqQuantities: number;
   pickUp: boolean;
+  deliveryLocationId: string | null;
   deliveryLocation: string | null;
   pickUpLocation: string | null;
   recVendors: number;
@@ -858,6 +859,9 @@ export interface GuestRfqDetail {
     quantity: number;
     description: string | null;
     costCode: string | null;
+    expectedDeliveryDate: string | null;
+    /** Line location (label — address), falling back to the RFQ's. */
+    deliveryLocation: string | null;
   }>;
   attachments: Array<{
     id: string;

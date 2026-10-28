@@ -119,6 +119,7 @@ export const ERR = {
     cannotSendNotDraft: (status: string) => t(errors.rfqs.cannotSendNotDraft, { status }),
     mustHaveLineItems: errors.rfqs.mustHaveLineItems,
     mustHaveVendors: errors.rfqs.mustHaveVendors,
+    mustHaveDeliveryLocation: errors.rfqs.mustHaveDeliveryLocation,
     invalidProjectIds: errors.rfqs.invalidProjectIds,
     lineItemProjectNotInRfq: errors.rfqs.lineItemProjectNotInRfq,
     coverageOnlyDraft: errors.rfqs.coverageOnlyDraft,

@@ -221,10 +221,10 @@ export class UpdateRfqDto {
   @IsOptional()
   isPickUp?: boolean;
 
-  @ApiPropertyOptional({ description: 'Pick-up location (free text)' })
+  @ApiPropertyOptional({ description: 'Pick-up location (free text); null clears it' })
   @IsString()
   @IsOptional()
-  pickUpLocation?: string;
+  pickUpLocation?: string | null;
 
   @IsDateString()
   @IsOptional()
@@ -314,10 +314,10 @@ export class SaveRfqDraftDto {
   @IsOptional()
   isPickUp?: boolean;
 
-  @ApiPropertyOptional({ description: 'Pick-up location (free text)' })
+  @ApiPropertyOptional({ description: 'Pick-up location (free text); null clears it' })
   @IsString()
   @IsOptional()
-  pickUpLocation?: string;
+  pickUpLocation?: string | null;
 
   @IsDateString()
   @IsOptional()
@@ -451,7 +451,10 @@ export class RfqListQueryDto extends BasePaginationQueryDto {
   @IsOptional()
   groupBy?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by delivery location (case-insensitive contains)' })
+  @ApiPropertyOptional({
+    description:
+      'Filter by delivery location: a location id matches exactly; any other text matches the label or address (case-insensitive contains)',
+  })
   @IsString()
   @IsOptional()
   deliveryLocation?: string;

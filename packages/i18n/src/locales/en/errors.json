@@ -88,6 +88,7 @@
     "cannotSendNotDraft": "Cannot send RFQ with status \"{{status}}\". Only DRAFT RFQs can be sent.",
     "mustHaveLineItems": "RFQ must have at least one line item before sending",
     "mustHaveVendors": "RFQ must have at least one invited vendor before sending",
+    "mustHaveDeliveryLocation": "Choose a delivery location, or mark the RFQ as a pick-up, before sending",
     "invalidProjectIds": "Some project IDs are invalid or do not belong to your company",
     "lineItemProjectNotInRfq": "A line item references a project that is not one of the RFQ's projects",
     "coverageOnlyDraft": "Bulk-order coverage can only be confirmed on a DRAFT RFQ",

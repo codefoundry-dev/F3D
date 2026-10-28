@@ -91,8 +91,10 @@ function buildPayload(
     projectId: basicInfo.projectIds[0],
     projectIds: basicInfo.projectIds,
     name: basicInfo.documentName || undefined,
-    isPickUp: basicInfo.isPickUp || undefined,
-    pickUpLocation: basicInfo.isPickUp ? basicInfo.pickUpLocation || undefined : undefined,
+    // Always send the boolean: `false` must reach the API so un-ticking Pick up
+    // on a saved draft sticks (FOR-387), and `null` clears the old pick-up spot.
+    isPickUp: basicInfo.isPickUp,
+    pickUpLocation: basicInfo.isPickUp ? basicInfo.pickUpLocation || undefined : null,
     // Pick-up orders are collected, not delivered — `null` clears a location
     // chosen before the draft was switched over.
     deliveryLocationId: basicInfo.isPickUp ? null : basicInfo.deliveryLocationId || undefined,

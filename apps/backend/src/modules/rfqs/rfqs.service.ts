@@ -38,6 +38,7 @@ import {
   UserRole,
   UserStatus,
 } from '@prisma/client';
+import { isUUID } from 'class-validator';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -61,6 +62,7 @@ import {
   normalizeRfqLineItem,
   resolveRfqLineItemMaterialName,
 } from './rfq-line-item.util';
+import { formatRfqLocation } from './rfq-location.util';
 import { RfqVisibilityService } from './rfq-visibility.service';
 import { VENDOR_STATUS_MAP, VENDOR_STATUS_TO_RFQ } from './vendor-status.constants';
 
@@ -318,9 +320,7 @@ export class RfqsService {
           isPickUp,
           pickUp: isPickUp || !!rfq.pickUpLocation,
           deliveryLocationId: rfqAny.deliveryLocationId ?? null,
-          deliveryLocation: deliveryLocation
-            ? (deliveryLocation.label ?? deliveryLocation.address)
-            : null,
+          deliveryLocation: formatRfqLocation(deliveryLocation),
           pickUpLocation: rfq.pickUpLocation,
           recVendors: rfq.quoteResponses.length,
           recQuotes: rfq._count.quoteResponses,
@@ -462,9 +462,7 @@ export class RfqsService {
       pickUp: isPickUp || !!rfq.pickUpLocation,
       pickUpDate: rfq.pickUpDate?.toISOString() ?? null,
       deliveryLocationId: rfqAny.deliveryLocationId ?? null,
-      deliveryLocation: rfqDeliveryLocation
-        ? (rfqDeliveryLocation.label ?? rfqDeliveryLocation.address)
-        : null,
+      deliveryLocation: formatRfqLocation(rfqDeliveryLocation),
       pickUpLocation: rfq.pickUpLocation,
       currency: rfqAny.currency ?? null,
       needByDate: rfqAny.needByDate ? (rfqAny.needByDate as Date).toISOString() : null,
@@ -519,11 +517,7 @@ export class RfqsService {
             (liAny.deliveryLocationId as string | null | undefined) ??
             rfqAny.deliveryLocationId ??
             null,
-          deliveryLocation: liLocation
-            ? (liLocation.label ?? liLocation.address)
-            : rfqDeliveryLocation
-              ? (rfqDeliveryLocation.label ?? rfqDeliveryLocation.address)
-              : null,
+          deliveryLocation: formatRfqLocation(liLocation ?? rfqDeliveryLocation),
         };
       }),
       vendors:
@@ -1189,6 +1183,8 @@ export class RfqsService {
         id: true,
         status: true,
         companyId: true,
+        isPickUp: true,
+        deliveryLocationId: true,
         _count: { select: { lineItems: true, invitedVendors: true } },
       },
     });
@@ -1206,6 +1202,12 @@ export class RfqsService {
 
     if (rfq._count.invitedVendors === 0) {
       throw new BadRequestException(ERR.rfqs.mustHaveVendors);
+    }
+
+    // Mirrors the wizard's client-side check (FOR-387): a delivered RFQ needs
+    // somewhere to deliver to.
+    if (!rfq.isPickUp && !rfq.deliveryLocationId) {
+      throw new BadRequestException(ERR.rfqs.mustHaveDeliveryLocation);
     }
 
     const ccEmails = normalizeCcEmails(dto?.cc);
@@ -2130,8 +2132,23 @@ export class RfqsService {
       ];
     }
 
+    // The list filter sends location ids (FOR-387); free text still matches
+    // the label or address so API callers can search by name. Comparing free
+    // text to the UUID column matched nothing.
     if (query.deliveryLocation) {
-      (where as Record<string, unknown>).deliveryLocationId = query.deliveryLocation;
+      where.AND = [
+        ...((where.AND as Prisma.RfqWhereInput[] | undefined) ?? []),
+        isUUID(query.deliveryLocation)
+          ? { deliveryLocationId: query.deliveryLocation }
+          : {
+              deliveryLocation: {
+                OR: [
+                  { label: { contains: query.deliveryLocation, mode: 'insensitive' } },
+                  { address: { contains: query.deliveryLocation, mode: 'insensitive' } },
+                ],
+              },
+            },
+      ];
     }
 
     if (query.createdByUserId) where.createdByUserId = query.createdByUserId;

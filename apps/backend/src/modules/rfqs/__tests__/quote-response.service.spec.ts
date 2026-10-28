@@ -747,11 +747,41 @@ describe('QuoteResponseService', () => {
       expect(result.rfqNumber).toBe('RFQ-001');
       expect(result.contractorName).toBe('ContractorCo');
       expect(result.projectName).toBe('Project Alpha');
-      expect(result.deliveryLocation).toBe('Warehouse A');
+      // Label and address both show (FOR-387).
+      expect(result.deliveryLocation).toBe('Warehouse A — 123 Main St');
       expect(result.needByDate).toBe(new Date('2026-05-01').toISOString());
       expect(result.vendorName).toBe('VendorCo');
       expect(result.lineItems).toHaveLength(1);
       expect(result.lineItems[0].materialName).toBe('Steel');
+    });
+
+    it('returns per-line delivery location and date, falling back to the RFQ location (FOR-387)', async () => {
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue({
+        ...baseRfqVendor,
+        rfq: {
+          ...baseRfqVendor.rfq,
+          lineItems: [
+            {
+              ...baseRfqVendor.rfq.lineItems[0],
+              expectedDeliveryDate: new Date('2026-06-01'),
+              deliveryLocation: { label: 'Main gate', address: '9 Dock Rd' },
+            },
+            {
+              ...baseRfqVendor.rfq.lineItems[0],
+              id: 'li-2',
+              expectedDeliveryDate: null,
+              deliveryLocation: null,
+            },
+          ],
+        },
+      });
+
+      const [first, second] = (await service.getGuestRfq('valid-token')).lineItems;
+
+      expect(first.expectedDeliveryDate).toBe(new Date('2026-06-01').toISOString());
+      expect(first.deliveryLocation).toBe('Main gate — 9 Dock Rd');
+      expect(second.expectedDeliveryDate).toBeNull();
+      expect(second.deliveryLocation).toBe('Warehouse A — 123 Main St');
     });
 
     it('carries the catalogue image on each line, null when absent (FOR-361)', async () => {

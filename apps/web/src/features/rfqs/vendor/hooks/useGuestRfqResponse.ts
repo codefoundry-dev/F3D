@@ -104,8 +104,8 @@ function initGuestLineItems(lineItems: GuestRfqDetail['lineItems']): LineItemFor
     substituteName: null,
     expandedSection: null,
     description: item.description,
-    expectedDeliveryDate: null,
-    deliveryLocation: null,
+    expectedDeliveryDate: item.expectedDeliveryDate ?? null,
+    deliveryLocation: item.deliveryLocation ?? null,
   }));
 }
 
