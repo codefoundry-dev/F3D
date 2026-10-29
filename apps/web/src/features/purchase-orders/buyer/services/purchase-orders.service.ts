@@ -8,6 +8,7 @@ import {
   getProject,
   getCompanyVendors,
   getMe,
+  getRfq,
   type PoListParams,
   type CreatePurchaseOrderInput,
   type CreatePoChangeRequestInput,
@@ -28,6 +29,15 @@ export function usePurchaseOrder(id: string) {
     queryKey: ['purchase-orders', id],
     queryFn: () => getPurchaseOrder(id),
     enabled: !!id,
+  });
+}
+
+/** The RFQ a "Start now" PO is built from (FOR-391); idle without an id. */
+export function useSourceRfq(rfqId: string | undefined) {
+  return useQuery({
+    queryKey: ['rfqs', rfqId],
+    queryFn: () => getRfq(rfqId ?? ''),
+    enabled: !!rfqId,
   });
 }
 

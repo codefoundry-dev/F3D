@@ -417,12 +417,29 @@ describe('QuoteResponseService', () => {
         lineItems: [
           {
             id: 'qli-1',
-            rfqLineItem: { material: { id: 'mat-1', name: 'Steel', uom: 'KG' } },
+            availability: 'AVAILABLE',
+            deliveryDate: new Date('2026-07-14T00:00:00Z'),
+            rfqLineItem: {
+              expectedDeliveryDate: new Date('2026-07-10T00:00:00Z'),
+              material: { id: 'mat-1', name: 'Steel', uom: 'KG' },
+            },
+          },
+          {
+            // No line date: measured against the RFQ need-by date.
+            id: 'qli-2',
+            availability: 'AVAILABLE',
+            deliveryDate: new Date('2026-07-18T00:00:00Z'),
+            rfqLineItem: { expectedDeliveryDate: null, material: null },
           },
         ],
         attachments: [],
         vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
-        rfq: { id: 'rfq-1', companyId: 'contractor-co-1', rfqNumber: 'RFQ-001' },
+        rfq: {
+          id: 'rfq-1',
+          companyId: 'contractor-co-1',
+          rfqNumber: 'RFQ-001',
+          needByDate: new Date('2026-07-20T00:00:00Z'),
+        },
         warehouseLocation: null,
       };
 
@@ -432,7 +449,16 @@ describe('QuoteResponseService', () => {
       const result = await service.getQuoteDetail('rfq-1', 'quote-1', vendorUser);
 
       expect(result.id).toBe('quote-1');
-      expect(result.lineItems).toHaveLength(1);
+      expect(result.lineItems).toHaveLength(2);
+      // FOR-392: each line carries its expected date and the slip in days.
+      expect(result.lineItems[0]).toMatchObject({
+        expectedDeliveryDate: '2026-07-10T00:00:00.000Z',
+        deliveryVarianceDays: 4,
+      });
+      expect(result.lineItems[1]).toMatchObject({
+        expectedDeliveryDate: '2026-07-20T00:00:00.000Z',
+        deliveryVarianceDays: -2,
+      });
     });
 
     it('should throw NotFoundException when quote not found', async () => {

@@ -112,6 +112,7 @@
     "cannotIssue": "Cannot issue PO with status \"{{status}}\". Only Draft POs can be issued.",
     "cannotIssueSplitParent": "A split parent PO cannot be issued. Issue its per-vendor child POs instead.",
     "holdForReleaseRequiresDeadline": "Hold-for-release orders require an earliest delivery date (deadlineStart).",
+    "invalidQuoteLine": "A line references a quote line that isn't an approved quote from this vendor.",
     "cannotConfirm": "Cannot confirm PO with status \"{{status}}\". Only Sent POs can be confirmed by the vendor.",
     "cannotAccept": "Cannot accept PO with status \"{{status}}\". Only Acknowledged POs can be accepted by the vendor.",
     "cannotVendorDecline": "Cannot decline PO with status \"{{status}}\". Only Sent or Acknowledged POs can be declined by the vendor.",

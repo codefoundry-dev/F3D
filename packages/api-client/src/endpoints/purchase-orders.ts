@@ -32,6 +32,8 @@ export interface CreatePoLineItemInput {
    * against `qtyRemaining` and writes the Drawdown row on create.
    */
   bulkOrderLineItemId?: string;
+  /** Approved quote line this line is bought from (FOR-391); the server pins its quoted price. */
+  quoteLineItemId?: string;
   materialCode?: string;
   description?: string;
   quantityOrdered: number;

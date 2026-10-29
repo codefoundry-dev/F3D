@@ -39,6 +39,9 @@ export const lineItemSchema = z.object({
   // the diff can match edited rows against the original PO line. Optional so the
   // create/from-rfq/drawdown modes are unaffected.
   lineItemId: z.string().optional(),
+  // FOR-391: the approved quote line this row is bought from. Set on every
+  // from-RFQ path; the price then renders read-only and the server pins it.
+  quoteLineItemId: z.string().optional(),
 });
 
 // FOR-210: a single header-level delivery row. Both fields are optional, but a
@@ -135,6 +138,7 @@ export const EMPTY_LINE_ITEM = {
   bulkOrderLineItemId: undefined as string | undefined,
   availableQty: undefined as number | undefined,
   lineItemId: undefined as string | undefined,
+  quoteLineItemId: undefined as string | undefined,
 };
 
 export const EMPTY_DELIVERY_ROW = {

@@ -35,6 +35,7 @@ import {
   useUpdateQuoteLineItemStatuses,
 } from '../hooks/useRfqs';
 
+import { DeliveryVarianceBadge } from './DeliveryVarianceBadge';
 import { DocumentRow } from './DocumentCard';
 import { MessageAttachmentLinks } from './MessageAttachmentLinks';
 import { MessageComposer } from './MessageComposer';
@@ -75,7 +76,6 @@ export interface QuoteResponseDetailPageProps {
 export interface QuoteResponseActionsProps {
   rfqId: string;
   quoteId: string;
-  vendorId?: string;
   status: string;
   size?: 'sm' | 'md';
 }
@@ -88,7 +88,6 @@ export interface QuoteResponseActionsProps {
 export function QuoteResponseActions({
   rfqId,
   quoteId,
-  vendorId,
   status,
   size = 'md',
 }: QuoteResponseActionsProps) {
@@ -152,7 +151,8 @@ export function QuoteResponseActions({
             navigate(PO_CREATE_ROUTE, {
               state: {
                 mode: 'from-rfq',
-                defaultValues: vendorId ? { vendorId } : undefined,
+                // FOR-391: the PO page prices the lines from this quote.
+                rfqSource: { rfqId, quoteResponseId: quoteId },
               },
             })
           }
@@ -228,7 +228,6 @@ export function QuoteResponseDetailPage({
     <QuoteResponseActions
       rfqId={rfqId}
       quoteId={quoteId}
-      vendorId={quote?.vendorId}
       status={status}
       size={isPanel ? 'sm' : 'md'}
     />
@@ -618,7 +617,18 @@ function QuoteLineItemsTab({
         </td>
         <td className={cellClass(textCls)}>{lineDiscountText(li, currency)}</td>
         <td className={cellClass(textCls)}>{formatCurrency(li.lineTotal, currency)}</td>
-        <td className={cellClass(textCls)}>{lineDate(li.deliveryDate)}</td>
+        <td className={cellClass(textCls)}>
+          <span className="flex items-center gap-1.5">
+            {lineDate(li.deliveryDate)}
+            {!struck && <DeliveryVarianceBadge days={li.deliveryVarianceDays} />}
+          </span>
+          {/* FOR-392: what the buyer asked for, beside what the vendor quoted. */}
+          {!struck && li.expectedDeliveryDate && (
+            <span className="block text-xs text-muted-foreground">
+              {t('deliveryVariance.expected')}: {lineDate(li.expectedDeliveryDate)}
+            </span>
+          )}
+        </td>
         <td className={cellClass()}>{!struck && renderActions(li)}</td>
       </tr>
     );
@@ -649,7 +659,7 @@ function QuoteLineItemsTab({
             <th className="px-3 py-3 text-left text-sm font-medium text-[#1B1D22] border-b border-foreground/10 min-w-[140px]">
               {t('quoteResponseDetail.lineTotalWithTax')}
             </th>
-            <th className="px-3 py-3 text-left text-sm font-medium text-[#1B1D22] border-b border-foreground/10 min-w-[110px]">
+            <th className="px-3 py-3 text-left text-sm font-medium text-[#1B1D22] border-b border-foreground/10 min-w-[150px]">
               {t('quoteResponseDetail.deliveryDate')}
             </th>
             <th className="px-3 py-3 text-left text-sm font-medium text-[#1B1D22] border-b border-foreground/10 min-w-[92px]">

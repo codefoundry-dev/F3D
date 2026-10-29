@@ -1,8 +1,10 @@
 import { useTranslation } from '@forethread/i18n';
+import { DeliveryVarianceBadge, deliveryVarianceDays } from '@forethread/rfq-shared';
 import {
   Checkbox,
   cn,
   DatePicker,
+  formatDate,
   Input,
   onDecimalOnly,
   StepperInput,
@@ -36,6 +38,8 @@ interface QuoteLineFieldOptions {
   onToggleInclude: (index: number) => void;
   /** `cell` = borderless inputs for the desktop grid; `sheet` = full-size phone inputs. */
   variant: 'cell' | 'sheet';
+  /** RFQ need-by date — the requested delivery of lines without their own date. */
+  needByDate?: string | null;
 }
 
 /**
@@ -48,6 +52,7 @@ export function useQuoteLineFields({
   onUpdateItem,
   onToggleInclude,
   variant,
+  needByDate = null,
 }: QuoteLineFieldOptions): QuoteLineField[] {
   const { t } = useTranslation('rfqs');
   const cell = variant === 'cell';
@@ -184,16 +189,28 @@ export function useQuoteLineFields({
       key: 'deliveryDate',
       label: t('response.deliveryDate'),
       value: (item) => item.deliveryDate || '-',
-      input: (item, index) => (
-        <DatePicker
-          value={item.deliveryDate}
-          onChange={(v) => onUpdateItem(index, 'deliveryDate', v)}
-          borderless={cell}
-          className={cell ? undefined : 'h-11'}
-          disabled={!item.included}
-          minDate={todayIso()}
-        />
-      ),
+      input: (item, index) => {
+        const picker = (
+          <DatePicker
+            value={item.deliveryDate}
+            onChange={(v) => onUpdateItem(index, 'deliveryDate', v)}
+            borderless={cell}
+            compact={cell}
+            className={cell ? undefined : 'h-11'}
+            disabled={!item.included}
+            minDate={todayIso()}
+          />
+        );
+        // The phone sheet shows the requested date as the field hint instead.
+        if (!cell) return picker;
+        return (
+          <div className="flex flex-col min-w-0">
+            {picker}
+            <RequestedDelivery item={item} needByDate={needByDate} className="px-1.5 pb-1" />
+          </div>
+        );
+      },
+      hint: (item) => <RequestedDelivery item={item} needByDate={needByDate} />,
     },
     {
       key: 'notes',
@@ -247,6 +264,35 @@ export function useQuoteLineFields({
     },
   ];
   return fields;
+}
+
+/**
+ * FOR-392: the buyer's requested delivery for the line (line date, else the RFQ
+ * need-by date), with a late badge once the vendor picks a later date.
+ */
+function RequestedDelivery({
+  item,
+  needByDate,
+  className,
+}: {
+  item: LineItemFormState;
+  needByDate: string | null;
+  className?: string;
+}) {
+  const { t } = useTranslation('rfqs');
+  const requested = item.expectedDeliveryDate ?? needByDate;
+  if (!requested) return null;
+  const variance = item.included ? deliveryVarianceDays(item.deliveryDate, requested) : null;
+  return (
+    <span
+      className={cn('flex items-center gap-1.5 text-xs text-muted-foreground min-w-0', className)}
+    >
+      <span className="truncate">
+        {t('deliveryVariance.requested')}: {formatDate(requested)}
+      </span>
+      <DeliveryVarianceBadge days={variance} />
+    </span>
+  );
 }
 
 /** Quote line total: qty × price, less discount, plus GST unless tax-inclusive. */

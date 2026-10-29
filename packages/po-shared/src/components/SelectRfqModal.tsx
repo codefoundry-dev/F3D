@@ -40,7 +40,15 @@ type ModalView = 'list' | 'detail';
 interface SelectRfqModalProps {
   open: boolean;
   onClose: () => void;
-  onSelect: (rfq: RfqListItem, selectedItemIds?: Set<string>) => void;
+  /**
+   * `selectedItemIds` are RFQ line ids; `quoteLineItemIds` the matching quote
+   * lines, so the PO is priced from the vendor whose lines were picked (FOR-391).
+   */
+  onSelect: (
+    rfq: RfqListItem,
+    selectedItemIds?: Set<string>,
+    quoteLineItemIds?: Set<string>,
+  ) => void;
 }
 
 // ── Main Component ──────────────────────────────────────────────────────────
@@ -136,10 +144,9 @@ export function SelectRfqModal({ open, onClose, onSelect }: SelectRfqModalProps)
   const handleAddSelected = useCallback(() => {
     if (selectedRfq && sel.selectedItems.size > 0) {
       // Map composite IDs back to original line item IDs
-      const originalIds = new Set(
-        allItems.filter((i) => sel.selectedItems.has(i.id)).map((i) => i.lineItemId),
-      );
-      onSelect(selectedRfq, originalIds);
+      const picked = allItems.filter((i) => sel.selectedItems.has(i.id));
+      const originalIds = new Set(picked.map((i) => i.lineItemId));
+      onSelect(selectedRfq, originalIds, new Set(picked.map((i) => i.quoteLineItemId)));
     }
   }, [selectedRfq, sel.selectedItems, allItems, onSelect]);
 

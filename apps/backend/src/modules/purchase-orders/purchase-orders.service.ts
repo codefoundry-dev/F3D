@@ -22,6 +22,8 @@ import {
   PoStatus as PrismaPoStatus,
   PoType as PrismaPoType,
   Prisma,
+  QuoteLineItemStatus,
+  QuoteResponseStatus,
   UserRole,
 } from '@prisma/client';
 
@@ -583,10 +585,17 @@ export class PurchaseOrdersService {
       dto.lineItems.map((li) => li.materialId),
     );
 
+    // FOR-391: a line bought from an approved quote is priced at the quoted
+    // unit price, whatever the client sent.
+    const quotedPrices = await this.loadQuotedPrices(dto, project.companyId);
+
     // Calculate line totals. `bulkOrderLineItemId` is not a PoLineItem column —
     // it only drives the drawdown, so keep it alongside the create payload.
     const lineItems = dto.lineItems.map((li: CreatePoLineItemDto, idx: number) => {
-      const lineTotal = li.quantityOrdered * li.unitPrice;
+      const unitPrice = li.quoteLineItemId
+        ? (quotedPrices.byLine.get(li.quoteLineItemId) ?? li.unitPrice)
+        : li.unitPrice;
+      const lineTotal = li.quantityOrdered * unitPrice;
       const snapshot = resolveMaterialSnapshot(li, li.materialId ?? null, materialSnapshots);
       return {
         bulkOrderLineItemId: li.bulkOrderLineItemId,
@@ -597,7 +606,7 @@ export class PurchaseOrdersService {
           description: li.description,
           quantityOrdered: li.quantityOrdered,
           unitOfMeasure: li.unitOfMeasure,
-          unitPrice: li.unitPrice,
+          unitPrice,
           lineTotal,
           costCode: snapshot.costCode,
           upc: snapshot.upc,
@@ -659,7 +668,7 @@ export class PurchaseOrdersService {
           deliveryResponsibleEmail: dto.deliveryResponsibleEmail,
           paymentTermsDays: dto.paymentTermsDays,
           costCode: dto.costCode,
-          rfqId: dto.rfqId,
+          rfqId: dto.rfqId ?? quotedPrices.rfqId,
           subtotal,
           totalAmount: subtotal,
           lineItemCount: lineItems.length,
@@ -682,6 +691,62 @@ export class PurchaseOrdersService {
     });
 
     return this.getPurchaseOrder(po.id, user);
+  }
+
+  /**
+   * Resolve the quoted unit price of every quote line the PO lines reference
+   * (FOR-391). Each must belong to an approved quote (or an approved line) from
+   * this PO's vendor on one of the buyer company's RFQs. When the lines all come
+   * from one RFQ and the client sent no `rfqId`, that RFQ is returned so the PO
+   * still links back to it.
+   */
+  private async loadQuotedPrices(
+    dto: CreatePurchaseOrderDto,
+    companyId: string,
+  ): Promise<{ byLine: Map<string, number>; rfqId: string | undefined }> {
+    const ids = [
+      ...new Set(dto.lineItems.map((li) => li.quoteLineItemId).filter(Boolean)),
+    ] as string[];
+    if (ids.length === 0) return { byLine: new Map(), rfqId: undefined };
+
+    const quoteLines = await this.prisma.quoteResponseLineItem.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        unitPrice: true,
+        status: true,
+        quoteResponse: {
+          select: {
+            vendorId: true,
+            status: true,
+            rfqId: true,
+            rfq: { select: { companyId: true } },
+          },
+        },
+      },
+    });
+
+    const byLine = new Map<string, number>();
+    const rfqIds = new Set<string>();
+    for (const ql of quoteLines) {
+      const qr = ql.quoteResponse;
+      const approved =
+        qr.status === QuoteResponseStatus.APPROVED || ql.status === QuoteLineItemStatus.APPROVED;
+      if (
+        !approved ||
+        ql.status === QuoteLineItemStatus.DECLINED ||
+        qr.rfq.companyId !== companyId ||
+        (dto.vendorId && qr.vendorId !== dto.vendorId)
+      ) {
+        continue;
+      }
+      byLine.set(ql.id, Number(ql.unitPrice));
+      rfqIds.add(qr.rfqId);
+    }
+    if (byLine.size !== ids.length) {
+      throw new BadRequestException(ERR.purchaseOrders.invalidQuoteLine);
+    }
+    return { byLine, rfqId: rfqIds.size === 1 ? [...rfqIds][0] : undefined };
   }
 
   // ── Drawdown-from-PO bookkeeping (US 5.09) ──────────────────────────────

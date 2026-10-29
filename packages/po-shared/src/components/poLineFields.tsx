@@ -2,6 +2,7 @@ import { type useTranslation } from '@forethread/i18n';
 import {
   CustomDropdown,
   DatePicker,
+  formatCurrency,
   Input,
   MaterialSearchPanel,
   onDecimalOnly,
@@ -209,15 +210,34 @@ export function buildPoLineFields(ctx: PoLineFieldsContext): PoLineField[] {
       label: t('create.pricePerUnit'),
       value: ({ item }) =>
         item?.unitPrice != null && !Number.isNaN(Number(item.unitPrice)) ? item.unitPrice : '-',
-      input: ({ index }) => (
-        <Input
-          inputMode="decimal"
-          onKeyDown={onDecimalOnly}
-          {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true })}
-          className={inputClass}
-          placeholder="0"
-        />
-      ),
+      input: ({ index, item }) =>
+        // FOR-391: a line bought from an approved quote keeps the quoted price.
+        item?.quoteLineItemId ? (
+          <div
+            className={
+              isPhone
+                ? 'flex items-center gap-1.5 h-9 min-w-0'
+                : // Stacked so a narrow cell never squeezes the price itself.
+                  'flex flex-col items-start justify-center gap-0.5 min-h-9 min-w-0 px-2'
+            }
+            title={t('create.quotedPriceHint')}
+          >
+            <span className="max-w-full text-sm text-foreground tabular-nums truncate">
+              {formatCurrency(Number(item.unitPrice) || 0)}
+            </span>
+            <span className="shrink-0 rounded-full bg-[hsl(var(--success))]/10 px-1.5 py-0.5 text-[10px] font-medium leading-none text-[hsl(var(--success))]">
+              {t('create.quotedPriceTag')}
+            </span>
+          </div>
+        ) : (
+          <Input
+            inputMode="decimal"
+            onKeyDown={onDecimalOnly}
+            {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true })}
+            className={inputClass}
+            placeholder="0"
+          />
+        ),
     },
     {
       key: 'qty',
@@ -320,6 +340,7 @@ export function buildPoLineFields(ctx: PoLineFieldsContext): PoLineField[] {
               value={f.value ?? ''}
               onChange={f.onChange}
               borderless={!isPhone}
+              compact={!isPhone}
               minDate={todayIso()}
             />
           )}
@@ -339,10 +360,23 @@ export function buildPoLineFields(ctx: PoLineFieldsContext): PoLineField[] {
               value={f.value ?? ''}
               onChange={f.onChange}
               aria-label="Delivery time"
+              // The table cell drops the native clock icon to fit "09:30 AM" (FOR-390),
+              // so a click opens the picker instead.
+              onClick={
+                isPhone
+                  ? undefined
+                  : (e) => {
+                      try {
+                        e.currentTarget.showPicker();
+                      } catch {
+                        // Already open, or unsupported — typing still works.
+                      }
+                    }
+              }
               className={
                 isPhone
                   ? 'h-11 w-full rounded-xl border border-border bg-background px-3 text-base text-foreground outline-none'
-                  : 'h-9 w-full bg-transparent px-1 text-sm text-foreground outline-none'
+                  : 'h-9 w-full min-w-0 bg-transparent px-1 text-sm text-foreground outline-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-datetime-edit]:p-0'
               }
             />
           )}

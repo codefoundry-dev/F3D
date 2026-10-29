@@ -286,6 +286,7 @@ function GuestResponseContent({ rfq, token }: { rfq: GuestRfqDetail; token: stri
               onCloseSubstitute={() => {}}
               onSelectSubstitute={() => {}}
               substituteEnabled={false}
+              needByDate={rfq.needByDate}
             />
 
             <AdditionalQuoteDetails

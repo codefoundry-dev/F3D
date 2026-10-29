@@ -1,4 +1,4 @@
-import type { RfqDetail, BulkOrderDetail, PoDetail } from '@forethread/api-client';
+import type { RfqDetail, RfqQuoteLine, BulkOrderDetail, PoDetail } from '@forethread/api-client';
 import { describe, it, expect } from 'vitest';
 
 import { EMPTY_LINE_ITEM } from '../schemas/create-po.schema';
@@ -245,6 +245,124 @@ describe('rfqToFormDefaults', () => {
 });
 
 // ── bulkOrderToFormDefaults ─────────────────────────────────────────────────
+
+// ── rfqToFormDefaults: quoted prices (FOR-391) ───────────────────────────
+
+describe('rfqToFormDefaults — quoted prices (FOR-391)', () => {
+  const line = (id: string, projectId: string | null = null): RfqDetail['lineItems'][number] => ({
+    id,
+    projectId,
+    projectName: 'Project Alpha',
+    materialName: `Material ${id}`,
+    description: null,
+    quantity: 10,
+    unit: 'pcs',
+    expectedDeliveryDate: null,
+    deliveryLocation: null,
+  });
+  const quoteLine = (
+    id: string,
+    rfqLineItemId: string,
+    overrides: Partial<RfqQuoteLine> = {},
+  ): RfqQuoteLine => ({
+    id,
+    rfqLineItemId,
+    unitPrice: 0,
+    quotedQuantity: 10,
+    approvedQuantity: null,
+    availability: 'AVAILABLE',
+    status: 'PENDING',
+    deliveryDate: null,
+    deliveryVarianceDays: null,
+    ...overrides,
+  });
+  const quote = (
+    id: string,
+    vendorId: string,
+    status: string,
+    lineItems: RfqQuoteLine[],
+  ): RfqDetail['quoteResponses'][number] => ({
+    id,
+    vendorId,
+    vendorName: vendorId,
+    totalCost: 9999,
+    discountPercent: null,
+    discountAmount: null,
+    itemsCovered: lineItems.length,
+    totalItems: 3,
+    status,
+    submittedAt: null,
+    lineItems,
+  });
+  const vendor = (id: string, approved: boolean) =>
+    ({ id, name: id, approved }) as unknown as RfqDetail['vendors'][number];
+
+  const rfq = makeRfq({
+    lineItems: [line('li-1'), line('li-2'), line('li-3', 'proj-2')],
+    vendors: [vendor('v-1', true), vendor('v-2', true)],
+    quoteResponses: [
+      quote('q-1', 'v-1', 'APPROVED', [
+        quoteLine('ql-1', 'li-1', { unitPrice: 12.5 }),
+        quoteLine('ql-2', 'li-2', { availability: 'NO_QUOTE' }),
+        quoteLine('ql-3', 'li-3', { unitPrice: 7, approvedQuantity: 4 }),
+      ]),
+      quote('q-2', 'v-2', 'APPROVED', [
+        quoteLine('ql-4', 'li-1', { unitPrice: 11 }),
+        quoteLine('ql-5', 'li-2', { unitPrice: 3, status: 'DECLINED' }),
+      ]),
+    ],
+  });
+
+  it('prices each line at the quoted unit price and tags its quote line', () => {
+    const { defaultValues } = rfqToFormDefaults(rfq);
+    expect(defaultValues.vendorId).toBe('v-1');
+    expect(defaultValues.lineItems?.map((li) => [li.quoteLineItemId, li.unitPrice])).toEqual([
+      ['ql-1', 12.5],
+      ['ql-3', 7],
+    ]);
+  });
+
+  it('leaves out lines the vendor did not quote and uses the awarded quantity', () => {
+    const { defaultValues } = rfqToFormDefaults(rfq);
+    expect(defaultValues.lineItems?.map((li) => li.materialName)).toEqual([
+      'Material li-1',
+      'Material li-3',
+    ]);
+    expect(defaultValues.lineItems?.[1].quantityOrdered).toBe(4);
+  });
+
+  it('buys from the named quote, skipping declined lines', () => {
+    const { defaultValues } = rfqToFormDefaults(rfq, { quoteResponseId: 'q-2' });
+    expect(defaultValues.vendorId).toBe('v-2');
+    expect(defaultValues.lineItems?.map((li) => li.quoteLineItemId)).toEqual(['ql-4']);
+  });
+
+  it('follows picked quote lines to their own quote', () => {
+    const { defaultValues } = rfqToFormDefaults(rfq, { quoteLineItemIds: new Set(['ql-4']) });
+    expect(defaultValues.vendorId).toBe('v-2');
+    expect(defaultValues.lineItems?.map((li) => li.unitPrice)).toEqual([11]);
+  });
+
+  it('narrows to one project', () => {
+    const { defaultValues } = rfqToFormDefaults(rfq, { projectId: 'proj-2' });
+    expect(defaultValues.projectId).toBe('proj-2');
+    expect(defaultValues.lineItems?.map((li) => li.quoteLineItemId)).toEqual(['ql-3']);
+  });
+
+  it('only takes approved lines from a quote that is not itself approved', () => {
+    const pending = makeRfq({
+      lineItems: [line('li-1'), line('li-2')],
+      quoteResponses: [
+        quote('q-9', 'v-9', 'SUBMITTED', [
+          quoteLine('ql-a', 'li-1', { unitPrice: 5, status: 'APPROVED' }),
+          quoteLine('ql-b', 'li-2', { unitPrice: 6 }),
+        ]),
+      ],
+    });
+    const { defaultValues } = rfqToFormDefaults(pending, { quoteResponseId: 'q-9' });
+    expect(defaultValues.lineItems?.map((li) => li.quoteLineItemId)).toEqual(['ql-a']);
+  });
+});
 
 describe('bulkOrderToFormDefaults', () => {
   it('maps bulk order line items correctly using qtyRemaining when > 0', () => {

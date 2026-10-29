@@ -331,7 +331,8 @@ export function RfqResponsesTab({
             navigate(PO_CREATE_ROUTE, {
               state: {
                 mode: 'from-rfq',
-                defaultValues: { vendorId: approvedPrompt.vendorId },
+                // FOR-391: the PO page prices the lines from this quote.
+                rfqSource: { rfqId, quoteResponseId: approvedPrompt.id },
               },
             })
           }
@@ -387,6 +388,21 @@ function ResponseCard({
     response.earliestDeliveryDate ?? null,
     response.latestDeliveryDate ?? null,
   );
+  // FOR-392: how the quoted dates compare with the expected ones.
+  const lateLineCount = response.lateLineCount ?? 0;
+  const deliveryNote =
+    lateLineCount > 0 ? (
+      <span className="text-xs font-medium text-destructive">
+        {t('deliveryVariance.lateLines', {
+          count: lateLineCount,
+          days: response.maxLateDays ?? 0,
+        })}
+      </span>
+    ) : response.hasDeliveryComparison ? (
+      <span className="text-xs font-medium text-[hsl(var(--success))]">
+        {t('deliveryVariance.allOnTime')}
+      </span>
+    ) : null;
 
   const headerBadge = (
     <Badge className="bg-[#E8EAED] text-[#2D3139] border-0 rounded-full text-xs px-2 py-0.5">
@@ -485,6 +501,7 @@ function ResponseCard({
               icon={<DateIcon className="w-4 h-4" />}
               label={t('responsesTab.earliestDelivery')}
               value={deliveryText}
+              note={deliveryNote}
             />
           </div>
           <div className="self-center shrink-0">{approveDeclineButtons}</div>
@@ -521,7 +538,11 @@ function ResponseCard({
         />
         <MetaFieldCompact icon={<TaxIcon className="w-4 h-4" />} value={discountText} />
         <MetaFieldCompact icon={<PackageIcon className="w-4 h-4" />} value={coverageText} />
-        <MetaFieldCompact icon={<DateIcon className="w-4 h-4" />} value={deliveryText} />
+        <MetaFieldCompact
+          icon={<DateIcon className="w-4 h-4" />}
+          value={deliveryText}
+          note={deliveryNote}
+        />
       </div>
 
       {/* Footer: buttons left + icons right */}
@@ -539,10 +560,13 @@ function MetaFieldLabelled({
   icon,
   label,
   value,
+  note,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
+  /** Secondary line under the value (e.g. the FOR-392 late-delivery summary). */
+  note?: React.ReactNode;
 }) {
   return (
     <div className="min-w-0">
@@ -551,17 +575,29 @@ function MetaFieldLabelled({
         <span className="text-sm">{label}</span>
       </div>
       <div className={cn('mt-1 text-sm font-medium text-foreground truncate')}>{value}</div>
+      {note && <div className="mt-0.5 truncate">{note}</div>}
     </div>
   );
 }
 
-function MetaFieldCompact({ icon, value }: { icon: React.ReactNode; value: string }) {
+function MetaFieldCompact({
+  icon,
+  value,
+  note,
+}: {
+  icon: React.ReactNode;
+  value: string;
+  note?: React.ReactNode;
+}) {
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-1.5 min-w-0">
       <span className="shrink-0 w-4 h-4 flex items-center justify-center text-muted-foreground">
         {icon}
       </span>
-      <span className="text-sm font-medium text-foreground truncate">{value}</span>
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-foreground truncate">{value}</span>
+        {note && <span className="block truncate">{note}</span>}
+      </span>
     </div>
   );
 }

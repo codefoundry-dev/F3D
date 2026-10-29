@@ -354,6 +354,7 @@ function RfqResponseForm({
               onOpenSubstitute={handleOpenSubstitute}
               onCloseSubstitute={handleCloseSubstitute}
               onSelectSubstitute={handleSelectSubstitute}
+              needByDate={rfq.needByDate}
             />
 
             {/* Additional details */}

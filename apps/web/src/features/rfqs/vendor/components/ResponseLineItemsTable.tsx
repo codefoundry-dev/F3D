@@ -54,6 +54,8 @@ interface ResponseLineItemsTableProps {
   onSelectSubstitute: (material: MaterialListItemDto) => void;
   /** Material search needs a session, so the guest page turns substitutes off (phone sheet). */
   substituteEnabled?: boolean;
+  /** RFQ need-by date: the requested delivery of lines without their own date (FOR-392). */
+  needByDate?: string | null;
 }
 
 export function ResponseLineItemsTable({
@@ -69,14 +71,23 @@ export function ResponseLineItemsTable({
   onCloseSubstitute,
   onSelectSubstitute,
   substituteEnabled = true,
+  needByDate = null,
 }: ResponseLineItemsTableProps) {
   const { t } = useTranslation('rfqs');
   const isPhone = useIsPhone();
   // Line fields are defined once (B10): grid cells on desktop, the edit sheet on phones.
   const cellFields = Object.fromEntries(
-    useQuoteLineFields({ onUpdateItem, onToggleInclude, variant: 'cell' }).map((f) => [f.key, f]),
+    useQuoteLineFields({ onUpdateItem, onToggleInclude, variant: 'cell', needByDate }).map((f) => [
+      f.key,
+      f,
+    ]),
   ) as CellFields;
-  const sheetFields = useQuoteLineFields({ onUpdateItem, onToggleInclude, variant: 'sheet' });
+  const sheetFields = useQuoteLineFields({
+    onUpdateItem,
+    onToggleInclude,
+    variant: 'sheet',
+    needByDate,
+  });
 
   if (isPhone) {
     const substituteField: LineItemField<LineItemFormState> = {

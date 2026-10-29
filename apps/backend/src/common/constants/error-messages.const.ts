@@ -146,6 +146,7 @@ export const ERR = {
     cannotIssue: (status: string) => t(errors.purchaseOrders.cannotIssue, { status }),
     cannotIssueSplitParent: errors.purchaseOrders.cannotIssueSplitParent,
     holdForReleaseRequiresDeadline: errors.purchaseOrders.holdForReleaseRequiresDeadline,
+    invalidQuoteLine: errors.purchaseOrders.invalidQuoteLine,
     cannotConfirm: (status: string) => t(errors.purchaseOrders.cannotConfirm, { status }),
     cannotAccept: (status: string) => t(errors.purchaseOrders.cannotAccept, { status }),
     cannotVendorDecline: (status: string) =>

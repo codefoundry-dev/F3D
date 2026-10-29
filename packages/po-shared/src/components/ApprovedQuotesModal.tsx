@@ -53,6 +53,7 @@ function mapQuoteItemToFormItem(qi: DerivedQuoteItem): FormValues['lineItems'][n
     unitPrice: qi.unitPrice,
     quantityOrdered: qi.quantity,
     description: qi.description ?? '',
+    quoteLineItemId: qi.quoteLineItemId,
   };
 }
 

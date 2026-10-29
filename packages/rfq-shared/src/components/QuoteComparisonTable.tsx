@@ -45,6 +45,7 @@ import {
 } from '../hooks/useRfqs';
 import { buildSplitAllocations, findOverAllocatedLineIds } from '../utils/splitAward';
 
+import { DeliveryVarianceBadge } from './DeliveryVarianceBadge';
 import { SortingDropdown, type QuoteSortOrder } from './SortingDropdown';
 import { StartOrderModal, type StartOrderKind } from './StartOrderModal';
 import {
@@ -555,12 +556,25 @@ export function QuoteComparisonTable({
   const startOrderNow = (kind: StartOrderKind) => {
     if (kind === 'po') {
       const target = selectionTargets[0];
+      // FOR-391: the PO page builds the selected lines from this quote, each at
+      // its quoted price.
       navigate(PO_CREATE_ROUTE, {
         state: {
           mode: 'from-rfq',
-          defaultValues: target
-            ? { projectId: target.projectId, vendorId: target.vendorId }
-            : undefined,
+          rfqSource: target
+            ? {
+                rfqId,
+                quoteResponseId: target.quoteResponseId,
+                projectId: target.projectId,
+                quoteLineItemIds: [...selection.values()]
+                  .filter(
+                    (sel) =>
+                      sel.quoteResponseId === target.quoteResponseId &&
+                      sel.projectId === target.projectId,
+                  )
+                  .map((sel) => sel.quoteLineItemId),
+              }
+            : { rfqId },
         },
       });
     } else {
@@ -821,7 +835,7 @@ export function QuoteComparisonTable({
     order: 'min-w-[96px]',
     lineDiscount: 'min-w-[88px]',
     lineTotal: 'min-w-[164px]',
-    deliveryDate: 'min-w-[120px]',
+    deliveryDate: 'min-w-[156px]',
     actions: 'min-w-[92px]',
   };
 
@@ -1089,7 +1103,10 @@ export function QuoteComparisonTable({
         case 'deliveryDate':
           return (
             <td key={col} className={base}>
-              {cellDate(cell.deliveryDate)}
+              <span className="flex items-center gap-1.5">
+                {cellDate(cell.deliveryDate)}
+                <DeliveryVarianceBadge days={cell.deliveryVarianceDays} />
+              </span>
             </td>
           );
         case 'actions':
@@ -1341,6 +1358,13 @@ export function QuoteComparisonTable({
                           <span className="block truncate" title={row.materialName ?? undefined}>
                             {row.materialName ?? '-'}
                           </span>
+                          {/* FOR-392: the date each vendor's delivery is measured against;
+                              kept in the pinned column so it stays beside every vendor. */}
+                          {row.expectedDeliveryDate && (
+                            <span className="block truncate text-xs text-muted-foreground">
+                              {t('deliveryVariance.expected')}: {cellDate(row.expectedDeliveryDate)}
+                            </span>
+                          )}
                         </td>
                         {visibleVendors.map((vendor) => renderVendorCells(row, vendor))}
                       </tr>
@@ -1479,7 +1503,7 @@ export function QuoteComparisonTable({
             navigate(PO_CREATE_ROUTE, {
               state: {
                 mode: 'from-rfq',
-                defaultValues: { vendorId: approvedQuote.vendorId },
+                rfqSource: { rfqId, quoteResponseId: approvedQuote.quoteResponseId },
               },
             });
           }}

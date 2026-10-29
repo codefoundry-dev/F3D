@@ -493,6 +493,21 @@
     "messages": "Messages",
     "attachments": "Attachments"
   },
+  "deliveryVariance": {
+    "expected": "Expected",
+    "requested": "Requested",
+    "late_one": "+{{count}} day",
+    "late_other": "+{{count}} days",
+    "onTime": "On time",
+    "lateTitle_one": "Quoted {{count}} day after the expected date",
+    "lateTitle_other": "Quoted {{count}} days after the expected date",
+    "earlyTitle_one": "Quoted {{count}} day before the expected date",
+    "earlyTitle_other": "Quoted {{count}} days before the expected date",
+    "onDayTitle": "Quoted for the expected date",
+    "lateLines_one": "{{count}} line late (up to +{{days}} days)",
+    "lateLines_other": "{{count}} lines late (up to +{{days}} days)",
+    "allOnTime": "All lines on time"
+  },
   "reviewTable": {
     "group": "Group",
     "groupByProjects": "By projects",

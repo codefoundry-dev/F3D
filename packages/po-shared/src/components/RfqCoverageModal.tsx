@@ -20,6 +20,7 @@ import { useState, useCallback } from 'react';
 import type { FormValues } from '../schemas/create-po.schema';
 import { EMPTY_LINE_ITEM } from '../schemas/create-po.schema';
 import { formatCurrency, formatDate } from '../utils/format';
+import { isApprovedQuote, quotedLineFor } from '../utils/quoted-price';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -162,19 +163,25 @@ function RfqQuoteCard({ rfqId, rfqName, materialName, onAddToPo }: RfqQuoteCardP
     queryFn: () => getRfq(rfqId),
   });
 
-  const approvedResponses =
-    detail?.quoteResponses.filter((qr) => qr.status === 'APPROVED' || qr.status === 'Approved') ??
-    [];
+  // FOR-391: each card shows the vendor's quoted price for THIS material's RFQ
+  // line, so only approved quotes that actually quoted that line appear.
+  const rfqLine = detail?.lineItems.find((li) => li.materialName === materialName);
+  const approvedLines = rfqLine
+    ? (detail?.quoteResponses ?? []).filter(isApprovedQuote).flatMap((qr) => {
+        const ql = quotedLineFor(qr, rfqLine.id);
+        return ql ? [{ qr, ql, qty: ql.approvedQuantity ?? rfqLine.quantity }] : [];
+      })
+    : [];
 
-  if (approvedResponses.length === 0 && detail) return null;
+  if (approvedLines.length === 0 && detail) return null;
 
   return (
     <>
-      {approvedResponses.map((qr) => {
+      {approvedLines.map(({ qr, ql, qty }) => {
         const discountText = qr.discountPercent
           ? `${qr.discountPercent}%  (${formatCurrency(qr.discountAmount ?? 0)})`
           : '-';
-        const coverageText = `${qr.itemsCovered} items`;
+        const coverageText = `${qty} ${rfqLine?.unit ?? ''}`.trim();
 
         return (
           <div key={qr.id} className="rounded-lg border border-border p-3 space-y-2">
@@ -194,7 +201,7 @@ function RfqQuoteCard({ rfqId, rfqName, materialName, onAddToPo }: RfqQuoteCardP
               <ItemMeta
                 icon={<CoinsIcon className="w-4 h-4" />}
                 label={t('coverageModal.pricePerUnit')}
-                value={formatCurrency(qr.totalCost / (qr.itemsCovered || 1))}
+                value={formatCurrency(ql.unitPrice)}
                 size="xs"
                 className="w-[140px]"
               />
@@ -215,14 +222,14 @@ function RfqQuoteCard({ rfqId, rfqName, materialName, onAddToPo }: RfqQuoteCardP
               <ItemMeta
                 icon={<CoinsIcon className="w-4 h-4" />}
                 label={t('coverageModal.totalWithTax')}
-                value={formatCurrency(qr.totalCost)}
+                value={formatCurrency(ql.unitPrice * qty)}
                 size="xs"
                 className="w-[140px]"
               />
               <ItemMeta
                 icon={<DateIcon className="w-4 h-4" />}
                 label="Delivery date:"
-                value={formatDate(qr.submittedAt)}
+                value={formatDate(ql.deliveryDate)}
                 size="xs"
                 className="w-[140px]"
               />
@@ -246,15 +253,17 @@ function RfqQuoteCard({ rfqId, rfqName, materialName, onAddToPo }: RfqQuoteCardP
                 variant="primary"
                 size="sm"
                 onClick={() => {
-                  const unitPrice = qr.totalCost / (qr.itemsCovered || 1);
                   const items: FormValues['lineItems'] = [
                     {
                       ...EMPTY_LINE_ITEM,
                       materialName,
-                      unitOfMeasure: '',
-                      unitPrice,
-                      quantityOrdered: qr.itemsCovered || 1,
+                      materialId: rfqLine?.materialId ?? '',
+                      costCode: rfqLine?.costCode ?? '',
+                      unitOfMeasure: rfqLine?.unit ?? '',
+                      unitPrice: ql.unitPrice,
+                      quantityOrdered: qty,
                       description: `From RFQ: ${rfqName}`,
+                      quoteLineItemId: ql.id,
                     },
                   ];
                   onAddToPo(items, qr.vendorId);

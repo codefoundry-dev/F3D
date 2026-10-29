@@ -37,3 +37,4 @@ export {
 } from './detail-primitives';
 export { VendorList } from './VendorList';
 export { VendorContactPopover } from './VendorContactPopover';
+export { DeliveryVarianceBadge } from './DeliveryVarianceBadge';

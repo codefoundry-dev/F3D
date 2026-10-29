@@ -4,19 +4,53 @@ import { PickUpTimeExpectation } from '@forethread/shared-types/client';
 import type { FormValues, LockedField } from '../schemas/create-po.schema';
 import { EMPTY_DELIVERY_ROW, EMPTY_LINE_ITEM } from '../schemas/create-po.schema';
 
+import { isApprovedQuote, pickApprovedQuote, quotedLineFor } from './quoted-price';
+
 interface SourceFormDefaults {
   defaultValues: Partial<FormValues>;
   lockedFields: Set<LockedField>;
 }
 
+/** Narrows which quote / lines a from-RFQ PO is built from. */
+export interface RfqFormSourceOptions {
+  /** Buy from this quote; defaults to the approved quote of the first approved vendor. */
+  quoteResponseId?: string;
+  /** Only these quote lines (e.g. the lines selected in the comparison table). */
+  quoteLineItemIds?: ReadonlySet<string>;
+  /** Only lines for this project (multi-project RFQs, US 5.05). */
+  projectId?: string;
+}
+
 /**
  * Convert an approved RFQ into form defaults + locked fields for the PO wizard.
+ *
+ * Every line the chosen approved quote covers is priced at the vendor's quoted
+ * unit price and tagged with its `quoteLineItemId`, which makes the price
+ * read-only in the wizard and lets the server pin it (FOR-391). Lines the
+ * vendor didn't quote (or the buyer declined) are left out. With no approved
+ * quote the RFQ lines come through unpriced, as before.
  *
  * Locks: projectId, deliveryLocationId, plannedDeliveryDate
  * (vendor is prefilled but editable)
  */
-export function rfqToFormDefaults(rfq: RfqDetail): SourceFormDefaults {
-  const lineItems: FormValues['lineItems'] = rfq.lineItems.map((li) => ({
+export function rfqToFormDefaults(
+  rfq: RfqDetail,
+  opts: RfqFormSourceOptions = {},
+): SourceFormDefaults {
+  const approvedVendor = rfq.vendors.find((v) => v.approved);
+  // Picked quote lines name their own quote (the buyer may have chosen another
+  // approved vendor's lines than the first).
+  const [firstPickedLine] = opts.quoteLineItemIds ?? [];
+  const pickedQuoteId = firstPickedLine
+    ? rfq.quoteResponses.find((qr) => qr.lineItems?.some((ql) => ql.id === firstPickedLine))?.id
+    : undefined;
+  const quote = pickApprovedQuote(rfq, {
+    quoteResponseId: opts.quoteResponseId ?? pickedQuoteId,
+    vendorId: approvedVendor?.id,
+  });
+  const quoteApproved = quote ? isApprovedQuote(quote) : false;
+
+  const toLine = (li: RfqDetail['lineItems'][number]): FormValues['lineItems'][number] => ({
     ...EMPTY_LINE_ITEM,
     materialName: li.materialName,
     // Carry the RFQ line's catalogue link + code snapshots onto the PO line.
@@ -31,15 +65,34 @@ export function rfqToFormDefaults(rfq: RfqDetail): SourceFormDefaults {
     expectedDeliveryDate: li.expectedDeliveryDate ?? '',
     deliveryTime: li.deliveryTime ?? '',
     deliveryLocationId: '',
-  }));
+  });
 
-  // Find the first approved vendor to prefill
-  const approvedVendor = rfq.vendors.find((v) => v.approved);
+  const sourceLines = rfq.lineItems.filter(
+    (li) => !opts.projectId || (li.projectId ?? rfq.projectId) === opts.projectId,
+  );
+
+  let lineItems: FormValues['lineItems'];
+  if (quote) {
+    lineItems = [];
+    for (const li of sourceLines) {
+      const ql = quotedLineFor(quote, li.id);
+      if (!ql || (!quoteApproved && ql.status !== 'APPROVED')) continue;
+      if (opts.quoteLineItemIds && !opts.quoteLineItemIds.has(ql.id)) continue;
+      lineItems.push({
+        ...toLine(li),
+        unitPrice: ql.unitPrice,
+        quantityOrdered: ql.approvedQuantity ?? li.quantity,
+        quoteLineItemId: ql.id,
+      });
+    }
+  } else {
+    lineItems = sourceLines.map(toLine);
+  }
 
   const defaultValues: Partial<FormValues> = {
     documentName: rfq.name ? `PO — ${rfq.name}` : '',
-    projectId: rfq.projectId,
-    vendorId: approvedVendor?.id ?? '',
+    projectId: opts.projectId ?? rfq.projectId,
+    vendorId: quote?.vendorId ?? approvedVendor?.id ?? '',
     deliveryLocationId: '',
     plannedDeliveryDate: rfq.deadlineEnd ?? rfq.needByDate ?? '',
     lineItems: lineItems.length > 0 ? lineItems : [{ ...EMPTY_LINE_ITEM }],

@@ -235,6 +235,8 @@ export function usePoWizardForm({
           // Drawdown: link this PO line to its bulk-order line so the backend
           // can decrement qtyRemaining and write the Drawdown row.
           bulkOrderLineItemId: isDrawdown ? item.bulkOrderLineItemId || undefined : undefined,
+          // FOR-391: the server prices this line at the approved quote's unit price.
+          quoteLineItemId: item.quoteLineItemId || undefined,
         }));
 
       return {

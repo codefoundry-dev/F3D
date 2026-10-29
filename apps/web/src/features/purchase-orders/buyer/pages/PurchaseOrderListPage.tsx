@@ -766,7 +766,11 @@ export default function PurchaseOrderListPage() {
       <SelectRfqModal
         open={showSelectRfq}
         onClose={() => setShowSelectRfq(false)}
-        onSelect={(rfq: RfqListItem, selectedItemIds?: Set<string>) => {
+        onSelect={(
+          rfq: RfqListItem,
+          selectedItemIds?: Set<string>,
+          quoteLineItemIds?: Set<string>,
+        ) => {
           setShowSelectRfq(false);
           void getRfq(rfq.id).then((detail) => {
             const filtered = selectedItemIds
@@ -775,7 +779,9 @@ export default function PurchaseOrderListPage() {
                   lineItems: detail.lineItems.filter((li) => selectedItemIds.has(li.id)),
                 }
               : detail;
-            const { defaultValues, lockedFields } = rfqToFormDefaults(filtered);
+            const { defaultValues, lockedFields } = rfqToFormDefaults(filtered, {
+              quoteLineItemIds,
+            });
             navigate(ROUTES.purchaseOrderNew, {
               state: { mode: 'from-rfq', defaultValues, lockedFields: [...lockedFields] },
             });

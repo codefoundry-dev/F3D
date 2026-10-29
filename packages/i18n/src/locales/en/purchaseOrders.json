@@ -444,6 +444,8 @@
     "costCode": "Cost code",
     "uom": "UoM",
     "pricePerUnit": "Price/unit",
+    "quotedPriceTag": "Quoted",
+    "quotedPriceHint": "Price from the approved quote. Change it through a PO change request.",
     "qtyOrdered": "Qty. Ordered",
     "approvedRfq": "Appr. RFQ",
     "bulkOrders": "Bulk orders",

@@ -26,7 +26,7 @@ import { AuditService } from '../audit/audit.service';
 import { DocIntelligenceService } from '../doc-intelligence/doc-intelligence.service';
 import { StorageService } from '../storage/storage.service';
 
-import { buildQuoteComparison } from './quote-comparison';
+import { buildQuoteComparison, deliveryVarianceDays } from './quote-comparison';
 import type {
   SubmitQuoteDto,
   UpdateQuoteDto,
@@ -452,7 +452,15 @@ export class QuoteResponseService {
           include: { file: { select: { id: true, filename: true, mimeType: true, size: true } } },
         },
         vendor: { select: { id: true, legalName: true } },
-        rfq: { select: { id: true, companyId: true, rfqNumber: true, createdByUserId: true } },
+        rfq: {
+          select: {
+            id: true,
+            companyId: true,
+            rfqNumber: true,
+            createdByUserId: true,
+            needByDate: true,
+          },
+        },
         warehouseLocation: true,
       },
     });
@@ -481,13 +489,24 @@ export class QuoteResponseService {
       bulkDiscount: quote.bulkDiscount !== null ? Number(quote.bulkDiscount) : null,
       bulkTax: quote.bulkTax !== null ? Number(quote.bulkTax) : null,
       bulkShipment: quote.bulkShipment !== null ? Number(quote.bulkShipment) : null,
-      lineItems: quote.lineItems.map((li) => ({
-        ...li,
-        unitPrice: Number(li.unitPrice),
-        discount: li.discount !== null ? Number(li.discount) : null,
-        tax: li.tax !== null ? Number(li.tax) : null,
-        lineTotal: Number(li.lineTotal),
-      })),
+      lineItems: quote.lineItems.map((li) => {
+        // FOR-392: the buyer's wanted date (line, else RFQ need-by) beside the quoted one.
+        const expected = li.rfqLineItem.expectedDeliveryDate ?? quote.rfq.needByDate;
+        const expectedDeliveryDate = expected?.toISOString() ?? null;
+        const deliveryVariance =
+          li.availability === 'NO_QUOTE'
+            ? null
+            : deliveryVarianceDays(li.deliveryDate.toISOString(), expectedDeliveryDate);
+        return {
+          ...li,
+          unitPrice: Number(li.unitPrice),
+          discount: li.discount !== null ? Number(li.discount) : null,
+          tax: li.tax !== null ? Number(li.tax) : null,
+          lineTotal: Number(li.lineTotal),
+          expectedDeliveryDate,
+          deliveryVarianceDays: deliveryVariance,
+        };
+      }),
       attachments: quote.attachments.map((a) => ({
         id: a.id,
         fileId: a.file.id,
@@ -573,6 +592,7 @@ export class QuoteResponseService {
         createdByUserId: true,
         currency: true,
         projectId: true,
+        needByDate: true,
         project: { select: { name: true } },
         lineItems: {
           select: {
@@ -583,6 +603,7 @@ export class QuoteResponseService {
             unit: true,
             projectId: true,
             project: { select: { name: true } },
+            expectedDeliveryDate: true,
           },
         },
       },
@@ -641,6 +662,7 @@ export class QuoteResponseService {
         currency: rfq.currency,
         projectId: rfq.projectId,
         projectName: rfq.project.name,
+        needByDate: rfq.needByDate,
         lineItems: rfq.lineItems.map((li) => ({
           id: li.id,
           materialName: li.materialName ?? li.material?.name ?? null,
@@ -648,6 +670,7 @@ export class QuoteResponseService {
           unit: li.unit,
           projectId: li.projectId,
           projectName: li.project?.name ?? null,
+          expectedDeliveryDate: li.expectedDeliveryDate,
         })),
       },
       quotes.map((q) => ({

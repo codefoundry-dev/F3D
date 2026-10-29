@@ -39,6 +39,9 @@ const mockPrisma = {
   quoteResponse: {
     groupBy: jest.fn(),
   },
+  quoteResponseLineItem: {
+    findMany: jest.fn(),
+  },
   project: {
     findUnique: jest.fn(),
   },
@@ -1083,6 +1086,119 @@ describe('PurchaseOrdersService', () => {
           metadata: expect.objectContaining({ source: 'MANUAL' }),
         }),
       );
+    });
+
+    describe('lines bought from an approved quote (FOR-391)', () => {
+      const quotedDto = {
+        ...baseDto,
+        lineItems: [{ ...baseDto.lineItems[0], unitPrice: 1, quoteLineItemId: 'ql-1' }],
+      };
+      const quoteLine = (overrides: Record<string, unknown> = {}) => ({
+        id: 'ql-1',
+        unitPrice: 42.5,
+        status: 'PENDING',
+        quoteResponse: {
+          vendorId: 'v-1',
+          status: 'APPROVED',
+          rfqId: 'rfq-9',
+          rfq: { companyId: 'comp-1' },
+        },
+        ...overrides,
+      });
+
+      beforeEach(() => {
+        mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+        mockPrisma.company.findUnique.mockResolvedValue({ id: 'v-1' });
+        mockPrisma.projectLocation.findUnique.mockResolvedValue({
+          id: 'loc-1',
+          projectId: 'proj-1',
+        });
+        mockPrisma.purchaseOrder.create.mockResolvedValue({ id: 'po-new' });
+        mockGetPoAfterMutation();
+      });
+
+      it('prices the line at the quoted unit price and links the RFQ', async () => {
+        mockPrisma.quoteResponseLineItem.findMany.mockResolvedValue([quoteLine()]);
+        await service.createPurchaseOrder(quotedDto as never, companyAdmin);
+        const data = mockPrisma.purchaseOrder.create.mock.calls[0][0].data;
+        expect(data.lineItems.create[0]).toMatchObject({ unitPrice: 42.5, lineTotal: 425 });
+        expect(data.subtotal).toBe(425);
+        expect(data.rfqId).toBe('rfq-9');
+      });
+
+      it('accepts an approved line on a quote that is not itself approved', async () => {
+        mockPrisma.quoteResponseLineItem.findMany.mockResolvedValue([
+          quoteLine({
+            status: 'APPROVED',
+            quoteResponse: {
+              vendorId: 'v-1',
+              status: 'SUBMITTED',
+              rfqId: 'rfq-9',
+              rfq: { companyId: 'comp-1' },
+            },
+          }),
+        ]);
+        await service.createPurchaseOrder(quotedDto as never, companyAdmin);
+        expect(
+          mockPrisma.purchaseOrder.create.mock.calls[0][0].data.lineItems.create[0],
+        ).toMatchObject({ unitPrice: 42.5 });
+      });
+
+      it.each([
+        [
+          'another vendor',
+          {
+            quoteResponse: {
+              vendorId: 'v-2',
+              status: 'APPROVED',
+              rfqId: 'r',
+              rfq: { companyId: 'comp-1' },
+            },
+          },
+        ],
+        [
+          'another company',
+          {
+            quoteResponse: {
+              vendorId: 'v-1',
+              status: 'APPROVED',
+              rfqId: 'r',
+              rfq: { companyId: 'comp-2' },
+            },
+          },
+        ],
+        [
+          'an unapproved quote',
+          {
+            quoteResponse: {
+              vendorId: 'v-1',
+              status: 'SUBMITTED',
+              rfqId: 'r',
+              rfq: { companyId: 'comp-1' },
+            },
+          },
+        ],
+        ['a declined line', { status: 'DECLINED' }],
+      ])('rejects a quote line from %s', async (_label, overrides) => {
+        mockPrisma.quoteResponseLineItem.findMany.mockResolvedValue([quoteLine(overrides)]);
+        await expect(service.createPurchaseOrder(quotedDto as never, companyAdmin)).rejects.toThrow(
+          BadRequestException,
+        );
+        expect(mockPrisma.purchaseOrder.create).not.toHaveBeenCalled();
+      });
+
+      it('rejects an unknown quote line id', async () => {
+        mockPrisma.quoteResponseLineItem.findMany.mockResolvedValue([]);
+        await expect(service.createPurchaseOrder(quotedDto as never, companyAdmin)).rejects.toThrow(
+          BadRequestException,
+        );
+      });
+
+      it('skips the lookup when no line references a quote', async () => {
+        await service.createPurchaseOrder(baseDto as never, companyAdmin);
+        expect(mockPrisma.quoteResponseLineItem.findMany).not.toHaveBeenCalled();
+        expect(mockPrisma.purchaseOrder.create.mock.calls[0][0].data.rfqId).toBeUndefined();
+      });
     });
 
     // A draft created from an approved RFQ quote omits delivery location +

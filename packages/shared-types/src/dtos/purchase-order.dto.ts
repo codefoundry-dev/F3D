@@ -79,6 +79,15 @@ export class CreatePoLineItemDto {
   @IsOptional()
   bulkOrderLineItemId?: string;
 
+  /**
+   * The approved quote line this PO line is bought from (FOR-391). When set, the
+   * server prices the line at the vendor's quoted unit price — a from-RFQ price
+   * can't be overwritten. Not persisted; it only pins the price.
+   */
+  @IsUUID()
+  @IsOptional()
+  quoteLineItemId?: string;
+
   @IsOptional()
   @IsString()
   materialCode?: string;

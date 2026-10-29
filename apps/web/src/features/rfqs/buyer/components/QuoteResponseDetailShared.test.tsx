@@ -247,7 +247,7 @@ describe('QuoteResponseActions post-approve prompt', () => {
   const tree = (status: string) => (
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
-        <QuoteResponseActions rfqId="rfq-1" quoteId="q-1" vendorId="v-1" status={status} />
+        <QuoteResponseActions rfqId="rfq-1" quoteId="q-1" status={status} />
       </MemoryRouter>
     </QueryClientProvider>
   );

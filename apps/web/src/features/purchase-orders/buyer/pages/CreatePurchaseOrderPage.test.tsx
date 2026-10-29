@@ -71,6 +71,7 @@ vi.mock('../services/purchase-orders.service', () => ({
   useProjectsList: () => ({ data: { items: [{ id: 'proj-1', name: 'Project A' }] } }),
   useProjectDetail: () => ({ data: { id: 'proj-1', locations: [] } }),
   useCompanyVendors: () => ({ data: [{ id: 'v-1', name: 'Vendor A' }] }),
+  useSourceRfq: () => ({ data: undefined, isError: false }),
   useCreatePurchaseOrder: () => ({
     mutate: mockCreateMutate,
     isPending: false,

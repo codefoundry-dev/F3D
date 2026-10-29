@@ -54,6 +54,7 @@ import { NotificationService } from '../notification-feed/notification.service';
 import { EmailAttachment, EmailService } from '../notifications/email.service';
 import { StorageService } from '../storage/storage.service';
 
+import { deliveryVarianceDays } from './quote-comparison';
 import { AwardSplitDto } from './quote-response.dto';
 import { collectProjectMemberEmails, normalizeCcEmails } from './rfq-cc.util';
 import {
@@ -125,6 +126,23 @@ const RFQ_INVITED_VENDORS_INCLUDE = {
   },
 } satisfies Prisma.RfqVendorInclude;
 
+/**
+ * Quote-line slice carried on the RFQ detail: the delivery window + notes the
+ * list cards need, plus each line's quoted price so the PO wizard can fill a
+ * from-RFQ PO with the vendor's actual per-line price (FOR-391).
+ */
+const QUOTE_LINE_DETAIL_SELECT = {
+  id: true,
+  rfqLineItemId: true,
+  unitPrice: true,
+  quotedQuantity: true,
+  approvedQuantity: true,
+  deliveryDate: true,
+  availability: true,
+  notes: true,
+  status: true,
+} satisfies Prisma.QuoteResponseLineItemSelect;
+
 const RFQ_DETAIL_INCLUDE = {
   project: { select: { id: true, name: true, code: true } },
   projects: { include: { project: { select: { id: true, name: true, code: true } } } },
@@ -142,7 +160,7 @@ const RFQ_DETAIL_INCLUDE = {
       vendor: { select: { legalName: true } },
       _count: { select: { attachments: true } },
       lineItems: {
-        select: { deliveryDate: true, availability: true, notes: true, status: true },
+        select: QUOTE_LINE_DETAIL_SELECT,
       },
     },
   },
@@ -366,7 +384,7 @@ export class RfqsService {
               vendor: { select: { legalName: true, users: { select: { id: true } } } },
               _count: { select: { attachments: true } },
               lineItems: {
-                select: { deliveryDate: true, availability: true, notes: true, status: true },
+                select: QUOTE_LINE_DETAIL_SELECT,
               },
             },
           },
@@ -577,9 +595,22 @@ export class RfqsService {
           };
         }) ?? [],
       quoteResponses: rfq.quoteResponses.map((qr) => {
+        const expectedByRfqLine = new Map(
+          rfq.lineItems.map((li) => {
+            const expected =
+              (li as unknown as { expectedDeliveryDate: Date | null }).expectedDeliveryDate ??
+              rfq.needByDate;
+            return [li.id, expected?.toISOString() ?? null] as const;
+          }),
+        );
         const qrAny = qr as unknown as {
           _count?: { attachments: number };
           lineItems?: {
+            id: string;
+            rfqLineItemId: string;
+            unitPrice: Prisma.Decimal;
+            quotedQuantity: number;
+            approvedQuantity: number | null;
             deliveryDate: Date | null;
             availability: string;
             notes: string | null;
@@ -594,6 +625,22 @@ export class RfqsService {
           .map((li) => (li.deliveryDate as Date).getTime());
         const bulkTime = qrAny.bulkDeliveryTime ? qrAny.bulkDeliveryTime.getTime() : null;
         const allTimes = bulkTime !== null ? [bulkTime] : deliveryTimes;
+        // FOR-392: each quoted line's delivery against the line's expected date.
+        const quoteLines = (qrAny.lineItems ?? []).map((li) => {
+          const quoted = li.availability !== 'NO_QUOTE' && li.deliveryDate;
+          return {
+            li,
+            variance: quoted
+              ? deliveryVarianceDays(
+                  (li.deliveryDate as Date).toISOString(),
+                  expectedByRfqLine.get(li.rfqLineItemId) ?? null,
+                )
+              : null,
+          };
+        });
+        const lateVariances = quoteLines
+          .map((ql) => ql.variance)
+          .filter((v): v is number => v !== null && v > 0);
         return {
           id: qr.id,
           vendorId: qr.vendorId,
@@ -611,6 +658,23 @@ export class RfqsService {
             allTimes.length > 0 ? new Date(Math.max(...allTimes)).toISOString() : null,
           attachmentCount: qrAny._count?.attachments ?? 0,
           hasNotes: (qrAny.lineItems ?? []).some((li) => !!li.notes) || !!qr.message,
+          // Per-line quoted prices (FOR-391) — the PO wizard prices from-RFQ lines
+          // from these instead of spreading the quote total across lines.
+          // Lines quoted after their expected date, and the worst slip in days.
+          lateLineCount: lateVariances.length,
+          maxLateDays: lateVariances.length > 0 ? Math.max(...lateVariances) : null,
+          hasDeliveryComparison: quoteLines.some((ql) => ql.variance !== null),
+          lineItems: quoteLines.map(({ li, variance }) => ({
+            id: li.id,
+            rfqLineItemId: li.rfqLineItemId,
+            unitPrice: Number(li.unitPrice),
+            quotedQuantity: li.quotedQuantity,
+            approvedQuantity: li.approvedQuantity,
+            availability: li.availability,
+            status: li.status,
+            deliveryDate: li.deliveryDate?.toISOString() ?? null,
+            deliveryVarianceDays: variance,
+          })),
         };
       }),
       documents: rfq.documents.map((doc) => ({
