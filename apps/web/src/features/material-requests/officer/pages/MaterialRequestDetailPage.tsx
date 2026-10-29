@@ -317,6 +317,7 @@ export default function MaterialRequestDetailPage() {
         <ConvertToPoModal
           mrNumber={mr.mrNumber}
           companyId={mr.company.id}
+          projectId={mr.project.id}
           isPending={convertToPo.isPending}
           onClose={() => setShowConvertPo(false)}
           onConfirm={handleConvertToPo}

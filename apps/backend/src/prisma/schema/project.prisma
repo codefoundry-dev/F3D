@@ -44,6 +44,8 @@ model Project {
   boms            Bom[]
   materialRequests MaterialRequest[]
   deliveryReports  DeliveryReport[] @relation("DeliveryReportProject")
+  // Vendors added for this project only (FOR-395).
+  oneOffVendorAssignments CompanyVendorAssignment[] @relation("OneOffVendorProject")
 
   @@unique([companyId, name], map: "idx_projects_company_name")
   @@unique([companyId, code], map: "idx_projects_company_code")

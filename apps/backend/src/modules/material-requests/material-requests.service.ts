@@ -40,6 +40,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { NotificationService } from '../notification-feed/notification.service';
 import { SYSTEM_SENDER } from '../notification-feed/notification.types';
 import { EmailService } from '../notifications/email.service';
+import { assertVendorUsableOnProject } from '../vendors/vendor-access.util';
 
 import {
   ConvertToPoDto,
@@ -649,6 +650,7 @@ export class MaterialRequestsService {
     if (!dto.vendorId) {
       throw new BadRequestException(ERR.materialRequests.vendorRequired);
     }
+    await assertVendorUsableOnProject(this.prisma, dto.vendorId, mr.companyId, mr.projectId);
     assertTransitionOrThrow(mr.status, MaterialRequestStatus.CONVERTED);
 
     const poNumber = await nextSequentialNumber(this.prisma, 'purchaseOrder', 'PO', mr.companyId);

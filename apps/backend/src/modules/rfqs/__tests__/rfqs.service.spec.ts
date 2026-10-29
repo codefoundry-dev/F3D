@@ -2740,6 +2740,20 @@ describe('RfqsService', () => {
       );
     });
 
+    it('rejects a one-off vendor added for a project the RFQ does not cover (FOR-395)', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockPrisma.projectLocation.findUnique.mockResolvedValue({ id: 'loc-1', projectId: 'proj-1' });
+      mockPrisma.material.findMany.mockResolvedValue([{ id: 'mat-1' }, { id: 'mat-2' }]);
+      mockPrisma.companyVendorAssignment.findMany.mockResolvedValue([
+        { vendorId: 'vendor-1', oneOffProjectId: null },
+        { vendorId: 'vendor-2', oneOffProjectId: 'proj-other' },
+      ]);
+
+      await expect(service.createRfq(createDto as never, procOfficer)).rejects.toThrow(
+        'A one-off vendor can only be used on the project it was added for',
+      );
+    });
+
     // ── FOR-197: M:N vendor scoping ─────────────────────────────────────
     it('scopes vendor validation to the contractor company (M:N assignment check)', async () => {
       setupCreateSuccess();

@@ -36,6 +36,7 @@ import {
 import { nextSequentialNumber } from '../../common/utils/sequential-number.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { assertVendorUsableOnProject } from '../vendors/vendor-access.util';
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -560,6 +561,7 @@ export class PurchaseOrdersService {
         select: { id: true },
       });
       if (!vendor) throw new NotFoundException(ERR.purchaseOrders.vendorNotFound);
+      await assertVendorUsableOnProject(this.prisma, dto.vendorId, project.companyId, project.id);
     }
 
     // Validate deliveryLocationId belongs to project (when provided — a draft PO

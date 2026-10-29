@@ -285,6 +285,8 @@ export const VENDORS_PATHS = {
   ROOT: '/vendors',
   INVITE: '/vendors/invite',
   RESOLVE_SELECTION: '/vendors/selection/resolve',
+  ONE_OFF: '/vendors/one-off',
+  promote: (id: string) => `/vendors/${id}/promote`,
   categories: (id: string) => `/vendors/${id}/categories`,
   profile: (id: string) => `/vendors/${id}/profile`,
   warehouses: (id: string) => `/vendors/${id}/warehouses`,

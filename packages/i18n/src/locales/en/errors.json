@@ -201,6 +201,10 @@
   },
   "vendors": {
     "alreadyAssigned": "This vendor is already in your vendor list",
+    "projectNotFound": "Project not found",
+    "oneOffOnOtherProject": "This vendor is already a one-off vendor on another project. Promote it to a full vendor to use it here.",
+    "notOneOff": "This vendor is not a one-off vendor of your company",
+    "oneOffWrongProject": "A one-off vendor can only be used on the project it was added for",
     "companyEmailInUse": "A vendor company with this email already exists on the platform",
     "userEmailInUse": "A user with this email already exists",
     "notFound": "Vendor not found",

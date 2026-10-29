@@ -36,10 +36,13 @@ export function StatusBadge({
 export function Section({
   title,
   count,
+  action,
   children,
 }: {
   title: string;
   count?: number;
+  /** Optional button(s) at the right of the heading. */
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -51,6 +54,7 @@ export function Section({
             {count}
           </span>
         )}
+        {action && <div className="ml-auto flex shrink-0 items-center gap-2">{action}</div>}
       </div>
       {children}
     </section>

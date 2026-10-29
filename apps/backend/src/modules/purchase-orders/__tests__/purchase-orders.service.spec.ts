@@ -29,6 +29,8 @@ const superAdmin = {
 };
 
 const mockPrisma = {
+  // One-off vendor guard (FOR-395): no assignment row → a full/unknown vendor.
+  companyVendorAssignment: { findUnique: jest.fn().mockResolvedValue(null) },
   purchaseOrder: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
@@ -91,6 +93,7 @@ describe('PurchaseOrdersService', () => {
     // Default: no catalogue snapshot rows, so each line keeps the codes the DTO
     // supplied (the snapshot fallback only fires when a material row matches).
     mockPrisma.material.findMany.mockResolvedValue([]);
+    mockPrisma.companyVendorAssignment.findUnique.mockResolvedValue(null);
     service = new PurchaseOrdersService(mockPrisma as never, mockAudit as never);
     // createPurchaseOrder now runs its create + drawdown bookkeeping inside a
     // $transaction callback. Default: invoke the callback with mockPrisma so

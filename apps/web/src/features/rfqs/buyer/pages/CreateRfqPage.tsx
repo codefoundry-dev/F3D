@@ -220,7 +220,9 @@ export default function CreateRfqPage() {
 
   // ── Data sources ──────────────────────────────────────────────────────────
   const { data: projects = [], isLoading: projectsLoading } = useRfqProjects();
-  const { data: vendors = [] } = useAssignedVendors();
+  const { data: vendors = [] } = useAssignedVendors(
+    basicInfo.projectIds.length > 0 ? { projectIds: basicInfo.projectIds.join(',') } : undefined,
+  );
   const { data: materials = [] } = useRfqMaterials(
     materialSearch ? { search: materialSearch } : undefined,
   );
@@ -233,6 +235,8 @@ export default function CreateRfqPage() {
       setVendorIds(nextVendorIds);
       setSalesRepIds(repIds);
     }, []),
+    // One-off vendors of the chosen projects are offered too (FOR-395).
+    basicInfo.projectIds,
   );
 
   /**

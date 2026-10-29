@@ -267,6 +267,7 @@ export default function RfqDetailPage() {
         <ManageVendorsDialog
           currentVendorIds={rfq.vendors?.map((v) => v.id) ?? []}
           currentSalesRepIds={rfq.vendors?.flatMap((v) => v.contacts.map((c) => c.id)) ?? []}
+          projectIds={rfq.projectIds ?? [rfq.projectId]}
           isSaving={updateRfq.isPending}
           isError={updateRfq.isError}
           onCancel={() => setShowVendorsDialog(false)}

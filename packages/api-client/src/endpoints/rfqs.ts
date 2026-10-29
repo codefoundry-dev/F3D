@@ -146,6 +146,8 @@ export interface RfqDetail {
   rfqNumber: string | null;
   projectName: string;
   projectId: string;
+  /** Every project the RFQ spans (US 5.05), primary first. */
+  projectIds?: string[];
   /** Human-readable project code (PRJ-YYYY-NNN); shown wherever a "Project ID" is labelled. */
   projectCode: string;
   status: string;

@@ -69,6 +69,8 @@ function makeService() {
     purchaseOrder: { findMany: jest.fn().mockResolvedValue([]) },
     // FOR-396 setting; off by default so approve doesn't auto-convert.
     company: { findUnique: jest.fn().mockResolvedValue({ autoConvertApprovedMrToRfq: false }) },
+    // One-off vendor guard (FOR-395): no assignment row → a full/unknown vendor.
+    companyVendorAssignment: { findUnique: jest.fn().mockResolvedValue(null) },
     project: { findUnique: jest.fn() },
     material: { findMany: jest.fn().mockResolvedValue([]) },
     projectLocation: { findMany: jest.fn().mockResolvedValue([]) },

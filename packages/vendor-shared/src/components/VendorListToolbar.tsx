@@ -6,6 +6,7 @@ import {
   DateRangeFilterDropdown,
   FloatingActionButton,
   MobileListToolbar,
+  cn,
   useIsPhone,
 } from '@forethread/ui-components';
 import NewUserIcon from '@forethread/ui-components/assets/icons/new-user.svg?react';
@@ -31,6 +32,9 @@ interface VendorListToolbarProps {
   dateTo: string;
   onDateFromChange: (value: string) => void;
   onDateToChange: (value: string) => void;
+  /** Include one-off vendors (FOR-395), hidden by default. */
+  showOneOff?: boolean;
+  onShowOneOffChange?: (value: boolean) => void;
   onDateClear: () => void;
   onInviteVendor: () => void;
   onCreateCompany: () => void;
@@ -53,6 +57,8 @@ export function VendorListToolbar({
   onDateFromChange,
   onDateToChange,
   onDateClear,
+  showOneOff = false,
+  onShowOneOffChange,
   onInviteVendor,
   onCreateCompany,
 }: VendorListToolbarProps) {
@@ -92,6 +98,22 @@ export function VendorListToolbar({
         onClear={onDateClear}
         clearLabel={t('common:clear', 'Clear')}
       />
+      {onShowOneOffChange && (
+        <button
+          type="button"
+          aria-pressed={showOneOff}
+          onClick={() => onShowOneOffChange(!showOneOff)}
+          className={cn(
+            'h-9 whitespace-nowrap rounded-full px-3 text-sm font-medium transition-colors',
+            showOneOff
+              ? 'bg-filter-chip text-filter-chip-foreground'
+              : 'border border-border text-muted-foreground hover:text-foreground',
+          )}
+          data-testid="filter-one-off"
+        >
+          {t('filters.oneOff')}
+        </button>
+      )}
     </>
   );
 
@@ -101,7 +123,8 @@ export function VendorListToolbar({
       (companyFilter.length > 0 ? 1 : 0) +
       (statusFilter.length > 0 ? 1 : 0) +
       (categoryFilter.length > 0 ? 1 : 0) +
-      (dateFrom || dateTo ? 1 : 0);
+      (dateFrom || dateTo ? 1 : 0) +
+      (showOneOff ? 1 : 0);
     return (
       <div className="pb-4">
         <MobileListToolbar
@@ -115,6 +138,7 @@ export function VendorListToolbar({
             onStatusFilterChange([]);
             onCategoryFilterChange([]);
             onDateClear();
+            onShowOneOffChange?.(false);
           }}
           clearFiltersLabel={t('common:clearAll', 'Clear all')}
           filters={<div className="flex flex-wrap items-center gap-2">{filters}</div>}

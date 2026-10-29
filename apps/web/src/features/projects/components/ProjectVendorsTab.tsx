@@ -1,10 +1,20 @@
-import { getBulkOrders, getInvoices, getPurchaseOrders, getVendors } from '@forethread/api-client';
+import {
+  getBulkOrders,
+  getInvoices,
+  getPurchaseOrders,
+  getVendors,
+  promoteOneOffVendor,
+} from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { useMemo } from 'react';
+import { Button, toast } from '@forethread/ui-components';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { usePermissions } from '@/shared/role';
 
+import { AddOneOffVendorModal } from './AddOneOffVendorModal';
 import {
   HeadRow,
   Section,
@@ -34,6 +44,8 @@ interface ProjectVendorRow {
   /** Vendor company id when the name matches the company's vendor list — enables the detail link. */
   companyId: string | null;
   status: string | null;
+  /** Added for this project only (FOR-395). */
+  oneOff: boolean;
 }
 
 /**
@@ -41,7 +53,8 @@ interface ProjectVendorRow {
  * There is no vendor↔project relation in the schema, so the vendor set is
  * derived from the project's POs, bulk orders and invoices (the documents that
  * carry both a vendor and a projectId), then enriched with the company's
- * vendor list to recover ids for linking.
+ * vendor list to recover ids for linking. One-off vendors (FOR-395) are listed
+ * even before any document names them, and can be added and promoted here.
  */
 export default function ProjectVendorsTab({
   projectId,
@@ -54,6 +67,10 @@ export default function ProjectVendorsTab({
   const t = tRaw as TranslationFn;
   const { t: tVendorsRaw } = useTranslation('vendors');
   const tVendors = tVendorsRaw as TranslationFn;
+  const { has } = usePermissions();
+  const canManageVendors = has('company.create');
+  const queryClient = useQueryClient();
+  const [showAddOneOff, setShowAddOneOff] = useState(false);
 
   const poQuery = useAllRows(['purchase-orders', 'project-tab', projectId], (page) =>
     getPurchaseOrders({ projectId, limit: PAGE_SIZE, page }, { skipErrorHandler: true }),
@@ -64,10 +81,24 @@ export default function ProjectVendorsTab({
   const invoiceQuery = useAllRows(['invoices', 'project-tab', projectId], (page) =>
     getInvoices({ projectId, limit: PAGE_SIZE, page }, { skipErrorHandler: true }),
   );
-  // Company-wide vendor list, used only to name-match ids for links.
-  const vendorsQuery = useAllRows(['vendors', 'project-tab-links'], (page) =>
-    getVendors({ limit: PAGE_SIZE, page }),
+  // Company-wide vendor list plus this project's one-offs, used to name-match
+  // ids for links.
+  const vendorsQuery = useAllRows(['vendors', 'project-tab-links', projectId], (page) =>
+    getVendors({ limit: PAGE_SIZE, page, projectIds: projectId }),
   );
+  // This project's one-off vendors, listed even before any document names them.
+  const oneOffQuery = useAllRows(['vendors', 'project-one-off', projectId], (page) =>
+    getVendors({ limit: PAGE_SIZE, page, projectIds: projectId, oneOffOnly: true }),
+  );
+
+  const refreshVendors = () => void queryClient.invalidateQueries({ queryKey: ['vendors'] });
+  const promote = useMutation({
+    mutationFn: (vendorId: string) => promoteOneOffVendor(vendorId),
+    onSuccess: () => {
+      toast.success(t('detail.vendorsTab.oneOff.promoted'));
+      refreshVendors();
+    },
+  });
 
   const rows = useMemo<ProjectVendorRow[]>(() => {
     const map = new Map<string, ProjectVendorRow>();
@@ -83,6 +114,7 @@ export default function ProjectVendorsTab({
           invoiceTotal: 0,
           companyId: null,
           status: null,
+          oneOff: false,
         };
         map.set(name, entry);
       }
@@ -105,22 +137,43 @@ export default function ProjectVendorsTab({
       entry.invoiceCount += 1;
       entry.invoiceTotal += invoice.totalAmount ?? 0;
     }
-    for (const vendor of vendorsQuery.data?.items ?? []) {
+    for (const vendor of oneOffQuery.data?.items ?? []) row(vendor.companyName);
+    for (const vendor of [
+      ...(vendorsQuery.data?.items ?? []),
+      ...(oneOffQuery.data?.items ?? []),
+    ]) {
       const entry = map.get(vendor.companyName);
       if (entry) {
         entry.companyId = vendor.companyId;
         entry.status = vendor.status;
+        entry.oneOff = Boolean(vendor.oneOffProject);
       }
     }
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [poQuery.data, bulkQuery.data, invoiceQuery.data, vendorsQuery.data]);
+  }, [poQuery.data, bulkQuery.data, invoiceQuery.data, vendorsQuery.data, oneOffQuery.data]);
 
-  const isLoading = poQuery.isLoading || bulkQuery.isLoading || invoiceQuery.isLoading;
+  const isLoading =
+    poQuery.isLoading || bulkQuery.isLoading || invoiceQuery.isLoading || oneOffQuery.isLoading;
   const isError = poQuery.isError || bulkQuery.isError || invoiceQuery.isError;
 
   return (
     <div className="space-y-6">
-      <Section title={t('detail.vendorsTab.vendors')} count={isLoading ? undefined : rows.length}>
+      <Section
+        title={t('detail.vendorsTab.vendors')}
+        count={isLoading ? undefined : rows.length}
+        action={
+          canManageVendors ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowAddOneOff(true)}
+              data-testid="add-one-off-vendor"
+            >
+              {t('detail.vendorsTab.oneOff.add')}
+            </Button>
+          ) : undefined
+        }
+      >
         <SectionContent
           isLoading={isLoading}
           isError={isError}
@@ -139,6 +192,7 @@ export default function ProjectVendorsTab({
                 t('detail.vendorsTab.columns.bulkAgreements'),
                 t('detail.vendorsTab.columns.invoices'),
                 t('detail.vendorsTab.columns.invoicedTotal'),
+                ...(canManageVendors ? [''] : []),
               ]}
             />
             <tbody>
@@ -154,6 +208,11 @@ export default function ProjectVendorsTab({
                       </Link>
                     ) : (
                       <span className="font-medium text-foreground">{vendor.name}</span>
+                    )}
+                    {vendor.oneOff && (
+                      <span className="ml-2 whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                        {t('detail.vendorsTab.oneOff.badge')}
+                      </span>
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -178,12 +237,43 @@ export default function ProjectVendorsTab({
                   <td className="px-4 py-3 text-foreground whitespace-nowrap">
                     {formatMoney(vendor.invoiceTotal, currency)}
                   </td>
+                  {canManageVendors && (
+                    <td className="px-4 py-3 text-right">
+                      {vendor.oneOff && vendor.companyId && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={promote.isPending}
+                          onClick={() => promote.mutate(vendor.companyId as string)}
+                          data-testid="promote-one-off-vendor"
+                        >
+                          {t('detail.vendorsTab.oneOff.promote')}
+                        </Button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </TableShell>
         </SectionContent>
       </Section>
+
+      {showAddOneOff && (
+        <AddOneOffVendorModal
+          projectId={projectId}
+          onClose={() => setShowAddOneOff(false)}
+          onAdded={(result) => {
+            setShowAddOneOff(false);
+            toast.success(
+              result.oneOffProject
+                ? t('detail.vendorsTab.oneOff.added', { name: result.companyName ?? '' })
+                : t('detail.vendorsTab.oneOff.alreadyVendor', { name: result.companyName ?? '' }),
+            );
+            refreshVendors();
+          }}
+        />
+      )}
 
       <ProjectBulkOrdersSection
         projectId={projectId}

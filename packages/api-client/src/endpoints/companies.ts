@@ -29,6 +29,8 @@ export interface AssignVendorsDto {
 
 export interface VendorAssignment extends CompanyResponse {
   assignedAt: string;
+  /** Set for a one-off vendor (FOR-395): the only project it can be used on. */
+  oneOffProjectId?: string | null;
 }
 
 export interface UpdateCompanyDto {

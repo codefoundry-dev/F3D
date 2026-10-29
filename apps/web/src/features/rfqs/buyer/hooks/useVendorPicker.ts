@@ -15,11 +15,16 @@ import { useAssignedVendors, useResolveVendorSelection } from '../services/rfqs.
  * "Add All" therefore cannot be a loop over the rendered rows — it resolves
  * through its own unpaginated endpoint, which also drops deactivated reps, so
  * bulk selection can never reach a recipient a single selection could not.
+ *
+ * `projectIds` are the RFQ's projects: their one-off vendors (FOR-395) are
+ * offered alongside the company's full vendors, and no other one-offs are.
  */
 export function useVendorPicker(
   selection: VendorSelection,
   onChange: (next: VendorSelection) => void,
+  projectIds: string[] = [],
 ) {
+  const projectScope = projectIds.join(',');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
@@ -32,6 +37,7 @@ export function useVendorPicker(
   const { data: vendors = [], isLoading } = useAssignedVendors({
     ...(categoryFilter ? { category: categoryFilter } : {}),
     ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
+    ...(projectScope ? { projectIds: projectScope } : {}),
   });
 
   const resolve = useResolveVendorSelection();
@@ -69,6 +75,7 @@ export function useVendorPicker(
       {
         ...(categoryFilter ? { category: categoryFilter } : {}),
         ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
+        ...(projectScope ? { projectIds: projectScope.split(',') } : {}),
       },
       {
         onSuccess: ({ vendors: matched }) => {
@@ -83,7 +90,7 @@ export function useVendorPicker(
         },
       },
     );
-  }, [resolve, categoryFilter, debouncedSearch, selection, onChange, remember]);
+  }, [resolve, categoryFilter, debouncedSearch, projectScope, selection, onChange, remember]);
 
   return {
     vendors,

@@ -339,7 +339,14 @@ export class CompaniesService {
       include: { vendor: { include: { _count: { select: { users: true } } } } },
       orderBy: { assignedAt: 'desc' },
     });
-    return assignments.map((a) => ({ ...a.vendor, assignedAt: a.assignedAt }));
+    // One-off vendors (FOR-395) are included and flagged: invoice and delivery
+    // pickers need every vendor the company deals with, while the PO wizards
+    // offer a one-off only on its own project.
+    return assignments.map((a) => ({
+      ...a.vendor,
+      assignedAt: a.assignedAt,
+      oneOffProjectId: a.oneOffProjectId,
+    }));
   }
 
   async assignVendorsToContractor(

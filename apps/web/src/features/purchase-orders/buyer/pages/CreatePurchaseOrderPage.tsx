@@ -78,6 +78,11 @@ export default function CreatePurchaseOrderPage() {
     if (rfqDefaults?.defaultValues.projectId) setProjectId(rfqDefaults.defaultValues.projectId);
   }, [rfqDefaults]);
   const { data: projectDetail } = useProjectDetail(projectId);
+  // A one-off vendor (FOR-395) is offered only on the project it was added for.
+  const projectVendors = useMemo(
+    () => vendorsData?.filter((v) => !v.oneOffProjectId || v.oneOffProjectId === projectId),
+    [vendorsData, projectId],
+  );
 
   const lockedFields = useMemo(() => {
     if (rfqDefaults) return new Set<string>(rfqDefaults.lockedFields);
@@ -105,7 +110,7 @@ export default function CreatePurchaseOrderPage() {
       onNavigateBack={() => navigate(ROUTES.purchaseOrders)}
       onSuccess={() => navigate(ROUTES.purchaseOrders)}
       projectsData={projectsData}
-      vendorsData={vendorsData}
+      vendorsData={projectVendors}
       projectDetail={projectDetail}
       onProjectIdChange={setProjectId}
       onCreatePo={handleCreatePo}

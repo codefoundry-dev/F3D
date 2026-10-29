@@ -58,6 +58,7 @@ export default function VendorListPage() {
   const [isCreateCompanyModalOpen, setIsCreateCompanyModalOpen] = useState(false);
   const [successEmail, setSuccessEmail] = useState<string | null>(null);
   const [successAlreadyExisted, setSuccessAlreadyExisted] = useState(false);
+  const [showOneOff, setShowOneOff] = useState(false);
   // Actions (mutations, dot menus, action/success modals)
   const vendorActions = useVendorActions({
     onNavigateToCompany: (companyId) => navigate(`/vendors/${companyId}`),
@@ -78,6 +79,8 @@ export default function VendorListPage() {
     dateTo: dateTo || undefined,
     sortBy: sortField ?? undefined,
     sortDir: sortDir ?? undefined,
+    // One-off vendors (FOR-395) belong to a project and stay hidden unless asked for.
+    includeOneOff: showOneOff || undefined,
   });
 
   // Grouped data
@@ -158,6 +161,11 @@ export default function VendorListPage() {
           onDateClear={() => {
             setDateFrom('');
             setDateTo('');
+            setPage(1);
+          }}
+          showOneOff={showOneOff}
+          onShowOneOffChange={(v) => {
+            setShowOneOff(v);
             setPage(1);
           }}
           onInviteVendor={() => setIsInviteModalOpen(true)}
@@ -319,6 +327,7 @@ function VendorGroupSection({
         companyName={group.companyName}
         companyId={group.companyId}
         categories={group.categories}
+        oneOffProjectName={group.oneOffProject?.name ?? null}
         isExpanded={isExpanded}
         onToggle={onToggle}
         actions={getCompanyRowActions(group.companyId, group)}

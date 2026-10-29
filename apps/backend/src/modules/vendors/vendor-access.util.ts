@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
@@ -37,5 +37,26 @@ export async function assertVendorAccess(
 
   if (!assignment) {
     throw new ForbiddenException(ERR.vendors.accessDenied);
+  }
+}
+
+/**
+ * A one-off vendor (FOR-395) serves only the project it was added for. Throws a
+ * 400 when `vendorCompanyId` is a one-off of `contractorId` on a different
+ * project; full vendors (and vendors with no assignment, which callers judge
+ * themselves) pass.
+ */
+export async function assertVendorUsableOnProject(
+  prisma: PrismaService,
+  vendorCompanyId: string,
+  contractorId: string,
+  projectId: string,
+): Promise<void> {
+  const assignment = await prisma.companyVendorAssignment.findUnique({
+    where: { vendorId_contractorId: { vendorId: vendorCompanyId, contractorId } },
+    select: { oneOffProjectId: true },
+  });
+  if (assignment?.oneOffProjectId && assignment.oneOffProjectId !== projectId) {
+    throw new BadRequestException(ERR.vendors.oneOffWrongProject);
   }
 }

@@ -1,6 +1,15 @@
 import { VendorCategory } from '@forethread/shared-types';
 import { Transform } from 'class-transformer';
-import { IsArray, IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 
 /**
  * Filter sentinel for vendors carrying no Vendor Category at all. Category is
@@ -85,6 +94,46 @@ export class VendorListQueryDto {
   @IsOptional()
   @IsString()
   sortDir?: 'asc' | 'desc' = 'desc';
+
+  /**
+   * One-off vendors (FOR-395) are hidden by default. `true` includes every
+   * one-off (the vendor list's "Show one-off vendors" filter).
+   */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  includeOneOff?: boolean;
+
+  /** Comma-separated project ids whose one-off vendors to include (RFQ/PO wizards). */
+  @IsOptional()
+  @IsString()
+  projectIds?: string;
+
+  /** Only one-off vendors (the project Vendors tab), combined with `projectIds`. */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  oneOffOnly?: boolean;
+}
+
+/**
+ * Adds a one-off vendor from a project's Vendors tab (FOR-395): a light record
+ * (name + email, no portal invite) usable on that project only.
+ */
+export class CreateOneOffVendorDto {
+  @IsUUID()
+  projectId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  legalName!: string;
+
+  @IsEmail()
+  contactEmail!: string;
+
+  @IsOptional()
+  @IsString()
+  contactPhone?: string;
 }
 
 export interface AuthUser {
@@ -130,6 +179,12 @@ export class ResolveVendorSelectionDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  /** Projects of the RFQ being built: their one-off vendors are included (FOR-395). */
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  projectIds?: string[];
 }
 
 export class CreateWarehouseDto {

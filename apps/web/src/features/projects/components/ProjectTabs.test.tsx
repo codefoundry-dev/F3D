@@ -1,4 +1,5 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 const mockUseAllRows = vi.hoisted(() => vi.fn());
 const mockUseBulkOrder = vi.hoisted(() => vi.fn());
@@ -7,6 +8,8 @@ const mockGetPurchaseOrders = vi.hoisted(() => vi.fn());
 const mockGetInvoices = vi.hoisted(() => vi.fn());
 const mockGetBulkOrders = vi.hoisted(() => vi.fn());
 const mockGetVendors = vi.hoisted(() => vi.fn());
+const mockPromote = vi.hoisted(() => vi.fn());
+const mockPermissions = vi.hoisted(() => ({ keys: [] as string[] }));
 
 vi.mock('@forethread/i18n', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -19,6 +22,13 @@ vi.mock('@forethread/api-client', () => ({
   getInvoices: mockGetInvoices,
   getBulkOrders: mockGetBulkOrders,
   getVendors: mockGetVendors,
+  promoteOneOffVendor: mockPromote,
+}));
+vi.mock('@/shared/role', () => ({
+  usePermissions: () => ({ has: (key: string) => mockPermissions.keys.includes(key) }),
+}));
+vi.mock('./AddOneOffVendorModal', () => ({
+  AddOneOffVendorModal: () => <div data-testid="add-one-off-modal" />,
 }));
 vi.mock('@forethread/bulk-order-shared', () => ({ useBulkOrder: mockUseBulkOrder }));
 
@@ -26,6 +36,8 @@ vi.mock('@forethread/ui-components', () => ({
   ScrollTable: ({ children }: { children: JSX.Element }) => children,
   Badge: ({ children }: any) => <span data-testid="badge">{children}</span>,
   Spinner: () => <div data-testid="spinner" />,
+  Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
+  toast: { success: vi.fn() },
   EmptyState: (props: any) => (
     <div data-testid="empty-state">
       <span>{props.title}</span>
@@ -69,7 +81,14 @@ beforeEach(() => {
   byResource.invoices = loaded([]);
   byResource['bulk-orders'] = loaded([]);
   byResource.vendors = loaded([]);
-  mockUseAllRows.mockImplementation((key: unknown[]) => byResource[key[0] as string]);
+  byResource['vendors:project-one-off'] = loaded([]);
+  mockPermissions.keys = [];
+  // The one-off vendor list shares the 'vendors' prefix; give it its own slot.
+  mockUseAllRows.mockImplementation((key: unknown[]) =>
+    key[1] === 'project-one-off'
+      ? byResource['vendors:project-one-off']
+      : byResource[key[0] as string],
+  );
   mockUseBulkOrder.mockReturnValue({ data: undefined, isLoading: false, isError: false });
 });
 
@@ -202,6 +221,13 @@ describe('ProjectProcurementTab', () => {
   });
 });
 
+const renderVendorsTab = () =>
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <ProjectVendorsTab projectId="proj-1" currency="AUD" />
+    </QueryClientProvider>,
+  );
+
 describe('ProjectVendorsTab', () => {
   it('derives vendors from POs, bulk orders and invoices, aggregating per vendor', () => {
     byResource['purchase-orders'] = loaded([
@@ -227,7 +253,7 @@ describe('ProjectVendorsTab', () => {
     byResource.vendors = loaded([
       { id: 'v-1', companyId: 'comp-1', companyName: 'Acme Supplies', status: 'ACTIVE' },
     ]);
-    render(<ProjectVendorsTab projectId="proj-1" currency="AUD" />);
+    renderVendorsTab();
 
     // The matched vendor links to its detail page; the unmatched one is plain
     // text. The name also appears in the bulk-agreements table below, so pick
@@ -242,8 +268,49 @@ describe('ProjectVendorsTab', () => {
   });
 
   it('renders the empty state when no documents name a vendor', () => {
-    render(<ProjectVendorsTab projectId="proj-1" currency="AUD" />);
+    renderVendorsTab();
     expect(screen.getByText('detail.vendorsTab.noVendors')).toBeInTheDocument();
+  });
+
+  describe('one-off vendors (FOR-395)', () => {
+    beforeEach(() => {
+      byResource['vendors:project-one-off'] = loaded([
+        {
+          id: 'a-9',
+          companyId: 'v-9',
+          companyName: 'Quick Hire',
+          status: 'INVITED',
+          oneOffProject: { id: 'proj-1', name: 'Riverside' },
+        },
+      ]);
+    });
+
+    it('lists a one-off vendor before any document names it, with a badge', () => {
+      renderVendorsTab();
+      const row = screen.getByText('Quick Hire').closest('tr')!;
+      expect(row).toHaveTextContent('detail.vendorsTab.oneOff.badge');
+      // Read-only users get no add / promote controls.
+      expect(screen.queryByTestId('add-one-off-vendor')).toBeNull();
+      expect(screen.queryByTestId('promote-one-off-vendor')).toBeNull();
+    });
+
+    it('lets a buyer add a one-off vendor and promote one', async () => {
+      mockPermissions.keys = ['company.create'];
+      mockPromote.mockResolvedValue({ companyId: 'v-9', oneOffProject: null });
+      renderVendorsTab();
+
+      fireEvent.click(screen.getByTestId('add-one-off-vendor'));
+      expect(screen.getByTestId('add-one-off-modal')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId('promote-one-off-vendor'));
+      await waitFor(() => expect(mockPromote).toHaveBeenCalledWith('v-9'));
+    });
+
+    it('scopes the one-off query to the project', () => {
+      renderVendorsTab();
+      const keys = mockUseAllRows.mock.calls.map((c) => c[0]);
+      expect(keys).toContainEqual(['vendors', 'project-one-off', 'proj-1']);
+    });
   });
 });
 

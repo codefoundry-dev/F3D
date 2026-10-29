@@ -871,7 +871,7 @@ export class RfqsService {
     // Validate all vendorIds exist, are vendor-type companies, and are assigned to this contractor.
     // Why: enforces the M:N relationship — a contractor can only invite vendors on their list,
     // not arbitrary platform vendors belonging to other contractors.
-    await this.assertVendorsAssigned(dto.vendorIds, user.companyId);
+    await this.assertVendorsAssigned(dto.vendorIds, user.companyId, projectIds);
 
     // Validate the chosen sales reps and group them by vendor so each invited
     // vendor records exactly the reps that should be emailed (US 5.05).
@@ -986,7 +986,7 @@ export class RfqsService {
     // Validate vendor assignment scope + chosen sales reps (when vendors provided)
     let repsByCompany = new Map<string, string[]>();
     if (dto.vendorIds && dto.vendorIds.length > 0) {
-      await this.assertVendorsAssigned(dto.vendorIds, user.companyId);
+      await this.assertVendorsAssigned(dto.vendorIds, user.companyId, projectIds);
       repsByCompany = await this.assertSalesRepsValid(dto.salesRepIds, dto.vendorIds);
     }
 
@@ -1143,7 +1143,11 @@ export class RfqsService {
     // Validate vendorIds + chosen sales reps if provided — same checks as createRfq.
     let repsByCompany = new Map<string, string[]>();
     if (dto.vendorIds) {
-      await this.assertVendorsAssigned(dto.vendorIds, rfq.companyId);
+      await this.assertVendorsAssigned(
+        dto.vendorIds,
+        rfq.companyId,
+        await getEffectiveProjectIds(),
+      );
       repsByCompany = await this.assertSalesRepsValid(dto.salesRepIds, dto.vendorIds);
     }
 
@@ -2816,6 +2820,7 @@ export class RfqsService {
   private async assertVendorsAssigned(
     vendorIds: string[],
     contractorId: string | null | undefined,
+    rfqProjectIds: string[],
   ): Promise<void> {
     if (vendorIds.length === 0) return;
     if (!contractorId) throw new BadRequestException(ERR.rfqs.invalidVendorIds);
@@ -2826,12 +2831,16 @@ export class RfqsService {
         vendorId: { in: vendorIds },
         vendor: { type: CompanyType.VENDOR },
       },
-      select: { vendorId: true },
+      select: { vendorId: true, oneOffProjectId: true },
     });
 
     const assignedIds = new Set(assignments.map((a) => a.vendorId));
     if (assignedIds.size !== new Set(vendorIds).size) {
       throw new BadRequestException(ERR.rfqs.invalidVendorIds);
+    }
+    // A one-off vendor (FOR-395) only serves the project it was added for.
+    if (assignments.some((a) => a.oneOffProjectId && !rfqProjectIds.includes(a.oneOffProjectId))) {
+      throw new BadRequestException(ERR.vendors.oneOffWrongProject);
     }
   }
 

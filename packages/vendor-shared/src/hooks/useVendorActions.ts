@@ -8,6 +8,7 @@ import {
   useResendVendorInvitation,
   useCancelVendorInvitation,
   useArchiveVendor,
+  usePromoteOneOffVendor,
 } from '../services/vendors.service';
 import { useVendorsStore } from '../state/vendors.store';
 
@@ -38,6 +39,7 @@ export function useVendorActions(options?: UseVendorActionsOptions) {
   const resendMutation = useResendVendorInvitation();
   const cancelMutation = useCancelVendorInvitation();
   const deactivateMutation = useArchiveVendor();
+  const promoteMutation = usePromoteOneOffVendor();
 
   const handleActionConfirm = useCallback(() => {
     if (!actionUserId || !actionType || !actionUserEmail) return;
@@ -98,7 +100,7 @@ export function useVendorActions(options?: UseVendorActionsOptions) {
   ]);
 
   const getCompanyRowActions = useCallback(
-    (companyId: string, _group?: VendorGroup): DotAction[] => [
+    (companyId: string, group?: VendorGroup): DotAction[] => [
       {
         key: 'viewCompanyDetails',
         label: t('actions.viewCompanyDetails'),
@@ -109,8 +111,21 @@ export function useVendorActions(options?: UseVendorActionsOptions) {
         label: t('actions.editCompanyDetails'),
         onClick: () => options?.onNavigateToCompanyEdit?.(companyId),
       },
+      // A one-off vendor (FOR-395) can be made a full vendor of the company.
+      ...(group?.oneOffProject
+        ? [
+            {
+              key: 'promoteOneOff',
+              label: t('actions.promoteOneOff'),
+              onClick: () =>
+                promoteMutation.mutate(companyId, {
+                  onSuccess: () => notificationService.success(t('oneOff.promoted')),
+                }),
+            },
+          ]
+        : []),
     ],
-    [t, options],
+    [t, options, promoteMutation],
   );
 
   const getVendorRowActions = useCallback(

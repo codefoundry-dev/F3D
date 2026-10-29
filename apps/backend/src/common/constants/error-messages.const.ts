@@ -269,6 +269,10 @@ export const ERR = {
   // ── Vendors ─────────────────────────────────────────────
   vendors: {
     alreadyAssigned: errors.vendors.alreadyAssigned,
+    projectNotFound: errors.vendors.projectNotFound,
+    oneOffOnOtherProject: errors.vendors.oneOffOnOtherProject,
+    notOneOff: errors.vendors.notOneOff,
+    oneOffWrongProject: errors.vendors.oneOffWrongProject,
     companyEmailInUse: errors.vendors.companyEmailInUse,
     userEmailInUse: errors.vendors.userEmailInUse,
     notFound: errors.vendors.notFound,

@@ -1,7 +1,8 @@
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UserRole, UserStatus } from '@prisma/client';
 
-import { buildCategoryWhere, VendorsService } from '../vendors.service';
+import { assertVendorUsableOnProject } from '../vendor-access.util';
+import { buildCategoryWhere, buildOneOffWhere, VendorsService } from '../vendors.service';
 
 const mockPrisma = {
   companyVendorAssignment: {
@@ -10,11 +11,14 @@ const mockPrisma = {
     findFirst: jest.fn(),
     findUnique: jest.fn(),
     updateMany: jest.fn(),
+    create: jest.fn(),
   },
   company: {
     findFirst: jest.fn(),
     update: jest.fn(),
+    create: jest.fn(),
   },
+  project: { findFirst: jest.fn() },
   warehouseLocation: {
     create: jest.fn(),
     findFirst: jest.fn(),
@@ -323,7 +327,7 @@ describe('VendorsService', () => {
       const result = await service.getVendorProfile('vendor-comp-1', vendorUser);
       // A vendor holds no categories of its own — those are each contractor's
       // classification of it (ADR-0018).
-      expect(result).toEqual({ ...profile, categories: [] });
+      expect(result).toEqual({ ...profile, categories: [], oneOffProject: null });
       expect(mockPrisma.companyVendorAssignment.findUnique).not.toHaveBeenCalled();
     });
 
@@ -344,7 +348,7 @@ describe('VendorsService', () => {
 
       const result = await service.getVendorProfile('vendor-comp-1', companyAdmin);
       // The viewing contractor's own categories ride along with the profile.
-      expect(result).toEqual({ ...profile, categories: ['ELECTRICAL'] });
+      expect(result).toEqual({ ...profile, categories: ['ELECTRICAL'], oneOffProject: null });
     });
 
     it('throws ForbiddenException when contractor has no companyId', async () => {
@@ -966,6 +970,184 @@ describe('VendorsService', () => {
       expect(
         await service.resolveVendorSelection({}, { ...companyAdmin, companyId: null }),
       ).toEqual({ vendors: [] });
+    });
+  });
+
+  // ── One-off vendors (FOR-395) ──────────────────────────────────────────────
+
+  describe('buildOneOffWhere', () => {
+    it('hides every one-off by default', () => {
+      expect(buildOneOffWhere({})).toEqual({ oneOffProjectId: null });
+    });
+
+    it("admits the given projects' one-offs alongside full vendors", () => {
+      expect(buildOneOffWhere({ projectIds: ['p1'] })).toEqual({
+        OR: [{ oneOffProjectId: null }, { oneOffProjectId: { in: ['p1'] } }],
+      });
+    });
+
+    it('admits all one-offs for the vendor list filter', () => {
+      expect(buildOneOffWhere({ includeOneOff: true })).toEqual({});
+      expect(buildOneOffWhere({ includeOneOff: true, oneOffOnly: true })).toEqual({
+        oneOffProjectId: { not: null },
+      });
+    });
+
+    it("lists only a project's one-offs for the project Vendors tab", () => {
+      expect(buildOneOffWhere({ projectIds: ['p1'], oneOffOnly: true })).toEqual({
+        oneOffProjectId: { in: ['p1'] },
+      });
+    });
+  });
+
+  describe('listVendors one-off handling', () => {
+    it('filters one-offs and returns the project they belong to', async () => {
+      mockPrisma.companyVendorAssignment.findMany.mockResolvedValue([
+        makeAssignment({ oneOffProject: { id: 'p1', name: 'Riverside' } }),
+      ]);
+
+      const result = await service.listVendors(
+        { projectIds: 'p1', page: 1, limit: 25 } as never,
+        companyAdmin,
+      );
+
+      const where = mockPrisma.companyVendorAssignment.findMany.mock.calls[0][0].where;
+      expect(where.AND).toEqual([
+        { OR: [{ oneOffProjectId: null }, { oneOffProjectId: { in: ['p1'] } }] },
+      ]);
+      expect(result.items[0].oneOffProject).toEqual({ id: 'p1', name: 'Riverside' });
+    });
+  });
+
+  describe('createOneOffVendor', () => {
+    const dto = {
+      projectId: 'p1',
+      legalName: ' Quick Hire ',
+      contactEmail: 'Hire@Quick.test',
+      contactPhone: '',
+    };
+
+    beforeEach(() => {
+      mockPrisma.project.findFirst.mockResolvedValue({ id: 'p1', name: 'Riverside' });
+      mockPrisma.companyVendorAssignment.create.mockResolvedValue({});
+    });
+
+    it('creates the vendor company and a one-off assignment for the project', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue(null);
+      mockPrisma.company.create.mockResolvedValue({ id: 'v-new', legalName: 'Quick Hire' });
+      mockPrisma.companyVendorAssignment.findUnique.mockResolvedValue(null);
+
+      const result = await service.createOneOffVendor(dto, companyAdmin);
+
+      expect(mockPrisma.company.create).toHaveBeenCalledWith({
+        data: {
+          type: 'VENDOR',
+          legalName: 'Quick Hire',
+          contactEmail: 'hire@quick.test',
+          contactPhone: null,
+        },
+        select: { id: true, legalName: true },
+      });
+      expect(mockPrisma.companyVendorAssignment.create).toHaveBeenCalledWith({
+        data: { vendorId: 'v-new', contractorId: 'comp-1', oneOffProjectId: 'p1' },
+      });
+      expect(result).toEqual({
+        companyId: 'v-new',
+        companyName: 'Quick Hire',
+        oneOffProject: { id: 'p1', name: 'Riverside' },
+        alreadyAssigned: false,
+      });
+    });
+
+    it('reuses a vendor that is already a full vendor, without changing it', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({ id: 'v-1', legalName: 'VendorCo' });
+      mockPrisma.companyVendorAssignment.findUnique.mockResolvedValue({ oneOffProjectId: null });
+
+      const result = await service.createOneOffVendor(dto, companyAdmin);
+
+      expect(mockPrisma.company.create).not.toHaveBeenCalled();
+      expect(mockPrisma.companyVendorAssignment.create).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        companyId: 'v-1',
+        oneOffProject: null,
+        alreadyAssigned: true,
+      });
+    });
+
+    it('409s when the vendor is a one-off of another project', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({ id: 'v-1', legalName: 'VendorCo' });
+      mockPrisma.companyVendorAssignment.findUnique.mockResolvedValue({ oneOffProjectId: 'p2' });
+
+      await expect(service.createOneOffVendor(dto, companyAdmin)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it("404s for a project outside the caller's company", async () => {
+      mockPrisma.project.findFirst.mockResolvedValue(null);
+      await expect(service.createOneOffVendor(dto, companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('refuses a user without a company', async () => {
+      await expect(
+        service.createOneOffVendor(dto, { ...companyAdmin, companyId: null }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('promoteOneOffVendor', () => {
+    it("clears the one-off project on the caller's assignment", async () => {
+      mockPrisma.companyVendorAssignment.updateMany.mockResolvedValue({ count: 1 });
+
+      await expect(service.promoteOneOffVendor('v-1', companyAdmin)).resolves.toEqual({
+        companyId: 'v-1',
+        oneOffProject: null,
+      });
+      expect(mockPrisma.companyVendorAssignment.updateMany).toHaveBeenCalledWith({
+        where: { vendorId: 'v-1', contractorId: 'comp-1', oneOffProjectId: { not: null } },
+        data: { oneOffProjectId: null },
+      });
+    });
+
+    it('404s when the vendor is not a one-off of the company', async () => {
+      mockPrisma.companyVendorAssignment.updateMany.mockResolvedValue({ count: 0 });
+      await expect(service.promoteOneOffVendor('v-1', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('refuses a user without a company', async () => {
+      await expect(
+        service.promoteOneOffVendor('v-1', { ...companyAdmin, companyId: null }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('assertVendorUsableOnProject', () => {
+    it('lets full vendors and same-project one-offs through', async () => {
+      mockPrisma.companyVendorAssignment.findUnique.mockResolvedValueOnce({
+        oneOffProjectId: null,
+      });
+      await expect(
+        assertVendorUsableOnProject(mockPrisma as never, 'v-1', 'comp-1', 'p1'),
+      ).resolves.toBeUndefined();
+      mockPrisma.companyVendorAssignment.findUnique.mockResolvedValueOnce({
+        oneOffProjectId: 'p1',
+      });
+      await expect(
+        assertVendorUsableOnProject(mockPrisma as never, 'v-1', 'comp-1', 'p1'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('rejects a one-off on another project', async () => {
+      mockPrisma.companyVendorAssignment.findUnique.mockResolvedValueOnce({
+        oneOffProjectId: 'p2',
+      });
+      await expect(
+        assertVendorUsableOnProject(mockPrisma as never, 'v-1', 'comp-1', 'p1'),
+      ).rejects.toThrow('A one-off vendor can only be used on the project it was added for');
     });
   });
 });
