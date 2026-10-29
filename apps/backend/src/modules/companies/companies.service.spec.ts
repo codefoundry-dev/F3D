@@ -334,7 +334,7 @@ describe('CompaniesService', () => {
 
     it('rejects a non-super-admin patching another company', async () => {
       prisma.company.findUnique.mockResolvedValue({ id: 'c2', _count: { users: 1 } });
-      const officer = { id: 'u3', role: UserRole.PROCUREMENT_OFFICER, companyId: 'c1' };
+      const officer = { id: 'u3', role: 'PROCUREMENT_OFFICER', companyId: 'c1' };
       await expect(service.updateCompany('c2', { legalName: 'X' }, officer)).rejects.toThrow(
         ForbiddenException,
       );
@@ -353,7 +353,7 @@ describe('CompaniesService', () => {
 
     it('keeps the auto-convert setting away from other roles of the company', async () => {
       prisma.company.findUnique.mockResolvedValue({ id: 'c1', _count: { users: 1 } });
-      const officer = { id: 'u3', role: UserRole.PROCUREMENT_OFFICER, companyId: 'c1' };
+      const officer = { id: 'u3', role: 'PROCUREMENT_OFFICER', companyId: 'c1' };
       await expect(
         service.updateCompany('c1', { autoConvertApprovedMrToRfq: true }, officer),
       ).rejects.toThrow(ForbiddenException);

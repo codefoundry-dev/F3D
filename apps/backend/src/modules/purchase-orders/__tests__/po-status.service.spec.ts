@@ -1249,6 +1249,32 @@ describe('PoStatusService', () => {
     });
   });
 
+  describe('acceptPurchaseOrderViaToken scheduling (FOR-396)', () => {
+    it('schedules a dated PO accepted through the portal and logs both steps', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'ACKNOWLEDGED',
+        plannedDeliveryDate: new Date('2026-11-20'),
+        deadlineEnd: null,
+        deliveries: [],
+        lineItems: [],
+      });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({});
+      mockPurchaseOrdersService.getPurchaseOrderById.mockResolvedValue({ id: 'po-1' });
+
+      await service.acceptPurchaseOrderViaToken('po-1', undefined);
+
+      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'SCHEDULED_FOR_DELIVERY' }),
+        }),
+      );
+      expect(mockAuditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PO_SCHEDULED', performedById: null }),
+      );
+    });
+  });
+
   describe('vendorDeclinePurchaseOrderViaToken', () => {
     const declinePoBase = {
       id: 'po-1',
