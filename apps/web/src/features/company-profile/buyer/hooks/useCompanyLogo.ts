@@ -25,6 +25,7 @@ export function useCompanyLogo(companyId: string | undefined) {
   const uploadMutation = useMutation({
     mutationFn: (file: File) => uploadCompanyLogo(companyId as string, file),
     onSuccess: () => {
+      notificationService.success(t('logoUpdated'));
       void queryClient.invalidateQueries({ queryKey: [COMPANY_KEY] });
       void queryClient.invalidateQueries({ queryKey: [LOGO_URL_KEY] });
     },

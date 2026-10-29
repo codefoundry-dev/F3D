@@ -172,6 +172,7 @@ export class CompaniesController {
   // ── Company Logo ──────────────────────────────────────────────────────────
 
   @Post(':id/logo')
+  @RequirePermissions('company.updateLogo')
   @UseInterceptors(FileInterceptor('file'))
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Upload company logo' })

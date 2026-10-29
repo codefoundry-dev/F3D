@@ -53,7 +53,7 @@ export function CompanyProfileHeaderCard({
     <img
       src={resolvedLogo}
       alt={company.legalName}
-      className="size-full rounded-full object-cover"
+      className="size-full rounded-full bg-white object-contain p-4 max-md:p-2"
     />
   ) : (
     <span className="flex size-full items-center justify-center rounded-full bg-gray-100 text-3xl font-semibold text-gray-600">

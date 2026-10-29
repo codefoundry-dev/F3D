@@ -205,6 +205,8 @@ export default function CompanyProfilePage() {
           )
         }
       />
+      {/* Where the logo is used (FOR-389) — the avatar above is the upload control. */}
+      <p className="-mt-2 px-1 text-xs text-gray-500">{t('logoPdfHint')}</p>
       {/* Phones: Invite user in the footer bar, the ⋮ actions in the top-bar ⋯ (B7). */}
       {isPhone && (
         <PageActions

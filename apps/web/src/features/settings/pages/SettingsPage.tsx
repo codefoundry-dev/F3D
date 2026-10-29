@@ -9,7 +9,9 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
-import { useUserRole } from '@/shared/role';
+import { useAuthStore } from '@/features/auth/state/auth.store';
+import { CompanyLogoCard } from '@/features/company-profile/buyer/components/CompanyLogoCard';
+import { usePermissions, useUserRole } from '@/shared/role';
 
 interface SettingsLinkProps {
   icon: React.ReactNode;
@@ -57,6 +59,10 @@ export default function SettingsPage() {
   const { t: tRoles } = useTranslation('roles');
   const navigate = useNavigate();
   const role = useUserRole();
+  const { has } = usePermissions();
+  const companyId = useAuthStore((s) => s.currentUser?.companyId);
+  // Logo for PO/invoice PDFs (FOR-389): granted to Company Admin + Procurement Officer.
+  const canManageLogo = Boolean(companyId) && has('company.updateLogo');
 
   // Surface the page title in the global app bar (breadcrumb trail).
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
@@ -122,6 +128,8 @@ export default function SettingsPage() {
           ))}
         </div>
       )}
+
+      {canManageLogo && companyId && <CompanyLogoCard companyId={companyId} />}
     </div>
   );
 }
