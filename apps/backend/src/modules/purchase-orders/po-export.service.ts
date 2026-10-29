@@ -338,12 +338,14 @@ export class PoExportService {
           ...(po.deliveryLocationName ? [`Deliver to: ${po.deliveryLocationName}`] : []),
         ],
       },
+      // Sized to the A4 printable width (515pt less cell padding and gaps) so nothing
+      // is scaled or clipped (FOR-388).
       columns: [
-        { header: 'Item', width: 200 },
-        { header: 'Qty', width: 60 },
-        { header: 'Unit', width: 60 },
-        { header: 'Unit Price', width: 100 },
-        { header: 'Total', width: 100 },
+        { header: 'Item', width: 165 },
+        { header: 'Qty', width: 40, align: 'right' },
+        { header: 'Unit', width: 45 },
+        { header: 'Unit Price', width: 100, align: 'right' },
+        { header: 'Total', width: 105, align: 'right' },
       ],
       rows: (po.lineItems ?? []).map((li) => ({
         Item: str(li.materialName ?? li.description ?? ''),
@@ -363,10 +365,10 @@ export class PoExportService {
             ? `Planned delivery: ${formatLongDate(po.plannedDeliveryDate)}`
             : 'No delivery schedule specified.',
           columns: [
-            { header: '#', width: 30 },
-            { header: 'Location', width: 200 },
-            { header: 'Date', width: 130 },
-            { header: 'Notes', width: 150 },
+            { header: '#', width: 25 },
+            { header: 'Location', width: 180 },
+            { header: 'Date', width: 110 },
+            { header: 'Notes', width: 152 },
           ],
           rows: (po.deliveries ?? []).map((d, i) => ({
             '#': str(d.sequence ?? i + 1),

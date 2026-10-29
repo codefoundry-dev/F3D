@@ -5,23 +5,26 @@ exports[`PoExportService single PO PDF template builds a stable PO PDF template 
   "columns": [
     {
       "header": "Item",
-      "width": 200,
+      "width": 165,
     },
     {
+      "align": "right",
       "header": "Qty",
-      "width": 60,
+      "width": 40,
     },
     {
       "header": "Unit",
-      "width": 60,
+      "width": 45,
     },
     {
+      "align": "right",
       "header": "Unit Price",
       "width": 100,
     },
     {
+      "align": "right",
       "header": "Total",
-      "width": 100,
+      "width": 105,
     },
   ],
   "date": "June 1, 2026",
@@ -67,19 +70,19 @@ exports[`PoExportService single PO PDF template builds a stable PO PDF template 
       "columns": [
         {
           "header": "#",
-          "width": 30,
+          "width": 25,
         },
         {
           "header": "Location",
-          "width": 200,
+          "width": 180,
         },
         {
           "header": "Date",
-          "width": 130,
+          "width": 110,
         },
         {
           "header": "Notes",
-          "width": 150,
+          "width": 152,
         },
       ],
       "emptyText": "Planned delivery: July 1, 2026",

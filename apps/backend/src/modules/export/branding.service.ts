@@ -78,16 +78,48 @@ export class BrandingService {
   }
 
   /**
-   * Fetch logo bytes from object storage. pdfkit only renders PNG and JPEG, so any
-   * other format (SVG, WebP, …) is skipped rather than risk a render error.
+   * Fetch logo bytes from object storage in a format pdfkit can draw (FOR-389).
+   * pdfkit only renders PNG and JPEG, but uploads also accept SVG and WebP, and
+   * keys can lack an extension (or be `.jfif`) — so the format is sniffed from the
+   * bytes, not the key, and anything that isn't PNG/JPEG is rasterised to PNG.
    */
   private async loadLogoBytes(key: string): Promise<Buffer | undefined> {
-    if (!/\.(png|jpe?g)$/i.test(key)) return undefined;
+    let body: Buffer | undefined;
     try {
-      const { body } = await this.storage.getObject(key);
-      return body ?? undefined;
+      body = (await this.storage.getObject(key)).body ?? undefined;
     } catch {
       return undefined;
     }
+    if (!body?.length) return undefined;
+    if (isPng(body) || isJpeg(body)) return body;
+    return rasteriseLogo(body);
+  }
+}
+
+function isPng(buf: Buffer): boolean {
+  return buf.length >= 4 && buf.readUInt32BE(0) === 0x89504e47;
+}
+
+function isJpeg(buf: Buffer): boolean {
+  return buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+}
+
+/** Bounding box for rasterised logos — 4× the 120×36pt header slot, so print stays crisp. */
+const LOGO_RASTER_BOX = { width: 480, height: 144 } as const;
+
+/**
+ * Convert an SVG/WebP/other image to PNG with sharp. sharp is a native module and
+ * is loaded lazily: if it can't load, or the bytes aren't an image, the caller
+ * falls back to the text wordmark rather than failing the document.
+ */
+async function rasteriseLogo(buf: Buffer): Promise<Buffer | undefined> {
+  try {
+    const { default: sharp } = await import('sharp');
+    return await sharp(buf, { density: 300 })
+      .resize({ ...LOGO_RASTER_BOX, fit: 'inside', withoutEnlargement: true })
+      .png()
+      .toBuffer();
+  } catch {
+    return undefined;
   }
 }
