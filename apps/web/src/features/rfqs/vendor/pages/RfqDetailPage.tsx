@@ -27,10 +27,17 @@ export default function RfqDetailPage() {
   const { canCreate, canEdit } = useCanRespond(rfq);
   const isPhone = useIsPhone();
 
+  // App-bar breadcrumb: RFQ Management › RFQ-XXXX (FOR-393).
   useEffect(() => {
-    if (rfq) setPageTitle(rfq.rfqNumber ?? rfq.id);
+    if (rfq) {
+      const label = rfq.rfqNumber ?? rfq.id;
+      setPageTitle(label, null, ROUTES.rfqs, [
+        { label: t('list.title'), to: ROUTES.rfqs },
+        { label },
+      ]);
+    }
     return () => setPageTitle(null);
-  }, [rfq, setPageTitle]);
+  }, [rfq, setPageTitle, t]);
 
   if (isLoading) {
     return (

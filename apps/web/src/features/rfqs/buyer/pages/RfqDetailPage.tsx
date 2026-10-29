@@ -31,10 +31,18 @@ export default function RfqDetailPage() {
   const { data: rfq, isLoading, isError } = useRfq(id ?? '');
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
 
+  // App-bar breadcrumb: RFQ Management › RFQ-XXXX, so the list is one click
+  // away on desktop and the phone top bar gets a back arrow (FOR-393).
   useEffect(() => {
-    if (rfq) setPageTitle(rfq.projectName);
+    if (rfq) {
+      const label = rfq.rfqNumber ?? rfq.projectName;
+      setPageTitle(label, null, ROUTES.rfqs, [
+        { label: t('list.title'), to: ROUTES.rfqs },
+        { label },
+      ]);
+    }
     return () => setPageTitle(null);
-  }, [rfq, setPageTitle]);
+  }, [rfq, setPageTitle, t]);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const validTabs: RfqTab[] = [
