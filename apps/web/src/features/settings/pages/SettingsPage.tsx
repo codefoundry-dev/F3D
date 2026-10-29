@@ -13,6 +13,8 @@ import { useAuthStore } from '@/features/auth/state/auth.store';
 import { CompanyLogoCard } from '@/features/company-profile/buyer/components/CompanyLogoCard';
 import { usePermissions, useUserRole } from '@/shared/role';
 
+import { ProcurementAutomationCard } from '../components/ProcurementAutomationCard';
+
 interface SettingsLinkProps {
   icon: React.ReactNode;
   title: string;
@@ -130,6 +132,10 @@ export default function SettingsPage() {
       )}
 
       {canManageLogo && companyId && <CompanyLogoCard companyId={companyId} />}
+
+      {role === UserRole.COMPANY_ADMIN && companyId && (
+        <ProcurementAutomationCard companyId={companyId} />
+      )}
     </div>
   );
 }

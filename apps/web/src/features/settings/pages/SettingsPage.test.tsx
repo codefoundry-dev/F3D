@@ -46,6 +46,12 @@ vi.mock('@/features/company-profile/buyer/components/CompanyLogoCard', () => ({
   ),
 }));
 
+vi.mock('../components/ProcurementAutomationCard', () => ({
+  ProcurementAutomationCard: ({ companyId }: { companyId: string }) => (
+    <div data-testid="procurement-automation-card">{companyId}</div>
+  ),
+}));
+
 import SettingsPage from './SettingsPage';
 
 describe('SettingsPage', () => {
@@ -53,6 +59,20 @@ describe('SettingsPage', () => {
     vi.clearAllMocks();
     mockPermissions.keys = [];
     mockCompanyId.value = 'company-1';
+  });
+
+  describe('procurement automation card (FOR-396)', () => {
+    it('shows the MR → RFQ automation toggle to a Company Admin', () => {
+      mockUseUserRole.mockReturnValue(UserRole.COMPANY_ADMIN);
+      render(<SettingsPage />);
+      expect(screen.getByTestId('procurement-automation-card')).toHaveTextContent('company-1');
+    });
+
+    it('hides it from a Procurement Officer', () => {
+      mockUseUserRole.mockReturnValue(UserRole.PROCUREMENT_OFFICER);
+      render(<SettingsPage />);
+      expect(screen.queryByTestId('procurement-automation-card')).not.toBeInTheDocument();
+    });
   });
 
   describe('company logo card (FOR-389)', () => {

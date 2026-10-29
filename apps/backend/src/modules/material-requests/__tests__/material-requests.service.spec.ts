@@ -67,6 +67,8 @@ function makeService() {
     },
     rfq: { findMany: jest.fn().mockResolvedValue([]) },
     purchaseOrder: { findMany: jest.fn().mockResolvedValue([]) },
+    // FOR-396 setting; off by default so approve doesn't auto-convert.
+    company: { findUnique: jest.fn().mockResolvedValue({ autoConvertApprovedMrToRfq: false }) },
     project: { findUnique: jest.fn() },
     material: { findMany: jest.fn().mockResolvedValue([]) },
     projectLocation: { findMany: jest.fn().mockResolvedValue([]) },
@@ -82,6 +84,7 @@ function makeService() {
     };
     rfq: { count: jest.Mock };
     purchaseOrder: { count: jest.Mock };
+    company: { findUnique: jest.Mock };
     project: { findUnique: jest.Mock };
     material: { findMany: jest.Mock };
     projectLocation: { findMany: jest.Mock };
@@ -1207,6 +1210,66 @@ describe('MaterialRequestsService', () => {
   });
 
   // ── convertToRfq ──────────────────────────────────────────────────────────────
+  describe('approve → auto-convert to RFQ (FOR-396)', () => {
+    const submitted = {
+      id: 'mr-1',
+      status: MaterialRequestStatus.SUBMITTED,
+      companyId: 'company-1',
+      requestedById: 'fm-1',
+      deliveryLocationId: 'loc-hdr',
+      lineItems: [{ id: 'li-1', materialId: 'mat-1', quantity: 10, deliveryLocationId: null }],
+    };
+
+    it('creates the draft RFQ when the company opted in', async () => {
+      const { service, prisma, tx } = makeService();
+      prisma.company.findUnique.mockResolvedValue({ autoConvertApprovedMrToRfq: true });
+      prisma.materialRequest.findUnique
+        .mockResolvedValueOnce(submitted)
+        .mockResolvedValueOnce(makeMr({ status: MaterialRequestStatus.APPROVED })) // convert read
+        .mockResolvedValue(makeMr({ status: MaterialRequestStatus.CONVERTED }));
+
+      await service.approve('mr-1', officer);
+
+      expect(tx.rfq.create).toHaveBeenCalledTimes(1);
+      expect(tx.rfq.create.mock.calls[0][0].data.createdByUserId).toBe(officer.id);
+    });
+
+    it('leaves the MR approved when the company has not opted in', async () => {
+      const { service, prisma, tx } = makeService();
+      prisma.materialRequest.findUnique
+        .mockResolvedValueOnce(submitted)
+        .mockResolvedValue(makeMr({ status: MaterialRequestStatus.APPROVED }));
+
+      await service.approve('mr-1', officer);
+
+      expect(tx.rfq.create).not.toHaveBeenCalled();
+    });
+
+    it('skips the RFQ when stock covered every line', async () => {
+      const { service, prisma, tx, inventory } = makeService();
+      prisma.company.findUnique.mockResolvedValue({ autoConvertApprovedMrToRfq: true });
+      inventory.issueOut.mockResolvedValue({ issued: 10, movement: { id: 'mov-1' } });
+      prisma.materialRequest.findUnique
+        .mockResolvedValueOnce(submitted)
+        .mockResolvedValue(makeMr({ status: MaterialRequestStatus.APPROVED }));
+
+      await service.approve('mr-1', officer);
+
+      expect(tx.rfq.create).not.toHaveBeenCalled();
+    });
+
+    it('keeps the approval when the auto-convert fails', async () => {
+      const { service, prisma, tx } = makeService();
+      prisma.company.findUnique.mockResolvedValue({ autoConvertApprovedMrToRfq: true });
+      tx.rfq.create.mockRejectedValueOnce(new Error('boom'));
+      prisma.materialRequest.findUnique
+        .mockResolvedValueOnce(submitted)
+        .mockResolvedValue(makeMr({ status: MaterialRequestStatus.APPROVED }));
+
+      await expect(service.approve('mr-1', officer)).resolves.toBeDefined();
+    });
+  });
+
   describe('convertToRfq', () => {
     it('creates a draft RFQ from an APPROVED MR, links it, and audits', async () => {
       const { service, prisma, tx, audit } = makeService();

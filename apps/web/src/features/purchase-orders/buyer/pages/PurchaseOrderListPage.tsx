@@ -83,7 +83,14 @@ const ALL_COLUMNS = PO_CA_COLUMNS;
 const COLUMN_ORDER = ALL_COLUMNS.map((c) => c.key);
 
 /** PO statuses for which the "Change PO" kebab action is offered (FLOW 3). */
-const CHANGEABLE_PO_STATUSES = ['SENT', 'ACKNOWLEDGED', 'ACCEPTED'];
+// Accepted POs move on to scheduled / late by themselves (FOR-396).
+const CHANGEABLE_PO_STATUSES = [
+  'SENT',
+  'ACKNOWLEDGED',
+  'ACCEPTED',
+  'SCHEDULED_FOR_DELIVERY',
+  'LATE_FOR_DELIVERY',
+];
 
 /* ─── Store ────────────────────────────────────────────────────────────────── */
 

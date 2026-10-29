@@ -747,6 +747,7 @@
     "accepted": "Accepted by vendor",
     "declinedByVendor": "Declined by vendor",
     "scheduled": "Scheduled for delivery",
+    "markedLate": "Late for delivery",
     "partiallyDelivered": "Partially delivered",
     "delivered": "Delivered",
     "archived": "Archived",

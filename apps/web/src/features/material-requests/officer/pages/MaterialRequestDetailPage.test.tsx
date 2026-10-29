@@ -280,7 +280,7 @@ describe('MaterialRequestDetailPage', () => {
     });
     render(<MaterialRequestDetailPage />);
     fireEvent.click(screen.getByTestId('mr-approve'));
-    expect(approveMutate).toHaveBeenCalledWith('mr-1');
+    expect(approveMutate).toHaveBeenCalledWith('mr-1', expect.any(Object));
   });
 
   it('opens the decline modal and submits the reason', () => {

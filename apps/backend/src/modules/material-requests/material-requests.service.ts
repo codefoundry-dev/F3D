@@ -454,7 +454,41 @@ export class MaterialRequestsService {
       issued,
     });
 
+    await this.autoConvertToRfq(mr, issued, user);
+
     return this.get(id, user);
+  }
+
+  /**
+   * FOR-396: a company that opted in gets the approved MR's draft RFQ straight
+   * away, so buyers don't have to press "Convert to RFQ". This is skipped when
+   * stock covered every line (nothing is left to buy). A failure leaves the MR
+   * approved and convertible by hand; the approval itself has already committed.
+   */
+  private async autoConvertToRfq(
+    mr: { id: string; companyId: string; lineItems: { id: string; quantity: number }[] },
+    issued: { lineId: string; issued: number }[],
+    user: AuthenticatedUser,
+  ): Promise<void> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: mr.companyId },
+      select: { autoConvertApprovedMrToRfq: true },
+    });
+    if (!company?.autoConvertApprovedMrToRfq) return;
+
+    const issuedByLine = new Map(issued.map((i) => [i.lineId, i.issued]));
+    const coveredFromStock = mr.lineItems.every(
+      (li) => (issuedByLine.get(li.id) ?? 0) >= li.quantity,
+    );
+    if (coveredFromStock) return;
+
+    try {
+      await this.convertToRfq(mr.id, user);
+    } catch (err) {
+      this.logger.warn(
+        `Auto-convert of approved MR ${mr.id} to RFQ failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   // ── Decline (SUBMITTED → DECLINED, reason required) ───────────────────────────

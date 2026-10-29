@@ -170,11 +170,12 @@ export function useAwardQuote() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ rfqId, quoteId }: { rfqId: string; quoteId: string }) =>
-      awardQuote(rfqId, quoteId, { skipErrorHandler: true }),
+      awardQuote(rfqId, quoteId),
     onSuccess: (_result, { rfqId }) => {
       void queryClient.invalidateQueries({ queryKey: ['rfqs', rfqId] });
       void queryClient.invalidateQueries({ queryKey: ['rfqs'] });
       void queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }

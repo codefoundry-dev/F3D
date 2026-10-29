@@ -9,6 +9,7 @@ export {
   useUpdateQuoteLineItemStatuses,
   useCreateDraftPoFromQuote,
 } from './useRfqs';
+export { useApproveQuote } from './useApproveQuote';
 export { useMessageThread } from './useMessageThread';
 export type {
   MessageContextType,

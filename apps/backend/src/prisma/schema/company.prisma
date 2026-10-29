@@ -51,6 +51,8 @@ model Company {
   // invoices-<key>@INVOICE_INBOUND_DOMAIN. Generated lazily the first time the
   // team views their intake address.
   invoiceInboxKey String?     @unique @map("invoice_inbox_key") @db.VarChar(32)
+  // Approving a material request also converts it to a draft RFQ (FOR-396).
+  autoConvertApprovedMrToRfq Boolean @default(false) @map("auto_convert_approved_mr_to_rfq")
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 

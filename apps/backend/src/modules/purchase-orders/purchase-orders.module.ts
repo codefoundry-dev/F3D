@@ -9,6 +9,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { StorageModule } from '../storage/storage.module';
 
 import { PoChangeService } from './po-change.service';
+import { PoDeliveryScheduleService } from './po-delivery-schedule.service';
 import { PoDocumentService } from './po-document.service';
 import { PoExportService } from './po-export.service';
 import { PoStatusService } from './po-status.service';
@@ -34,6 +35,7 @@ import { PurchaseOrdersService } from './purchase-orders.service';
     PoStatusService,
     PoValidationService,
     PoChangeService,
+    PoDeliveryScheduleService,
   ],
   // PoExportService: the invoices module serves the linked PO's PDF through the
   // invoice scope (FOR-355).

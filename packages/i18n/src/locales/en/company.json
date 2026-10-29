@@ -114,6 +114,11 @@
     "upload": "Upload logo",
     "change": "Change logo"
   },
+  "automationCard": {
+    "title": "Procurement automation",
+    "mrToRfq": "Create a draft RFQ automatically when a material request is approved",
+    "saved": "Setting saved"
+  },
 
   "editProfile": "Edit Profile",
   "editCompanyDetails": "Edit company details",

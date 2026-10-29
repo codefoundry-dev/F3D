@@ -51,7 +51,14 @@ const GUEST_TABS: PoTab[] = ['details', 'lineItems'];
 const ACTIONABLE_STATUSES = ['SENT', 'ACKNOWLEDGED'];
 
 /** Statuses for which the backend accepts a change proposal (po-change.service). */
-const CHANGEABLE_STATUSES = ['SENT', 'ACKNOWLEDGED', 'ACCEPTED'];
+// Accepted POs move on to scheduled / late by themselves (FOR-396).
+const CHANGEABLE_STATUSES = [
+  'SENT',
+  'ACKNOWLEDGED',
+  'ACCEPTED',
+  'SCHEDULED_FOR_DELIVERY',
+  'LATE_FOR_DELIVERY',
+];
 
 /**
  * Public view of a Purchase Order reached from a tokenised email link (FOR-246).

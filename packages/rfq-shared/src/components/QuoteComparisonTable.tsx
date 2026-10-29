@@ -1,5 +1,4 @@
 import {
-  approveQuote,
   awardSplit,
   createBulkOrder,
   createPurchaseOrder,
@@ -38,11 +37,8 @@ import { useNavigate } from 'react-router-dom';
 
 import { PO_CREATE_ROUTE, RFQ_ROUTES } from '../constants/routes';
 import { useDropdown } from '../hooks/useDropdown';
-import {
-  useCreateDraftPoFromQuote,
-  useRfqQuoteComparison,
-  useUpdateQuoteLineItemStatuses,
-} from '../hooks/useRfqs';
+import { useApproveQuote } from '../hooks/useApproveQuote';
+import { useRfqQuoteComparison, useUpdateQuoteLineItemStatuses } from '../hooks/useRfqs';
 import { buildSplitAllocations, findOverAllocatedLineIds } from '../utils/splitAward';
 
 import { DeliveryVarianceBadge } from './DeliveryVarianceBadge';
@@ -229,21 +225,14 @@ export function QuoteComparisonTable({
   const [orderQuantities, setOrderQuantities] = useState<Map<string, string>>(new Map());
   const [openNoteCell, setOpenNoteCell] = useState<string | null>(null);
   const [startOrder, setStartOrder] = useState<StartOrderKind | null>(null);
-  /** Quote that was just approved from the footer — drives the post-approve PO prompt. */
-  const [approvedPrompt, setApprovedPrompt] = useState<string | null>(null);
 
   const groupDropdown = useDropdown();
   const projectDropdown = useDropdown();
 
   const lineStatusMutation = useUpdateQuoteLineItemStatuses(rfqId);
 
-  const approveMutation = useMutation({
-    mutationFn: (quoteId: string) => approveQuote(rfqId, quoteId),
-    onSuccess: (_r, quoteId) => {
-      void queryClient.invalidateQueries({ queryKey: ['rfqs', rfqId] });
-      setApprovedPrompt(quoteId);
-    },
-  });
+  // Approving awards the quote and opens its new draft PO (FOR-396).
+  const approveQuote = useApproveQuote(rfqId);
 
   const declineMutation = useMutation({
     mutationFn: (quoteId: string) => declineQuote(rfqId, quoteId),
@@ -580,23 +569,6 @@ export function QuoteComparisonTable({
     } else {
       createDraftMutation.mutate('bulk');
     }
-  };
-
-  // The post-approve prompt creates a draft PO for the whole approved quote.
-  const approvedQuote = approvedPrompt
-    ? (data?.vendors.find((v) => v.quoteResponseId === approvedPrompt) ?? null)
-    : null;
-
-  const approvedDraftMutation = useCreateDraftPoFromQuote(rfqId);
-
-  const createApprovedDraft = (quoteResponseId: string) => {
-    approvedDraftMutation.mutate(quoteResponseId, {
-      onSuccess: () => {
-        toast.success(t('startOrder.poDraftCreated'));
-        setApprovedPrompt(null);
-      },
-      onError: () => toast.error(t('startOrder.createError')),
-    });
   };
 
   // ── Early states ─────────────────────────────────────────────────────────────
@@ -1424,8 +1396,8 @@ export function QuoteComparisonTable({
                               </button>
                               <button
                                 type="button"
-                                disabled={approveMutation.isPending}
-                                onClick={() => approveMutation.mutate(vendor.quoteResponseId)}
+                                disabled={approveQuote.isPending}
+                                onClick={() => approveQuote.approve(vendor.quoteResponseId)}
                                 className="flex items-center gap-1.5 h-8 px-3 bg-card border border-black rounded-xl text-sm font-medium text-black hover:bg-black/5 transition-colors disabled:opacity-50"
                               >
                                 <CheckCircleIcon className="w-4 h-4" />
@@ -1492,23 +1464,6 @@ export function QuoteComparisonTable({
           onStartNow={() => startOrderNow(startOrder)}
           onCreateDraft={() => createDraftMutation.mutate(startOrder)}
           onClose={() => setStartOrder(null)}
-        />
-      )}
-
-      {approvedQuote && (
-        <StartOrderModal
-          kind="po"
-          isCreating={approvedDraftMutation.isPending}
-          onStartNow={() => {
-            navigate(PO_CREATE_ROUTE, {
-              state: {
-                mode: 'from-rfq',
-                rfqSource: { rfqId, quoteResponseId: approvedQuote.quoteResponseId },
-              },
-            });
-          }}
-          onCreateDraft={() => createApprovedDraft(approvedQuote.quoteResponseId)}
-          onClose={() => setApprovedPrompt(null)}
         />
       )}
     </div>

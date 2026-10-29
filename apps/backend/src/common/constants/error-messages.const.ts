@@ -125,6 +125,7 @@ export const ERR = {
     coverageOnlyDraft: errors.rfqs.coverageOnlyDraft,
     coverageExceedsLineQuantity: errors.rfqs.coverageExceedsLineQuantity,
     awardSplitEmpty: errors.rfqs.awardSplitEmpty,
+    awardNoPurchasableLines: errors.rfqs.awardNoPurchasableLines,
     awardSplitDuplicateLine: errors.rfqs.awardSplitDuplicateLine,
     awardSplitLineNotInRfq: errors.rfqs.awardSplitLineNotInRfq,
     awardSplitLineNotQuoted: errors.rfqs.awardSplitLineNotQuoted,

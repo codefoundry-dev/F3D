@@ -30,12 +30,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { ApprovalsService } from '../approvals/approvals.service';
 import { AuditService } from '../audit/audit.service';
+import { EXPECTED_DELIVERY_SELECT } from '../deliveries/expected-delivery.util';
 import { BrandingService } from '../export/branding.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { NotificationService } from '../notification-feed/notification.service';
 import { SYSTEM_SENDER } from '../notification-feed/notification.types';
 import { EmailService } from '../notifications/email.service';
 
+import { acceptedStatusFor } from './po-delivery-schedule.service';
 import { PoExportService } from './po-export.service';
 import { assertTransition } from './po-state-machine';
 import { DeclinePoDto, IssuePoDto, ReceivePoDto } from './po-status.dto';
@@ -572,7 +574,7 @@ export class PoStatusService {
   ) {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id },
-      select: { id: true, status: true, vendorId: true },
+      select: { id: true, status: true, vendorId: true, ...EXPECTED_DELIVERY_SELECT },
     });
 
     if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
@@ -586,9 +588,10 @@ export class PoStatusService {
       throw new BadRequestException(ERR.purchaseOrders.cannotAccept(po.status));
     }
 
-    assertTransition(po.status, PrismaPoStatus.ACCEPTED);
+    const target = acceptedStatusFor(po);
+    assertTransition(po.status, target);
     const updateData: Record<string, unknown> = {
-      status: PrismaPoStatus.ACCEPTED,
+      status: target,
       lastModifiedById: user.id,
     };
 
@@ -612,6 +615,15 @@ export class PoStatusService {
       po.status,
       PrismaPoStatus.ACCEPTED,
     );
+    if (target === PrismaPoStatus.SCHEDULED_FOR_DELIVERY) {
+      await this.auditTransition(
+        AuditAction.PO_SCHEDULED,
+        id,
+        user,
+        PrismaPoStatus.ACCEPTED,
+        PrismaPoStatus.SCHEDULED_FOR_DELIVERY,
+      );
+    }
 
     return this.purchaseOrdersService.getPurchaseOrder(id, user);
   }
@@ -621,13 +633,14 @@ export class PoStatusService {
   /**
    * Vendor accepts a PO from the tokenised portal link (FOR-247). Token-authorised
    * and user-less (see {@link confirmPurchaseOrderViaToken}); otherwise mirrors
-   * {@link acceptPurchaseOrder}: ACKNOWLEDGED → ACCEPTED with optional
+   * {@link acceptPurchaseOrder}: ACKNOWLEDGED → ACCEPTED (or straight on to
+   * SCHEDULED_FOR_DELIVERY when it has a delivery date) with optional
    * payment-terms / warehouse overrides.
    */
   async acceptPurchaseOrderViaToken(poId: string, dto: VendorAcceptPoDto | undefined) {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id: poId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, ...EXPECTED_DELIVERY_SELECT },
     });
 
     if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
@@ -636,9 +649,10 @@ export class PoStatusService {
       throw new BadRequestException(ERR.purchaseOrders.cannotAccept(po.status));
     }
 
-    assertTransition(po.status, PrismaPoStatus.ACCEPTED);
+    const target = acceptedStatusFor(po);
+    assertTransition(po.status, target);
     const updateData: Record<string, unknown> = {
-      status: PrismaPoStatus.ACCEPTED,
+      status: target,
       lastModifiedById: null,
     };
     if (dto?.paymentTermsDays !== undefined) updateData.paymentTermsDays = dto.paymentTermsDays;
@@ -652,6 +666,14 @@ export class PoStatusService {
       po.status,
       PrismaPoStatus.ACCEPTED,
     );
+    if (target === PrismaPoStatus.SCHEDULED_FOR_DELIVERY) {
+      await this.auditGuestTransition(
+        AuditAction.PO_SCHEDULED,
+        poId,
+        PrismaPoStatus.ACCEPTED,
+        PrismaPoStatus.SCHEDULED_FOR_DELIVERY,
+      );
+    }
 
     return this.purchaseOrdersService.getPurchaseOrderById(poId);
   }

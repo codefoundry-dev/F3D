@@ -22,6 +22,7 @@ export {
   useRfqQuoteComparison,
   useRfqEmailLog,
   useAwardQuote,
+  useApproveQuote,
   useQuoteDetail,
   useUpdateQuoteLineItemStatuses,
   useCreateDraftPoFromQuote,

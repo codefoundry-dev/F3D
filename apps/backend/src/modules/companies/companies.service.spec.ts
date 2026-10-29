@@ -331,6 +331,33 @@ describe('CompaniesService', () => {
       });
       expect(result.legalName).toBe('Acme Updated');
     });
+
+    it('rejects a non-super-admin patching another company', async () => {
+      prisma.company.findUnique.mockResolvedValue({ id: 'c2', _count: { users: 1 } });
+      const officer = { id: 'u3', role: UserRole.PROCUREMENT_OFFICER, companyId: 'c1' };
+      await expect(service.updateCompany('c2', { legalName: 'X' }, officer)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(prisma.company.update).not.toHaveBeenCalled();
+    });
+
+    it('lets a Company Admin turn on MR → RFQ auto-convert (FOR-396)', async () => {
+      prisma.company.findUnique.mockResolvedValue({ id: 'c1', _count: { users: 1 } });
+      prisma.company.update.mockResolvedValue({ id: 'c1', autoConvertApprovedMrToRfq: true });
+      await service.updateCompany('c1', { autoConvertApprovedMrToRfq: true }, companyAdmin);
+      expect(prisma.company.update).toHaveBeenCalledWith({
+        where: { id: 'c1' },
+        data: { autoConvertApprovedMrToRfq: true },
+      });
+    });
+
+    it('keeps the auto-convert setting away from other roles of the company', async () => {
+      prisma.company.findUnique.mockResolvedValue({ id: 'c1', _count: { users: 1 } });
+      const officer = { id: 'u3', role: UserRole.PROCUREMENT_OFFICER, companyId: 'c1' };
+      await expect(
+        service.updateCompany('c1', { autoConvertApprovedMrToRfq: true }, officer),
+      ).rejects.toThrow(ForbiddenException);
+    });
   });
 
   describe('getCompanyVendors', () => {

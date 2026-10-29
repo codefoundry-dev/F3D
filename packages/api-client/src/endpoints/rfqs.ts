@@ -155,6 +155,8 @@ export interface RfqDetail {
    * have not submitted a quote yet.
    */
   myQuoteResponseId?: string | null;
+  /** Buyer-only: non-cancelled POs raised from this RFQ, oldest first (FOR-396). */
+  purchaseOrders?: { id: string; poNumber: string; status: string }[];
   rfqType: string | null;
   paymentTerms: string | null;
   pickUp: boolean;
@@ -243,6 +245,8 @@ export interface AwardQuoteResult {
   /** Id of the draft PO auto-created from the awarded quote — redirect target. */
   purchaseOrderId: string;
   poNumber: string;
+  /** Every draft PO created — one per project on a multi-project RFQ (FOR-396). */
+  purchaseOrders: { id: string; poNumber: string }[];
 }
 
 /**

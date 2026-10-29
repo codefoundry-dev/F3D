@@ -7,6 +7,7 @@ import {
   formatDateTime,
   PageActions,
   Spinner,
+  toast,
 } from '@forethread/ui-components';
 import ChevronRightIcon from '@forethread/ui-components/assets/icons/chevron-right.svg?react';
 import { useEffect, useState } from 'react';
@@ -95,7 +96,20 @@ export default function MaterialRequestDetailPage() {
     isOwnRequest &&
     (has('materialRequest.approve') || has('materialRequest.decline'));
 
-  const handleApprove = () => approve.mutate(mr.id);
+  // A company with MR → RFQ auto-convert on gets the draft RFQ with the
+  // approval (FOR-396); say so, since the MR jumps straight to Converted.
+  const handleApprove = () =>
+    approve.mutate(mr.id, {
+      onSuccess: (updated) => {
+        if (updated.convertedToRfq) {
+          toast.success(
+            t('detail.actions.autoConvertedToRfq', {
+              rfqNumber: updated.convertedToRfq.rfqNumber,
+            }),
+          );
+        }
+      },
+    });
 
   const handleDecline = (reason: string) =>
     decline.mutate({ id: mr.id, reason }, { onSuccess: () => setShowDecline(false) });

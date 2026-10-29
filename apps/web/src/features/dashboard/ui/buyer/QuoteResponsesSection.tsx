@@ -1,6 +1,7 @@
-import { approveQuote, declineQuote } from '@forethread/api-client';
+import { declineQuote } from '@forethread/api-client';
 import type { QuoteResponseItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { useApproveQuote } from '@forethread/rfq-shared';
 import { QuoteResponseStatus } from '@forethread/shared-types/client';
 import {
   Badge,
@@ -50,13 +51,8 @@ export function QuoteResponsesSection({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const approveMutation = useMutation({
-    mutationFn: ({ rfqId, quoteId }: { rfqId: string; quoteId: string }) =>
-      approveQuote(rfqId, quoteId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['dashboard', 'po-ca'] });
-    },
-  });
+  // Approving awards the quote and opens its new draft PO (FOR-396).
+  const approveQuote = useApproveQuote();
 
   const declineMutation = useMutation({
     mutationFn: ({ rfqId, quoteId }: { rfqId: string; quoteId: string }) =>
@@ -106,7 +102,7 @@ export function QuoteResponsesSection({
           filteredItems.map((item) => {
             const isPending = item.status === (QuoteResponseStatus.PENDING as string);
             const isMutating =
-              (approveMutation.isPending && approveMutation.variables?.quoteId === item.id) ||
+              approveQuote.pendingQuoteId === item.id ||
               (declineMutation.isPending && declineMutation.variables?.quoteId === item.id);
             const discount = discountLabel(item.discountPercent, item.discountAmount);
 
@@ -154,9 +150,7 @@ export function QuoteResponsesSection({
                         type="button"
                         className="flex items-center gap-1.5 h-8 px-3 py-2 border border-black rounded-xl text-sm font-medium text-black hover:bg-black/5 transition-colors disabled:opacity-50"
                         disabled={isMutating}
-                        onClick={() =>
-                          approveMutation.mutate({ rfqId: item.rfqId, quoteId: item.id })
-                        }
+                        onClick={() => approveQuote.approve(item.id, item.rfqId)}
                       >
                         <CheckCircleIcon className="w-[18px] h-[18px]" />
                         {t('quoteResponses.approve')}

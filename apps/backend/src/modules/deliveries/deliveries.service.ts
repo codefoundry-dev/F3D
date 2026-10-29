@@ -39,6 +39,7 @@ import {
   ListDeliveryReportQueryDto,
   ListExpectedDeliveryQueryDto,
 } from './deliveries.dto';
+import { expectedDeliveryBefore, expectedDeliveryDateOf } from './expected-delivery.util';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -301,7 +302,7 @@ export class DeliveriesService {
     // A delivery expected today is not overdue until tomorrow.
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
-    if (query.overdue) where.AND = [this.overdueWhere(startOfToday)];
+    if (query.overdue) where.AND = [expectedDeliveryBefore(startOfToday)];
 
     const page = query.page && query.page > 0 ? query.page : DEFAULT_PAGE;
     const limit = query.limit && query.limit > 0 ? query.limit : DEFAULT_LIMIT;
@@ -338,7 +339,7 @@ export class DeliveriesService {
     ]);
 
     const items: ExpectedDeliveryListItem[] = rows.map((po) => {
-      const expected = this.expectedDateOf(po);
+      const expected = expectedDeliveryDateOf(po);
       return {
         purchaseOrderId: po.id,
         poNumber: po.poNumber,
@@ -365,56 +366,6 @@ export class DeliveriesService {
     return {
       items,
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
-    };
-  }
-
-  /**
-   * Expected-delivery date of a PO: plannedDeliveryDate (required by the PO
-   * wizard, and what the delivery portal shows as "Expected delivery date"),
-   * falling back to deadlineEnd, then the earliest delivery-schedule row, then
-   * the earliest line-level expected date. Must stay in lockstep with
-   * overdueWhere(), which re-expresses this coalesce as a SQL predicate.
-   */
-  private expectedDateOf(po: {
-    plannedDeliveryDate: Date | null;
-    deadlineEnd: Date | null;
-    deliveries: { deliveryDate: Date | null }[];
-    lineItems: { expectedDeliveryDate: Date | null }[];
-  }): Date | null {
-    const earliest = (dates: (Date | null)[]) =>
-      dates.reduce<Date | null>((acc, d) => (d && (!acc || d < acc) ? d : acc), null);
-    return (
-      po.plannedDeliveryDate ??
-      po.deadlineEnd ??
-      earliest(po.deliveries.map((d) => d.deliveryDate)) ??
-      earliest(po.lineItems.map((li) => li.expectedDeliveryDate))
-    );
-  }
-
-  /**
-   * SQL form of `expectedDateOf(po) < before`, one OR branch per coalesce level
-   * (an earlier level being null is what admits the next). "Earliest date <
-   * before" is equivalent to "some date < before", which keeps the schedule-row
-   * and line-level branches expressible as `some`.
-   */
-  private overdueWhere(before: Date): Prisma.PurchaseOrderWhereInput {
-    const noScheduleDate = { deliveries: { none: { deliveryDate: { not: null } } } } as const;
-    return {
-      OR: [
-        { plannedDeliveryDate: { lt: before } },
-        { plannedDeliveryDate: null, deadlineEnd: { lt: before } },
-        {
-          plannedDeliveryDate: null,
-          deadlineEnd: null,
-          deliveries: { some: { deliveryDate: { lt: before } } },
-        },
-        {
-          plannedDeliveryDate: null,
-          deadlineEnd: null,
-          ...noScheduleDate,
-          lineItems: { some: { expectedDeliveryDate: { lt: before } } },
-        },
-      ],
     };
   }
 

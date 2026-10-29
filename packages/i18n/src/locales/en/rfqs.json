@@ -121,7 +121,9 @@
     "editResponse": "Edit Response",
     "createDraftPo": "Create draft PO",
     "creatingDraftPo": "Creating draft PO…",
-    "draftPoCreated": "Draft PO {{poNumber}} created"
+    "draftPoCreated": "Draft PO {{poNumber}} created",
+    "draftPosCreated": "{{count}} draft POs created: {{poNumbers}}",
+    "viewPo": "View {{poNumber}}"
   },
   "manageVendors": {
     "title": "Select vendors",

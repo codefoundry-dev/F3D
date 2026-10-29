@@ -42,6 +42,8 @@ export interface UpdateCompanyDto {
   website?: string;
   status?: CompanyStatus;
   specialisations?: string[];
+  /** Approving a material request also creates its draft RFQ (FOR-396). Company Admin only. */
+  autoConvertApprovedMrToRfq?: boolean;
 }
 
 export interface CompanyListParams {
@@ -66,6 +68,8 @@ export interface CompanyResponse {
   logoUrl: string | null;
   status: string;
   specialisations: string[];
+  /** FOR-396 procurement automation setting. */
+  autoConvertApprovedMrToRfq?: boolean;
   createdAt: string;
   updatedAt: string;
   _count?: { users: number };

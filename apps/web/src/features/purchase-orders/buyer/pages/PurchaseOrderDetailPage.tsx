@@ -45,7 +45,14 @@ import { SplitPoSection } from '../components/SplitPoSection';
 import { useProjectDetail, useProposePoChange } from '../services/purchase-orders.service';
 
 /** Statuses for which the backend accepts a change proposal (po-change.service). */
-const CHANGEABLE_STATUSES = ['SENT', 'ACKNOWLEDGED', 'ACCEPTED'];
+// Accepted POs move on to scheduled / late by themselves (FOR-396).
+const CHANGEABLE_STATUSES = [
+  'SENT',
+  'ACKNOWLEDGED',
+  'ACCEPTED',
+  'SCHEDULED_FOR_DELIVERY',
+  'LATE_FOR_DELIVERY',
+];
 
 /**
  * Statuses that can legally advance to PARTIALLY_DELIVERED / DELIVERED — i.e. a

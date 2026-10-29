@@ -76,6 +76,7 @@ export default function RfqDetailPage() {
   // demand (the backend keeps APPROVED quotes in the comparison, so this works
   // any time after the award).
   const awardedQuote = rfq?.quoteResponses?.find((qr) => qr.status === 'APPROVED');
+  const linkedPo = rfq?.purchaseOrders?.[0];
 
   const handleCreateDraftPo = useCallback(() => {
     if (!awardedQuote) return;
@@ -152,6 +153,16 @@ export default function RfqDetailPage() {
             data-testid="send-to-vendors"
           >
             {t('actions.sendToVendors')}
+          </Button>
+        ) : rfq.status === 'AWARDED' && linkedPo ? (
+          // Approving the quote already created the draft PO (FOR-396): link to
+          // it rather than offering to create a duplicate.
+          <Button
+            size="sm"
+            onClick={() => navigate(ROUTES.purchaseOrderDetail.replace(':id', linkedPo.id))}
+            data-testid="view-po"
+          >
+            {t('actions.viewPo', { poNumber: linkedPo.poNumber })}
           </Button>
         ) : rfq.status === 'AWARDED' && awardedQuote ? (
           // Awarding an RFQ only flips it to AWARDED. The prompt that offers to

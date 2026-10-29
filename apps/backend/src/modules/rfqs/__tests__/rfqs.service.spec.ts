@@ -1584,6 +1584,7 @@ describe('RfqsService', () => {
         totalCost: 50,
         purchaseOrderId: 'po-1',
         poNumber: 'PO-00001',
+        purchaseOrders: [{ id: 'po-1', poNumber: 'PO-00001' }],
       });
 
       expect(mockPrisma.quoteResponse.update).toHaveBeenCalledWith({
@@ -1676,6 +1677,80 @@ describe('RfqsService', () => {
           taxCode: 'GST',
         }),
       );
+    });
+
+    it('404s when the quote belongs to a different RFQ than the URL (FOR-396)', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue(awardableQuote);
+      await expect(service.awardQuote('rfq-other', 'quote-1', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('drops UNAVAILABLE and declined lines and orders the approved quantity (FOR-396)', async () => {
+      const [cement, sand] = awardableQuote.lineItems;
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({
+        ...awardableQuote,
+        lineItems: [
+          { ...cement, approvedQuantity: 3 },
+          { ...cement, availability: QuoteLineItemAvailability.UNAVAILABLE },
+          { ...sand, availability: QuoteLineItemAvailability.AVAILABLE, status: 'DECLINED' },
+        ],
+      });
+      primeAwardTransaction();
+
+      await service.awardQuote('rfq-1', 'quote-1', companyAdmin);
+
+      const poData = mockPrisma.purchaseOrder.create.mock.calls[0][0].data;
+      expect(poData.lineItems.create).toHaveLength(1);
+      expect(poData.lineItems.create[0]).toEqual(
+        expect.objectContaining({ quantityOrdered: 3, lineTotal: 30 }),
+      );
+      expect(poData.subtotal).toBe(30);
+    });
+
+    it('400s when no line is left to order (FOR-396)', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({
+        ...awardableQuote,
+        lineItems: [awardableQuote.lineItems[1]],
+      });
+      await expect(service.awardQuote('rfq-1', 'quote-1', companyAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('creates one draft PO per project on a multi-project RFQ, numbered in sequence (FOR-396)', async () => {
+      const [cement] = awardableQuote.lineItems;
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({
+        ...awardableQuote,
+        lineItems: [
+          cement,
+          {
+            ...cement,
+            rfqLineItem: {
+              ...cement.rfqLineItem,
+              projectId: 'proj-2',
+              deliveryLocationId: 'loc-9',
+            },
+          },
+        ],
+      });
+      primeAwardTransaction();
+      mockPrisma.purchaseOrder.findMany.mockResolvedValue([{ poNumber: 'PO-00041' }]);
+      mockPrisma.purchaseOrder.create
+        .mockResolvedValueOnce({ id: 'po-a', poNumber: 'PO-00042' })
+        .mockResolvedValueOnce({ id: 'po-b', poNumber: 'PO-00043' });
+
+      const result = await service.awardQuote('rfq-1', 'quote-1', companyAdmin);
+
+      const calls = mockPrisma.purchaseOrder.create.mock.calls.map((c) => c[0].data);
+      expect(calls.map((d) => [d.projectId, d.poNumber])).toEqual([
+        ['proj-1', 'PO-00042'],
+        ['proj-2', 'PO-00043'],
+      ]);
+      expect(calls[1].lineItems.create[0].deliveryLocationId).toBe('loc-9');
+      expect(result.purchaseOrderId).toBe('po-a');
+      expect(result.purchaseOrders).toHaveLength(2);
     });
   });
 

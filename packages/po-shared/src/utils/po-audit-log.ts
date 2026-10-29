@@ -26,6 +26,7 @@ const ACTION_LABELS: Record<string, { key: string; fallback: string }> = {
   PO_ACCEPTED_BY_VENDOR: { key: 'actionLog.accepted', fallback: 'Accepted by vendor' },
   PO_DECLINED_BY_VENDOR: { key: 'actionLog.declinedByVendor', fallback: 'Declined by vendor' },
   PO_SCHEDULED: { key: 'actionLog.scheduled', fallback: 'Scheduled for delivery' },
+  PO_MARKED_LATE: { key: 'actionLog.markedLate', fallback: 'Late for delivery' },
   PO_PARTIALLY_DELIVERED: { key: 'actionLog.partiallyDelivered', fallback: 'Partially delivered' },
   PO_DELIVERED: { key: 'actionLog.delivered', fallback: 'Delivered' },
   PO_ARCHIVED: { key: 'actionLog.archived', fallback: 'Archived' },

@@ -364,13 +364,15 @@ describe('PurchaseOrdersService', () => {
       expect(where.status).toBe('SENT');
     });
 
-    it('quickFilter approvedByVendor filters by ACCEPTED/ACKNOWLEDGED', async () => {
+    it('quickFilter approvedByVendor includes POs that moved on to scheduled/late (FOR-396)', async () => {
       await service.listPurchaseOrders(
         q({ quickFilter: PoQuickFilter.APPROVED_BY_VENDOR }),
         companyAdmin,
       );
       const where = mockPrisma.purchaseOrder.findMany.mock.calls[0][0].where;
-      expect(where.status).toEqual({ in: ['ACCEPTED', 'ACKNOWLEDGED'] });
+      expect(where.status).toEqual({
+        in: ['ACCEPTED', 'ACKNOWLEDGED', 'SCHEDULED_FOR_DELIVERY', 'LATE_FOR_DELIVERY'],
+      });
     });
 
     it('quickFilter partiallyDelivered filters by PARTIALLY_DELIVERED', async () => {

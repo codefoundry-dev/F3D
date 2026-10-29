@@ -94,6 +94,7 @@
     "coverageOnlyDraft": "Bulk-order coverage can only be confirmed on a DRAFT RFQ",
     "coverageExceedsLineQuantity": "Allocated quantity exceeds the RFQ line item's remaining quantity",
     "awardSplitEmpty": "Provide at least one approved line to award",
+    "awardNoPurchasableLines": "This quote has no quoted lines left to order. Every line is unquoted, unavailable or declined.",
     "awardSplitDuplicateLine": "A quote line was allocated more than once",
     "awardSplitLineNotInRfq": "An allocated quote line does not belong to this RFQ",
     "awardSplitLineNotQuoted": "Cannot award a line the vendor did not quote",

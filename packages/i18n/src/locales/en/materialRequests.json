@@ -288,7 +288,8 @@
       "convertToRfq": "Convert to RFQ",
       "convertToPo": "Convert to PO",
       "terminalNote": "This request has been {{status}} and can no longer be actioned.",
-      "ownRequestNote": "You raised this request, so another approver must review it."
+      "ownRequestNote": "You raised this request, so another approver must review it.",
+      "autoConvertedToRfq": "Approved. Draft RFQ {{rfqNumber}} was created from this request."
     }
   },
   "declineModal": {

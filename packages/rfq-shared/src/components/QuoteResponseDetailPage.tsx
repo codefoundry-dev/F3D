@@ -3,7 +3,7 @@ import type {
   QuoteResponseLineItem,
   RfqDocument,
 } from '@forethread/api-client';
-import { approveQuote, declineQuote, openFileInNewTab } from '@forethread/api-client';
+import { declineQuote, openFileInNewTab } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
   Badge,
@@ -24,12 +24,10 @@ import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-c
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
-import { PO_CREATE_ROUTE } from '../constants/routes';
+import { useApproveQuote } from '../hooks/useApproveQuote';
 import { useMessageThread, type ThreadMessage } from '../hooks/useMessageThread';
 import {
-  useCreateDraftPoFromQuote,
   useQuoteDetail,
   useRfqQuoteComparison,
   useUpdateQuoteLineItemStatuses,
@@ -39,7 +37,6 @@ import { DeliveryVarianceBadge } from './DeliveryVarianceBadge';
 import { DocumentRow } from './DocumentCard';
 import { MessageAttachmentLinks } from './MessageAttachmentLinks';
 import { MessageComposer } from './MessageComposer';
-import { StartOrderModal } from './StartOrderModal';
 
 // ── Design tokens (sampled from the 5.06 Figma frames) ─────────────────────────
 
@@ -93,16 +90,8 @@ export function QuoteResponseActions({
 }: QuoteResponseActionsProps) {
   const { t } = useTranslation('rfqs');
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const [showPoPrompt, setShowPoPrompt] = useState(false);
-
-  const approveMutation = useMutation({
-    mutationFn: () => approveQuote(rfqId, quoteId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['rfqs', rfqId] });
-      setShowPoPrompt(true);
-    },
-  });
+  // Approving awards the quote and opens its new draft PO (FOR-396).
+  const approveQuote = useApproveQuote(rfqId);
 
   const declineMutation = useMutation({
     mutationFn: () => declineQuote(rfqId, quoteId),
@@ -111,64 +100,32 @@ export function QuoteResponseActions({
     },
   });
 
-  const draftPoMutation = useCreateDraftPoFromQuote(rfqId);
-  const isMutating = approveMutation.isPending || declineMutation.isPending;
+  const isMutating = approveQuote.isPending || declineMutation.isPending;
   const isPending = status.toUpperCase() === 'PENDING' || status.toUpperCase() === 'SUBMITTED';
 
-  // Hide the Decline/Approve buttons once the quote is no longer pending, but
-  // keep the post-approve PO prompt mounted. Approving flips the quote to
-  // APPROVED on the cache refetch, so an early `return null` here would unmount
-  // the StartOrderModal the instant it opened — the "prompt flashes shut" bug.
+  if (!isPending) return null;
+
   return (
-    <>
-      {isPending && (
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size={size}
-            disabled={isMutating}
-            onClick={() => declineMutation.mutate()}
-            leftIcon={<CrossInCircleIcon className="w-[18px] h-[18px]" />}
-          >
-            {t('responsesTab.decline')}
-          </Button>
-          <Button
-            variant="outline"
-            size={size}
-            disabled={isMutating}
-            onClick={() => approveMutation.mutate()}
-            leftIcon={<CheckCircleIcon className="w-[18px] h-[18px]" />}
-          >
-            {t('responsesTab.approve')}
-          </Button>
-        </div>
-      )}
-      {showPoPrompt && (
-        <StartOrderModal
-          kind="po"
-          isCreating={draftPoMutation.isPending}
-          onStartNow={() =>
-            navigate(PO_CREATE_ROUTE, {
-              state: {
-                mode: 'from-rfq',
-                // FOR-391: the PO page prices the lines from this quote.
-                rfqSource: { rfqId, quoteResponseId: quoteId },
-              },
-            })
-          }
-          onCreateDraft={() =>
-            draftPoMutation.mutate(quoteId, {
-              onSuccess: () => {
-                toast.success(t('startOrder.poDraftCreated'));
-                setShowPoPrompt(false);
-              },
-              onError: () => toast.error(t('startOrder.createError')),
-            })
-          }
-          onClose={() => setShowPoPrompt(false)}
-        />
-      )}
-    </>
+    <div className="flex items-center gap-2">
+      <Button
+        variant="outline"
+        size={size}
+        disabled={isMutating}
+        onClick={() => declineMutation.mutate()}
+        leftIcon={<CrossInCircleIcon className="w-[18px] h-[18px]" />}
+      >
+        {t('responsesTab.decline')}
+      </Button>
+      <Button
+        variant="outline"
+        size={size}
+        disabled={isMutating}
+        onClick={() => approveQuote.approve(quoteId)}
+        leftIcon={<CheckCircleIcon className="w-[18px] h-[18px]" />}
+      >
+        {t('responsesTab.approve')}
+      </Button>
+    </div>
   );
 }
 

@@ -437,7 +437,15 @@ export class PurchaseOrdersService {
         break;
 
       case PoQuickFilter.APPROVED_BY_VENDOR:
-        where.status = { in: [PrismaPoStatus.ACCEPTED, PrismaPoStatus.ACKNOWLEDGED] };
+        // Accepted POs move on to scheduled / late by themselves (FOR-396).
+        where.status = {
+          in: [
+            PrismaPoStatus.ACCEPTED,
+            PrismaPoStatus.ACKNOWLEDGED,
+            PrismaPoStatus.SCHEDULED_FOR_DELIVERY,
+            PrismaPoStatus.LATE_FOR_DELIVERY,
+          ],
+        };
         break;
 
       case PoQuickFilter.PARTIALLY_DELIVERED:

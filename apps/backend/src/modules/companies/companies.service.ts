@@ -12,6 +12,7 @@ import {
   IsOptional,
   IsEnum,
   IsArray,
+  IsBoolean,
   IsUrl,
   Matches,
   IsDateString,
@@ -156,6 +157,11 @@ export class UpdateCompanyDto {
   @IsArray()
   @IsString({ each: true })
   specialisations?: string[];
+
+  /** Approving a material request also creates its draft RFQ (FOR-396). Company Admin only. */
+  @IsOptional()
+  @IsBoolean()
+  autoConvertApprovedMrToRfq?: boolean;
 }
 
 export class CompanyListQueryDto {
@@ -308,6 +314,21 @@ export class CompaniesService {
 
   async updateCompany(id: string, dto: UpdateCompanyDto, requestingUser: RequestingUser) {
     await this.getCompany(id, requestingUser); // validates existence + access
+
+    // Only a Super Admin may edit another company: getCompany scopes Company
+    // Admins alone, which left every other role able to patch any company.
+    const isSuperAdmin = requestingUser.role === UserRole.SUPER_ADMIN;
+    if (!isSuperAdmin && requestingUser.companyId !== id) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
+    // Procurement automation is a company policy: Company Admin (or SA) only.
+    if (
+      dto.autoConvertApprovedMrToRfq !== undefined &&
+      !isSuperAdmin &&
+      requestingUser.role !== UserRole.COMPANY_ADMIN
+    ) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
 
     return this.prisma.company.update({ where: { id }, data: dto });
   }

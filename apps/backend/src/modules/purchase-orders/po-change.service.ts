@@ -187,6 +187,19 @@ function toNullableDate(value: unknown): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * Statuses a change (or cancellation) can be proposed on. An accepted PO moves
+ * on to SCHEDULED_FOR_DELIVERY / LATE_FOR_DELIVERY on its own (FOR-396), so
+ * those stay changeable just as ACCEPTED was.
+ */
+export const CHANGEABLE_PO_STATUSES: PoStatus[] = [
+  PoStatus.SENT,
+  PoStatus.ACKNOWLEDGED,
+  PoStatus.ACCEPTED,
+  PoStatus.SCHEDULED_FOR_DELIVERY,
+  PoStatus.LATE_FOR_DELIVERY,
+];
+
 @Injectable()
 export class PoChangeService {
   private readonly webAppUrl: string;
@@ -232,7 +245,7 @@ export class PoChangeService {
 
     this.validateAccess(po, user);
 
-    const allowedStatuses: PoStatus[] = [PoStatus.SENT, PoStatus.ACKNOWLEDGED, PoStatus.ACCEPTED];
+    const allowedStatuses: PoStatus[] = CHANGEABLE_PO_STATUSES;
     if (!allowedStatuses.includes(po.status)) {
       throw new BadRequestException(`Cannot propose changes: PO status is ${po.status}`);
     }
@@ -306,7 +319,7 @@ export class PoChangeService {
     });
     if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
 
-    const allowedStatuses: PoStatus[] = [PoStatus.SENT, PoStatus.ACKNOWLEDGED, PoStatus.ACCEPTED];
+    const allowedStatuses: PoStatus[] = CHANGEABLE_PO_STATUSES;
     if (!allowedStatuses.includes(po.status)) {
       throw new BadRequestException(`Cannot propose changes: PO status is ${po.status}`);
     }
