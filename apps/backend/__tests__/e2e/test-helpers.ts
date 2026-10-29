@@ -68,6 +68,13 @@ export class MockEmailService {
     });
   }
 
+  async sendReactivationEmail(to: string, name: string): Promise<void> {
+    this.sentEmails.push({
+      to,
+      subject: 'Forethread — Your Account Has Been Reactivated',
+    });
+  }
+
   async sendRfqReceivedEmail(
     to: string,
     rfqNumber: string,

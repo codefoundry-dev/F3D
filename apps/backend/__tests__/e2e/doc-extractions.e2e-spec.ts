@@ -251,12 +251,20 @@ describe('Doc Extractions (e2e)', () => {
       title: string;
       projectName: string;
       currency: string;
-      items: Array<{ description: string; quantity: number; unit: string; targetPrice: number | null }>;
+      items: Array<{
+        description: string;
+        quantity: number;
+        unit: string;
+        targetPrice: number | null;
+      }>;
     };
     expect(edited.title).toBe('Tower 5 BOM');
     expect(edited.projectName).toBe('Tower 5');
     expect(edited.currency).toBe('AUD');
-    expect(edited.items).toEqual([
+    // Catalogue-match fields (matchCandidates etc.) depend on the DB's catalogue,
+    // so only the normalized line fields are asserted.
+    expect(edited.items).toHaveLength(2);
+    expect(edited.items).toMatchObject([
       { description: 'Cement 25kg bag', quantity: 50, unit: 'bag', targetPrice: 12.5, notes: null },
       { description: 'Rebar #4', quantity: 1200, unit: 'm', targetPrice: 2.15, notes: null },
     ]);
@@ -354,7 +362,9 @@ async function pollUntilSettled(
   token: string,
   id: string,
 ): Promise<ExtractionJob> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  // BOM jobs match every line against the catalogue, which takes seconds on a
+  // large local catalogue — allow up to ~10s.
+  for (let attempt = 0; attempt < 200; attempt += 1) {
     const res = await request(app.getHttpServer())
       .get(`/v1/doc-extractions/${id}`)
       .set('Authorization', `Bearer ${token}`)
@@ -384,9 +394,11 @@ async function loginAsSeedUser(
   // but since we're using a fresh EmailService here, the OTP arrives in its sentEmails
   // list. We hook into the testing module above.
   // Workaround: use the same MockEmailService pattern as test-helpers.
-  const mockEmail = (app as unknown as {
-    get: (token: typeof EmailService) => MockEmailService;
-  }).get(EmailService) as unknown as MockEmailService;
+  const mockEmail = (
+    app as unknown as {
+      get: (token: typeof EmailService) => MockEmailService;
+    }
+  ).get(EmailService) as unknown as MockEmailService;
   const sent = mockEmail.getLastEmailTo(email);
   if (!sent?.otp) throw new Error('no OTP captured for login');
 
