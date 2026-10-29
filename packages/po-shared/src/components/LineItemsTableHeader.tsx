@@ -17,13 +17,13 @@ export function LineItemsTableHeader({ isDrawdownMode = false }: LineItemsTableH
   return (
     <thead>
       <tr className="text-left bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
-        <th className={TH_CLASS} style={{ width: '15%' }}>
+        <th className={TH_CLASS} style={{ width: '13%' }}>
           {t('create.materialName')}
         </th>
-        <th className={TH_CLASS} style={{ width: '10%' }}>
+        <th className={TH_CLASS} style={{ width: '9%' }}>
           {t('create.materialCode')}
         </th>
-        <th className={TH_CLASS} style={{ width: '8%' }}>
+        <th className={TH_CLASS} style={{ width: '7%' }}>
           {t('create.costCode')}
         </th>
         <th className={TH_CLASS} style={{ width: '7%' }}>
@@ -32,7 +32,7 @@ export function LineItemsTableHeader({ isDrawdownMode = false }: LineItemsTableH
         <th className={TH_CLASS} style={{ width: '9%' }}>
           {t('create.pricePerUnit')}
         </th>
-        <th className={TH_CLASS} style={{ width: '8%' }}>
+        <th className={TH_CLASS} style={{ width: '7%' }}>
           {t('create.qtyOrdered')}
         </th>
         {isDrawdownMode ? (
@@ -49,10 +49,10 @@ export function LineItemsTableHeader({ isDrawdownMode = false }: LineItemsTableH
             </th>
           </>
         )}
-        <th className={TH_CLASS} style={{ width: '10%' }}>
+        <th className={TH_CLASS} style={{ width: '13%' }}>
           {t('create.expDeliveryDate')}
         </th>
-        <th className={TH_CLASS} style={{ width: '8%' }}>
+        <th className={TH_CLASS} style={{ width: '10%' }}>
           {t('create.deliveryTimeCol')}
         </th>
         <th className={TH_CLASS} style={{ width: '10%' }}>

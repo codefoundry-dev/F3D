@@ -429,6 +429,7 @@ export function StepLineItems({
             placeholder="mm/dd/yyyy"
             minDate={todayIso()}
             borderless={!isPhone}
+            compact={!isPhone}
             editable
           />
           <input

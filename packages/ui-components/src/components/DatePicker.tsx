@@ -38,6 +38,11 @@ export interface DatePickerProps {
   borderless?: boolean;
   /** Disable the picker entirely */
   disabled?: boolean;
+  /**
+   * Tight table-cell layout (FOR-390): less padding, digit-sized segments, and
+   * the field clips instead of spilling the icon into the next column.
+   */
+  compact?: boolean;
 }
 
 export function DatePicker({
@@ -51,6 +56,7 @@ export function DatePicker({
   maxDate,
   borderless,
   disabled,
+  compact,
 }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -219,7 +225,8 @@ export function DatePicker({
       {editable ? (
         <div
           className={cn(
-            'flex items-center w-full h-10 max-md:h-11 px-3 text-sm transition-colors',
+            'flex items-center w-full h-10 max-md:h-11 text-sm transition-colors',
+            compact ? 'px-1 overflow-hidden' : 'px-3',
             borderless
               ? 'bg-transparent border-0'
               : cn(
@@ -251,15 +258,19 @@ export function DatePicker({
               onFocus={() => setIsOpen(true)}
               // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus={isOpen}
+              compact={compact}
             />
           )}
           <button
             type="button"
             tabIndex={-1}
             onClick={() => setIsOpen((p) => !p)}
-            className="flex-shrink-0 ml-2 text-muted-foreground hover:text-foreground transition-colors"
+            className={cn(
+              'flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors',
+              compact ? 'ml-0.5' : 'ml-2',
+            )}
           >
-            <DateIcon className="w-4 h-4" />
+            <DateIcon className={compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
           </button>
         </div>
       ) : (
@@ -267,7 +278,8 @@ export function DatePicker({
           type="button"
           onClick={() => setIsOpen((p) => !p)}
           className={cn(
-            'flex items-center justify-between w-full h-10 max-md:h-11 px-3 text-sm transition-colors',
+            'flex items-center justify-between w-full h-10 max-md:h-11 text-sm transition-colors',
+            compact ? 'px-1 gap-0.5' : 'px-3',
             borderless
               ? 'bg-transparent border-0'
               : cn(
