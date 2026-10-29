@@ -132,6 +132,10 @@ jest.mock(
       subject: 'Forethread — Payment Overdue ({{invoiceReference}})',
       greeting: 'Hello,',
     },
+    poDeliveryOverdueReminder: {
+      subject: 'Forethread — Purchase Order {{poNumber}} Is Late',
+      greeting: 'Hi,',
+    },
     materialRequestPendingApproval: {
       subject: 'Forethread — Material Request Needs Your Approval ({{mrNumber}})',
       greeting: 'Hi,',
@@ -1078,6 +1082,36 @@ describe('EmailService', () => {
       ).resolves.toBeUndefined();
       await expect(
         service.sendPaymentOverdueReminderEmail('fo@test.com', overdueParams, 'https://view.test'),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('sendOverdueReminderEmail (FOR-394)', () => {
+    it('renders the section copy with the params', async () => {
+      await service.sendOverdueReminderEmail(
+        'buyer@test.com',
+        'poDeliveryOverdueReminder',
+        { poNumber: 'PO-00042' },
+        'https://view.test',
+      );
+
+      expect(mockSendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'buyer@test.com',
+          subject: 'Forethread — Purchase Order PO-00042 Is Late',
+        }),
+      );
+    });
+
+    it('does not throw when sendMail fails', async () => {
+      mockSendMail.mockRejectedValue(new Error('SMTP error'));
+      await expect(
+        service.sendOverdueReminderEmail(
+          'buyer@test.com',
+          'poDeliveryOverdueReminder',
+          { poNumber: 'PO-1' },
+          'https://view.test',
+        ),
       ).resolves.toBeUndefined();
     });
   });

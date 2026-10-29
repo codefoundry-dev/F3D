@@ -29,6 +29,10 @@ export type NotificationType =
   | 'MATERIAL_REQUEST_APPROVAL_UNROUTABLE'
   | 'PAYMENT_DUE'
   | 'PAYMENT_OVERDUE'
+  // Daily overdue reminders (FOR-394), deep-linked via entityType/entityId.
+  | 'MATERIAL_REQUEST_OVERDUE'
+  | 'RFQ_OVERDUE'
+  | 'PO_DELIVERY_OVERDUE'
   | 'MESSAGE_RECEIVED';
 
 export type NotificationEntityType =

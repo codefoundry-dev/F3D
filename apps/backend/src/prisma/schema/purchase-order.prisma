@@ -92,6 +92,9 @@ model PurchaseOrder {
   deadlineStart       DateTime?         @map("deadline_start")
   deadlineEnd         DateTime?         @map("deadline_end")
   plannedDeliveryDate DateTime?         @map("planned_delivery_date")
+  // Overdue reminder ledger (FOR-394): set when the late-delivery reminder is
+  // claimed; cleared when the daily schedule job puts a late PO back on schedule.
+  overdueReminderSentAt DateTime?       @map("overdue_reminder_sent_at")
   deliveryNotes       String?           @map("delivery_notes")
 
   // Delivery responsible person (optional, US XX)

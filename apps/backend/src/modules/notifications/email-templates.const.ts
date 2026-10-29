@@ -33,6 +33,8 @@ export const EMAIL_TEMPLATES = {
   MATERIAL_REQUEST_PENDING_APPROVAL: 'material-request-pending-approval',
   MATERIAL_REQUEST_APPROVAL_UNROUTABLE: 'material-request-approval-unroutable',
   DELIVERY_CODE: 'delivery-code',
+  // One layout for the three FOR-394 overdue reminders; the copy differs.
+  OVERDUE_REMINDER: 'overdue-reminder',
 } as const;
 
 export type EmailTemplateName = (typeof EMAIL_TEMPLATES)[keyof typeof EMAIL_TEMPLATES];

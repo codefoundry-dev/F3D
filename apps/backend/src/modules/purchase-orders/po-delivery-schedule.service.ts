@@ -36,7 +36,13 @@ const NOTHING_RECEIVED: Prisma.PurchaseOrderWhereInput = {
   lineItems: { none: { quantityDelivered: { gt: 0 } } },
 };
 
-type Move = { from: PoStatus; to: PoStatus; action: AuditAction };
+type Move = {
+  from: PoStatus;
+  to: PoStatus;
+  action: AuditAction;
+  /** Extra columns written with the status change. */
+  data?: Prisma.PurchaseOrderUpdateManyMutationInput;
+};
 
 /**
  * Daily sweep that keeps accepted POs' delivery status current (FOR-396). The
@@ -103,6 +109,8 @@ export class PoDeliveryScheduleService {
         from: PoStatus.LATE_FOR_DELIVERY,
         to: PoStatus.SCHEDULED_FOR_DELIVERY,
         action: AuditAction.PO_SCHEDULED,
+        // Back on schedule: if the new date slips too, remind again (FOR-394).
+        data: { overdueReminderSentAt: null },
       },
     );
     return { scheduled, late, rescheduled };
@@ -116,7 +124,7 @@ export class PoDeliveryScheduleService {
     for (const { id } of candidates) {
       const claimed = await this.prisma.purchaseOrder.updateMany({
         where: { id, status: move.from },
-        data: { status: move.to },
+        data: { status: move.to, ...move.data },
       });
       if (claimed.count === 0) continue;
       moved += 1;

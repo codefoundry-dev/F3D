@@ -65,7 +65,8 @@ describe('PoDeliveryScheduleService (FOR-396)', () => {
       },
       {
         where: { id: 'po-pushed-out', status: PoStatus.LATE_FOR_DELIVERY },
-        data: { status: PoStatus.SCHEDULED_FOR_DELIVERY },
+        // Back on schedule clears the FOR-394 reminder ledger.
+        data: { status: PoStatus.SCHEDULED_FOR_DELIVERY, overdueReminderSentAt: null },
       },
     ]);
   });
@@ -104,6 +105,18 @@ describe('PoDeliveryScheduleService (FOR-396)', () => {
 
     expect(counts.late).toBe(0);
     expect(audit.log).not.toHaveBeenCalled();
+  });
+
+  it('logs a summary from the daily job and survives an audit failure', async () => {
+    const { service, prisma, audit } = makeService();
+    prisma.purchaseOrder.findMany
+      .mockResolvedValueOnce([{ id: 'po-1' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    audit.log.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(service.runDailySweep()).resolves.toBeUndefined();
+    expect(prisma.purchaseOrder.updateMany).toHaveBeenCalledTimes(1);
   });
 
   it('logs instead of throwing when the sweep fails', async () => {

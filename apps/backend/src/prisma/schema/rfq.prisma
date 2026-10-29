@@ -54,6 +54,8 @@ model Rfq {
   pickUpLocation       String?         @map("pick_up_location")
   deadlineStart        DateTime?       @map("deadline_start")
   deadlineEnd          DateTime?       @map("deadline_end")
+  // Overdue reminder ledger (FOR-394): set when the unawarded-RFQ reminder is claimed.
+  overdueReminderSentAt DateTime?      @map("overdue_reminder_sent_at")
   totalRequestedQty    Int             @default(0) @map("total_requested_qty")
   message              String?
   ccEmails             String[]        @default([]) @map("cc_emails")

@@ -46,6 +46,8 @@ model MaterialRequest {
   convertedToRfqId   String?                 @map("converted_to_rfq_id")
   convertedToPoId    String?                 @map("converted_to_po_id")
   convertedAt        DateTime?               @map("converted_at")
+  // Overdue reminder ledger (FOR-394): set when the need-by reminder is claimed.
+  overdueReminderSentAt DateTime?            @map("overdue_reminder_sent_at")
   createdAt          DateTime                @default(now()) @map("created_at")
   updatedAt          DateTime                @updatedAt @map("updated_at")
 

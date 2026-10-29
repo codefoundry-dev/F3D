@@ -969,6 +969,32 @@ export class EmailService implements OnModuleInit {
   }
 
   /**
+   * Daily overdue reminder (FOR-394): an MR not yet ordered, an RFQ not yet
+   * awarded, or a PO not yet delivered passed its date. One layout, three copy
+   * sections. Fire-and-forget like the payment reminders.
+   */
+  async sendOverdueReminderEmail(
+    to: string,
+    section: 'materialRequestOverdueReminder' | 'rfqOverdueReminder' | 'poDeliveryOverdueReminder',
+    params: Record<string, string>,
+    viewUrl: string,
+    brand?: EmailBrand,
+  ): Promise<void> {
+    const t = this.getTranslations(section, params);
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        html: this.renderEmail(EMAIL_TEMPLATES.OVERDUE_REMINDER, t, { viewUrl }, brand),
+        ...this.brandSender(brand),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
+  /**
    * Notify a catalogue contributor that their proposed edit to a PUBLIC material
    * was approved (US 4.01 Phase 3). Fire-and-forget, like every other transactional
    * email — the approval has already been committed by the time we send.
