@@ -445,12 +445,11 @@ describe('Auth (e2e)', () => {
       const userTokens = await loginUser(testEmail, 'ActivatedPass@123');
       expect(userTokens.accessToken).toBeDefined();
 
-      // Cleanup: deactivate the test user
-      await authRequest(
-        'patch',
-        `/v1/users/${createRes.body.data.id}/deactivate`,
-        saTokens.accessToken,
-      ).expect(200);
+      // Cleanup: delete the test user so reruns don't pile up inactive users.
+      // Audit rows reference the user, so they go first.
+      const userId = createRes.body.data.id as string;
+      await prisma.auditLog.deleteMany({ where: { performedById: userId } });
+      await prisma.user.delete({ where: { id: userId } });
     });
   });
 });
