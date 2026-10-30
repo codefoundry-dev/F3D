@@ -152,7 +152,11 @@ describe('PO send-gate threshold enforcement (FOR-210, e2e)', () => {
     prisma = moduleFixture.get(PrismaService);
     jwt = moduleFixture.get(JwtService);
 
-    const contractor = await prisma.company.findFirst({ where: { type: CompanyType.CONTRACTOR } });
+    const contractor = await prisma.company.findFirst({
+      // Pinned: an unordered findFirst returns whichever contractor row Postgres
+      // reads first, which changes after any UPDATE to a company row.
+      where: { type: CompanyType.CONTRACTOR, abn: 'TEST-CONTRACTOR-001' },
+    });
     if (!contractor) {
       throw new Error('Test seed missing — expected at least one CONTRACTOR company.');
     }

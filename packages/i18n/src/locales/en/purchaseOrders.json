@@ -265,6 +265,7 @@
     "failedToLoad": "Failed to load purchase order"
   },
   "detailFields": {
+    "termsAndConditions": "General terms & conditions",
     "basicInformation": "Basic Information",
     "poId": "PO ID",
     "poNumber": "PO Number",
@@ -481,6 +482,9 @@
     "poMessage": "PO-level Message",
     "poMessageOptional": "optional",
     "poMessagePlaceholder": "Add some additional information to vendors..",
+    "termsAndConditions": "General terms & conditions",
+    "termsAndConditionsHint": "Your company's default terms. Changes here apply to this PO only.",
+    "termsAndConditionsPlaceholder": "No terms & conditions set. Company Admins can add a default in Settings.",
     "shipmentHandling": "Shipment & Handling",
     "total": "Total:",
     "successTitle": "Your PO Has Been Successfully Created",

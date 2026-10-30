@@ -1093,6 +1093,48 @@ describe('PurchaseOrdersService', () => {
       );
     });
 
+    describe('terms & conditions (FOR-398)', () => {
+      const primeCreate = () => {
+        mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+        mockPrisma.company.findUnique.mockResolvedValue({
+          id: 'v-1',
+          poTermsAndConditions: 'Company default terms',
+        });
+        mockPrisma.projectLocation.findUnique.mockResolvedValue({
+          id: 'loc-1',
+          projectId: 'proj-1',
+        });
+        mockPrisma.purchaseOrder.create.mockResolvedValue({ id: 'po-new' });
+        mockGetPoAfterMutation();
+      };
+
+      it('snapshots the company default when the caller sends no terms', async () => {
+        primeCreate();
+        await service.createPurchaseOrder(baseDto as never, companyAdmin);
+        expect(mockPrisma.company.findUnique).toHaveBeenCalledWith({
+          where: { id: 'comp-1' },
+          select: { poTermsAndConditions: true },
+        });
+        const data = mockPrisma.purchaseOrder.create.mock.calls[0][0].data;
+        expect(data.termsAndConditions).toBe('Company default terms');
+      });
+
+      it('keeps the terms edited in the wizard, blank meaning none', async () => {
+        primeCreate();
+        await service.createPurchaseOrder(
+          { ...baseDto, termsAndConditions: '  Edited terms ' } as never,
+          companyAdmin,
+        );
+        await service.createPurchaseOrder(
+          { ...baseDto, termsAndConditions: '   ' } as never,
+          companyAdmin,
+        );
+        const calls = mockPrisma.purchaseOrder.create.mock.calls;
+        expect(calls[0][0].data.termsAndConditions).toBe('Edited terms');
+        expect(calls[1][0].data.termsAndConditions).toBeNull();
+      });
+    });
+
     describe('lines bought from an approved quote (FOR-391)', () => {
       const quotedDto = {
         ...baseDto,
@@ -2223,6 +2265,7 @@ describe('PurchaseOrdersService', () => {
         message: 'Updated message',
         deliveryResponsibleName: 'Alice',
         deliveryResponsibleEmail: 'alice@test.com',
+        termsAndConditions: ' Revised terms ',
       };
 
       const result = await service.updatePurchaseOrder('po-1', dto as never, companyAdmin);
@@ -2233,6 +2276,7 @@ describe('PurchaseOrdersService', () => {
           where: { id: 'po-1' },
           data: expect.objectContaining({
             vendorId: 'v-3',
+            termsAndConditions: 'Revised terms',
             deliveryLocationId: 'loc-5',
             plannedDeliveryDate: new Date('2026-07-01'),
             currency: 'EUR',

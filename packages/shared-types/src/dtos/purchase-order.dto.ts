@@ -12,6 +12,7 @@ import {
   IsUUID,
   Matches,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -25,7 +26,7 @@ import {
   PoStatus,
   PoType,
 } from '../enums';
-import { DELIVERY_TIME_REGEX } from '../validation';
+import { DELIVERY_TIME_REGEX, PO_TERMS_MAX_LENGTH } from '../validation';
 
 import { BasePaginationQueryDto, PaginationMetaDto } from './pagination.dto';
 
@@ -267,6 +268,15 @@ export class CreatePurchaseOrderDto {
   @IsOptional()
   message?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'General terms & conditions printed on this PO. Omitted on create → the company default (FOR-398).',
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(PO_TERMS_MAX_LENGTH)
+  termsAndConditions?: string | null;
+
   @IsString()
   @IsOptional()
   deliveryResponsibleName?: string;
@@ -373,6 +383,15 @@ export class UpdatePurchaseOrderDto {
   @IsString()
   @IsOptional()
   message?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'General terms & conditions printed on this PO. Omitted on create → the company default (FOR-398).',
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(PO_TERMS_MAX_LENGTH)
+  termsAndConditions?: string | null;
 
   @IsString()
   @IsOptional()
@@ -655,6 +674,9 @@ export class PoResponseDto {
 
   @ApiPropertyOptional()
   message!: string | null;
+
+  @ApiPropertyOptional()
+  termsAndConditions!: string | null;
 
   @ApiPropertyOptional()
   deliveryResponsibleName!: string | null;

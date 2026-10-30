@@ -163,6 +163,7 @@ const mockPrisma = {
   },
   company: {
     findMany: jest.fn(),
+    findUnique: jest.fn(),
   },
   companyVendorAssignment: {
     findMany: jest.fn(),
@@ -1632,6 +1633,21 @@ describe('RfqsService', () => {
       // day has no vendor equivalent so it comes straight from the RFQ line.
       expect(poData.lineItems.create[0].expectedDeliveryDate).toEqual(new Date('2026-07-01'));
       expect(poData.lineItems.create[0].deliveryTime).toBe('09:30');
+    });
+
+    it("snapshots the company's PO terms & conditions onto the awarded PO (FOR-398)", async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue(awardableQuote);
+      mockPrisma.company.findUnique.mockResolvedValueOnce({ poTermsAndConditions: '  Net 30.  ' });
+      primeAwardTransaction();
+
+      await service.awardQuote('rfq-1', 'quote-1', companyAdmin);
+
+      expect(mockPrisma.company.findUnique).toHaveBeenCalledWith({
+        where: { id: 'comp-1' },
+        select: { poTermsAndConditions: true },
+      });
+      const poData = mockPrisma.purchaseOrder.create.mock.calls[0][0].data;
+      expect(poData.termsAndConditions).toBe('Net 30.');
     });
 
     it('derives PO line items from the quote, dropping NO_QUOTE lines', async () => {

@@ -53,6 +53,8 @@ model Company {
   invoiceInboxKey String?     @unique @map("invoice_inbox_key") @db.VarChar(32)
   // Approving a material request also converts it to a draft RFQ (FOR-396).
   autoConvertApprovedMrToRfq Boolean @default(false) @map("auto_convert_approved_mr_to_rfq")
+  // Default general terms & conditions copied onto every new PO (FOR-398).
+  poTermsAndConditions String? @map("po_terms_and_conditions") @db.Text
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 

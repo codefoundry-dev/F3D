@@ -68,6 +68,11 @@ export interface CreatePoWizardProps {
   ) => void;
   /** FLOW 3 change mode: loading flag for the "Submit PO changes" button. */
   isSubmittingChange?: boolean;
+  /**
+   * FOR-398: the company's default PO terms & conditions, prefilled into the
+   * review step once loaded (`undefined` while loading; `null` = none set).
+   */
+  defaultTermsAndConditions?: string | null;
 }
 
 export function CreatePoWizard({
@@ -88,6 +93,7 @@ export function CreatePoWizard({
   existingPo,
   onProposeChange,
   isSubmittingChange,
+  defaultTermsAndConditions,
 }: CreatePoWizardProps) {
   const { t } = useTranslation('purchaseOrders');
 
@@ -192,6 +198,14 @@ export function CreatePoWizard({
     extraVendors: existingPoVendors,
     extraLocations: existingPoLocations,
   });
+
+  // Prefill the company's T&Cs once they arrive, unless the field already holds
+  // a value (from initialValues or an earlier prefill).
+  useEffect(() => {
+    if (isChange || defaultTermsAndConditions === undefined) return;
+    if (form.getValues('termsAndConditions') !== undefined) return;
+    setValue('termsAndConditions', defaultTermsAndConditions ?? '');
+  }, [isChange, defaultTermsAndConditions, form, setValue]);
 
   const watchedProjectId = watch('projectId');
   const watchedVendorId = watch('vendorId');

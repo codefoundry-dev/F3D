@@ -13,6 +13,7 @@ import {
   useProjectsList,
   useProjectDetail,
   useCompanyVendors,
+  useCompanyPoTerms,
   useCreatePurchaseOrder,
   useSourceRfq,
 } from '../services/purchase-orders.service';
@@ -67,6 +68,7 @@ export default function CreatePurchaseOrderPage() {
 
   const { data: projectsData } = useProjectsList();
   const { data: vendorsData } = useCompanyVendors();
+  const defaultTermsAndConditions = useCompanyPoTerms();
   const createMutation = useCreatePurchaseOrder();
 
   const initialValues: Record<string, unknown> | undefined =
@@ -118,6 +120,7 @@ export default function CreatePurchaseOrderPage() {
       initialValues={initialValues}
       lockedFields={lockedFields}
       creationMode={routeState.mode ?? 'manual'}
+      defaultTermsAndConditions={defaultTermsAndConditions}
     />
   );
 }

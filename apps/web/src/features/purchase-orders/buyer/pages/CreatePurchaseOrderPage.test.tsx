@@ -20,6 +20,7 @@ vi.mock('@forethread/po-shared', () => ({
         success
       </button>
       <span data-testid="is-creating">{String(props.isCreating)}</span>
+      <span data-testid="default-terms">{String(props.defaultTermsAndConditions)}</span>
       <button
         data-testid="on-create-po"
         onClick={() =>
@@ -72,6 +73,7 @@ vi.mock('../services/purchase-orders.service', () => ({
   useProjectDetail: () => ({ data: { id: 'proj-1', locations: [] } }),
   useCompanyVendors: () => ({ data: [{ id: 'v-1', name: 'Vendor A' }] }),
   useSourceRfq: () => ({ data: undefined, isError: false }),
+  useCompanyPoTerms: () => 'Company terms',
   useCreatePurchaseOrder: () => ({
     mutate: mockCreateMutate,
     isPending: false,
@@ -90,6 +92,11 @@ describe('CreatePurchaseOrderPage', () => {
   it('renders CreatePoWizard', () => {
     render(<CreatePurchaseOrderPage />);
     expect(screen.getByTestId('create-po-wizard')).toBeInTheDocument();
+  });
+
+  it("passes the company's default PO terms to the wizard (FOR-398)", () => {
+    render(<CreatePurchaseOrderPage />);
+    expect(screen.getByTestId('default-terms')).toHaveTextContent('Company terms');
   });
 
   it('passes projectsData to wizard', () => {

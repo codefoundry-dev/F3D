@@ -673,6 +673,30 @@ describe('PoExportService', () => {
       expect(options.terms?.lines).toEqual(['', '', '', '']);
       // no approver/creator → buyer signature name is undefined
       expect(options.signatures?.[0]).toEqual({ label: 'Authorised by (Buyer)', name: undefined });
+      // no T&Cs → no legal section
+      expect(options.legalText).toBeUndefined();
+    });
+
+    it('prints the PO terms & conditions as their own closing section (FOR-398)', () => {
+      const options = service.buildPoPdfOptions({
+        poNumber: 'PO-TC',
+        projectName: 'P',
+        status: 'SENT',
+        currency: 'AUD',
+        totalAmount: 0,
+        termsAndConditions: "1. Goods remain at the vendor's risk until delivered.",
+        lineItems: [],
+        deliveries: [],
+        createdAt: '2026-06-01T00:00:00.000Z',
+      } as never);
+
+      expect(options.legalText).toEqual({
+        label: 'General Terms & Conditions',
+        text: "1. Goods remain at the vendor's risk until delivered.",
+      });
+      expect(options.terms?.lines).toContain(
+        'This order is subject to the General Terms & Conditions below.',
+      );
     });
 
     // Covers the nullish-collection fallbacks (lineItems/deliveries undefined) and

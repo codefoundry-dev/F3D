@@ -75,6 +75,18 @@ export function PoDetailsTab({
     />
   );
 
+  // FOR-398: the general T&Cs snapshotted onto this PO, shown to the vendor
+  // (logged in or guest) before they acknowledge / approve.
+  const termsText = po.termsAndConditions?.trim();
+  const termsBody = termsText ? (
+    <p
+      data-testid="po-terms-and-conditions"
+      className="max-h-80 overflow-y-auto whitespace-pre-wrap break-words text-sm text-foreground"
+    >
+      {termsText}
+    </p>
+  ) : null;
+
   if (layout === 'page') {
     return (
       <div className="flex flex-col gap-4 w-full">
@@ -227,6 +239,13 @@ export function PoDetailsTab({
           </div>
         </div>
 
+        {termsBody && (
+          <div className="rounded-[10px] border border-foreground/10 p-4">
+            <SectionTitle>{t('detailFields.termsAndConditions')}</SectionTitle>
+            {termsBody}
+          </div>
+        )}
+
         {/* Metadata — full-width row beneath both columns */}
         <div className="rounded-[10px] border border-foreground/10 p-4">
           <SectionTitle>{t('detailFields.metadata')}</SectionTitle>
@@ -341,6 +360,16 @@ export function PoDetailsTab({
           </div>
         </div>
 
+        {termsBody && (
+          <>
+            <SectionDivider />
+            <div className="flex flex-col gap-2">
+              <SectionTitle>{t('detailFields.termsAndConditions')}</SectionTitle>
+              {termsBody}
+            </div>
+          </>
+        )}
+
         <SectionDivider />
 
         <div className="flex flex-col gap-2">
@@ -444,6 +473,16 @@ export function PoDetailsTab({
         </div>
         <DetailField label={`${t('detailFields.shipmentCost')}:`} value={'-'} />
       </div>
+
+      {termsBody && (
+        <>
+          <SectionDivider />
+          <div className="flex flex-col gap-2">
+            <SectionTitle>{t('detailFields.termsAndConditions')}</SectionTitle>
+            {termsBody}
+          </div>
+        </>
+      )}
 
       <SectionDivider />
 

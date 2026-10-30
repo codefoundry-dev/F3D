@@ -12,6 +12,7 @@ import {
   useProjectsList,
   useProjectDetail,
   useCompanyVendors,
+  useCompanyPoTerms,
   useCreatePurchaseOrder,
 } from '@/features/purchase-orders/buyer/services/purchase-orders.service';
 
@@ -41,6 +42,7 @@ export default function BulkOrderDrawdownPage() {
   const { data: bulkOrder, isLoading, isError } = useBulkOrder(bulkOrderId);
   const { data: projectsData } = useProjectsList();
   const { data: vendorsData } = useCompanyVendors();
+  const defaultTermsAndConditions = useCompanyPoTerms();
   const createMutation = useCreatePurchaseOrder();
 
   // Resolve the bulk order's project/vendor UUIDs from their names so the
@@ -119,6 +121,7 @@ export default function BulkOrderDrawdownPage() {
       creationMode="from-bulk-order"
       bulkOrderId={bulkOrderId}
       bulkOrderNumber={bulkOrder.bulkId}
+      defaultTermsAndConditions={defaultTermsAndConditions}
     />
   );
 }

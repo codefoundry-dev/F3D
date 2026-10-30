@@ -1,4 +1,4 @@
-import { PickUpTimeExpectation } from '@forethread/shared-types/client';
+import { PickUpTimeExpectation, PO_TERMS_MAX_LENGTH } from '@forethread/shared-types/client';
 import { z } from 'zod';
 
 // ── PO creation mode types ───────────────────────────────────────────────────
@@ -105,6 +105,9 @@ export const formSchema = z.object({
     .optional(),
   // Step 3
   message: z.string().optional(),
+  // FOR-398: prefilled from the company default; left undefined until that
+  // loads, so the backend falls back to the default rather than "no terms".
+  termsAndConditions: z.string().max(PO_TERMS_MAX_LENGTH).optional(),
 });
 
 /** Field names validated on each step — used by trigger() */

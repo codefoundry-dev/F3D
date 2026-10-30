@@ -91,6 +91,11 @@ export interface InvoiceExportOptions {
   terms?: InvoiceInfoBlock;
   /** Optional signature lines rendered at the bottom. */
   signatures?: InvoiceSignatureBlock[];
+  /**
+   * Optional free-text legal section (e.g. a PO's general terms & conditions,
+   * FOR-398) rendered last, on a fresh page when it won't fit the current one.
+   */
+  legalText?: { label: string; text: string };
   /** Issuing-company brand mark for the header (defaults to the Forethread wordmark). */
   brand?: PdfBrand;
   filenamePrefix: string;
@@ -380,8 +385,49 @@ export class PdfExportService {
 
     // ── Signatures ─────────────────────────────────────────────────────
     if (options.signatures && options.signatures.length > 0) {
-      this.drawSignatures(doc, leftMargin, rightEdge, currentY, options.signatures);
+      currentY = this.drawSignatures(doc, leftMargin, rightEdge, currentY, options.signatures);
     }
+
+    // ── Legal text (e.g. PO terms & conditions) ────────────────────────
+    if (options.legalText?.text.trim()) {
+      this.drawLegalText(doc, leftMargin, rightEdge, currentY, options.legalText);
+    }
+  }
+
+  /**
+   * Render a heading + long free text. The text stays on the current page only
+   * if all of it fits there; otherwise it starts a new page, and pdfkit flows
+   * any overflow onto further pages within the page margins.
+   */
+  private drawLegalText(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    doc: any,
+    leftMargin: number,
+    rightEdge: number,
+    startY: number,
+    block: { label: string; text: string },
+  ): void {
+    const width = rightEdge - leftMargin;
+    const bottom = doc.page.height - PAGE_MARGIN.bottom;
+    doc.fontSize(8.5).font('Helvetica');
+    const textHeight = doc.heightOfString(block.text, { width }) as number;
+
+    let currentY = startY + 24;
+    if (currentY + 18 + textHeight > bottom) {
+      doc.addPage();
+      currentY = PAGE_MARGIN.top;
+    }
+
+    doc
+      .fontSize(11)
+      .font('Helvetica-Bold')
+      .fillColor(PDF_STYLES.text.primary)
+      .text(block.label, leftMargin, currentY, { width });
+    doc
+      .fontSize(8.5)
+      .font('Helvetica')
+      .fillColor(PDF_STYLES.text.primary)
+      .text(block.text, leftMargin, currentY + 18, { width });
   }
 
   /**

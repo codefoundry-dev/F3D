@@ -119,6 +119,14 @@
     "mrToRfq": "Create a draft RFQ automatically when a material request is approved",
     "saved": "Setting saved"
   },
+  "poTermsCard": {
+    "title": "Purchase order terms & conditions",
+    "description": "Printed on every new purchase order and shown to vendors before they approve. Editing them never changes POs already created.",
+    "label": "Default terms & conditions",
+    "placeholder": "e.g. 1. Goods remain at the vendor's risk until delivered…",
+    "save": "Save terms",
+    "saved": "Terms & conditions saved"
+  },
 
   "editProfile": "Edit Profile",
   "editCompanyDetails": "Edit company details",

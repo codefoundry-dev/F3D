@@ -358,6 +358,29 @@ describe('CompaniesService', () => {
         service.updateCompany('c1', { autoConvertApprovedMrToRfq: true }, officer),
       ).rejects.toThrow(ForbiddenException);
     });
+
+    it('lets a Company Admin set the default PO terms, trimming blank to null (FOR-398)', async () => {
+      prisma.company.findUnique.mockResolvedValue({ id: 'c1', _count: { users: 1 } });
+      prisma.company.update.mockResolvedValue({ id: 'c1' });
+      await service.updateCompany('c1', { poTermsAndConditions: '  Net 30  ' }, companyAdmin);
+      await service.updateCompany('c1', { poTermsAndConditions: '   ' }, companyAdmin);
+      expect(prisma.company.update).toHaveBeenNthCalledWith(1, {
+        where: { id: 'c1' },
+        data: { poTermsAndConditions: 'Net 30' },
+      });
+      expect(prisma.company.update).toHaveBeenNthCalledWith(2, {
+        where: { id: 'c1' },
+        data: { poTermsAndConditions: null },
+      });
+    });
+
+    it('keeps the default PO terms away from other roles of the company (FOR-398)', async () => {
+      prisma.company.findUnique.mockResolvedValue({ id: 'c1', _count: { users: 1 } });
+      const officer = { id: 'u3', role: 'PROCUREMENT_OFFICER', companyId: 'c1' };
+      await expect(
+        service.updateCompany('c1', { poTermsAndConditions: 'Mine' }, officer),
+      ).rejects.toThrow(ForbiddenException);
+    });
   });
 
   describe('getCompanyVendors', () => {

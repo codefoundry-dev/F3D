@@ -52,6 +52,7 @@ import { AuditService } from '../audit/audit.service';
 import { BrandingService } from '../export/branding.service';
 import { NotificationService } from '../notification-feed/notification.service';
 import { EmailAttachment, EmailService } from '../notifications/email.service';
+import { loadCompanyPoTerms } from '../purchase-orders/po-terms.util';
 import { StorageService } from '../storage/storage.service';
 
 import { deliveryVarianceDays } from './quote-comparison';
@@ -1492,6 +1493,7 @@ export class RfqsService {
     );
     const firstSeq = Number.parseInt(firstPoNumber.slice('PO-'.length), 10);
     const poNumberAt = (i: number) => `PO-${String(firstSeq + i).padStart(5, '0')}`;
+    const termsAndConditions = await loadCompanyPoTerms(this.prisma, quote.rfq.companyId);
 
     const { quoteResult, purchaseOrders } = await this.prisma.$transaction(async (tx) => {
       const quoteResult = await tx.quoteResponse.update({
@@ -1538,6 +1540,7 @@ export class RfqsService {
               holdForRelease: quote.rfq.holdForRelease,
               deadlineStart: quote.rfq.deadlineStart,
               deadlineEnd: quote.rfq.deadlineEnd,
+              termsAndConditions,
               message: quote.message,
               subtotal: draft.subtotal,
               totalAmount: draft.subtotal,
@@ -1792,6 +1795,8 @@ export class RfqsService {
       groups.set(groupKey, group);
     }
 
+    const termsAndConditions = await loadCompanyPoTerms(this.prisma, rfq.companyId);
+
     const splitResult = await this.prisma.$transaction(async (tx) => {
       // 1. Persist per-vendor approved qty + APPROVED status on awarded lines.
       for (const a of dto.allocations) {
@@ -1843,6 +1848,7 @@ export class RfqsService {
           holdForRelease: rfq.holdForRelease,
           deadlineStart: rfq.deadlineStart,
           deadlineEnd: rfq.deadlineEnd,
+          termsAndConditions,
         },
         select: { id: true, poNumber: true },
       });
@@ -1882,6 +1888,7 @@ export class RfqsService {
             deadlineStart: rfq.deadlineStart,
             deadlineEnd: rfq.deadlineEnd,
             message: group.message,
+            termsAndConditions,
             subtotal,
             totalAmount: subtotal,
             lineItemCount: poLineItems.length,

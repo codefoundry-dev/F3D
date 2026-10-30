@@ -1,3 +1,4 @@
+import { PO_TERMS_MAX_LENGTH } from '@forethread/shared-types';
 import {
   Injectable,
   NotFoundException,
@@ -15,11 +16,13 @@ import {
   IsBoolean,
   IsUrl,
   Matches,
+  MaxLength,
   IsDateString,
 } from 'class-validator';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { PrismaService } from '../../prisma/prisma.service';
+import { normalisePoTerms } from '../purchase-orders/po-terms.util';
 
 export class AssignVendorsDto {
   /** NB: despite the name these are VENDOR ids — see assignVendorsToContractor. */
@@ -162,6 +165,12 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsBoolean()
   autoConvertApprovedMrToRfq?: boolean;
+
+  /** Default general terms & conditions copied onto every new PO (FOR-398). Company Admin only. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(PO_TERMS_MAX_LENGTH)
+  poTermsAndConditions?: string | null;
 }
 
 export class CompanyListQueryDto {
@@ -322,15 +331,18 @@ export class CompaniesService {
       throw new ForbiddenException(ERR.general.accessDenied);
     }
     // Procurement automation is a company policy: Company Admin (or SA) only.
-    if (
-      dto.autoConvertApprovedMrToRfq !== undefined &&
-      !isSuperAdmin &&
-      requestingUser.role !== UserRole.COMPANY_ADMIN
-    ) {
+    // So are the PO terms & conditions every new PO inherits (FOR-398).
+    const touchesPolicy =
+      dto.autoConvertApprovedMrToRfq !== undefined || dto.poTermsAndConditions !== undefined;
+    if (touchesPolicy && !isSuperAdmin && requestingUser.role !== UserRole.COMPANY_ADMIN) {
       throw new ForbiddenException(ERR.general.accessDenied);
     }
 
-    return this.prisma.company.update({ where: { id }, data: dto });
+    const data =
+      dto.poTermsAndConditions !== undefined
+        ? { ...dto, poTermsAndConditions: normalisePoTerms(dto.poTermsAndConditions) }
+        : dto;
+    return this.prisma.company.update({ where: { id }, data });
   }
 
   async getCompanyVendors(companyId: string) {

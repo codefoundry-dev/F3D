@@ -1,5 +1,6 @@
 import type { ProjectDetail, VendorAssignment } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { PO_TERMS_MAX_LENGTH } from '@forethread/shared-types/client';
 import {
   FileChip,
   FileDropzone,
@@ -306,6 +307,18 @@ export function PoReviewStep({
             {...register('message')}
             rows={4}
             placeholder={t('create.poMessagePlaceholder')}
+          />
+        </div>
+
+        {/* FOR-398: the company's default T&Cs, editable for this PO only. */}
+        <div className="bg-card rounded-lg border border-border p-6">
+          <h3 className="font-semibold mb-1">{t('create.termsAndConditions')}</h3>
+          <p className="text-xs text-muted-foreground mb-2">{t('create.termsAndConditionsHint')}</p>
+          <Textarea
+            {...register('termsAndConditions')}
+            rows={6}
+            maxLength={PO_TERMS_MAX_LENGTH}
+            placeholder={t('create.termsAndConditionsPlaceholder')}
           />
         </div>
       </div>

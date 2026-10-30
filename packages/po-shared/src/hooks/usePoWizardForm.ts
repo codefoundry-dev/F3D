@@ -262,6 +262,7 @@ export function usePoWizardForm({
           ? new Date(data.plannedDeliveryDate).toISOString()
           : undefined,
         message: data.message ?? undefined,
+        termsAndConditions: data.termsAndConditions,
         lineItems,
         deliveries: mapDeliveriesToPayload(data.deliveries),
       };

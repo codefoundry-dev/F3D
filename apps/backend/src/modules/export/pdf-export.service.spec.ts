@@ -369,6 +369,47 @@ describe('PdfExportService', () => {
       );
     });
 
+    it('prints legal text after the signatures, on the same page when it fits (FOR-398)', async () => {
+      const PDFDocument = require('pdfkit');
+      const doc = mockDocWith();
+      PDFDocument.mockImplementationOnce(() => doc);
+
+      await service.exportInvoicePDF({
+        ...baseOptions,
+        signatures: [{ label: 'Approved by (Vendor)' }],
+        legalText: { label: 'General Terms & Conditions', text: 'Short terms.' },
+      });
+
+      expect(doc.text).toHaveBeenCalledWith(
+        'General Terms & Conditions',
+        40,
+        expect.any(Number),
+        expect.objectContaining({ width: 515 }),
+      );
+      expect(doc.text).toHaveBeenCalledWith('Short terms.', 40, expect.any(Number), {
+        width: 515,
+      });
+      expect(doc.addPage).not.toHaveBeenCalled();
+    });
+
+    it('moves long legal text onto a fresh page (FOR-398)', async () => {
+      const PDFDocument = require('pdfkit');
+      const doc = mockDocWith({
+        heightOfString: jest.fn((text: string) => (text === 'Long terms.' ? 2000 : 10)),
+      });
+      PDFDocument.mockImplementationOnce(() => doc);
+
+      await service.exportInvoicePDF({
+        ...baseOptions,
+        legalText: { label: 'General Terms & Conditions', text: 'Long terms.' },
+      });
+
+      expect(doc.addPage).toHaveBeenCalledTimes(1);
+      expect(doc.text).toHaveBeenCalledWith('General Terms & Conditions', 40, 50, {
+        width: 515,
+      });
+    });
+
     it('renders without infoLeft and infoRight', async () => {
       const options: InvoiceExportOptions = {
         ...baseOptions,

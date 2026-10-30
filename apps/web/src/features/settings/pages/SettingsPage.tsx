@@ -13,6 +13,7 @@ import { useAuthStore } from '@/features/auth/state/auth.store';
 import { CompanyLogoCard } from '@/features/company-profile/buyer/components/CompanyLogoCard';
 import { usePermissions, useUserRole } from '@/shared/role';
 
+import { PoTermsCard } from '../components/PoTermsCard';
 import { ProcurementAutomationCard } from '../components/ProcurementAutomationCard';
 
 interface SettingsLinkProps {
@@ -136,6 +137,8 @@ export default function SettingsPage() {
       {role === UserRole.COMPANY_ADMIN && companyId && (
         <ProcurementAutomationCard companyId={companyId} />
       )}
+
+      {role === UserRole.COMPANY_ADMIN && companyId && <PoTermsCard companyId={companyId} />}
     </div>
   );
 }

@@ -389,12 +389,18 @@ export class PoExportService {
             : '',
           po.deliveryNotes ? `Delivery notes: ${po.deliveryNotes}` : '',
           po.message ? `Message: ${po.message}` : '',
+          ...(po.termsAndConditions
+            ? ['This order is subject to the General Terms & Conditions below.']
+            : []),
         ],
       },
       signatures: [
         { label: 'Authorised by (Buyer)', name: po.approvedBy?.name ?? po.createdBy?.name },
         { label: 'Approved by (Vendor)' },
       ],
+      ...(po.termsAndConditions && {
+        legalText: { label: 'General Terms & Conditions', text: po.termsAndConditions },
+      }),
       filenamePrefix: `po-${po.poNumber}`,
     };
   }

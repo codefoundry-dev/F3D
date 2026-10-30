@@ -114,6 +114,10 @@ model PurchaseOrder {
   // Message
   message             String?
 
+  // General terms & conditions (FOR-398): a snapshot of the company default
+  // taken at creation, so later edits to the default never touch issued POs.
+  termsAndConditions  String?           @map("terms_and_conditions") @db.Text
+
   // Cancellation / decline reason capture (Week-3). cancellationReason is the
   // canonical store for both a contractor decline (PATCH …/decline) and a
   // vendor decline (PATCH …/vendor-decline); the vendor reason was previously

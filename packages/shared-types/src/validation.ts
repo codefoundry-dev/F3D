@@ -16,3 +16,6 @@ export function isValidEmail(value: string): boolean {
 export function isValidUrl(value: string): boolean {
   return URL_REGEX.test(value);
 }
+
+/** Upper bound on a PO's (or a company's default) terms & conditions text (FOR-398). */
+export const PO_TERMS_MAX_LENGTH = 20000;

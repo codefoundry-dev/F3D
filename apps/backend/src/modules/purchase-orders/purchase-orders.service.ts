@@ -38,6 +38,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { assertVendorUsableOnProject } from '../vendors/vendor-access.util';
 
+import { loadCompanyPoTerms, normalisePoTerms } from './po-terms.util';
+
 @Injectable()
 export class PurchaseOrdersService {
   private readonly logger = new Logger(PurchaseOrdersService.name);
@@ -338,6 +340,7 @@ export class PurchaseOrdersService {
       plannedDeliveryDate: po.plannedDeliveryDate?.toISOString() ?? null,
       deliveryNotes: po.deliveryNotes,
       message: po.message,
+      termsAndConditions: po.termsAndConditions,
       deliveryResponsibleName: po.deliveryResponsibleName,
       deliveryResponsibleEmail: po.deliveryResponsibleEmail,
       issuedAt: po.issuedAt?.toISOString() ?? null,
@@ -642,6 +645,13 @@ export class PurchaseOrdersService {
       user.companyId ?? '',
     );
 
+    // FOR-398: the wizard sends the (possibly edited) terms; any other caller
+    // gets the company default.
+    const termsAndConditions =
+      dto.termsAndConditions !== undefined
+        ? normalisePoTerms(dto.termsAndConditions)
+        : await loadCompanyPoTerms(this.prisma, user.companyId ?? '');
+
     const poType: PrismaPoType = isDrawdown
       ? PrismaPoType.DRAWDOWN
       : ((dto.poType as unknown as PrismaPoType) ?? PrismaPoType.STANDARD);
@@ -674,6 +684,7 @@ export class PurchaseOrdersService {
           plannedDeliveryDate: dto.plannedDeliveryDate ? new Date(dto.plannedDeliveryDate) : null,
           deliveryNotes: dto.deliveryNotes,
           message: dto.message,
+          termsAndConditions,
           deliveryResponsibleName: dto.deliveryResponsibleName,
           deliveryResponsibleEmail: dto.deliveryResponsibleEmail,
           paymentTermsDays: dto.paymentTermsDays,
@@ -963,6 +974,9 @@ export class PurchaseOrdersService {
             ...(dto.rfqId !== undefined && { rfqId: dto.rfqId }),
             ...(dto.deliveryNotes !== undefined && { deliveryNotes: dto.deliveryNotes }),
             ...(dto.message !== undefined && { message: dto.message }),
+            ...(dto.termsAndConditions !== undefined && {
+              termsAndConditions: normalisePoTerms(dto.termsAndConditions),
+            }),
             ...(dto.deliveryResponsibleName !== undefined && {
               deliveryResponsibleName: dto.deliveryResponsibleName,
             }),
@@ -1013,6 +1027,9 @@ export class PurchaseOrdersService {
         ...(dto.rfqId !== undefined && { rfqId: dto.rfqId }),
         ...(dto.deliveryNotes !== undefined && { deliveryNotes: dto.deliveryNotes }),
         ...(dto.message !== undefined && { message: dto.message }),
+        ...(dto.termsAndConditions !== undefined && {
+          termsAndConditions: normalisePoTerms(dto.termsAndConditions),
+        }),
         ...(dto.deliveryResponsibleName !== undefined && {
           deliveryResponsibleName: dto.deliveryResponsibleName,
         }),
@@ -1081,6 +1098,8 @@ export class PurchaseOrdersService {
         holdForRelease: source.holdForRelease,
         deliveryNotes: source.deliveryNotes,
         message: source.message,
+        // A copy is a new PO: it takes today's company terms (FOR-398).
+        termsAndConditions: await loadCompanyPoTerms(this.prisma, source.companyId),
         deliveryResponsibleName: source.deliveryResponsibleName,
         deliveryResponsibleEmail: source.deliveryResponsibleEmail,
         paymentTermsDays: source.paymentTermsDays,

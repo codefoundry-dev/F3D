@@ -46,6 +46,8 @@ export interface UpdateCompanyDto {
   specialisations?: string[];
   /** Approving a material request also creates its draft RFQ (FOR-396). Company Admin only. */
   autoConvertApprovedMrToRfq?: boolean;
+  /** Default general terms & conditions copied onto every new PO (FOR-398). Company Admin only. */
+  poTermsAndConditions?: string | null;
 }
 
 export interface CompanyListParams {
@@ -72,6 +74,8 @@ export interface CompanyResponse {
   specialisations: string[];
   /** FOR-396 procurement automation setting. */
   autoConvertApprovedMrToRfq?: boolean;
+  /** FOR-398 default PO terms & conditions. */
+  poTermsAndConditions?: string | null;
   createdAt: string;
   updatedAt: string;
   _count?: { users: number };

@@ -46,6 +46,12 @@ vi.mock('@/features/company-profile/buyer/components/CompanyLogoCard', () => ({
   ),
 }));
 
+vi.mock('../components/PoTermsCard', () => ({
+  PoTermsCard: ({ companyId }: { companyId: string }) => (
+    <div data-testid="po-terms-card">{companyId}</div>
+  ),
+}));
+
 vi.mock('../components/ProcurementAutomationCard', () => ({
   ProcurementAutomationCard: ({ companyId }: { companyId: string }) => (
     <div data-testid="procurement-automation-card">{companyId}</div>
@@ -72,6 +78,20 @@ describe('SettingsPage', () => {
       mockUseUserRole.mockReturnValue(UserRole.PROCUREMENT_OFFICER);
       render(<SettingsPage />);
       expect(screen.queryByTestId('procurement-automation-card')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('PO terms & conditions card (FOR-398)', () => {
+    it('shows the default-terms editor to a Company Admin', () => {
+      mockUseUserRole.mockReturnValue(UserRole.COMPANY_ADMIN);
+      render(<SettingsPage />);
+      expect(screen.getByTestId('po-terms-card')).toHaveTextContent('company-1');
+    });
+
+    it('hides it from a Procurement Officer', () => {
+      mockUseUserRole.mockReturnValue(UserRole.PROCUREMENT_OFFICER);
+      render(<SettingsPage />);
+      expect(screen.queryByTestId('po-terms-card')).not.toBeInTheDocument();
     });
   });
 

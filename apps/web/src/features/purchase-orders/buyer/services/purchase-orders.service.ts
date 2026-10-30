@@ -16,6 +16,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { useAuthStore } from '@/features/auth/state/auth.store';
+import { useCompany } from '@/features/companies/services/companies.service';
 
 export function usePurchaseOrders(params?: PoListParams) {
   return useQuery({
@@ -63,6 +64,16 @@ export function useCompanyVendors() {
     queryFn: () => getCompanyVendors(companyId ?? ''),
     enabled: !!companyId,
   });
+}
+
+/**
+ * The company's default PO terms & conditions (FOR-398) the create wizard
+ * prefills: `undefined` while loading (or on error), `null` when none are set.
+ */
+export function useCompanyPoTerms(): string | null | undefined {
+  const companyId = useAuthStore((s) => s.currentUser?.companyId);
+  const { data } = useCompany(companyId ?? '');
+  return data ? (data.poTermsAndConditions ?? null) : undefined;
 }
 
 /**

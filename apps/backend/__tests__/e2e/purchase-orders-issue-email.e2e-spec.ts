@@ -55,7 +55,11 @@ describe('PO issue → vendor email with PDF (FOR-211, e2e)', () => {
 
     // Buyer side: an existing seeded contractor + one of its users + a project
     // with a delivery location.
-    const contractor = await prisma.company.findFirst({ where: { type: CompanyType.CONTRACTOR } });
+    const contractor = await prisma.company.findFirst({
+      // Pinned: an unordered findFirst returns whichever contractor row Postgres
+      // reads first, which changes after any UPDATE to a company row.
+      where: { type: CompanyType.CONTRACTOR, abn: 'TEST-CONTRACTOR-001' },
+    });
     if (!contractor) {
       throw new Error('Test seed missing — expected at least one CONTRACTOR company.');
     }

@@ -40,6 +40,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { NotificationService } from '../notification-feed/notification.service';
 import { SYSTEM_SENDER } from '../notification-feed/notification.types';
 import { EmailService } from '../notifications/email.service';
+import { loadCompanyPoTerms } from '../purchase-orders/po-terms.util';
 import { assertVendorUsableOnProject } from '../vendors/vendor-access.util';
 
 import {
@@ -662,6 +663,8 @@ export class MaterialRequestsService {
       mr.lineItems.map((li) => li.materialId),
     );
 
+    const termsAndConditions = await loadCompanyPoTerms(this.prisma, mr.companyId);
+
     const po = await this.prisma.$transaction(async (tx) => {
       const createdPo = await tx.purchaseOrder.create({
         data: {
@@ -678,6 +681,7 @@ export class MaterialRequestsService {
           // date — the PO has no separate "need by", and without this the date
           // the MR was raised against was silently lost on conversion.
           plannedDeliveryDate: mr.neededByDate,
+          termsAndConditions,
           subtotal: 0,
           totalAmount: 0,
           lineItemCount: mr.lineItems.length,
