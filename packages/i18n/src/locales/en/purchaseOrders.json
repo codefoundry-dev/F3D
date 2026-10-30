@@ -190,7 +190,7 @@
     "APPROVED": "Approved",
     "SENT": "Sent",
     "ACKNOWLEDGED": "Acknowledged",
-    "ACCEPTED": "Accepted",
+    "ACCEPTED": "Approved",
     "DECLINED": "Declined",
     "SCHEDULED_FOR_DELIVERY": "Scheduled for delivery",
     "CANCELLED": "Cancelled",

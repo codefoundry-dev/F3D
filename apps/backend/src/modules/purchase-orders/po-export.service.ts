@@ -20,6 +20,13 @@ interface ExportColumnDef {
   pdfWidth?: number;
 }
 
+/**
+ * PO status label for exports. ACCEPTED is the vendor's Approve, so everyone
+ * sees it as "Approved" (FOR-397), matching the app.
+ */
+const formatPoStatus = (status: string | null | undefined): string =>
+  status === 'ACCEPTED' ? 'Approved' : formatEnum(status);
+
 /** Safely convert an unknown value to a string (avoids [object Object]) */
 const str = (v: unknown): string =>
   v === null || v === undefined
@@ -58,7 +65,7 @@ const COLUMN_MAP: Record<string, ExportColumnDef> = {
   poStatus: {
     header: 'PO Status',
     pdfWidth: 80,
-    value: (r) => formatEnum(r.status as string),
+    value: (r) => formatPoStatus(r.status as string),
   },
   revision: {
     header: 'Revision',
@@ -324,7 +331,7 @@ export class PoExportService {
         lines: [
           `PO Number: ${po.poNumber}`,
           `Project: ${po.projectName}`,
-          `Status: ${formatEnum(po.status)}`,
+          `Status: ${formatPoStatus(po.status)}`,
           `Type: ${formatEnum(po.poType ?? 'STANDARD')}`,
           `Revision: ${str(po.revision)}`,
           `Buyer: ${buyerName}`,

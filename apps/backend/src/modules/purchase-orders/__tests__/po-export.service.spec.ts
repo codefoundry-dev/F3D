@@ -262,6 +262,19 @@ describe('PoExportService', () => {
     );
   });
 
+  it('labels a vendor-approved (ACCEPTED) PO "Approved" (FOR-397)', async () => {
+    mockPoService.listPurchaseOrders.mockResolvedValue({
+      items: [{ ...sampleItems[0], status: 'ACCEPTED' }],
+      meta: {},
+    });
+    mockPdfExportService.exportToPDF.mockResolvedValue({ url: 'https://storage/pos.pdf' });
+
+    await service.exportPos('pdf', q(), companyAdmin as never);
+
+    const { rows } = mockPdfExportService.exportToPDF.mock.calls[0][0];
+    expect(rows[0]).toEqual(expect.objectContaining({ 'PO Status': 'Approved' }));
+  });
+
   it('maps aging column based on issuedAt or updatedAt', async () => {
     mockPdfExportService.exportToCSV.mockResolvedValue({ url: 'https://storage/pos.csv' });
 
