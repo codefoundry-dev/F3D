@@ -115,7 +115,7 @@
     "holdForReleaseRequiresDeadline": "Hold-for-release orders require an earliest delivery date (deadlineStart).",
     "invalidQuoteLine": "A line references a quote line that isn't an approved quote from this vendor.",
     "cannotConfirm": "Cannot confirm PO with status \"{{status}}\". Only Sent POs can be confirmed by the vendor.",
-    "cannotAccept": "Cannot accept PO with status \"{{status}}\". Only Acknowledged POs can be accepted by the vendor.",
+    "cannotAccept": "Cannot approve PO with status \"{{status}}\". Only Acknowledged POs can be approved by the vendor.",
     "cannotVendorDecline": "Cannot decline PO with status \"{{status}}\". Only Sent or Acknowledged POs can be declined by the vendor.",
     "onlyClosedCanArchive": "Only closed purchase orders can be archived",
     "approvalThresholdExceeded": "PO total {{amount}} {{currency}} exceeds your approval threshold of {{threshold}} {{currency}}. A higher-tier approver must approve this PO.",

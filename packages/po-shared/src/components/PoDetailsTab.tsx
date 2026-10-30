@@ -34,8 +34,9 @@ export function PoDetailsTab({
     ? formatDate(po.plannedDeliveryDate)
     : t('common:no');
 
-  // The vendor/guest view labels SENT as "In Review" (vendorStatus); the
-  // buyer/internal view shows the real PO status. Both share the colour scale.
+  // The vendor/guest view relabels some statuses (vendorStatus: SENT → "In
+  // Review", ACCEPTED → "Approved"); the buyer/internal view shows the real PO
+  // status. Both share the colour scale.
   const statusBadge = (
     <Badge className={getStatusColor(PO_STATUS_COLORS, po.status)}>
       {isVendorView

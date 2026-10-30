@@ -552,7 +552,7 @@ describe('PoExportService', () => {
       // Signatures — buyer line pre-filled with approver name
       expect(options.signatures).toEqual([
         { label: 'Authorised by (Buyer)', name: 'Priya Approver' },
-        { label: 'Accepted by (Vendor)' },
+        { label: 'Approved by (Vendor)' },
       ]);
     });
 

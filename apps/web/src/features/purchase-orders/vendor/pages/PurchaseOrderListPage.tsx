@@ -337,6 +337,7 @@ export default function PurchaseOrderListPage() {
                     items={rawItems}
                     statusKeys={PO_STATUS_KEYS}
                     typeKeys={PO_TYPE_KEYS}
+                    isVendorView
                   />
                 </>
               }
@@ -463,6 +464,7 @@ export default function PurchaseOrderListPage() {
                       items={rawItems}
                       statusKeys={PO_STATUS_KEYS}
                       typeKeys={PO_TYPE_KEYS}
+                      isVendorView
                     />
                   </FilterPanel>
 

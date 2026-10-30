@@ -109,7 +109,7 @@ exports[`PoExportService single PO PDF template builds a stable PO PDF template 
       "name": "Priya Approver",
     },
     {
-      "label": "Accepted by (Vendor)",
+      "label": "Approved by (Vendor)",
     },
   ],
   "terms": {

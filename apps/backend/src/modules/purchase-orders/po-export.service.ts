@@ -393,7 +393,7 @@ export class PoExportService {
       },
       signatures: [
         { label: 'Authorised by (Buyer)', name: po.approvedBy?.name ?? po.createdBy?.name },
-        { label: 'Accepted by (Vendor)' },
+        { label: 'Approved by (Vendor)' },
       ],
       filenamePrefix: `po-${po.poNumber}`,
     };

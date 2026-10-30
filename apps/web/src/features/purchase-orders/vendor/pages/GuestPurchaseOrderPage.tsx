@@ -182,7 +182,7 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
                 {t('guest.title', { poNumber: po.poNumber })}
               </h1>
               <Badge className={getStatusColor(PO_STATUS_COLORS, po.status)}>
-                {t(`status.${po.status}` as never)}
+                {t([`vendorStatus.${po.status}`, `status.${po.status}`] as never)}
               </Badge>
             </div>
             <p className="text-sm text-muted-foreground">
