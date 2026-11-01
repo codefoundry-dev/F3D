@@ -553,6 +553,31 @@ export interface MaterialDetailDto {
 export interface MaterialCategoryDto {
   id: string;
   name: string;
+  /** Inactive categories stay on existing materials but aren't offered for new ones (FOR-362). */
+  isActive: boolean;
+  /** Materials currently filed under the category (any status / company). */
+  materialCount: number;
+}
+
+/** POST /v1/materials/categories — Super Admin creates a global category (FOR-362). */
+export class CreateMaterialCategoryDto {
+  @IsString()
+  @MaxLength(255)
+  name!: string;
+}
+
+/** PATCH /v1/materials/categories/:id — rename and/or (de)activate (FOR-362). */
+export class UpdateMaterialCategoryDto {
+  @ApiPropertyOptional()
+  @IsString()
+  @MaxLength(255)
+  @IsOptional()
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 }
 
 /**

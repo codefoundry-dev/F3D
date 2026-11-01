@@ -350,13 +350,27 @@ describe('Users (e2e)', () => {
 
   describe('User lifecycle (deactivate/reactivate)', () => {
     let testUserId: string;
+    const LIFECYCLE_EMAIL = 'lifecycle-test@test.local';
+
+    // Audit-log rows reference the user, so they must go first or the delete
+    // fails and the next run can't recreate the user.
+    const purgeLifecycleUser = async () => {
+      const user = await prisma.user.findUnique({
+        where: { email: LIFECYCLE_EMAIL },
+        select: { id: true },
+      });
+      if (!user) return;
+      await prisma.auditLog.deleteMany({ where: { performedById: user.id } });
+      await prisma.user.delete({ where: { id: user.id } }).catch(() => {});
+    };
 
     beforeAll(async () => {
+      await purgeLifecycleUser();
       // Create a test user for lifecycle tests
       const res = await authRequest('post', '/v1/users', saTokens.accessToken)
         .send({
           name: 'Lifecycle Test User',
-          email: 'lifecycle-test@test.local',
+          email: LIFECYCLE_EMAIL,
           role: 'FINANCIAL_OFFICER',
           companyId: contractorCompanyId,
         })
@@ -377,8 +391,7 @@ describe('Users (e2e)', () => {
     });
 
     afterAll(async () => {
-      // Clean up
-      await prisma.user.delete({ where: { id: testUserId } }).catch(() => {});
+      await purgeLifecycleUser();
     });
 
     it('should deactivate a user', async () => {
@@ -393,7 +406,7 @@ describe('Users (e2e)', () => {
       expect(res.body.data.status).toBe('INACTIVE');
 
       // Deactivation email should have been sent
-      const email = emailService.getLastEmailTo('lifecycle-test@test.local');
+      const email = emailService.getLastEmailTo(LIFECYCLE_EMAIL);
       expect(email).toBeDefined();
     });
 
@@ -430,7 +443,7 @@ describe('Users (e2e)', () => {
         saTokens.accessToken,
       ).expect(400);
 
-      expect(res.body.error).toContain('sole active Company Admin');
+      expect(res.body.error).toContain('last Company Admin');
     });
   });
 

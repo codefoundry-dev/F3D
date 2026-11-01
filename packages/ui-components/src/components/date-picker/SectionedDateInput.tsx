@@ -14,6 +14,8 @@ export interface SectionedDateInputProps {
   onComplete: () => void;
   onFocus: () => void;
   autoFocus?: boolean;
+  /** Narrow segments sized to their digits, for tight table cells (FOR-390). */
+  compact?: boolean;
 }
 
 export function SectionedDateInput({
@@ -26,6 +28,7 @@ export function SectionedDateInput({
   onComplete,
   onFocus,
   autoFocus,
+  compact,
 }: SectionedDateInputProps) {
   const dayRef = useRef<HTMLInputElement>(null);
   const monthRef = useRef<HTMLInputElement>(null);
@@ -125,11 +128,15 @@ export function SectionedDateInput({
   );
 
   const sectionClass =
-    'bg-transparent outline-none text-center text-foreground tabular-nums selection:bg-primary/20 p-0';
+    // 16px on phones so iOS Safari doesn't zoom on focus (ADR-0019).
+    'bg-transparent outline-none text-center text-base md:text-sm text-foreground tabular-nums selection:bg-primary/20 p-0';
+
+  const dayMonthWidth = compact ? 'w-[2.2ch]' : 'w-7 md:w-6';
+  const yearWidth = compact ? 'w-[4.3ch]' : 'w-12 md:w-11';
 
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
-    <div className="flex items-center flex-1" onClick={onFocus}>
+    <div className="flex items-center flex-1 min-w-0" onClick={onFocus}>
       <input
         ref={dayRef}
         type="text"
@@ -137,7 +144,7 @@ export function SectionedDateInput({
         maxLength={2}
         value={day}
         placeholder="DD"
-        className={cn(sectionClass, 'w-6')}
+        className={cn(sectionClass, 'shrink-0', dayMonthWidth)}
         onChange={(e) => handleInput(e, onChangeDay, 31, 2, monthRef)}
         onKeyDown={(e) => handleKey(e, day, onChangeDay, 31, 2, null, monthRef)}
         onFocus={(e) => {
@@ -153,7 +160,7 @@ export function SectionedDateInput({
         maxLength={2}
         value={month}
         placeholder="MM"
-        className={cn(sectionClass, 'w-6')}
+        className={cn(sectionClass, 'shrink-0', dayMonthWidth)}
         onChange={(e) => handleInput(e, onChangeMonth, 12, 2, yearRef)}
         onKeyDown={(e) => handleKey(e, month, onChangeMonth, 12, 2, dayRef, yearRef)}
         onFocus={(e) => {
@@ -169,7 +176,7 @@ export function SectionedDateInput({
         maxLength={4}
         value={year}
         placeholder="YYYY"
-        className={cn(sectionClass, 'w-11')}
+        className={cn(sectionClass, 'shrink-0', yearWidth)}
         onChange={(e) => handleInput(e, onChangeYear, 2099, 4, null)}
         onKeyDown={(e) => handleKey(e, year, onChangeYear, 2099, 4, monthRef, null)}
         onFocus={(e) => {

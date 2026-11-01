@@ -187,6 +187,7 @@ describe('Delivery approval close-out (Epic 6 A7, e2e)', () => {
     const project = await prisma.project.create({
       data: {
         name: `Delivery E2E Project ${SUFFIX}`,
+        code: `E2E-DA-${SUFFIX}`,
         status: ProjectStatus.ONGOING,
         companyId,
         createdByUserId: adminUserId,
@@ -264,8 +265,12 @@ describe('Delivery approval close-out (Epic 6 A7, e2e)', () => {
       .deleteMany({ where: { id: { in: [materialAId, materialBId] } } })
       .catch(() => undefined);
     await prisma.materialCategory.delete({ where: { id: categoryId } }).catch(() => undefined);
-    await prisma.projectLocation.deleteMany({ where: { projectId } }).catch(() => undefined);
-    await prisma.project.delete({ where: { id: projectId } }).catch(() => undefined);
+    // Guard: with projectId undefined (setup failed), Prisma drops the filter and
+    // deleteMany would wipe EVERY project location in the database.
+    if (projectId) {
+      await prisma.projectLocation.deleteMany({ where: { projectId } }).catch(() => undefined);
+      await prisma.project.delete({ where: { id: projectId } }).catch(() => undefined);
+    }
     await prisma.user.delete({ where: { id: adminUserId } }).catch(() => undefined);
     await prisma.company.delete({ where: { id: companyId } }).catch(() => undefined);
 

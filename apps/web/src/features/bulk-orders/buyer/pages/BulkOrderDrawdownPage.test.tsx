@@ -59,6 +59,7 @@ vi.mock('@/features/purchase-orders/buyer/services/purchase-orders.service', () 
     data: [{ id: 'vend-1', legalName: 'Vendor Alpha', tradeName: null }],
   }),
   useCreatePurchaseOrder: () => ({ mutate: mockCreateMutate, isPending: false }),
+  useCompanyPoTerms: () => undefined,
 }));
 
 import { render, screen, fireEvent } from '@testing-library/react';

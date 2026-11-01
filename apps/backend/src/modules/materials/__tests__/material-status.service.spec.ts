@@ -20,6 +20,7 @@ const realMaterials = new MaterialsService(
   {
     get: (_key: string, fallback: string) => fallback,
   } as never,
+  {} as never,
 );
 
 const mockMaterialsService = {

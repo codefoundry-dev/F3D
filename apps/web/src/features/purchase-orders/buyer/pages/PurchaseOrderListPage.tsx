@@ -53,6 +53,11 @@ import {
   useColumnResize,
   useDropdown,
   ViewSelectorDropdown,
+  ScrollTable,
+  MobileListToolbar,
+  useIsPhone,
+  FloatingActionButton,
+  Modal,
 } from '@forethread/ui-components';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 import DragHandleIcon from '@forethread/ui-components/assets/icons/drag-and-drop.svg?react';
@@ -65,6 +70,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { buildListMenuActions, countActiveFilters } from '@/shared/layout/mobileListToolbar';
 
 import { PoDetailPanel } from '../components/PoDetailPanel';
 
@@ -77,7 +83,14 @@ const ALL_COLUMNS = PO_CA_COLUMNS;
 const COLUMN_ORDER = ALL_COLUMNS.map((c) => c.key);
 
 /** PO statuses for which the "Change PO" kebab action is offered (FLOW 3). */
-const CHANGEABLE_PO_STATUSES = ['SENT', 'ACKNOWLEDGED', 'ACCEPTED'];
+// Accepted POs move on to scheduled / late by themselves (FOR-396).
+const CHANGEABLE_PO_STATUSES = [
+  'SENT',
+  'ACKNOWLEDGED',
+  'ACCEPTED',
+  'SCHEDULED_FOR_DELIVERY',
+  'LATE_FOR_DELIVERY',
+];
 
 /* ─── Store ────────────────────────────────────────────────────────────────── */
 
@@ -122,6 +135,9 @@ export default function PurchaseOrderListPage() {
 
   /* Dropdowns */
   const createDD = useDropdown();
+  // Phones: compact toolbar + floating Create button (ADR-0019 B9).
+  const isPhone = useIsPhone();
+  const [createSheetOpen, setCreateSheetOpen] = useState(false);
   const viewDD = useDropdown();
   const groupDD = useDropdown();
   const exportDD = useDropdown();
@@ -367,108 +383,41 @@ export default function PurchaseOrderListPage() {
   );
 
   return (
-    <div className="px-4 sm:px-8 pt-4 sm:pt-6 pb-6 sm:pb-8 relative">
+    <div className="px-4 md:px-8 pt-4 md:pt-6 pb-6 md:pb-8 relative">
       <div className="flex flex-col rounded-lg border border-border bg-background pb-4">
-        {/* ═══ Toolbar Row 1 ═══ */}
-        <div className="px-4 sm:px-8 pt-4">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div ref={createDD.ref} className="relative">
-              <Button
-                variant="primary"
-                size="md"
-                leftIcon={<span className="text-lg leading-none">+</span>}
-                onClick={() => createDD.setIsOpen((p) => !p)}
-              >
-                {t('list.createNew')}
-              </Button>
-
-              {createDD.isOpen && (
-                <div className="absolute left-0 mt-1 w-[301px] border-2 border-foreground/20 bg-background rounded-lg p-2 z-50 flex flex-col items-start gap-1">
-                  <button
-                    type="button"
-                    className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-sm font-medium hover:bg-muted transition-colors w-full text-left"
-                    onClick={() => {
-                      createDD.setIsOpen(false);
-                      navigate(ROUTES.purchaseOrderNew);
-                    }}
-                  >
-                    Create manually
-                  </button>
-                  <button
-                    type="button"
-                    className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-sm font-medium hover:bg-muted transition-colors w-full text-left"
-                    onClick={() => {
-                      createDD.setIsOpen(false);
-                      setShowSelectRfq(true);
-                    }}
-                  >
-                    Converting Approved RFQ
-                  </button>
-                  <button
-                    type="button"
-                    className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-sm font-medium hover:bg-muted transition-colors w-full text-left"
-                    onClick={() => {
-                      createDD.setIsOpen(false);
-                      setShowSelectBo(true);
-                    }}
-                  >
-                    From Bulk order
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3">
-              <ViewSelectorDropdown
-                activeView={activeView}
-                savedViews={s.savedViews}
-                onApplyView={s.applyView}
-                defaultViewLabel={t('list.viewDefault')}
-                noSavedViewsHint={t('views.noSavedViews')}
-                isOpen={viewDD.isOpen}
-                onOpenChange={viewDD.setIsOpen}
-                dropdownRef={viewDD.ref}
-              />
-
-              <ToolbarIconButton title={t('list.save')} onClick={() => s.setShowCreateView(true)}>
-                <FloppyDiskIcon className="w-6 h-6" />
-              </ToolbarIconButton>
-
-              <ExportDropdownButton
-                title="Export"
-                formats={[
-                  { key: 'csv', label: t('list.exportCsv') },
-                  { key: 'xlsx', label: t('list.exportXlsx') },
-                ]}
-                onExport={(fmt) => handleExport(fmt as 'csv' | 'xlsx')}
-                isOpen={exportDD.isOpen}
-                onOpenChange={exportDD.setIsOpen}
-                dropdownRef={exportDD.ref}
-              />
-
-              <ToolbarIconButton
-                title={t('list.settings')}
-                onClick={() => s.setShowTableMgmt(true)}
-              >
-                <SettingsIcon className="w-6 h-6" />
-              </ToolbarIconButton>
-            </div>
-          </div>
-        </div>
-
-        {/* divider */}
-        <div className="mt-4 px-4 sm:px-8">
-          <div className="border-b border-border" />
-        </div>
-
-        {/* ═══ Toolbar Row 2 ═══ */}
-        <div className="px-4 sm:px-8 pt-2 pb-4">
-          <div className="flex items-start justify-between gap-6 max-[899px]:flex-col max-[899px]:items-start max-[899px]:gap-3 py-1">
-            <div className="flex items-center gap-2 flex-wrap min-w-0 max-w-[66%] max-[899px]:max-w-full">
-              <span className="text-sm text-foreground whitespace-nowrap">
-                {t('list.quickFiltersLabel')}
-              </span>
-              {PO_CA_QUICK_FILTERS.map((key) => (
+        {isPhone ? (
+          <div className="px-4 pt-4 pb-3">
+            <MobileListToolbar
+              search={s.search}
+              onSearchChange={s.setSearch}
+              searchPlaceholder={t('list.searchPlaceholder')}
+              filtersLabel={t('list.filters')}
+              filtersTitle={t('list.filters')}
+              activeFilterCount={countActiveFilters(s.advancedFilters)}
+              onClearFilters={() => s.clearAdvancedFilters()}
+              clearFiltersLabel={t('advancedFilters.clearAll')}
+              filters={
+                <>
+                  <GroupByButton
+                    groupBy={s.groupBy}
+                    onGroupByChange={s.setGroupBy}
+                    options={GROUP_OPTIONS}
+                    getOptionLabel={(opt) => t(`list.${opt}` as never)}
+                    label={t('list.group')}
+                    isOpen={groupDD.isOpen}
+                    onOpenChange={groupDD.setIsOpen}
+                    dropdownRef={groupDD.ref}
+                  />
+                  <PoAdvancedFilters
+                    advancedFilters={s.advancedFilters}
+                    setAdvancedFilters={s.setAdvancedFilters}
+                    items={rawItems}
+                    statusKeys={PO_STATUS_KEYS}
+                    typeKeys={PO_TYPE_KEYS}
+                  />
+                </>
+              }
+              quickFilters={PO_CA_QUICK_FILTERS.map((key) => (
                 <FilterChip
                   key={key}
                   label={t(`quickFilters.${key}`)}
@@ -476,49 +425,186 @@ export default function PurchaseOrderListPage() {
                   onClick={() => s.setQuickFilter(s.quickFilter === key ? '' : key)}
                 />
               ))}
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <GroupByButton
-                groupBy={s.groupBy}
-                onGroupByChange={s.setGroupBy}
-                options={GROUP_OPTIONS}
-                getOptionLabel={(opt) => t(`list.${opt}` as never)}
-                label={t('list.group')}
-                isOpen={groupDD.isOpen}
-                onOpenChange={groupDD.setIsOpen}
-                dropdownRef={groupDD.ref}
-              />
-
-              <FilterPanel
-                label={t('list.filters')}
-                open={s.filtersOpen}
-                onOpenChange={s.setFiltersOpen}
-                onClearAll={s.clearAdvancedFilters}
-                clearAllLabel={t('advancedFilters.clearAll')}
-              >
-                <PoAdvancedFilters
-                  advancedFilters={s.advancedFilters}
-                  setAdvancedFilters={s.setAdvancedFilters}
-                  items={rawItems}
-                  statusKeys={PO_STATUS_KEYS}
-                  typeKeys={PO_TYPE_KEYS}
-                />
-              </FilterPanel>
-
-              <ToolbarSearchToggle
-                search={s.search}
-                onSearchChange={s.setSearch}
-                searchOpen={s.searchOpen}
-                onSearchOpenChange={s.setSearchOpen}
-                placeholder={t('list.searchPlaceholder')}
-              />
-            </div>
+              menuActions={buildListMenuActions({
+                views: {
+                  savedViews: s.savedViews,
+                  activeViewId: s.activeViewId,
+                  onApplyView: s.applyView,
+                  defaultViewLabel: t('views.defaultView'),
+                },
+                saveView: { label: t('list.save'), onClick: () => s.setShowCreateView(true) },
+                exports: [
+                  { key: 'csv', label: t('list.exportCsv'), onClick: () => handleExport('csv') },
+                  { key: 'xlsx', label: t('list.exportXlsx'), onClick: () => handleExport('xlsx') },
+                ],
+                columnSettings: {
+                  label: t('list.settings'),
+                  onClick: () => s.setShowTableMgmt(true),
+                },
+              })}
+            />
+            <FloatingActionButton
+              label={t('list.createNew')}
+              onClick={() => setCreateSheetOpen(true)}
+            />
           </div>
-        </div>
+        ) : (
+          <>
+            {/* ═══ Toolbar Row 1 ═══ */}
+            <div className="px-4 sm:px-8 pt-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div ref={createDD.ref} className="relative">
+                  <Button
+                    variant="primary"
+                    size="md"
+                    leftIcon={<span className="text-lg leading-none">+</span>}
+                    onClick={() => createDD.setIsOpen((p) => !p)}
+                  >
+                    {t('list.createNew')}
+                  </Button>
+
+                  {createDD.isOpen && (
+                    <div className="absolute left-0 mt-1 w-[301px] border-2 border-foreground/20 bg-background rounded-lg p-2 z-50 flex flex-col items-start gap-1">
+                      <button
+                        type="button"
+                        className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-sm font-medium hover:bg-muted transition-colors w-full text-left"
+                        onClick={() => {
+                          createDD.setIsOpen(false);
+                          navigate(ROUTES.purchaseOrderNew);
+                        }}
+                      >
+                        Create manually
+                      </button>
+                      <button
+                        type="button"
+                        className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-sm font-medium hover:bg-muted transition-colors w-full text-left"
+                        onClick={() => {
+                          createDD.setIsOpen(false);
+                          setShowSelectRfq(true);
+                        }}
+                      >
+                        Converting Approved RFQ
+                      </button>
+                      <button
+                        type="button"
+                        className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-sm font-medium hover:bg-muted transition-colors w-full text-left"
+                        onClick={() => {
+                          createDD.setIsOpen(false);
+                          setShowSelectBo(true);
+                        }}
+                      >
+                        From Bulk order
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <ViewSelectorDropdown
+                    activeView={activeView}
+                    savedViews={s.savedViews}
+                    onApplyView={s.applyView}
+                    defaultViewLabel={t('list.viewDefault')}
+                    noSavedViewsHint={t('views.noSavedViews')}
+                    isOpen={viewDD.isOpen}
+                    onOpenChange={viewDD.setIsOpen}
+                    dropdownRef={viewDD.ref}
+                  />
+
+                  <ToolbarIconButton
+                    title={t('list.save')}
+                    onClick={() => s.setShowCreateView(true)}
+                  >
+                    <FloppyDiskIcon className="w-6 h-6" />
+                  </ToolbarIconButton>
+
+                  <ExportDropdownButton
+                    title="Export"
+                    formats={[
+                      { key: 'csv', label: t('list.exportCsv') },
+                      { key: 'xlsx', label: t('list.exportXlsx') },
+                    ]}
+                    onExport={(fmt) => handleExport(fmt as 'csv' | 'xlsx')}
+                    isOpen={exportDD.isOpen}
+                    onOpenChange={exportDD.setIsOpen}
+                    dropdownRef={exportDD.ref}
+                  />
+
+                  <ToolbarIconButton
+                    title={t('list.settings')}
+                    onClick={() => s.setShowTableMgmt(true)}
+                  >
+                    <SettingsIcon className="w-6 h-6" />
+                  </ToolbarIconButton>
+                </div>
+              </div>
+            </div>
+
+            {/* divider */}
+            <div className="mt-4 px-4 sm:px-8">
+              <div className="border-b border-border" />
+            </div>
+
+            {/* ═══ Toolbar Row 2 ═══ */}
+            <div className="px-4 sm:px-8 pt-2 pb-4">
+              <div className="flex items-start justify-between gap-6 max-[899px]:flex-col max-[899px]:items-start max-[899px]:gap-3 py-1">
+                <div className="flex items-center gap-2 flex-wrap min-w-0 max-w-[66%] max-[899px]:max-w-full">
+                  <span className="text-sm text-foreground whitespace-nowrap">
+                    {t('list.quickFiltersLabel')}
+                  </span>
+                  {PO_CA_QUICK_FILTERS.map((key) => (
+                    <FilterChip
+                      key={key}
+                      label={t(`quickFilters.${key}`)}
+                      active={s.quickFilter === key}
+                      onClick={() => s.setQuickFilter(s.quickFilter === key ? '' : key)}
+                    />
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <GroupByButton
+                    groupBy={s.groupBy}
+                    onGroupByChange={s.setGroupBy}
+                    options={GROUP_OPTIONS}
+                    getOptionLabel={(opt) => t(`list.${opt}` as never)}
+                    label={t('list.group')}
+                    isOpen={groupDD.isOpen}
+                    onOpenChange={groupDD.setIsOpen}
+                    dropdownRef={groupDD.ref}
+                  />
+
+                  <FilterPanel
+                    label={t('list.filters')}
+                    open={s.filtersOpen}
+                    onOpenChange={s.setFiltersOpen}
+                    onClearAll={s.clearAdvancedFilters}
+                    clearAllLabel={t('advancedFilters.clearAll')}
+                  >
+                    <PoAdvancedFilters
+                      advancedFilters={s.advancedFilters}
+                      setAdvancedFilters={s.setAdvancedFilters}
+                      items={rawItems}
+                      statusKeys={PO_STATUS_KEYS}
+                      typeKeys={PO_TYPE_KEYS}
+                    />
+                  </FilterPanel>
+
+                  <ToolbarSearchToggle
+                    search={s.search}
+                    onSearchChange={s.setSearch}
+                    searchOpen={s.searchOpen}
+                    onSearchOpenChange={s.setSearchOpen}
+                    placeholder={t('list.searchPlaceholder')}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* ═══ Table ═══ */}
-        <div className="px-4 sm:px-8">
+        <div className="px-4 md:px-8">
           {isLoading ? (
             <div className="flex items-center justify-center py-16">
               <Spinner size="md" />
@@ -526,7 +612,7 @@ export default function PurchaseOrderListPage() {
           ) : items.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">{t('list.noPosFound')}</div>
           ) : (
-            <div className="rounded-lg border border-border overflow-x-auto">
+            <ScrollTable className="rounded-lg border border-border">
               <table
                 ref={tableRef}
                 className="w-full text-sm"
@@ -557,7 +643,7 @@ export default function PurchaseOrderListPage() {
                         >
                           <span className="flex items-center justify-between gap-2">
                             <span className="flex items-center gap-1.5">
-                              <DragHandleIcon className="w-[6px] h-[10px] shrink-0 text-[hsl(var(--sort-icon))] cursor-grab" />
+                              <DragHandleIcon className="hidden w-[6px] h-[10px] shrink-0 text-[hsl(var(--sort-icon))] cursor-grab md:block" />
                               {t(`columns.${key}` as never)}
                             </span>
                             <SortIcon
@@ -599,12 +685,12 @@ export default function PurchaseOrderListPage() {
                     : items.map((po) => renderPoRow(po))}
                 </tbody>
               </table>
-            </div>
+            </ScrollTable>
           )}
         </div>
 
         {totalCount > 0 && (
-          <div className="px-4 sm:px-8">
+          <div className="px-4 md:px-8">
             <TablePagination
               page={s.page}
               totalItems={totalCount}
@@ -687,7 +773,11 @@ export default function PurchaseOrderListPage() {
       <SelectRfqModal
         open={showSelectRfq}
         onClose={() => setShowSelectRfq(false)}
-        onSelect={(rfq: RfqListItem, selectedItemIds?: Set<string>) => {
+        onSelect={(
+          rfq: RfqListItem,
+          selectedItemIds?: Set<string>,
+          quoteLineItemIds?: Set<string>,
+        ) => {
           setShowSelectRfq(false);
           void getRfq(rfq.id).then((detail) => {
             const filtered = selectedItemIds
@@ -696,7 +786,9 @@ export default function PurchaseOrderListPage() {
                   lineItems: detail.lineItems.filter((li) => selectedItemIds.has(li.id)),
                 }
               : detail;
-            const { defaultValues, lockedFields } = rfqToFormDefaults(filtered);
+            const { defaultValues, lockedFields } = rfqToFormDefaults(filtered, {
+              quoteLineItemIds,
+            });
             navigate(ROUTES.purchaseOrderNew, {
               state: { mode: 'from-rfq', defaultValues, lockedFields: [...lockedFields] },
             });
@@ -726,6 +818,47 @@ export default function PurchaseOrderListPage() {
           });
         }}
       />
+
+      {/* Phones: the FAB's create options (B9). */}
+      {createSheetOpen && (
+        <Modal onClose={() => setCreateSheetOpen(false)} mobile="sheet">
+          <div className="flex flex-col gap-1 px-4 pb-4">
+            <h2 className="px-2 pb-2 text-base font-semibold text-foreground">
+              {t('list.createNew')}
+            </h2>
+            <button
+              type="button"
+              className="flex h-12 w-full items-center rounded-[10px] px-2 text-left text-[15px] font-semibold text-gray-700 hover:bg-muted"
+              onClick={() => {
+                setCreateSheetOpen(false);
+                navigate(ROUTES.purchaseOrderNew);
+              }}
+            >
+              Create manually
+            </button>
+            <button
+              type="button"
+              className="flex h-12 w-full items-center rounded-[10px] px-2 text-left text-[15px] font-semibold text-gray-700 hover:bg-muted"
+              onClick={() => {
+                setCreateSheetOpen(false);
+                setShowSelectRfq(true);
+              }}
+            >
+              Converting Approved RFQ
+            </button>
+            <button
+              type="button"
+              className="flex h-12 w-full items-center rounded-[10px] px-2 text-left text-[15px] font-semibold text-gray-700 hover:bg-muted"
+              onClick={() => {
+                setCreateSheetOpen(false);
+                setShowSelectBo(true);
+              }}
+            >
+              From Bulk order
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

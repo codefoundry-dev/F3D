@@ -21,6 +21,7 @@ vi.mock('@forethread/ui-components', () => ({
   MessageBadgeIcon: () => <span data-testid="notes-icon" />,
   onDigitsOnly: () => undefined,
   onDecimalOnly: () => undefined,
+  formatCurrency: (n: number) => `$${n.toFixed(2)}`,
   // The cell's catalogue popup: expose the placeholder and a whole-row pick
   // button so the test can drive the single-pick path (onPickItem).
   MaterialSearchPanel: (p: {
@@ -56,9 +57,15 @@ import { LineItemRow, type MaterialSearchState } from './LineItemRow';
 const setValueSpy = vi.fn();
 const closeSpy = vi.fn();
 
-function Harness() {
+function Harness({
+  line = { ...EMPTY_LINE_ITEM },
+  isFilled = false,
+}: {
+  line?: FormValues['lineItems'][number];
+  isFilled?: boolean;
+}) {
   const form = useForm<FormValues>({
-    defaultValues: { lineItems: [{ ...EMPTY_LINE_ITEM }] } as Partial<FormValues>,
+    defaultValues: { lineItems: [line] } as Partial<FormValues>,
   });
   const setValue: typeof form.setValue = (name, value, options) => {
     setValueSpy(name, value);
@@ -88,7 +95,7 @@ function Harness() {
       <tbody>
         <LineItemRow
           index={0}
-          isFilled={false}
+          isFilled={isFilled}
           isLast
           hasNotes={false}
           item={form.watch('lineItems.0')}
@@ -131,5 +138,28 @@ describe('LineItemRow — manual material cell (FOR-274)', () => {
     expect(calls.get('lineItems.0.taxCode')).toBe('TX-A');
     expect(calls.get('lineItems.0.unitOfMeasure')).toBe('ea');
     expect(closeSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('LineItemRow — price from an approved quote (FOR-391)', () => {
+  const filled = {
+    ...EMPTY_LINE_ITEM,
+    materialName: 'Steel Beam W12x26',
+    unitOfMeasure: 'ea',
+    unitPrice: 42.5,
+    quantityOrdered: 3,
+  };
+
+  it('shows the price of a quoted line read-only with a Quoted tag', () => {
+    render(<Harness line={{ ...filled, quoteLineItemId: 'ql-1' }} isFilled />);
+    expect(screen.getByText('$42.50')).toBeInTheDocument();
+    expect(screen.getByText('create.quotedPriceTag')).toBeInTheDocument();
+    expect(document.querySelector('[name="lineItems.0.unitPrice"]')).toBeNull();
+  });
+
+  it('keeps the price editable on a line not bought from a quote', () => {
+    render(<Harness line={filled} isFilled />);
+    expect(screen.queryByText('create.quotedPriceTag')).not.toBeInTheDocument();
+    expect(document.querySelector('[name="lineItems.0.unitPrice"]')).not.toBeNull();
   });
 });

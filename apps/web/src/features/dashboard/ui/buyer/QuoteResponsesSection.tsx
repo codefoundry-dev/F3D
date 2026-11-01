@@ -1,6 +1,7 @@
-import { approveQuote, declineQuote } from '@forethread/api-client';
+import { declineQuote } from '@forethread/api-client';
 import type { QuoteResponseItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { useApproveQuote } from '@forethread/rfq-shared';
 import { QuoteResponseStatus } from '@forethread/shared-types/client';
 import {
   Badge,
@@ -50,13 +51,8 @@ export function QuoteResponsesSection({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const approveMutation = useMutation({
-    mutationFn: ({ rfqId, quoteId }: { rfqId: string; quoteId: string }) =>
-      approveQuote(rfqId, quoteId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['dashboard', 'po-ca'] });
-    },
-  });
+  // Approving awards the quote and opens its new draft PO (FOR-396).
+  const approveQuote = useApproveQuote();
 
   const declineMutation = useMutation({
     mutationFn: ({ rfqId, quoteId }: { rfqId: string; quoteId: string }) =>
@@ -74,16 +70,19 @@ export function QuoteResponsesSection({
   }
 
   return (
-    <div className="bg-white rounded-[14px] border border-black/20 overflow-hidden flex flex-col h-[420px]">
-      <div className="flex items-center justify-between px-4 pt-4 pb-3">
+    <div className="bg-white rounded-[14px] border border-black/20 overflow-hidden flex flex-col max-md:max-h-[480px] md:h-[420px]">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4 pb-3">
         <h2 className="text-base font-semibold text-foreground">{t('quoteResponses.title')}</h2>
-        <div className="flex gap-2">
+        <div
+          data-swipe-row
+          className="flex gap-2 max-md:-mx-4 max-md:w-[calc(100%+2rem)] max-md:overflow-x-auto max-md:px-4 [scrollbar-width:none]"
+        >
           {(['all', 'pending', 'approved'] as const).map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setActiveTab(tab)}
-              className={`rounded-full px-2.5 py-1 text-sm font-normal transition-colors ${
+              className={`shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-sm font-normal transition-colors max-md:min-h-11 max-md:px-4 ${
                 activeTab === tab
                   ? 'bg-accent text-foreground'
                   : 'border border-border text-foreground hover:bg-accent/50'
@@ -103,7 +102,7 @@ export function QuoteResponsesSection({
           filteredItems.map((item) => {
             const isPending = item.status === (QuoteResponseStatus.PENDING as string);
             const isMutating =
-              (approveMutation.isPending && approveMutation.variables?.quoteId === item.id) ||
+              approveQuote.pendingQuoteId === item.id ||
               (declineMutation.isPending && declineMutation.variables?.quoteId === item.id);
             const discount = discountLabel(item.discountPercent, item.discountAmount);
 
@@ -151,9 +150,7 @@ export function QuoteResponsesSection({
                         type="button"
                         className="flex items-center gap-1.5 h-8 px-3 py-2 border border-black rounded-xl text-sm font-medium text-black hover:bg-black/5 transition-colors disabled:opacity-50"
                         disabled={isMutating}
-                        onClick={() =>
-                          approveMutation.mutate({ rfqId: item.rfqId, quoteId: item.id })
-                        }
+                        onClick={() => approveQuote.approve(item.id, item.rfqId)}
                       >
                         <CheckCircleIcon className="w-[18px] h-[18px]" />
                         {t('quoteResponses.approve')}

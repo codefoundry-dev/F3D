@@ -13,6 +13,18 @@ const mockUploadAttachment = vi.hoisted(() => vi.fn());
 const mockGetPo = vi.hoisted(() => vi.fn());
 const mockUseQuery = vi.hoisted(() => vi.fn());
 
+const MockApiRequestError = vi.hoisted(
+  () =>
+    class extends Error {
+      constructor(
+        message: string,
+        readonly statusCode: number,
+      ) {
+        super(message);
+      }
+    },
+);
+
 vi.mock('react-router-dom', () => ({
   useParams: () => ({ token: 'tok-123' }),
 }));
@@ -29,7 +41,9 @@ vi.mock('@forethread/api-client', () => ({
   finalizeDeliveryPortal: (...a: unknown[]) => mockFinalize(...a),
   uploadDeliveryPortalLinePhoto: (...a: unknown[]) => mockUploadLinePhoto(...a),
   uploadDeliveryPortalAttachment: (...a: unknown[]) => mockUploadAttachment(...a),
-  isApiError: (_e: unknown, status?: number) => status === 403,
+  ApiRequestError: MockApiRequestError,
+  isApiError: (e: unknown, status?: number) =>
+    status === 403 || (e instanceof MockApiRequestError && e.statusCode === status),
 }));
 
 vi.mock('@forethread/i18n', () => ({
@@ -40,7 +54,14 @@ vi.mock('@forethread/i18n', () => ({
   }),
 }));
 
+const phone = vi.hoisted(() => ({ value: false }));
+const notify = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }));
 vi.mock('@forethread/ui-components', () => ({
+  useIsPhone: () => phone.value,
+  useHideMobileNav: () => {},
+  MobileActionBar: ({ children }: { children: ReactNode }) => (
+    <div data-testid="mobile-action-bar">{children}</div>
+  ),
   Button: ({ children, onClick, disabled, ...props }: Record<string, unknown>) => (
     <button onClick={onClick as () => void} disabled={disabled as boolean} {...stripBtn(props)}>
       {children as ReactNode}
@@ -51,7 +72,7 @@ vi.mock('@forethread/ui-components', () => ({
   Alert: ({ children }: { children: ReactNode }) => <div role="alert">{children}</div>,
   Spinner: () => <div data-testid="spinner" />,
   cn: (...c: unknown[]) => c.filter(Boolean).join(' '),
-  notificationService: { success: vi.fn(), error: vi.fn() },
+  notificationService: notify,
 }));
 
 // PortalLineItem is exercised on its own via portalLines.test.ts; here it is a
@@ -126,6 +147,7 @@ function poResponse(overrides: Partial<DeliveryPortalPoResponse> = {}): Delivery
 
 beforeEach(() => {
   vi.clearAllMocks();
+  phone.value = false;
   mockUseQuery.mockReturnValue({
     data: poResponse(),
     isLoading: false,
@@ -211,6 +233,25 @@ describe('PublicDeliveryPage', () => {
     // Step 4: submitted summary
     await screen.findByText('portal.submitted.title');
     expect(screen.getByTestId('portal-summary-delivered')).toHaveTextContent('1');
+  });
+
+  it('puts Submit in the fixed bottom bar on phones (FOR-380)', async () => {
+    phone.value = true;
+    render(<PublicDeliveryPage />);
+    fireEvent.change(screen.getByTestId('portal-identify-name'), {
+      target: { value: 'Alex Johnson' },
+    });
+    fireEvent.change(screen.getByTestId('portal-identify-email'), {
+      target: { value: 'alex@example.com' },
+    });
+    fireEvent.click(screen.getByTestId('portal-identify-submit'));
+    await screen.findByText('portal.code.title');
+    for (let i = 0; i < 6; i++) {
+      fireEvent.change(screen.getByTestId(`portal-code-digit-${i}`), { target: { value: '1' } });
+    }
+    fireEvent.click(screen.getByTestId('portal-code-verify'));
+    const submit = await screen.findByTestId('portal-submit');
+    expect(screen.getByTestId('mobile-action-bar')).toContainElement(submit);
   });
 
   it('"Change email" returns to the identify step', async () => {
@@ -314,6 +355,64 @@ describe('PublicDeliveryPage', () => {
     // Closing dismisses it.
     fireEvent.click(screen.getByTestId('portal-po-details-close'));
     expect(screen.queryByTestId('portal-po-details')).not.toBeInTheDocument();
+  });
+
+  it('renders the locked-link error on a 429 (FOR-386)', () => {
+    mockUseQuery.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new MockApiRequestError('Too many attempts', 429),
+    });
+    render(<PublicDeliveryPage />);
+    expect(screen.getByText('portal.lockedToken')).toBeInTheDocument();
+  });
+
+  it('verifies with the same trimmed email it identified with (FOR-386)', async () => {
+    render(<PublicDeliveryPage />);
+    fireEvent.change(screen.getByTestId('portal-identify-name'), { target: { value: 'Alex' } });
+    fireEvent.change(screen.getByTestId('portal-identify-email'), {
+      target: { value: 'alex@example.com ' },
+    });
+    fireEvent.click(screen.getByTestId('portal-identify-submit'));
+
+    await screen.findByText('portal.code.title');
+    for (let i = 0; i < 6; i++) {
+      fireEvent.change(screen.getByTestId(`portal-code-digit-${i}`), { target: { value: '1' } });
+    }
+    fireEvent.click(screen.getByTestId('portal-code-verify'));
+
+    await waitFor(() =>
+      expect(mockVerify).toHaveBeenCalledWith('tok-123', {
+        email: 'alex@example.com',
+        code: '111111',
+      }),
+    );
+  });
+
+  it("shows the server's reason when the submit is rejected (FOR-386)", async () => {
+    mockSubmit.mockRejectedValueOnce(
+      new MockApiRequestError('A delivery cannot be recorded for a PO in status DRAFT.', 400),
+    );
+    render(<PublicDeliveryPage />);
+    fireEvent.change(screen.getByTestId('portal-identify-name'), { target: { value: 'Alex' } });
+    fireEvent.change(screen.getByTestId('portal-identify-email'), {
+      target: { value: 'alex@example.com' },
+    });
+    fireEvent.click(screen.getByTestId('portal-identify-submit'));
+    await screen.findByText('portal.code.title');
+    for (let i = 0; i < 6; i++) {
+      fireEvent.change(screen.getByTestId(`portal-code-digit-${i}`), { target: { value: '1' } });
+    }
+    fireEvent.click(screen.getByTestId('portal-code-verify'));
+    fireEvent.click(await screen.findByTestId('portal-submit'));
+
+    await waitFor(() =>
+      expect(notify.error).toHaveBeenCalledWith(
+        'A delivery cannot be recorded for a PO in status DRAFT.',
+      ),
+    );
+    expect(mockFinalize).not.toHaveBeenCalled();
   });
 
   it('renders the expired-token error on a 403', () => {

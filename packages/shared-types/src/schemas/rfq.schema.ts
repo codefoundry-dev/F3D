@@ -89,6 +89,8 @@ export type CreateRfqValues = z.infer<typeof createRfqSchema>;
 export const updateRfqSchema = createRfqSchema.partial().extend({
   /** `null` clears a previously chosen location — see the draft schema below. */
   deliveryLocationId: z.string().uuid().nullable().optional(),
+  /** `null` clears the pick-up spot when a draft is switched to delivery. */
+  pickUpLocation: z.string().nullable().optional(),
 });
 
 export type UpdateRfqValues = z.infer<typeof updateRfqSchema>;
@@ -103,7 +105,8 @@ export const saveRfqDraftSchema = z.object({
   /** All projects the RFQ spans (US 5.05); first entry = primary project. */
   projectIds: z.array(z.string().uuid()).min(1).optional(),
   isPickUp: z.boolean().optional(),
-  pickUpLocation: z.string().optional(),
+  /** `null` clears the pick-up spot when the draft is switched to delivery. */
+  pickUpLocation: z.string().nullable().optional(),
   deadlineEnd: z.string().datetime().optional(),
   /** `null` clears a previously chosen location — e.g. the draft was switched
    * to a pick-up order, which is collected rather than delivered. */

@@ -1,4 +1,12 @@
+import sharp from 'sharp';
+
 import { BrandingService } from './branding.service';
+
+const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+const SVG_BYTES = Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="36"><rect width="120" height="36" fill="#f60"/></svg>',
+);
 
 describe('BrandingService', () => {
   let service: BrandingService;
@@ -33,16 +41,9 @@ describe('BrandingService', () => {
       expect(mockGetObject).not.toHaveBeenCalled();
     });
 
-    it('skips unsupported logo formats without hitting storage', async () => {
-      mockFindUnique.mockResolvedValue({ legalName: 'Acme', logoUrl: 'logos/c1/logo.svg' });
-      expect(await service.getPdfBrand('comp-1')).toBeUndefined();
-      expect(mockGetObject).not.toHaveBeenCalled();
-    });
-
     it('returns name + logo bytes for a PNG logo', async () => {
-      const bytes = Buffer.from('png-bytes');
       mockFindUnique.mockResolvedValue({ legalName: 'Acme', logoUrl: 'logos/c1/logo.png' });
-      mockGetObject.mockResolvedValue({ body: bytes });
+      mockGetObject.mockResolvedValue({ body: PNG_BYTES });
 
       const brand = await service.getPdfBrand('comp-1');
 
@@ -51,15 +52,42 @@ describe('BrandingService', () => {
         select: { legalName: true, logoUrl: true },
       });
       expect(mockGetObject).toHaveBeenCalledWith('logos/c1/logo.png');
-      expect(brand).toEqual({ name: 'Acme', logo: bytes });
+      expect(brand).toEqual({ name: 'Acme', logo: PNG_BYTES });
     });
 
-    it('accepts JPG/JPEG logos (case-insensitive extension)', async () => {
-      const bytes = Buffer.from('jpeg-bytes');
-      mockFindUnique.mockResolvedValue({ legalName: 'Acme', logoUrl: 'logos/c1/LOGO.JPG' });
-      mockGetObject.mockResolvedValue({ body: bytes });
+    it('detects JPEG from the bytes, whatever the key extension (FOR-389)', async () => {
+      // `.jfif` from phones, or no extension at all, used to be skipped.
+      for (const logoUrl of ['logos/c1/LOGO.JPG', 'logos/c1/photo.jfif', 'logos/c1/logo']) {
+        mockFindUnique.mockResolvedValue({ legalName: 'Acme', logoUrl });
+        mockGetObject.mockResolvedValue({ body: JPEG_BYTES });
+        expect(await service.getPdfBrand('comp-1')).toEqual({ name: 'Acme', logo: JPEG_BYTES });
+      }
+    });
 
-      expect(await service.getPdfBrand('comp-1')).toEqual({ name: 'Acme', logo: bytes });
+    it('rasterises an SVG logo to PNG (FOR-389)', async () => {
+      mockFindUnique.mockResolvedValue({ legalName: 'Acme', logoUrl: 'logos/c1/logo.svg' });
+      mockGetObject.mockResolvedValue({ body: SVG_BYTES });
+
+      const brand = await service.getPdfBrand('comp-1');
+
+      expect(brand?.name).toBe('Acme');
+      expect(brand?.logo.subarray(0, 4)).toEqual(PNG_BYTES.subarray(0, 4));
+    });
+
+    it('rasterises a WebP logo to PNG (FOR-389)', async () => {
+      const webp = await sharp(SVG_BYTES).webp().toBuffer();
+      mockFindUnique.mockResolvedValue({ legalName: 'Acme', logoUrl: 'logos/c1/logo.webp' });
+      mockGetObject.mockResolvedValue({ body: webp });
+
+      const brand = await service.getPdfBrand('comp-1');
+
+      expect(brand?.logo.subarray(0, 4)).toEqual(PNG_BYTES.subarray(0, 4));
+    });
+
+    it('falls back (undefined) when the bytes are not an image', async () => {
+      mockFindUnique.mockResolvedValue({ legalName: 'Acme', logoUrl: 'logos/c1/logo.png' });
+      mockGetObject.mockResolvedValue({ body: Buffer.from('not an image') });
+      expect(await service.getPdfBrand('comp-1')).toBeUndefined();
     });
 
     it('returns undefined when storage yields no bytes', async () => {
@@ -81,9 +109,14 @@ describe('BrandingService', () => {
       expect(mockFindUnique).not.toHaveBeenCalled();
     });
 
-    it('returns undefined when the company has no logo', async () => {
-      mockFindUnique.mockResolvedValue({ legalName: 'Acme', logoUrl: null });
+    it('returns undefined when the company is not found', async () => {
+      mockFindUnique.mockResolvedValue(null);
       expect(await service.getEmailBrand('comp-1')).toBeUndefined();
+    });
+
+    it('still names the company when it has no logo (FOR-383)', async () => {
+      mockFindUnique.mockResolvedValue({ legalName: 'Acme', logoUrl: null });
+      expect(await service.getEmailBrand('comp-1')).toEqual({ name: 'Acme' });
       expect(mockGetSignedUrl).not.toHaveBeenCalled();
     });
 

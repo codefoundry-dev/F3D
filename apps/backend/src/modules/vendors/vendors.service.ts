@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CompanyType, UserRole, UserStatus, VendorCategory } from '@prisma/client';
+import { CompanyType, Prisma, UserRole, UserStatus, VendorCategory } from '@prisma/client';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -14,6 +14,7 @@ import { AuditService, AuditAction } from '../audit/audit.service';
 import { assertVendorAccess } from './vendor-access.util';
 import {
   AuthUser,
+  CreateOneOffVendorDto,
   CreateVendorRepresentativeDto,
   CreateWarehouseDto,
   ResolveVendorSelectionDto,
@@ -54,6 +55,8 @@ export interface VendorListRow {
   specialisations: string[];
   categories: string[];
   representatives: VendorRepresentativeRow[];
+  /** Set for a one-off vendor (FOR-395): the only project it can be used on. */
+  oneOffProject: { id: string; name: string } | null;
 }
 
 const VENDOR_CATEGORY_KEYS = new Set<string>(Object.values(VendorCategory));
@@ -83,6 +86,35 @@ export function buildCategoryWhere(category?: string): Record<string, unknown> {
   if (!wantsUncategorised) return { categories: { hasSome: known } };
 
   return { OR: [{ categories: { hasSome: known } }, { categories: { isEmpty: true } }] };
+}
+
+/**
+ * Which one-off vendors (FOR-395) a vendor query sees. By default none: a
+ * one-off belongs to its project and stays out of company-wide lists.
+ * `projectIds` admits the one-offs of those projects (RFQ/PO wizards),
+ * `includeOneOff` admits all of them (the vendor list filter), and `oneOffOnly`
+ * drops full vendors (the project Vendors tab).
+ */
+export function buildOneOffWhere(opts: {
+  includeOneOff?: boolean;
+  projectIds?: string[];
+  oneOffOnly?: boolean;
+}): Prisma.CompanyVendorAssignmentWhereInput {
+  const projectIds = (opts.projectIds ?? []).filter(Boolean);
+  const oneOffs: Prisma.CompanyVendorAssignmentWhereInput = opts.includeOneOff
+    ? { oneOffProjectId: { not: null } }
+    : { oneOffProjectId: { in: projectIds } };
+  if (opts.oneOffOnly) return oneOffs;
+  if (!opts.includeOneOff && projectIds.length === 0) return { oneOffProjectId: null };
+  return opts.includeOneOff ? {} : { OR: [{ oneOffProjectId: null }, oneOffs] };
+}
+
+/** Comma-separated id list → array (empty entries dropped). */
+function splitIds(value?: string): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
 }
 
 @Injectable()
@@ -122,6 +154,13 @@ export class VendorsService {
     }
 
     Object.assign(assignmentWhere, buildCategoryWhere(query.category));
+    assignmentWhere['AND'] = [
+      buildOneOffWhere({
+        includeOneOff: query.includeOneOff,
+        projectIds: splitIds(query.projectIds),
+        oneOffOnly: query.oneOffOnly,
+      }),
+    ];
 
     if (Object.keys(vendorWhere).length > 0) {
       assignmentWhere['vendor'] = vendorWhere;
@@ -142,6 +181,7 @@ export class VendorsService {
       where: assignmentWhere,
       orderBy: { assignedAt: query.sortDir ?? 'desc' },
       include: {
+        oneOffProject: { select: { id: true, name: true } },
         vendor: {
           include: {
             users: {
@@ -198,6 +238,7 @@ export class VendorsService {
         specialisations: a.vendor.specialisations,
         categories: a.categories,
         representatives,
+        oneOffProject: a.oneOffProject,
       };
     });
 
@@ -218,6 +259,83 @@ export class VendorsService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  // ── One-off vendors (FOR-395) ─────────────────────────────────────────────
+
+  /**
+   * Add a vendor for one project only: a light record (name + email, no portal
+   * invite or onboarding) that the buyer can send an RFQ or PO to straight away.
+   * An existing vendor company with the same email is reused, as the create
+   * dialog does. If it is already a full vendor of this contractor, nothing
+   * changes (it can already be used anywhere). If it is already a one-off of
+   * this project, nothing changes either. A one-off of another project is a
+   * conflict: the buyer promotes it instead.
+   */
+  async createOneOffVendor(dto: CreateOneOffVendorDto, user: AuthenticatedUser) {
+    if (!user.companyId) throw new ForbiddenException(ERR.general.accessDenied);
+    const project = await this.prisma.project.findFirst({
+      where: { id: dto.projectId, companyId: user.companyId },
+      select: { id: true, name: true },
+    });
+    if (!project) throw new NotFoundException(ERR.vendors.projectNotFound);
+
+    const contactEmail = dto.contactEmail.trim().toLowerCase();
+    const vendor =
+      (await this.prisma.company.findFirst({
+        where: {
+          type: CompanyType.VENDOR,
+          contactEmail: { equals: contactEmail, mode: 'insensitive' },
+        },
+        select: { id: true, legalName: true },
+      })) ??
+      (await this.prisma.company.create({
+        data: {
+          type: CompanyType.VENDOR,
+          legalName: dto.legalName.trim(),
+          contactEmail,
+          // An empty phone field is stored as no phone.
+          contactPhone: dto.contactPhone?.trim() ? dto.contactPhone.trim() : null,
+        },
+        select: { id: true, legalName: true },
+      }));
+
+    const existing = await this.prisma.companyVendorAssignment.findUnique({
+      where: { vendorId_contractorId: { vendorId: vendor.id, contractorId: user.companyId } },
+      select: { oneOffProjectId: true },
+    });
+    if (existing?.oneOffProjectId && existing.oneOffProjectId !== project.id) {
+      throw new ConflictException(ERR.vendors.oneOffOnOtherProject);
+    }
+    if (!existing) {
+      await this.prisma.companyVendorAssignment.create({
+        data: { vendorId: vendor.id, contractorId: user.companyId, oneOffProjectId: project.id },
+      });
+    }
+
+    const oneOff = existing ? existing.oneOffProjectId !== null : true;
+    return {
+      companyId: vendor.id,
+      companyName: vendor.legalName,
+      oneOffProject: oneOff ? project : null,
+      /** True when the email matched a vendor this contractor already had. */
+      alreadyAssigned: Boolean(existing),
+    };
+  }
+
+  /** Make a one-off vendor a full vendor of the caller's company (FOR-395). */
+  async promoteOneOffVendor(vendorCompanyId: string, user: AuthenticatedUser) {
+    if (!user.companyId) throw new ForbiddenException(ERR.general.accessDenied);
+    const { count } = await this.prisma.companyVendorAssignment.updateMany({
+      where: {
+        vendorId: vendorCompanyId,
+        contractorId: user.companyId,
+        oneOffProjectId: { not: null },
+      },
+      data: { oneOffProjectId: null },
+    });
+    if (count === 0) throw new NotFoundException(ERR.vendors.notOneOff);
+    return { companyId: vendorCompanyId, oneOffProject: null };
   }
 
   // ── Vendor Profile ────────────────────────────────────────────────────────
@@ -273,10 +391,17 @@ export class VendorsService {
             where: {
               vendorId_contractorId: { vendorId: vendorCompanyId, contractorId: user.companyId },
             },
-            select: { categories: true },
+            select: {
+              categories: true,
+              oneOffProject: { select: { id: true, name: true } },
+            },
           });
 
-    return { ...company, categories: assignment?.categories ?? [] };
+    return {
+      ...company,
+      categories: assignment?.categories ?? [],
+      oneOffProject: assignment?.oneOffProject ?? null,
+    };
   }
 
   async updateVendorProfile(
@@ -383,6 +508,7 @@ export class VendorsService {
     const where: Record<string, unknown> = {
       contractorId: user.companyId,
       ...buildCategoryWhere(dto.category),
+      AND: [buildOneOffWhere({ projectIds: dto.projectIds })],
     };
 
     if (dto.search) {

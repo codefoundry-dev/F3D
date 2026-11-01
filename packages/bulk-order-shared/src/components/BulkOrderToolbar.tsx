@@ -2,6 +2,7 @@ import { useTranslation } from '@forethread/i18n';
 import {
   Button,
   FilterDropdownButton,
+  FloatingActionButton,
   SearchInput,
   type FilterDropdownOption,
 } from '@forethread/ui-components';
@@ -113,12 +114,8 @@ export function BulkOrderToolbar({
             />
           </div>
         </div>
-        {onCreateNew && (
-          <Button variant="primary" size="md" className="w-full" onClick={onCreateNew}>
-            <PlusIcon className="w-5 h-5" />
-            {t('list.createNew')}
-          </Button>
-        )}
+        {/* Phones: Create new is the floating button (ADR-0019 B9). */}
+        {onCreateNew && <FloatingActionButton label={t('list.createNew')} onClick={onCreateNew} />}
       </div>
     </div>
   );

@@ -127,10 +127,10 @@ export default function VendorProfilePage({
   const companyName = profile.tradeName || profile.legalName || 'Vendor';
 
   return (
-    <div className="p-6">
-      <div className="rounded-xl border border-border bg-card p-8">
-        {/* ── Header ── */}
-        <div className="flex items-center gap-5 mb-8">
+    <div className="p-4 md:p-6">
+      <div className="rounded-xl border border-border bg-card p-4 md:p-8">
+        {/* ── Header (phones: stacked, actions full-width below) ── */}
+        <div className="flex flex-wrap items-center gap-4 mb-8 md:flex-nowrap md:gap-5">
           <AvatarUpload
             name={companyName}
             avatarUrl={logoUrl}
@@ -139,15 +139,17 @@ export default function VendorProfilePage({
             onUpload={uploadLogo}
           />
           <div className="flex-1 min-w-0">
-            <h2 className="text-2xl font-normal leading-8 text-foreground">{companyName}</h2>
+            <h2 className="break-words text-xl font-normal leading-7 text-foreground md:text-2xl md:leading-8">
+              {companyName}
+            </h2>
             {profile.contactEmail && (
-              <div className="flex items-center gap-1.5 text-base leading-6 text-muted-foreground mt-1">
-                <EnvelopeIcon className="w-4 h-4" />
-                <span>{profile.contactEmail}</span>
+              <div className="flex min-w-0 items-center gap-1.5 text-sm leading-6 text-muted-foreground mt-1 md:text-base">
+                <EnvelopeIcon className="w-4 h-4 shrink-0" />
+                <span className="truncate">{profile.contactEmail}</span>
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 max-md:w-full max-md:[&>*]:flex-1">
             {isEditing ? (
               <>
                 <Button
@@ -178,7 +180,7 @@ export default function VendorProfilePage({
           </h3>
           {isEditing ? (
             <>
-              <div className="grid grid-cols-4 gap-6 mb-4">
+              <div className="grid grid-cols-1 gap-4 mb-4 md:grid-cols-4 md:gap-6">
                 <FormField
                   label={t('vendors:fields.legalName', { defaultValue: 'Legal Name' })}
                   error={formErrors.legalName}
@@ -238,7 +240,7 @@ export default function VendorProfilePage({
             </>
           ) : (
             <>
-              <div className="grid grid-cols-4 gap-6 mb-4">
+              <div className="grid grid-cols-2 gap-4 mb-4 md:grid-cols-4 md:gap-6">
                 <InfoItem
                   icon={<LegalNameIcon className="w-4 h-4" />}
                   label={t('vendors:fields.legalName', { defaultValue: 'Legal Name' })}
@@ -290,7 +292,7 @@ export default function VendorProfilePage({
             {t('vendors:contactInformation', { defaultValue: 'Contact Information' })}
           </h3>
           {isEditing ? (
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
               <FormField
                 label={t('vendors:fields.contactEmail', { defaultValue: 'Contact Email' })}
                 error={formErrors.contactEmail}
@@ -320,7 +322,7 @@ export default function VendorProfilePage({
               </FormField>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
               <InfoItem
                 icon={<EnvelopeIcon className="w-4 h-4" />}
                 label={t('vendors:fields.contactEmail', { defaultValue: 'Contact Email' })}
@@ -343,7 +345,7 @@ export default function VendorProfilePage({
 
         {/* ── Representatives' details ── */}
         <section className="mb-8">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <h3 className="text-lg font-bold text-foreground">
               {t('vendors:representativesDetails', { defaultValue: "Representatives' details" })}
             </h3>

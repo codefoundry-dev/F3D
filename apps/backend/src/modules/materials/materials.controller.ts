@@ -1,11 +1,13 @@
 import {
   CatalogueImportRequestDto,
+  CreateMaterialCategoryDto,
   CreateMaterialDto,
   DetectMaterialDuplicatesDto,
   MaterialListQueryDto,
   MaterialSuggestionsQueryDto,
   RejectMaterialDto,
   ResolveMaterialChangeDto,
+  UpdateMaterialCategoryDto,
   UpdateMaterialDto,
 } from '@forethread/shared-types';
 import {
@@ -27,6 +29,7 @@ import { MaterialChangeRequestStatus } from '@prisma/client';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/permissions';
 
+import { MaterialCategoriesService } from './material-categories.service';
 import { MaterialStatusService } from './material-status.service';
 import { MaterialsService } from './materials.service';
 
@@ -37,6 +40,7 @@ export class MaterialsController {
   constructor(
     private readonly materialsService: MaterialsService,
     private readonly materialStatusService: MaterialStatusService,
+    private readonly materialCategoriesService: MaterialCategoriesService,
   ) {}
 
   // ── GET /v1/materials ───────────────────────────────────────────────────────
@@ -58,10 +62,37 @@ export class MaterialsController {
 
   @Get('categories')
   @RequirePermissions('material.listCategories')
-  @ApiOperation({ summary: 'List all material categories' })
+  @ApiOperation({ summary: 'List all material categories, active and inactive' })
   @ApiResponse({ status: 200, description: 'List of material categories' })
   async listCategories() {
-    return this.materialsService.listCategories();
+    return this.materialCategoriesService.listCategories();
+  }
+
+  // ── POST /v1/materials/categories (FOR-362) ─────────────────────────────────
+
+  @Post('categories')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('material.manageCategories')
+  @ApiOperation({ summary: 'Create a global material category' })
+  @ApiResponse({ status: 201, description: 'Category created' })
+  @ApiResponse({ status: 409, description: 'Duplicate category name' })
+  async createCategory(@Body() dto: CreateMaterialCategoryDto) {
+    return this.materialCategoriesService.createCategory(dto);
+  }
+
+  // ── PATCH /v1/materials/categories/:categoryId (FOR-362) ────────────────────
+
+  @Patch('categories/:categoryId')
+  @RequirePermissions('material.manageCategories')
+  @ApiOperation({ summary: 'Rename and/or activate / deactivate a material category' })
+  @ApiResponse({ status: 200, description: 'Category updated' })
+  @ApiResponse({ status: 404, description: 'Category not found' })
+  @ApiResponse({ status: 409, description: 'Duplicate category name' })
+  async updateCategory(
+    @Param('categoryId') categoryId: string,
+    @Body() dto: UpdateMaterialCategoryDto,
+  ) {
+    return this.materialCategoriesService.updateCategory(categoryId, dto);
   }
 
   // ── GET /v1/materials/facets ────────────────────────────────────────────────

@@ -169,7 +169,7 @@ export function MessageComposer({
               disabled={isSending || isUploading}
               title={t('compose.attachFile')}
               aria-label={t('compose.attachFile')}
-              className="flex items-center text-gray-500 hover:text-foreground transition-colors disabled:cursor-not-allowed"
+              className="flex items-center text-gray-500 hover:text-foreground transition-colors disabled:cursor-not-allowed max-md:-m-3 max-md:p-3"
             >
               {isUploading ? <Spinner size="sm" /> : <PaperclipIcon className={iconSize} />}
             </button>

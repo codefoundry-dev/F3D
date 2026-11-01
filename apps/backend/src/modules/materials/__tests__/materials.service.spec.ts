@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { DocExtractionStatus, DocExtractionType, MaterialStatus, UserRole } from '@prisma/client';
 
+import { MaterialCategoriesService } from '../material-categories.service';
 import { MaterialsService } from '../materials.service';
 
 const mockPrisma = {
@@ -91,6 +92,7 @@ describe('MaterialsService', () => {
       mockPrisma as never,
       mockEmailService as never,
       mockConfig as never,
+      new MaterialCategoriesService(mockPrisma as never),
     );
     // Default: no favourites — list/detail mappers resolve isFavourite = false
     // unless a test overrides these.
@@ -314,23 +316,6 @@ describe('MaterialsService', () => {
 
       const orderBy = mockPrisma.material.findMany.mock.calls[0][0].orderBy;
       expect(orderBy).toEqual({ nameCi: 'desc' });
-    });
-  });
-
-  // ── listCategories ────────────────────────────────────────────────────
-
-  describe('listCategories', () => {
-    it('returns categories with id and name', async () => {
-      mockPrisma.materialCategory.findMany.mockResolvedValue([
-        { id: 'cat-1', name: 'Steel' },
-        { id: 'cat-2', name: 'Timber' },
-      ]);
-
-      const result = await service.listCategories();
-      expect(result).toEqual([
-        { id: 'cat-1', name: 'Steel' },
-        { id: 'cat-2', name: 'Timber' },
-      ]);
     });
   });
 
@@ -635,6 +620,16 @@ describe('MaterialsService', () => {
       await expect(service.createMaterial(dto as never, superAdmin)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('rejects a deactivated category (FOR-362)', async () => {
+      mockPrisma.material.findFirst.mockResolvedValue(null);
+      mockPrisma.materialCategory.findUnique.mockResolvedValue({ id: 'cat-1', isActive: false });
+
+      await expect(service.createMaterial(dto as never, superAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockPrisma.material.create).not.toHaveBeenCalled();
     });
 
     it('sets optional fields to null when not provided', async () => {
@@ -1133,6 +1128,27 @@ describe('MaterialsService', () => {
       // Only the Uncategorised fallback is newly created — Electrical is reused.
       expect(summary.categoriesCreated).toBe(1);
       expect(mockPrisma.materialCategory.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('files rows for a deactivated category under Uncategorised (FOR-362)', async () => {
+      mockPrisma.docExtraction.findUnique.mockResolvedValue(
+        confirmedExtraction([line({ sku: 'SK-1', mainCategory: 'Electrical' })]),
+      );
+      mockPrisma.materialCategory.findUnique.mockImplementation(({ where }) =>
+        Promise.resolve(
+          where.name === 'Electrical'
+            ? { id: 'cat-retired', name: 'Electrical', isActive: false }
+            : { id: 'cat-uncat', name: 'Uncategorised', isActive: true },
+        ),
+      );
+      mockPrisma.$queryRaw.mockResolvedValue([{ inserted: true }]);
+
+      await service.importCatalogueFromExtraction('ext-1', superAdmin);
+
+      const sql = JSON.stringify(mockPrisma.$queryRaw.mock.calls);
+      expect(sql).toContain('cat-uncat');
+      expect(sql).not.toContain('cat-retired');
+      expect(mockPrisma.materialCategory.create).not.toHaveBeenCalled();
     });
 
     it('allows the extraction owner (non-superadmin) to import', async () => {
@@ -1718,6 +1734,24 @@ describe('MaterialsService', () => {
 
       const data = mockPrisma.material.update.mock.calls[0][0].data;
       expect(data.category).toEqual({ connect: { id: 'cat-2' } });
+    });
+
+    it('rejects moving a material INTO a deactivated category (FOR-362)', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({ ...loaded, categoryId: 'cat-1' });
+      mockPrisma.materialCategory.findUnique.mockResolvedValue({ id: 'cat-2', isActive: false });
+      await expect(
+        service.updateMaterial('m-1', { categoryId: 'cat-2' }, superAdmin),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.material.update).not.toHaveBeenCalled();
+    });
+
+    it('lets a material keep its current, now-deactivated category (FOR-362)', async () => {
+      mockPrisma.material.findUnique.mockResolvedValue({ ...loaded, categoryId: 'cat-1' });
+      mockPrisma.materialCategory.findUnique.mockResolvedValue({ id: 'cat-1', isActive: false });
+      mockPrisma.material.update.mockResolvedValue({ ...loaded });
+
+      await service.updateMaterial('m-1', { categoryId: 'cat-1', description: 'x' }, superAdmin);
+      expect(mockPrisma.material.update).toHaveBeenCalled();
     });
 
     it('throws NotFound when the new category does not exist', async () => {

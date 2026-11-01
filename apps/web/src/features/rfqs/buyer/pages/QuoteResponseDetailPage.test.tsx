@@ -1,5 +1,7 @@
 import { render, screen } from '@testing-library/react';
 
+const mockSetTitle = vi.hoisted(() => vi.fn());
+
 const mockRfq = vi.hoisted(() => ({
   value: {
     data: {
@@ -24,7 +26,7 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('@forethread/rfq-shared', () => ({
   usePageTitleStore: (selector: (s: { setTitle: () => void }) => unknown) =>
-    selector({ setTitle: vi.fn() }),
+    selector({ setTitle: mockSetTitle }),
   useRfq: () => mockRfq.value,
   QuoteResponseDetailPage: ({ rfqId }: { rfqId: string }) => (
     <div data-testid="shared-quote-detail">RFQ: {rfqId}</div>
@@ -55,6 +57,16 @@ describe('QuoteResponseDetailPage', () => {
   it('renders shared detail page when data loaded', () => {
     render(<QuoteResponseDetailPage />);
     expect(screen.getByTestId('shared-quote-detail')).toBeInTheDocument();
+  });
+
+  it('breadcrumbs back to the RFQ list and the parent RFQ Responses tab (FOR-393)', () => {
+    mockRfq.value.data = { ...mockRfq.value.data, rfqNumber: 'RFQ-0007' };
+    render(<QuoteResponseDetailPage />);
+    expect(mockSetTitle).toHaveBeenCalledWith('Vendor A', null, '/rfqs/rfq-1?tab=responses', [
+      { label: 'list.title', to: '/rfqs' },
+      { label: 'RFQ-0007', to: '/rfqs/rfq-1?tab=responses' },
+      { label: 'Vendor A' },
+    ]);
   });
 
   it('shows spinner when loading', () => {

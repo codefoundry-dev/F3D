@@ -9,20 +9,29 @@ import {
   FileChip,
   FileDropzone,
   Input,
+  LineItemEditor,
+  MobileActionBar,
   Select,
   Spinner,
   Textarea,
   cn,
   notificationService,
+  ScrollTable,
+  useIsPhone,
+  type LineItemField,
 } from '@forethread/ui-components';
 import CheckIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 
-import { DamageDetailsForm, EMPTY_DAMAGE_DRAFT, type DamageDraft } from '../components/DamageDetailsForm';
+import {
+  DamageDetailsForm,
+  EMPTY_DAMAGE_DRAFT,
+  type DamageDraft,
+} from '../components/DamageDetailsForm';
 import { SelectPoModal } from '../components/SelectPoModal';
 import { DELIVERY_ATTACHMENT_ACCEPT, DELIVERY_OUTCOME_OPTIONS } from '../constants';
 import {
@@ -60,9 +69,13 @@ function poLineToRow(li: PoLineItemDetail): LineRow {
   };
 }
 
-function isRowValid(row: LineRow): boolean {
+function isQtyInvalid(row: LineRow): boolean {
   const qty = Number(row.quantityReceived);
-  if (row.quantityReceived.trim() === '' || !Number.isInteger(qty) || qty < 0) return false;
+  return row.quantityReceived.trim() === '' || !Number.isInteger(qty) || qty < 0;
+}
+
+function isRowValid(row: LineRow): boolean {
+  if (isQtyInvalid(row)) return false;
   if (row.outcome === DeliveryOutcome.DAMAGED) {
     const dmg = Number(row.damage.damagedQuantity);
     if (!Number.isInteger(dmg) || dmg <= 0) return false;
@@ -123,6 +136,97 @@ export default function CreateDeliveryReportPage() {
       ),
     );
 
+  const isPhone = useIsPhone();
+
+  // The editable cells, defined once: the desktop table renders `input` in its
+  // cells and the phone card/sheet editor stacks them (ADR-0019 B10, FOR-380).
+  const qtyField: LineItemField<LineRow> = {
+    key: 'qtyReceived',
+    label: t('create.columns.qtyReceived'),
+    required: true,
+    value: (row) => `${row.quantityReceived || '-'} ${row.uom}`,
+    input: (row) => (
+      <Input
+        type="number"
+        inputMode="numeric"
+        min={0}
+        step={1}
+        value={row.quantityReceived}
+        aria-label={`${t('create.columns.qtyReceived')} ${row.materialName}`}
+        aria-invalid={isQtyInvalid(row)}
+        onChange={(e) => updateRow(row.poLineItemId, { quantityReceived: e.target.value })}
+        className={cn('w-24 max-md:w-full', isQtyInvalid(row) && 'border-destructive')}
+      />
+    ),
+  };
+  const outcomeField: LineItemField<LineRow> = {
+    key: 'outcome',
+    label: t('create.columns.outcome'),
+    required: true,
+    value: (row) => t(`outcome.${row.outcome}`),
+    input: (row) => (
+      <Select
+        value={row.outcome}
+        aria-label={`${t('create.columns.outcome')} ${row.materialName}`}
+        onChange={(e) => setOutcome(row.poLineItemId, e.target.value as DeliveryOutcome)}
+        className="w-[150px] max-md:w-full"
+      >
+        {DELIVERY_OUTCOME_OPTIONS.map((o) => (
+          <option key={o} value={o}>
+            {t(`outcome.${o}`)}
+          </option>
+        ))}
+      </Select>
+    ),
+  };
+  const renderDamageForm = (row: LineRow, hideTitle = false): ReactNode => (
+    <DamageDetailsForm
+      lineRef={row.poLineItemId}
+      value={row.damage}
+      onChange={(damage) => updateRow(row.poLineItemId, { damage })}
+      hideTitle={hideTitle}
+    />
+  );
+  const phoneFields: LineItemField<LineRow>[] = [
+    {
+      key: 'qtyOrdered',
+      label: t('create.columns.qtyOrdered'),
+      value: (row) => `${row.quantityOrdered} ${row.uom}`,
+      input: (row) => (
+        <p className="text-base text-foreground">
+          {row.quantityOrdered} {row.uom}
+        </p>
+      ),
+    },
+    qtyField,
+    outcomeField,
+    {
+      key: 'damage',
+      label: t('damage.title'),
+      required: true,
+      hidden: (row) => row.outcome !== DeliveryOutcome.DAMAGED,
+      input: (row) => renderDamageForm(row, true),
+    },
+  ];
+
+  const footer = (
+    <>
+      <Button variant="outline" onClick={() => navigate(ROUTES.deliveries)} disabled={isSubmitting}>
+        {t('create.cancel')}
+      </Button>
+      <Button
+        variant="primary"
+        rightIcon={<CheckIcon className="h-4 w-4" />}
+        isLoading={isSubmitting}
+        disabled={!allValid}
+        onClick={() => void handleSubmit()}
+        data-testid="delivery-submit"
+      >
+        {t('create.submit')}
+      </Button>
+    </>
+  );
+
   const handleSubmit = async () => {
     if (!po || !allValid) return;
     setIsSubmitting(true);
@@ -134,7 +238,7 @@ export default function CreateDeliveryReportPage() {
         ...(r.outcome === DeliveryOutcome.DAMAGED
           ? {
               damagedQuantity: Number(r.damage.damagedQuantity),
-              damageType: (r.damage.damageType || undefined),
+              damageType: r.damage.damageType || undefined,
               damageDisposition: r.damage.damageDisposition ?? undefined,
             }
           : {}),
@@ -187,7 +291,11 @@ export default function CreateDeliveryReportPage() {
         <div className="py-16 text-center">
           <p className="text-sm font-medium text-foreground">{t('create.noPo')}</p>
           <p className="mt-1 mb-4 text-xs text-muted-foreground">{t('create.noPoHint')}</p>
-          <Button variant="primary" onClick={() => setShowPicker(true)} data-testid="delivery-pick-po">
+          <Button
+            variant="primary"
+            onClick={() => setShowPicker(true)}
+            data-testid="delivery-pick-po"
+          >
             {t('create.selectPo')}
           </Button>
         </div>
@@ -216,124 +324,99 @@ export default function CreateDeliveryReportPage() {
   }
 
   return (
-    <div className="flex flex-col px-4 pb-6 pt-4 sm:px-8 sm:pb-8 sm:pt-6">
+    // Phones: every field at ≥16px so iOS Safari doesn't zoom on focus.
+    <div className="flex flex-col px-4 pb-6 pt-4 sm:px-8 sm:pb-8 sm:pt-6 max-md:[&_input]:text-base max-md:[&_select]:text-base max-md:[&_textarea]:text-base">
       {/* ═══ Line Items card ═══ */}
       <div className="rounded-[14px] border border-border bg-card p-4 sm:p-6">
         <h2 className="mb-4 text-lg font-semibold text-foreground">{t('create.lineItems')}</h2>
 
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full text-sm" data-testid="delivery-create-table">
-            <thead>
-              <tr className="border-b border-border bg-[hsl(var(--table-header))] text-left text-[hsl(var(--table-header-foreground))]">
-                {(
-                  [
-                    'lineItemId',
-                    'itemMaterial',
-                    'description',
-                    'unit',
-                    'qtyOrdered',
-                    'qtyReceived',
-                    'outcome',
-                    'actions',
-                  ] as const
-                ).map((col) => (
-                  <th
-                    key={col}
-                    className="whitespace-nowrap px-3 py-3 text-xs font-bold leading-4 tracking-[0.4px]"
-                  >
-                    {t(`create.columns.${col}`)}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const isDamaged = row.outcome === DeliveryOutcome.DAMAGED;
-                const qtyInvalid =
-                  row.quantityReceived.trim() === '' ||
-                  !Number.isInteger(Number(row.quantityReceived)) ||
-                  Number(row.quantityReceived) < 0;
-                return (
-                  <Fragment key={row.poLineItemId}>
-                    <tr
-                      className="border-b border-border last:border-b-0"
-                      data-testid={`delivery-row-${row.poLineItemId}`}
+        {isPhone ? (
+          <LineItemEditor
+            lines={rows}
+            fields={phoneFields}
+            getKey={(row) => row.poLineItemId}
+            getTitle={(row) => row.materialName}
+            getSubtitle={(row) => row.lineItemRef}
+            hasError={(row) => !isRowValid(row)}
+          />
+        ) : (
+          <ScrollTable className="rounded-lg border border-border">
+            <table className="w-full text-sm" data-testid="delivery-create-table">
+              <thead>
+                <tr className="border-b border-border bg-[hsl(var(--table-header))] text-left text-[hsl(var(--table-header-foreground))]">
+                  {(
+                    [
+                      'itemMaterial',
+                      'description',
+                      'unit',
+                      'qtyOrdered',
+                      'qtyReceived',
+                      'outcome',
+                      'actions',
+                    ] as const
+                  ).map((col) => (
+                    <th
+                      key={col}
+                      className="whitespace-nowrap px-3 py-3 text-xs font-bold leading-4 tracking-[0.4px]"
                     >
-                      <td className="px-3 py-2.5 text-foreground">{row.lineItemRef}</td>
-                      <td className="px-3 py-2.5 font-medium text-foreground">{row.materialName}</td>
-                      <td className="max-w-[260px] truncate px-3 py-2.5 text-foreground">
-                        {row.description ?? '-'}
-                      </td>
-                      <td className="px-3 py-2.5 text-foreground">{row.uom}</td>
-                      <td className="px-3 py-2.5 text-foreground">{row.quantityOrdered}</td>
-                      <td className="px-3 py-2.5">
-                        <Input
-                          type="number"
-                          inputMode="numeric"
-                          min={0}
-                          step={1}
-                          value={row.quantityReceived}
-                          aria-label={`${t('create.columns.qtyReceived')} ${row.materialName}`}
-                          aria-invalid={qtyInvalid}
-                          onChange={(e) =>
-                            updateRow(row.poLineItemId, { quantityReceived: e.target.value })
-                          }
-                          className={cn('w-24', qtyInvalid && 'border-destructive')}
-                        />
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <Select
-                          value={row.outcome}
-                          aria-label={`${t('create.columns.outcome')} ${row.materialName}`}
-                          onChange={(e) =>
-                            setOutcome(row.poLineItemId, e.target.value as DeliveryOutcome)
-                          }
-                          className="w-[150px]"
-                        >
-                          {DELIVERY_OUTCOME_OPTIONS.map((o) => (
-                            <option key={o} value={o}>
-                              {t(`outcome.${o}`)}
-                            </option>
-                          ))}
-                        </Select>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <button
-                          type="button"
-                          disabled={!isDamaged}
-                          aria-label={t('damage.title')}
-                          data-testid={`delivery-edit-damage-${row.poLineItemId}`}
-                          onClick={() =>
-                            updateRow(row.poLineItemId, { damageOpen: !row.damageOpen })
-                          }
-                          className={cn(
-                            'rounded-lg border border-border p-2 transition-colors',
-                            isDamaged
-                              ? 'text-destructive hover:bg-accent'
-                              : 'text-muted-foreground/50 cursor-not-allowed',
-                          )}
-                        >
-                          <EditIcon className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                    {isDamaged && row.damageOpen && (
-                      <tr className="border-b border-border">
-                        <td colSpan={8} className="px-3 py-4">
-                          <DamageDetailsForm
-                            lineRef={row.poLineItemId}
-                            value={row.damage}
-                            onChange={(damage) => updateRow(row.poLineItemId, { damage })}
-                          />
+                      {t(`create.columns.${col}`)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const isDamaged = row.outcome === DeliveryOutcome.DAMAGED;
+                  return (
+                    <Fragment key={row.poLineItemId}>
+                      <tr
+                        className="border-b border-border last:border-b-0"
+                        data-testid={`delivery-row-${row.poLineItemId}`}
+                      >
+                        <td className="px-3 py-2.5 font-medium text-foreground">
+                          {row.materialName}
+                        </td>
+                        <td className="max-w-[260px] truncate px-3 py-2.5 text-foreground">
+                          {row.description ?? '-'}
+                        </td>
+                        <td className="px-3 py-2.5 text-foreground">{row.uom}</td>
+                        <td className="px-3 py-2.5 text-foreground">{row.quantityOrdered}</td>
+                        <td className="px-3 py-2.5">{qtyField.input(row, 0)}</td>
+                        <td className="px-3 py-2.5">{outcomeField.input(row, 0)}</td>
+                        <td className="px-3 py-2.5">
+                          <button
+                            type="button"
+                            disabled={!isDamaged}
+                            aria-label={t('damage.title')}
+                            data-testid={`delivery-edit-damage-${row.poLineItemId}`}
+                            onClick={() =>
+                              updateRow(row.poLineItemId, { damageOpen: !row.damageOpen })
+                            }
+                            className={cn(
+                              'rounded-lg border border-border p-2 transition-colors',
+                              isDamaged
+                                ? 'text-destructive hover:bg-accent'
+                                : 'text-muted-foreground/50 cursor-not-allowed',
+                            )}
+                          >
+                            <EditIcon className="h-4 w-4" />
+                          </button>
                         </td>
                       </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      {isDamaged && row.damageOpen && (
+                        <tr className="border-b border-border">
+                          <td colSpan={7} className="px-3 py-4">
+                            {renderDamageForm(row)}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </ScrollTable>
+        )}
       </div>
 
       {/* ═══ Attachments + Report ═══ */}
@@ -379,26 +462,12 @@ export default function CreateDeliveryReportPage() {
         </div>
       </div>
 
-      {/* ═══ Footer ═══ */}
-      <div className="mt-6 flex items-center justify-between">
-        <Button
-          variant="outline"
-          onClick={() => navigate(ROUTES.deliveries)}
-          disabled={isSubmitting}
-        >
-          {t('create.cancel')}
-        </Button>
-        <Button
-          variant="primary"
-          rightIcon={<CheckIcon className="h-4 w-4" />}
-          isLoading={isSubmitting}
-          disabled={!allValid}
-          onClick={() => void handleSubmit()}
-          data-testid="delivery-submit"
-        >
-          {t('create.submit')}
-        </Button>
-      </div>
+      {/* ═══ Footer: inline on desktop, the fixed bar on phones (B7) ═══ */}
+      {isPhone ? (
+        <MobileActionBar>{footer}</MobileActionBar>
+      ) : (
+        <div className="mt-6 flex items-center justify-between">{footer}</div>
+      )}
     </div>
   );
 }

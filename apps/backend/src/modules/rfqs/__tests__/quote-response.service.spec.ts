@@ -417,12 +417,29 @@ describe('QuoteResponseService', () => {
         lineItems: [
           {
             id: 'qli-1',
-            rfqLineItem: { material: { id: 'mat-1', name: 'Steel', uom: 'KG' } },
+            availability: 'AVAILABLE',
+            deliveryDate: new Date('2026-07-14T00:00:00Z'),
+            rfqLineItem: {
+              expectedDeliveryDate: new Date('2026-07-10T00:00:00Z'),
+              material: { id: 'mat-1', name: 'Steel', uom: 'KG' },
+            },
+          },
+          {
+            // No line date: measured against the RFQ need-by date.
+            id: 'qli-2',
+            availability: 'AVAILABLE',
+            deliveryDate: new Date('2026-07-18T00:00:00Z'),
+            rfqLineItem: { expectedDeliveryDate: null, material: null },
           },
         ],
         attachments: [],
         vendor: { id: 'vendor-co-1', legalName: 'VendorCo' },
-        rfq: { id: 'rfq-1', companyId: 'contractor-co-1', rfqNumber: 'RFQ-001' },
+        rfq: {
+          id: 'rfq-1',
+          companyId: 'contractor-co-1',
+          rfqNumber: 'RFQ-001',
+          needByDate: new Date('2026-07-20T00:00:00Z'),
+        },
         warehouseLocation: null,
       };
 
@@ -432,7 +449,16 @@ describe('QuoteResponseService', () => {
       const result = await service.getQuoteDetail('rfq-1', 'quote-1', vendorUser);
 
       expect(result.id).toBe('quote-1');
-      expect(result.lineItems).toHaveLength(1);
+      expect(result.lineItems).toHaveLength(2);
+      // FOR-392: each line carries its expected date and the slip in days.
+      expect(result.lineItems[0]).toMatchObject({
+        expectedDeliveryDate: '2026-07-10T00:00:00.000Z',
+        deliveryVarianceDays: 4,
+      });
+      expect(result.lineItems[1]).toMatchObject({
+        expectedDeliveryDate: '2026-07-20T00:00:00.000Z',
+        deliveryVarianceDays: -2,
+      });
     });
 
     it('should throw NotFoundException when quote not found', async () => {
@@ -747,11 +773,71 @@ describe('QuoteResponseService', () => {
       expect(result.rfqNumber).toBe('RFQ-001');
       expect(result.contractorName).toBe('ContractorCo');
       expect(result.projectName).toBe('Project Alpha');
-      expect(result.deliveryLocation).toBe('Warehouse A');
+      // Label and address both show (FOR-387).
+      expect(result.deliveryLocation).toBe('Warehouse A — 123 Main St');
       expect(result.needByDate).toBe(new Date('2026-05-01').toISOString());
       expect(result.vendorName).toBe('VendorCo');
       expect(result.lineItems).toHaveLength(1);
       expect(result.lineItems[0].materialName).toBe('Steel');
+    });
+
+    it('returns per-line delivery location and date, falling back to the RFQ location (FOR-387)', async () => {
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue({
+        ...baseRfqVendor,
+        rfq: {
+          ...baseRfqVendor.rfq,
+          lineItems: [
+            {
+              ...baseRfqVendor.rfq.lineItems[0],
+              expectedDeliveryDate: new Date('2026-06-01'),
+              deliveryLocation: { label: 'Main gate', address: '9 Dock Rd' },
+            },
+            {
+              ...baseRfqVendor.rfq.lineItems[0],
+              id: 'li-2',
+              expectedDeliveryDate: null,
+              deliveryLocation: null,
+            },
+          ],
+        },
+      });
+
+      const [first, second] = (await service.getGuestRfq('valid-token')).lineItems;
+
+      expect(first.expectedDeliveryDate).toBe(new Date('2026-06-01').toISOString());
+      expect(first.deliveryLocation).toBe('Main gate — 9 Dock Rd');
+      expect(second.expectedDeliveryDate).toBeNull();
+      expect(second.deliveryLocation).toBe('Warehouse A — 123 Main St');
+    });
+
+    it('carries the catalogue image on each line, null when absent (FOR-361)', async () => {
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue({
+        ...baseRfqVendor,
+        rfq: {
+          ...baseRfqVendor.rfq,
+          lineItems: [
+            {
+              ...baseRfqVendor.rfq.lineItems[0],
+              material: {
+                id: 'mat-1',
+                name: 'Steel',
+                uom: 'KG',
+                imageUrl: 'https://img/steel.png',
+              },
+            },
+            {
+              ...baseRfqVendor.rfq.lineItems[0],
+              id: 'li-2',
+              material: null,
+              materialName: 'Bolts',
+            },
+          ],
+        },
+      });
+
+      const result = await service.getGuestRfq('valid-token');
+
+      expect(result.lineItems.map((li) => li.imageUrl)).toEqual(['https://img/steel.png', null]);
     });
 
     it('should return null projectName when project is null', async () => {

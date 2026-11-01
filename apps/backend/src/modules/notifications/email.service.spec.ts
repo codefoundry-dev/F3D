@@ -132,6 +132,10 @@ jest.mock(
       subject: 'Forethread — Payment Overdue ({{invoiceReference}})',
       greeting: 'Hello,',
     },
+    poDeliveryOverdueReminder: {
+      subject: 'Forethread — Purchase Order {{poNumber}} Is Late',
+      greeting: 'Hi,',
+    },
     materialRequestPendingApproval: {
       subject: 'Forethread — Material Request Needs Your Approval ({{mrNumber}})',
       greeting: 'Hi,',
@@ -863,6 +867,43 @@ describe('EmailService', () => {
       },
     );
 
+    it.each(brandedCalls)(
+      '%s sends from "{company} via Forethread" on the configured address (FOR-383)',
+      async (_name, invoke) => {
+        await invoke();
+
+        expect(mockSendMail).toHaveBeenCalledWith(
+          expect.objectContaining({
+            from: expect.stringMatching(/^"Acme Builders via Forethread" <[^<>"]+@[^<>"]+>$/),
+          }),
+        );
+      },
+    );
+
+    it('passes the company as the Resend sender display name on branded emails (FOR-383)', async () => {
+      resendService.isConfigured.mockReturnValue(true);
+
+      await service.sendPoIssuedEmail(
+        'vendor@test.com',
+        'PO-001',
+        'https://view.test',
+        undefined,
+        undefined,
+        { name: 'Acme Builders' },
+      );
+
+      const payload = resendService.send.mock.calls[0][0] as Record<string, unknown>;
+      expect(payload).toMatchObject({ fromName: 'Acme Builders' });
+      expect(payload).not.toHaveProperty('from');
+    });
+
+    it('keeps the plain configured sender when an email is sent without a brand', async () => {
+      await service.sendChangeRequestApprovedEmail('to@test.com', 'BULK-1', 'https://view.test');
+
+      const { from } = mockSendMail.mock.calls[0][0] as { from: string };
+      expect(from).not.toContain('via Forethread');
+    });
+
     it('omits the brand from the layout when a transactional email is sent without one', async () => {
       const layoutFn = require('handlebars').compile();
 
@@ -1041,6 +1082,36 @@ describe('EmailService', () => {
       ).resolves.toBeUndefined();
       await expect(
         service.sendPaymentOverdueReminderEmail('fo@test.com', overdueParams, 'https://view.test'),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('sendOverdueReminderEmail (FOR-394)', () => {
+    it('renders the section copy with the params', async () => {
+      await service.sendOverdueReminderEmail(
+        'buyer@test.com',
+        'poDeliveryOverdueReminder',
+        { poNumber: 'PO-00042' },
+        'https://view.test',
+      );
+
+      expect(mockSendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'buyer@test.com',
+          subject: 'Forethread — Purchase Order PO-00042 Is Late',
+        }),
+      );
+    });
+
+    it('does not throw when sendMail fails', async () => {
+      mockSendMail.mockRejectedValue(new Error('SMTP error'));
+      await expect(
+        service.sendOverdueReminderEmail(
+          'buyer@test.com',
+          'poDeliveryOverdueReminder',
+          { poNumber: 'PO-1' },
+          'https://view.test',
+        ),
       ).resolves.toBeUndefined();
     });
   });

@@ -7,6 +7,8 @@ export interface VendorGroup {
   companyEmail: string | null;
   /** Category enum keys for the company (drives the group-row specialisation chip). */
   categories: string[];
+  /** Set for a one-off vendor (FOR-395): the only project it can be used on. */
+  oneOffProject: { id: string; name: string } | null;
   vendors: VendorListItem[];
 }
 
@@ -21,6 +23,7 @@ function groupVendorsByCompany(items: VendorListItem[]): VendorGroup[] {
         companyEmail: item.companyEmail,
         // Prefer the enum `categories`; fall back to free-text `specialisations`.
         categories: item.categories?.length ? item.categories : item.specialisations,
+        oneOffProject: item.oneOffProject ?? null,
         vendors: [],
       };
       map.set(item.companyId, group);

@@ -11,7 +11,12 @@ const PDFDocument = require('pdfkit');
 export interface PdfTableColumn {
   header: string;
   width: number;
+  /** Cell alignment — right-align numeric columns (qty, prices, totals). Defaults to left. */
+  align?: 'left' | 'right';
 }
+
+/** A4 page margins shared by every generated document. */
+const PAGE_MARGIN = { top: 50, bottom: 50, left: 40, right: 40 } as const;
 
 export interface PdfTableRow {
   [key: string]: string;
@@ -86,6 +91,11 @@ export interface InvoiceExportOptions {
   terms?: InvoiceInfoBlock;
   /** Optional signature lines rendered at the bottom. */
   signatures?: InvoiceSignatureBlock[];
+  /**
+   * Optional free-text legal section (e.g. a PO's general terms & conditions,
+   * FOR-398) rendered last, on a fresh page when it won't fit the current one.
+   */
+  legalText?: { label: string; text: string };
   /** Issuing-company brand mark for the header (defaults to the Forethread wordmark). */
   brand?: PdfBrand;
   filenamePrefix: string;
@@ -107,7 +117,9 @@ export class PdfExportService {
     const doc = new PDFDocument({
       size: 'A4',
       layout: landscape ? 'landscape' : 'portrait',
-      margins: { top: 50, bottom: 50, left: 40, right: 40 },
+      margins: { ...PAGE_MARGIN },
+      // Keep every page in memory so the footer can be stamped on each one at the end.
+      bufferPages: true,
     });
 
     const chunks: Buffer[] = [];
@@ -231,24 +243,9 @@ export class PdfExportService {
 
           currentY += rowHeight;
         });
-
-        // Footer
-        if (currentY + 20 > doc.page.height - 50) {
-          doc.addPage();
-          currentY = 50;
-        }
-
-        doc
-          .fontSize(8)
-          .fillColor(PDF_STYLES.text.secondary)
-          .text(
-            `Generated on ${new Date().toISOString().replace('T', ' ').slice(0, 19)}`,
-            leftMargin,
-            currentY + 20,
-            { align: 'left' },
-          );
       }
 
+      this.drawPageFooters(doc);
       doc.end();
     });
   }
@@ -284,7 +281,9 @@ export class PdfExportService {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const doc: any = new PDFDocument({
       size: 'A4',
-      margins: { top: 50, bottom: 50, left: 40, right: 40 },
+      margins: { ...PAGE_MARGIN },
+      // Keep every page in memory so the footer can be stamped on each one at the end.
+      bufferPages: true,
     });
 
     const chunks: Buffer[] = [];
@@ -298,6 +297,7 @@ export class PdfExportService {
 
       try {
         this.buildInvoiceDoc(doc, options);
+        this.drawPageFooters(doc);
       } catch (error: unknown) {
         reject(error instanceof Error ? error : new Error(String(error)));
         return;
@@ -375,6 +375,7 @@ export class PdfExportService {
 
     // ── Terms / notes ──────────────────────────────────────────────────
     if (terms?.lines.some((l) => l)) {
+      currentY += 12;
       if (currentY + 40 > doc.page.height - 50) {
         doc.addPage();
         currentY = 50;
@@ -387,22 +388,79 @@ export class PdfExportService {
       currentY = this.drawSignatures(doc, leftMargin, rightEdge, currentY, options.signatures);
     }
 
-    // ── Footer ─────────────────────────────────────────────────────────
-    if (currentY + 30 > doc.page.height - 50) {
+    // ── Legal text (e.g. PO terms & conditions) ────────────────────────
+    if (options.legalText?.text.trim()) {
+      this.drawLegalText(doc, leftMargin, rightEdge, currentY, options.legalText);
+    }
+  }
+
+  /**
+   * Render a heading + long free text. The text stays on the current page only
+   * if all of it fits there; otherwise it starts a new page, and pdfkit flows
+   * any overflow onto further pages within the page margins.
+   */
+  private drawLegalText(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    doc: any,
+    leftMargin: number,
+    rightEdge: number,
+    startY: number,
+    block: { label: string; text: string },
+  ): void {
+    const width = rightEdge - leftMargin;
+    const bottom = doc.page.height - PAGE_MARGIN.bottom;
+    doc.fontSize(8.5).font('Helvetica');
+    const textHeight = doc.heightOfString(block.text, { width }) as number;
+
+    let currentY = startY + 24;
+    if (currentY + 18 + textHeight > bottom) {
       doc.addPage();
-      currentY = 50;
+      currentY = PAGE_MARGIN.top;
     }
 
     doc
-      .fontSize(8)
+      .fontSize(11)
+      .font('Helvetica-Bold')
+      .fillColor(PDF_STYLES.text.primary)
+      .text(block.label, leftMargin, currentY, { width });
+    doc
+      .fontSize(8.5)
       .font('Helvetica')
-      .fillColor(PDF_STYLES.text.secondary)
-      .text(
-        `Generated on ${new Date().toISOString().replace('T', ' ').slice(0, 19)}`,
-        leftMargin,
-        currentY + 24,
-        { align: 'left' },
-      );
+      .fillColor(PDF_STYLES.text.primary)
+      .text(block.text, leftMargin, currentY + 18, { width });
+  }
+
+  /**
+   * Stamp "Generated by Forethread · <date> · Page x of y" in the bottom margin of
+   * every page (FOR-389). Needs `bufferPages: true`; call once, after all content.
+   * The bottom margin is lifted while drawing so pdfkit doesn't treat text placed
+   * inside it as overflow and add a blank page.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private drawPageFooters(doc: any): void {
+    const generatedAt = `${new Date().toISOString().replace('T', ' ').slice(0, 16)} UTC`;
+    const { start, count } = doc.bufferedPageRange();
+
+    for (let i = start; i < start + count; i++) {
+      doc.switchToPage(i);
+      const width = doc.page.width - PAGE_MARGIN.left - PAGE_MARGIN.right;
+      const y = doc.page.height - PAGE_MARGIN.bottom + 20;
+      const bottomMargin = doc.page.margins.bottom;
+      doc.page.margins.bottom = 0;
+
+      doc.fontSize(8).font('Helvetica').fillColor(PDF_STYLES.text.secondary);
+      doc.text(`Generated by ${PDF_COMPANY.name} · ${generatedAt}`, PAGE_MARGIN.left, y, {
+        width,
+        lineBreak: false,
+      });
+      doc.text(`Page ${i - start + 1} of ${count}`, PAGE_MARGIN.left, y, {
+        width,
+        align: 'right',
+        lineBreak: false,
+      });
+
+      doc.page.margins.bottom = bottomMargin;
+    }
   }
 
   /**
@@ -426,7 +484,12 @@ export class PdfExportService {
           .fontSize(nameFontSize)
           .font('Helvetica-Bold')
           .fillColor(PDF_STYLES.text.primary)
-          .text(brand.name, x + 132, y + 10, { width: 170, lineBreak: false, ellipsis: true });
+          // At most two lines, so a long legal name can't run into the blocks below.
+          .text(brand.name, x + 132, y + 4, {
+            width: 170,
+            height: nameFontSize * 2.4,
+            ellipsis: true,
+          });
         return;
       } catch {
         // Unsupported/corrupt image — fall through to the text wordmark.
@@ -461,7 +524,8 @@ export class PdfExportService {
     for (const line of block.lines) {
       if (line) {
         doc.text(line, x, y, { width });
-        y += 12;
+        // Long values wrap — advance by their measured height so lines never overlap.
+        y += Math.max(12, doc.heightOfString(line, { width }) as number);
       }
     }
     return y;
@@ -483,7 +547,11 @@ export class PdfExportService {
     return currentY + 18;
   }
 
-  /** Render a table (header + rows + optional total); returns the Y below it. */
+  /**
+   * Render a table (header + rows + optional total); returns the Y below it.
+   * Columns are scaled down to the printable width, rows grow to fit wrapped text,
+   * and the header is repeated on every page the table spills onto (FOR-388).
+   */
   private drawTable(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     doc: any,
@@ -494,8 +562,9 @@ export class PdfExportService {
     totalRow?: { label: string; value: string },
   ): number {
     let currentY = startY;
-    const rowHeight = PDF_TABLE.rowHeight;
     const colSpacing = 12;
+    const { cellPadding, textPadding } = PDF_TABLE;
+    const pageBottom = doc.page.height - PAGE_MARGIN.bottom;
 
     if (rows.length === 0 && !totalRow) {
       doc
@@ -506,79 +575,98 @@ export class PdfExportService {
       return currentY + 20;
     }
 
-    const tableWidth =
-      columns.reduce((sum, col) => sum + col.width, 0) + colSpacing * (columns.length - 1);
+    const printableWidth = doc.page.width - PAGE_MARGIN.left - PAGE_MARGIN.right;
+    const cols = fitColumns(columns, printableWidth - cellPadding * 2, colSpacing);
+    const xs: number[] = [];
+    cols.reduce((x, col) => {
+      xs.push(x);
+      return x + col.width + colSpacing;
+    }, leftMargin + cellPadding);
+    const lastIdx = cols.length - 1;
+    const tableWidth = xs[lastIdx] + cols[lastIdx].width + cellPadding - leftMargin;
 
-    // Header
-    doc
-      .rect(leftMargin, currentY, tableWidth, rowHeight)
-      .fillColor(PDF_STYLES.layer.header)
-      .fill()
-      .fillColor(PDF_STYLES.text.primary);
-
-    doc.fontSize(10).font('Helvetica-Bold');
-    let xPos = leftMargin + 6;
-    columns.forEach((col, i) => {
-      doc.text(col.header, xPos, currentY + PDF_TABLE.textPadding, { width: col.width });
-      if (i < columns.length - 1) xPos += col.width + colSpacing;
-    });
-
-    currentY += rowHeight;
-
-    // Rows
-    doc.font('Helvetica').fontSize(9);
-    rows.forEach((row, index) => {
-      if (currentY + rowHeight > doc.page.height - 50) {
-        doc.addPage();
-        currentY = 50;
-      }
-
+    // A single row may fill at most one page under the header, so one huge cell
+    // is truncated instead of overflowing.
+    const maxRowHeight = Math.max(
+      PDF_TABLE.rowHeight,
+      pageBottom - PAGE_MARGIN.top - PDF_TABLE.rowHeight * 2,
+    );
+    /** Height of a row of `cells` in the current font: tallest wrapped cell + padding. */
+    const measureRow = (cells: string[], widths: number[]): number =>
+      Math.min(
+        maxRowHeight,
+        Math.max(
+          PDF_TABLE.rowHeight,
+          ...cells.map(
+            (text, i) =>
+              (doc.heightOfString(text, { width: widths[i] }) as number) + textPadding * 2,
+          ),
+        ),
+      );
+    const colWidths = cols.map((col) => col.width);
+    const fillRow = (height: number, color: string): void => {
       doc
-        .rect(leftMargin, currentY, tableWidth, rowHeight)
-        .fillColor(index % 2 === 0 ? PDF_STYLES.background.cell : PDF_STYLES.layer.rowAlt)
+        .rect(leftMargin, currentY, tableWidth, height)
+        .fillColor(color)
         .fill()
         .fillColor(PDF_STYLES.text.primary);
-
-      xPos = leftMargin + 6;
-      columns.forEach((col, i) => {
-        doc.text(row[col.header] ?? '', xPos, currentY + PDF_TABLE.textPadding, {
-          width: col.width,
+    };
+    const drawCells = (cells: string[], height: number): void => {
+      cells.forEach((text, i) => {
+        doc.text(text, xs[i], currentY + textPadding, {
+          width: cols[i].width,
+          height: height - textPadding,
+          align: cols[i].align ?? 'left',
           ellipsis: true,
         });
-        if (i < columns.length - 1) xPos += col.width + colSpacing;
       });
+    };
+    const drawHeader = (): void => {
+      doc.fontSize(10).font('Helvetica-Bold');
+      const headers = cols.map((col) => col.header);
+      const height = measureRow(headers, colWidths);
+      fillRow(height, PDF_STYLES.layer.header);
+      drawCells(headers, height);
+      currentY += height;
+    };
+    /** Break to a new page, repeating the header, when `height` won't fit. */
+    const ensureRoom = (height: number): void => {
+      if (currentY + height <= pageBottom) return;
+      doc.addPage();
+      currentY = PAGE_MARGIN.top;
+      drawHeader();
+    };
 
-      currentY += rowHeight;
+    drawHeader();
+
+    rows.forEach((row, index) => {
+      const cells = cols.map((col) => row[col.header] ?? '');
+      doc.font('Helvetica').fontSize(9);
+      const height = measureRow(cells, colWidths);
+      ensureRoom(height);
+      doc.font('Helvetica').fontSize(9);
+      fillRow(height, index % 2 === 0 ? PDF_STYLES.background.cell : PDF_STYLES.layer.rowAlt);
+      drawCells(cells, height);
+      currentY += height;
     });
 
-    // Total row
     if (totalRow) {
-      if (currentY + rowHeight > doc.page.height - 50) {
-        doc.addPage();
-        currentY = 50;
-      }
-
-      doc
-        .rect(leftMargin, currentY, tableWidth, rowHeight)
-        .fillColor(PDF_STYLES.layer.totalRow)
-        .fill()
-        .fillColor(PDF_STYLES.text.primary);
-
+      // The label spans every column but the last; the value sits in the last one.
+      const labelWidth = Math.max(1, xs[lastIdx] - colSpacing - xs[0]);
       doc.font('Helvetica-Bold').fontSize(10);
-
-      const lastCol = columns[columns.length - 1];
-      const labelWidth = tableWidth - lastCol.width - colSpacing;
-      doc.text(totalRow.label, leftMargin + 6, currentY + PDF_TABLE.textPadding, {
-        width: labelWidth,
-      });
-      doc.text(
-        totalRow.value,
-        leftMargin + 6 + labelWidth + colSpacing,
-        currentY + PDF_TABLE.textPadding,
-        { width: lastCol.width },
+      const height = measureRow(
+        [totalRow.label, totalRow.value],
+        [labelWidth, cols[lastIdx].width],
       );
-
-      currentY += rowHeight;
+      ensureRoom(height);
+      doc.font('Helvetica-Bold').fontSize(10);
+      fillRow(height, PDF_STYLES.layer.totalRow);
+      doc.text(totalRow.label, xs[0], currentY + textPadding, { width: labelWidth });
+      doc.text(totalRow.value, xs[lastIdx], currentY + textPadding, {
+        width: cols[lastIdx].width,
+        align: cols[lastIdx].align ?? 'left',
+      });
+      currentY += height;
     }
 
     return currentY;
@@ -709,4 +797,20 @@ export class PdfExportService {
     const url = await this.storageService.getSignedUrl(result.key);
     return { url };
   }
+}
+
+/**
+ * Scale columns down proportionally so they plus their gaps fit `available`
+ * points (FOR-388). Never scales up and never mutates the caller's columns.
+ */
+function fitColumns(
+  columns: PdfTableColumn[],
+  available: number,
+  colSpacing: number,
+): PdfTableColumn[] {
+  const spacing = colSpacing * (columns.length - 1);
+  const total = columns.reduce((sum, col) => sum + col.width, 0);
+  if (total + spacing <= available) return columns;
+  const scale = (available - spacing) / total;
+  return columns.map((col) => ({ ...col, width: Math.floor(col.width * scale) }));
 }

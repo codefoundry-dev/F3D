@@ -43,6 +43,7 @@ describe('PO issue → vendor email with PDF (FOR-211, e2e)', () => {
   let vendorEmail: string;
   let poId: string;
   let poNumber: string;
+  let createdProjectId: string | undefined;
 
   beforeAll(async () => {
     const ctx = await bootstrapTestApp();
@@ -54,7 +55,11 @@ describe('PO issue → vendor email with PDF (FOR-211, e2e)', () => {
 
     // Buyer side: an existing seeded contractor + one of its users + a project
     // with a delivery location.
-    const contractor = await prisma.company.findFirst({ where: { type: CompanyType.CONTRACTOR } });
+    const contractor = await prisma.company.findFirst({
+      // Pinned: an unordered findFirst returns whichever contractor row Postgres
+      // reads first, which changes after any UPDATE to a company row.
+      where: { type: CompanyType.CONTRACTOR, abn: 'TEST-CONTRACTOR-001' },
+    });
     if (!contractor) {
       throw new Error('Test seed missing — expected at least one CONTRACTOR company.');
     }
@@ -67,15 +72,30 @@ describe('PO issue → vendor email with PDF (FOR-211, e2e)', () => {
       throw new Error('Test seed missing — expected at least one user in the contractor company.');
     }
 
-    const project = await prisma.project.findFirst({
+    const projectSelect = {
+      id: true,
+      locations: { where: { type: LocationType.DELIVERY }, select: { id: true }, take: 1 },
+    } as const;
+    let project = await prisma.project.findFirst({
       where: { companyId: contractor.id, locations: { some: { type: LocationType.DELIVERY } } },
-      select: {
-        id: true,
-        locations: { where: { type: LocationType.DELIVERY }, select: { id: true }, take: 1 },
-      },
+      select: projectSelect,
     });
-    if (!project || project.locations.length === 0) {
-      throw new Error('Test seed missing — expected a contractor project with a delivery location.');
+    if (!project) {
+      // The seed doesn't always carry one — create a throwaway project instead.
+      const projectStamp = Date.now().toString().slice(-9);
+      project = await prisma.project.create({
+        data: {
+          name: `FOR-211 Project ${projectStamp}`,
+          code: `E2E-IE-${projectStamp}`,
+          companyId: contractor.id,
+          createdByUserId: buyerUser.id,
+          locations: {
+            create: { type: LocationType.DELIVERY, address: '1 Test St', isDefault: true },
+          },
+        },
+        select: projectSelect,
+      });
+      createdProjectId = project.id;
     }
     const deliveryLocationId = project.locations[0].id;
 
@@ -163,6 +183,9 @@ describe('PO issue → vendor email with PDF (FOR-211, e2e)', () => {
     }
     if (vendorCompanyId) {
       await prisma.company.delete({ where: { id: vendorCompanyId } }).catch(() => undefined);
+    }
+    if (createdProjectId) {
+      await prisma.project.delete({ where: { id: createdProjectId } }).catch(() => undefined);
     }
     await teardownTestApp();
   });

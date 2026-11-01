@@ -8,6 +8,7 @@ import type {
   ResendSendOptions,
   ResendSendResult,
 } from './resend.types';
+import { withSenderDisplayName } from './sender-address';
 
 /**
  * Error codes worth retrying: a rate-limit (Resend allows ~2 requests/second by
@@ -52,7 +53,7 @@ export class ResendService {
     }
 
     const payload: CreateEmailOptions = {
-      from: options.from ?? this.defaultFrom,
+      from: options.from ?? withSenderDisplayName(this.defaultFrom, options.fromName),
       to: options.to,
       ...(options.cc ? { cc: options.cc } : {}),
       subject: options.subject,

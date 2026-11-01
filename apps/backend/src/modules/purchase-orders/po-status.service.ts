@@ -30,11 +30,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { ApprovalsService } from '../approvals/approvals.service';
 import { AuditService } from '../audit/audit.service';
+import { EXPECTED_DELIVERY_SELECT } from '../deliveries/expected-delivery.util';
 import { BrandingService } from '../export/branding.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { NotificationService } from '../notification-feed/notification.service';
+import { SYSTEM_SENDER } from '../notification-feed/notification.types';
 import { EmailService } from '../notifications/email.service';
 
+import { acceptedStatusFor } from './po-delivery-schedule.service';
 import { PoExportService } from './po-export.service';
 import { assertTransition } from './po-state-machine';
 import { DeclinePoDto, IssuePoDto, ReceivePoDto } from './po-status.dto';
@@ -571,7 +574,7 @@ export class PoStatusService {
   ) {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id },
-      select: { id: true, status: true, vendorId: true },
+      select: { id: true, status: true, vendorId: true, ...EXPECTED_DELIVERY_SELECT },
     });
 
     if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
@@ -585,9 +588,10 @@ export class PoStatusService {
       throw new BadRequestException(ERR.purchaseOrders.cannotAccept(po.status));
     }
 
-    assertTransition(po.status, PrismaPoStatus.ACCEPTED);
+    const target = acceptedStatusFor(po);
+    assertTransition(po.status, target);
     const updateData: Record<string, unknown> = {
-      status: PrismaPoStatus.ACCEPTED,
+      status: target,
       lastModifiedById: user.id,
     };
 
@@ -611,6 +615,15 @@ export class PoStatusService {
       po.status,
       PrismaPoStatus.ACCEPTED,
     );
+    if (target === PrismaPoStatus.SCHEDULED_FOR_DELIVERY) {
+      await this.auditTransition(
+        AuditAction.PO_SCHEDULED,
+        id,
+        user,
+        PrismaPoStatus.ACCEPTED,
+        PrismaPoStatus.SCHEDULED_FOR_DELIVERY,
+      );
+    }
 
     return this.purchaseOrdersService.getPurchaseOrder(id, user);
   }
@@ -620,13 +633,14 @@ export class PoStatusService {
   /**
    * Vendor accepts a PO from the tokenised portal link (FOR-247). Token-authorised
    * and user-less (see {@link confirmPurchaseOrderViaToken}); otherwise mirrors
-   * {@link acceptPurchaseOrder}: ACKNOWLEDGED → ACCEPTED with optional
+   * {@link acceptPurchaseOrder}: ACKNOWLEDGED → ACCEPTED (or straight on to
+   * SCHEDULED_FOR_DELIVERY when it has a delivery date) with optional
    * payment-terms / warehouse overrides.
    */
   async acceptPurchaseOrderViaToken(poId: string, dto: VendorAcceptPoDto | undefined) {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id: poId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, ...EXPECTED_DELIVERY_SELECT },
     });
 
     if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
@@ -635,9 +649,10 @@ export class PoStatusService {
       throw new BadRequestException(ERR.purchaseOrders.cannotAccept(po.status));
     }
 
-    assertTransition(po.status, PrismaPoStatus.ACCEPTED);
+    const target = acceptedStatusFor(po);
+    assertTransition(po.status, target);
     const updateData: Record<string, unknown> = {
-      status: PrismaPoStatus.ACCEPTED,
+      status: target,
       lastModifiedById: null,
     };
     if (dto?.paymentTermsDays !== undefined) updateData.paymentTermsDays = dto.paymentTermsDays;
@@ -651,6 +666,14 @@ export class PoStatusService {
       po.status,
       PrismaPoStatus.ACCEPTED,
     );
+    if (target === PrismaPoStatus.SCHEDULED_FOR_DELIVERY) {
+      await this.auditGuestTransition(
+        AuditAction.PO_SCHEDULED,
+        poId,
+        PrismaPoStatus.ACCEPTED,
+        PrismaPoStatus.SCHEDULED_FOR_DELIVERY,
+      );
+    }
 
     return this.purchaseOrdersService.getPurchaseOrderById(poId);
   }
@@ -724,6 +747,7 @@ export class PoStatusService {
       po.vendor?.legalName ?? 'Vendor',
       po.company?.users ?? [],
       dto?.reason,
+      user.id,
     ).catch(() => {});
 
     return this.purchaseOrdersService.getPurchaseOrder(id, user);
@@ -785,6 +809,7 @@ export class PoStatusService {
       po.vendor?.legalName ?? 'Vendor',
       po.company?.users ?? [],
       dto?.reason,
+      null,
     ).catch(() => {});
 
     return this.purchaseOrdersService.getPurchaseOrderById(poId);
@@ -1307,6 +1332,7 @@ export class PoStatusService {
         body: `You have received purchase order ${poNumber}.`,
         entityType: NotificationEntityType.PURCHASE_ORDER,
         entityId: poId,
+        sender: { userId: user.id },
       },
     );
   }
@@ -1316,7 +1342,9 @@ export class PoStatusService {
     poNumber: string,
     vendorName: string,
     companyAdmins: Array<{ email: string }>,
-    reason?: string,
+    reason: string | undefined,
+    /** Null for a guest declining through the portal link. */
+    declinedByUserId: string | null,
   ): Promise<void> {
     if (companyAdmins.length === 0) return;
 
@@ -1354,6 +1382,8 @@ export class PoStatusService {
         body: `${vendorName} declined purchase order ${poNumber}.`,
         entityType: NotificationEntityType.PURCHASE_ORDER,
         entityId: poId,
+        // A guest has no account — the vendor company stands in.
+        sender: declinedByUserId ? { userId: declinedByUserId } : { companyName: vendorName },
       },
     );
   }
@@ -1381,7 +1411,7 @@ export class PoStatusService {
     if (notify.length > 0) {
       // Best-effort, like every other notification on this path: a mail failure
       // must not undo a nomination that is already recorded.
-      this.notifyNominatedApprovers(poId, notify).catch(() => {});
+      this.notifyNominatedApprovers(poId, notify, user.id).catch(() => {});
     }
 
     return view;
@@ -1398,6 +1428,7 @@ export class PoStatusService {
   private async notifyNominatedApprovers(
     poId: string,
     nominees: ApproverPoolMember[],
+    nominatedByUserId: string,
   ): Promise<void> {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id: poId },
@@ -1430,6 +1461,7 @@ export class PoStatusService {
       body: `Purchase order ${po.poNumber} (${amountLabel}) needs your approval.`,
       entityType: NotificationEntityType.PURCHASE_ORDER,
       entityId: poId,
+      sender: { userId: nominatedByUserId },
     });
   }
 
@@ -1517,6 +1549,7 @@ export class PoStatusService {
       body: `Purchase order ${po.poNumber} (${amountLabel}) needs your approval.`,
       entityType: NotificationEntityType.PURCHASE_ORDER,
       entityId: poId,
+      sender: { userId: po.createdByUserId },
     });
   }
 
@@ -1568,6 +1601,7 @@ export class PoStatusService {
       body,
       entityType: NotificationEntityType.PURCHASE_ORDER,
       entityId: poId,
+      sender: SYSTEM_SENDER,
     });
 
     // The creator gets the same signal in-app even when they are not an admin.
@@ -1582,6 +1616,7 @@ export class PoStatusService {
         body,
         entityType: NotificationEntityType.PURCHASE_ORDER,
         entityId: poId,
+        sender: SYSTEM_SENDER,
       });
     }
   }

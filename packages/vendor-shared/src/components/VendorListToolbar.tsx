@@ -4,6 +4,10 @@ import {
   SearchInput,
   FilterDropdownButton,
   DateRangeFilterDropdown,
+  FloatingActionButton,
+  MobileListToolbar,
+  cn,
+  useIsPhone,
 } from '@forethread/ui-components';
 import NewUserIcon from '@forethread/ui-components/assets/icons/new-user.svg?react';
 
@@ -28,6 +32,9 @@ interface VendorListToolbarProps {
   dateTo: string;
   onDateFromChange: (value: string) => void;
   onDateToChange: (value: string) => void;
+  /** Include one-off vendors (FOR-395), hidden by default. */
+  showOneOff?: boolean;
+  onShowOneOffChange?: (value: boolean) => void;
   onDateClear: () => void;
   onInviteVendor: () => void;
   onCreateCompany: () => void;
@@ -50,10 +57,99 @@ export function VendorListToolbar({
   onDateFromChange,
   onDateToChange,
   onDateClear,
+  showOneOff = false,
+  onShowOneOffChange,
   onInviteVendor,
   onCreateCompany,
 }: VendorListToolbarProps) {
   const { t } = useTranslation(['vendors', 'common']);
+  const isPhone = useIsPhone();
+
+  const filters = (
+    <>
+      <FilterDropdownButton
+        label={t('filters.company')}
+        popoverTitle={t('filters.company')}
+        options={companyOptions}
+        selected={companyFilter}
+        onChange={onCompanyFilterChange}
+      />
+      <FilterDropdownButton
+        label={t('filters.status')}
+        popoverTitle={t('filters.status')}
+        options={statusOptions}
+        selected={statusFilter}
+        onChange={onStatusFilterChange}
+        hideSearch
+      />
+      <FilterDropdownButton
+        label={t('filters.category')}
+        popoverTitle={t('filters.category')}
+        options={categoryOptions}
+        selected={categoryFilter}
+        onChange={onCategoryFilterChange}
+      />
+      <DateRangeFilterDropdown
+        label={t('filters.date')}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onChangeFrom={onDateFromChange}
+        onChangeTo={onDateToChange}
+        onClear={onDateClear}
+        clearLabel={t('common:clear', 'Clear')}
+      />
+      {onShowOneOffChange && (
+        <button
+          type="button"
+          aria-pressed={showOneOff}
+          onClick={() => onShowOneOffChange(!showOneOff)}
+          className={cn(
+            'h-9 whitespace-nowrap rounded-full px-3 text-sm font-medium transition-colors',
+            showOneOff
+              ? 'bg-filter-chip text-filter-chip-foreground'
+              : 'border border-border text-muted-foreground hover:text-foreground',
+          )}
+          data-testid="filter-one-off"
+        >
+          {t('filters.oneOff')}
+        </button>
+      )}
+    </>
+  );
+
+  // Phones: search + Filters sheet + ⋯ (create company), Invite is the FAB (ADR-0019 B9).
+  if (isPhone) {
+    const activeFilterCount =
+      (companyFilter.length > 0 ? 1 : 0) +
+      (statusFilter.length > 0 ? 1 : 0) +
+      (categoryFilter.length > 0 ? 1 : 0) +
+      (dateFrom || dateTo ? 1 : 0) +
+      (showOneOff ? 1 : 0);
+    return (
+      <div className="pb-4">
+        <MobileListToolbar
+          search={search}
+          onSearchChange={onSearchChange}
+          searchPlaceholder={t('searchPlaceholder')}
+          filtersLabel={t('filters.label', { defaultValue: 'Filters' })}
+          activeFilterCount={activeFilterCount}
+          onClearFilters={() => {
+            onCompanyFilterChange([]);
+            onStatusFilterChange([]);
+            onCategoryFilterChange([]);
+            onDateClear();
+            onShowOneOffChange?.(false);
+          }}
+          clearFiltersLabel={t('common:clearAll', 'Clear all')}
+          filters={<div className="flex flex-wrap items-center gap-2">{filters}</div>}
+          menuActions={[
+            { key: 'createCompany', label: t('createVendorCompany'), onClick: onCreateCompany },
+          ]}
+        />
+        <FloatingActionButton label={t('inviteVendor')} onClick={onInviteVendor} />
+      </div>
+    );
+  }
 
   return (
     <div className="pb-4 space-y-4">
@@ -67,37 +163,7 @@ export function VendorListToolbar({
             onChange={(e) => onSearchChange(e.target.value)}
           />
 
-          <FilterDropdownButton
-            label={t('filters.company')}
-            popoverTitle={t('filters.company')}
-            options={companyOptions}
-            selected={companyFilter}
-            onChange={onCompanyFilterChange}
-          />
-          <FilterDropdownButton
-            label={t('filters.status')}
-            popoverTitle={t('filters.status')}
-            options={statusOptions}
-            selected={statusFilter}
-            onChange={onStatusFilterChange}
-            hideSearch
-          />
-          <FilterDropdownButton
-            label={t('filters.category')}
-            popoverTitle={t('filters.category')}
-            options={categoryOptions}
-            selected={categoryFilter}
-            onChange={onCategoryFilterChange}
-          />
-          <DateRangeFilterDropdown
-            label={t('filters.date')}
-            dateFrom={dateFrom}
-            dateTo={dateTo}
-            onChangeFrom={onDateFromChange}
-            onChangeTo={onDateToChange}
-            onClear={onDateClear}
-            clearLabel={t('common:clear', 'Clear')}
-          />
+          {filters}
         </div>
 
         <div className="flex items-center gap-3 shrink-0">

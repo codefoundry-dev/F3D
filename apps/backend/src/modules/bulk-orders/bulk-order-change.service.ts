@@ -92,6 +92,7 @@ export class BulkOrderChangeService {
         proposerName,
         user.companyId,
         changeRequest.message ?? null,
+        user.id,
       );
     }
 
@@ -236,7 +237,10 @@ export class BulkOrderChangeService {
 
     // Notify both parties (fire-and-forget)
     const bulkId = `BO-${bulkOrderId.slice(0, 8).toUpperCase()}`;
-    void this.notifyBothPartiesOfResolution(bo, bulkId, 'approved', { comment: cr.message });
+    void this.notifyBothPartiesOfResolution(bo, bulkId, 'approved', {
+      comment: cr.message,
+      actorUserId: user.id,
+    });
 
     return { approved: true };
   }
@@ -285,6 +289,7 @@ export class BulkOrderChangeService {
     const bulkId = `BO-${bulkOrderId.slice(0, 8).toUpperCase()}`;
     void this.notifyBothPartiesOfResolution(bo, bulkId, 'rejected', {
       comment: dto.reason ?? null,
+      actorUserId: user.id,
     });
 
     return { rejected: true };
@@ -336,6 +341,7 @@ export class BulkOrderChangeService {
     });
     void this.notifyBothPartiesOfResolution(bo, bulkId, 'cancelled', {
       cancelledByName: cancellerUser?.name ?? user.email,
+      actorUserId: user.id,
     });
 
     return { cancelled: true };
@@ -397,6 +403,7 @@ export class BulkOrderChangeService {
     requesterCompanyId: string,
     /** The proposer's free-text note, rendered as the user comment in the email. */
     comment: string | null,
+    proposerUserId: string,
   ): Promise<void> {
     try {
       const { emails, isVendorCounterparty } = await this.getCounterpartyEmails(
@@ -429,6 +436,7 @@ export class BulkOrderChangeService {
         body: `${proposerName} proposed a change to bulk order ${bulkId}.`,
         entityType: NotificationEntityType.BULK_ORDER,
         entityId: bo.id,
+        sender: { userId: proposerUserId },
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -447,9 +455,11 @@ export class BulkOrderChangeService {
        * on rejection. Cancelling supports no comment in the flow.
        */
       comment?: string | null;
-    } = {},
+      /** Who approved, rejected or cancelled — the in-app sender (FOR-366). */
+      actorUserId: string;
+    },
   ): Promise<void> {
-    const { cancelledByName, comment = null } = opts;
+    const { cancelledByName, comment = null, actorUserId } = opts;
     try {
       const allRoles = [UserRole.COMPANY_ADMIN, UserRole.PROCUREMENT_OFFICER, UserRole.VENDOR];
 
@@ -526,6 +536,7 @@ export class BulkOrderChangeService {
           body: content.body,
           entityType: NotificationEntityType.BULK_ORDER,
           entityId: bo.id,
+          sender: { userId: actorUserId },
         },
       );
     } catch {

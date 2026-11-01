@@ -21,6 +21,9 @@ vi.mock('@forethread/rfq-shared', () => ({
   usePageTitleStore: (sel: (s: { setTitle: () => void }) => unknown) => sel({ setTitle: () => {} }),
 }));
 vi.mock('@forethread/ui-components', () => ({
+  useIsPhone: () => false,
+  MobileListToolbar: () => null,
+  FloatingActionButton: () => null,
   Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Button: ({
     children,

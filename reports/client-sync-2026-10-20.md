@@ -1,0 +1,163 @@
+# Client Sync — 20 Oct 2026: Ticketed Asks
+
+Action items from the Forethread project sync on **20 Oct 2026**, tracked under epic
+[FOR-357](https://codefoundry.atlassian.net/browse/FOR-357). Owner: Jesse. Target: end of week (JD
+overseeing).
+
+Not ticketed here: staging vs production sync investigation, and Excel/CSV bulk import of suppliers
+and cost codes.
+
+**Status key:** ⬜ To do · 🔄 In progress · ✅ Done
+
+## Summary
+
+| Ticket                                                      | Area          | Ask                                                     | Status |
+| ----------------------------------------------------------- | ------------- | ------------------------------------------------------- | ------ |
+| [FOR-358](https://codefoundry.atlassian.net/browse/FOR-358) | Layout        | Responsive layout for 13–14" laptop screens             | ✅     |
+| [FOR-359](https://codefoundry.atlassian.net/browse/FOR-359) | Layout        | Freeze table header row on scroll                       | ✅     |
+| [FOR-360](https://codefoundry.atlassian.net/browse/FOR-360) | Layout        | Horizontal scrollbar on wide tables                     | ✅     |
+| [FOR-361](https://codefoundry.atlassian.net/browse/FOR-361) | Catalogue     | Material images carry over from catalogue to RFQ        | ✅     |
+| [FOR-362](https://codefoundry.atlassian.net/browse/FOR-362) | Catalogue     | Editable material categories                            | ✅     |
+| [FOR-363](https://codefoundry.atlassian.net/browse/FOR-363) | Catalogue     | Rename "Public" tab to "Global Materials"               | ✅     |
+| [FOR-364](https://codefoundry.atlassian.net/browse/FOR-364) | RFQ           | One "needed by" date/time that fills in every line item | ✅     |
+| [FOR-365](https://codefoundry.atlassian.net/browse/FOR-365) | Cost codes    | Click-to-edit cost codes directly in the table          | ✅     |
+| [FOR-366](https://codefoundry.atlassian.net/browse/FOR-366) | Notifications | Standardise sender format in in-app notifications       | ✅     |
+
+## 1. Layout and responsiveness
+
+### FOR-358 — Responsive layout for 13–14" laptop screens
+
+- **Client ask:** The UI breaks on 13–14" laptops. The designs were made for large monitors.
+- **Expected:** Core flows are usable at 1280px wide and up. Nothing overlaps or clips, and modals
+  and wizards fit the screen.
+- **Resolution:** Audited every main screen against the local backend with real data, as Company
+  Admin, Procurement, Finance, Warehouse, Foreman, Vendor and Super Admin, at 1152×648 (a 14" laptop
+  at 125–150% scaling), 1280×800 and 1366×650. Nothing scrolled the page sideways. The real
+  breakages were content being cut off inside the page. Fixed:
+  - **Detail-page tabs:** on PO, RFQ and other detail pages the action buttons squeezed the tab bar,
+    so the last tabs ("Email log", "Audit trail") were hidden behind a scroll with no scrollbar. The
+    shared tab bar now moves the actions onto their own row above the tabs when both don't fit.
+  - **Sidebar:** now starts collapsed to the 56px icon rail below 1280px wide, which gives pages
+    about 170px more room. Clicking the toggle is remembered and always wins.
+  - **Dashboard summary cards:** on the buyer and Super Admin dashboards, "overdue", "Overall
+    Platform Status" and "Database Performance" spilled out of their cards. Cards are now 2×2 below
+    1280px, and their contents wrap or truncate instead of overflowing.
+  - **Modals:** checked; they already fit within 90% of the viewport height and scroll inside. No
+    change needed.
+  - Large monitors (1920×1080) are unchanged. Wide tables are left to FOR-359 and FOR-360.
+
+### FOR-359 — Freeze table header row on scroll
+
+- **Client ask:** The table header row (for example on Material Request) should stay in place on
+  scroll, like Excel.
+- **Expected:** Sticky headers in the shared table component, aligned with their columns.
+- **Resolution:** Every table's header row now stays visible while you scroll down a long list. It
+  stops just under the top bar, or at the top of a modal or scrolling panel. It stays lined up with
+  its columns when the table also scrolls sideways, and the pinned first column stays pinned. The
+  header is opaque and sits above the rows, and it lets go at the bottom of the table. Plain CSS
+  `sticky` couldn't do this, because the sideways scroll box from FOR-360 traps it. So the shared
+  `ScrollTable` moves the header down as the page scrolls (`useStickyTableHeader`). The PO
+  line-items grid, which isn't a `ScrollTable`, uses the same hook. Works the same on laptops and
+  phones.
+
+### FOR-360 — Horizontal scrollbar on wide tables
+
+- **Client ask:** Add a horizontal scrollbar so extra columns stay reachable on smaller screens.
+- **Expected:** Tables scroll sideways inside their container, the page doesn't, and columns keep a
+  readable minimum width.
+- **Resolution:** Delivered through the mobile epic (FOR-371). Every read-only table now scrolls
+  sideways inside its own card, never the page. The first column (the row's ID or name) stays pinned
+  while the rest slide under it, and a fade on the edge shows there are more columns. The same
+  behaviour works on laptops and phones. Shared component: `ScrollTable`.
+
+## 2. Material catalogue
+
+### FOR-361 — Material images carry over from catalogue to RFQ
+
+- **Client ask:** Images on catalogue materials don't show up on the RFQ, so suppliers lose context.
+- **Expected:** RFQ lines show the material image on both the buyer and vendor views.
+- **Resolution:** RFQ lines now show the catalogue image next to the material name. It appears on
+  the buyer line-items tab (panel and page), the vendor's signed-in RFQ view, and the vendor quote
+  table, both signed-in and on the guest invitation link. Clicking the thumbnail opens the full
+  image in a new tab. Lines without a catalogue material, materials with no image, and image URLs
+  that fail to load show nothing. The requested image is also hidden once the vendor picks a
+  substitute. **Decision:** the image is read live through the line's material link rather than
+  copied onto the line, so no migration was needed and a corrected catalogue image reaches open
+  RFQs. Not covered here: RFQ emails and PDF exports. Shared component: `MaterialImageThumb` in
+  `@forethread/rfq-shared`.
+
+### FOR-362 — Editable material categories
+
+- **Client ask:** The category list looks hard-coded. Confirm whether it can be edited, and if not,
+  make it editable.
+- **Expected:** Admins can create, rename and deactivate categories without a deploy.
+- **Resolution:** Categories were never hard-coded. They live in the `material_categories` table and
+  every catalogue, filter and BOM dropdown already read them from the API. What was missing was any
+  way to manage them: new categories only appeared as a side effect of a spreadsheet upload. Now
+  categories are **global, managed by Super Admin** (permission `material.manageCategories`), to
+  match the global catalogue. A "Manage categories" button on the catalogue opens a modal to add,
+  rename (case-insensitive duplicate check) and deactivate or reactivate categories, with a material
+  count per category. Deactivated categories stay on existing materials and in the filters, but are
+  not offered for new materials. Import rows that name one fall back to Uncategorised.
+  "Uncategorised" itself is locked. Migration `20261022120000_material_category_active` (adds
+  `is_active`, `updated_at`; every existing category stays active).
+
+### FOR-363 — Rename "Public" tab to "Global Materials"
+
+- **Client ask:** "Public" is unclear. Rename it to "Global Materials".
+- **Expected:** Every user-facing label says "Global Materials". Underlying values are unchanged.
+- **Resolution:** Labels only. The catalogue tab now reads "Global Materials" and the row status
+  badge reads "Global". The Super Admin dashboard quick action is now "Global Material Catalogue".
+  User-facing "public catalogue" text is now "global catalogue" in the upload destination note,
+  duplicate warning, submit/review modals and the read-only error. The `PUBLIC` status, the `public`
+  tab key and URLs are unchanged.
+  (`packages/i18n/src/locales/en/{materialCatalogue,dashboard,errors}.json`)
+
+## 3. RFQ workflow
+
+### FOR-364 — One "needed by" date/time for the whole RFQ
+
+- **Client ask:** Setting "needed by" on each line one at a time is too slow.
+- **Expected:** An RFQ-level date/time fills in every line, and individual lines can still be
+  overridden.
+- **Resolution:** The RFQ wizard's "Need by" now has a date **and time**, and fills every line.
+  Changing it updates every line that hasn't been edited by hand. Lines edited by hand keep their
+  value; setting one back to the header value makes it follow again. Lines added later (catalogue,
+  BOM, list) get the header value. Lines also gained a per-line delivery time in the Edit material
+  modal, and the review step shows it. Line values are still what gets saved, so vendor view and PO
+  carry-through are unchanged and no migration was needed. **Same pattern added to the Material
+  Request wizard** ("Need by (all lines)" above the line table). Shared logic:
+  `apps/web/src/shared/need-by/lineNeedBy.ts`.
+
+## 4. Cost codes
+
+### FOR-365 — Click-to-edit cost codes directly in the table
+
+- **Client ask:** Editing a cost code takes about 5 clicks.
+- **Expected:** Edit in place in the table. Enter or blur saves, Esc cancels.
+- **Resolution:** New shared `InlineEditCell` (`@forethread/ui-components`): click, Enter or F2
+  opens the cell; Enter or blur saves; Esc cancels; Tab moves between cells. The new value shows
+  straight away with a spinner, rolls back with an inline error if the save fails, and confirms with
+  a toast. Used for **cost code and tax code on the material catalogue table** (where the edit
+  applies directly; a contractor edit of a Global row is still a change request through the edit
+  page) and **cost code on RFQ line items**. Invoice review lines and PO wizard lines already have
+  always-open inputs inside a form that saves as a whole, so they're unchanged. There is no separate
+  cost-code settings page in the app.
+
+## 5. Notifications
+
+### FOR-366 — Standardise sender format in in-app notifications
+
+- **Client ask:** Senders show up in different formats ("I", "idea", "I, company name").
+- **Expected:** One sender format across every notification type, with clean fallbacks.
+- **Resolution:** Notifications had no sender field. Each event wrote the actor into the body text
+  in its own way, or left it out. Every notification now stores a structured sender (user name and
+  company, looked up from the actor), and the API formats it the same way for every type: **"{Full
+  name} · {Company}"**, then the company alone, then **"Forethread"** for system events (payment
+  reminders, "no eligible approver"). Guest portal actions show the vendor company. Empty parts and
+  stray separators are dropped. The bell panel shows the sender on its own line and the detail modal
+  shows "From …". Message notification bodies are now just the preview. The avatar initial in
+  message threads is now hidden from copied text and screen readers, which is the likely source of
+  the "I" prefix. Notifications created before this change show no sender line. Helper:
+  `formatSenderLabel` in `@forethread/shared-types`; no migration. **Email:** a separate gap was
+  found, not fixed. The branded email header only names the sending company when it has a logo.

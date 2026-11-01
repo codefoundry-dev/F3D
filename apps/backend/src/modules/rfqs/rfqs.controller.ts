@@ -394,7 +394,12 @@ export class RfqsController {
     // Notify contractor that a new quote was submitted (fire-and-forget). The
     // vendor's note on the quote rides along as the user comment.
     const vendorName = result.vendor?.legalName ?? 'A vendor';
-    void this.rfqsService.notifyContractorOfQuoteSubmission(rfqId, vendorName, dto.message ?? null);
+    void this.rfqsService.notifyContractorOfQuoteSubmission(
+      rfqId,
+      vendorName,
+      dto.message ?? null,
+      user.id,
+    );
 
     return result;
   }
@@ -419,7 +424,12 @@ export class RfqsController {
     // Notify contractor that vendor edited their response (fire-and-forget). The
     // vendor's note on the quote rides along as the user comment.
     const vendorName = result.vendor?.legalName ?? 'A vendor';
-    void this.rfqsService.notifyContractorOfQuoteUpdate(rfqId, vendorName, dto.message ?? null);
+    void this.rfqsService.notifyContractorOfQuoteUpdate(
+      rfqId,
+      vendorName,
+      dto.message ?? null,
+      user.id,
+    );
 
     return result;
   }

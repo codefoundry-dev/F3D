@@ -1,6 +1,6 @@
 import type { BomItemDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Badge } from '@forethread/ui-components';
+import { Badge, ScrollTable } from '@forethread/ui-components';
 
 type TFn = (key: string, options?: Record<string, unknown>) => string;
 
@@ -29,7 +29,10 @@ export function BomItemsTable({ items }: { items: BomItemDto[] }) {
   const td = 'px-3 py-3 text-sm text-foreground align-top';
 
   return (
-    <div className="overflow-auto border border-border rounded-lg min-h-0">
+    <ScrollTable
+      className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border"
+      wrapperClassName="flex min-h-0 flex-col"
+    >
       <table className="w-full min-w-[900px] text-sm" data-testid="bom-items-view-table">
         <thead>
           <tr className="bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
@@ -70,6 +73,6 @@ export function BomItemsTable({ items }: { items: BomItemDto[] }) {
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollTable>
   );
 }

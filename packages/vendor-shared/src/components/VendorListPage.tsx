@@ -2,7 +2,13 @@ import { UNCATEGORISED } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { VendorCategory } from '@forethread/shared-types/client';
-import { Spinner, EmptyState, TablePagination, type DotAction } from '@forethread/ui-components';
+import {
+  Spinner,
+  EmptyState,
+  TablePagination,
+  type DotAction,
+  ScrollTable,
+} from '@forethread/ui-components';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -52,6 +58,7 @@ export default function VendorListPage() {
   const [isCreateCompanyModalOpen, setIsCreateCompanyModalOpen] = useState(false);
   const [successEmail, setSuccessEmail] = useState<string | null>(null);
   const [successAlreadyExisted, setSuccessAlreadyExisted] = useState(false);
+  const [showOneOff, setShowOneOff] = useState(false);
   // Actions (mutations, dot menus, action/success modals)
   const vendorActions = useVendorActions({
     onNavigateToCompany: (companyId) => navigate(`/vendors/${companyId}`),
@@ -72,6 +79,8 @@ export default function VendorListPage() {
     dateTo: dateTo || undefined,
     sortBy: sortField ?? undefined,
     sortDir: sortDir ?? undefined,
+    // One-off vendors (FOR-395) belong to a project and stay hidden unless asked for.
+    includeOneOff: showOneOff || undefined,
   });
 
   // Grouped data
@@ -116,8 +125,8 @@ export default function VendorListPage() {
   };
 
   return (
-    <div className="p-8">
-      <div className="bg-card rounded-lg border border-border p-6">
+    <div className="p-4 md:p-8">
+      <div className="bg-card rounded-lg border border-border p-4 md:p-6">
         <VendorListToolbar
           search={search}
           onSearchChange={(v) => {
@@ -152,6 +161,11 @@ export default function VendorListPage() {
           onDateClear={() => {
             setDateFrom('');
             setDateTo('');
+            setPage(1);
+          }}
+          showOneOff={showOneOff}
+          onShowOneOffChange={(v) => {
+            setShowOneOff(v);
             setPage(1);
           }}
           onInviteVendor={() => setIsInviteModalOpen(true)}
@@ -256,7 +270,7 @@ function VendorTable({
   onViewUser,
 }: VendorTableProps) {
   return (
-    <div className="border border-border rounded-lg overflow-x-auto">
+    <ScrollTable className="border border-border rounded-lg">
       <table className="w-full min-w-[800px] text-sm">
         <VendorTableHeader sortField={sortField} sortDir={sortDir} onSort={onSort} />
         <tbody className="divide-y divide-border">
@@ -278,7 +292,7 @@ function VendorTable({
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollTable>
   );
 }
 
@@ -313,6 +327,7 @@ function VendorGroupSection({
         companyName={group.companyName}
         companyId={group.companyId}
         categories={group.categories}
+        oneOffProjectName={group.oneOffProject?.name ?? null}
         isExpanded={isExpanded}
         onToggle={onToggle}
         actions={getCompanyRowActions(group.companyId, group)}

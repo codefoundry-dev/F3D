@@ -6,6 +6,7 @@ import {
   uploadDeliveryPortalLinePhoto,
   uploadDeliveryPortalAttachment,
   finalizeDeliveryPortal,
+  ApiRequestError,
   isApiError,
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
@@ -15,10 +16,13 @@ import {
   Alert,
   Button,
   Input,
+  MobileActionBar,
   Spinner,
   Textarea,
   cn,
   notificationService,
+  useHideMobileNav,
+  useIsPhone,
 } from '@forethread/ui-components';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock-icon.svg?react';
 import CloseIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
@@ -98,7 +102,11 @@ export default function PublicDeliveryPage() {
   }
 
   // A 403 means the token is expired / revoked — distinct from a malformed link.
+  // A 429 means too many failed tries locked the link; a new QR is the way out.
   if (isError) {
+    if (isApiError(error, 429)) {
+      return <PortalError title={t('portal.lockedToken')} hint={t('portal.expiredTokenHint')} />;
+    }
     const expired = isApiError(error, 403);
     return (
       <PortalError
@@ -109,7 +117,8 @@ export default function PublicDeliveryPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-8">
+    // Phones: every field at ≥16px so iOS Safari doesn't zoom on focus (ADR-0019).
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-8 max-md:[&_input]:text-base max-md:[&_select]:text-base max-md:[&_textarea]:text-base">
       <div className="w-full max-w-md">
         {step === 'identify' && (
           <IdentifyStep
@@ -330,7 +339,12 @@ function CodeStep({
       setSubmitting(true);
       setErrorKey(null);
       try {
-        const { sessionToken } = await verifyDeliveryPortal(token, { email, code: value });
+        // Trimmed exactly like identify, or a keyboard's trailing space makes the
+        // code lookup miss and every code reads as "incorrect".
+        const { sessionToken } = await verifyDeliveryPortal(token, {
+          email: email.trim(),
+          code: value,
+        });
         onVerified(sessionToken);
       } catch (err) {
         // 429 (or a locked 403) → lockout copy; anything else → invalid code.
@@ -389,7 +403,8 @@ function CodeStep({
             aria-label={t('portal.code.digitLabel', { index: i + 1 })}
             data-testid={`portal-code-digit-${i}`}
             className={cn(
-              'h-12 w-12 rounded-xl border border-black/15 bg-card text-center text-lg font-medium text-foreground',
+              // Shrinks to share the card width on narrow phones (6 × 48px overflows at 360–390px).
+              'h-12 w-12 min-w-0 max-md:w-auto max-md:max-w-12 max-md:flex-1 rounded-xl border border-black/15 bg-card text-center text-lg font-medium text-foreground',
               'focus:border-foreground/50 focus:outline-none disabled:opacity-50',
             )}
           />
@@ -451,6 +466,9 @@ function ReportFormStep({
   onSubmitted: (lines: PortalLineDraft[]) => void;
 }) {
   const { t } = useTranslation('deliveries');
+  const isPhone = useIsPhone();
+  // No app shell here: hiding the (absent) nav pins the submit bar to the very bottom.
+  useHideMobileNav();
 
   const [lines, setLines] = useState<PortalLineDraft[]>(() => po.lines.map(portalPoLineToDraft));
   const [overallNotes, setOverallNotes] = useState('');
@@ -489,16 +507,38 @@ function ReportFormStep({
       for (const file of attachments) {
         uploads.push(uploadDeliveryPortalAttachment(sessionToken, file));
       }
-      await Promise.allSettled(uploads);
+      const results = await Promise.allSettled(uploads);
+      const failedUploads = results.filter((r) => r.status === 'rejected').length;
 
       await finalizeDeliveryPortal(sessionToken);
+      // The report is saved either way; say so rather than dropping evidence silently.
+      if (failedUploads > 0) {
+        notificationService.info(t('portal.report.uploadsFailed', { count: failedUploads }));
+      }
       onSubmitted(lines);
-    } catch {
-      notificationService.error(t('portal.report.submitFailed'));
+    } catch (err) {
+      // A 400 carries the server's reason (e.g. the PO can't take a delivery in
+      // its current status) — show it instead of a generic retry prompt.
+      const reason = err instanceof ApiRequestError && err.statusCode === 400 ? err.message : null;
+      notificationService.error(reason ?? t('portal.report.submitFailed'));
     } finally {
       setSubmitting(false);
     }
   };
+
+  const submitButton = (
+    <Button
+      variant="primary"
+      size="lg"
+      className="w-full"
+      isLoading={submitting}
+      disabled={!allValid}
+      onClick={() => void handleSubmit()}
+      data-testid="portal-submit"
+    >
+      {t('portal.report.submit')}
+    </Button>
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -629,18 +669,8 @@ function ReportFormStep({
         </div>
       </div>
 
-      {/* ── Submit ── */}
-      <Button
-        variant="primary"
-        size="lg"
-        className="w-full"
-        isLoading={submitting}
-        disabled={!allValid}
-        onClick={() => void handleSubmit()}
-        data-testid="portal-submit"
-      >
-        {t('portal.report.submit')}
-      </Button>
+      {/* ── Submit: in the fixed bottom bar on phones (B7), inline otherwise ── */}
+      {isPhone ? <MobileActionBar>{submitButton}</MobileActionBar> : submitButton}
 
       {/* ── View PO (read-only sheet built from the already-loaded portal PO; the
             QR token is DELIVERY_SUBMIT-scoped so it can't open the PO_VIEW portal). ── */}
@@ -659,7 +689,7 @@ function ReportFormStep({
           }}
           data-testid="portal-po-details"
         >
-          <div className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl bg-card p-5 sm:max-w-md sm:rounded-2xl">
+          <div className="max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl bg-card p-5 pb-[calc(20px+env(safe-area-inset-bottom))] sm:max-w-md sm:rounded-2xl sm:pb-5">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-bold text-foreground">
                 {t('portal.report.poDetails.title')}

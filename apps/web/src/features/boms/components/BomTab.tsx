@@ -1,6 +1,6 @@
 import type { BomListItemDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Button, Input, Spinner, TablePagination } from '@forethread/ui-components';
+import { Button, Input, Spinner, TablePagination, ScrollTable } from '@forethread/ui-components';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
 import { useMemo, useState } from 'react';
@@ -99,7 +99,7 @@ function HistoricalBomTable({
 
   return (
     <div>
-      <div className="overflow-x-auto border border-border rounded-lg">
+      <ScrollTable className="border border-border rounded-lg">
         <table className="w-full min-w-[760px] text-sm" data-testid="bom-table">
           <thead>
             <tr className="bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
@@ -156,7 +156,7 @@ function HistoricalBomTable({
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollTable>
 
       <TablePagination
         page={page}

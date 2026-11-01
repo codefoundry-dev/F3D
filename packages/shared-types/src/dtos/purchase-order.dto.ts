@@ -12,6 +12,7 @@ import {
   IsUUID,
   Matches,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -25,7 +26,7 @@ import {
   PoStatus,
   PoType,
 } from '../enums';
-import { DELIVERY_TIME_REGEX } from '../validation';
+import { DELIVERY_TIME_REGEX, PO_TERMS_MAX_LENGTH } from '../validation';
 
 import { BasePaginationQueryDto, PaginationMetaDto } from './pagination.dto';
 
@@ -78,6 +79,15 @@ export class CreatePoLineItemDto {
   @IsUUID()
   @IsOptional()
   bulkOrderLineItemId?: string;
+
+  /**
+   * The approved quote line this PO line is bought from (FOR-391). When set, the
+   * server prices the line at the vendor's quoted unit price — a from-RFQ price
+   * can't be overwritten. Not persisted; it only pins the price.
+   */
+  @IsUUID()
+  @IsOptional()
+  quoteLineItemId?: string;
 
   @IsOptional()
   @IsString()
@@ -258,6 +268,15 @@ export class CreatePurchaseOrderDto {
   @IsOptional()
   message?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'General terms & conditions printed on this PO. Omitted on create → the company default (FOR-398).',
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(PO_TERMS_MAX_LENGTH)
+  termsAndConditions?: string | null;
+
   @IsString()
   @IsOptional()
   deliveryResponsibleName?: string;
@@ -364,6 +383,15 @@ export class UpdatePurchaseOrderDto {
   @IsString()
   @IsOptional()
   message?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'General terms & conditions printed on this PO. Omitted on create → the company default (FOR-398).',
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(PO_TERMS_MAX_LENGTH)
+  termsAndConditions?: string | null;
 
   @IsString()
   @IsOptional()
@@ -646,6 +674,9 @@ export class PoResponseDto {
 
   @ApiPropertyOptional()
   message!: string | null;
+
+  @ApiPropertyOptional()
+  termsAndConditions!: string | null;
 
   @ApiPropertyOptional()
   deliveryResponsibleName!: string | null;

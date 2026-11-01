@@ -35,6 +35,7 @@ import { MaterialsModule } from './modules/materials/materials.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { NotificationFeedModule } from './modules/notification-feed/notification-feed.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { ProcurementRemindersModule } from './modules/procurement-reminders/procurement-reminders.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 import { RfqsModule } from './modules/rfqs/rfqs.module';
@@ -106,6 +107,7 @@ import { PrismaModule } from './prisma/prisma.module';
     RolesModule,
     BulkOrdersModule,
     InvoicesModule,
+    ProcurementRemindersModule,
     InventoryModule,
     DeliveriesModule,
     MaterialsModule,

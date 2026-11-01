@@ -7,17 +7,21 @@ import {
   Badge,
   CustomDropdown,
   Input,
+  LineItemEditor,
   MaterialSearchPanel,
   cn,
   onDecimalOnly,
+  type LineItemField,
   type MaterialItem,
+  ScrollTable,
+  useIsPhone,
 } from '@forethread/ui-components';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 import CopyIcon from '@forethread/ui-components/assets/icons/copy.svg?react';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import InfoIcon from '@forethread/ui-components/assets/icons/info.svg?react';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { useMaterialSearchQuery } from '../../hooks/useMaterialSearchQuery';
 
@@ -25,6 +29,16 @@ import { emptyRow, firstNonEmpty, isRowEmpty, unmatchedCount, type BomDraftRow }
 import { CreatePrivateMaterialModal } from './CreatePrivateMaterialModal';
 
 type TFn = (key: string, options?: Record<string, unknown>) => string;
+
+type BomFieldKey =
+  | 'materialName'
+  | 'match'
+  | 'description'
+  | 'uom'
+  | 'quantity'
+  | 'category'
+  | 'materialType'
+  | 'confidence';
 
 // Row tints from the US 5.01 design: red = no match and no candidates,
 // amber = unmatched with a low-confidence suggestion, blue = resolved by hand.
@@ -155,6 +169,7 @@ export interface BomReviewStepProps {
 export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomReviewStepProps) {
   const { t: tRaw } = useTranslation('boms');
   const t = tRaw as TFn;
+  const isPhone = useIsPhone();
   const [openMatchRow, setOpenMatchRow] = useState<number | null>(null);
   const [createMaterialRow, setCreateMaterialRow] = useState<number | null>(null);
 
@@ -217,10 +232,172 @@ export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomRev
   };
 
   const categoryOptionsFor = (value: string) => {
-    const base = categories.map((c) => ({ value: c.name, label: c.name }));
+    // Deactivated categories aren't offered (FOR-362); a row already holding
+    // one keeps it via the unshift below.
+    const base = categories
+      .filter((c) => c.isActive !== false)
+      .map((c) => ({ value: c.name, label: c.name }));
     if (value && !base.some((o) => o.value === value)) base.unshift({ value, label: value });
     return base;
   };
+
+  // ── Line fields, defined once (ADR-0019 B10): the desktop table renders the
+  // inputs in its cells; on phones LineItemEditor stacks them in the line sheet.
+  const inputClass = isPhone ? undefined : NAKED_INPUT_CLASS;
+  const bomFields: Array<LineItemField<BomDraftRow> & { key: BomFieldKey }> = [
+    {
+      key: 'materialName',
+      label: t('create.columns.materialName'),
+      input: (row, index) => (
+        <Input
+          aria-label={t('create.columns.materialName')}
+          value={row.materialName}
+          placeholder={t('create.enterPlaceholder')}
+          onChange={(e) => updateRow(index, { materialName: e.target.value })}
+          className={inputClass}
+        />
+      ),
+    },
+    {
+      key: 'match',
+      label: t('create.columns.match'),
+      required: true,
+      value: (row) => matchCellText(row, t).text,
+      input: (row, index) => (
+        <div className={isPhone ? 'rounded-xl border border-border bg-background' : undefined}>
+          <MatchCell
+            index={index}
+            row={row}
+            open={openMatchRow === index}
+            onOpen={() => setOpenMatchRow(index)}
+            onClose={() => setOpenMatchRow(null)}
+            onPick={(material) => pickMaterial(index, material)}
+            onCreateNew={() => {
+              setOpenMatchRow(null);
+              setCreateMaterialRow(index);
+            }}
+            t={t}
+          />
+        </div>
+      ),
+    },
+    {
+      key: 'description',
+      label: t('create.columns.description'),
+      input: (row, index) => (
+        <Input
+          aria-label={t('create.columns.description')}
+          value={row.description}
+          placeholder={t('create.enterPlaceholder')}
+          onChange={(e) => updateRow(index, { description: e.target.value })}
+          className={inputClass}
+        />
+      ),
+    },
+    {
+      key: 'uom',
+      label: t('create.columns.uom'),
+      value: (row) => row.uom || '-',
+      input: (row, index) => (
+        <CustomDropdown
+          options={uomOptionsFor(row.uom)}
+          value={row.uom}
+          onChange={(value) => updateRow(index, { uom: value })}
+          placeholder="UoM"
+          borderless={!isPhone}
+        />
+      ),
+    },
+    {
+      key: 'quantity',
+      label: t('create.columns.quantity'),
+      value: (row) => row.quantity || '-',
+      input: (row, index) => (
+        <div className="flex items-center gap-1 pr-1">
+          <Input
+            aria-label={t('create.columns.quantity')}
+            inputMode="decimal"
+            onKeyDown={onDecimalOnly}
+            value={row.quantity}
+            placeholder={isRowEmpty(row) ? t('create.enterPlaceholder') : '0'}
+            onChange={(e) => updateRow(index, { quantity: e.target.value })}
+            className={inputClass}
+          />
+          <div className="flex flex-col shrink-0">
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label="Increase quantity"
+              onClick={() =>
+                updateRow(index, {
+                  quantity: String((Number(row.quantity) || 0) + 1),
+                })
+              }
+              className="p-0.5 text-muted-foreground hover:text-foreground"
+            >
+              <ChevronDownIcon className="w-3.5 h-3.5 rotate-180" />
+            </button>
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label="Decrease quantity"
+              onClick={() =>
+                updateRow(index, {
+                  quantity: String(Math.max(0, (Number(row.quantity) || 0) - 1)),
+                })
+              }
+              className="p-0.5 text-muted-foreground hover:text-foreground"
+            >
+              <ChevronDownIcon className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'category',
+      label: t('create.columns.category'),
+      value: (row) => row.category || '-',
+      input: (row, index) => (
+        <CustomDropdown
+          options={categoryOptionsFor(row.category)}
+          value={row.category}
+          onChange={(value) => updateRow(index, { category: value })}
+          placeholder="—"
+          searchable
+          borderless={!isPhone}
+        />
+      ),
+    },
+    {
+      key: 'materialType',
+      label: t('create.columns.materialType'),
+      input: (row, index) => (
+        <Input
+          aria-label={t('create.columns.materialType')}
+          value={row.materialType}
+          placeholder="—"
+          onChange={(e) => updateRow(index, { materialType: e.target.value })}
+          className={inputClass}
+        />
+      ),
+    },
+    {
+      key: 'confidence',
+      label: t('create.columns.confidence'),
+      input: (row) => {
+        const badge = confidenceBadge(row, t);
+        return (
+          <span className="inline-flex items-center gap-2 whitespace-nowrap">
+            <Badge className="bg-[#E8EAED] text-[#2D3139]">{badge.label}</Badge>
+            {badge.pct && <span className="text-sm text-foreground">{badge.pct}</span>}
+          </span>
+        );
+      },
+    },
+  ];
+  const field = (key: BomFieldKey, row: BomDraftRow, index: number): ReactNode =>
+    bomFields.find((f) => f.key === key)?.input(row, index) ?? null;
 
   return (
     <div className="space-y-6" data-testid="bom-review-step">
@@ -230,173 +407,90 @@ export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomRev
         </Alert>
       )}
 
-      <div className="bg-card border border-border rounded-lg overflow-visible">
-        <div className="overflow-x-auto overflow-y-visible">
-          <table className="w-full min-w-[1180px] text-sm" data-testid="bom-review-table">
-            <thead>
-              <tr className="bg-[hsl(var(--table-header))]">
-                <th className={cn(th, 'w-[22%]')}>{t('create.columns.materialName')}</th>
-                <th className={cn(th, 'w-[13%]')}>{t('create.columns.match')}</th>
-                <th className={cn(th, 'w-[15%]')}>{t('create.columns.description')}</th>
-                <th className={cn(th, 'w-[8%]')}>{t('create.columns.uom')}</th>
-                <th className={cn(th, 'w-[10%]')}>{t('create.columns.quantity')}</th>
-                <th className={cn(th, 'w-[10%]')}>{t('create.columns.category')}</th>
-                <th className={cn(th, 'w-[8%]')}>{t('create.columns.materialType')}</th>
-                <th className={cn(th, 'w-[8%]')}>{t('create.columns.confidence')}</th>
-                <th className={cn(th, 'w-[6%]')}>{t('create.columns.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, index) => {
-                const badge = confidenceBadge(row, t);
-                const empty = isRowEmpty(row);
-                return (
-                  <tr
-                    key={index}
-                    className={variant === 'edit' ? undefined : rowTint(row)}
-                    data-testid={`bom-review-row-${index}`}
-                  >
-                    <td className={td}>
-                      <Input
-                        aria-label={t('create.columns.materialName')}
-                        value={row.materialName}
-                        placeholder={t('create.enterPlaceholder')}
-                        onChange={(e) => updateRow(index, { materialName: e.target.value })}
-                        className={NAKED_INPUT_CLASS}
-                      />
-                    </td>
-                    <td className={cn(td, 'relative')}>
-                      <MatchCell
-                        index={index}
-                        row={row}
-                        open={openMatchRow === index}
-                        onOpen={() => setOpenMatchRow(index)}
-                        onClose={() => setOpenMatchRow(null)}
-                        onPick={(material) => pickMaterial(index, material)}
-                        onCreateNew={() => {
-                          setOpenMatchRow(null);
-                          setCreateMaterialRow(index);
-                        }}
-                        t={t}
-                      />
-                    </td>
-                    <td className={td}>
-                      <Input
-                        aria-label={t('create.columns.description')}
-                        value={row.description}
-                        placeholder={t('create.enterPlaceholder')}
-                        onChange={(e) => updateRow(index, { description: e.target.value })}
-                        className={NAKED_INPUT_CLASS}
-                      />
-                    </td>
-                    <td className={td}>
-                      <CustomDropdown
-                        options={uomOptionsFor(row.uom)}
-                        value={row.uom}
-                        onChange={(value) => updateRow(index, { uom: value })}
-                        placeholder="UoM"
-                        borderless
-                      />
-                    </td>
-                    <td className={td}>
-                      <div className="flex items-center gap-1 pr-1">
-                        <Input
-                          aria-label={t('create.columns.quantity')}
-                          inputMode="decimal"
-                          onKeyDown={onDecimalOnly}
-                          value={row.quantity}
-                          placeholder={empty ? t('create.enterPlaceholder') : '0'}
-                          onChange={(e) => updateRow(index, { quantity: e.target.value })}
-                          className={NAKED_INPUT_CLASS}
-                        />
-                        <div className="flex flex-col shrink-0">
+      {/* Phones: one card per line + the line edit sheet (B10). */}
+      {isPhone && (
+        <LineItemEditor
+          lines={rows}
+          fields={bomFields}
+          getKey={(_row, index) => String(index)}
+          getTitle={(row) =>
+            firstNonEmpty(row.materialName, row.description) || t('create.enterPlaceholder')
+          }
+          getSubtitle={(row) => (isRowEmpty(row) ? undefined : confidenceBadge(row, t).label)}
+          hasError={(row) => variant === 'create' && !isRowEmpty(row) && !row.matchedMaterialId}
+          onRemove={removeRow}
+          removeLabel={t('create.removeRow')}
+        />
+      )}
+
+      {!isPhone && (
+        <div className="bg-card border border-border rounded-lg overflow-visible">
+          <ScrollTable className="overflow-y-visible">
+            <table className="w-full min-w-[1180px] text-sm" data-testid="bom-review-table">
+              <thead>
+                <tr className="bg-[hsl(var(--table-header))]">
+                  <th className={cn(th, 'w-[22%]')}>{t('create.columns.materialName')}</th>
+                  <th className={cn(th, 'w-[13%]')}>{t('create.columns.match')}</th>
+                  <th className={cn(th, 'w-[15%]')}>{t('create.columns.description')}</th>
+                  <th className={cn(th, 'w-[8%]')}>{t('create.columns.uom')}</th>
+                  <th className={cn(th, 'w-[10%]')}>{t('create.columns.quantity')}</th>
+                  <th className={cn(th, 'w-[10%]')}>{t('create.columns.category')}</th>
+                  <th className={cn(th, 'w-[8%]')}>{t('create.columns.materialType')}</th>
+                  <th className={cn(th, 'w-[8%]')}>{t('create.columns.confidence')}</th>
+                  <th className={cn(th, 'w-[6%]')}>{t('create.columns.actions')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, index) => {
+                  const empty = isRowEmpty(row);
+                  return (
+                    <tr
+                      key={index}
+                      className={variant === 'edit' ? undefined : rowTint(row)}
+                      data-testid={`bom-review-row-${index}`}
+                    >
+                      <td className={td}>{field('materialName', row, index)}</td>
+                      <td className={cn(td, 'relative')}>{field('match', row, index)}</td>
+                      <td className={td}>{field('description', row, index)}</td>
+                      <td className={td}>{field('uom', row, index)}</td>
+                      <td className={td}>{field('quantity', row, index)}</td>
+                      <td className={td}>{field('category', row, index)}</td>
+                      <td className={td}>{field('materialType', row, index)}</td>
+                      <td className={cn(td, 'px-3')}>{field('confidence', row, index)}</td>
+                      <td className={cn(td, 'px-3')}>
+                        <div className="flex items-center gap-3">
+                          {variant !== 'edit' && (
+                            <button
+                              type="button"
+                              aria-label={t('create.duplicateRow')}
+                              title={t('create.duplicateRow')}
+                              onClick={() => duplicateRow(index)}
+                              disabled={empty}
+                              className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                            >
+                              <CopyIcon className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
                             type="button"
-                            tabIndex={-1}
-                            aria-label="Increase quantity"
-                            onClick={() =>
-                              updateRow(index, {
-                                quantity: String((Number(row.quantity) || 0) + 1),
-                              })
-                            }
-                            className="p-0.5 text-muted-foreground hover:text-foreground"
+                            aria-label={t('create.removeRow')}
+                            title={t('create.removeRow')}
+                            onClick={() => removeRow(index)}
+                            disabled={empty}
+                            className="text-muted-foreground hover:text-destructive disabled:opacity-30"
                           >
-                            <ChevronDownIcon className="w-3.5 h-3.5 rotate-180" />
-                          </button>
-                          <button
-                            type="button"
-                            tabIndex={-1}
-                            aria-label="Decrease quantity"
-                            onClick={() =>
-                              updateRow(index, {
-                                quantity: String(Math.max(0, (Number(row.quantity) || 0) - 1)),
-                              })
-                            }
-                            className="p-0.5 text-muted-foreground hover:text-foreground"
-                          >
-                            <ChevronDownIcon className="w-3.5 h-3.5" />
+                            <DeleteIcon className="w-4 h-4" />
                           </button>
                         </div>
-                      </div>
-                    </td>
-                    <td className={td}>
-                      <CustomDropdown
-                        options={categoryOptionsFor(row.category)}
-                        value={row.category}
-                        onChange={(value) => updateRow(index, { category: value })}
-                        placeholder="—"
-                        searchable
-                        borderless
-                      />
-                    </td>
-                    <td className={td}>
-                      <Input
-                        aria-label={t('create.columns.materialType')}
-                        value={row.materialType}
-                        placeholder="—"
-                        onChange={(e) => updateRow(index, { materialType: e.target.value })}
-                        className={NAKED_INPUT_CLASS}
-                      />
-                    </td>
-                    <td className={cn(td, 'px-3')}>
-                      <span className="inline-flex items-center gap-2 whitespace-nowrap">
-                        <Badge className="bg-[#E8EAED] text-[#2D3139]">{badge.label}</Badge>
-                        {badge.pct && <span className="text-sm text-foreground">{badge.pct}</span>}
-                      </span>
-                    </td>
-                    <td className={cn(td, 'px-3')}>
-                      <div className="flex items-center gap-3">
-                        {variant !== 'edit' && (
-                          <button
-                            type="button"
-                            aria-label={t('create.duplicateRow')}
-                            title={t('create.duplicateRow')}
-                            onClick={() => duplicateRow(index)}
-                            disabled={empty}
-                            className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                          >
-                            <CopyIcon className="w-4 h-4" />
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          aria-label={t('create.removeRow')}
-                          title={t('create.removeRow')}
-                          onClick={() => removeRow(index)}
-                          disabled={empty}
-                          className="text-muted-foreground hover:text-destructive disabled:opacity-30"
-                        >
-                          <DeleteIcon className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </ScrollTable>
         </div>
-      </div>
+      )}
 
       {createMaterialRow !== null && (
         <CreatePrivateMaterialModal

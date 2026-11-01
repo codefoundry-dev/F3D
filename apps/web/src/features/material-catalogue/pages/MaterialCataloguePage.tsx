@@ -1,7 +1,19 @@
 import { type MaterialListItemDto, type MaterialListSummaryDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
-import { Button, Input, TablePagination, useDebounce } from '@forethread/ui-components';
+import {
+  Button,
+  FiltersButton,
+  FloatingActionButton,
+  Input,
+  Modal,
+  ModalBody,
+  ModalFooter,
+  ModalHeader,
+  TablePagination,
+  useDebounce,
+  useIsPhone,
+} from '@forethread/ui-components';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
 import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
@@ -18,6 +30,7 @@ import {
 } from '../components/ConfirmMaterialModal';
 import { CreateEditMaterialListModal } from '../components/CreateEditMaterialListModal';
 import { FacetFilterSelect } from '../components/FacetFilterSelect';
+import { ManageCategoriesModal } from '../components/ManageCategoriesModal';
 import { MaterialListsPanel } from '../components/MaterialListsPanel';
 import { MaterialNoResults } from '../components/MaterialNoResults';
 import { MaterialSearchDropdown } from '../components/MaterialSearchDropdown';
@@ -28,6 +41,7 @@ import {
   useMaterialChangeRequestMutations,
   useMaterialChangeRequests,
 } from '../hooks/useMaterialChangeRequests';
+import { useMaterialCodeMutation } from '../hooks/useMaterialCodeMutation';
 import { useMaterialFacets } from '../hooks/useMaterialFacets';
 import { useMaterialFavouriteMutations } from '../hooks/useMaterialFavouriteMutations';
 import { useMaterialLists, useMaterialListMutations } from '../hooks/useMaterialLists';
@@ -66,6 +80,9 @@ interface PendingConfirm {
 
 export default function MaterialCataloguePage() {
   const { t } = useTranslation(['materialCatalogue']);
+  // Phones: facet filters in a sheet + floating Create button (ADR-0019 B9).
+  const isPhone = useIsPhone();
+  const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
   const { has } = usePermissions();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -85,6 +102,7 @@ export default function MaterialCataloguePage() {
   // NOT being an approver so the Super-Admin catalogue stays exactly as-is.
   const showApprovalTabs = canApprove;
   const showContributorTabs = !canApprove;
+  const materialCodeMutation = useMaterialCodeMutation();
 
   // Valid tab keys for the current role — drives both the tab bar and ?tab=
   // resolution so an out-of-role tab param falls back to 'public'.
@@ -123,6 +141,8 @@ export default function MaterialCataloguePage() {
   const [createListOpen, setCreateListOpen] = useState(false);
   const [editList, setEditList] = useState<MaterialListSummaryDto | null>(null);
   const [deleteList, setDeleteList] = useState<MaterialListSummaryDto | null>(null);
+  // Global category management (FOR-362) — Super Admin only.
+  const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false);
 
   // Search autocomplete dropdown (US 4.04) — focus state + a short debounce so
   // suggestions fire while typing without hammering the endpoint.
@@ -293,10 +313,74 @@ export default function MaterialCataloguePage() {
       : []),
   ];
 
+  // Category / manufacturer / UoM / type / origin: inline on desktop, a sheet
+  // on phones (B9).
+  const facetFilters = (
+    <>
+      <FacetFilterSelect
+        value={categoryId}
+        onChange={(v) => {
+          setCategoryId(v);
+          setPage(1);
+        }}
+        placeholder={t('filters.allCategories')}
+        testId="filter-category"
+        options={(categories ?? []).map((c) => ({ value: c.id, label: c.name }))}
+      />
+      <FacetFilterSelect
+        value={manufacturer}
+        onChange={(v) => {
+          setManufacturer(v);
+          setPage(1);
+        }}
+        placeholder={t('filters.manufacturer')}
+        testId="filter-manufacturer"
+        options={facets.manufacturers.map((m) => ({ value: m, label: m }))}
+      />
+      <FacetFilterSelect
+        value={uom}
+        onChange={(v) => {
+          setUom(v);
+          setPage(1);
+        }}
+        placeholder={t('filters.uom')}
+        testId="filter-uom"
+        options={facets.uoms.map((u) => ({ value: u, label: u }))}
+      />
+      <FacetFilterSelect
+        value={materialType}
+        onChange={(v) => {
+          setMaterialType(v);
+          setPage(1);
+        }}
+        placeholder={t('filters.materialType')}
+        testId="filter-material-type"
+        options={facets.materialTypes.map((m) => ({ value: m, label: m }))}
+      />
+      <FacetFilterSelect
+        value={countryOfOrigin}
+        onChange={(v) => {
+          setCountryOfOrigin(v);
+          setPage(1);
+        }}
+        placeholder={t('filters.countryOfOrigin')}
+        testId="filter-country"
+        options={facets.countriesOfOrigin.map((c) => ({ value: c, label: c }))}
+      />
+    </>
+  );
+  const activeFacetCount = [categoryId, manufacturer, uom, materialType, countryOfOrigin].filter(
+    Boolean,
+  ).length;
+
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border">
-        <div className="flex items-center gap-6" role="tablist" aria-label={t('page.title')}>
+        <div
+          className="flex items-center gap-6 max-md:-mx-4 max-md:min-w-0 max-md:max-w-[calc(100%+2rem)] max-md:overflow-x-auto max-md:px-4 [scrollbar-width:none]"
+          role="tablist"
+          aria-label={t('page.title')}
+        >
           {tabs.map((tab) => {
             const isActive = activeTab === tab.key;
             return (
@@ -308,7 +392,7 @@ export default function MaterialCataloguePage() {
                 onClick={() => setActiveTab(tab.key)}
                 data-testid={`material-tab-${tab.key}`}
                 className={
-                  'pb-3 -mb-px text-sm font-medium border-b-2 transition-colors ' +
+                  'pb-3 -mb-px whitespace-nowrap text-sm font-medium border-b-2 transition-colors max-md:min-h-11 max-md:pt-3 max-md:pb-2.5 ' +
                   (isActive
                     ? 'border-foreground text-foreground'
                     : 'border-transparent text-muted-foreground hover:text-foreground')
@@ -321,7 +405,14 @@ export default function MaterialCataloguePage() {
         </div>
 
         <div className="flex items-center gap-3 pb-2">
-          {has('material.create') && (
+          {has('material.create') && isPhone && (
+            <FloatingActionButton
+              label={t('actions.createNew')}
+              onClick={() => navigate(ROUTES.materialCatalogueNew)}
+              testId="material-create"
+            />
+          )}
+          {has('material.create') && !isPhone && (
             <Button
               leftIcon={<PlusIcon className="w-4 h-4" />}
               onClick={() => navigate(ROUTES.materialCatalogueNew)}
@@ -338,6 +429,15 @@ export default function MaterialCataloguePage() {
               data-testid="material-upload"
             >
               {t('actions.upload')}
+            </Button>
+          )}
+          {has('material.manageCategories') && (
+            <Button
+              variant="outline"
+              onClick={() => setManageCategoriesOpen(true)}
+              data-testid="material-manage-categories"
+            >
+              {t('actions.manageCategories')}
             </Button>
           )}
         </div>
@@ -537,56 +637,20 @@ export default function MaterialCataloguePage() {
               )}
             </div>
 
-            <FacetFilterSelect
-              value={categoryId}
-              onChange={(v) => {
-                setCategoryId(v);
-                setPage(1);
-              }}
-              placeholder={t('filters.allCategories')}
-              testId="filter-category"
-              options={(categories ?? []).map((c) => ({ value: c.id, label: c.name }))}
-            />
-            <FacetFilterSelect
-              value={manufacturer}
-              onChange={(v) => {
-                setManufacturer(v);
-                setPage(1);
-              }}
-              placeholder={t('filters.manufacturer')}
-              testId="filter-manufacturer"
-              options={facets.manufacturers.map((m) => ({ value: m, label: m }))}
-            />
-            <FacetFilterSelect
-              value={uom}
-              onChange={(v) => {
-                setUom(v);
-                setPage(1);
-              }}
-              placeholder={t('filters.uom')}
-              testId="filter-uom"
-              options={facets.uoms.map((u) => ({ value: u, label: u }))}
-            />
-            <FacetFilterSelect
-              value={materialType}
-              onChange={(v) => {
-                setMaterialType(v);
-                setPage(1);
-              }}
-              placeholder={t('filters.materialType')}
-              testId="filter-material-type"
-              options={facets.materialTypes.map((m) => ({ value: m, label: m }))}
-            />
-            <FacetFilterSelect
-              value={countryOfOrigin}
-              onChange={(v) => {
-                setCountryOfOrigin(v);
-                setPage(1);
-              }}
-              placeholder={t('filters.countryOfOrigin')}
-              testId="filter-country"
-              options={facets.countriesOfOrigin.map((c) => ({ value: c, label: c }))}
-            />
+            {isPhone ? (
+              <FiltersButton
+                active={activeFacetCount > 0}
+                label={
+                  activeFacetCount > 0
+                    ? `${t('page.filters', { defaultValue: 'Filters' })} (${activeFacetCount})`
+                    : t('page.filters', { defaultValue: 'Filters' })
+                }
+                onClick={() => setFiltersSheetOpen(true)}
+                className="h-11"
+              />
+            ) : (
+              facetFilters
+            )}
           </div>
 
           {showNoResults ? (
@@ -636,6 +700,19 @@ export default function MaterialCataloguePage() {
                     ? (m) => favouriteMutations.toggle(m.id, Boolean(m.isFavourite))
                     : undefined
                 }
+                onSaveCode={
+                  has('material.update') && !isArchivedView
+                    ? (m, field, value) =>
+                        materialCodeMutation.mutateAsync({ id: m.id, field, value })
+                    : undefined
+                }
+                canEditCodes={
+                  // In place only where the edit applies directly (FOR-365): the
+                  // catalogue admin, or a company's own not-yet-global material.
+                  // A contractor edit of a Global row is a change request with a
+                  // reason, so it keeps the full edit page.
+                  canApprove ? undefined : (m) => Boolean(m.companyId) && m.status !== 'PUBLIC'
+                }
                 onAddToList={
                   showContributorTabs && has('materialList.manageItems')
                     ? (m) => setAddToListMaterial(m)
@@ -674,11 +751,33 @@ export default function MaterialCataloguePage() {
         />
       )}
 
+      {filtersSheetOpen && (
+        <Modal onClose={() => setFiltersSheetOpen(false)} mobile="fullscreen" scrollBody>
+          <ModalHeader onClose={() => setFiltersSheetOpen(false)}>
+            {t('page.filters', { defaultValue: 'Filters' })}
+          </ModalHeader>
+          <ModalBody className="gap-3 [&>*]:w-full">{facetFilters}</ModalBody>
+          <ModalFooter className="pb-[calc(16px+env(safe-area-inset-bottom))] [&>*]:flex-1">
+            <Button type="button" variant="primary" onClick={() => setFiltersSheetOpen(false)}>
+              {t('page.done', { defaultValue: 'Done' })}
+            </Button>
+          </ModalFooter>
+        </Modal>
+      )}
+
       {/* US 4.03 — add a material to one of the user's lists (from a row kebab). */}
       {addToListMaterial && (
         <AddToMaterialListModal
           material={{ id: addToListMaterial.id, name: addToListMaterial.name }}
           onClose={() => setAddToListMaterial(null)}
+        />
+      )}
+
+      {/* FOR-362 — global category management. */}
+      {manageCategoriesOpen && (
+        <ManageCategoriesModal
+          categories={categories ?? []}
+          onClose={() => setManageCategoriesOpen(false)}
         />
       )}
 

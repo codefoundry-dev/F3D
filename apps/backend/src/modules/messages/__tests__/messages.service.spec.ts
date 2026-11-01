@@ -721,7 +721,9 @@ describe('MessagesService', () => {
           type: 'MESSAGE_RECEIVED',
           entityType: 'RFQ',
           entityId: 'rfq-1',
-          body: expect.stringContaining('Alice'),
+          // The sender is its own field now (FOR-366), not a "Alice: " prefix.
+          body: expect.not.stringContaining('Alice'),
+          sender: { userId: 'user-1', name: 'Alice' },
         }),
       );
     });
@@ -876,9 +878,9 @@ describe('MessagesService', () => {
       );
 
       expect(result.attachments).toHaveLength(1);
-      // The notification must not render a dangling "Alice: " for empty content.
+      // Empty content still gets a body; the sender rides separately (FOR-366).
       expect(mockNotifications.createForUsers).toHaveBeenCalledWith(
-        expect.objectContaining({ body: 'Alice sent an attachment' }),
+        expect.objectContaining({ body: 'Sent an attachment', sender: expect.any(Object) }),
       );
     });
 

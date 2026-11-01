@@ -32,9 +32,15 @@ export function RfqAdvancedFilters({
     label: t(`status.${key}` as never),
   }));
 
+  // Value is the location id — the API matches ids exactly (FOR-387); the
+  // display string is only the label.
   const locationOptions = Array.from(
-    new Set(items.map((r) => r.deliveryLocation).filter(Boolean)),
-  ).map((loc) => ({ value: loc as string, label: loc as string }));
+    new Map(
+      items
+        .filter((r) => r.deliveryLocationId && r.deliveryLocation)
+        .map((r) => [r.deliveryLocationId, r.deliveryLocation]),
+    ),
+  ).map(([id, name]) => ({ value: id as string, label: name as string }));
 
   const createdByOptions = Array.from(
     new Map(

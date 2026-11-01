@@ -13,6 +13,7 @@ import {
   formatTime,
   formatDateLabel,
   groupMessagesByDate,
+  ScrollTable,
 } from '@forethread/ui-components';
 import { useCallback, useState } from 'react';
 
@@ -71,7 +72,7 @@ export function PoCommsPage({ po, initialTab = 'messages', onTabChange }: PoComm
   return (
     <div className="flex flex-col h-full">
       {/* Tabs */}
-      <div className="px-8 pt-6 pb-4">
+      <div className="px-4 pt-4 pb-4 md:px-8 md:pt-6">
         <div className="flex gap-2">
           {tabs.map((tab) => (
             <Button
@@ -88,7 +89,7 @@ export function PoCommsPage({ po, initialTab = 'messages', onTabChange }: PoComm
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto px-8 pb-8">
+      <div className="flex-1 overflow-y-auto px-4 pb-8 md:px-8">
         {activeTab === 'messages' && (
           <MessagesTab
             messages={messages}
@@ -219,45 +220,49 @@ function LineItemsTab({ lineItems }: { lineItems: PoDetail['lineItems'] }) {
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[600px] text-sm">
-        <thead>
-          <tr className="border-b border-foreground/10 text-left">
-            <th className="pb-2 pr-3 font-medium text-muted-foreground text-xs">
-              {t('lineItemsTab.lineNumber')}
-            </th>
-            <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
-              {t('lineItemsTab.materialName')}
-            </th>
-            <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
-              {t('lineItemsTab.qty')}
-            </th>
-            <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
-              {t('lineItemsTab.unitPrice')}
-            </th>
-            <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
-              {t('lineItemsTab.lineTotal')}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {lineItems.map((item, i) => (
-            <tr key={item.id} className="border-b border-foreground/10">
-              <td className="py-2.5 pr-3 text-foreground">{i + 1}</td>
-              <td className="py-2.5 px-3 text-foreground">
-                {item.materialName ?? item.description ?? '-'}
-              </td>
-              <td className="py-2.5 px-3 text-foreground">
-                {item.quantityOrdered} {item.unitOfMeasure}
-              </td>
-              <td className="py-2.5 px-3 text-foreground">${Number(item.unitPrice).toFixed(2)}</td>
-              <td className="py-2.5 px-3 text-foreground">
-                ${(Number(item.unitPrice) * Number(item.quantityOrdered)).toFixed(2)}
-              </td>
+    <div>
+      <ScrollTable>
+        <table className="w-full min-w-[600px] text-sm">
+          <thead>
+            <tr className="border-b border-foreground/10 text-left">
+              <th className="pb-2 pr-3 font-medium text-muted-foreground text-xs">
+                {t('lineItemsTab.lineNumber')}
+              </th>
+              <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
+                {t('lineItemsTab.materialName')}
+              </th>
+              <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
+                {t('lineItemsTab.qty')}
+              </th>
+              <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
+                {t('lineItemsTab.unitPrice')}
+              </th>
+              <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
+                {t('lineItemsTab.lineTotal')}
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {lineItems.map((item, i) => (
+              <tr key={item.id} className="border-b border-foreground/10">
+                <td className="py-2.5 pr-3 text-foreground">{i + 1}</td>
+                <td className="py-2.5 px-3 text-foreground">
+                  {item.materialName ?? item.description ?? '-'}
+                </td>
+                <td className="py-2.5 px-3 text-foreground">
+                  {item.quantityOrdered} {item.unitOfMeasure}
+                </td>
+                <td className="py-2.5 px-3 text-foreground">
+                  ${Number(item.unitPrice).toFixed(2)}
+                </td>
+                <td className="py-2.5 px-3 text-foreground">
+                  ${(Number(item.unitPrice) * Number(item.quantityOrdered)).toFixed(2)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ScrollTable>
 
       <div className="flex justify-start mt-3 pt-3 border-t border-foreground/10">
         <span className="text-sm text-muted-foreground">

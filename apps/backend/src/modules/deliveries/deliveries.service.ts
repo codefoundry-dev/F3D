@@ -39,9 +39,12 @@ import {
   ListDeliveryReportQueryDto,
   ListExpectedDeliveryQueryDto,
 } from './deliveries.dto';
+import { expectedDeliveryBefore, expectedDeliveryDateOf } from './expected-delivery.util';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
+/** Tries at allocating a report number before a concurrent-submit clash is surfaced. */
+const REPORT_NUMBER_ATTEMPTS = 3;
 
 /** PO statuses against which a delivery may be recorded / a link generated. */
 export const DELIVERABLE_PO_STATUSES = [
@@ -299,7 +302,7 @@ export class DeliveriesService {
     // A delivery expected today is not overdue until tomorrow.
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
-    if (query.overdue) where.AND = [this.overdueWhere(startOfToday)];
+    if (query.overdue) where.AND = [expectedDeliveryBefore(startOfToday)];
 
     const page = query.page && query.page > 0 ? query.page : DEFAULT_PAGE;
     const limit = query.limit && query.limit > 0 ? query.limit : DEFAULT_LIMIT;
@@ -336,7 +339,7 @@ export class DeliveriesService {
     ]);
 
     const items: ExpectedDeliveryListItem[] = rows.map((po) => {
-      const expected = this.expectedDateOf(po);
+      const expected = expectedDeliveryDateOf(po);
       return {
         purchaseOrderId: po.id,
         poNumber: po.poNumber,
@@ -363,56 +366,6 @@ export class DeliveriesService {
     return {
       items,
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
-    };
-  }
-
-  /**
-   * Expected-delivery date of a PO: plannedDeliveryDate (required by the PO
-   * wizard, and what the delivery portal shows as "Expected delivery date"),
-   * falling back to deadlineEnd, then the earliest delivery-schedule row, then
-   * the earliest line-level expected date. Must stay in lockstep with
-   * overdueWhere(), which re-expresses this coalesce as a SQL predicate.
-   */
-  private expectedDateOf(po: {
-    plannedDeliveryDate: Date | null;
-    deadlineEnd: Date | null;
-    deliveries: { deliveryDate: Date | null }[];
-    lineItems: { expectedDeliveryDate: Date | null }[];
-  }): Date | null {
-    const earliest = (dates: (Date | null)[]) =>
-      dates.reduce<Date | null>((acc, d) => (d && (!acc || d < acc) ? d : acc), null);
-    return (
-      po.plannedDeliveryDate ??
-      po.deadlineEnd ??
-      earliest(po.deliveries.map((d) => d.deliveryDate)) ??
-      earliest(po.lineItems.map((li) => li.expectedDeliveryDate))
-    );
-  }
-
-  /**
-   * SQL form of `expectedDateOf(po) < before`, one OR branch per coalesce level
-   * (an earlier level being null is what admits the next). "Earliest date <
-   * before" is equivalent to "some date < before", which keeps the schedule-row
-   * and line-level branches expressible as `some`.
-   */
-  private overdueWhere(before: Date): Prisma.PurchaseOrderWhereInput {
-    const noScheduleDate = { deliveries: { none: { deliveryDate: { not: null } } } } as const;
-    return {
-      OR: [
-        { plannedDeliveryDate: { lt: before } },
-        { plannedDeliveryDate: null, deadlineEnd: { lt: before } },
-        {
-          plannedDeliveryDate: null,
-          deadlineEnd: null,
-          deliveries: { some: { deliveryDate: { lt: before } } },
-        },
-        {
-          plannedDeliveryDate: null,
-          deadlineEnd: null,
-          ...noScheduleDate,
-          lineItems: { some: { expectedDeliveryDate: { lt: before } } },
-        },
-      ],
     };
   }
 
@@ -494,9 +447,8 @@ export class DeliveriesService {
 
     const poLineById = new Map(po.lineItems.map((li) => [li.id, li]));
 
-    const created = await this.prisma.$transaction(async (tx) => {
-      const reportNumber = await this.nextReportNumber(po.companyId, tx);
-      return tx.deliveryReport.create({
+    const created = await this.withFreshReportNumber(po.companyId, (reportNumber, tx) =>
+      tx.deliveryReport.create({
         data: {
           reportNumber,
           purchaseOrderId: po.id,
@@ -532,8 +484,8 @@ export class DeliveriesService {
           },
         },
         select: { id: true },
-      });
-    });
+      }),
+    );
 
     await this.audit(AuditAction.DELIVERY_REPORT_CREATED, created.id, submitter.userId, {
       purchaseOrderId: po.id,
@@ -726,9 +678,31 @@ export class DeliveriesService {
   }
 
   /**
+   * Run `create` in a transaction with the company's next report number. Two
+   * concurrent submits can read the same count; the loser hits the
+   * (company, report_number) unique index and is retried with a fresh number
+   * instead of surfacing a 500.
+   */
+  private async withFreshReportNumber<T>(
+    companyId: string,
+    create: (reportNumber: string, tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(async (tx) =>
+          create(await this.nextReportNumber(companyId, tx), tx),
+        );
+      } catch (err) {
+        const numberTaken =
+          err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
+        if (!numberTaken || attempt >= REPORT_NUMBER_ATTEMPTS) throw err;
+      }
+    }
+  }
+
+  /**
    * Next "DR-00001" report number for a company, sequential by existing report
-   * count. Mirrors MaterialRequestsService.nextMrNumber; run inside the create
-   * transaction so the count + insert are consistent.
+   * count; run inside the create transaction so the count + insert are consistent.
    */
   async nextReportNumber(
     companyId: string,

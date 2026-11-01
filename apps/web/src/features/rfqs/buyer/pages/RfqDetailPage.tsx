@@ -9,7 +9,7 @@ import {
   ResponsesViewToggle,
 } from '@forethread/rfq-shared';
 import type { RfqTab } from '@forethread/rfq-shared';
-import { Button, Spinner, toast } from '@forethread/ui-components';
+import { Button, PageActions, Spinner, toast, useIsPhone } from '@forethread/ui-components';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -31,10 +31,18 @@ export default function RfqDetailPage() {
   const { data: rfq, isLoading, isError } = useRfq(id ?? '');
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
 
+  // App-bar breadcrumb: RFQ Management › RFQ-XXXX, so the list is one click
+  // away on desktop and the phone top bar gets a back arrow (FOR-393).
   useEffect(() => {
-    if (rfq) setPageTitle(rfq.projectName);
+    if (rfq) {
+      const label = rfq.rfqNumber ?? rfq.projectName;
+      setPageTitle(label, null, ROUTES.rfqs, [
+        { label: t('list.title'), to: ROUTES.rfqs },
+        { label },
+      ]);
+    }
     return () => setPageTitle(null);
-  }, [rfq, setPageTitle]);
+  }, [rfq, setPageTitle, t]);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const validTabs: RfqTab[] = [
@@ -60,6 +68,7 @@ export default function RfqDetailPage() {
   const updateRfq = useUpdateRfq();
   const navigate = useNavigate();
   const createDraftPo = useCreateDraftPoFromQuote(id ?? '');
+  const isPhone = useIsPhone();
 
   // On an AWARDED RFQ the winning quote is the APPROVED response. Awarding only
   // marks the RFQ awarded; the post-approve prompt that offers to spin up the
@@ -67,6 +76,7 @@ export default function RfqDetailPage() {
   // demand (the backend keeps APPROVED quotes in the comparison, so this works
   // any time after the award).
   const awardedQuote = rfq?.quoteResponses?.find((qr) => qr.status === 'APPROVED');
+  const linkedPo = rfq?.purchaseOrders?.[0];
 
   const handleCreateDraftPo = useCallback(() => {
     if (!awardedQuote) return;
@@ -128,6 +138,80 @@ export default function RfqDetailPage() {
     );
   }
 
+  const sendDisabled = (rfq.lineItems?.length ?? 0) === 0 || (rfq.vendors?.length ?? 0) === 0;
+  // Inline on the Details tab on desktop; on phones the main action sits in the
+  // fixed footer bar and the rest in the top-bar ⋯ menu on every tab (B7).
+  const actions = (
+    <PageActions
+      primary={
+        rfq.status === 'DRAFT' ? (
+          <Button
+            size="sm"
+            onClick={() => setShowSendDialog(true)}
+            disabled={sendRfq.isPending || sendDisabled}
+            title={sendDisabled ? t('detail.sendDisabledHint') : undefined}
+            data-testid="send-to-vendors"
+          >
+            {t('actions.sendToVendors')}
+          </Button>
+        ) : rfq.status === 'AWARDED' && linkedPo ? (
+          // Approving the quote already created the draft PO (FOR-396): link to
+          // it rather than offering to create a duplicate.
+          <Button
+            size="sm"
+            onClick={() => navigate(ROUTES.purchaseOrderDetail.replace(':id', linkedPo.id))}
+            data-testid="view-po"
+          >
+            {t('actions.viewPo', { poNumber: linkedPo.poNumber })}
+          </Button>
+        ) : rfq.status === 'AWARDED' && awardedQuote ? (
+          // Awarding an RFQ only flips it to AWARDED. The prompt that offers to
+          // spin up the draft PO is transient, so give the buyer a persistent
+          // fallback to create it from the winning quote at any time.
+          <Button
+            size="sm"
+            onClick={handleCreateDraftPo}
+            disabled={createDraftPo.isPending}
+            data-testid="create-draft-po"
+          >
+            {createDraftPo.isPending ? t('actions.creatingDraftPo') : t('actions.createDraftPo')}
+          </Button>
+        ) : isPhone && rfq.status === 'OPEN' && activeTab !== 'responses' ? (
+          <Button size="sm" onClick={() => setActiveTab('responses')} data-testid="review-quotes">
+            {t('actions.reviewQuotes', { defaultValue: 'Review quotes' })}
+          </Button>
+        ) : undefined
+      }
+      secondary={[
+        // DRAFT RFQs (including those converted from a Material Request) start
+        // with no vendors — let the user pick them before sending.
+        ...(rfq.status === 'DRAFT'
+          ? [
+              {
+                key: 'vendors',
+                label:
+                  (rfq.vendors?.length ?? 0) === 0
+                    ? t('actions.selectVendors')
+                    : t('actions.editVendors'),
+                onClick: () => setShowVendorsDialog(true),
+                testId: 'select-vendors',
+              },
+            ]
+          : []),
+        {
+          key: 'export',
+          label: t('actions.exportAs'),
+          icon: <DownloadIcon className="w-4 h-4" />,
+          onClick: () => {
+            void exportRfqs('pdf', { search: rfq.id }).then(({ url }) =>
+              window.open(url, '_blank'),
+            );
+          },
+        },
+      ]}
+    />
+  );
+
   return (
     <div className="flex flex-col h-full">
       <div className="px-4 md:px-8 pt-4 md:pt-6 pb-3 md:pb-4">
@@ -136,71 +220,8 @@ export default function RfqDetailPage() {
           onTabChange={setActiveTab}
           tabs={validTabs}
           rightSlot={
-            activeTab === 'details' ? (
-              <div className="flex items-center gap-2">
-                {/* DRAFT RFQs (including those converted from a Material Request)
-                    start with no vendors — let the user pick them before sending. */}
-                {rfq.status === 'DRAFT' && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowVendorsDialog(true)}
-                    data-testid="select-vendors"
-                  >
-                    {(rfq.vendors?.length ?? 0) === 0
-                      ? t('actions.selectVendors')
-                      : t('actions.editVendors')}
-                  </Button>
-                )}
-                {/* Only DRAFT RFQs can be sent; once OPEN the button disappears. */}
-                {rfq.status === 'DRAFT' && (
-                  <Button
-                    size="sm"
-                    onClick={() => setShowSendDialog(true)}
-                    disabled={
-                      sendRfq.isPending ||
-                      (rfq.lineItems?.length ?? 0) === 0 ||
-                      (rfq.vendors?.length ?? 0) === 0
-                    }
-                    title={
-                      (rfq.lineItems?.length ?? 0) === 0 || (rfq.vendors?.length ?? 0) === 0
-                        ? t('detail.sendDisabledHint')
-                        : undefined
-                    }
-                    data-testid="send-to-vendors"
-                  >
-                    {t('actions.sendToVendors')}
-                  </Button>
-                )}
-                {/* Awarding an RFQ only flips it to AWARDED. The prompt that
-                    offers to spin up the draft PO is transient, so give the
-                    buyer a persistent fallback to create it from the winning
-                    quote at any time. */}
-                {rfq.status === 'AWARDED' && awardedQuote && (
-                  <Button
-                    size="sm"
-                    onClick={handleCreateDraftPo}
-                    disabled={createDraftPo.isPending}
-                    data-testid="create-draft-po"
-                  >
-                    {createDraftPo.isPending
-                      ? t('actions.creatingDraftPo')
-                      : t('actions.createDraftPo')}
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  leftIcon={<DownloadIcon className="w-4 h-4" />}
-                  onClick={() => {
-                    void exportRfqs('pdf', { search: rfq.id }).then(({ url }) =>
-                      window.open(url, '_blank'),
-                    );
-                  }}
-                >
-                  {t('actions.exportAs')}
-                </Button>
-              </div>
+            activeTab === 'details' && !isPhone ? (
+              actions
             ) : activeTab === 'responses' ? (
               <ResponsesViewToggle
                 viewMode={responsesViewMode}
@@ -210,6 +231,7 @@ export default function RfqDetailPage() {
           }
         />
       </div>
+      {isPhone && actions}
 
       <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-6 md:pb-8">
         {activeTab === 'details' && <RfqDetailsTab rfq={rfq} layout="page" />}
@@ -245,6 +267,7 @@ export default function RfqDetailPage() {
         <ManageVendorsDialog
           currentVendorIds={rfq.vendors?.map((v) => v.id) ?? []}
           currentSalesRepIds={rfq.vendors?.flatMap((v) => v.contacts.map((c) => c.id)) ?? []}
+          projectIds={rfq.projectIds ?? [rfq.projectId]}
           isSaving={updateRfq.isPending}
           isError={updateRfq.isError}
           onCancel={() => setShowVendorsDialog(false)}

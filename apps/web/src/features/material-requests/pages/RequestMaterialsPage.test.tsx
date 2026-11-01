@@ -186,13 +186,39 @@ vi.mock('../components/StepMaterialDetails', () => ({
     lines,
     errors,
     onPatchLine,
+    onNeedByChange,
   }: {
     lines: MrWizardLine[];
     errors: Record<string, unknown>;
     onPatchLine: (key: string, patch: Partial<MrWizardLine>) => void;
+    onNeedByChange: (patch: { date?: string; time?: string }) => void;
   }) => (
     <div data-testid="step-details">
       <span data-testid="details-error-count">{Object.keys(errors).length}</span>
+      <span data-testid="line-need-by">
+        {lines.map((l) => `${l.expectedDeliveryDate ?? ''}|${l.deliveryTime ?? ''}`).join(',')}
+      </span>
+      <button
+        type="button"
+        data-testid="set-need-by"
+        onClick={() => onNeedByChange({ date: '2026-12-01', time: '08:00' })}
+      >
+        need by
+      </button>
+      <button
+        type="button"
+        data-testid="change-need-by-date"
+        onClick={() => onNeedByChange({ date: '2026-12-10' })}
+      >
+        change need by
+      </button>
+      <button
+        type="button"
+        data-testid="override-first-date"
+        onClick={() => onPatchLine(lines[0].key, { expectedDeliveryDate: '2026-12-05' })}
+      >
+        override
+      </button>
       <button
         type="button"
         data-testid="fill-line"
@@ -217,6 +243,13 @@ vi.mock('../components/StepReview', () => ({
 }));
 vi.mock('../components/NewMaterialModal', () => ({ NewMaterialModal: () => null }));
 vi.mock('@forethread/ui-components', () => ({
+  // ADR-0019 B8 phone chrome: desktop in tests.
+  useIsPhone: () => false,
+  useHideMobileNav: () => {},
+  useMobileExitHandler: () => {},
+  MobileActionBar: () => null,
+  CompactStepper: () => null,
+  ConfirmDialog: () => null,
   todayIso: () => new Date().toISOString().slice(0, 10),
   StatusErrorModal: ({ title }: { title: string }) => <div data-testid="error-modal">{title}</div>,
 }));
@@ -245,6 +278,24 @@ describe('RequestMaterialsPage', () => {
     fireEvent.click(screen.getByTestId('fill-line'));
     fireEvent.click(screen.getByTestId('mr-step2-next'));
   }
+
+  it('fills every line from "Need by (all lines)" and keeps hand-set dates (FOR-364)', () => {
+    render(<RequestMaterialsPage />);
+    fireEvent.click(screen.getByTestId('add-line'));
+    fireEvent.click(screen.getByTestId('add-line'));
+    fireEvent.click(screen.getByTestId('mr-step1-next'));
+
+    fireEvent.click(screen.getByTestId('set-need-by'));
+    expect(screen.getByTestId('line-need-by').textContent).toBe(
+      '2026-12-01|08:00,2026-12-01|08:00',
+    );
+
+    fireEvent.click(screen.getByTestId('override-first-date'));
+    fireEvent.click(screen.getByTestId('change-need-by-date'));
+    expect(screen.getByTestId('line-need-by').textContent).toBe(
+      '2026-12-05|08:00,2026-12-10|08:00',
+    );
+  });
 
   it('starts on step 1 (select materials) with Next disabled until a line is added', () => {
     render(<RequestMaterialsPage />);

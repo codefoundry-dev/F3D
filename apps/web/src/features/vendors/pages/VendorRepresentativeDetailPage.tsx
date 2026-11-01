@@ -155,12 +155,12 @@ export default function VendorRepresentativeDetailPage() {
   const neverActivated = rep.status === 'INVITED';
 
   return (
-    <div className="p-6">
-      <div className="bg-card rounded-xl border border-border p-8 space-y-6">
+    <div className="p-4 md:p-6">
+      <div className="bg-card rounded-xl border border-border p-4 md:p-8 space-y-6">
         <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-5">
+          <div className="flex min-w-0 items-center gap-4 md:gap-5">
             <AvatarUpload name={rep.name} avatarUrl={rep.avatarUrl} editable={false} />
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-3">
                 <h2 className="text-2xl font-bold text-foreground">{rep.name}</h2>
                 <Badge color={STATE_BADGE[state]} dot>

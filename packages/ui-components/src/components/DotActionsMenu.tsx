@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
 import ThreeDotIcon from '../assets/icons/three-dot.svg?react';
+import { PHONE_MEDIA_QUERY } from '../hooks/useIsPhone';
 import { cn } from '../utils/cn';
 
 export interface DotAction {
@@ -42,7 +43,7 @@ export function DotActionsMenu({
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 768px)');
+    const mq = window.matchMedia(PHONE_MEDIA_QUERY);
     setIsMobile(mq.matches);
     const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
     mq.addEventListener('change', handler);
@@ -149,7 +150,7 @@ export function DotActionsMenu({
           trigger
             ? 'px-4 py-2 border border-foreground/20 rounded-xl text-sm'
             : bordered
-              ? 'w-[50px] h-[38px] border border-foreground/20'
+              ? 'w-[50px] h-[38px] max-md:h-11 border border-foreground/20'
               : 'p-1.5',
           triggerClassName,
         )}

@@ -84,6 +84,7 @@ describe('ConvertToPoModal', () => {
       <ConvertToPoModal
         mrNumber="MR-1"
         companyId="comp-1"
+        projectId="proj-1"
         onClose={mockOnClose}
         onConfirm={mockOnConfirm}
       />,
@@ -129,5 +130,22 @@ describe('ConvertToPoModal', () => {
     fireEvent.change(screen.getByTestId('mr-convert-vendor'), { target: { value: 'v2' } });
     fireEvent.click(screen.getByTestId('mr-convert-confirm'));
     expect(mockOnConfirm).toHaveBeenCalledWith('v2');
+  });
+
+  it('leaves out one-off vendors of other projects (FOR-395)', () => {
+    mockUseCompanyVendors.mockReturnValue({
+      isLoading: false,
+      data: [
+        { ...vendor('v1', null, 'Here Pty Ltd'), oneOffProjectId: 'proj-1' },
+        { ...vendor('v2', null, 'Elsewhere Pty Ltd'), oneOffProjectId: 'proj-9' },
+        vendor('v3', null, 'Full Pty Ltd'),
+      ],
+    });
+    setup();
+    const options = [...screen.getByTestId('mr-convert-vendor').querySelectorAll('option')].map(
+      (o) => o.textContent,
+    );
+    expect(options).toEqual(expect.arrayContaining(['Here Pty Ltd', 'Full Pty Ltd']));
+    expect(options).not.toContain('Elsewhere Pty Ltd');
   });
 });

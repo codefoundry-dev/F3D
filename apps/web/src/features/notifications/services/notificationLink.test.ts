@@ -13,6 +13,7 @@ const base: NotificationItem = {
   metadata: null,
   readAt: null,
   createdAt: '2026-07-24T00:00:00.000Z',
+  sender: null,
 };
 
 describe('resolveNotificationLink', () => {

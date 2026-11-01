@@ -114,13 +114,16 @@
     "fullscreen": "Fullscreen",
     "exportAs": "Export as",
     "sendToVendors": "Send to vendors",
+    "reviewQuotes": "Review quotes",
     "selectVendors": "Select vendors",
     "editVendors": "Edit vendors",
     "response": "Response",
     "editResponse": "Edit Response",
     "createDraftPo": "Create draft PO",
     "creatingDraftPo": "Creating draft PO…",
-    "draftPoCreated": "Draft PO {{poNumber}} created"
+    "draftPoCreated": "Draft PO {{poNumber}} created",
+    "draftPosCreated": "{{count}} draft POs created: {{poNumbers}}",
+    "viewPo": "View {{poNumber}}"
   },
   "manageVendors": {
     "title": "Select vendors",
@@ -299,12 +302,14 @@
   "lineItemsTab": {
     "title": "Line Items",
     "edit": "Edit",
-    "lineItemId": "Line Item ID",
     "materialName": "Material Name",
+    "viewImage": "View image of {{name}}",
     "description": "Description",
     "qty": "Qty",
     "uom": "UoM",
     "costCode": "Cost code",
+    "costCodeSaved": "Cost code saved",
+    "costCodeSaveError": "Could not save the cost code",
     "upc": "UPC",
     "mpn": "MPN",
     "taxCode": "Tax code",
@@ -490,6 +495,21 @@
     "messages": "Messages",
     "attachments": "Attachments"
   },
+  "deliveryVariance": {
+    "expected": "Expected",
+    "requested": "Requested",
+    "late_one": "+{{count}} day",
+    "late_other": "+{{count}} days",
+    "onTime": "On time",
+    "lateTitle_one": "Quoted {{count}} day after the expected date",
+    "lateTitle_other": "Quoted {{count}} days after the expected date",
+    "earlyTitle_one": "Quoted {{count}} day before the expected date",
+    "earlyTitle_other": "Quoted {{count}} days before the expected date",
+    "onDayTitle": "Quoted for the expected date",
+    "lateLines_one": "{{count}} line late (up to +{{days}} days)",
+    "lateLines_other": "{{count}} lines late (up to +{{days}} days)",
+    "allOnTime": "All lines on time"
+  },
   "reviewTable": {
     "group": "Group",
     "groupByProjects": "By projects",
@@ -659,6 +679,8 @@
       "projectHint": "Select the project this RFQ is associated with",
       "noProjects": "No projects available",
       "needBy": "Need by",
+      "needByTime": "Need by time",
+      "needByHint": "Fills in every line item. You can still change individual lines.",
       "deliveryLocation": "Delivery location",
       "deliveryLocationPlaceholder": "Select a delivery location",
       "deliveryLocationHint": "Where the vendor should deliver. Defaults to the project's default delivery location.",
@@ -730,7 +752,10 @@
       "unassignedGroup": "Unassigned",
       "unassignedHint": "Pick a project in RFQ Information to assign these items.",
       "totalItems": "Total Items:",
-      "totalQty": "Total Qty:"
+      "totalQty": "Total Qty:",
+      "addLine": "Add line",
+      "removeLine": "Remove line",
+      "lineIncomplete": "Add a name, a quantity and a unit to save this line."
     },
     "picker": {
       "search": "Search",
@@ -764,7 +789,6 @@
       "lineItemsSelected_one": "{{count}} line item selected",
       "lineItemsSelected_other": "{{count}} line items selected",
       "coverAll": "Cover all",
-      "colLineItemId": "Line Item ID",
       "colMaterialName": "Material Name",
       "colUom": "UoM",
       "colRequestedQty": "Requested Qty",
@@ -822,6 +846,7 @@
       "unit": "Unit",
       "quantity": "Quantity",
       "expDeliveryDate": "Exp. delivery date",
+      "deliveryTime": "Delivery time",
       "note": "Note",
       "confirm": "Confirm changes",
       "cancel": "Cancel",

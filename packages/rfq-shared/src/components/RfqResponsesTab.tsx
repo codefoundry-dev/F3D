@@ -1,4 +1,4 @@
-import { approveQuote, declineQuote } from '@forethread/api-client';
+import { declineQuote } from '@forethread/api-client';
 import type { RfqDetail } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
@@ -7,7 +7,6 @@ import {
   cn,
   formatCurrency,
   formatStatus,
-  toast,
 } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import CoinsIcon from '@forethread/ui-components/assets/icons/coins.svg?react';
@@ -20,12 +19,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { PO_CREATE_ROUTE, RFQ_ROUTES } from '../constants/routes';
-import { useCreateDraftPoFromQuote } from '../hooks/useRfqs';
+import { RFQ_ROUTES } from '../constants/routes';
+import { useApproveQuote } from '../hooks/useApproveQuote';
 
 import { QuoteComparisonTable, type QuoteStatusFilter } from './QuoteComparisonTable';
 import { SortingDropdown, type QuoteSortOrder } from './SortingDropdown';
-import { StartOrderModal } from './StartOrderModal';
 
 type QuoteResponse = RfqDetail['quoteResponses'][number];
 
@@ -135,18 +133,11 @@ export function RfqResponsesTab({
   const [activeFilter, setActiveFilter] = useState<QuoteStatusFilter>('all');
   const [sortOrder, setSortOrder] = useState<QuoteSortOrder>('relevance');
   const [internalViewMode, setInternalViewMode] = useState<ViewMode>('list');
-  /** Quote just approved from a card — drives the post-approve PO prompt (US 5.19). */
-  const [approvedPrompt, setApprovedPrompt] = useState<QuoteResponse | null>(null);
   const viewMode = controlledViewMode ?? internalViewMode;
   const setViewMode = onViewModeChange ?? setInternalViewMode;
 
-  const approveMutation = useMutation({
-    mutationFn: (quoteId: string) => approveQuote(rfqId, quoteId),
-    onSuccess: (_r, quoteId) => {
-      void queryClient.invalidateQueries({ queryKey: ['rfqs', rfqId] });
-      setApprovedPrompt(quoteResponses.find((qr) => qr.id === quoteId) ?? null);
-    },
-  });
+  // Approving awards the quote and opens its new draft PO (FOR-396).
+  const approveQuote = useApproveQuote(rfqId);
 
   const declineMutation = useMutation({
     mutationFn: (quoteId: string) => declineQuote(rfqId, quoteId),
@@ -154,8 +145,6 @@ export function RfqResponsesTab({
       void queryClient.invalidateQueries({ queryKey: ['rfqs', rfqId] });
     },
   });
-
-  const draftPoMutation = useCreateDraftPoFromQuote(rfqId);
 
   const counts: Record<QuoteStatusFilter, number> = {
     all: quoteResponses.length,
@@ -283,7 +272,7 @@ export function RfqResponsesTab({
             // SUBMITTED quotes are the ones actually awaiting the buyer's decision.
             const isPending = status === 'PENDING' || status === 'SUBMITTED';
             const isMutating =
-              (approveMutation.isPending && approveMutation.variables === qr.id) ||
+              approveQuote.pendingQuoteId === qr.id ||
               (declineMutation.isPending && declineMutation.variables === qr.id);
 
             return (
@@ -293,7 +282,7 @@ export function RfqResponsesTab({
                 layout={layout}
                 isPending={isPending}
                 isMutating={isMutating}
-                onApprove={() => approveMutation.mutate(qr.id)}
+                onApprove={() => approveQuote.approve(qr.id)}
                 onDecline={() => declineMutation.mutate(qr.id)}
                 onMessageClick={() =>
                   onOpenQuote
@@ -320,32 +309,6 @@ export function RfqResponsesTab({
             );
           })}
         </div>
-      )}
-
-      {/* Post-approve prompt: offer to start PO creation (US 5.19) */}
-      {approvedPrompt && (
-        <StartOrderModal
-          kind="po"
-          isCreating={draftPoMutation.isPending}
-          onStartNow={() =>
-            navigate(PO_CREATE_ROUTE, {
-              state: {
-                mode: 'from-rfq',
-                defaultValues: { vendorId: approvedPrompt.vendorId },
-              },
-            })
-          }
-          onCreateDraft={() =>
-            draftPoMutation.mutate(approvedPrompt.id, {
-              onSuccess: () => {
-                toast.success(t('startOrder.poDraftCreated'));
-                setApprovedPrompt(null);
-              },
-              onError: () => toast.error(t('startOrder.createError')),
-            })
-          }
-          onClose={() => setApprovedPrompt(null)}
-        />
       )}
     </div>
   );
@@ -387,6 +350,21 @@ function ResponseCard({
     response.earliestDeliveryDate ?? null,
     response.latestDeliveryDate ?? null,
   );
+  // FOR-392: how the quoted dates compare with the expected ones.
+  const lateLineCount = response.lateLineCount ?? 0;
+  const deliveryNote =
+    lateLineCount > 0 ? (
+      <span className="text-xs font-medium text-destructive">
+        {t('deliveryVariance.lateLines', {
+          count: lateLineCount,
+          days: response.maxLateDays ?? 0,
+        })}
+      </span>
+    ) : response.hasDeliveryComparison ? (
+      <span className="text-xs font-medium text-[hsl(var(--success))]">
+        {t('deliveryVariance.allOnTime')}
+      </span>
+    ) : null;
 
   const headerBadge = (
     <Badge className="bg-[#E8EAED] text-[#2D3139] border-0 rounded-full text-xs px-2 py-0.5">
@@ -485,6 +463,7 @@ function ResponseCard({
               icon={<DateIcon className="w-4 h-4" />}
               label={t('responsesTab.earliestDelivery')}
               value={deliveryText}
+              note={deliveryNote}
             />
           </div>
           <div className="self-center shrink-0">{approveDeclineButtons}</div>
@@ -521,7 +500,11 @@ function ResponseCard({
         />
         <MetaFieldCompact icon={<TaxIcon className="w-4 h-4" />} value={discountText} />
         <MetaFieldCompact icon={<PackageIcon className="w-4 h-4" />} value={coverageText} />
-        <MetaFieldCompact icon={<DateIcon className="w-4 h-4" />} value={deliveryText} />
+        <MetaFieldCompact
+          icon={<DateIcon className="w-4 h-4" />}
+          value={deliveryText}
+          note={deliveryNote}
+        />
       </div>
 
       {/* Footer: buttons left + icons right */}
@@ -539,10 +522,13 @@ function MetaFieldLabelled({
   icon,
   label,
   value,
+  note,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
+  /** Secondary line under the value (e.g. the FOR-392 late-delivery summary). */
+  note?: React.ReactNode;
 }) {
   return (
     <div className="min-w-0">
@@ -551,17 +537,29 @@ function MetaFieldLabelled({
         <span className="text-sm">{label}</span>
       </div>
       <div className={cn('mt-1 text-sm font-medium text-foreground truncate')}>{value}</div>
+      {note && <div className="mt-0.5 truncate">{note}</div>}
     </div>
   );
 }
 
-function MetaFieldCompact({ icon, value }: { icon: React.ReactNode; value: string }) {
+function MetaFieldCompact({
+  icon,
+  value,
+  note,
+}: {
+  icon: React.ReactNode;
+  value: string;
+  note?: React.ReactNode;
+}) {
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-1.5 min-w-0">
       <span className="shrink-0 w-4 h-4 flex items-center justify-center text-muted-foreground">
         {icon}
       </span>
-      <span className="text-sm font-medium text-foreground truncate">{value}</span>
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-foreground truncate">{value}</span>
+        {note && <span className="block truncate">{note}</span>}
+      </span>
     </div>
   );
 }

@@ -5,10 +5,17 @@ import { MemoryRouter } from 'react-router-dom';
 
 /* ── Mocks ──────────────────────────────────────────────────────────────── */
 
+const mockNavigate = vi.hoisted(() => vi.fn());
+vi.mock('react-router-dom', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router-dom')>()),
+  useNavigate: () => mockNavigate,
+}));
+
 const mockGetQuoteDetail = vi.hoisted(() => vi.fn());
 const mockGetComparison = vi.hoisted(() => vi.fn());
 const mockUpdateLineStatuses = vi.hoisted(() => vi.fn());
 const mockApproveQuote = vi.hoisted(() => vi.fn());
+const mockAwardQuote = vi.hoisted(() => vi.fn());
 const mockDeclineQuote = vi.hoisted(() => vi.fn());
 
 vi.mock('@forethread/api-client', () => ({
@@ -19,7 +26,7 @@ vi.mock('@forethread/api-client', () => ({
   declineQuote: mockDeclineQuote,
   createPurchaseOrder: vi.fn(),
   createBulkOrder: vi.fn(),
-  awardQuote: vi.fn(),
+  awardQuote: mockAwardQuote,
   getRfqs: vi.fn(),
   getRfq: vi.fn(),
   getRfqEmailLog: vi.fn(),
@@ -239,7 +246,7 @@ describe('QuoteResponseDetailPage (shared)', () => {
   });
 });
 
-describe('QuoteResponseActions post-approve prompt', () => {
+describe('QuoteResponseActions approve (FOR-396)', () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -247,27 +254,28 @@ describe('QuoteResponseActions post-approve prompt', () => {
   const tree = (status: string) => (
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
-        <QuoteResponseActions rfqId="rfq-1" quoteId="q-1" vendorId="v-1" status={status} />
+        <QuoteResponseActions rfqId="rfq-1" quoteId="q-1" status={status} />
       </MemoryRouter>
     </QueryClientProvider>
   );
 
-  it('keeps the PO prompt mounted after the quote flips to APPROVED on refetch', async () => {
-    mockApproveQuote.mockResolvedValue({});
+  it('awards the quote and lands on the created draft PO without a prompt', async () => {
+    mockAwardQuote.mockResolvedValue({
+      id: 'q-1',
+      purchaseOrderId: 'po-7',
+      poNumber: 'PO-00007',
+      purchaseOrders: [{ id: 'po-7', poNumber: 'PO-00007' }],
+    });
     const { rerender } = render(tree('SUBMITTED'));
 
     fireEvent.click(screen.getByText('responsesTab.approve'));
 
-    // The prompt opens once the approval resolves.
-    expect(await screen.findByText('startOrder.poTitle')).toBeInTheDocument();
+    await waitFor(() => expect(mockAwardQuote).toHaveBeenCalledWith('rfq-1', 'q-1'));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/purchase-orders/po-7'));
+    expect(screen.queryByText('startOrder.poTitle')).not.toBeInTheDocument();
 
-    // Simulate the cache invalidation refetching the quote as APPROVED. The
-    // component re-renders non-pending, but the prompt must NOT be unmounted
-    // (regression guard for the "prompt flashes shut" bug).
-    rerender(tree('APPROVED'));
-
-    expect(screen.getByText('startOrder.poTitle')).toBeInTheDocument();
     // The Decline/Approve buttons are hidden once the quote is no longer pending.
+    rerender(tree('APPROVED'));
     expect(screen.queryByText('responsesTab.approve')).not.toBeInTheDocument();
   });
 });

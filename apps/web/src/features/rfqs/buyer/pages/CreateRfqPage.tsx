@@ -7,10 +7,16 @@ import {
   type RfqDetail,
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Stepper } from '@forethread/po-shared';
+import { Stepper, scrollToFirstInvalid, useWizardChrome } from '@forethread/po-shared';
 import { usePageTitleStore } from '@forethread/rfq-shared';
 import { isBomExtractionResult, type SaveRfqDraftValues } from '@forethread/shared-types/client';
-import { Button, StatusErrorModal, StatusSuccessModal } from '@forethread/ui-components';
+import {
+  Button,
+  MobileActionBar,
+  StatusErrorModal,
+  StatusSuccessModal,
+  useIsPhone,
+} from '@forethread/ui-components';
 import ArrowRightIcon from '@forethread/ui-components/assets/icons/arrow-right.svg?react';
 import BackArrowIcon from '@forethread/ui-components/assets/icons/back-arrow.svg?react';
 import NewUserIcon from '@forethread/ui-components/assets/icons/new-user.svg?react';
@@ -19,6 +25,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 import { useConfirmedBoms } from '@/features/doc-intelligence';
+import { applyNeedByDefault, trackNeedByOverrides } from '@/shared/need-by/lineNeedBy';
 
 import {
   autoCoverAllocations,
@@ -84,8 +91,10 @@ function buildPayload(
     projectId: basicInfo.projectIds[0],
     projectIds: basicInfo.projectIds,
     name: basicInfo.documentName || undefined,
-    isPickUp: basicInfo.isPickUp || undefined,
-    pickUpLocation: basicInfo.isPickUp ? basicInfo.pickUpLocation || undefined : undefined,
+    // Always send the boolean: `false` must reach the API so un-ticking Pick up
+    // on a saved draft sticks (FOR-387), and `null` clears the old pick-up spot.
+    isPickUp: basicInfo.isPickUp,
+    pickUpLocation: basicInfo.isPickUp ? basicInfo.pickUpLocation || undefined : null,
     // Pick-up orders are collected, not delivered — `null` clears a location
     // chosen before the draft was switched over.
     deliveryLocationId: basicInfo.isPickUp ? null : basicInfo.deliveryLocationId || undefined,
@@ -195,9 +204,25 @@ export default function CreateRfqPage() {
   // doesn't silently drop what the user typed into the dialog.
   const [ccEmails, setCcEmails] = useState<string[]>([]);
 
+  // Phones (ADR-0019 B8): no bottom nav; the back arrow confirms before
+  // dropping anything typed, and the footer buttons move to the action bar.
+  const isPhone = useIsPhone();
+  const hasInput =
+    JSON.stringify(basicInfo) !== JSON.stringify(EMPTY_BASIC_INFO) ||
+    vendorIds.length > 0 ||
+    items.length > 0 ||
+    message.trim() !== '' ||
+    attachments.length > 0;
+  const { exitConfirm } = useWizardChrome({
+    isDirty: hasInput && submitState !== 'success',
+    onExit: () => navigate(ROUTES.rfqs),
+  });
+
   // ── Data sources ──────────────────────────────────────────────────────────
   const { data: projects = [], isLoading: projectsLoading } = useRfqProjects();
-  const { data: vendors = [] } = useAssignedVendors();
+  const { data: vendors = [] } = useAssignedVendors(
+    basicInfo.projectIds.length > 0 ? { projectIds: basicInfo.projectIds.join(',') } : undefined,
+  );
   const { data: materials = [] } = useRfqMaterials(
     materialSearch ? { search: materialSearch } : undefined,
   );
@@ -210,6 +235,8 @@ export default function CreateRfqPage() {
       setVendorIds(nextVendorIds);
       setSalesRepIds(repIds);
     }, []),
+    // One-off vendors of the chosen projects are offered too (FOR-395).
+    basicInfo.projectIds,
   );
 
   /**
@@ -285,6 +312,22 @@ export default function CreateRfqPage() {
 
   const projectLocked = Boolean(seed?.source === 'BOM' && seed.projectIds?.length);
 
+  // ── RFQ-level "Need by" (FOR-364) ─────────────────────────────────────────
+  // The header date/time fills every line the user hasn't changed by hand,
+  // including lines added later. Per-line values stay the saved truth.
+  const needBy = useMemo(
+    () => ({ date: basicInfo.needByDate, time: basicInfo.needByTime }),
+    [basicInfo.needByDate, basicInfo.needByTime],
+  );
+  useEffect(() => {
+    setItems((prev) => applyNeedByDefault(prev, needBy));
+  }, [items, needBy]);
+  /** User edits to lines go through here so hand-set dates/times stick. */
+  const editItems = useCallback(
+    (next: WizardLineItem[]) => setItems((prev) => trackNeedByOverrides(prev, next, needBy)),
+    [needBy],
+  );
+
   // ── Mutations ─────────────────────────────────────────────────────────────
   const saveDraft = useSaveRfqDraft();
   const updateDraft = useUpdateRfq();
@@ -313,7 +356,9 @@ export default function CreateRfqPage() {
       stepErrors = { ...validateBasicInfo(basicInfo, vendorIds), ...validateLineItems(items) };
     }
     setErrors(stepErrors);
-    return Object.keys(stepErrors).length === 0;
+    const valid = Object.keys(stepErrors).length === 0;
+    if (!valid) scrollToFirstInvalid();
+    return valid;
   };
 
   const goToStep = (target: number) => {
@@ -479,8 +524,9 @@ export default function CreateRfqPage() {
 
   // Shared page heading (back arrow + title), used by the wizard and the
   // terminal "No RFQ Required" screen (Figma keeps the header on both).
+  // Phones show the title + back arrow in the top bar instead.
   const pageHeader = (
-    <div className="flex items-center gap-3 pb-4">
+    <div className="hidden items-center gap-3 pb-4 md:flex">
       <button
         type="button"
         onClick={() => navigate(ROUTES.rfqs)}
@@ -527,6 +573,55 @@ export default function CreateRfqPage() {
       </div>
     );
   }
+
+  const saveDraftButton = (
+    <Button
+      type="button"
+      variant="outline"
+      size="lg"
+      onClick={() => void handleSaveAsDraft()}
+      isLoading={isSaving}
+      data-testid="save-as-draft"
+    >
+      {t('create.footer.saveAsDraft')}
+    </Button>
+  );
+  const backButton = (
+    <Button
+      type="button"
+      variant="outline"
+      size="lg"
+      onClick={handleBack}
+      disabled={step === 0 || isSaving}
+      leftIcon={<BackArrowIcon className="w-4 h-4" />}
+      data-testid="wizard-back"
+    >
+      {t('create.footer.back')}
+    </Button>
+  );
+  const nextButton =
+    step === 1 ? (
+      <Button
+        type="button"
+        size="lg"
+        onClick={() => setShowSendDialog(true)}
+        isLoading={submitState === 'submitting'}
+        data-testid="submit-rfq"
+      >
+        {t('create.footer.submitRfq')}
+      </Button>
+    ) : (
+      <Button
+        type="button"
+        size="lg"
+        onClick={() => void handleContinue()}
+        isLoading={isSaving || availabilityLoading}
+        rightIcon={<ArrowRightIcon className="w-4 h-4" />}
+        data-testid="wizard-continue"
+      >
+        {t('create.footer.continue')}
+      </Button>
+    );
 
   const stepHeading = [
     { title: t('create.headings.step1Title'), subtitle: t('create.headings.step1Subtitle') },
@@ -601,7 +696,7 @@ export default function CreateRfqPage() {
               >
                 <StepLineItems
                   items={items}
-                  onItemsChange={setItems}
+                  onItemsChange={editItems}
                   projects={selectedProjects}
                   materials={materials}
                   search={materialSearch}
@@ -658,54 +753,24 @@ export default function CreateRfqPage() {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-3 py-6">
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            onClick={() => void handleSaveAsDraft()}
-            isLoading={isSaving}
-            data-testid="save-as-draft"
-          >
-            {t('create.footer.saveAsDraft')}
-          </Button>
-          <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={handleBack}
-              disabled={step === 0 || isSaving}
-              leftIcon={<BackArrowIcon className="w-4 h-4" />}
-              data-testid="wizard-back"
-            >
-              {t('create.footer.back')}
-            </Button>
-            {step === 1 ? (
-              <Button
-                type="button"
-                size="lg"
-                onClick={() => setShowSendDialog(true)}
-                isLoading={submitState === 'submitting'}
-                data-testid="submit-rfq"
-              >
-                {t('create.footer.submitRfq')}
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                size="lg"
-                onClick={() => void handleContinue()}
-                isLoading={isSaving || availabilityLoading}
-                rightIcon={<ArrowRightIcon className="w-4 h-4" />}
-                data-testid="wizard-continue"
-              >
-                {t('create.footer.continue')}
-              </Button>
-            )}
+        {isPhone ? (
+          <MobileActionBar>
+            {backButton}
+            {saveDraftButton}
+            {nextButton}
+          </MobileActionBar>
+        ) : (
+          <div className="flex items-center justify-between gap-3 py-6">
+            {saveDraftButton}
+            <div className="flex items-center gap-3">
+              {backButton}
+              {nextButton}
+            </div>
           </div>
-        </div>
+        )}
       </div>
+
+      {exitConfirm}
 
       {/* ── Modals ── */}
       {showAddFromBom && (
@@ -728,8 +793,8 @@ export default function CreateRfqPage() {
         <EditMaterialModal
           item={editingItem}
           onConfirm={(patch) =>
-            setItems((prev) =>
-              prev.map((item) => (item.key === editingItem.key ? { ...item, ...patch } : item)),
+            editItems(
+              items.map((item) => (item.key === editingItem.key ? { ...item, ...patch } : item)),
             )
           }
           onClose={() => setEditingItem(null)}

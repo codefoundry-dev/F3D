@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 
+import { useScrollEdges } from '../hooks/useScrollEdges';
 import { cn } from '../utils/cn';
 
 /**
@@ -52,73 +53,111 @@ export function Tabs<T extends string = string>({
   navClassName,
   'aria-label': ariaLabel,
 }: TabsProps<T>) {
+  const listRef = useRef<HTMLDivElement>(null);
+  // Edge fades (ADR-0019 / FOR-370): show which side still has tabs scrolled
+  // out of view — the strip's scrollbar is hidden, so without them trailing
+  // tabs look like they don't exist on phones.
+  const edges = useScrollEdges(listRef, [items.length]);
+
+  // Keep the active tab visible when it changes (or on first render).
+  useEffect(() => {
+    const active = listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+    active?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [value]);
+
   return (
     <div
-      className={cn('flex items-center justify-between gap-3 border-b border-gray-200', className)}
+      className={cn(
+        // wrap-reverse: when the tabs + rightSlot don't fit on one line (13–14"
+        // laptops), the rightSlot wraps ABOVE the tabs instead of squeezing the
+        // tablist until trailing tabs scroll out of sight. Tabs stay on the
+        // border-b rail; wide screens never wrap.
+        'flex flex-wrap-reverse items-center justify-between gap-x-3 gap-y-2 border-b border-gray-200',
+        className,
+      )}
     >
-      <div
-        role="tablist"
-        aria-label={ariaLabel}
-        className={cn(
-          // -mb-px lets the buttons' active underline overlap the bar's border-b.
-          // It must live here, not on the buttons: inside this overflow-hidden
-          // scroll container a negative button margin pushes the 2px underline
-          // below the clip edge, where display scaling can round it away entirely.
-          'scrollbar-none -mb-px flex items-center gap-1.5 overflow-x-auto overflow-y-hidden',
-          navClassName,
-        )}
-      >
-        {items.map((item) => {
-          const active = item.value === value;
-          return (
-            <button
-              key={item.value}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              aria-controls={`tabpanel-${item.value}`}
-              disabled={item.disabled}
-              onClick={() => onValueChange(item.value)}
-              className={cn(
-                'group relative shrink-0 border-b-2 pb-px transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
-                'disabled:cursor-not-allowed',
-                active ? 'border-gray-900' : 'border-transparent',
-              )}
-            >
-              <span
+      {/* -mb-px lets the buttons' active underline overlap the bar's border-b.
+          It must live on this wrapper (or the tablist), never on the buttons:
+          inside the overflow-hidden scroll container a negative button margin
+          pushes the 2px underline below the clip edge, where display scaling can
+          round it away entirely. min-w-0 lets the strip shrink and scroll. */}
+      <div className="relative -mb-px flex min-w-0">
+        <div
+          ref={listRef}
+          role="tablist"
+          aria-label={ariaLabel}
+          className={cn(
+            'scrollbar-none flex min-w-0 items-center gap-1.5 overflow-x-auto overflow-y-hidden',
+            navClassName,
+          )}
+        >
+          {items.map((item) => {
+            const active = item.value === value;
+            return (
+              <button
+                key={item.value}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                aria-controls={`tabpanel-${item.value}`}
+                disabled={item.disabled}
+                onClick={() => onValueChange(item.value)}
                 className={cn(
-                  'flex items-center gap-1.5 rounded-[10px] font-semibold leading-none tracking-[0.3px] transition-colors',
-                  sizeStyles[size],
-                  item.disabled
-                    ? 'text-gray-300'
-                    : active
-                      ? 'text-gray-900'
-                      : 'text-gray-700 group-hover:bg-gray-700/[0.08] group-hover:text-gray-900',
+                  'group relative shrink-0 border-b-2 pb-px transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                  'disabled:cursor-not-allowed',
+                  active ? 'border-gray-900' : 'border-transparent',
                 )}
               >
-                {item.icon && (
-                  <span className="inline-flex size-[18px] shrink-0 items-center justify-center">
-                    {item.icon}
-                  </span>
-                )}
-                {item.label}
-                {item.count !== null && item.count !== undefined && (
-                  <span
-                    className={cn(
-                      'inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] leading-none',
-                      active ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600',
-                    )}
-                  >
-                    {item.count}
-                  </span>
-                )}
-              </span>
-            </button>
-          );
-        })}
+                <span
+                  className={cn(
+                    // 42px + the 2px underline = a 44px touch target on phones.
+                    'flex items-center gap-1.5 rounded-[10px] font-semibold leading-none tracking-[0.3px] transition-colors max-md:min-h-[42px]',
+                    sizeStyles[size],
+                    item.disabled
+                      ? 'text-gray-300'
+                      : active
+                        ? 'text-gray-900'
+                        : 'text-gray-700 group-hover:bg-gray-700/[0.08] group-hover:text-gray-900',
+                  )}
+                >
+                  {item.icon && (
+                    <span className="inline-flex size-[18px] shrink-0 items-center justify-center">
+                      {item.icon}
+                    </span>
+                  )}
+                  {item.label}
+                  {item.count !== null && item.count !== undefined && (
+                    <span
+                      className={cn(
+                        'inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] leading-none',
+                        active ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600',
+                      )}
+                    >
+                      {item.count}
+                    </span>
+                  )}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {edges.left && (
+          <span
+            aria-hidden
+            data-testid="tabs-fade-left"
+            className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-background to-transparent"
+          />
+        )}
+        {edges.right && (
+          <span
+            aria-hidden
+            data-testid="tabs-fade-right"
+            className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent"
+          />
+        )}
       </div>
-      {rightSlot && <div className="shrink-0 pb-2">{rightSlot}</div>}
+      {rightSlot && <div className="ml-auto shrink-0 pb-2">{rightSlot}</div>}
     </div>
   );
 }

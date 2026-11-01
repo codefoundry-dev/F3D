@@ -4,9 +4,11 @@ import {
   Alert,
   Button,
   GridModal,
+  PageActions,
   SegmentedControl,
   Spinner,
   StatusErrorModal,
+  useHideMobileNav,
 } from '@forethread/ui-components';
 import FileTextIcon from '@forethread/ui-components/assets/icons/file-text.svg?react';
 import InfoIcon from '@forethread/ui-components/assets/icons/info.svg?react';
@@ -24,6 +26,8 @@ import { useGuestRfqResponse } from '../hooks/useGuestRfqResponse';
 export default function GuestInvitationPage() {
   const { t } = useTranslation('rfqs');
   const { token } = useParams<{ token: string }>();
+  // No app shell here, so no bottom nav: the phone action bar sits at the very bottom.
+  useHideMobileNav();
 
   const {
     data: rfq,
@@ -96,11 +100,12 @@ function GuestResponseContent({ rfq, token }: { rfq: GuestRfqDetail; token: stri
   const submitDisabled = !canRespond || form.isSubmitting || !showForm;
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    // Phones (FOR-377): tighter gutters, and 16px inputs so iOS Safari doesn't zoom on focus.
+    <div className="flex flex-col min-h-[100dvh] bg-background max-md:[&_input]:text-base max-md:[&_textarea]:text-base">
       {/* ═══ Header ═══ */}
-      <header className="border-b border-border bg-card px-6 py-4">
-        <div className="max-w-[1400px] mx-auto flex items-center justify-between">
-          <div>
+      <header className="border-b border-border bg-card px-4 py-4 md:px-6">
+        <div className="max-w-[1400px] mx-auto flex items-center justify-between gap-3">
+          <div className="min-w-0">
             <h1 className="text-lg font-bold text-foreground">
               {t('guest.title', { rfqNumber: rfq.rfqNumber ?? rfq.id.slice(0, 8) })}
             </h1>
@@ -111,30 +116,35 @@ function GuestResponseContent({ rfq, token }: { rfq: GuestRfqDetail; token: stri
               })}
             </p>
           </div>
-          <Button
-            variant="primary"
-            size="lg"
-            leftIcon={<LetterIcon className="w-4 h-4" />}
-            onClick={handleSubmit}
-            disabled={submitDisabled}
-          >
-            {form.isSubmitting ? t('response.submitting') : t('response.submit')}
-          </Button>
+          {/* Inline on desktop; the fixed footer bar on phones (B7). */}
+          <PageActions
+            primary={
+              <Button
+                variant="primary"
+                size="lg"
+                leftIcon={<LetterIcon className="w-4 h-4" />}
+                onClick={handleSubmit}
+                disabled={submitDisabled}
+              >
+                {form.isSubmitting ? t('response.submitting') : t('response.submit')}
+              </Button>
+            }
+          />
         </div>
       </header>
 
       {/* ═══ Info banner ═══ */}
-      <div className="px-6 pt-4 max-w-[1400px] mx-auto w-full">
+      <div className="px-4 pt-4 md:px-6 max-w-[1400px] mx-auto w-full">
         <Alert variant="info" icon={<InfoIcon className="w-4 h-4" />}>
           {t('guest.infoBanner')}
         </Alert>
       </div>
 
       {/* ═══ RFQ Summary ═══ */}
-      <div className="px-6 pt-4 max-w-[1400px] mx-auto w-full">
+      <div className="px-4 pt-4 md:px-6 max-w-[1400px] mx-auto w-full">
         <div className="rounded-lg border border-border bg-card p-4">
           <h2 className="text-base font-bold text-foreground mb-3">{t('guest.rfqDetails')}</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
               <span className="text-muted-foreground">{t('guest.contractor')}</span>
               <p className="font-medium text-foreground">{rfq.contractorName}</p>
@@ -169,7 +179,7 @@ function GuestResponseContent({ rfq, token }: { rfq: GuestRfqDetail; token: stri
 
       {/* ═══ Attachments ═══ */}
       {rfq.attachments.length > 0 && (
-        <div className="px-6 pt-4 max-w-[1400px] mx-auto w-full">
+        <div className="px-4 pt-4 md:px-6 max-w-[1400px] mx-auto w-full">
           <div className="rounded-lg border border-border bg-card p-4">
             <h2 className="text-base font-bold text-foreground mb-3">{t('guest.attachments')}</h2>
             <ul className="space-y-2">
@@ -179,10 +189,10 @@ function GuestResponseContent({ rfq, token }: { rfq: GuestRfqDetail; token: stri
                     href={file.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                    className="inline-flex max-w-full items-center gap-2 text-sm text-primary hover:underline"
                   >
-                    <FileTextIcon className="w-4 h-4" />
-                    <span className="font-medium">{file.filename}</span>
+                    <FileTextIcon className="w-4 h-4 shrink-0" />
+                    <span className="min-w-0 truncate font-medium">{file.filename}</span>
                     <span className="text-muted-foreground">({t('guest.download')})</span>
                   </a>
                 </li>
@@ -194,7 +204,7 @@ function GuestResponseContent({ rfq, token }: { rfq: GuestRfqDetail; token: stri
 
       {/* ═══ Validation errors ═══ */}
       {form.validationErrors.length > 0 && (
-        <div className="px-6 pt-4 max-w-[1400px] mx-auto w-full">
+        <div className="px-4 pt-4 md:px-6 max-w-[1400px] mx-auto w-full">
           <Alert variant="destructive">
             <p className="font-medium mb-1">{t('guest.validationTitle')}</p>
             <ul className="list-disc pl-5 space-y-1">
@@ -216,7 +226,7 @@ function GuestResponseContent({ rfq, token }: { rfq: GuestRfqDetail; token: stri
       )}
 
       {/* ═══ Form ═══ */}
-      <div className="flex-1 px-6 py-4 max-w-[1400px] mx-auto w-full space-y-4">
+      <div className="flex-1 px-4 py-4 md:px-6 max-w-[1400px] mx-auto w-full space-y-4">
         {/* Mode toggle: enter manually vs upload a quote PDF (FOR-206) */}
         {canRespond && (
           <SegmentedControl
@@ -275,6 +285,8 @@ function GuestResponseContent({ rfq, token }: { rfq: GuestRfqDetail; token: stri
               onOpenSubstitute={() => {}}
               onCloseSubstitute={() => {}}
               onSelectSubstitute={() => {}}
+              substituteEnabled={false}
+              needByDate={rfq.needByDate}
             />
 
             <AdditionalQuoteDetails

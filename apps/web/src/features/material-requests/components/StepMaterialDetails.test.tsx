@@ -11,7 +11,32 @@ vi.mock('@forethread/i18n', () => ({
   }),
 }));
 
+const phone = vi.hoisted(() => ({ value: false }));
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
+  useIsPhone: () => phone.value,
+  formatDate: (d: string) => d,
+  // Card/sheet stand-in: renders each line's title + every field input.
+  LineItemEditor: ({
+    lines,
+    fields,
+    getTitle,
+  }: {
+    lines: unknown[];
+    fields: { key: string; input: (l: unknown, i: number) => ReactNode }[];
+    getTitle: (l: unknown, i: number) => ReactNode;
+  }) => (
+    <div data-testid="line-item-cards">
+      {lines.map((l, i) => (
+        <div key={i} data-testid="line-item-card">
+          {getTitle(l, i)}
+          {fields.map((f) => (
+            <div key={f.key}>{f.input(l, i)}</div>
+          ))}
+        </div>
+      ))}
+    </div>
+  ),
   todayIso: () => new Date().toISOString().slice(0, 10),
   Input: ({
     value,
@@ -253,5 +278,26 @@ describe('StepMaterialDetails', () => {
       target: { value: 'Handle with care' },
     });
     expect(onPatchLine).toHaveBeenCalledWith('k1', { instructions: 'Handle with care' });
+  });
+
+  it('shows cards with the same inputs on phones (ADR-0019 B10, FOR-380)', () => {
+    phone.value = true;
+    const onPatchLine = vi.fn();
+    render(
+      <StepMaterialDetails
+        lines={[line(), line({ key: 'k2', materialName: 'Plywood' })]}
+        errors={{}}
+        locationOptions={LOCATIONS}
+        memberOptions={MEMBERS}
+        onPatchLine={onPatchLine}
+      />,
+    );
+    expect(screen.getAllByTestId('line-item-card')).toHaveLength(2);
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('mr-qty-k1'), { target: { value: '5' } });
+    expect(onPatchLine).toHaveBeenCalledWith('k1', { quantity: 5 });
+    // Notes fields sit in the sheet directly — no drawer toggle on phones.
+    expect(screen.getAllByLabelText('materialDetails.instructions')).toHaveLength(2);
+    phone.value = false;
   });
 });

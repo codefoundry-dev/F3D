@@ -3,7 +3,7 @@ import type {
   QuoteResponseLineItem,
   RfqDocument,
 } from '@forethread/api-client';
-import { approveQuote, declineQuote, openFileInNewTab } from '@forethread/api-client';
+import { declineQuote, openFileInNewTab } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
   Badge,
@@ -16,6 +16,7 @@ import {
   formatDateLabel,
   groupMessagesByDate,
   toast,
+  ScrollTable,
 } from '@forethread/ui-components';
 import BackArrowIcon from '@forethread/ui-components/assets/icons/back-arrow.svg?react';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
@@ -23,21 +24,19 @@ import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-c
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
-import { PO_CREATE_ROUTE } from '../constants/routes';
+import { useApproveQuote } from '../hooks/useApproveQuote';
 import { useMessageThread, type ThreadMessage } from '../hooks/useMessageThread';
 import {
-  useCreateDraftPoFromQuote,
   useQuoteDetail,
   useRfqQuoteComparison,
   useUpdateQuoteLineItemStatuses,
 } from '../hooks/useRfqs';
 
+import { DeliveryVarianceBadge } from './DeliveryVarianceBadge';
 import { DocumentRow } from './DocumentCard';
 import { MessageAttachmentLinks } from './MessageAttachmentLinks';
 import { MessageComposer } from './MessageComposer';
-import { StartOrderModal } from './StartOrderModal';
 
 // ── Design tokens (sampled from the 5.06 Figma frames) ─────────────────────────
 
@@ -74,7 +73,6 @@ export interface QuoteResponseDetailPageProps {
 export interface QuoteResponseActionsProps {
   rfqId: string;
   quoteId: string;
-  vendorId?: string;
   status: string;
   size?: 'sm' | 'md';
 }
@@ -87,22 +85,13 @@ export interface QuoteResponseActionsProps {
 export function QuoteResponseActions({
   rfqId,
   quoteId,
-  vendorId,
   status,
   size = 'md',
 }: QuoteResponseActionsProps) {
   const { t } = useTranslation('rfqs');
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const [showPoPrompt, setShowPoPrompt] = useState(false);
-
-  const approveMutation = useMutation({
-    mutationFn: () => approveQuote(rfqId, quoteId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['rfqs', rfqId] });
-      setShowPoPrompt(true);
-    },
-  });
+  // Approving awards the quote and opens its new draft PO (FOR-396).
+  const approveQuote = useApproveQuote(rfqId);
 
   const declineMutation = useMutation({
     mutationFn: () => declineQuote(rfqId, quoteId),
@@ -111,63 +100,32 @@ export function QuoteResponseActions({
     },
   });
 
-  const draftPoMutation = useCreateDraftPoFromQuote(rfqId);
-  const isMutating = approveMutation.isPending || declineMutation.isPending;
+  const isMutating = approveQuote.isPending || declineMutation.isPending;
   const isPending = status.toUpperCase() === 'PENDING' || status.toUpperCase() === 'SUBMITTED';
 
-  // Hide the Decline/Approve buttons once the quote is no longer pending, but
-  // keep the post-approve PO prompt mounted. Approving flips the quote to
-  // APPROVED on the cache refetch, so an early `return null` here would unmount
-  // the StartOrderModal the instant it opened — the "prompt flashes shut" bug.
+  if (!isPending) return null;
+
   return (
-    <>
-      {isPending && (
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size={size}
-            disabled={isMutating}
-            onClick={() => declineMutation.mutate()}
-            leftIcon={<CrossInCircleIcon className="w-[18px] h-[18px]" />}
-          >
-            {t('responsesTab.decline')}
-          </Button>
-          <Button
-            variant="outline"
-            size={size}
-            disabled={isMutating}
-            onClick={() => approveMutation.mutate()}
-            leftIcon={<CheckCircleIcon className="w-[18px] h-[18px]" />}
-          >
-            {t('responsesTab.approve')}
-          </Button>
-        </div>
-      )}
-      {showPoPrompt && (
-        <StartOrderModal
-          kind="po"
-          isCreating={draftPoMutation.isPending}
-          onStartNow={() =>
-            navigate(PO_CREATE_ROUTE, {
-              state: {
-                mode: 'from-rfq',
-                defaultValues: vendorId ? { vendorId } : undefined,
-              },
-            })
-          }
-          onCreateDraft={() =>
-            draftPoMutation.mutate(quoteId, {
-              onSuccess: () => {
-                toast.success(t('startOrder.poDraftCreated'));
-                setShowPoPrompt(false);
-              },
-              onError: () => toast.error(t('startOrder.createError')),
-            })
-          }
-          onClose={() => setShowPoPrompt(false)}
-        />
-      )}
-    </>
+    <div className="flex items-center gap-2">
+      <Button
+        variant="outline"
+        size={size}
+        disabled={isMutating}
+        onClick={() => declineMutation.mutate()}
+        leftIcon={<CrossInCircleIcon className="w-[18px] h-[18px]" />}
+      >
+        {t('responsesTab.decline')}
+      </Button>
+      <Button
+        variant="outline"
+        size={size}
+        disabled={isMutating}
+        onClick={() => approveQuote.approve(quoteId)}
+        leftIcon={<CheckCircleIcon className="w-[18px] h-[18px]" />}
+      >
+        {t('responsesTab.approve')}
+      </Button>
+    </div>
   );
 }
 
@@ -227,7 +185,6 @@ export function QuoteResponseDetailPage({
     <QuoteResponseActions
       rfqId={rfqId}
       quoteId={quoteId}
-      vendorId={quote?.vendorId}
       status={status}
       size={isPanel ? 'sm' : 'md'}
     />
@@ -326,7 +283,7 @@ export function QuoteResponseDetailPage({
   return (
     <div className="flex flex-col h-full">
       {/* Tabs + Actions */}
-      <div className="px-8 pt-6 pb-4">
+      <div className="px-4 pt-4 pb-4 md:px-8 md:pt-6">
         <div className="flex items-center justify-between">
           {tabChips}
           {actionButtons}
@@ -334,7 +291,7 @@ export function QuoteResponseDetailPage({
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto px-8 pb-8">{content}</div>
+      <div className="flex-1 overflow-y-auto px-4 pb-8 md:px-8">{content}</div>
     </div>
   );
 }
@@ -617,14 +574,25 @@ function QuoteLineItemsTab({
         </td>
         <td className={cellClass(textCls)}>{lineDiscountText(li, currency)}</td>
         <td className={cellClass(textCls)}>{formatCurrency(li.lineTotal, currency)}</td>
-        <td className={cellClass(textCls)}>{lineDate(li.deliveryDate)}</td>
+        <td className={cellClass(textCls)}>
+          <span className="flex items-center gap-1.5">
+            {lineDate(li.deliveryDate)}
+            {!struck && <DeliveryVarianceBadge days={li.deliveryVarianceDays} />}
+          </span>
+          {/* FOR-392: what the buyer asked for, beside what the vendor quoted. */}
+          {!struck && li.expectedDeliveryDate && (
+            <span className="block text-xs text-muted-foreground">
+              {t('deliveryVariance.expected')}: {lineDate(li.expectedDeliveryDate)}
+            </span>
+          )}
+        </td>
         <td className={cellClass()}>{!struck && renderActions(li)}</td>
       </tr>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-foreground/10">
+    <ScrollTable className="rounded-lg border border-foreground/10">
       <table
         className={cn(
           'border-separate border-spacing-0 text-sm w-full',
@@ -648,7 +616,7 @@ function QuoteLineItemsTab({
             <th className="px-3 py-3 text-left text-sm font-medium text-[#1B1D22] border-b border-foreground/10 min-w-[140px]">
               {t('quoteResponseDetail.lineTotalWithTax')}
             </th>
-            <th className="px-3 py-3 text-left text-sm font-medium text-[#1B1D22] border-b border-foreground/10 min-w-[110px]">
+            <th className="px-3 py-3 text-left text-sm font-medium text-[#1B1D22] border-b border-foreground/10 min-w-[150px]">
               {t('quoteResponseDetail.deliveryDate')}
             </th>
             <th className="px-3 py-3 text-left text-sm font-medium text-[#1B1D22] border-b border-foreground/10 min-w-[92px]">
@@ -766,6 +734,6 @@ function QuoteLineItemsTab({
           </tr>
         </tfoot>
       </table>
-    </div>
+    </ScrollTable>
   );
 }

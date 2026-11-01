@@ -158,6 +158,10 @@ vi.mock('@forethread/rfq-shared', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  useIsPhone: () => false,
+  MobileListToolbar: () => null,
+  FloatingActionButton: () => null,
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   Badge: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
   CreateViewModal: () => <div data-testid="create-view-modal" />,

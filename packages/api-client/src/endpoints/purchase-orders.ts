@@ -32,6 +32,8 @@ export interface CreatePoLineItemInput {
    * against `qtyRemaining` and writes the Drawdown row on create.
    */
   bulkOrderLineItemId?: string;
+  /** Approved quote line this line is bought from (FOR-391); the server pins its quoted price. */
+  quoteLineItemId?: string;
   materialCode?: string;
   description?: string;
   quantityOrdered: number;
@@ -80,6 +82,8 @@ export interface CreatePurchaseOrderInput {
   deliveryResponsibleName?: string;
   deliveryResponsibleEmail?: string;
   message?: string;
+  /** General terms & conditions (FOR-398). Omitted on create → the company default. */
+  termsAndConditions?: string | null;
   rfqId?: string;
   lineItems: CreatePoLineItemInput[];
   /** FOR-210: optional header-level multi-delivery rows. */
@@ -207,6 +211,8 @@ export interface PoDetail {
   paymentTermsDays: number | null;
   costCode: string | null;
   message: string | null;
+  /** General terms & conditions snapshotted at creation (FOR-398). */
+  termsAndConditions?: string | null;
   deliveryResponsibleName: string | null;
   deliveryResponsibleEmail: string | null;
   lineItemCount: number;

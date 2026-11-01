@@ -25,6 +25,8 @@ vi.mock('@forethread/rfq-shared', () => ({
 }));
 
 vi.mock('@forethread/po-shared', () => ({
+  scrollToFirstInvalid: () => {},
+  useWizardChrome: () => ({ exitConfirm: null, requestExit: () => {} }),
   Stepper: ({ step }: any) => <div data-testid="stepper">step-{step}</div>,
 }));
 
@@ -49,6 +51,13 @@ vi.mock('@forethread/shared-types/client', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  // ADR-0019 B8 phone chrome: desktop in tests.
+  useIsPhone: () => false,
+  useHideMobileNav: () => {},
+  useMobileExitHandler: () => {},
+  MobileActionBar: () => null,
+  CompactStepper: () => null,
+  ConfirmDialog: () => null,
   todayIso: () => new Date().toISOString().slice(0, 10),
   Input: (props: any) => <input data-testid="input" {...props} />,
   AddressInput: (props: any) => (

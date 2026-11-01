@@ -10,6 +10,7 @@ function makeLine(
     included: true,
     materialName: overrides.materialName ?? '',
     materialId: null,
+    imageUrl: null,
     unit: 'ea',
     requestedQty: overrides.requestedQty ?? 10,
     availQty: '',

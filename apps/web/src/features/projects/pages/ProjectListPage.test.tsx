@@ -17,6 +17,10 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  useIsPhone: () => false,
+  MobileListToolbar: () => null,
+  FloatingActionButton: () => null,
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   CustomDropdown: (props: any) => (
     <select
       data-testid="dropdown"
@@ -143,20 +147,32 @@ describe('ProjectListPage', () => {
   });
 
   it('sets the page title on mount', () => {
-    mockUseProjects.mockReturnValue({ data: mockProjectListData, isLoading: false, isError: false });
+    mockUseProjects.mockReturnValue({
+      data: mockProjectListData,
+      isLoading: false,
+      isError: false,
+    });
     render(<ProjectListPage />);
     expect(mockSetPageTitle).toHaveBeenCalledWith('list.title');
   });
 
   it('renders the Create new button which navigates to /projects/new', () => {
-    mockUseProjects.mockReturnValue({ data: mockProjectListData, isLoading: false, isError: false });
+    mockUseProjects.mockReturnValue({
+      data: mockProjectListData,
+      isLoading: false,
+      isError: false,
+    });
     render(<ProjectListPage />);
     fireEvent.click(screen.getByText('list.createNew'));
     expect(mockNavigate).toHaveBeenCalledWith('/projects/new');
   });
 
   it('renders project codes and names in the table', () => {
-    mockUseProjects.mockReturnValue({ data: mockProjectListData, isLoading: false, isError: false });
+    mockUseProjects.mockReturnValue({
+      data: mockProjectListData,
+      isLoading: false,
+      isError: false,
+    });
     render(<ProjectListPage />);
     expect(screen.getByText('PRJ-2024-001')).toBeInTheDocument();
     expect(screen.getByText('Alpha Project')).toBeInTheDocument();
@@ -164,7 +180,11 @@ describe('ProjectListPage', () => {
   });
 
   it('renders Figma-order column headers', () => {
-    mockUseProjects.mockReturnValue({ data: mockProjectListData, isLoading: false, isError: false });
+    mockUseProjects.mockReturnValue({
+      data: mockProjectListData,
+      isLoading: false,
+      isError: false,
+    });
     render(<ProjectListPage />);
     expect(screen.getByText('columns.projectId')).toBeInTheDocument();
     expect(screen.getByText('columns.projectName')).toBeInTheDocument();
@@ -178,28 +198,44 @@ describe('ProjectListPage', () => {
   });
 
   it('renders neutral status badges for each project', () => {
-    mockUseProjects.mockReturnValue({ data: mockProjectListData, isLoading: false, isError: false });
+    mockUseProjects.mockReturnValue({
+      data: mockProjectListData,
+      isLoading: false,
+      isError: false,
+    });
     render(<ProjectListPage />);
     const badges = screen.getAllByTestId('badge');
     expect(badges.length).toBe(2);
   });
 
   it('renders the assigned-users avatar stack and count', () => {
-    mockUseProjects.mockReturnValue({ data: mockProjectListData, isLoading: false, isError: false });
+    mockUseProjects.mockReturnValue({
+      data: mockProjectListData,
+      isLoading: false,
+      isError: false,
+    });
     render(<ProjectListPage />);
     expect(screen.getByText('Alice')).toBeInTheDocument();
     expect(screen.getAllByText('list.usersCount').length).toBe(2);
   });
 
   it('renders dash for missing type and delivery location', () => {
-    mockUseProjects.mockReturnValue({ data: mockProjectListData, isLoading: false, isError: false });
+    mockUseProjects.mockReturnValue({
+      data: mockProjectListData,
+      isLoading: false,
+      isError: false,
+    });
     render(<ProjectListPage />);
     const dashes = screen.getAllByText('-');
     expect(dashes.length).toBeGreaterThanOrEqual(2);
   });
 
   it('does not render pagination when total is below page size', () => {
-    mockUseProjects.mockReturnValue({ data: mockProjectListData, isLoading: false, isError: false });
+    mockUseProjects.mockReturnValue({
+      data: mockProjectListData,
+      isLoading: false,
+      isError: false,
+    });
     render(<ProjectListPage />);
     expect(screen.queryByTestId('pagination')).not.toBeInTheDocument();
   });
@@ -215,40 +251,64 @@ describe('ProjectListPage', () => {
   });
 
   it('renders both status and type filter dropdowns', () => {
-    mockUseProjects.mockReturnValue({ data: mockProjectListData, isLoading: false, isError: false });
+    mockUseProjects.mockReturnValue({
+      data: mockProjectListData,
+      isLoading: false,
+      isError: false,
+    });
     render(<ProjectListPage />);
     expect(screen.getAllByTestId('dropdown').length).toBe(2);
   });
 
   it('renders search input', () => {
-    mockUseProjects.mockReturnValue({ data: mockProjectListData, isLoading: false, isError: false });
+    mockUseProjects.mockReturnValue({
+      data: mockProjectListData,
+      isLoading: false,
+      isError: false,
+    });
     render(<ProjectListPage />);
     expect(screen.getByTestId('search-input')).toBeInTheDocument();
   });
 
   it('navigates to project detail when clicking a table row', () => {
-    mockUseProjects.mockReturnValue({ data: mockProjectListData, isLoading: false, isError: false });
+    mockUseProjects.mockReturnValue({
+      data: mockProjectListData,
+      isLoading: false,
+      isError: false,
+    });
     render(<ProjectListPage />);
     fireEvent.click(screen.getByText('Alpha Project'));
     expect(mockNavigate).toHaveBeenCalledWith('/projects/p1');
   });
 
   it('navigates to edit via the row kebab Edit action', () => {
-    mockUseProjects.mockReturnValue({ data: mockProjectListData, isLoading: false, isError: false });
+    mockUseProjects.mockReturnValue({
+      data: mockProjectListData,
+      isLoading: false,
+      isError: false,
+    });
     render(<ProjectListPage />);
     fireEvent.click(screen.getAllByTestId('action-edit')[0]);
     expect(mockNavigate).toHaveBeenCalledWith('/projects/p1/edit');
   });
 
   it('navigates to detail via the row kebab View action', () => {
-    mockUseProjects.mockReturnValue({ data: mockProjectListData, isLoading: false, isError: false });
+    mockUseProjects.mockReturnValue({
+      data: mockProjectListData,
+      isLoading: false,
+      isError: false,
+    });
     render(<ProjectListPage />);
     fireEvent.click(screen.getAllByTestId('action-view')[0]);
     expect(mockNavigate).toHaveBeenCalledWith('/projects/p1');
   });
 
   it('handles search input change', () => {
-    mockUseProjects.mockReturnValue({ data: mockProjectListData, isLoading: false, isError: false });
+    mockUseProjects.mockReturnValue({
+      data: mockProjectListData,
+      isLoading: false,
+      isError: false,
+    });
     render(<ProjectListPage />);
     const searchInput = screen.getByTestId('search-input');
     fireEvent.change(searchInput, { target: { value: 'test query' } });
@@ -256,7 +316,11 @@ describe('ProjectListPage', () => {
   });
 
   it('changes status filter via the first dropdown', () => {
-    mockUseProjects.mockReturnValue({ data: mockProjectListData, isLoading: false, isError: false });
+    mockUseProjects.mockReturnValue({
+      data: mockProjectListData,
+      isLoading: false,
+      isError: false,
+    });
     render(<ProjectListPage />);
     const dropdowns = screen.getAllByTestId('dropdown');
     fireEvent.change(dropdowns[0], { target: { value: 'ONGOING' } });
@@ -264,7 +328,11 @@ describe('ProjectListPage', () => {
   });
 
   it('changes type filter via the second dropdown', () => {
-    mockUseProjects.mockReturnValue({ data: mockProjectListData, isLoading: false, isError: false });
+    mockUseProjects.mockReturnValue({
+      data: mockProjectListData,
+      isLoading: false,
+      isError: false,
+    });
     render(<ProjectListPage />);
     const dropdowns = screen.getAllByTestId('dropdown');
     fireEvent.change(dropdowns[1], { target: { value: 'Residential' } });
@@ -272,7 +340,11 @@ describe('ProjectListPage', () => {
   });
 
   it('sorts when a sortable column header is clicked', () => {
-    mockUseProjects.mockReturnValue({ data: mockProjectListData, isLoading: false, isError: false });
+    mockUseProjects.mockReturnValue({
+      data: mockProjectListData,
+      isLoading: false,
+      isError: false,
+    });
     render(<ProjectListPage />);
     fireEvent.click(screen.getByText('columns.projectName'));
     expect(mockUseProjects).toHaveBeenCalled();
@@ -280,7 +352,11 @@ describe('ProjectListPage', () => {
 
   it('triggers debounced search that resets page', () => {
     vi.useFakeTimers();
-    mockUseProjects.mockReturnValue({ data: mockProjectListData, isLoading: false, isError: false });
+    mockUseProjects.mockReturnValue({
+      data: mockProjectListData,
+      isLoading: false,
+      isError: false,
+    });
     render(<ProjectListPage />);
     const searchInput = screen.getByTestId('search-input');
     fireEvent.change(searchInput, { target: { value: 'alpha' } });

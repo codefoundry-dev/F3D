@@ -20,6 +20,13 @@ interface ExportColumnDef {
   pdfWidth?: number;
 }
 
+/**
+ * PO status label for exports. ACCEPTED is the vendor's Approve, so everyone
+ * sees it as "Approved" (FOR-397), matching the app.
+ */
+const formatPoStatus = (status: string | null | undefined): string =>
+  status === 'ACCEPTED' ? 'Approved' : formatEnum(status);
+
 /** Safely convert an unknown value to a string (avoids [object Object]) */
 const str = (v: unknown): string =>
   v === null || v === undefined
@@ -58,7 +65,7 @@ const COLUMN_MAP: Record<string, ExportColumnDef> = {
   poStatus: {
     header: 'PO Status',
     pdfWidth: 80,
-    value: (r) => formatEnum(r.status as string),
+    value: (r) => formatPoStatus(r.status as string),
   },
   revision: {
     header: 'Revision',
@@ -324,7 +331,7 @@ export class PoExportService {
         lines: [
           `PO Number: ${po.poNumber}`,
           `Project: ${po.projectName}`,
-          `Status: ${formatEnum(po.status)}`,
+          `Status: ${formatPoStatus(po.status)}`,
           `Type: ${formatEnum(po.poType ?? 'STANDARD')}`,
           `Revision: ${str(po.revision)}`,
           `Buyer: ${buyerName}`,
@@ -338,12 +345,14 @@ export class PoExportService {
           ...(po.deliveryLocationName ? [`Deliver to: ${po.deliveryLocationName}`] : []),
         ],
       },
+      // Sized to the A4 printable width (515pt less cell padding and gaps) so nothing
+      // is scaled or clipped (FOR-388).
       columns: [
-        { header: 'Item', width: 200 },
-        { header: 'Qty', width: 60 },
-        { header: 'Unit', width: 60 },
-        { header: 'Unit Price', width: 100 },
-        { header: 'Total', width: 100 },
+        { header: 'Item', width: 165 },
+        { header: 'Qty', width: 40, align: 'right' },
+        { header: 'Unit', width: 45 },
+        { header: 'Unit Price', width: 100, align: 'right' },
+        { header: 'Total', width: 105, align: 'right' },
       ],
       rows: (po.lineItems ?? []).map((li) => ({
         Item: str(li.materialName ?? li.description ?? ''),
@@ -363,10 +372,10 @@ export class PoExportService {
             ? `Planned delivery: ${formatLongDate(po.plannedDeliveryDate)}`
             : 'No delivery schedule specified.',
           columns: [
-            { header: '#', width: 30 },
-            { header: 'Location', width: 200 },
-            { header: 'Date', width: 130 },
-            { header: 'Notes', width: 150 },
+            { header: '#', width: 25 },
+            { header: 'Location', width: 180 },
+            { header: 'Date', width: 110 },
+            { header: 'Notes', width: 152 },
           ],
           rows: (po.deliveries ?? []).map((d, i) => ({
             '#': str(d.sequence ?? i + 1),
@@ -387,12 +396,18 @@ export class PoExportService {
             : '',
           po.deliveryNotes ? `Delivery notes: ${po.deliveryNotes}` : '',
           po.message ? `Message: ${po.message}` : '',
+          ...(po.termsAndConditions
+            ? ['This order is subject to the General Terms & Conditions below.']
+            : []),
         ],
       },
       signatures: [
         { label: 'Authorised by (Buyer)', name: po.approvedBy?.name ?? po.createdBy?.name },
-        { label: 'Accepted by (Vendor)' },
+        { label: 'Approved by (Vendor)' },
       ],
+      ...(po.termsAndConditions && {
+        legalText: { label: 'General Terms & Conditions', text: po.termsAndConditions },
+      }),
       filenamePrefix: `po-${po.poNumber}`,
     };
   }

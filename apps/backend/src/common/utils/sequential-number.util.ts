@@ -1,10 +1,10 @@
 import type { PrismaClient } from '@prisma/client';
 
-type NumberedTable = 'rfq' | 'purchaseOrder' | 'bulkOrder' | 'bom';
+type NumberedTable = 'materialRequest' | 'rfq' | 'purchaseOrder' | 'bulkOrder' | 'bom';
 
 /**
  * Generate the next sequential number for a given prefix and table, e.g.
- * `RFQ-00001`, `PO-00042`.
+ * `MR-00003`, `RFQ-00001`, `PO-00042`.
  *
  * The next value is derived from the highest EXISTING number for the company
  * (max + 1), NOT a row count. A count-based guess (`count + 1`) breaks as soon
@@ -19,14 +19,14 @@ type NumberedTable = 'rfq' | 'purchaseOrder' | 'bulkOrder' | 'bom';
  * Only canonical `PREFIX-NNNNN` values count toward the maximum; suffixed
  * children (`-1`, `-2`) and non-numeric variants are ignored.
  *
- * NOTE: numbering is scoped per company (unchanged). The number columns are
- * globally unique, so this remains single-contractor-safe; cross-company
- * sequencing is out of scope for this fix.
+ * Numbering is scoped per company, and so is uniqueness: every number column
+ * is unique on (company_id, number), so two companies each get their own
+ * `PO-00001` (migration 20261028130000).
  */
 export async function nextSequentialNumber(
   prisma: PrismaClient,
   table: NumberedTable,
-  prefix: 'RFQ' | 'PO' | 'BULK' | 'BOM',
+  prefix: 'MR' | 'RFQ' | 'PO' | 'BULK' | 'BOM',
   companyId: string,
 ): Promise<string> {
   const existing = await loadCompanyNumbers(prisma, table, companyId);
@@ -51,6 +51,10 @@ async function loadCompanyNumbers(
   companyId: string,
 ): Promise<Array<string | null>> {
   switch (table) {
+    case 'materialRequest':
+      return (
+        await prisma.materialRequest.findMany({ where: { companyId }, select: { mrNumber: true } })
+      ).map((r) => r.mrNumber);
     case 'rfq':
       return (await prisma.rfq.findMany({ where: { companyId }, select: { rfqNumber: true } })).map(
         (r) => r.rfqNumber,

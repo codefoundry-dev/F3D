@@ -25,7 +25,7 @@ enum MaterialRequestPriority {
 
 model MaterialRequest {
   id                 String                  @id @default(uuid())
-  mrNumber           String                  @unique @map("mr_number") @db.VarChar(50)
+  mrNumber           String                  @map("mr_number") @db.VarChar(50)
   projectId          String                  @map("project_id")
   companyId          String                  @map("company_id")
   status             MaterialRequestStatus   @default(DRAFT)
@@ -46,6 +46,8 @@ model MaterialRequest {
   convertedToRfqId   String?                 @map("converted_to_rfq_id")
   convertedToPoId    String?                 @map("converted_to_po_id")
   convertedAt        DateTime?               @map("converted_at")
+  // Overdue reminder ledger (FOR-394): set when the need-by reminder is claimed.
+  overdueReminderSentAt DateTime?            @map("overdue_reminder_sent_at")
   createdAt          DateTime                @default(now()) @map("created_at")
   updatedAt          DateTime                @updatedAt @map("updated_at")
 
@@ -58,6 +60,8 @@ model MaterialRequest {
   convertedToPo    PurchaseOrder?   @relation("PoSourceMaterialRequests", fields: [convertedToPoId], references: [id])
   lineItems        MaterialRequestLineItem[]
 
+  // Numbers are sequenced per company, so they are unique per company only.
+  @@unique([companyId, mrNumber], map: "uq_material_requests_company_mr_number")
   @@index([companyId], map: "idx_material_requests_company")
   @@index([projectId], map: "idx_material_requests_project")
   @@index([status], map: "idx_material_requests_status")

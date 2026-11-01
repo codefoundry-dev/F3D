@@ -98,10 +98,16 @@ export const PO_TRANSITIONS: Record<PoStatus, PoStatus[]> = {
   ],
 
   // Late: still recoverable to partial/full delivery, or it is never delivered.
+  // The daily schedule job (FOR-396) moves it back to scheduled when an approved
+  // change pushes the date out, and nothing has arrived yet, so it can still be
+  // cancelled like the scheduled PO it was.
   [PoStatus.LATE_FOR_DELIVERY]: [
+    PoStatus.SCHEDULED_FOR_DELIVERY,
     PoStatus.PARTIALLY_DELIVERED,
     PoStatus.DELIVERED,
     PoStatus.NOT_DELIVERED,
+    PoStatus.CANCELLED,
+    PoStatus.CANCELLED_BY_VENDOR,
   ],
 
   // Delivered: close it out, invoice it, or raise a dispute.

@@ -150,13 +150,29 @@ export function StepBasicInfo({
 
         <div className="flex flex-col gap-1.5">
           <FieldLabel label={t('create.basicInfo.needBy')} optional={t('create.optional')} />
-          <DatePicker
-            value={values.needByDate}
-            onChange={(date) => onChange({ needByDate: date })}
-            placeholder="mm/dd/yyyy"
-            minDate={minDate}
-            editable
-          />
+          <div className="flex gap-2">
+            <div className="min-w-0 flex-1">
+              <DatePicker
+                value={values.needByDate}
+                onChange={(date) => onChange({ needByDate: date })}
+                placeholder="mm/dd/yyyy"
+                minDate={minDate}
+                editable
+              />
+            </div>
+            {/* Input's own wrapper is w-full, so size the time field from outside —
+                a className here only reaches the inner <input>. */}
+            <div className="w-36 shrink-0">
+              <Input
+                type="time"
+                value={values.needByTime}
+                onChange={(e) => onChange({ needByTime: e.target.value })}
+                aria-label={t('create.basicInfo.needByTime')}
+                data-testid="rfq-need-by-time"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">{t('create.basicInfo.needByHint')}</p>
         </div>
 
         {/* Row 3 — where the materials go (pick-up location vs delivery

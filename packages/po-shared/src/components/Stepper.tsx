@@ -1,4 +1,4 @@
-import { cn } from '@forethread/ui-components';
+import { CompactStepper, cn, useIsPhone } from '@forethread/ui-components';
 import { Fragment } from 'react';
 
 type StepState = 'complete' | 'active' | 'future';
@@ -25,6 +25,11 @@ const labelStyles: Record<StepState, string> = {
  * connectors between. `step` is the 1-based index of the active step.
  */
 export function Stepper({ step, labels }: { step: number; labels: string[] }) {
+  const isPhone = useIsPhone();
+  // Phones: one line + progress bar instead of the pills (ADR-0019 B8).
+  if (isPhone) {
+    return <CompactStepper current={step} total={labels.length} label={labels[step - 1] ?? ''} />;
+  }
   return (
     <div
       className="flex w-full items-center overflow-x-auto rounded-[18px] border border-[#e8eaed] bg-[#f9f9fa] p-2"

@@ -6,6 +6,7 @@ vi.mock('@forethread/i18n', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: any) => children,
   Badge: ({ children }: any) => <span>{children}</span>,
   BULK_ORDER_STATUS_COLORS: {},
   DotActionsMenu: () => <div data-testid="dot-actions" />,

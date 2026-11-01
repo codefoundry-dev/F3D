@@ -9,6 +9,8 @@ interface ConvertToPoModalProps {
   mrNumber: string;
   /** Company whose assigned vendors are offered as PO recipients. */
   companyId: string;
+  /** The MR's project: one-off vendors (FOR-395) of other projects are left out. */
+  projectId: string;
   /** Whether the convert mutation is in flight. */
   isPending?: boolean;
   onClose: () => void;
@@ -22,12 +24,14 @@ interface ConvertToPoModalProps {
 export function ConvertToPoModal({
   mrNumber,
   companyId,
+  projectId,
   isPending,
   onClose,
   onConfirm,
 }: ConvertToPoModalProps) {
   const { t } = useTranslation('materialRequests');
-  const { data: vendors, isLoading, isError } = useCompanyVendors(companyId);
+  const { data: allVendors, isLoading, isError } = useCompanyVendors(companyId);
+  const vendors = allVendors?.filter((v) => !v.oneOffProjectId || v.oneOffProjectId === projectId);
   const [vendorId, setVendorId] = useState('');
 
   const hasVendors = (vendors?.length ?? 0) > 0;

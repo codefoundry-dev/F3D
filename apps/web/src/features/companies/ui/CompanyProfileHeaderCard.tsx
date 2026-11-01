@@ -27,6 +27,7 @@ interface CompanyProfileHeaderCardProps {
  * `layer/light` rounded-18 card holding a 144px company avatar, the company
  * name (Headline/S), a contact-email row, and active/inactive user-count pills,
  * with an `actions` slot on the right for the Invite-user button and ⋮ menu.
+ * Phones stack it: a 72px avatar beside a wrapping name, actions full-width below.
  */
 export function CompanyProfileHeaderCard({
   company,
@@ -52,7 +53,7 @@ export function CompanyProfileHeaderCard({
     <img
       src={resolvedLogo}
       alt={company.legalName}
-      className="size-full rounded-full object-cover"
+      className="size-full rounded-full bg-white object-contain p-4 max-md:p-2"
     />
   ) : (
     <span className="flex size-full items-center justify-center rounded-full bg-gray-100 text-3xl font-semibold text-gray-600">
@@ -61,17 +62,17 @@ export function CompanyProfileHeaderCard({
   );
 
   const avatarShell =
-    'relative size-[140px] shrink-0 overflow-hidden rounded-full border-4 border-white shadow-[0_1px_3px_0_rgba(10,13,18,0.1),0_1px_1px_0_rgba(10,13,18,0.06)]';
+    'relative size-[140px] max-md:size-[72px] shrink-0 overflow-hidden rounded-full border-4 border-white shadow-[0_1px_3px_0_rgba(10,13,18,0.1),0_1px_1px_0_rgba(10,13,18,0.06)]';
 
   return (
     <div
       className={cn(
-        'flex flex-wrap items-start justify-between gap-4 rounded-[18px] border border-[#e8eaed] bg-[#f9f9fa] p-4 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]',
+        'flex flex-wrap items-start justify-between gap-4 max-md:flex-col max-md:items-stretch rounded-[18px] border border-[#e8eaed] bg-[#f9f9fa] p-4 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)]',
         className,
       )}
     >
       {/* Left: avatar + company info */}
-      <div className="flex min-w-0 flex-1 items-center gap-6 p-2">
+      <div className="flex min-w-0 flex-1 items-center gap-6 p-2 max-md:gap-4 max-md:p-0">
         {onAvatarClick ? (
           <button
             type="button"
@@ -94,9 +95,9 @@ export function CompanyProfileHeaderCard({
           <div className={avatarShell}>{avatarInner}</div>
         )}
 
-        <div className="flex min-w-0 flex-1 flex-col gap-4">
+        <div className="flex min-w-0 flex-1 flex-col gap-4 max-md:gap-2">
           <div className="flex min-w-0 flex-col gap-2">
-            <h2 className="truncate text-[32px] font-medium leading-[1.4] tracking-[0.3px] text-gray-900">
+            <h2 className="text-[20px] font-medium [overflow-wrap:anywhere] md:truncate md:text-[32px] leading-[1.4] tracking-[0.3px] text-gray-900">
               {company.legalName}
             </h2>
             {company.contactEmail && (
@@ -125,7 +126,11 @@ export function CompanyProfileHeaderCard({
       </div>
 
       {/* Right: actions */}
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && (
+        <div className="flex shrink-0 items-center gap-2 max-md:[&>*:first-child]:flex-1">
+          {actions}
+        </div>
+      )}
     </div>
   );
 }

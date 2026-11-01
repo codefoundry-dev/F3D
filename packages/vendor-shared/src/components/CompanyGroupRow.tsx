@@ -8,6 +8,8 @@ interface CompanyGroupRowProps {
   companyId: string;
   /** Category enum keys — the first drives the specialisation chip beside the name. */
   categories?: string[];
+  /** Project name of a one-off vendor (FOR-395), shown as a badge. */
+  oneOffProjectName?: string | null;
   isExpanded: boolean;
   onToggle: () => void;
   actions: DotAction[];
@@ -17,6 +19,7 @@ interface CompanyGroupRowProps {
 export function CompanyGroupRow({
   companyName,
   categories,
+  oneOffProjectName,
   isExpanded,
   onToggle,
   actions,
@@ -48,6 +51,14 @@ export function CompanyGroupRow({
           {categoryLabel && (
             <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
               {categoryLabel}
+            </span>
+          )}
+          {oneOffProjectName && (
+            <span
+              className="inline-flex items-center rounded-md bg-[hsl(var(--badge-orange))] px-2 py-0.5 text-xs font-medium text-[hsl(var(--badge-orange-text))]"
+              data-testid="one-off-badge"
+            >
+              {t('oneOff.badge', { project: oneOffProjectName })}
             </span>
           )}
         </div>

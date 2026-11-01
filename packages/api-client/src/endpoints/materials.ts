@@ -70,7 +70,10 @@ export interface CreateMaterialInput {
 export interface MaterialCategoryDto {
   id: string;
   name: string;
-  parentId: string | null;
+  /** Inactive categories stay on existing materials but aren't offered for new ones (FOR-362). */
+  isActive: boolean;
+  /** Materials currently filed under the category. */
+  materialCount: number;
 }
 
 export interface MaterialListItemDto {
@@ -379,6 +382,33 @@ export async function getMaterialSuggestions(
   const { data } = await getApiClient().get<{ data: MaterialSuggestionsResponse }>(
     MATERIALS_PATHS.SUGGESTIONS,
     { params, ...config },
+  );
+  return data.data;
+}
+
+/** POST /v1/materials/categories — Super Admin only (FOR-362). */
+export async function createMaterialCategory(
+  input: { name: string },
+  config?: AxiosRequestConfig,
+): Promise<MaterialCategoryDto> {
+  const { data } = await getApiClient().post<{ data: MaterialCategoryDto }>(
+    MATERIALS_PATHS.CATEGORIES,
+    input,
+    config,
+  );
+  return data.data;
+}
+
+/** PATCH /v1/materials/categories/:id — rename and/or (de)activate (FOR-362). */
+export async function updateMaterialCategory(
+  id: string,
+  input: { name?: string; isActive?: boolean },
+  config?: AxiosRequestConfig,
+): Promise<MaterialCategoryDto> {
+  const { data } = await getApiClient().patch<{ data: MaterialCategoryDto }>(
+    MATERIALS_PATHS.categoryById(id),
+    input,
+    config,
   );
   return data.data;
 }

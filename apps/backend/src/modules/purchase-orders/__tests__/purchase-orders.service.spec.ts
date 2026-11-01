@@ -29,6 +29,8 @@ const superAdmin = {
 };
 
 const mockPrisma = {
+  // One-off vendor guard (FOR-395): no assignment row → a full/unknown vendor.
+  companyVendorAssignment: { findUnique: jest.fn().mockResolvedValue(null) },
   purchaseOrder: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
@@ -38,6 +40,9 @@ const mockPrisma = {
   },
   quoteResponse: {
     groupBy: jest.fn(),
+  },
+  quoteResponseLineItem: {
+    findMany: jest.fn(),
   },
   project: {
     findUnique: jest.fn(),
@@ -88,6 +93,7 @@ describe('PurchaseOrdersService', () => {
     // Default: no catalogue snapshot rows, so each line keeps the codes the DTO
     // supplied (the snapshot fallback only fires when a material row matches).
     mockPrisma.material.findMany.mockResolvedValue([]);
+    mockPrisma.companyVendorAssignment.findUnique.mockResolvedValue(null);
     service = new PurchaseOrdersService(mockPrisma as never, mockAudit as never);
     // createPurchaseOrder now runs its create + drawdown bookkeeping inside a
     // $transaction callback. Default: invoke the callback with mockPrisma so
@@ -361,13 +367,15 @@ describe('PurchaseOrdersService', () => {
       expect(where.status).toBe('SENT');
     });
 
-    it('quickFilter approvedByVendor filters by ACCEPTED/ACKNOWLEDGED', async () => {
+    it('quickFilter approvedByVendor includes POs that moved on to scheduled/late (FOR-396)', async () => {
       await service.listPurchaseOrders(
         q({ quickFilter: PoQuickFilter.APPROVED_BY_VENDOR }),
         companyAdmin,
       );
       const where = mockPrisma.purchaseOrder.findMany.mock.calls[0][0].where;
-      expect(where.status).toEqual({ in: ['ACCEPTED', 'ACKNOWLEDGED'] });
+      expect(where.status).toEqual({
+        in: ['ACCEPTED', 'ACKNOWLEDGED', 'SCHEDULED_FOR_DELIVERY', 'LATE_FOR_DELIVERY'],
+      });
     });
 
     it('quickFilter partiallyDelivered filters by PARTIALLY_DELIVERED', async () => {
@@ -1083,6 +1091,161 @@ describe('PurchaseOrdersService', () => {
           metadata: expect.objectContaining({ source: 'MANUAL' }),
         }),
       );
+    });
+
+    describe('terms & conditions (FOR-398)', () => {
+      const primeCreate = () => {
+        mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+        mockPrisma.company.findUnique.mockResolvedValue({
+          id: 'v-1',
+          poTermsAndConditions: 'Company default terms',
+        });
+        mockPrisma.projectLocation.findUnique.mockResolvedValue({
+          id: 'loc-1',
+          projectId: 'proj-1',
+        });
+        mockPrisma.purchaseOrder.create.mockResolvedValue({ id: 'po-new' });
+        mockGetPoAfterMutation();
+      };
+
+      it('snapshots the company default when the caller sends no terms', async () => {
+        primeCreate();
+        await service.createPurchaseOrder(baseDto as never, companyAdmin);
+        expect(mockPrisma.company.findUnique).toHaveBeenCalledWith({
+          where: { id: 'comp-1' },
+          select: { poTermsAndConditions: true },
+        });
+        const data = mockPrisma.purchaseOrder.create.mock.calls[0][0].data;
+        expect(data.termsAndConditions).toBe('Company default terms');
+      });
+
+      it('keeps the terms edited in the wizard, blank meaning none', async () => {
+        primeCreate();
+        await service.createPurchaseOrder(
+          { ...baseDto, termsAndConditions: '  Edited terms ' } as never,
+          companyAdmin,
+        );
+        await service.createPurchaseOrder(
+          { ...baseDto, termsAndConditions: '   ' } as never,
+          companyAdmin,
+        );
+        const calls = mockPrisma.purchaseOrder.create.mock.calls;
+        expect(calls[0][0].data.termsAndConditions).toBe('Edited terms');
+        expect(calls[1][0].data.termsAndConditions).toBeNull();
+      });
+    });
+
+    describe('lines bought from an approved quote (FOR-391)', () => {
+      const quotedDto = {
+        ...baseDto,
+        lineItems: [{ ...baseDto.lineItems[0], unitPrice: 1, quoteLineItemId: 'ql-1' }],
+      };
+      const quoteLine = (overrides: Record<string, unknown> = {}) => ({
+        id: 'ql-1',
+        unitPrice: 42.5,
+        status: 'PENDING',
+        quoteResponse: {
+          vendorId: 'v-1',
+          status: 'APPROVED',
+          rfqId: 'rfq-9',
+          rfq: { companyId: 'comp-1' },
+        },
+        ...overrides,
+      });
+
+      beforeEach(() => {
+        mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+        mockPrisma.company.findUnique.mockResolvedValue({ id: 'v-1' });
+        mockPrisma.projectLocation.findUnique.mockResolvedValue({
+          id: 'loc-1',
+          projectId: 'proj-1',
+        });
+        mockPrisma.purchaseOrder.create.mockResolvedValue({ id: 'po-new' });
+        mockGetPoAfterMutation();
+      });
+
+      it('prices the line at the quoted unit price and links the RFQ', async () => {
+        mockPrisma.quoteResponseLineItem.findMany.mockResolvedValue([quoteLine()]);
+        await service.createPurchaseOrder(quotedDto as never, companyAdmin);
+        const data = mockPrisma.purchaseOrder.create.mock.calls[0][0].data;
+        expect(data.lineItems.create[0]).toMatchObject({ unitPrice: 42.5, lineTotal: 425 });
+        expect(data.subtotal).toBe(425);
+        expect(data.rfqId).toBe('rfq-9');
+      });
+
+      it('accepts an approved line on a quote that is not itself approved', async () => {
+        mockPrisma.quoteResponseLineItem.findMany.mockResolvedValue([
+          quoteLine({
+            status: 'APPROVED',
+            quoteResponse: {
+              vendorId: 'v-1',
+              status: 'SUBMITTED',
+              rfqId: 'rfq-9',
+              rfq: { companyId: 'comp-1' },
+            },
+          }),
+        ]);
+        await service.createPurchaseOrder(quotedDto as never, companyAdmin);
+        expect(
+          mockPrisma.purchaseOrder.create.mock.calls[0][0].data.lineItems.create[0],
+        ).toMatchObject({ unitPrice: 42.5 });
+      });
+
+      it.each([
+        [
+          'another vendor',
+          {
+            quoteResponse: {
+              vendorId: 'v-2',
+              status: 'APPROVED',
+              rfqId: 'r',
+              rfq: { companyId: 'comp-1' },
+            },
+          },
+        ],
+        [
+          'another company',
+          {
+            quoteResponse: {
+              vendorId: 'v-1',
+              status: 'APPROVED',
+              rfqId: 'r',
+              rfq: { companyId: 'comp-2' },
+            },
+          },
+        ],
+        [
+          'an unapproved quote',
+          {
+            quoteResponse: {
+              vendorId: 'v-1',
+              status: 'SUBMITTED',
+              rfqId: 'r',
+              rfq: { companyId: 'comp-1' },
+            },
+          },
+        ],
+        ['a declined line', { status: 'DECLINED' }],
+      ])('rejects a quote line from %s', async (_label, overrides) => {
+        mockPrisma.quoteResponseLineItem.findMany.mockResolvedValue([quoteLine(overrides)]);
+        await expect(service.createPurchaseOrder(quotedDto as never, companyAdmin)).rejects.toThrow(
+          BadRequestException,
+        );
+        expect(mockPrisma.purchaseOrder.create).not.toHaveBeenCalled();
+      });
+
+      it('rejects an unknown quote line id', async () => {
+        mockPrisma.quoteResponseLineItem.findMany.mockResolvedValue([]);
+        await expect(service.createPurchaseOrder(quotedDto as never, companyAdmin)).rejects.toThrow(
+          BadRequestException,
+        );
+      });
+
+      it('skips the lookup when no line references a quote', async () => {
+        await service.createPurchaseOrder(baseDto as never, companyAdmin);
+        expect(mockPrisma.quoteResponseLineItem.findMany).not.toHaveBeenCalled();
+        expect(mockPrisma.purchaseOrder.create.mock.calls[0][0].data.rfqId).toBeUndefined();
+      });
     });
 
     // A draft created from an approved RFQ quote omits delivery location +
@@ -2102,6 +2265,7 @@ describe('PurchaseOrdersService', () => {
         message: 'Updated message',
         deliveryResponsibleName: 'Alice',
         deliveryResponsibleEmail: 'alice@test.com',
+        termsAndConditions: ' Revised terms ',
       };
 
       const result = await service.updatePurchaseOrder('po-1', dto as never, companyAdmin);
@@ -2112,6 +2276,7 @@ describe('PurchaseOrdersService', () => {
           where: { id: 'po-1' },
           data: expect.objectContaining({
             vendorId: 'v-3',
+            termsAndConditions: 'Revised terms',
             deliveryLocationId: 'loc-5',
             plannedDeliveryDate: new Date('2026-07-01'),
             currency: 'EUR',

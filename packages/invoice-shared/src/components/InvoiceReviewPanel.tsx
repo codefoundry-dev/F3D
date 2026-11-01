@@ -18,7 +18,11 @@ import {
   CustomDropdown,
   DatePicker,
   Input,
+  LineItemEditor,
   notificationService,
+  ScrollTable,
+  useIsPhone,
+  type LineItemField,
 } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
@@ -509,6 +513,9 @@ export function InvoiceReviewPanel({
     </Alert>
   ) : null;
 
+  // Phones get cards + an edit sheet instead of the line grid (ADR-0019 B10).
+  const isPhone = useIsPhone();
+
   if (!form) {
     return <div className="space-y-4 p-6">{banner}</div>;
   }
@@ -698,6 +705,80 @@ export function InvoiceReviewPanel({
     );
   };
 
+  // The line fields, defined once: the desktop grid renders each `input` in a
+  // cell, the phone sheet stacks them (B10).
+  const lineInput = (
+    line: ReviewLineForm,
+    field: keyof Omit<ReviewLineForm, 'key' | 'lineId'>,
+    label: string,
+    decimal = false,
+  ) => (
+    <Input
+      inputSize={isPhone ? 'md' : 'sm'}
+      inputMode={decimal ? 'decimal' : undefined}
+      value={line[field]}
+      onChange={(e) => updateLine(line.key, { [field]: e.target.value })}
+      aria-label={label}
+    />
+  );
+  const lineFieldDefs: {
+    field: keyof Omit<ReviewLineForm, 'key' | 'lineId'>;
+    label: string;
+    decimal?: boolean;
+    width?: string;
+    onCard?: boolean;
+  }[] = [
+    { field: 'description', label: t('review.line.description', { defaultValue: 'Description' }) },
+    {
+      field: 'quantity',
+      label: t('review.line.quantity', { defaultValue: 'Qty' }),
+      decimal: true,
+      width: 'w-24',
+      onCard: true,
+    },
+    {
+      field: 'unit',
+      label: t('review.line.unit', { defaultValue: 'Unit' }),
+      width: 'w-20',
+      onCard: true,
+    },
+    {
+      field: 'unitPrice',
+      label: t('review.line.unitPrice', { defaultValue: 'Unit price' }),
+      decimal: true,
+      width: 'w-28',
+      onCard: true,
+    },
+    {
+      field: 'lineTotal',
+      label: t('review.line.lineTotal', { defaultValue: 'Line total' }),
+      decimal: true,
+      width: 'w-28',
+      onCard: true,
+    },
+    // Buyer-side accounting coding (FOR-295)
+    {
+      field: 'costCode',
+      label: t('review.line.costCode', { defaultValue: 'Cost code' }),
+      width: 'w-28',
+      onCard: true,
+    },
+    {
+      field: 'glAccount',
+      label: t('review.line.glAccount', { defaultValue: 'GL account' }),
+      width: 'w-28',
+    },
+  ];
+  const lineFields: (LineItemField<ReviewLineForm> & { width?: string })[] = lineFieldDefs.map(
+    (d) => ({
+      key: d.field,
+      label: d.label,
+      width: d.width,
+      input: (line) => lineInput(line, d.field, d.label, d.decimal),
+      value: d.onCard ? (line) => line[d.field] || '-' : undefined,
+    }),
+  );
+
   return (
     <div className="space-y-5 p-6" data-testid="invoice-review-panel">
       {banner}
@@ -826,39 +907,46 @@ export function InvoiceReviewPanel({
           </Button>
         </div>
 
-        {form.lines.length === 0 ? (
+        {isPhone ? (
+          <LineItemEditor
+            className="mt-3"
+            lines={form.lines}
+            fields={lineFields}
+            getKey={(line) => line.key}
+            getTitle={(line, i) =>
+              line.description ||
+              t('review.line.untitled', { defaultValue: 'Line {{n}}', n: i + 1 })
+            }
+            getSubtitle={showLineFlags ? (line) => lineFlagBadges(line) : undefined}
+            onRemove={(i) => {
+              const line = form.lines[i];
+              if (line) removeLine(line.key);
+            }}
+            removeLabel={t('review.removeLine', { defaultValue: 'Remove line' })}
+            emptyState={
+              <p className="text-sm text-muted-foreground" data-testid="invoice-review-no-lines">
+                {t('review.noLines', {
+                  defaultValue: 'No line items yet. Add the billed lines from the document.',
+                })}
+              </p>
+            }
+          />
+        ) : form.lines.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground" data-testid="invoice-review-no-lines">
             {t('review.noLines', {
               defaultValue: 'No line items yet. Add the billed lines from the document.',
             })}
           </p>
         ) : (
-          <div className="mt-3 overflow-x-auto">
+          <ScrollTable wrapperClassName="mt-3">
             <table className="w-full min-w-[900px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="pb-2 pr-2 font-medium">
-                    {t('review.line.description', { defaultValue: 'Description' })}
-                  </th>
-                  <th className="w-24 pb-2 pr-2 font-medium">
-                    {t('review.line.quantity', { defaultValue: 'Qty' })}
-                  </th>
-                  <th className="w-20 pb-2 pr-2 font-medium">
-                    {t('review.line.unit', { defaultValue: 'Unit' })}
-                  </th>
-                  <th className="w-28 pb-2 pr-2 font-medium">
-                    {t('review.line.unitPrice', { defaultValue: 'Unit price' })}
-                  </th>
-                  <th className="w-28 pb-2 pr-2 font-medium">
-                    {t('review.line.lineTotal', { defaultValue: 'Line total' })}
-                  </th>
-                  {/* Buyer-side accounting coding (FOR-295) */}
-                  <th className="w-28 pb-2 pr-2 font-medium">
-                    {t('review.line.costCode', { defaultValue: 'Cost code' })}
-                  </th>
-                  <th className="w-28 pb-2 pr-2 font-medium">
-                    {t('review.line.glAccount', { defaultValue: 'GL account' })}
-                  </th>
+                  {lineFields.map((f) => (
+                    <th key={f.key} className={`${f.width ?? ''} pb-2 pr-2 font-medium`}>
+                      {f.label}
+                    </th>
+                  ))}
                   {showLineFlags && (
                     <th className="w-32 pb-2 pr-2 font-medium">
                       {t('review.line.poMatch', { defaultValue: 'PO match' })}
@@ -870,65 +958,11 @@ export function InvoiceReviewPanel({
               <tbody data-testid="invoice-review-lines">
                 {form.lines.map((line) => (
                   <tr key={line.key} className="border-b border-border last:border-b-0">
-                    <td className="py-1.5 pr-2 align-top">
-                      <Input
-                        inputSize="sm"
-                        value={line.description}
-                        onChange={(e) => updateLine(line.key, { description: e.target.value })}
-                        aria-label={t('review.line.description', { defaultValue: 'Description' })}
-                      />
-                    </td>
-                    <td className="py-1.5 pr-2 align-top">
-                      <Input
-                        inputSize="sm"
-                        inputMode="decimal"
-                        value={line.quantity}
-                        onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
-                        aria-label={t('review.line.quantity', { defaultValue: 'Qty' })}
-                      />
-                    </td>
-                    <td className="py-1.5 pr-2 align-top">
-                      <Input
-                        inputSize="sm"
-                        value={line.unit}
-                        onChange={(e) => updateLine(line.key, { unit: e.target.value })}
-                        aria-label={t('review.line.unit', { defaultValue: 'Unit' })}
-                      />
-                    </td>
-                    <td className="py-1.5 pr-2 align-top">
-                      <Input
-                        inputSize="sm"
-                        inputMode="decimal"
-                        value={line.unitPrice}
-                        onChange={(e) => updateLine(line.key, { unitPrice: e.target.value })}
-                        aria-label={t('review.line.unitPrice', { defaultValue: 'Unit price' })}
-                      />
-                    </td>
-                    <td className="py-1.5 pr-2 align-top">
-                      <Input
-                        inputSize="sm"
-                        inputMode="decimal"
-                        value={line.lineTotal}
-                        onChange={(e) => updateLine(line.key, { lineTotal: e.target.value })}
-                        aria-label={t('review.line.lineTotal', { defaultValue: 'Line total' })}
-                      />
-                    </td>
-                    <td className="py-1.5 pr-2 align-top">
-                      <Input
-                        inputSize="sm"
-                        value={line.costCode}
-                        onChange={(e) => updateLine(line.key, { costCode: e.target.value })}
-                        aria-label={t('review.line.costCode', { defaultValue: 'Cost code' })}
-                      />
-                    </td>
-                    <td className="py-1.5 pr-2 align-top">
-                      <Input
-                        inputSize="sm"
-                        value={line.glAccount}
-                        onChange={(e) => updateLine(line.key, { glAccount: e.target.value })}
-                        aria-label={t('review.line.glAccount', { defaultValue: 'GL account' })}
-                      />
-                    </td>
+                    {lineFields.map((f, i) => (
+                      <td key={f.key} className="py-1.5 pr-2 align-top">
+                        {f.input(line, i)}
+                      </td>
+                    ))}
                     {showLineFlags && (
                       <td
                         className="py-1.5 pr-2 align-top pt-2.5"
@@ -952,7 +986,7 @@ export function InvoiceReviewPanel({
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollTable>
         )}
       </div>
 

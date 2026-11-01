@@ -2,12 +2,17 @@ import { useTranslation } from '@forethread/i18n';
 import {
   DatePicker,
   Input,
+  LineItemEditor,
   Textarea,
   Select,
   SelectDropdown,
+  formatDate,
   todayIso,
+  ScrollTable,
+  useIsPhone,
+  type LineItemField,
 } from '@forethread/ui-components';
-import { Fragment, useState } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 
 import {
   type MrWizardLine,
@@ -33,6 +38,9 @@ export interface StepMaterialDetailsProps {
   /** Project members available to CC on a line. */
   memberOptions: MemberOption[];
   onPatchLine: (key: string, patch: Partial<MrWizardLine>) => void;
+  /** "Need by" for all lines (FOR-364). Omit to hide the control. */
+  needBy?: { date: string; time: string };
+  onNeedByChange?: (patch: Partial<{ date: string; time: string }>) => void;
 }
 
 /** Header cell — bold, letter-spaced 12px label matching the RFQ/PO list tables. */
@@ -109,16 +117,226 @@ export function StepMaterialDetails({
   locationOptions,
   memberOptions,
   onPatchLine,
+  needBy,
+  onNeedByChange,
 }: StepMaterialDetailsProps) {
   const { t } = useTranslation('materialRequests');
   const [notesOpen, setNotesOpen] = useState<Record<string, boolean>>({});
 
+  const isPhone = useIsPhone();
+
   const colCount = 8;
   const ccOptions = memberOptions.map((member) => ({ value: member.name, label: member.name }));
+  const locationLabel = (id: string | null | undefined) =>
+    locationOptions.find((loc) => loc.id === id)?.label;
+
+  // Per-line inputs, defined once: the desktop table renders them in its cells
+  // (and notes drawer); phones show cards + LineItemSheet (ADR-0019 B10, FOR-380).
+  const qtyInput = (line: MrWizardLine): ReactNode => {
+    const lineErrors = errors[line.key] ?? {};
+    return (
+      <>
+        <Input
+          type="number"
+          min={0}
+          value={line.quantity > 0 ? String(line.quantity) : ''}
+          onChange={(e) => onPatchLine(line.key, { quantity: Number(e.target.value) })}
+          placeholder={t('materialDetails.quantityPlaceholder')}
+          aria-label={t('materialDetails.quantityNeeded')}
+          aria-invalid={Boolean(lineErrors.quantity) || undefined}
+          data-testid={`mr-qty-${line.key}`}
+        />
+        {typeof line.maxAvailable === 'number' && !lineErrors.quantity && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t('materialDetails.maxAvailable', {
+              count: line.maxAvailable,
+              unit: line.unit.toLowerCase(),
+            })}
+          </p>
+        )}
+        {lineErrors.quantity === 'required' && (
+          <p className="mt-1 text-xs text-destructive">{t('materialDetails.quantityNeeded')}</p>
+        )}
+        {lineErrors.quantity === 'exceedsStock' && (
+          <p className="mt-1 text-xs text-destructive">
+            {t('materialDetails.maxAvailable', {
+              count: line.maxAvailable ?? 0,
+              unit: line.unit.toLowerCase(),
+            })}
+          </p>
+        )}
+      </>
+    );
+  };
+  const priorityInput = (line: MrWizardLine): ReactNode => (
+    <PriorityCell
+      value={line.priority}
+      onChange={(priority) => onPatchLine(line.key, { priority })}
+    />
+  );
+  const needByInput = (line: MrWizardLine): ReactNode => (
+    <DatePicker
+      value={line.expectedDeliveryDate ?? ''}
+      onChange={(date) => onPatchLine(line.key, { expectedDeliveryDate: date })}
+      placeholder={t('materialDetails.pickDate')}
+      minDate={todayIso()}
+      editable
+    />
+  );
+  const timeInput = (line: MrWizardLine): ReactNode => (
+    <Input
+      type="time"
+      value={line.deliveryTime ?? ''}
+      onChange={(e) => onPatchLine(line.key, { deliveryTime: e.target.value })}
+      aria-label={t('materialDetails.deliveryTime')}
+      data-testid={`mr-time-${line.key}`}
+    />
+  );
+  const addressInput = (line: MrWizardLine): ReactNode => (
+    <>
+      <Select
+        value={line.deliveryLocationId ?? ''}
+        onChange={(e) => onPatchLine(line.key, { deliveryLocationId: e.target.value })}
+        aria-label={t('materialDetails.deliveryAddress')}
+        aria-invalid={Boolean(errors[line.key]?.deliveryLocationId) || undefined}
+      >
+        <option value="">{t('materialDetails.selectAddress')}</option>
+        {locationOptions.map((loc) => (
+          <option key={loc.id} value={loc.id}>
+            {loc.label}
+          </option>
+        ))}
+      </Select>
+      {errors[line.key]?.deliveryLocationId && (
+        <p className="mt-1 text-xs text-destructive">{t('materialDetails.deliveryAddress')}</p>
+      )}
+    </>
+  );
+  const ccInput = (line: MrWizardLine): ReactNode => (
+    <SelectDropdown
+      selected={line.ccTeamMembers ?? []}
+      onSelectedChange={(names) => onPatchLine(line.key, { ccTeamMembers: names })}
+      options={ccOptions}
+      placeholder={t('materialDetails.ccTeamSelect')}
+      emptyMessage={t('materialDetails.noMembers')}
+    />
+  );
+  const instructionsInput = (line: MrWizardLine): ReactNode => (
+    <Textarea
+      value={line.instructions ?? ''}
+      onChange={(e) => onPatchLine(line.key, { instructions: e.target.value })}
+      placeholder={t('materialDetails.instructionsPlaceholder')}
+      rows={3}
+      aria-label={t('materialDetails.instructions')}
+    />
+  );
+  const internalNotesInput = (line: MrWizardLine): ReactNode => (
+    <Textarea
+      value={line.internalNotes ?? ''}
+      onChange={(e) => onPatchLine(line.key, { internalNotes: e.target.value })}
+      placeholder={t('materialDetails.internalNotesPlaceholder')}
+      rows={3}
+      aria-label={t('materialDetails.internalNotes')}
+    />
+  );
+  const optional = (label: string): ReactNode => (
+    <>
+      {label}{' '}
+      <span className="font-normal text-muted-foreground">({t('materialDetails.optional')})</span>
+    </>
+  );
+
+  const phoneFields: LineItemField<MrWizardLine>[] = [
+    {
+      key: 'quantity',
+      label: t('materialDetails.quantityNeeded'),
+      required: true,
+      value: (line) => (line.quantity > 0 ? `${line.quantity} ${line.unit}` : '-'),
+      input: qtyInput,
+    },
+    {
+      key: 'priority',
+      label: t('materialDetails.priority'),
+      value: (line) =>
+        line.priority === 'HIGH'
+          ? t('materialDetails.priorityHigh')
+          : t('materialDetails.priorityStandard'),
+      input: priorityInput,
+    },
+    {
+      key: 'needBy',
+      label: t('materialDetails.needByDate'),
+      value: (line) => (line.expectedDeliveryDate ? formatDate(line.expectedDeliveryDate) : '-'),
+      input: needByInput,
+    },
+    { key: 'time', label: t('materialDetails.deliveryTime'), input: timeInput },
+    {
+      key: 'address',
+      label: t('materialDetails.deliveryAddress'),
+      required: true,
+      value: (line) => locationLabel(line.deliveryLocationId) ?? '-',
+      input: addressInput,
+    },
+    { key: 'cc', label: optional(t('materialDetails.ccTeam')), input: ccInput },
+    { key: 'instructions', label: t('materialDetails.instructions'), input: instructionsInput },
+    {
+      key: 'internalNotes',
+      label: optional(t('materialDetails.internalNotes')),
+      input: internalNotesInput,
+    },
+  ];
+
+  // One date/time that fills every line; lines changed by hand keep their value.
+  const needByAll =
+    needBy && onNeedByChange ? (
+      <div className="mb-4 flex flex-col gap-1.5" data-testid="mr-need-by-all">
+        <span className="text-sm font-medium text-foreground">
+          {t('materialDetails.needByAll')}
+        </span>
+        <div className="flex flex-wrap gap-2">
+          <div className="w-full sm:w-[200px]">
+            <DatePicker
+              value={needBy.date}
+              onChange={(date) => onNeedByChange({ date })}
+              placeholder={t('materialDetails.pickDate')}
+              minDate={todayIso()}
+              editable
+            />
+          </div>
+          <div className="w-36">
+            <Input
+              type="time"
+              value={needBy.time}
+              onChange={(e) => onNeedByChange({ time: e.target.value })}
+              aria-label={t('materialDetails.needByAllTime')}
+              data-testid="mr-need-by-all-time"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">{t('materialDetails.needByAllHint')}</p>
+      </div>
+    ) : null;
+
+  if (isPhone) {
+    return (
+      <div className="p-4" data-testid="mr-details-step">
+        {needByAll}
+        <LineItemEditor
+          lines={lines}
+          fields={phoneFields}
+          getKey={(line) => line.key}
+          getTitle={(line) => line.materialName}
+          getSubtitle={(line) => line.unit}
+          hasError={(line) => Object.values(errors[line.key] ?? {}).some(Boolean)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="p-5 sm:p-6" data-testid="mr-details-step">
-      <div className="overflow-x-auto rounded-lg border border-border bg-card">
+      {needByAll}
+      <ScrollTable className="rounded-lg border border-border bg-card">
         <table className="w-full min-w-[1080px] text-sm">
           <thead>
             <tr className="border-b border-border bg-[hsl(var(--table-header))] text-left text-[hsl(var(--table-header-foreground))]">
@@ -140,7 +358,6 @@ export function StepMaterialDetails({
           </thead>
           <tbody>
             {lines.map((line) => {
-              const lineErrors = errors[line.key] ?? {};
               const isNotesOpen = notesOpen[line.key] ?? false;
               const hasNotes =
                 Boolean(line.instructions?.trim()) ||
@@ -158,92 +375,22 @@ export function StepMaterialDetails({
                     <td className={`${TD} whitespace-nowrap text-muted-foreground`}>{line.unit}</td>
 
                     {/* Quantity Needed */}
-                    <td className={TD}>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={line.quantity > 0 ? String(line.quantity) : ''}
-                        onChange={(e) =>
-                          onPatchLine(line.key, { quantity: Number(e.target.value) })
-                        }
-                        placeholder={t('materialDetails.quantityPlaceholder')}
-                        aria-label={t('materialDetails.quantityNeeded')}
-                        data-testid={`mr-qty-${line.key}`}
-                      />
-                      {typeof line.maxAvailable === 'number' && !lineErrors.quantity && (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {t('materialDetails.maxAvailable', {
-                            count: line.maxAvailable,
-                            unit: line.unit.toLowerCase(),
-                          })}
-                        </p>
-                      )}
-                      {lineErrors.quantity === 'required' && (
-                        <p className="mt-1 text-xs text-destructive">
-                          {t('materialDetails.quantityNeeded')}
-                        </p>
-                      )}
-                      {lineErrors.quantity === 'exceedsStock' && (
-                        <p className="mt-1 text-xs text-destructive">
-                          {t('materialDetails.maxAvailable', {
-                            count: line.maxAvailable ?? 0,
-                            unit: line.unit.toLowerCase(),
-                          })}
-                        </p>
-                      )}
-                    </td>
+                    <td className={TD}>{qtyInput(line)}</td>
 
                     {/* Priority */}
-                    <td className={TD}>
-                      <PriorityCell
-                        value={line.priority}
-                        onChange={(priority) => onPatchLine(line.key, { priority })}
-                      />
-                    </td>
+                    <td className={TD}>{priorityInput(line)}</td>
 
                     {/* Need by date */}
                     <td className={TD} data-testid={`mr-needby-${line.key}`}>
-                      <DatePicker
-                        value={line.expectedDeliveryDate ?? ''}
-                        onChange={(date) => onPatchLine(line.key, { expectedDeliveryDate: date })}
-                        placeholder={t('materialDetails.pickDate')}
-                        minDate={todayIso()}
-                        editable
-                      />
+                      {needByInput(line)}
                     </td>
 
                     {/* Delivery time */}
-                    <td className={TD}>
-                      <Input
-                        type="time"
-                        value={line.deliveryTime ?? ''}
-                        onChange={(e) => onPatchLine(line.key, { deliveryTime: e.target.value })}
-                        aria-label={t('materialDetails.deliveryTime')}
-                        data-testid={`mr-time-${line.key}`}
-                      />
-                    </td>
+                    <td className={TD}>{timeInput(line)}</td>
 
                     {/* Delivery Address */}
                     <td className={TD} data-testid={`mr-address-${line.key}`}>
-                      <Select
-                        value={line.deliveryLocationId ?? ''}
-                        onChange={(e) =>
-                          onPatchLine(line.key, { deliveryLocationId: e.target.value })
-                        }
-                        aria-label={t('materialDetails.deliveryAddress')}
-                      >
-                        <option value="">{t('materialDetails.selectAddress')}</option>
-                        {locationOptions.map((loc) => (
-                          <option key={loc.id} value={loc.id}>
-                            {loc.label}
-                          </option>
-                        ))}
-                      </Select>
-                      {lineErrors.deliveryLocationId && (
-                        <p className="mt-1 text-xs text-destructive">
-                          {t('materialDetails.deliveryAddress')}
-                        </p>
-                      )}
+                      {addressInput(line)}
                     </td>
 
                     {/* Notes toggle */}
@@ -285,29 +432,13 @@ export function StepMaterialDetails({
                                 ({t('materialDetails.optional')})
                               </span>
                             </span>
-                            <SelectDropdown
-                              selected={line.ccTeamMembers ?? []}
-                              onSelectedChange={(names) =>
-                                onPatchLine(line.key, { ccTeamMembers: names })
-                              }
-                              options={ccOptions}
-                              placeholder={t('materialDetails.ccTeamSelect')}
-                              emptyMessage={t('materialDetails.noMembers')}
-                            />
+                            {ccInput(line)}
                           </div>
                           <label className="flex flex-col gap-1.5">
                             <span className="text-sm font-medium text-foreground">
                               {t('materialDetails.instructions')}
                             </span>
-                            <Textarea
-                              value={line.instructions ?? ''}
-                              onChange={(e) =>
-                                onPatchLine(line.key, { instructions: e.target.value })
-                              }
-                              placeholder={t('materialDetails.instructionsPlaceholder')}
-                              rows={3}
-                              aria-label={t('materialDetails.instructions')}
-                            />
+                            {instructionsInput(line)}
                           </label>
                           <label className="flex flex-col gap-1.5">
                             <span className="text-sm font-medium text-foreground">
@@ -316,15 +447,7 @@ export function StepMaterialDetails({
                                 ({t('materialDetails.optional')})
                               </span>
                             </span>
-                            <Textarea
-                              value={line.internalNotes ?? ''}
-                              onChange={(e) =>
-                                onPatchLine(line.key, { internalNotes: e.target.value })
-                              }
-                              placeholder={t('materialDetails.internalNotesPlaceholder')}
-                              rows={3}
-                              aria-label={t('materialDetails.internalNotes')}
-                            />
+                            {internalNotesInput(line)}
                           </label>
                         </div>
                       </td>
@@ -335,7 +458,7 @@ export function StepMaterialDetails({
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollTable>
     </div>
   );
 }

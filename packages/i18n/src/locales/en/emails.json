@@ -264,5 +264,26 @@
     "heading": "Invoice {{invoiceReference}} is overdue.",
     "body": "An approved invoice from {{vendorName}} for {{amount}} was due on {{dueDate}} and has not been marked paid. Open it in Forethread to review and arrange payment.",
     "buttonLabel": "View invoice"
+  },
+  "materialRequestOverdueReminder": {
+    "subject": "Forethread — Material Request {{mrNumber}} Is Past Its Need-By Date",
+    "greeting": "Hi,",
+    "heading": "Material request {{mrNumber}} hasn't been ordered yet.",
+    "body": "Material request {{mrNumber}} for {{projectName}} was needed by {{dueDate}} and hasn't been converted to an RFQ or purchase order. Open it in Forethread to approve, order or update it.",
+    "buttonLabel": "View request"
+  },
+  "rfqOverdueReminder": {
+    "subject": "Forethread — RFQ {{rfqNumber}} Is Past Its Date With No Award",
+    "greeting": "Hi,",
+    "heading": "RFQ {{rfqNumber}} hasn't been awarded yet.",
+    "body": "RFQ {{rfqNumber}} for {{projectName}} was due on {{dueDate}} and no quote has been awarded. Open it in Forethread to review the quotes or update the dates.",
+    "buttonLabel": "View RFQ"
+  },
+  "poDeliveryOverdueReminder": {
+    "subject": "Forethread — Purchase Order {{poNumber}} Is Late",
+    "greeting": "Hi,",
+    "heading": "Purchase order {{poNumber}} hasn't been delivered.",
+    "body": "Purchase order {{poNumber}} from {{vendorName}} for {{projectName}} was expected on {{dueDate}} and hasn't been fully delivered. Open it in Forethread to follow up with the vendor or record the delivery.",
+    "buttonLabel": "View purchase order"
   }
 }

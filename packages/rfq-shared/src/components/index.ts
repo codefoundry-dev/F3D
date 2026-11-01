@@ -10,6 +10,7 @@ export type { StartOrderKind, StartOrderModalProps } from './StartOrderModal';
 export { TableManagementModal, DEFAULT_COLUMN_VISIBILITY } from './TableManagementModal';
 export type { ComparisonColumnVisibility, TableManagementModalProps } from './TableManagementModal';
 export { RfqLineItemsTab } from './RfqLineItemsTab';
+export { MaterialImageThumb } from './MaterialImageThumb';
 export { RfqDocumentsTab } from './RfqDocumentsTab';
 export { DocumentRow } from './DocumentCard';
 export { ToolbarIconButton } from './ToolbarIconButton';
@@ -36,3 +37,4 @@ export {
 } from './detail-primitives';
 export { VendorList } from './VendorList';
 export { VendorContactPopover } from './VendorContactPopover';
+export { DeliveryVarianceBadge } from './DeliveryVarianceBadge';

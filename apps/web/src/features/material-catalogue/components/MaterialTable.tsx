@@ -1,6 +1,12 @@
 import { type MaterialListItemDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Badge, DotActionsMenu, type DotAction } from '@forethread/ui-components';
+import {
+  Badge,
+  DotActionsMenu,
+  type DotAction,
+  InlineEditCell,
+  ScrollTable,
+} from '@forethread/ui-components';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
@@ -13,6 +19,7 @@ import { formatPrice, formatShortDate } from '../lib/format';
 import { MaterialStatusBadge } from './MaterialStatusBadge';
 
 export type MaterialSortKey = 'name' | 'createdAt' | 'updatedAt';
+export type MaterialCodeField = 'costCode' | 'taxCode';
 type SortDir = 'asc' | 'desc';
 
 export interface MaterialTablePermissions {
@@ -64,6 +71,16 @@ export interface MaterialTableProps {
    * back to its list-item id.
    */
   onRemoveFromList?: (material: MaterialListItemDto) => void;
+  /**
+   * When supplied, the cost / tax code cells edit in place (FOR-365) on rows
+   * `canEditCodes` allows; the promise drives the cell's saving / rollback state.
+   */
+  onSaveCode?: (
+    material: MaterialListItemDto,
+    field: MaterialCodeField,
+    value: string,
+  ) => Promise<unknown>;
+  canEditCodes?: (material: MaterialListItemDto) => boolean;
 }
 
 /** A filled (favourited) or outline (not) star, used by the favourites column. */
@@ -134,6 +151,8 @@ export function MaterialTable({
   onToggleFavourite,
   onAddToList,
   onRemoveFromList,
+  onSaveCode,
+  canEditCodes,
 }: MaterialTableProps) {
   const { t } = useTranslation(['materialCatalogue']);
 
@@ -214,9 +233,12 @@ export function MaterialTable({
   }
 
   return (
-    <div className="overflow-x-auto border border-border rounded-xl bg-card">
+    <ScrollTable
+      className="border border-border rounded-xl bg-card"
+      pinColumn={showStarColumn ? 2 : 1}
+    >
       <table className="w-full text-sm" data-testid="material-table">
-        <thead className="bg-muted/40 text-xs text-muted-foreground border-b border-border">
+        <thead className="bg-[color:color-mix(in_srgb,hsl(var(--muted))_40%,hsl(var(--card)))] text-xs text-muted-foreground border-b border-border">
           <tr>
             {showStarColumn && (
               <th className="w-10 px-3 py-3">
@@ -318,12 +340,20 @@ export function MaterialTable({
                       <span className="text-muted-foreground">—</span>
                     )}
                   </td>
-                  <td className="px-3 py-3 text-muted-foreground whitespace-nowrap">
-                    {material.costCode ?? '—'}
-                  </td>
-                  <td className="px-3 py-3 text-muted-foreground whitespace-nowrap">
-                    {material.taxCode ?? '—'}
-                  </td>
+                  {(['costCode', 'taxCode'] as const).map((field) => (
+                    <td key={field} className="px-3 py-3 text-muted-foreground whitespace-nowrap">
+                      <InlineEditCell
+                        value={material[field]}
+                        label={t(`table.columns.${field}`)}
+                        editable={Boolean(onSaveCode) && (canEditCodes?.(material) ?? true)}
+                        maxLength={100}
+                        onSave={(value) =>
+                          onSaveCode ? onSaveCode(material, field, value) : Promise.resolve()
+                        }
+                        data-testid={`material-${field}-${material.id}`}
+                      />
+                    </td>
+                  ))}
                   <td className="px-3 py-3 text-foreground whitespace-nowrap">
                     {formatPrice(material.pricePerUnit, material.currency)}
                   </td>
@@ -374,6 +404,6 @@ export function MaterialTable({
           )}
         </tbody>
       </table>
-    </div>
+    </ScrollTable>
   );
 }

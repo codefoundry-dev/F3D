@@ -47,7 +47,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { canonicalizeUnit } from '../doc-intelligence/doc-intelligence.bom';
 import { EmailService } from '../notifications/email.service';
 
-const UNCATEGORISED = 'Uncategorised';
+import { MaterialCategoriesService, UNCATEGORISED } from './material-categories.service';
 const IMPORT_BATCH_SIZE = 1000;
 /** Fallback name for an upload-derived material list with no usable filename. */
 const IMPORTED_LIST_FALLBACK_NAME = 'Imported catalogue';
@@ -126,6 +126,7 @@ export class MaterialsService {
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
     config: ConfigService,
+    private readonly categories: MaterialCategoriesService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
   }
@@ -276,19 +277,6 @@ export class MaterialsService {
       select: { materialId: true },
     });
     return new Set(favourites.map((f) => f.materialId));
-  }
-
-  // ── List Categories ─────────────────────────────────────────────────────────
-
-  async listCategories() {
-    const categories = await this.prisma.materialCategory.findMany({
-      orderBy: { name: 'asc' },
-    });
-
-    return categories.map((c) => ({
-      id: c.id,
-      name: c.name,
-    }));
   }
 
   // ── Suggestions (catalogue search autocomplete, US 4.04) ────────────────────
@@ -465,12 +453,12 @@ export class MaterialsService {
     const status =
       user.role === UserRole.SUPER_ADMIN ? MaterialStatus.PUBLIC : MaterialStatus.PRIVATE;
 
-    // Resolve the target category. A supplied id must exist; when omitted (the
+    // Resolve the target category. A supplied id must exist and be active; when omitted (the
     // BOM "create private material" quick-add has no category field) the row
     // falls back to the shared "Uncategorised" bucket, mirroring the catalogue
     // bulk-import.
     const categoryId = dto.categoryId
-      ? await this.assertCategoryExists(dto.categoryId)
+      ? await this.categories.assertAssignable(dto.categoryId)
       : await this.resolveUncategorisedCategoryId();
 
     const material = await this.prisma.material.create({
@@ -515,15 +503,6 @@ export class MaterialsService {
     });
 
     return this.toDetail(material);
-  }
-
-  /** Assert a supplied category id exists, returning it; 404 otherwise. */
-  private async assertCategoryExists(id: string): Promise<string> {
-    const category = await this.prisma.materialCategory.findUnique({ where: { id } });
-    if (!category) {
-      throw new NotFoundException('Material category not found');
-    }
-    return id;
   }
 
   /** Find-or-create the shared "Uncategorised" category and return its id. */
@@ -792,7 +771,9 @@ export class MaterialsService {
     for (const [lower, name] of distinct) {
       const existing = await this.prisma.materialCategory.findUnique({ where: { name } });
       if (existing) {
-        categoryMap.set(lower, existing.id);
+        // A deactivated category (FOR-362) takes no new materials: leaving it out
+        // of the map drops those rows into the Uncategorised fallback.
+        if (existing.isActive !== false) categoryMap.set(lower, existing.id);
       } else {
         const createdCat = await this.prisma.materialCategory.create({ data: { name } });
         categoryMap.set(lower, createdCat.id);
@@ -1260,17 +1241,13 @@ export class MaterialsService {
    * paths; re-run at approval time since catalogue state may have drifted.
    */
   private async validateMaterialEdit(
-    existing: Pick<Material, 'name' | 'companyId' | 'status'>,
+    existing: Pick<Material, 'name' | 'companyId' | 'status' | 'categoryId'>,
     dto: UpdateMaterialDto,
     id: string,
   ): Promise<void> {
     if (dto.categoryId !== undefined) {
-      const category = await this.prisma.materialCategory.findUnique({
-        where: { id: dto.categoryId },
-      });
-      if (!category) {
-        throw new NotFoundException('Material category not found');
-      }
+      // Keeping a now-deactivated category is fine; moving INTO one is not.
+      await this.categories.assertAssignable(dto.categoryId, existing.categoryId);
     }
 
     if (dto.name !== undefined && dto.name.toLowerCase() !== existing.name.toLowerCase()) {

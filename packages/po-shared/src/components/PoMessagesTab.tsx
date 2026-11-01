@@ -109,7 +109,10 @@ export function PoMessagesTab({ poId, poStatus, creatorUserId, height }: PoMessa
                       className="w-7 h-7 rounded-full object-cover shrink-0"
                     />
                   ) : (
-                    <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0 text-xs font-medium text-muted-foreground">
+                    <div
+                      className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0 text-xs font-medium text-muted-foreground"
+                      aria-hidden
+                    >
                       {msg.senderName.charAt(0).toUpperCase()}
                     </div>
                   )}

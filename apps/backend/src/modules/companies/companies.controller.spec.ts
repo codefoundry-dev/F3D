@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 
 import { ERR } from '../../common/constants/error-messages.const';
+import { PERMISSIONS_KEY } from '../../common/permissions/permissions.decorator';
 
 import { CompaniesController } from './companies.controller';
 import { CompaniesService, CompanyListQueryDto, AssignVendorsDto } from './companies.service';
@@ -194,6 +195,12 @@ describe('CompaniesController', () => {
   });
 
   describe('uploadLogo', () => {
+    it('requires company.updateLogo (Company Admin + Procurement Officer) (FOR-389)', () => {
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const handler = CompaniesController.prototype.uploadLogo;
+      expect(Reflect.getMetadata(PERMISSIONS_KEY, handler)).toEqual(['company.updateLogo']);
+    });
+
     const makeFile = (overrides: Partial<Express.Multer.File> = {}): Express.Multer.File =>
       ({
         originalname: 'logo.png',

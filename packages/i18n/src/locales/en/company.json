@@ -106,6 +106,27 @@
 
   "logoInvalidFormat": "Invalid file format. Please upload a JPG, PNG, WebP, or SVG image.",
   "logoTooLarge": "File is too large. Maximum size is 5 MB.",
+  "logoUpdated": "Logo updated",
+  "logoPdfHint": "Your logo appears on purchase order and invoice PDFs.",
+  "logoCard": {
+    "title": "Company logo",
+    "formats": "JPG, PNG, WebP or SVG, up to 5 MB.",
+    "upload": "Upload logo",
+    "change": "Change logo"
+  },
+  "automationCard": {
+    "title": "Procurement automation",
+    "mrToRfq": "Create a draft RFQ automatically when a material request is approved",
+    "saved": "Setting saved"
+  },
+  "poTermsCard": {
+    "title": "Purchase order terms & conditions",
+    "description": "Printed on every new purchase order and shown to vendors before they approve. Editing them never changes POs already created.",
+    "label": "Default terms & conditions",
+    "placeholder": "e.g. 1. Goods remain at the vendor's risk until delivered…",
+    "save": "Save terms",
+    "saved": "Terms & conditions saved"
+  },
 
   "editProfile": "Edit Profile",
   "editCompanyDetails": "Edit company details",

@@ -110,6 +110,7 @@ vi.mock('@forethread/i18n', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   cn: (...args: any[]) => args.filter(Boolean).join(' '),
   Button: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>,
   Spinner: () => <div data-testid="spinner" />,

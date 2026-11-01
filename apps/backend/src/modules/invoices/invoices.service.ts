@@ -40,6 +40,7 @@ import { ApprovalsService } from '../approvals/approvals.service';
 import { AuditAction, AuditService } from '../audit/audit.service';
 import { BrandingService } from '../export/branding.service';
 import { NotificationService } from '../notification-feed/notification.service';
+import { SYSTEM_SENDER } from '../notification-feed/notification.types';
 import { EmailService } from '../notifications/email.service';
 import { StorageService } from '../storage/storage.service';
 
@@ -554,6 +555,7 @@ export class InvoicesService {
         body,
         entityType: NotificationEntityType.INVOICE,
         entityId: invoiceId,
+        sender: SYSTEM_SENDER,
       });
 
       // The reviewer hears about it too, so completing a review is never a
@@ -566,6 +568,7 @@ export class InvoicesService {
           body,
           entityType: NotificationEntityType.INVOICE,
           entityId: invoiceId,
+          sender: SYSTEM_SENDER,
         });
       }
       return;
@@ -598,6 +601,7 @@ export class InvoicesService {
       body: `Invoice ${reference} (${amountLabel}) needs your approval.`,
       entityType: NotificationEntityType.INVOICE,
       entityId: invoiceId,
+      sender: { userId: reviewedByUserId },
     });
   }
 
@@ -618,7 +622,7 @@ export class InvoicesService {
     );
 
     if (notify.length > 0) {
-      this.notifyNominatedInvoiceApprovers(id, notify).catch(() => {});
+      this.notifyNominatedInvoiceApprovers(id, notify, user.id).catch(() => {});
     }
 
     return view;
@@ -633,6 +637,7 @@ export class InvoicesService {
   private async notifyNominatedInvoiceApprovers(
     invoiceId: string,
     nominees: ApproverPoolMember[],
+    nominatedByUserId: string,
   ): Promise<void> {
     const inv = await this.prisma.invoice.findUnique({
       where: { id: invoiceId },
@@ -666,6 +671,7 @@ export class InvoicesService {
       body: `Invoice ${reference} (${amountLabel}) needs your approval.`,
       entityType: NotificationEntityType.INVOICE,
       entityId: invoiceId,
+      sender: { userId: nominatedByUserId },
     });
   }
 
@@ -909,6 +915,7 @@ export class InvoicesService {
       entityType: NotificationEntityType.INVOICE,
       entityId: invoice.id,
       metadata: { rejectedByUserId },
+      sender: { userId: rejectedByUserId },
     });
   }
 

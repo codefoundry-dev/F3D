@@ -22,8 +22,11 @@ import {
   Button,
   getStatusColor,
   notificationService,
+  MobileActionBarSlot,
+  PageActions,
   PO_STATUS_COLORS,
   Spinner,
+  useHideMobileNav,
 } from '@forethread/ui-components';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
@@ -48,7 +51,14 @@ const GUEST_TABS: PoTab[] = ['details', 'lineItems'];
 const ACTIONABLE_STATUSES = ['SENT', 'ACKNOWLEDGED'];
 
 /** Statuses for which the backend accepts a change proposal (po-change.service). */
-const CHANGEABLE_STATUSES = ['SENT', 'ACKNOWLEDGED', 'ACCEPTED'];
+// Accepted POs move on to scheduled / late by themselves (FOR-396).
+const CHANGEABLE_STATUSES = [
+  'SENT',
+  'ACKNOWLEDGED',
+  'ACCEPTED',
+  'SCHEDULED_FOR_DELIVERY',
+  'LATE_FOR_DELIVERY',
+];
 
 /**
  * Public view of a Purchase Order reached from a tokenised email link (FOR-246).
@@ -60,6 +70,8 @@ const CHANGEABLE_STATUSES = ['SENT', 'ACKNOWLEDGED', 'ACCEPTED'];
 export default function GuestPurchaseOrderPage() {
   const { t } = useTranslation('purchaseOrders');
   const { token } = useParams<{ token: string }>();
+  // No app shell here, so no bottom nav: the phone action bar sits at the very bottom.
+  useHideMobileNav();
 
   const {
     data: po,
@@ -162,7 +174,7 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
   return (
     <div className="flex flex-col min-h-screen bg-background">
       {/* ═══ Header ═══ */}
-      <header className="border-b border-border bg-card px-6 py-4">
+      <header className="border-b border-border bg-card px-4 py-4 md:px-6">
         <div className="max-w-[1400px] mx-auto flex items-center justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
@@ -170,56 +182,72 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
                 {t('guest.title', { poNumber: po.poNumber })}
               </h1>
               <Badge className={getStatusColor(PO_STATUS_COLORS, po.status)}>
-                {t(`status.${po.status}` as never)}
+                {t([`vendorStatus.${po.status}`, `status.${po.status}`] as never)}
               </Badge>
             </div>
             <p className="text-sm text-muted-foreground">
               {t('guest.subtitle', { contractor: po.company.name, vendor: po.vendor?.name ?? '' })}
             </p>
           </div>
-          <div className="flex items-center gap-3 shrink-0">
-            {canChange && (
-              <Button
-                variant="outline"
-                size="lg"
-                leftIcon={<EditWithoutLineIcon className="w-4 h-4" />}
-                onClick={() =>
-                  navigate(ROUTES.guestPurchaseOrderChangeRequest.replace(':token', token))
-                }
-              >
-                {t('guest.requestChanges')}
-              </Button>
-            )}
-            {canChange && (
-              <Button
-                variant="outline"
-                size="lg"
-                leftIcon={<CrossIcon className="w-3.5 h-3.5" />}
-                onClick={() => setShowCancelModal(true)}
-              >
-                {t('actions.requestCancellation')}
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="lg"
-              leftIcon={<DownloadIcon className="w-4 h-4" />}
-              onClick={handleDownload}
-            >
-              {t('guest.download')}
-            </Button>
-          </div>
+          {/* Desktop: inline. Phones: Download (when there's nothing to act on) in
+              the footer bar, the rest in a ⋯ menu (B7). */}
+          <PageActions
+            className="gap-3 shrink-0"
+            size="lg"
+            moreLabel={t('guest.moreActions', { defaultValue: 'More actions' })}
+            primary={
+              isActionable ? undefined : (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  leftIcon={<DownloadIcon className="w-4 h-4" />}
+                  onClick={handleDownload}
+                >
+                  {t('guest.download')}
+                </Button>
+              )
+            }
+            secondary={[
+              ...(canChange
+                ? [
+                    {
+                      key: 'requestChanges',
+                      label: t('guest.requestChanges'),
+                      icon: <EditWithoutLineIcon className="w-4 h-4" />,
+                      onClick: () =>
+                        navigate(ROUTES.guestPurchaseOrderChangeRequest.replace(':token', token)),
+                    },
+                    {
+                      key: 'cancel',
+                      label: t('actions.requestCancellation'),
+                      icon: <CrossIcon className="w-3.5 h-3.5" />,
+                      onClick: () => setShowCancelModal(true),
+                    },
+                  ]
+                : []),
+              ...(isActionable
+                ? [
+                    {
+                      key: 'download',
+                      label: t('guest.download'),
+                      icon: <DownloadIcon className="w-4 h-4" />,
+                      onClick: handleDownload,
+                    },
+                  ]
+                : []),
+            ]}
+          />
         </div>
       </header>
 
       {/* ═══ Action band (FOR-247) — acknowledge / accept / decline via the token ═══ */}
       {isActionable ? (
-        <div className="px-6 pt-4 max-w-[1400px] mx-auto w-full">
+        <div className="px-4 pt-4 max-w-[1400px] mx-auto w-full md:px-6">
           <PoVendorActions po={po} token={token} />
         </div>
       ) : (
         /* ═══ Read-only info banner (terminal / non-actionable statuses) ═══ */
-        <div className="px-6 pt-4 max-w-[1400px] mx-auto w-full">
+        <div className="px-4 pt-4 max-w-[1400px] mx-auto w-full md:px-6">
           <Alert variant="info" icon={<InfoIcon className="w-4 h-4" />}>
             {t('guest.infoBanner')}
           </Alert>
@@ -227,7 +255,7 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
       )}
 
       {/* ═══ PO content ═══ */}
-      <div className="flex-1 px-6 py-4 max-w-[1400px] mx-auto w-full space-y-4">
+      <div className="flex-1 px-4 py-4 max-w-[1400px] mx-auto w-full space-y-4 md:px-6">
         <PoDetailTabs activeTab={effectiveTab} onTabChange={setActiveTab} tabs={guestTabs} />
         {effectiveTab === 'details' && <PoDetailsTab po={po} layout="page" isVendorView />}
         {effectiveTab === 'changeRequest' && pendingCr && (
@@ -242,6 +270,10 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
           <PoLineItemsTab lineItems={po.lineItems ?? []} layout="page" readOnly />
         )}
       </div>
+
+      {/* No app shell here: the footer bar (B7) portals to the end of the page so
+          its spacer doesn't open a gap mid-content. */}
+      <MobileActionBarSlot className="md:hidden" />
 
       {showCancelModal && (
         <PoCancelRequestModal

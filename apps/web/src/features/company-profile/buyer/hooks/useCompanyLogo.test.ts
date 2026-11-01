@@ -190,6 +190,7 @@ describe('useCompanyLogo', () => {
     if (capturedMutationOnSuccess.fn) {
       capturedMutationOnSuccess.fn();
       expect(mockInvalidateQueries).toHaveBeenCalled();
+      expect(mockNotificationService.success).toHaveBeenCalledWith('logoUpdated');
     }
   });
 });

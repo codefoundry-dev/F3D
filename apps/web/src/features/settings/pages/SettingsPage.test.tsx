@@ -28,8 +28,34 @@ vi.mock('react-router-dom', () => ({
 }));
 
 const mockUseUserRole = vi.fn();
+const mockPermissions = vi.hoisted(() => ({ keys: [] as string[] }));
 vi.mock('@/shared/role', () => ({
   useUserRole: () => mockUseUserRole(),
+  usePermissions: () => ({ has: (key: string) => mockPermissions.keys.includes(key) }),
+}));
+
+const mockCompanyId = vi.hoisted(() => ({ value: 'company-1' as string | null }));
+vi.mock('@/features/auth/state/auth.store', () => ({
+  useAuthStore: (selector: (s: unknown) => unknown) =>
+    selector({ currentUser: { companyId: mockCompanyId.value } }),
+}));
+
+vi.mock('@/features/company-profile/buyer/components/CompanyLogoCard', () => ({
+  CompanyLogoCard: ({ companyId }: { companyId: string }) => (
+    <div data-testid="company-logo-card">{companyId}</div>
+  ),
+}));
+
+vi.mock('../components/PoTermsCard', () => ({
+  PoTermsCard: ({ companyId }: { companyId: string }) => (
+    <div data-testid="po-terms-card">{companyId}</div>
+  ),
+}));
+
+vi.mock('../components/ProcurementAutomationCard', () => ({
+  ProcurementAutomationCard: ({ companyId }: { companyId: string }) => (
+    <div data-testid="procurement-automation-card">{companyId}</div>
+  ),
 }));
 
 import SettingsPage from './SettingsPage';
@@ -37,6 +63,59 @@ import SettingsPage from './SettingsPage';
 describe('SettingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPermissions.keys = [];
+    mockCompanyId.value = 'company-1';
+  });
+
+  describe('procurement automation card (FOR-396)', () => {
+    it('shows the MR → RFQ automation toggle to a Company Admin', () => {
+      mockUseUserRole.mockReturnValue(UserRole.COMPANY_ADMIN);
+      render(<SettingsPage />);
+      expect(screen.getByTestId('procurement-automation-card')).toHaveTextContent('company-1');
+    });
+
+    it('hides it from a Procurement Officer', () => {
+      mockUseUserRole.mockReturnValue(UserRole.PROCUREMENT_OFFICER);
+      render(<SettingsPage />);
+      expect(screen.queryByTestId('procurement-automation-card')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('PO terms & conditions card (FOR-398)', () => {
+    it('shows the default-terms editor to a Company Admin', () => {
+      mockUseUserRole.mockReturnValue(UserRole.COMPANY_ADMIN);
+      render(<SettingsPage />);
+      expect(screen.getByTestId('po-terms-card')).toHaveTextContent('company-1');
+    });
+
+    it('hides it from a Procurement Officer', () => {
+      mockUseUserRole.mockReturnValue(UserRole.PROCUREMENT_OFFICER);
+      render(<SettingsPage />);
+      expect(screen.queryByTestId('po-terms-card')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('company logo card (FOR-389)', () => {
+    it('shows the logo card to a Procurement Officer holding company.updateLogo', () => {
+      mockUseUserRole.mockReturnValue(UserRole.PROCUREMENT_OFFICER);
+      mockPermissions.keys = ['company.updateLogo'];
+      render(<SettingsPage />);
+      expect(screen.getByTestId('company-logo-card')).toHaveTextContent('company-1');
+    });
+
+    it('hides the logo card without company.updateLogo', () => {
+      mockUseUserRole.mockReturnValue(UserRole.FINANCIAL_OFFICER);
+      render(<SettingsPage />);
+      expect(screen.queryByTestId('company-logo-card')).not.toBeInTheDocument();
+    });
+
+    it('hides the logo card when the user has no company', () => {
+      mockUseUserRole.mockReturnValue(UserRole.SUPER_ADMIN);
+      mockPermissions.keys = ['company.updateLogo'];
+      mockCompanyId.value = null;
+      render(<SettingsPage />);
+      expect(screen.queryByTestId('company-logo-card')).not.toBeInTheDocument();
+    });
   });
 
   it('renders Users + Company links for COMPANY_ADMIN', () => {

@@ -217,9 +217,10 @@ function ExpectedDeliveryCard({ item, canRecord, onRecord, onViewPo }: ExpectedD
       className="rounded-[14px] border border-border bg-card"
       data-testid={`expected-card-${item.purchaseOrderId}`}
     >
-      {/* Header row: status flags + PO number, actions on the right */}
-      <div className="flex items-center justify-between gap-3 px-5 pt-4">
-        <div className="flex items-center gap-3">
+      {/* Header row: status flags + PO number, actions on the right. Phones stack
+          the actions under the PO, with Record delivery full width (FOR-380). */}
+      <div className="flex flex-col gap-3 px-4 pt-4 md:flex-row md:items-center md:justify-between md:px-5">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
           {item.isOverdue && (
             // Badge does not forward data-* props, so the testid lives on a wrapper.
             <span data-testid={`expected-overdue-${item.purchaseOrderId}`}>
@@ -231,7 +232,9 @@ function ExpectedDeliveryCard({ item, canRecord, onRecord, onViewPo }: ExpectedD
           <Badge className={getStatusColor(EXPECTED_DELIVERY_STATUS_COLORS, item.progress)}>
             {t(`expected.status.${item.progress}` as never)}
           </Badge>
-          <span className="text-lg font-semibold text-foreground">{item.poNumber}</span>
+          <span className="whitespace-nowrap text-lg font-semibold text-foreground">
+            {item.poNumber}
+          </span>
           {item.hasPendingReport && (
             <span className="text-xs text-muted-foreground">{t('expected.pendingReport')}</span>
           )}
@@ -242,6 +245,7 @@ function ExpectedDeliveryCard({ item, canRecord, onRecord, onViewPo }: ExpectedD
             <Button
               variant="primary"
               size="sm"
+              className="max-md:min-h-11 max-md:flex-1"
               leftIcon={<PlusIcon className="w-4 h-4" />}
               onClick={onRecord}
               data-testid={`expected-record-${item.purchaseOrderId}`}
@@ -251,7 +255,7 @@ function ExpectedDeliveryCard({ item, canRecord, onRecord, onViewPo }: ExpectedD
           )}
           <button
             type="button"
-            className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex items-center justify-center rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground max-md:size-11"
             title={t('list.view')}
             aria-label={t('list.view')}
             data-testid={`expected-view-po-${item.purchaseOrderId}`}
@@ -262,10 +266,10 @@ function ExpectedDeliveryCard({ item, canRecord, onRecord, onViewPo }: ExpectedD
         </div>
       </div>
 
-      <div className="mx-5 my-3 border-t border-border" />
+      <div className="mx-4 my-3 border-t border-border md:mx-5" />
 
       {/* Detail grid */}
-      <div className="grid grid-cols-2 gap-y-3 px-5 pb-4 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-y-3 px-4 pb-4 sm:grid-cols-3 md:px-5 lg:grid-cols-5">
         <div className="min-w-0 pr-3">
           <p className="text-xs text-muted-foreground">{t('expected.fields.expectedDate')}</p>
           <p

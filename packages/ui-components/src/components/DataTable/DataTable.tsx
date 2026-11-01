@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { cn } from '../../utils/cn';
 import { Checkbox } from '../Checkbox';
 import { EmptyState } from '../EmptyState';
+import { ScrollTable } from '../ScrollTable';
 import { SortIcon } from '../SortIcon';
 import {
   TABLE_CELL,
@@ -175,7 +176,7 @@ export function DataTable<T>({
 
       {/* Table — only when loading or has data */}
       {(loading || data.length > 0) && (
-        <div className="overflow-x-auto">
+        <ScrollTable pinColumn={selectable ? 2 : 1}>
           <table className="w-full text-sm">
             <thead>
               <tr className={TABLE_HEADER_ROW}>
@@ -256,7 +257,7 @@ export function DataTable<T>({
                 })}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       )}
 
       {/* Pagination footer — hidden when no data */}

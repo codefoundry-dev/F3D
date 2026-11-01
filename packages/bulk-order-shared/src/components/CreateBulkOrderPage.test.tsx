@@ -76,6 +76,13 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: any) => <div>{children}</div>,
+  // ADR-0019 B8 phone chrome: desktop in tests.
+  useIsPhone: () => false,
+  useHideMobileNav: () => {},
+  useMobileExitHandler: () => {},
+  MobileActionBar: () => null,
+  ConfirmDialog: () => null,
   todayIso: () => new Date().toISOString().slice(0, 10),
   Alert: ({ children }: any) => <div data-testid="alert">{children}</div>,
   Button: ({ children, onClick, disabled }: any) => (
@@ -135,7 +142,7 @@ beforeEach(() => {
 describe('CreateBulkOrderPage', () => {
   it('sets the page title on mount', () => {
     render(<CreateBulkOrderPage />);
-    expect(mockSetTitle).toHaveBeenCalledWith('create.title', 'create.subtitle');
+    expect(mockSetTitle).toHaveBeenCalledWith('create.title', 'create.subtitle', '/bulk-orders');
   });
 
   it('shows the auto-populate info banner and a disabled Create in the empty state', () => {

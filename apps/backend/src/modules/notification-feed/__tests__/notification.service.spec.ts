@@ -18,6 +18,7 @@ const mockPrisma = {
   },
   user: {
     findMany: jest.fn(),
+    findUnique: jest.fn(),
   },
 };
 
@@ -57,6 +58,7 @@ describe('NotificationService', () => {
         userIds: ['user-1', 'user-1', 'user-2'],
         type: 'MESSAGE_RECEIVED' as never,
         title: 'New message',
+        sender: {},
       });
 
       expect(mockPrisma.notification.create).toHaveBeenCalledTimes(2);
@@ -68,14 +70,24 @@ describe('NotificationService', () => {
     });
 
     it('is a no-op with no recipients', async () => {
-      await service.createForUsers({ userIds: [], type: 'PO_ISSUED' as never, title: 'x' });
+      await service.createForUsers({
+        userIds: [],
+        type: 'PO_ISSUED' as never,
+        title: 'x',
+        sender: {},
+      });
       expect(mockPrisma.notification.create).not.toHaveBeenCalled();
     });
 
     it('swallows persistence errors (best-effort)', async () => {
       mockPrisma.notification.create.mockRejectedValueOnce(new Error('db down'));
       await expect(
-        service.createForUsers({ userIds: ['user-1'], type: 'PO_ISSUED' as never, title: 'x' }),
+        service.createForUsers({
+          userIds: ['user-1'],
+          type: 'PO_ISSUED' as never,
+          title: 'x',
+          sender: {},
+        }),
       ).resolves.toBeUndefined();
       expect(mockEvents.emit).not.toHaveBeenCalled();
     });
@@ -89,16 +101,114 @@ describe('NotificationService', () => {
         entityType: 'QUOTE_RESPONSE' as never,
         entityId: 'q-1',
         metadata: { rfqId: 'rfq-9' },
+        sender: { name: 'Guest Rep', companyName: 'Acme Supplies' },
       });
       expect(mockPrisma.notification.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             entityType: 'QUOTE_RESPONSE',
             entityId: 'q-1',
-            metadata: { rfqId: 'rfq-9' },
+            metadata: {
+              rfqId: 'rfq-9',
+              sender: { name: 'Guest Rep', companyName: 'Acme Supplies' },
+            },
           }),
         }),
       );
+    });
+  });
+
+  describe('sender (FOR-366)', () => {
+    it("snapshots the acting user's name and company onto the row", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        name: 'Jane Doe',
+        company: { legalName: 'Acme Builders Ltd', tradeName: 'Acme' },
+      });
+      await service.createForUsers({
+        userIds: ['user-2'],
+        type: 'PO_ISSUED' as never,
+        title: 'Purchase order received',
+        sender: { userId: 'actor-1' },
+      });
+
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'actor-1' } }),
+      );
+      expect(mockPrisma.notification.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          metadata: { sender: { name: 'Jane Doe', companyName: 'Acme Builders Ltd' } },
+        }),
+      });
+      expect(mockEvents.emit).toHaveBeenCalledWith(
+        'user-2',
+        expect.objectContaining({ sender: 'Jane Doe · Acme Builders Ltd' }),
+      );
+    });
+
+    it('falls back to the trade name, and lets explicit values win', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        name: 'Jane Doe',
+        company: { legalName: null, tradeName: 'Acme' },
+      });
+      await service.createForUsers({
+        userIds: ['user-2'],
+        type: 'MESSAGE_RECEIVED' as never,
+        title: 'New message',
+        sender: { userId: 'actor-1', name: 'J. Doe' },
+      });
+      expect(mockEvents.emit).toHaveBeenCalledWith(
+        'user-2',
+        expect.objectContaining({ sender: 'J. Doe · Acme' }),
+      );
+    });
+
+    it('skips the lookup when both parts are given', async () => {
+      await service.createForUsers({
+        userIds: ['user-2'],
+        type: 'PO_DECLINED' as never,
+        title: 'Purchase order declined',
+        sender: { userId: 'actor-1', name: 'Rep', companyName: 'Vendor Co' },
+      });
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('renders system events as Forethread', async () => {
+      await service.createForUsers({
+        userIds: ['user-2'],
+        type: 'PAYMENT_DUE' as never,
+        title: 'Payment due soon',
+        sender: {},
+      });
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+      expect(mockEvents.emit).toHaveBeenCalledWith(
+        'user-2',
+        expect.objectContaining({ sender: 'Forethread' }),
+      );
+    });
+
+    it('falls back to the company for a guest, with no stray separators', async () => {
+      await service.createForUsers({
+        userIds: ['user-2'],
+        type: 'PO_DECLINED' as never,
+        title: 'Purchase order declined',
+        sender: { companyName: ' Vendor Co, ' },
+      });
+      expect(mockEvents.emit).toHaveBeenCalledWith(
+        'user-2',
+        expect.objectContaining({ sender: 'Vendor Co' }),
+      );
+    });
+
+    it('shows no sender for rows written before one was recorded', async () => {
+      mockPrisma.notification.findMany.mockResolvedValue([
+        row({ metadata: { rfqId: 'r-1' } }),
+        row({ id: 'n-2', metadata: null }),
+        row({ id: 'n-3', metadata: { sender: { name: 'Sam', companyName: 'Northside' } } }),
+      ]);
+      mockPrisma.notification.count.mockResolvedValue(0);
+
+      const result = await service.list(user, {});
+      expect(result.items.map((i) => i.sender)).toEqual([null, null, 'Sam · Northside']);
     });
   });
 
@@ -108,6 +218,7 @@ describe('NotificationService', () => {
       await service.createForEmails(['a@t.com', 'a@t.com', 'b@t.com'], {
         type: 'RFQ_RECEIVED' as never,
         title: 'New RFQ received',
+        sender: {},
       });
 
       expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
@@ -119,20 +230,28 @@ describe('NotificationService', () => {
     });
 
     it('is a no-op when no emails are given', async () => {
-      await service.createForEmails([], { type: 'RFQ_RECEIVED' as never, title: 'x' });
+      await service.createForEmails([], { type: 'RFQ_RECEIVED' as never, title: 'x', sender: {} });
       expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
     });
 
     it('creates nothing when no email matches an active user', async () => {
       mockPrisma.user.findMany.mockResolvedValue([]);
-      await service.createForEmails(['ghost@t.com'], { type: 'RFQ_RECEIVED' as never, title: 'x' });
+      await service.createForEmails(['ghost@t.com'], {
+        type: 'RFQ_RECEIVED' as never,
+        title: 'x',
+        sender: {},
+      });
       expect(mockPrisma.notification.create).not.toHaveBeenCalled();
     });
 
     it('swallows lookup errors', async () => {
       mockPrisma.user.findMany.mockRejectedValueOnce(new Error('db down'));
       await expect(
-        service.createForEmails(['a@t.com'], { type: 'RFQ_RECEIVED' as never, title: 'x' }),
+        service.createForEmails(['a@t.com'], {
+          type: 'RFQ_RECEIVED' as never,
+          title: 'x',
+          sender: {},
+        }),
       ).resolves.toBeUndefined();
     });
   });

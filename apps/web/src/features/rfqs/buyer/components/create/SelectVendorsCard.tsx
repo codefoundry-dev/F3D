@@ -1,7 +1,7 @@
 import { UNCATEGORISED, type ResolvedVendor, type VendorListItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { VendorCategory } from '@forethread/shared-types/client';
-import { Button, Checkbox, Spinner, cn, formatEnum } from '@forethread/ui-components';
+import { Button, Checkbox, Spinner, cn, formatEnum, ScrollTable } from '@forethread/ui-components';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 import ChevronRightIcon from '@forethread/ui-components/assets/icons/chevron-right.svg?react';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
@@ -191,7 +191,7 @@ export function SelectVendorsCard({
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder={t('create.vendors.searchPlaceholder')}
-              className="w-full h-10 rounded-lg border border-border bg-background pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground/40"
+              className="w-full h-10 max-md:h-11 rounded-lg border border-border bg-background pl-9 pr-3 text-base md:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground/40"
               data-testid="vendor-search"
             />
           </div>
@@ -278,160 +278,162 @@ export function SelectVendorsCard({
               <Spinner />
             </div>
           ) : (
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-muted/50 z-10">
-                <tr className={TABLE_HEADER_ROW}>
-                  <th className={TABLE_TH}>{t('create.vendors.colName')}</th>
-                  <th className={TABLE_TH}>{t('create.vendors.colDeclared')}</th>
-                  <th className={TABLE_TH}>{t('create.vendors.colCategory')}</th>
-                  <th className={cn(TABLE_TH, 'w-36')}>{t('create.vendors.colAction')}</th>
-                </tr>
-              </thead>
-              {filtered.map((vendor) => {
-                const reps = vendor.representatives ?? [];
-                const sendableCount = reps.filter(isSendable).length;
-                // A vendor whose reps are ALL deactivated behaves like a vendor
-                // with none: it falls back to the company contact email rather
-                // than offering an "add all reps" button that selects nobody.
-                const hasReps = sendableCount > 0;
-                /** Display-only: deactivated reps stay visible in the expander
-                 *  so their absence from the selection is explained, not silent. */
-                const hasAnyReps = reps.length > 0;
-                const selectedCount = selectedRepCountFor(vendor);
-                const onRfq = vendorSet.has(vendor.companyId);
-                const isExpanded = expanded[vendor.companyId] ?? false;
-                const allRepsSelected = hasReps && selectedCount === sendableCount;
+            <ScrollTable>
+              <table className="w-full text-sm">
+                <thead className="bg-[color:color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]">
+                  <tr className={TABLE_HEADER_ROW}>
+                    <th className={TABLE_TH}>{t('create.vendors.colName')}</th>
+                    <th className={TABLE_TH}>{t('create.vendors.colDeclared')}</th>
+                    <th className={TABLE_TH}>{t('create.vendors.colCategory')}</th>
+                    <th className={cn(TABLE_TH, 'w-36')}>{t('create.vendors.colAction')}</th>
+                  </tr>
+                </thead>
+                {filtered.map((vendor) => {
+                  const reps = vendor.representatives ?? [];
+                  const sendableCount = reps.filter(isSendable).length;
+                  // A vendor whose reps are ALL deactivated behaves like a vendor
+                  // with none: it falls back to the company contact email rather
+                  // than offering an "add all reps" button that selects nobody.
+                  const hasReps = sendableCount > 0;
+                  /** Display-only: deactivated reps stay visible in the expander
+                   *  so their absence from the selection is explained, not silent. */
+                  const hasAnyReps = reps.length > 0;
+                  const selectedCount = selectedRepCountFor(vendor);
+                  const onRfq = vendorSet.has(vendor.companyId);
+                  const isExpanded = expanded[vendor.companyId] ?? false;
+                  const allRepsSelected = hasReps && selectedCount === sendableCount;
 
-                return (
-                  <tbody key={vendor.id}>
-                    <tr className={TABLE_BODY_ROW}>
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {hasAnyReps ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setExpanded((prev) => ({
-                                  ...prev,
-                                  [vendor.companyId]: !isExpanded,
-                                }))
-                              }
-                              className="p-0.5 -ml-1 text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                              aria-label={t('create.vendors.toggleReps', {
-                                name: vendor.companyName,
-                              })}
-                              aria-expanded={isExpanded}
-                              data-testid={`vendor-expand-${vendor.companyId}`}
-                            >
-                              {isExpanded ? (
-                                <ChevronDownIcon className="w-4 h-4" />
-                              ) : (
-                                <ChevronRightIcon className="w-4 h-4" />
-                              )}
-                            </button>
-                          ) : (
-                            <span className="w-4 shrink-0" />
-                          )}
-                          <VendorAvatar name={vendor.companyName} />
-                          <div className="min-w-0">
-                            <span className="font-medium text-foreground truncate block">
-                              {vendor.companyName}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {hasReps
-                                ? selectedCount > 0
-                                  ? t('create.vendors.repsSelected', { count: selectedCount })
-                                  : t('create.vendors.repsAvailable', { count: sendableCount })
-                                : t('create.vendors.companyContact')}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3 text-muted-foreground">{declaredOf(vendor)}</td>
-                      <td className="py-2.5 px-3 text-muted-foreground">{categoryOf(vendor)}</td>
-                      <td className="py-2.5 px-3">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={onRfq ? 'outline' : 'primary'}
-                          onClick={() =>
-                            hasReps
-                              ? toggleAllReps(vendor, !allRepsSelected)
-                              : toggleCompany(vendor, !onRfq)
-                          }
-                          className="w-full whitespace-nowrap"
-                          data-testid={`vendor-toggle-${vendor.companyId}`}
-                        >
-                          {hasReps
-                            ? allRepsSelected
-                              ? t('create.vendors.added')
-                              : t('create.vendors.addAllReps')
-                            : onRfq
-                              ? t('create.vendors.added')
-                              : t('create.vendors.add')}
-                        </Button>
-                      </td>
-                    </tr>
-
-                    {hasAnyReps && isExpanded && (
-                      <tr>
-                        <td colSpan={4} className="bg-muted/30 px-3 py-2">
-                          <div className="flex flex-col gap-1 pl-8">
-                            {reps.map((rep) => {
-                              const sendable = isSendable(rep);
-                              return (
-                                <div
-                                  key={rep.id}
-                                  className={cn(
-                                    'flex items-center gap-3 rounded-md px-2 py-1.5',
-                                    sendable ? 'hover:bg-accent/60' : 'opacity-60',
-                                  )}
-                                  data-testid={`rep-row-${rep.id}`}
-                                >
-                                  <Checkbox
-                                    size="sm"
-                                    checked={sendable && repSet.has(rep.id)}
-                                    disabled={!sendable}
-                                    onChange={(checked) => toggleRep(vendor, rep.id, checked)}
-                                  />
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-sm text-foreground truncate">
-                                      {rep.name}
-                                      {rep.position && (
-                                        <span className="text-muted-foreground ml-2">
-                                          {rep.position}
-                                        </span>
-                                      )}
-                                      {!sendable && (
-                                        <span className="ml-2 text-xs text-muted-foreground italic">
-                                          {t('create.vendors.repDeactivated')}
-                                        </span>
-                                      )}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground truncate">
-                                      {rep.email}
-                                    </p>
-                                  </div>
-                                </div>
-                              );
-                            })}
+                  return (
+                    <tbody key={vendor.id}>
+                      <tr className={TABLE_BODY_ROW}>
+                        <td className="py-2.5 px-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {hasAnyReps ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpanded((prev) => ({
+                                    ...prev,
+                                    [vendor.companyId]: !isExpanded,
+                                  }))
+                                }
+                                className="p-0.5 -ml-1 text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                                aria-label={t('create.vendors.toggleReps', {
+                                  name: vendor.companyName,
+                                })}
+                                aria-expanded={isExpanded}
+                                data-testid={`vendor-expand-${vendor.companyId}`}
+                              >
+                                {isExpanded ? (
+                                  <ChevronDownIcon className="w-4 h-4" />
+                                ) : (
+                                  <ChevronRightIcon className="w-4 h-4" />
+                                )}
+                              </button>
+                            ) : (
+                              <span className="w-4 shrink-0" />
+                            )}
+                            <VendorAvatar name={vendor.companyName} />
+                            <div className="min-w-0">
+                              <span className="font-medium text-foreground truncate block">
+                                {vendor.companyName}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {hasReps
+                                  ? selectedCount > 0
+                                    ? t('create.vendors.repsSelected', { count: selectedCount })
+                                    : t('create.vendors.repsAvailable', { count: sendableCount })
+                                  : t('create.vendors.companyContact')}
+                              </span>
+                            </div>
                           </div>
                         </td>
+                        <td className="py-2.5 px-3 text-muted-foreground">{declaredOf(vendor)}</td>
+                        <td className="py-2.5 px-3 text-muted-foreground">{categoryOf(vendor)}</td>
+                        <td className="py-2.5 px-3">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={onRfq ? 'outline' : 'primary'}
+                            onClick={() =>
+                              hasReps
+                                ? toggleAllReps(vendor, !allRepsSelected)
+                                : toggleCompany(vendor, !onRfq)
+                            }
+                            className="w-full whitespace-nowrap"
+                            data-testid={`vendor-toggle-${vendor.companyId}`}
+                          >
+                            {hasReps
+                              ? allRepsSelected
+                                ? t('create.vendors.added')
+                                : t('create.vendors.addAllReps')
+                              : onRfq
+                                ? t('create.vendors.added')
+                                : t('create.vendors.add')}
+                          </Button>
+                        </td>
                       </tr>
-                    )}
+
+                      {hasAnyReps && isExpanded && (
+                        <tr>
+                          <td colSpan={4} className="bg-muted/30 px-3 py-2">
+                            <div className="flex flex-col gap-1 pl-8">
+                              {reps.map((rep) => {
+                                const sendable = isSendable(rep);
+                                return (
+                                  <div
+                                    key={rep.id}
+                                    className={cn(
+                                      'flex items-center gap-3 rounded-md px-2 py-1.5',
+                                      sendable ? 'hover:bg-accent/60' : 'opacity-60',
+                                    )}
+                                    data-testid={`rep-row-${rep.id}`}
+                                  >
+                                    <Checkbox
+                                      size="sm"
+                                      checked={sendable && repSet.has(rep.id)}
+                                      disabled={!sendable}
+                                      onChange={(checked) => toggleRep(vendor, rep.id, checked)}
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm text-foreground truncate">
+                                        {rep.name}
+                                        {rep.position && (
+                                          <span className="text-muted-foreground ml-2">
+                                            {rep.position}
+                                          </span>
+                                        )}
+                                        {!sendable && (
+                                          <span className="ml-2 text-xs text-muted-foreground italic">
+                                            {t('create.vendors.repDeactivated')}
+                                          </span>
+                                        )}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground truncate">
+                                        {rep.email}
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  );
+                })}
+                {filtered.length === 0 && (
+                  <tbody>
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-muted-foreground">
+                        {t('create.vendors.noVendors')}
+                      </td>
+                    </tr>
                   </tbody>
-                );
-              })}
-              {filtered.length === 0 && (
-                <tbody>
-                  <tr>
-                    <td colSpan={4} className="py-8 text-center text-muted-foreground">
-                      {t('create.vendors.noVendors')}
-                    </td>
-                  </tr>
-                </tbody>
-              )}
-            </table>
+                )}
+              </table>
+            </ScrollTable>
           )}
         </div>
       </div>

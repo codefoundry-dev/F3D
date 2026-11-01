@@ -14,6 +14,7 @@ import type { EmailLogContext } from '../email-log/email-log.types';
 import { EMAIL_TEMPLATES } from './email-templates.const';
 import type { EmailTemplateName } from './email-templates.const';
 import { ResendService } from './resend.service';
+import { withSenderDisplayName } from './sender-address';
 
 /** An attachment ready to hand to whichever transport is active. */
 export interface EmailAttachment {
@@ -24,14 +25,14 @@ export interface EmailAttachment {
 
 /**
  * Issuing-company branding for a transactional email (FOR-267). When provided the
- * layout renders the company logo above the message body, embedded as a remote
- * `<img>` pointing at the public logo URL.
+ * layout names the company above the message body (with its logo, if it has one)
+ * and the `From` display name becomes "{name} via Forethread" (FOR-383).
  */
 export interface EmailBrand {
-  /** Company display name — used as the logo's alt text. */
+  /** Company display name — shown in the header, the logo alt text and the sender. */
   name: string;
-  /** Public URL to the company logo image. */
-  logoUrl: string;
+  /** URL to the company logo image; absent when the company has no logo. */
+  logoUrl?: string;
 }
 
 /** A rendered message ready to hand to whichever transport is active. */
@@ -46,6 +47,8 @@ interface EmailMessage {
   template?: string;
   /** When set, a successful dispatch is recorded in the email log (FOR-213). */
   log?: EmailLogContext;
+  /** Issuing company shown as the sender's display name (FOR-383). */
+  fromName?: string;
 }
 
 @Injectable()
@@ -135,6 +138,11 @@ export class EmailService implements OnModuleInit {
     return this.layoutTemplate({ content, footer, ...(brand ? { brand } : {}) });
   }
 
+  /** Sender display-name fields for a branded email (FOR-383); none when unbranded. */
+  private brandSender(brand?: EmailBrand): Pick<EmailMessage, 'fromName'> {
+    return brand ? { fromName: brand.name } : {};
+  }
+
   /**
    * Send a rendered message through the preferred transport.
    *
@@ -154,6 +162,7 @@ export class EmailService implements OnModuleInit {
         ...(message.html ? { html: message.html } : {}),
         ...(message.text ? { text: message.text } : {}),
         ...(message.attachments ? { attachments: message.attachments } : {}),
+        ...(message.fromName ? { fromName: message.fromName } : {}),
       });
       if (result.status === 'error') {
         // The send is gone (retries already exhausted in ResendService). Log it
@@ -172,7 +181,7 @@ export class EmailService implements OnModuleInit {
 
     try {
       await this.transporter.sendMail({
-        from: this.from,
+        from: withSenderDisplayName(this.from, message.fromName),
         to: message.to,
         ...(hasCc ? { cc: message.cc } : {}),
         subject: message.subject,
@@ -326,6 +335,7 @@ export class EmailService implements OnModuleInit {
           poNumber,
         }),
         html: this.renderEmail(EMAIL_TEMPLATES.DELIVERY_CODE, t, { code, expiresMinutes }, brand),
+        ...this.brandSender(brand),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -421,6 +431,7 @@ export class EmailService implements OnModuleInit {
         ...(options?.cc && options.cc.length > 0 ? { cc: options.cc } : {}),
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.RFQ_RECEIVED, t, { replyUrl }, options?.brand),
+        ...this.brandSender(options?.brand),
         ...(options?.attachments && options.attachments.length > 0
           ? { attachments: options.attachments }
           : {}),
@@ -449,6 +460,7 @@ export class EmailService implements OnModuleInit {
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.PO_ISSUED, t, { viewUrl }, brand),
+        ...this.brandSender(brand),
         attachments,
         template: EMAIL_TEMPLATES.PO_ISSUED,
         ...(log ? { log } : {}),
@@ -473,6 +485,7 @@ export class EmailService implements OnModuleInit {
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.PO_PENDING_APPROVAL, t, { viewUrl }, brand),
+        ...this.brandSender(brand),
         template: EMAIL_TEMPLATES.PO_PENDING_APPROVAL,
         ...(log ? { log } : {}),
       });
@@ -503,6 +516,7 @@ export class EmailService implements OnModuleInit {
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.PO_APPROVAL_UNROUTABLE, t, { viewUrl }, brand),
+        ...this.brandSender(brand),
         template: EMAIL_TEMPLATES.PO_APPROVAL_UNROUTABLE,
         ...(log ? { log } : {}),
       });
@@ -531,6 +545,7 @@ export class EmailService implements OnModuleInit {
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.INVOICE_PENDING_APPROVAL, t, { viewUrl }, brand),
+        ...this.brandSender(brand),
         template: EMAIL_TEMPLATES.INVOICE_PENDING_APPROVAL,
         ...(log ? { log } : {}),
       });
@@ -561,6 +576,7 @@ export class EmailService implements OnModuleInit {
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.INVOICE_APPROVAL_UNROUTABLE, t, { viewUrl }, brand),
+        ...this.brandSender(brand),
         template: EMAIL_TEMPLATES.INVOICE_APPROVAL_UNROUTABLE,
         ...(log ? { log } : {}),
       });
@@ -595,6 +611,7 @@ export class EmailService implements OnModuleInit {
           { viewUrl },
           brand,
         ),
+        ...this.brandSender(brand),
         template: EMAIL_TEMPLATES.MATERIAL_REQUEST_PENDING_APPROVAL,
         ...(log ? { log } : {}),
       });
@@ -630,6 +647,7 @@ export class EmailService implements OnModuleInit {
           { viewUrl },
           brand,
         ),
+        ...this.brandSender(brand),
         template: EMAIL_TEMPLATES.MATERIAL_REQUEST_APPROVAL_UNROUTABLE,
         ...(log ? { log } : {}),
       });
@@ -659,6 +677,7 @@ export class EmailService implements OnModuleInit {
           { viewUrl, reason },
           brand,
         ),
+        ...this.brandSender(brand),
         template: EMAIL_TEMPLATES.PO_DECLINED_BY_VENDOR,
         ...(log ? { log } : {}),
       });
@@ -687,6 +706,7 @@ export class EmailService implements OnModuleInit {
           { viewUrl, comment: comment ?? undefined },
           brand,
         ),
+        ...this.brandSender(brand),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -712,6 +732,7 @@ export class EmailService implements OnModuleInit {
           { viewUrl, comment: comment ?? undefined },
           brand,
         ),
+        ...this.brandSender(brand),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -737,6 +758,7 @@ export class EmailService implements OnModuleInit {
           { viewUrl, comment: comment ?? undefined },
           brand,
         ),
+        ...this.brandSender(brand),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -772,6 +794,7 @@ export class EmailService implements OnModuleInit {
           { viewUrl, comment: options?.comment ?? undefined },
           options?.brand,
         ),
+        ...this.brandSender(options?.brand),
         template: EMAIL_TEMPLATES.PO_CHANGE_PROPOSED,
         ...(options?.log ? { log: options.log } : {}),
       });
@@ -798,6 +821,7 @@ export class EmailService implements OnModuleInit {
           { viewUrl, comment: options?.comment ?? undefined },
           options?.brand,
         ),
+        ...this.brandSender(options?.brand),
         template: EMAIL_TEMPLATES.PO_CHANGE_APPROVED,
         ...(options?.log ? { log: options.log } : {}),
       });
@@ -824,6 +848,7 @@ export class EmailService implements OnModuleInit {
           { viewUrl, comment: options?.comment ?? undefined },
           options?.brand,
         ),
+        ...this.brandSender(options?.brand),
         template: EMAIL_TEMPLATES.PO_CHANGE_REJECTED,
         ...(options?.log ? { log: options.log } : {}),
       });
@@ -851,6 +876,7 @@ export class EmailService implements OnModuleInit {
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.PO_INTERNAL_CHANGE, t, { viewUrl }, options?.brand),
+        ...this.brandSender(options?.brand),
         template: EMAIL_TEMPLATES.PO_INTERNAL_CHANGE,
         ...(options?.log ? { log: options.log } : {}),
       });
@@ -882,6 +908,7 @@ export class EmailService implements OnModuleInit {
           { viewUrl, comment: options?.comment ?? undefined },
           options?.brand,
         ),
+        ...this.brandSender(options?.brand),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -908,6 +935,7 @@ export class EmailService implements OnModuleInit {
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.PAYMENT_DUE_REMINDER, t, { viewUrl }, brand),
+        ...this.brandSender(brand),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -933,6 +961,33 @@ export class EmailService implements OnModuleInit {
         to,
         subject: t.subject,
         html: this.renderEmail(EMAIL_TEMPLATES.PAYMENT_OVERDUE_REMINDER, t, { viewUrl }, brand),
+        ...this.brandSender(brand),
+      });
+    } catch {
+      // fire-and-forget: email failures are non-critical
+    }
+  }
+
+  /**
+   * Daily overdue reminder (FOR-394): an MR not yet ordered, an RFQ not yet
+   * awarded, or a PO not yet delivered passed its date. One layout, three copy
+   * sections. Fire-and-forget like the payment reminders.
+   */
+  async sendOverdueReminderEmail(
+    to: string,
+    section: 'materialRequestOverdueReminder' | 'rfqOverdueReminder' | 'poDeliveryOverdueReminder',
+    params: Record<string, string>,
+    viewUrl: string,
+    brand?: EmailBrand,
+  ): Promise<void> {
+    const t = this.getTranslations(section, params);
+
+    try {
+      await this.dispatch({
+        to,
+        subject: t.subject,
+        html: this.renderEmail(EMAIL_TEMPLATES.OVERDUE_REMINDER, t, { viewUrl }, brand),
+        ...this.brandSender(brand),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -1004,6 +1059,7 @@ export class EmailService implements OnModuleInit {
           { comment: comment ?? undefined },
           brand,
         ),
+        ...this.brandSender(brand),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -1030,6 +1086,7 @@ export class EmailService implements OnModuleInit {
           { viewUrl, comment: comment ?? undefined },
           brand,
         ),
+        ...this.brandSender(brand),
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -1056,6 +1113,7 @@ export class EmailService implements OnModuleInit {
           { viewUrl, comment: comment ?? undefined },
           brand,
         ),
+        ...this.brandSender(brand),
       });
     } catch {
       // fire-and-forget: email failures are non-critical

@@ -18,6 +18,7 @@ import { RequirePermissions } from '../../common/permissions';
 import { VendorInviteService } from './vendor-invite.service';
 import { VendorUserInviteService } from './vendor-user-invite.service';
 import {
+  CreateOneOffVendorDto,
   CreateVendorRepresentativeDto,
   CreateWarehouseDto,
   InviteVendorDto,
@@ -56,6 +57,28 @@ export class VendorsController {
   @ApiResponse({ status: 200, description: 'Paginated vendor list' })
   listVendors(@Query() query: VendorListQueryDto, @CurrentUser() user: AuthenticatedUser) {
     return this.vendorsService.listVendors(query, user);
+  }
+
+  // ── One-off vendors (FOR-395) ─────────────────────────────────────────────
+
+  @Post('one-off')
+  @RequirePermissions('company.create')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Add a one-off vendor usable on one project only (no invite)' })
+  @ApiResponse({ status: 201, description: 'One-off vendor added (or existing vendor reused)' })
+  @ApiResponse({ status: 409, description: 'Already a one-off vendor on another project' })
+  createOneOffVendor(@Body() dto: CreateOneOffVendorDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.vendorsService.createOneOffVendor(dto, user);
+  }
+
+  @Post(':id/promote')
+  @RequirePermissions('company.create')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Promote a one-off vendor to a full vendor of the company' })
+  @ApiResponse({ status: 200, description: 'Vendor promoted' })
+  @ApiResponse({ status: 404, description: 'Not a one-off vendor of this company' })
+  promoteOneOffVendor(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.vendorsService.promoteOneOffVendor(id, user);
   }
 
   // ── Vendor Categories (ADR-0018) ──────────────────────────────────────────

@@ -15,6 +15,7 @@ import {
   formatDate,
   formatEnum,
   getStatusColor,
+  ScrollTable,
 } from '@forethread/ui-components';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 import { useMemo, useState } from 'react';
@@ -292,7 +293,7 @@ export function InvoicePoComparison({ match }: InvoicePoComparisonProps) {
                   Held back to `xl`: below it the nine columns don't fit beside
                   the app sidebar, and a table scrolled sideways compares worse
                   than the stacked cards. */}
-              <div className="hidden overflow-x-auto xl:block">
+              <ScrollTable wrapperClassName="hidden xl:block">
                 <table className="w-full min-w-[860px] text-sm">
                   <thead>
                     <tr className="text-left text-xs text-muted-foreground">
@@ -413,7 +414,7 @@ export function InvoicePoComparison({ match }: InvoicePoComparisonProps) {
                     })}
                   </tbody>
                 </table>
-              </div>
+              </ScrollTable>
 
               {/* ── Narrow: one card per line, PO beside invoice ────────────── */}
               <ul

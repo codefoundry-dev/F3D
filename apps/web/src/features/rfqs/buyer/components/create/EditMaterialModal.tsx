@@ -20,7 +20,7 @@ interface EditMaterialModalProps {
 
 /**
  * "Edit material" dialog (Figma 5.05): name, description, unit + quantity,
- * expected delivery date, optional note.
+ * expected delivery date + time, optional note.
  */
 export function EditMaterialModal({ item, onConfirm, onClose }: EditMaterialModalProps) {
   const { t } = useTranslation('rfqs');
@@ -29,6 +29,7 @@ export function EditMaterialModal({ item, onConfirm, onClose }: EditMaterialModa
   const [uom, setUom] = useState(item.uom);
   const [quantity, setQuantity] = useState(String(item.quantity));
   const [expectedDate, setExpectedDate] = useState(item.expectedDeliveryDate ?? '');
+  const [deliveryTime, setDeliveryTime] = useState(item.deliveryTime ?? '');
   const [notes, setNotes] = useState(item.notes ?? '');
   const [error, setError] = useState<string | null>(null);
 
@@ -44,6 +45,7 @@ export function EditMaterialModal({ item, onConfirm, onClose }: EditMaterialModa
       uom: uom.trim(),
       quantity: qty,
       expectedDeliveryDate: expectedDate || undefined,
+      deliveryTime: deliveryTime || undefined,
       notes: notes.trim() || undefined,
     });
     onClose();
@@ -116,15 +118,26 @@ export function EditMaterialModal({ item, onConfirm, onClose }: EditMaterialModa
         </label>
       </div>
 
-      <div className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-        <span>{t('create.editMaterial.expDeliveryDate')}</span>
-        <DatePicker
-          value={expectedDate}
-          onChange={setExpectedDate}
-          editable
-          minDate={todayIso()}
-          placeholder="mm/dd/yyyy"
-        />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+          <span>{t('create.editMaterial.expDeliveryDate')}</span>
+          <DatePicker
+            value={expectedDate}
+            onChange={setExpectedDate}
+            editable
+            minDate={todayIso()}
+            placeholder="mm/dd/yyyy"
+          />
+        </div>
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+          <span>{t('create.editMaterial.deliveryTime')}</span>
+          <Input
+            type="time"
+            value={deliveryTime}
+            onChange={(e) => setDeliveryTime(e.target.value)}
+            data-testid="edit-material-time"
+          />
+        </label>
       </div>
 
       <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">

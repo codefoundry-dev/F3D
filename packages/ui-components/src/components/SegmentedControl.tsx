@@ -31,8 +31,8 @@ export interface SegmentedControlProps<T extends string = string> {
 }
 
 const sizeStyles = {
-  sm: 'h-7 px-2 text-[13px] gap-1.5',
-  md: 'h-[30px] px-2.5 text-[14px] gap-2',
+  sm: 'h-7 max-md:h-[38px] px-2 text-[13px] gap-1.5',
+  md: 'h-[30px] max-md:h-[38px] px-2.5 text-[14px] gap-2',
 } as const;
 
 export function SegmentedControl<T extends string = string>({

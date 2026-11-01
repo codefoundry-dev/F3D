@@ -236,12 +236,10 @@ export function CatalogueImportModal({ onClose, onImported }: CatalogueImportMod
       <div className="relative flex min-h-0 flex-1 flex-col">
         <ModalHeader onClose={onClose}>{t('import.title')}</ModalHeader>
         {/* Pinned layout: header + footer stay fixed; only this body scrolls.
-            `toolbar:overflow-y-auto` overrides the shared ModalBody's desktop
+            `md:overflow-y-auto` overrides the shared ModalBody's desktop
             `overflow-visible` (tailwind-merge, last-wins) and the bounded height
             keeps the card within 90vh so the footer is always visible. */}
-        <ModalBody className="toolbar:flex-1 toolbar:min-h-0 toolbar:overflow-y-auto">
-          {body}
-        </ModalBody>
+        <ModalBody className="md:flex-1 md:min-h-0 md:overflow-y-auto">{body}</ModalBody>
         <ModalFooter>
           <Button variant="outline" onClick={onClose}>
             {t('import.actions.cancel')}

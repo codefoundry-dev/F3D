@@ -21,7 +21,40 @@ vi.mock('@forethread/i18n', () => ({
 vi.mock('@forethread/rfq-shared', () => ({
   usePageTitleStore: (sel: (s: { setTitle: () => void }) => unknown) => sel({ setTitle: () => {} }),
 }));
+const phone = vi.hoisted(() => ({ value: false }));
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
+  useIsPhone: () => phone.value,
+  MobileActionBar: ({ children }: { children: ReactNode }) => (
+    <div data-testid="mobile-action-bar">{children}</div>
+  ),
+  // Minimal card/sheet stand-in: renders every visible field's input per line.
+  LineItemEditor: ({
+    lines,
+    fields,
+    getTitle,
+  }: {
+    lines: unknown[];
+    fields: {
+      key: string;
+      input: (l: unknown, i: number) => ReactNode;
+      hidden?: (l: unknown, i: number) => boolean;
+    }[];
+    getTitle: (l: unknown, i: number) => ReactNode;
+  }) => (
+    <div data-testid="line-item-cards">
+      {lines.map((l, i) => (
+        <div key={i} data-testid="line-item-card">
+          {getTitle(l, i)}
+          {fields
+            .filter((f) => !f.hidden?.(l, i))
+            .map((f) => (
+              <div key={f.key}>{f.input(l, i)}</div>
+            ))}
+        </div>
+      ))}
+    </div>
+  ),
   Button: ({
     children,
     onClick,
@@ -62,7 +95,8 @@ vi.mock('../components/DamageDetailsForm', () => ({
   EMPTY_DAMAGE_DRAFT: { damagedQuantity: '0', damageType: '', damageDisposition: null, photos: [] },
 }));
 vi.mock('../components/SelectPoModal', () => ({
-  SelectPoModal: ({ open }: { open: boolean }) => (open ? <div data-testid="select-po-modal" /> : null),
+  SelectPoModal: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="select-po-modal" /> : null,
 }));
 vi.mock('../services/deliveries.service', () => ({
   useCreateDeliveryReport: () => ({ mutateAsync: mockCreate, isPending: false }),
@@ -108,6 +142,7 @@ function po(overrides: Partial<PoDetail> = {}): PoDetail {
 describe('CreateDeliveryReportPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    phone.value = false;
     mockSearchParams.get.mockReturnValue('po-1');
   });
 
@@ -158,5 +193,35 @@ describe('CreateDeliveryReportPage', () => {
       }),
     );
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/deliveries/d-99'));
+  });
+
+  describe('on phones (ADR-0019 B10, FOR-380)', () => {
+    beforeEach(() => {
+      phone.value = true;
+    });
+
+    it('swaps the table for line cards that reuse the grid fields', () => {
+      mockUsePurchaseOrder.mockReturnValue({ data: po(), isLoading: false, isError: false });
+      render(<CreateDeliveryReportPage />);
+      expect(screen.queryByTestId('delivery-create-table')).not.toBeInTheDocument();
+      expect(screen.getAllByTestId('line-item-card')).toHaveLength(1);
+      // Same bound inputs as the desktop cells.
+      expect(screen.getByLabelText('create.columns.qtyReceived Aluminum Beam 6061')).toHaveValue(
+        30,
+      );
+      expect(screen.queryByTestId('damage-form')).not.toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText('create.columns.outcome Aluminum Beam 6061'), {
+        target: { value: 'DAMAGED' },
+      });
+      expect(screen.getByTestId('damage-form')).toBeInTheDocument();
+    });
+
+    it('puts Cancel / Submit in the fixed action bar', () => {
+      mockUsePurchaseOrder.mockReturnValue({ data: po(), isLoading: false, isError: false });
+      render(<CreateDeliveryReportPage />);
+      expect(screen.getByTestId('mobile-action-bar')).toContainElement(
+        screen.getByTestId('delivery-submit'),
+      );
+    });
   });
 });

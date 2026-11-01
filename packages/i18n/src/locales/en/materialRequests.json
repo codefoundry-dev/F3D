@@ -121,6 +121,9 @@
     "priorityHigh": "High",
     "needByDate": "Need by date",
     "pickDate": "Pick date",
+    "needByAll": "Need by (all lines)",
+    "needByAllTime": "Need by time (all lines)",
+    "needByAllHint": "Fills in every line. You can still change individual lines.",
     "deliveryTime": "Delivery Time",
     "pickTime": "Pick time",
     "deliveryAddress": "Delivery Address",
@@ -270,7 +273,6 @@
     "activity": "Activity",
     "noActivity": "No activity recorded yet.",
     "columns": {
-      "lineId": "Line Item ID",
       "materialName": "Material name",
       "description": "Description",
       "quantity": "Qty ordered",
@@ -286,7 +288,8 @@
       "convertToRfq": "Convert to RFQ",
       "convertToPo": "Convert to PO",
       "terminalNote": "This request has been {{status}} and can no longer be actioned.",
-      "ownRequestNote": "You raised this request, so another approver must review it."
+      "ownRequestNote": "You raised this request, so another approver must review it.",
+      "autoConvertedToRfq": "Approved. Draft RFQ {{rfqNumber}} was created from this request."
     }
   },
   "declineModal": {

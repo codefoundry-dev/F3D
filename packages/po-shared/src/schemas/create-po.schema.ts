@@ -1,4 +1,4 @@
-import { PickUpTimeExpectation } from '@forethread/shared-types/client';
+import { PickUpTimeExpectation, PO_TERMS_MAX_LENGTH } from '@forethread/shared-types/client';
 import { z } from 'zod';
 
 // ── PO creation mode types ───────────────────────────────────────────────────
@@ -39,6 +39,9 @@ export const lineItemSchema = z.object({
   // the diff can match edited rows against the original PO line. Optional so the
   // create/from-rfq/drawdown modes are unaffected.
   lineItemId: z.string().optional(),
+  // FOR-391: the approved quote line this row is bought from. Set on every
+  // from-RFQ path; the price then renders read-only and the server pins it.
+  quoteLineItemId: z.string().optional(),
 });
 
 // FOR-210: a single header-level delivery row. Both fields are optional, but a
@@ -102,6 +105,9 @@ export const formSchema = z.object({
     .optional(),
   // Step 3
   message: z.string().optional(),
+  // FOR-398: prefilled from the company default; left undefined until that
+  // loads, so the backend falls back to the default rather than "no terms".
+  termsAndConditions: z.string().max(PO_TERMS_MAX_LENGTH).optional(),
 });
 
 /** Field names validated on each step — used by trigger() */
@@ -135,6 +141,7 @@ export const EMPTY_LINE_ITEM = {
   bulkOrderLineItemId: undefined as string | undefined,
   availableQty: undefined as number | undefined,
   lineItemId: undefined as string | undefined,
+  quoteLineItemId: undefined as string | undefined,
 };
 
 export const EMPTY_DELIVERY_ROW = {

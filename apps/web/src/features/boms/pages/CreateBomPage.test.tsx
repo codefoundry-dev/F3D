@@ -26,6 +26,8 @@ vi.mock('@/app/route-config', () => ({
 }));
 
 vi.mock('@forethread/po-shared', () => ({
+  scrollToFirstInvalid: () => {},
+  useWizardChrome: () => ({ exitConfirm: null, requestExit: () => {} }),
   Stepper: (p: any) => <div data-testid="stepper">{p.step}</div>,
 }));
 
@@ -56,6 +58,13 @@ vi.mock('../components/create/BomReviewStep', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  // ADR-0019 B8 phone chrome: desktop in tests.
+  useIsPhone: () => false,
+  useHideMobileNav: () => {},
+  useMobileExitHandler: () => {},
+  MobileActionBar: () => null,
+  CompactStepper: () => null,
+  ConfirmDialog: () => null,
   Button: (p: any) => (
     <button
       onClick={p.onClick}

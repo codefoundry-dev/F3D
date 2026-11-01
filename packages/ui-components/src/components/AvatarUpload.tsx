@@ -85,6 +85,8 @@ export function AvatarUpload({
             type="button"
             className={cn(
               'absolute bottom-0 right-0 rounded-full bg-card border border-border flex items-center justify-center shadow-sm hover:bg-accent transition-colors',
+              // Invisible 44px hit area around the small badge on phones.
+              "max-md:after:absolute max-md:after:-inset-2 max-md:after:content-['']",
               BADGE_CLASSES[size],
             )}
             onClick={() => inputRef.current?.click()}

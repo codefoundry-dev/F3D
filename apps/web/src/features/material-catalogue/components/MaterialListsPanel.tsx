@@ -27,7 +27,7 @@ export interface MaterialListsPanelProps {
   /**
    * Opens the flat "all company materials" view. Pinned above the list cards so
    * materials added outside an upload (create wizard, BOM/RFQ quick-add) are
-   * reachable — they are private to the company, so the Public Materials tab
+   * reachable — they are private to the company, so the Global Materials tab
    * never shows them.
    */
   onViewAllCompanyMaterials: () => void;

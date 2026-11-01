@@ -18,6 +18,7 @@ import { useMaterial } from '../hooks/useMaterial';
 import { useUpdateMaterial } from '../hooks/useMaterialFormMutations';
 import { useMaterialCategories } from '../hooks/useMaterials';
 import { CheckCircleIcon } from '../icons/phosphor';
+import { assignableCategories } from '../lib/categories';
 import { detailToForm, emptyMaterialForm, formToUpdateCore } from '../lib/materialForm';
 
 export default function EditMaterialCorePage() {
@@ -156,7 +157,10 @@ export default function EditMaterialCorePage() {
 
       <FormProvider {...methods}>
         <form onSubmit={(e) => e.preventDefault()} className="mt-6 space-y-6" noValidate>
-          <CoreIdentificationFields categories={categories} heading={false} />
+          <CoreIdentificationFields
+            categories={assignableCategories(categories, material?.categoryId)}
+            heading={false}
+          />
           {isChangeRequest && (
             <ChangeReasonField
               value={changeReason}

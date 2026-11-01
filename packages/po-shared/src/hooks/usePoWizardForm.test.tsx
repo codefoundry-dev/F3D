@@ -121,6 +121,28 @@ describe('usePoWizardForm — drawdown payload (US 5.09)', () => {
     expect(captured.input?.lineItems[0].bulkOrderLineItemId).toBeUndefined();
   });
 
+  it('sends the edited terms & conditions, and omits them when never prefilled (FOR-398)', async () => {
+    const line = { materialName: 'Steel', unitOfMeasure: 'kg', unitPrice: 5, quantityOrdered: 1 };
+
+    const untouched: Captured = { input: null };
+    const first = setup('manual', undefined, untouched);
+    setLineItems(first.hook, [line]);
+    await act(async () => {
+      first.hook.result.current.onSubmit(first.hook.result.current.form.getValues());
+    });
+    // Not loaded → omitted, so the backend applies the company default.
+    expect(untouched.input).not.toHaveProperty('termsAndConditions', expect.anything());
+
+    const edited: Captured = { input: null };
+    const second = setup('manual', undefined, edited);
+    setLineItems(second.hook, [line]);
+    act(() => second.hook.result.current.form.setValue('termsAndConditions', 'Edited terms'));
+    await act(async () => {
+      second.hook.result.current.onSubmit(second.hook.result.current.form.getValues());
+    });
+    expect(edited.input?.termsAndConditions).toBe('Edited terms');
+  });
+
   it('blocks Continue on step 2 when a line exceeds its available qty', () => {
     const captured: Captured = { input: null };
     const { hook } = setup('from-bulk-order', 'bo-1', captured);

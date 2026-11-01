@@ -9,6 +9,8 @@ import { Spinner } from '@forethread/ui-components';
 import { useCallback, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 
+import { ROUTES } from '@/app/route-config';
+
 export default function QuoteResponseDetailPage() {
   const { t } = useTranslation('rfqs');
   const { id: rfqId, quoteId } = useParams<{ id: string; quoteId: string }>();
@@ -26,11 +28,20 @@ export default function QuoteResponseDetailPage() {
     [setSearchParams],
   );
 
+  // App-bar breadcrumb: RFQ Management › RFQ-XXXX › {vendor}; the RFQ crumb and
+  // the phone back arrow return to the RFQ's Responses tab (FOR-393).
   useEffect(() => {
     const qr = rfq?.quoteResponses.find((q) => q.id === quoteId);
-    if (qr) setPageTitle(qr.vendorName);
+    if (rfq && qr) {
+      const rfqResponses = `${ROUTES.rfqDetail.replace(':id', rfq.id)}?tab=responses`;
+      setPageTitle(qr.vendorName, null, rfqResponses, [
+        { label: t('list.title'), to: ROUTES.rfqs },
+        { label: rfq.rfqNumber ?? rfq.projectName, to: rfqResponses },
+        { label: qr.vendorName },
+      ]);
+    }
     return () => setPageTitle(null);
-  }, [rfq, setPageTitle, quoteId]);
+  }, [rfq, setPageTitle, quoteId, t]);
 
   if (isLoading) {
     return (

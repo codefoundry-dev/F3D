@@ -7,6 +7,7 @@ import {
   formatDate,
   Spinner,
   TablePagination,
+  ScrollTable,
 } from '@forethread/ui-components';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
 import { useEffect, useMemo, useState } from 'react';
@@ -127,7 +128,7 @@ export default function OfficerDashboardPage() {
               <p className="mt-1 text-xs text-muted-foreground">{t('officer.emptyHint')}</p>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-border">
+            <ScrollTable className="rounded-lg border border-border">
               <table className="w-full text-sm" data-testid="mr-officer-table">
                 <thead>
                   <tr className="border-b border-border bg-[hsl(var(--table-header))] text-left text-[hsl(var(--table-header-foreground))]">
@@ -165,7 +166,7 @@ export default function OfficerDashboardPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollTable>
           )}
         </div>
 

@@ -5,9 +5,16 @@ import { MemoryRouter } from 'react-router-dom';
 
 /* ── Mocks ──────────────────────────────────────────────────────────────── */
 
+const mockNavigate = vi.hoisted(() => vi.fn());
+vi.mock('react-router-dom', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router-dom')>()),
+  useNavigate: () => mockNavigate,
+}));
+
 const mockGetComparison = vi.hoisted(() => vi.fn());
 const mockUpdateLineStatuses = vi.hoisted(() => vi.fn());
 const mockApproveQuote = vi.hoisted(() => vi.fn());
+const mockAwardQuote = vi.hoisted(() => vi.fn());
 const mockDeclineQuote = vi.hoisted(() => vi.fn());
 const mockCreatePo = vi.hoisted(() => vi.fn());
 const mockCreateBulk = vi.hoisted(() => vi.fn());
@@ -21,7 +28,7 @@ vi.mock('@forethread/api-client', () => ({
   createPurchaseOrder: mockCreatePo,
   createBulkOrder: mockCreateBulk,
   awardSplit: mockAwardSplit,
-  awardQuote: vi.fn(),
+  awardQuote: mockAwardQuote,
   getQuoteDetail: vi.fn(),
   getRfqs: vi.fn(),
   getRfq: vi.fn(),
@@ -415,14 +422,21 @@ describe('QuoteComparisonTable', () => {
     expect(screen.getByText('tableManagement.configureColumns')).toBeInTheDocument();
   });
 
-  it('quote-level approve from the footer opens the PO creation prompt', async () => {
-    mockApproveQuote.mockResolvedValue({});
+  it('quote-level approve awards the quote and opens the draft PO, no prompt (FOR-396)', async () => {
+    mockAwardQuote.mockResolvedValue({
+      id: 'q-1',
+      purchaseOrderId: 'po-9',
+      poNumber: 'PO-00009',
+      purchaseOrders: [{ id: 'po-9', poNumber: 'PO-00009' }],
+    });
     renderTable();
 
     await screen.findByText('Vendor One');
     fireEvent.click(screen.getByText('responsesTab.approve'));
 
-    await waitFor(() => expect(mockApproveQuote).toHaveBeenCalledWith('rfq-1', 'q-1'));
-    expect(await screen.findByText('startOrder.poTitle')).toBeInTheDocument();
+    await waitFor(() => expect(mockAwardQuote).toHaveBeenCalledWith('rfq-1', 'q-1'));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/purchase-orders/po-9'));
+    expect(mockApproveQuote).not.toHaveBeenCalled();
+    expect(screen.queryByText('startOrder.poTitle')).not.toBeInTheDocument();
   });
 });

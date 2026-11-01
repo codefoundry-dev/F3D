@@ -112,7 +112,10 @@ export function CreatePrivateMaterialModal({
       <div className="grid grid-cols-2 gap-4">
         <FormField label={t('privateMaterial.categoryLabel')}>
           <CustomDropdown
-            options={categories.map((c) => ({ value: c.id, label: c.name }))}
+            // Deactivated categories take no new materials (FOR-362).
+            options={categories
+              .filter((c) => c.isActive !== false)
+              .map((c) => ({ value: c.id, label: c.name }))}
             value={categoryId}
             onChange={setCategoryId}
             searchable

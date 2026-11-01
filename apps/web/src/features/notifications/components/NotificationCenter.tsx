@@ -1,6 +1,6 @@
 import type { NotificationItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { NotificationBell, useDropdown } from '@forethread/ui-components';
+import { Modal, NotificationBell, useDropdown, useIsPhone } from '@forethread/ui-components';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -20,12 +20,20 @@ const FEED_PARAMS = { limit: 15 } as const;
 /**
  * Header notification centre: the bell (with unread badge), a dropdown panel of
  * recent notifications, and a detail modal that deep-links to the underlying
- * document. New notifications arrive live over SSE.
+ * document. New notifications arrive live over SSE. On phones the panel opens
+ * as a full-width bottom sheet instead of a dropdown anchored to the bell, which
+ * would overflow the screen's left edge (FOR-379).
  */
 export function NotificationCenter() {
   const { t } = useTranslation('notifications');
   const navigate = useNavigate();
-  const { isOpen, setIsOpen, ref } = useDropdown();
+  const isPhone = useIsPhone();
+  const dropdown = useDropdown();
+  // The sheet portals to <body>, so the dropdown's click-outside would close it
+  // on the first tap inside; phones keep their own open state.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const isOpen = isPhone ? sheetOpen : dropdown.isOpen;
+  const setIsOpen = isPhone ? setSheetOpen : dropdown.setIsOpen;
 
   useNotificationStream(true);
 
@@ -47,8 +55,17 @@ export function NotificationCenter() {
     navigate(path);
   };
 
+  const panelProps = {
+    items: feed.data?.items ?? [],
+    isLoading: feed.isLoading,
+    unreadCount,
+    onSelect: handleSelect,
+    onMarkAll: () => markAll.mutate(),
+    markAllPending: markAll.isPending,
+  };
+
   return (
-    <div ref={ref} className="relative">
+    <div ref={dropdown.ref} className="relative">
       <NotificationBell
         aria-label={t('ariaBell')}
         count={unreadCount}
@@ -56,18 +73,19 @@ export function NotificationCenter() {
         onClick={() => setIsOpen((open) => !open)}
       />
 
-      {isOpen && (
-        <div className="absolute right-0 top-full z-50 mt-2">
-          <NotificationPanel
-            items={feed.data?.items ?? []}
-            isLoading={feed.isLoading}
-            unreadCount={unreadCount}
-            onSelect={handleSelect}
-            onMarkAll={() => markAll.mutate()}
-            markAllPending={markAll.isPending}
-          />
-        </div>
-      )}
+      {isOpen &&
+        (isPhone ? (
+          <Modal onClose={() => setIsOpen(false)} mobile="sheet">
+            <NotificationPanel
+              {...panelProps}
+              className="max-h-[80dvh] w-full max-w-none rounded-none border-0 shadow-none"
+            />
+          </Modal>
+        ) : (
+          <div className="absolute right-0 top-full z-50 mt-2">
+            <NotificationPanel {...panelProps} />
+          </div>
+        ))}
 
       {selected && (
         <NotificationDetailModal

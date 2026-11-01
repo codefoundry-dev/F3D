@@ -51,14 +51,21 @@ function makeService() {
       findFirst: jest.fn(),
       delete: jest.fn().mockResolvedValue({}),
     },
-    file: { create: jest.fn().mockResolvedValue({ id: 'f-1' }), delete: jest.fn().mockResolvedValue({}) },
+    file: {
+      create: jest.fn().mockResolvedValue({ id: 'f-1' }),
+      delete: jest.fn().mockResolvedValue({}),
+    },
   } as unknown as PrismaService & Record<string, never>;
 
   const storage = {
     upload: jest.fn().mockResolvedValue({ bucket: 'b', key: 'k' }),
     delete: jest.fn().mockResolvedValue(undefined),
     getSignedUrl: jest.fn().mockResolvedValue('https://signed/url'),
-  } as unknown as StorageService & { upload: jest.Mock; delete: jest.Mock; getSignedUrl: jest.Mock };
+  } as unknown as StorageService & {
+    upload: jest.Mock;
+    delete: jest.Mock;
+    getSignedUrl: jest.Mock;
+  };
 
   const service = new DeliveryAttachmentService(prisma, storage);
   return { service, prisma, storage };
@@ -70,18 +77,28 @@ describe('DeliveryAttachmentService', () => {
     it('throws NotFound when the report is missing', async () => {
       const { service, prisma } = makeService();
       (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue(null);
-      await expect(service.uploadAttachment('dr-x', file(), officer)).rejects.toThrow(NotFoundException);
+      await expect(service.uploadAttachment('dr-x', file(), officer)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('throws Forbidden when the company does not match', async () => {
       const { service, prisma } = makeService();
-      (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue({ id: 'dr-1', companyId: 'other' });
-      await expect(service.uploadAttachment('dr-1', file(), officer)).rejects.toThrow(ForbiddenException);
+      (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue({
+        id: 'dr-1',
+        companyId: 'other',
+      });
+      await expect(service.uploadAttachment('dr-1', file(), officer)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('rejects when no file is provided', async () => {
       const { service, prisma } = makeService();
-      (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue({ id: 'dr-1', companyId: 'company-1' });
+      (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue({
+        id: 'dr-1',
+        companyId: 'company-1',
+      });
       await expect(
         service.uploadAttachment('dr-1', undefined as unknown as Express.Multer.File, officer),
       ).rejects.toThrow(BadRequestException);
@@ -89,15 +106,21 @@ describe('DeliveryAttachmentService', () => {
 
     it('rejects a file over the 10MB cap', async () => {
       const { service, prisma } = makeService();
-      (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue({ id: 'dr-1', companyId: 'company-1' });
-      await expect(service.uploadAttachment('dr-1', file(11 * 1024 * 1024), officer)).rejects.toThrow(
-        BadRequestException,
-      );
+      (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue({
+        id: 'dr-1',
+        companyId: 'company-1',
+      });
+      await expect(
+        service.uploadAttachment('dr-1', file(11 * 1024 * 1024), officer),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('uploads, creates the file + join row, and returns a signed url', async () => {
       const { service, prisma, storage } = makeService();
-      (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue({ id: 'dr-1', companyId: 'company-1' });
+      (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue({
+        id: 'dr-1',
+        companyId: 'company-1',
+      });
 
       const res = await service.uploadAttachment('dr-1', file(), officer);
 
@@ -111,7 +134,10 @@ describe('DeliveryAttachmentService', () => {
 
     it('returns a null url when signing fails', async () => {
       const { service, prisma, storage } = makeService();
-      (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue({ id: 'dr-1', companyId: 'company-1' });
+      (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue({
+        id: 'dr-1',
+        companyId: 'company-1',
+      });
       storage.getSignedUrl.mockRejectedValue(new Error('no s3'));
 
       const res = await service.uploadAttachment('dr-1', file(), officer);
@@ -124,7 +150,9 @@ describe('DeliveryAttachmentService', () => {
     it('throws NotFound when the attachment is missing', async () => {
       const { service, prisma } = makeService();
       (prisma.deliveryReportAttachment.findFirst as jest.Mock).mockResolvedValue(null);
-      await expect(service.deleteAttachment('dr-1', 'att-x', officer)).rejects.toThrow(NotFoundException);
+      await expect(service.deleteAttachment('dr-1', 'att-x', officer)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('deletes the object, the join row, and the file', async () => {
@@ -136,7 +164,9 @@ describe('DeliveryAttachmentService', () => {
         deliveryReport: { companyId: 'company-1' },
       });
 
-      await expect(service.deleteAttachment('dr-1', 'att-1', officer)).resolves.toEqual({ success: true });
+      await expect(service.deleteAttachment('dr-1', 'att-1', officer)).resolves.toEqual({
+        success: true,
+      });
       expect(storage.delete).toHaveBeenCalledWith('k');
       expect(prisma.deliveryReportAttachment.delete).toHaveBeenCalled();
       expect(prisma.file.delete).toHaveBeenCalled();
@@ -171,7 +201,12 @@ describe('DeliveryAttachmentService', () => {
         deliveryReport: { companyId: 'company-1' },
       });
       await expect(
-        service.uploadDamagePhoto('dr-1', 'drl-1', undefined as unknown as Express.Multer.File, officer),
+        service.uploadDamagePhoto(
+          'dr-1',
+          'drl-1',
+          undefined as unknown as Express.Multer.File,
+          officer,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -230,7 +265,9 @@ describe('DeliveryAttachmentService', () => {
     it('throws NotFound resolving the owner when the report is gone', async () => {
       const { service, prisma } = makeService();
       (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue(null);
-      await expect(service.uploadAttachmentForReport('dr-x', file())).rejects.toThrow(NotFoundException);
+      await expect(service.uploadAttachmentForReport('dr-x', file())).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('uploads a damage photo for a report line bound to the session report', async () => {
@@ -242,6 +279,26 @@ describe('DeliveryAttachmentService', () => {
 
       const res = await service.uploadDamagePhotoForReport('dr-1', 'drl-1', file());
       expect(res.fileName).toBe('dmg.jpg');
+    });
+
+    it('accepts the PO line id the portal holds (FOR-386)', async () => {
+      const { service, prisma } = makeService();
+      (prisma.deliveryReportLine.findFirst as jest.Mock).mockResolvedValue({ id: 'drl-1' });
+      (prisma.deliveryReport.findUnique as jest.Mock).mockResolvedValue({
+        purchaseOrder: { createdByUserId: 'creator-1' },
+      });
+
+      await service.uploadDamagePhotoForReport('dr-1', 'li-1', file());
+
+      expect(prisma.deliveryReportLine.findFirst).toHaveBeenCalledWith({
+        where: { deliveryReportId: 'dr-1', OR: [{ id: 'li-1' }, { poLineItemId: 'li-1' }] },
+        select: { id: true },
+      });
+      expect(prisma.deliveryDamagePhoto.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ deliveryReportLineId: 'drl-1' }),
+        }),
+      );
     });
 
     it('throws NotFound when the portal line does not belong to the report', async () => {

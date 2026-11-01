@@ -81,7 +81,7 @@ export function RecentOrdersSection({ items, isLoading }: RecentOrdersSectionPro
   }
 
   return (
-    <div className="bg-white rounded-[14px] border border-black/20 overflow-hidden flex flex-col h-[420px]">
+    <div className="bg-white rounded-[14px] border border-black/20 overflow-hidden flex flex-col max-md:max-h-[480px] md:h-[420px]">
       <div className="px-4 pt-4 pb-3">
         <h2 className="text-base font-semibold text-foreground">{t('recentOrders.title')}</h2>
       </div>
@@ -126,7 +126,7 @@ function RecentOrderCard({ item }: { item: RecentOrderItem }) {
       actions={
         <button
           type="button"
-          className="inline-flex items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          className="inline-flex items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors max-md:size-11"
           onClick={handleViewClick}
           aria-label="View order"
         >

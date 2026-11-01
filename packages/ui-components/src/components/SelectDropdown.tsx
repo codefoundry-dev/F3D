@@ -83,7 +83,7 @@ export function SelectDropdown({
         type="button"
         onClick={() => setIsOpen((p) => !p)}
         className={cn(
-          'flex h-[34px] w-full items-center justify-between gap-2 rounded-[12px] border bg-white px-2.5 text-[14px] font-medium tracking-[0.3px] shadow-[0_1px_3px_rgba(10,13,18,0.06),0_1px_1px_rgba(10,13,18,0.02)] transition-shadow',
+          'flex h-[34px] max-md:h-11 w-full items-center justify-between gap-2 rounded-[12px] border bg-white px-2.5 text-base md:text-[14px] font-medium tracking-[0.3px] shadow-[0_1px_3px_rgba(10,13,18,0.06),0_1px_1px_rgba(10,13,18,0.02)] transition-shadow',
           'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
           isOpen ? 'border-[#D2D5DB]' : 'border-[#E8EAED] hover:border-[#D2D5DB]',
           displayLabel ? 'text-gray-900' : 'text-gray-500',

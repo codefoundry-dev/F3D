@@ -1,9 +1,13 @@
 import type { RfqDetail } from '@forethread/api-client';
 
+import { isApprovedQuote, quotedLineFor } from './quoted-price';
+
 /** Shared derived item shape used across RFQ-related modals */
 export interface DerivedQuoteItem {
   id: string;
   lineItemId: string;
+  /** The vendor's quote line this item is priced from (FOR-391). */
+  quoteLineItemId: string;
   /** Catalogue material link + code snapshots carried from the RFQ line. */
   materialId: string | null;
   costCode: string | null;
@@ -34,25 +38,27 @@ export interface VendorGroup {
 }
 
 /**
- * Derive vendor-grouped quote items from an RFQ detail.
- * Each approved response becomes a vendor group with per-item pricing
- * spread evenly across line items.
+ * Derive vendor-grouped quote items from an RFQ detail. Each approved response
+ * becomes a vendor group holding the lines that vendor quoted, each at its
+ * quoted unit price (FOR-391 — previously the total was spread across lines).
  */
 export function deriveVendorGroups(rfq: RfqDetail): VendorGroup[] {
-  const approved = rfq.quoteResponses.filter(
-    (qr) => qr.status === 'APPROVED' || qr.status === 'Approved',
-  );
+  const approved = rfq.quoteResponses.filter(isApprovedQuote);
 
   return approved.map((qr) => {
     const totalCost = qr.totalCost ?? 0;
     const discountPct = qr.discountPercent ?? 0;
     const discountAmt = qr.discountAmount ?? 0;
-    const itemCount = rfq.lineItems.length || 1;
-    const perItemCost = totalCost / itemCount;
+    const quoted = rfq.lineItems.flatMap((li) => {
+      const ql = quotedLineFor(qr, li.id);
+      return ql ? [{ li, ql }] : [];
+    });
+    const itemCount = quoted.length || 1;
 
-    const items: DerivedQuoteItem[] = rfq.lineItems.map((li) => ({
+    const items: DerivedQuoteItem[] = quoted.map(({ li, ql }) => ({
       id: `${qr.id}-${li.id}`,
       lineItemId: li.id,
+      quoteLineItemId: ql.id,
       materialId: li.materialId ?? null,
       costCode: li.costCode ?? null,
       upc: li.upc ?? null,
@@ -60,13 +66,13 @@ export function deriveVendorGroups(rfq: RfqDetail): VendorGroup[] {
       taxCode: li.taxCode ?? null,
       materialName: li.materialName,
       description: li.description,
-      unitPrice: perItemCost > 0 ? Math.round((perItemCost / li.quantity) * 100) / 100 : 0,
+      unitPrice: ql.unitPrice,
       discountPercent: discountPct,
       discountAmount: Math.round((discountAmt / itemCount) * 100) / 100,
-      quantity: li.quantity,
-      availableQuantity: li.quantity,
+      quantity: ql.approvedQuantity ?? li.quantity,
+      availableQuantity: ql.quotedQuantity,
       unit: li.unit,
-      lineTotalWithTax: perItemCost,
+      lineTotalWithTax: ql.unitPrice * (ql.approvedQuantity ?? li.quantity),
       projectName: li.projectName,
       expectedDeliveryDate: li.expectedDeliveryDate,
       deliveryLocation: li.deliveryLocation,

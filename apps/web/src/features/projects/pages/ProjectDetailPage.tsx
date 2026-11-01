@@ -17,6 +17,8 @@ import {
   EmptyState,
   DotActionsMenu,
   buttonVariants,
+  ScrollTable,
+  Tabs,
 } from '@forethread/ui-components';
 import FlagIcon from '@forethread/ui-components/assets/icons/flag.svg?react';
 import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
@@ -104,25 +106,13 @@ export default function ProjectDetailPage() {
 
   return (
     <div className="px-4 sm:px-8 pt-4 sm:pt-6 pb-8">
-      {/* Tabs */}
-      <div className="border-b border-border mb-6">
-        <nav className="flex gap-6 overflow-x-auto">
-          {TABS.map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`pb-3 text-sm font-semibold leading-none tracking-[0.3px] border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === tab
-                  ? 'border-foreground text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {t(`detail.tabs.${tab}`)}
-            </button>
-          ))}
-        </nav>
-      </div>
+      {/* Tabs (shared strip: edge fades + active tab kept in view on phones) */}
+      <Tabs
+        className="mb-6"
+        items={TABS.map((tab) => ({ value: tab, label: t(`detail.tabs.${tab}`) }))}
+        value={activeTab}
+        onValueChange={setActiveTab}
+      />
 
       {activeTab === 'details' && (
         <DetailsTab
@@ -202,8 +192,8 @@ function DetailsTab({
   return (
     <div className="space-y-6">
       {/* Basic Information */}
-      <section className="bg-card rounded-lg border border-border p-6">
-        <div className="flex items-start justify-between mb-4">
+      <section className="bg-card rounded-lg border border-border p-4 md:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
           <h2 className="text-base font-bold text-foreground">{t('detail.basicInformation')}</h2>
           {canManageProject && (
             <Link
@@ -266,8 +256,8 @@ function DetailsTab({
       </section>
 
       {/* Assigned users and roles */}
-      <section className="bg-card rounded-lg border border-border p-6">
-        <div className="flex items-center justify-between mb-4">
+      <section className="bg-card rounded-lg border border-border p-4 md:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h2 className="text-base font-bold text-foreground">{t('detail.assignedUsersRoles')}</h2>
           {canManageProject && (
             <Button size="md" leftIcon={<PlusIcon className="w-4 h-4" />} onClick={onAddMembers}>
@@ -276,7 +266,7 @@ function DetailsTab({
           )}
         </div>
 
-        <div className="overflow-x-auto border border-border rounded-lg">
+        <ScrollTable className="border border-border rounded-lg">
           <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] text-left">
@@ -338,13 +328,13 @@ function DetailsTab({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       </section>
 
       {/* Attached Documents — no backend yet */}
       {/* TODO(US5.04): wire ProjectDocument backend */}
-      <section className="bg-card rounded-lg border border-border p-6">
-        <div className="flex items-center justify-between mb-2">
+      <section className="bg-card rounded-lg border border-border p-4 md:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
           <h2 className="text-base font-bold text-foreground">{t('detail.attachedDocuments')}</h2>
           <div className="flex items-center gap-2">
             <Button

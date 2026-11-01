@@ -105,6 +105,17 @@ describe('ResendService', () => {
       );
     });
 
+    it('names the company on the RESEND_FROM address when fromName is given (FOR-383)', async () => {
+      mockSend.mockResolvedValue({ data: { id: 'msg_1' }, error: null });
+      const service = new ResendService(buildConfig());
+
+      await service.send({ to: 'user@test.com', subject: 's', text: 'plain', fromName: 'Acme' });
+
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.objectContaining({ from: '"Acme via Forethread" <sender@forethread.test>' }),
+      );
+    });
+
     it('honours an explicit from override', async () => {
       mockSend.mockResolvedValue({ data: { id: 'msg_1' }, error: null });
       const service = new ResendService(buildConfig());

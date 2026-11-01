@@ -22,6 +22,7 @@ import {
   type UpdateVendorProfileInput,
   type CreateWarehouseInput,
   type CreateVendorRepresentativeInput,
+  promoteOneOffVendor,
 } from '@forethread/api-client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -237,6 +238,17 @@ export function useUploadVendorLogo() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [VENDORS_KEY] });
       void queryClient.invalidateQueries({ queryKey: [LOGO_URL_KEY] });
+    },
+  });
+}
+
+/** Make a one-off vendor (FOR-395) a full vendor of the company. */
+export function usePromoteOneOffVendor() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vendorId: string) => promoteOneOffVendor(vendorId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [VENDORS_KEY] });
     },
   });
 }

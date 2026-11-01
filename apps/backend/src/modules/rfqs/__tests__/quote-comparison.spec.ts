@@ -2,6 +2,7 @@ import { QuoteLineItemAvailability } from '@prisma/client';
 
 import {
   buildQuoteComparison,
+  deliveryVarianceDays,
   type ComparisonQuoteInput,
   type ComparisonQuoteLineItemInput,
   type ComparisonRfqInput,
@@ -12,6 +13,7 @@ const rfq: ComparisonRfqInput = {
   currency: 'AUD',
   projectId: 'p-1',
   projectName: 'Primary Project',
+  needByDate: new Date('2026-07-20T00:00:00Z'),
   lineItems: [
     {
       id: 'li-1',
@@ -20,6 +22,7 @@ const rfq: ComparisonRfqInput = {
       unit: 'bags',
       projectId: null,
       projectName: null,
+      expectedDeliveryDate: new Date('2026-07-10T00:00:00Z'),
     },
     {
       id: 'li-2',
@@ -28,6 +31,8 @@ const rfq: ComparisonRfqInput = {
       unit: 'tons',
       projectId: 'p-2',
       projectName: 'Second Project',
+      // No line date: falls back to the RFQ need-by date.
+      expectedDeliveryDate: null,
     },
   ],
 };
@@ -327,6 +332,88 @@ describe('buildQuoteComparison', () => {
     expect(cell.substituteItemId).toBe('mat-9');
     expect(cell.substituteItemName).toBe('Oak Planks (1" thick)');
     expect(result.vendors[0].hasNotes).toBe(true);
+  });
+
+  describe('delivery date vs expected (FOR-392)', () => {
+    it('carries the expected date per row, falling back to the RFQ need-by date', () => {
+      const result = buildQuoteComparison(rfq, []);
+      expect(result.rows[0].expectedDeliveryDate).toBe('2026-07-10T00:00:00.000Z');
+      expect(result.rows[1].expectedDeliveryDate).toBe('2026-07-20T00:00:00.000Z');
+    });
+
+    it('flags a quoted date after the expected date as late with the variance in days', () => {
+      const result = buildQuoteComparison(rfq, [
+        quote({
+          lineItems: [
+            line({
+              rfqLineItemId: 'li-1',
+              unitPrice: 5,
+              quotedQuantity: 10,
+              deliveryDate: new Date('2026-07-14T09:30:00Z'),
+            }),
+            line({
+              rfqLineItemId: 'li-2',
+              unitPrice: 5,
+              quotedQuantity: 5,
+              deliveryDate: new Date('2026-07-18T00:00:00Z'),
+            }),
+          ],
+        }),
+      ]);
+      const late = result.rows[0].cells[0];
+      expect(late.deliveryVarianceDays).toBe(4);
+      expect(late.isLate).toBe(true);
+      const early = result.rows[1].cells[0];
+      expect(early.deliveryVarianceDays).toBe(-2);
+      expect(early.isLate).toBe(false);
+    });
+
+    it('treats a delivery on the expected day as on time', () => {
+      const result = buildQuoteComparison(rfq, [
+        quote({
+          lineItems: [
+            line({
+              rfqLineItemId: 'li-1',
+              unitPrice: 5,
+              quotedQuantity: 10,
+              deliveryDate: new Date('2026-07-10T23:00:00Z'),
+            }),
+          ],
+        }),
+      ]);
+      expect(result.rows[0].cells[0].deliveryVarianceDays).toBe(0);
+      expect(result.rows[0].cells[0].isLate).toBe(false);
+    });
+
+    it('leaves no variance on unquoted lines or when no date is expected', () => {
+      const result = buildQuoteComparison({ ...rfq, needByDate: null }, [
+        quote({
+          lineItems: [
+            line({
+              rfqLineItemId: 'li-1',
+              availability: QuoteLineItemAvailability.NO_QUOTE,
+              deliveryDate: new Date('2026-08-01T00:00:00Z'),
+            }),
+            line({
+              rfqLineItemId: 'li-2',
+              unitPrice: 5,
+              quotedQuantity: 5,
+              deliveryDate: new Date('2026-08-01T00:00:00Z'),
+            }),
+          ],
+        }),
+      ]);
+      expect(result.rows[0].cells[0].deliveryVarianceDays).toBeNull();
+      expect(result.rows[1].expectedDeliveryDate).toBeNull();
+      expect(result.rows[1].cells[0].deliveryVarianceDays).toBeNull();
+      expect(result.rows[1].cells[0].isLate).toBe(false);
+    });
+
+    it('deliveryVarianceDays counts calendar days and needs both dates', () => {
+      expect(deliveryVarianceDays('2026-03-02T00:00:00Z', '2026-02-27T00:00:00Z')).toBe(3);
+      expect(deliveryVarianceDays(null, '2026-02-27T00:00:00Z')).toBeNull();
+      expect(deliveryVarianceDays('2026-02-27T00:00:00Z', null)).toBeNull();
+    });
   });
 
   it('handles an RFQ with no received quotes', () => {

@@ -30,6 +30,7 @@ vi.mock('@forethread/shared-types/client', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   Spinner: () => <div data-testid="spinner" />,
   Badge: ({ children }: any) => <span data-testid="badge">{children}</span>,
   Button: (props: any) => (
@@ -81,6 +82,15 @@ vi.mock('@forethread/ui-components', () => ({
     </div>
   ),
   buttonVariants: () => 'btn-class',
+  Tabs: ({ items, onValueChange }: any) => (
+    <div role="tablist">
+      {items.map((i: any) => (
+        <button key={i.value} type="button" onClick={() => onValueChange(i.value)}>
+          {i.label}
+        </button>
+      ))}
+    </div>
+  ),
 }));
 
 vi.mock('@forethread/ui-components/assets/icons/flag.svg?react', () => ({

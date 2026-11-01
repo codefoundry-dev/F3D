@@ -14,6 +14,7 @@ vi.mock('@forethread/i18n', () => ({
   }),
 }));
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   Button: ({
     children,
     onClick,

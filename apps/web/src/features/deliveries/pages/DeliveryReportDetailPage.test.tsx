@@ -7,6 +7,7 @@ import {
   DeliveryReportStatus,
 } from '@forethread/shared-types/client';
 import { render, screen, fireEvent, within } from '@testing-library/react';
+import type React from 'react';
 import type { ReactNode } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -23,6 +24,39 @@ vi.mock('@forethread/rfq-shared', () => ({
   usePageTitleStore: (sel: (s: { setTitle: () => void }) => unknown) => sel({ setTitle: () => {} }),
 }));
 vi.mock('@forethread/ui-components', () => ({
+  // B7 (FOR-373): desktop layout in tests; PageActions renders its actions inline.
+  useIsPhone: () => false,
+  useHideMobileNav: () => {},
+  MobileActionBar: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  PageActions: ({
+    primary,
+    secondary = [],
+  }: {
+    primary?: React.ReactNode;
+    secondary?: Array<{
+      key: string;
+      label: string;
+      onClick: () => void;
+      disabled?: boolean;
+      testId?: string;
+    }>;
+  }) => (
+    <div>
+      {secondary.map((a) => (
+        <button
+          key={a.key}
+          type="button"
+          onClick={a.onClick}
+          disabled={a.disabled}
+          data-testid={a.testId}
+        >
+          {a.label}
+        </button>
+      ))}
+      {primary}
+    </div>
+  ),
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   Button: ({
     children,
     onClick,

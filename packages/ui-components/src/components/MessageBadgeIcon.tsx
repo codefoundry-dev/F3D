@@ -24,6 +24,8 @@ export function MessageBadgeIcon({
       {...(onClick ? { type: 'button' as const, onClick } : {})}
       className={cn(
         'inline-flex items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors',
+        // A tappable icon gets a 44px box on phones (ADR-0019).
+        onClick && 'max-md:size-11',
         className,
       )}
     >

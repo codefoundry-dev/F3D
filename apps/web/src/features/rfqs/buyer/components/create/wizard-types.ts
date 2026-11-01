@@ -31,6 +31,11 @@ export interface WizardLineItem {
   /** Wanted delivery time of day, 24-hour "HH:MM". Prefilled from the source
    * Material Request line when the RFQ was converted from one. */
   deliveryTime?: string;
+  /** The user set this line's date by hand, so the RFQ-level "Need by" no
+   * longer fills it (FOR-364). */
+  needByDateOverridden?: boolean;
+  /** Same as `needByDateOverridden`, for the time of day. */
+  needByTimeOverridden?: boolean;
   notes?: string;
 }
 
@@ -41,8 +46,11 @@ export interface WizardBasicInfo {
   responseDeadline: string;
   /** Selected project ids; the first is the primary project. */
   projectIds: string[];
-  /** YYYY-MM-DD */
+  /** YYYY-MM-DD — fills every line's expected delivery date (FOR-364). */
   needByDate: string;
+  /** 24-hour "HH:MM" — fills every line's delivery time. Client-side only: the
+   * RFQ has no header time column, the per-line values are what get saved. */
+  needByTime: string;
   /** ProjectLocation id (type DELIVERY) on the primary project — the RFQ-level
    * default; line items may override it. Empty for pick-up orders. */
   deliveryLocationId: string;
@@ -58,6 +66,7 @@ export const EMPTY_BASIC_INFO: WizardBasicInfo = {
   responseDeadline: '',
   projectIds: [],
   needByDate: '',
+  needByTime: '',
   deliveryLocationId: '',
   isPickUp: false,
   pickUpLocation: '',

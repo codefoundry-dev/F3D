@@ -8,6 +8,7 @@ import {
   getProject,
   getCompanyVendors,
   getMe,
+  getRfq,
   type PoListParams,
   type CreatePurchaseOrderInput,
   type CreatePoChangeRequestInput,
@@ -15,6 +16,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { useAuthStore } from '@/features/auth/state/auth.store';
+import { useCompany } from '@/features/companies/services/companies.service';
 
 export function usePurchaseOrders(params?: PoListParams) {
   return useQuery({
@@ -28,6 +30,15 @@ export function usePurchaseOrder(id: string) {
     queryKey: ['purchase-orders', id],
     queryFn: () => getPurchaseOrder(id),
     enabled: !!id,
+  });
+}
+
+/** The RFQ a "Start now" PO is built from (FOR-391); idle without an id. */
+export function useSourceRfq(rfqId: string | undefined) {
+  return useQuery({
+    queryKey: ['rfqs', rfqId],
+    queryFn: () => getRfq(rfqId ?? ''),
+    enabled: !!rfqId,
   });
 }
 
@@ -53,6 +64,16 @@ export function useCompanyVendors() {
     queryFn: () => getCompanyVendors(companyId ?? ''),
     enabled: !!companyId,
   });
+}
+
+/**
+ * The company's default PO terms & conditions (FOR-398) the create wizard
+ * prefills: `undefined` while loading (or on error), `null` when none are set.
+ */
+export function useCompanyPoTerms(): string | null | undefined {
+  const companyId = useAuthStore((s) => s.currentUser?.companyId);
+  const { data } = useCompany(companyId ?? '');
+  return data ? (data.poTermsAndConditions ?? null) : undefined;
 }
 
 /**

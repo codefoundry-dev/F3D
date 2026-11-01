@@ -226,11 +226,9 @@ pnpm turbo test --filter=shared-types
 # Run with coverage report
 pnpm turbo test:coverage --filter=backend
 
-# Run integration tests only
-cd apps/backend && pnpm test:integration
-
-# Run contract tests
-cd apps/backend && pnpm test:contract
+# Run backend e2e tests (needs the local Postgres running and migrated;
+# they read and write the local dev database)
+cd apps/backend && pnpm test:e2e
 ```
 
 **Coverage threshold**: 90% enforced. A failed coverage check fails the CI pipeline.

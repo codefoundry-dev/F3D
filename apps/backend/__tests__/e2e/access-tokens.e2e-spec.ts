@@ -121,7 +121,8 @@ describe('Access Tokens guard (e2e)', () => {
       tokenId: issued.record.id,
       subjectId: 'q-123',
       purpose: AccessTokenPurpose.QUOTE_SUBMIT,
-      attempts: 1,
+      // Only failed validations count toward the lock (FOR-386).
+      attempts: 0,
     });
   });
 

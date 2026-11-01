@@ -6,7 +6,15 @@ import {
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { useRfq, usePageTitleStore } from '@forethread/rfq-shared';
-import { Alert, Button, GridModal, Spinner, StatusErrorModal } from '@forethread/ui-components';
+import {
+  Alert,
+  Button,
+  GridModal,
+  PageActions,
+  Spinner,
+  StatusErrorModal,
+  useIsPhone,
+} from '@forethread/ui-components';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock-icon.svg?react';
 import FileTextIcon from '@forethread/ui-components/assets/icons/file-text.svg?react';
 import PaperPlaneIcon from '@forethread/ui-components/assets/icons/paper-plane.svg?react';
@@ -199,6 +207,7 @@ function RfqResponseForm({
   const daysLeft = deadlineDate
     ? Math.max(0, Math.ceil((deadlineDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
     : 0;
+  const isPhone = useIsPhone();
   const deadlineExpired = deadlineDate ? deadlineDate.getTime() < Date.now() : false;
   const deadlineDisplay = deadlineDate
     ? deadlineDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -217,7 +226,7 @@ function RfqResponseForm({
           </Alert>
 
           {/* View info toggle — shown only while the panel is closed (the panel has its own ✕) */}
-          {!form.showInfo && (
+          {!form.showInfo && !isPhone && (
             <Button
               variant="outline"
               size="md"
@@ -229,36 +238,77 @@ function RfqResponseForm({
           )}
         </div>
 
-        <div className="flex items-center gap-3">
-          {showDraftSaved && (
-            <span className="text-sm text-success whitespace-nowrap">
-              {t('response.draftSaved')}
-            </span>
-          )}
-          <Button
-            variant="primary"
-            size="md"
-            className="h-[42px]"
-            leftIcon={<PaperPlaneIcon className="w-[18px] h-[18px]" />}
-            onClick={() => void form.handleSubmit()}
-            disabled={form.isSubmitting || !form.isValid}
-          >
-            {form.isSubmitting
-              ? t(form.isEditMode ? 'response.updating' : 'response.submitting')
-              : t(form.isEditMode ? 'response.update' : 'response.submit')}
-          </Button>
-          {!form.isEditMode && (
+        {isPhone ? (
+          // Phones: Submit in the footer bar; Save as draft + View info in ⋯ (B7).
+          <PageActions
+            primary={
+              <Button
+                variant="primary"
+                size="md"
+                className="h-[42px]"
+                leftIcon={<PaperPlaneIcon className="w-[18px] h-[18px]" />}
+                onClick={() => void form.handleSubmit()}
+                disabled={form.isSubmitting || !form.isValid}
+              >
+                {form.isSubmitting
+                  ? t(form.isEditMode ? 'response.updating' : 'response.submitting')
+                  : t(form.isEditMode ? 'response.update' : 'response.submit')}
+              </Button>
+            }
+            secondary={[
+              ...(!form.isEditMode
+                ? [
+                    {
+                      key: 'saveDraft',
+                      label: t('response.saveAsDraft'),
+                      onClick: handleSaveDraft,
+                      disabled: form.isSubmitting,
+                    },
+                  ]
+                : []),
+              ...(!form.showInfo
+                ? [
+                    {
+                      key: 'viewInfo',
+                      label: t('response.viewInfo'),
+                      onClick: () => form.setShowInfo(true),
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        ) : (
+          <div className="flex items-center gap-3">
+            {showDraftSaved && (
+              <span className="text-sm text-success whitespace-nowrap">
+                {t('response.draftSaved')}
+              </span>
+            )}
             <Button
-              variant="outline"
+              variant="primary"
               size="md"
               className="h-[42px]"
-              onClick={handleSaveDraft}
-              disabled={form.isSubmitting}
+              leftIcon={<PaperPlaneIcon className="w-[18px] h-[18px]" />}
+              onClick={() => void form.handleSubmit()}
+              disabled={form.isSubmitting || !form.isValid}
             >
-              {t('response.saveAsDraft')}
+              {form.isSubmitting
+                ? t(form.isEditMode ? 'response.updating' : 'response.submitting')
+                : t(form.isEditMode ? 'response.update' : 'response.submit')}
             </Button>
-          )}
-        </div>
+            {!form.isEditMode && (
+              <Button
+                variant="outline"
+                size="md"
+                className="h-[42px]"
+                onClick={handleSaveDraft}
+                disabled={form.isSubmitting}
+              >
+                {t('response.saveAsDraft')}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ═══ Validation error ═══ */}
@@ -304,6 +354,7 @@ function RfqResponseForm({
               onOpenSubstitute={handleOpenSubstitute}
               onCloseSubstitute={handleCloseSubstitute}
               onSelectSubstitute={handleSelectSubstitute}
+              needByDate={rfq.needByDate}
             />
 
             {/* Additional details */}

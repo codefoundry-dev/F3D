@@ -34,8 +34,9 @@ export function PoDetailsTab({
     ? formatDate(po.plannedDeliveryDate)
     : t('common:no');
 
-  // The vendor/guest view labels SENT as "In Review" (vendorStatus); the
-  // buyer/internal view shows the real PO status. Both share the colour scale.
+  // The vendor/guest view relabels some statuses (vendorStatus: SENT → "In
+  // Review"); the buyer/internal view shows the real PO status. ACCEPTED reads
+  // "Approved" for both. Both share the colour scale.
   const statusBadge = (
     <Badge className={getStatusColor(PO_STATUS_COLORS, po.status)}>
       {isVendorView
@@ -73,6 +74,18 @@ export function PoDetailsTab({
       value={(po.pickUp ? po.pickUpLocation : po.deliveryLocationName) ?? '-'}
     />
   );
+
+  // FOR-398: the general T&Cs snapshotted onto this PO, shown to the vendor
+  // (logged in or guest) before they acknowledge / approve.
+  const termsText = po.termsAndConditions?.trim();
+  const termsBody = termsText ? (
+    <p
+      data-testid="po-terms-and-conditions"
+      className="max-h-80 overflow-y-auto whitespace-pre-wrap break-words text-sm text-foreground"
+    >
+      {termsText}
+    </p>
+  ) : null;
 
   if (layout === 'page') {
     return (
@@ -226,6 +239,13 @@ export function PoDetailsTab({
           </div>
         </div>
 
+        {termsBody && (
+          <div className="rounded-[10px] border border-foreground/10 p-4">
+            <SectionTitle>{t('detailFields.termsAndConditions')}</SectionTitle>
+            {termsBody}
+          </div>
+        )}
+
         {/* Metadata — full-width row beneath both columns */}
         <div className="rounded-[10px] border border-foreground/10 p-4">
           <SectionTitle>{t('detailFields.metadata')}</SectionTitle>
@@ -340,6 +360,16 @@ export function PoDetailsTab({
           </div>
         </div>
 
+        {termsBody && (
+          <>
+            <SectionDivider />
+            <div className="flex flex-col gap-2">
+              <SectionTitle>{t('detailFields.termsAndConditions')}</SectionTitle>
+              {termsBody}
+            </div>
+          </>
+        )}
+
         <SectionDivider />
 
         <div className="flex flex-col gap-2">
@@ -443,6 +473,16 @@ export function PoDetailsTab({
         </div>
         <DetailField label={`${t('detailFields.shipmentCost')}:`} value={'-'} />
       </div>
+
+      {termsBody && (
+        <>
+          <SectionDivider />
+          <div className="flex flex-col gap-2">
+            <SectionTitle>{t('detailFields.termsAndConditions')}</SectionTitle>
+            {termsBody}
+          </div>
+        </>
+      )}
 
       <SectionDivider />
 

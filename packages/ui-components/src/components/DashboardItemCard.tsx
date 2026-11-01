@@ -61,8 +61,8 @@ export function DashboardItemCard({
           : undefined
       }
     >
-      {/* Header row */}
-      <div className="flex items-center gap-3">
+      {/* Header row; on phones the actions wrap below, full width (ADR-0019). */}
+      <div className="flex flex-wrap items-center gap-3 md:flex-nowrap">
         <div className="flex flex-1 items-center gap-3 min-w-0">
           <span className="text-sm font-semibold text-foreground whitespace-nowrap">{name}</span>
           {statusBadge}
@@ -83,7 +83,7 @@ export function DashboardItemCard({
             >
               <button
                 type="button"
-                className="inline-flex items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                className="inline-flex items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors max-md:size-11"
                 onClick={onAttachmentClick}
               >
                 <PaperclipIcon className="w-4 h-4" />
@@ -94,7 +94,7 @@ export function DashboardItemCard({
         {actions && (
           <div
             role="presentation"
-            className="flex items-center gap-3 shrink-0"
+            className="flex w-full shrink-0 items-center gap-3 md:w-auto [&>*]:flex-1 md:[&>*]:flex-none"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
           >

@@ -1,4 +1,4 @@
-import { Badge, EmptyState, Spinner, getStatusColor } from '@forethread/ui-components';
+import { Badge, EmptyState, Spinner, getStatusColor, ScrollTable } from '@forethread/ui-components';
 import type React from 'react';
 
 export type TranslationFn = (key: string, options?: Record<string, unknown>) => string;
@@ -36,10 +36,13 @@ export function StatusBadge({
 export function Section({
   title,
   count,
+  action,
   children,
 }: {
   title: string;
   count?: number;
+  /** Optional button(s) at the right of the heading. */
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -51,6 +54,7 @@ export function Section({
             {count}
           </span>
         )}
+        {action && <div className="ml-auto flex shrink-0 items-center gap-2">{action}</div>}
       </div>
       {children}
     </section>
@@ -94,11 +98,11 @@ export function TableShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="overflow-x-auto border border-border rounded-lg">
+    <ScrollTable className="border border-border rounded-lg">
       <table className="w-full text-sm" style={{ minWidth }}>
         {children}
       </table>
-    </div>
+    </ScrollTable>
   );
 }
 

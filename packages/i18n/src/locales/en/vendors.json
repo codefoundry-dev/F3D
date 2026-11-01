@@ -20,7 +20,8 @@
     "last90days": "Last 90 days",
     "last12months": "Last 12 months",
     "category": "Category",
-    "uncategorised": "Uncategorised"
+    "uncategorised": "Uncategorised",
+    "oneOff": "One-off vendors"
   },
   "columns": {
     "fullName": "Full name",
@@ -45,7 +46,12 @@
     "archiveVendor": "Archive Vendor",
     "archiveVendors": "Archive Vendors",
     "deactivateVendor": "Deactivate",
-    "resendInvitation": "Resend Invitation"
+    "resendInvitation": "Resend Invitation",
+    "promoteOneOff": "Promote to vendor"
+  },
+  "oneOff": {
+    "badge": "One-off · {{project}}",
+    "promoted": "Vendor promoted. It can now be used on every project."
   },
   "cancelInvitationModal": {
     "title": "Cancel Invitation",

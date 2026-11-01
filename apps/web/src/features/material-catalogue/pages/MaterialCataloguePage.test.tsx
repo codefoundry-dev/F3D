@@ -111,7 +111,7 @@ describe('MaterialCataloguePage', () => {
     permissionSet.current = new Set();
     window.localStorage.clear();
     mockedGetCategories.mockResolvedValue([
-      { id: 'c-1', name: 'Concrete & cement', parentId: null },
+      { id: 'c-1', name: 'Concrete & cement', isActive: true, materialCount: 0 },
     ]);
     mockedGetFacets.mockResolvedValue({
       manufacturers: [],
@@ -217,6 +217,21 @@ describe('MaterialCataloguePage', () => {
     expect(screen.getByTestId('material-upload')).toBeInTheDocument();
   });
 
+  it('offers "Manage categories" only with material.manageCategories (FOR-362)', async () => {
+    permissionSet.current = new Set(['material.create']);
+    mockedGetMaterials.mockResolvedValue(page([{ name: 'Portland Cement' }]));
+
+    const { unmount } = renderPage();
+    await screen.findByText('Portland Cement');
+    expect(screen.queryByTestId('material-manage-categories')).not.toBeInTheDocument();
+    unmount();
+
+    permissionSet.current = new Set(['material.approve', 'material.manageCategories']);
+    renderPage();
+    fireEvent.click(await screen.findByTestId('material-manage-categories'));
+    expect(await screen.findByTestId('manage-categories')).toBeInTheDocument();
+  });
+
   it('renders the facet filters as searchable dropdowns sourced from the facets endpoint (US 4.04)', async () => {
     mockedGetMaterials.mockResolvedValue(
       page([
@@ -315,7 +330,7 @@ describe('MaterialCataloguePage', () => {
     expect(screen.queryByTestId('material-table')).not.toBeInTheDocument();
   });
 
-  // The Public Materials tab lists only PUBLIC rows, so a company's own
+  // The Global Materials tab lists only PUBLIC rows, so a company's own
   // materials (uploads, create wizard, BOM/RFQ quick-add) are reachable only
   // through the Material list tab's "All company materials" drilldown.
   it('drills from the Material list tab into the company PRIVATE catalogue', async () => {

@@ -87,6 +87,7 @@ function initGuestLineItems(lineItems: GuestRfqDetail['lineItems']): LineItemFor
     included: true,
     materialName: item.materialName,
     materialId: null,
+    imageUrl: item.imageUrl ?? null,
     unit: item.unit,
     requestedQty: item.quantity,
     availQty: '',
@@ -103,8 +104,8 @@ function initGuestLineItems(lineItems: GuestRfqDetail['lineItems']): LineItemFor
     substituteName: null,
     expandedSection: null,
     description: item.description,
-    expectedDeliveryDate: null,
-    deliveryLocation: null,
+    expectedDeliveryDate: item.expectedDeliveryDate ?? null,
+    deliveryLocation: item.deliveryLocation ?? null,
   }));
 }
 

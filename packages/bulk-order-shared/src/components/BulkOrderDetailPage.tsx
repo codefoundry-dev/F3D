@@ -1,6 +1,14 @@
 import { useTranslation } from '@forethread/i18n';
 import { usePageTitleStore } from '@forethread/rfq-shared';
-import { Button, Spinner, Alert, formatDate, notificationService } from '@forethread/ui-components';
+import {
+  Button,
+  Spinner,
+  Alert,
+  formatDate,
+  notificationService,
+  PageActions,
+  useIsPhone,
+} from '@forethread/ui-components';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock-icon.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit-without-line.svg?react';
 import LetterIcon from '@forethread/ui-components/assets/icons/letter.svg?react';
@@ -66,6 +74,7 @@ export function BulkOrderDetailPage({
   );
 
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const isPhone = useIsPhone();
 
   useEffect(() => {
     if (data) setTitle(data.bulkId, t('list.subtitle') as string, BULK_ORDER_ROUTES.bulkOrders);
@@ -102,6 +111,11 @@ export function BulkOrderDetailPage({
   const pendingExtension =
     pendingCr && isEndDateOnlyChange(pendingCr.changes) ? pendingCr : undefined;
   const showInlineExtensionReview = !!pendingExtension && !isProposer;
+  const showChangeAlertActions =
+    hasPendingChange && !showInlineExtensionReview && showChangeActions;
+  const canReviewChange = showChangeAlertActions && !isProposer;
+  const canCancelChange = showChangeAlertActions;
+  const canChange = showChangeActions && isActive && !hasPendingChange;
 
   return (
     <div className="flex flex-col gap-6 p-4">
@@ -120,7 +134,7 @@ export function BulkOrderDetailPage({
                 : t('changeRequests.pendingAlertVendor')
               : t('changeRequests.pendingAlertReviewer')}
           </Alert>
-          {showChangeActions && (
+          {showChangeActions && !isPhone && (
             <div className="flex items-center gap-3 shrink-0">
               {!isProposer && (
                 <Button
@@ -149,29 +163,88 @@ export function BulkOrderDetailPage({
         </div>
       )}
 
+      {/* Phones: one footer bar for the page — Review changes when a change waits
+          on this user, else Create drawdown — and the rest in the ⋯ menu (B7). */}
+      {isPhone && (
+        <PageActions
+          primary={
+            canReviewChange ? (
+              <Button
+                variant="primary"
+                onClick={() =>
+                  navigate(BULK_ORDER_ROUTES.bulkOrderReviewChange.replace(':id', id!))
+                }
+              >
+                {t('changeRequests.reviewChanges')}
+              </Button>
+            ) : showDrawdown ? (
+              <Button
+                variant="primary"
+                leftIcon={<PlusIcon className="w-5 h-5" />}
+                onClick={() => navigate(BULK_ORDER_ROUTES.bulkOrderDrawdown.replace(':id', id!))}
+              >
+                {t('detail.createDrawdown')}
+              </Button>
+            ) : undefined
+          }
+          secondary={[
+            ...(canReviewChange && showDrawdown
+              ? [
+                  {
+                    key: 'drawdown',
+                    label: t('detail.createDrawdown'),
+                    onClick: () =>
+                      navigate(BULK_ORDER_ROUTES.bulkOrderDrawdown.replace(':id', id!)),
+                  },
+                ]
+              : []),
+            ...(canChange
+              ? [
+                  {
+                    key: 'change',
+                    label: t('detail.change'),
+                    onClick: () => navigate(BULK_ORDER_ROUTES.bulkOrderChange.replace(':id', id!)),
+                  },
+                ]
+              : []),
+            ...(canCancelChange
+              ? [
+                  {
+                    key: 'cancelChange',
+                    label: t('changeRequests.cancelChangeRequest'),
+                    onClick: () => setShowCancelModal(true),
+                  },
+                ]
+              : []),
+          ]}
+        />
+      )}
+
       {/* Action bar */}
-      <div className="flex items-center gap-3 justify-start">
-        {showDrawdown && (
-          <Button
-            variant="primary"
-            size="md"
-            leftIcon={<PlusIcon className="w-5 h-5" />}
-            onClick={() => navigate(BULK_ORDER_ROUTES.bulkOrderDrawdown.replace(':id', id!))}
-          >
-            {t('detail.createDrawdown')}
-          </Button>
-        )}
-        {showChangeActions && isActive && !hasPendingChange && (
-          <Button
-            variant="outline"
-            size="md"
-            leftIcon={<EditIcon className="w-4 h-4" />}
-            onClick={() => navigate(BULK_ORDER_ROUTES.bulkOrderChange.replace(':id', id!))}
-          >
-            {t('detail.change')}
-          </Button>
-        )}
-      </div>
+      {!isPhone && (
+        <div className="flex items-center gap-3 justify-start">
+          {showDrawdown && (
+            <Button
+              variant="primary"
+              size="md"
+              leftIcon={<PlusIcon className="w-5 h-5" />}
+              onClick={() => navigate(BULK_ORDER_ROUTES.bulkOrderDrawdown.replace(':id', id!))}
+            >
+              {t('detail.createDrawdown')}
+            </Button>
+          )}
+          {showChangeActions && isActive && !hasPendingChange && (
+            <Button
+              variant="outline"
+              size="md"
+              leftIcon={<EditIcon className="w-4 h-4" />}
+              onClick={() => navigate(BULK_ORDER_ROUTES.bulkOrderChange.replace(':id', id!))}
+            >
+              {t('detail.change')}
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Bulk Details */}
       <div className="rounded-lg border border-border bg-card p-4">

@@ -12,6 +12,18 @@ import {
 import type { INestApplication } from '@nestjs/common';
 import type { PrismaService } from '../../src/prisma/prisma.service';
 
+/**
+ * Removes a test project and its members/locations. Does nothing without an id:
+ * Prisma ignores an `undefined` filter, so `deleteMany({ where: { projectId } })`
+ * with no id would wipe every row in the table.
+ */
+async function deleteTestProject(prisma: PrismaService, projectId: string | undefined) {
+  if (!projectId) return;
+  await prisma.projectMember.deleteMany({ where: { projectId } }).catch(() => {});
+  await prisma.projectLocation.deleteMany({ where: { projectId } }).catch(() => {});
+  await prisma.project.delete({ where: { id: projectId } }).catch(() => {});
+}
+
 describe('Projects (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -187,9 +199,7 @@ describe('Projects (e2e)', () => {
       expect(res.body.data.assignedUsers.length).toBeGreaterThanOrEqual(2);
 
       // Cleanup
-      await prisma.projectMember.deleteMany({ where: { projectId: res.body.data.id } });
-      await prisma.projectLocation.deleteMany({ where: { projectId: res.body.data.id } });
-      await prisma.project.delete({ where: { id: res.body.data.id } });
+      await deleteTestProject(prisma, res.body.data.id);
     });
 
     it('should auto-assign creator to the project', async () => {
@@ -211,9 +221,7 @@ describe('Projects (e2e)', () => {
       expect(memberIds).toContain(procurementOfficerUserId);
 
       // Cleanup
-      await prisma.projectMember.deleteMany({ where: { projectId: res.body.data.id } });
-      await prisma.projectLocation.deleteMany({ where: { projectId: res.body.data.id } });
-      await prisma.project.delete({ where: { id: res.body.data.id } });
+      await deleteTestProject(prisma, res.body.data.id);
     });
 
     it('should only assign creator when ProcurementOfficer creates project', async () => {
@@ -235,9 +243,7 @@ describe('Projects (e2e)', () => {
       expect(memberIds).not.toContain(financialOfficerUserId);
 
       // Cleanup
-      await prisma.projectMember.deleteMany({ where: { projectId: res.body.data.id } });
-      await prisma.projectLocation.deleteMany({ where: { projectId: res.body.data.id } });
-      await prisma.project.delete({ where: { id: res.body.data.id } });
+      await deleteTestProject(prisma, res.body.data.id);
     });
 
     it('should return 409 for duplicate project name within company', async () => {
@@ -431,13 +437,7 @@ describe('Projects (e2e)', () => {
     });
 
     afterAll(async () => {
-      await prisma.projectMember
-        .deleteMany({ where: { projectId: testProjectId } })
-        .catch(() => {});
-      await prisma.projectLocation
-        .deleteMany({ where: { projectId: testProjectId } })
-        .catch(() => {});
-      await prisma.project.delete({ where: { id: testProjectId } }).catch(() => {});
+      await deleteTestProject(prisma, testProjectId);
     });
 
     it('should update project description as CompanyAdmin', async () => {
@@ -520,13 +520,7 @@ describe('Projects (e2e)', () => {
     });
 
     afterAll(async () => {
-      await prisma.projectMember
-        .deleteMany({ where: { projectId: memberTestProjectId } })
-        .catch(() => {});
-      await prisma.projectLocation
-        .deleteMany({ where: { projectId: memberTestProjectId } })
-        .catch(() => {});
-      await prisma.project.delete({ where: { id: memberTestProjectId } }).catch(() => {});
+      await deleteTestProject(prisma, memberTestProjectId);
     });
 
     it('should add members as CompanyAdmin', async () => {
@@ -584,13 +578,7 @@ describe('Projects (e2e)', () => {
     });
 
     afterAll(async () => {
-      await prisma.projectMember
-        .deleteMany({ where: { projectId: removeTestProjectId } })
-        .catch(() => {});
-      await prisma.projectLocation
-        .deleteMany({ where: { projectId: removeTestProjectId } })
-        .catch(() => {});
-      await prisma.project.delete({ where: { id: removeTestProjectId } }).catch(() => {});
+      await deleteTestProject(prisma, removeTestProjectId);
     });
 
     it('should remove a member as CompanyAdmin', async () => {
@@ -738,9 +726,7 @@ describe('Projects (e2e)', () => {
         .expect(403);
 
       // Cleanup
-      await prisma.projectMember.deleteMany({ where: { projectId } });
-      await prisma.projectLocation.deleteMany({ where: { projectId } });
-      await prisma.project.delete({ where: { id: projectId } });
+      await deleteTestProject(prisma, projectId);
     });
 
     it('AS-4: Duplicate project name is rejected', async () => {

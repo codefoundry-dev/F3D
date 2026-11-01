@@ -168,6 +168,10 @@ vi.mock('../constants/roles', () => ({
 
 // Stub UI components
 vi.mock('@forethread/ui-components', () => ({
+  useIsPhone: () => false,
+  MobileListToolbar: () => null,
+  FloatingActionButton: () => null,
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   cn: (...args: string[]) => args.filter(Boolean).join(' '),
   buttonVariants: () => 'btn',
   Button: ({ children, ...p }: any) => <button {...p}>{children}</button>,

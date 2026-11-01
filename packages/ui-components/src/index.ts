@@ -5,6 +5,10 @@ export { useDebounce } from './hooks/useDebounce';
 export { useClickOutside } from './hooks/useClickOutside';
 export { useEscapeKey } from './hooks/useEscapeKey';
 export { useMediaQuery } from './hooks/useMediaQuery';
+export { useScrollEdges } from './hooks/useScrollEdges';
+export { useIsPhone, PHONE_MEDIA_QUERY } from './hooks/useIsPhone';
+export type { ScrollEdges } from './hooks/useScrollEdges';
+export { useStickyTableHeader, STICKY_TOP_VAR } from './hooks/useStickyTableHeader';
 
 // Utilities
 export { cn } from './utils/cn';
@@ -36,6 +40,9 @@ export type { ButtonProps, ButtonVariant, ButtonSize } from './components/Button
 
 export { Input } from './components/Input';
 export type { InputProps, InputSize } from './components/Input';
+
+export { InlineEditCell } from './components/InlineEditCell';
+export type { InlineEditCellProps } from './components/InlineEditCell';
 
 export { StepperInput } from './components/StepperInput';
 export type { StepperInputProps } from './components/StepperInput';
@@ -134,6 +141,9 @@ export type { CardProps } from './components/Card';
 export { Divider } from './components/Divider';
 export type { DividerProps } from './components/Divider';
 
+export { CompactStepper } from './components/CompactStepper';
+export type { CompactStepperProps } from './components/CompactStepper';
+
 export { StepCircle } from './components/StepCircle';
 export type { StepCircleProps } from './components/StepCircle';
 
@@ -171,6 +181,7 @@ export type { Theme, ThemeProviderProps } from './components/ThemeProvider';
 
 export { Sidebar } from './components/Sidebar';
 export type { SidebarProps, SidebarNavItem } from './components/Sidebar';
+export { splitMobileNav, MOBILE_BAR_SLOTS } from './components/Sidebar';
 
 export { PageHeader } from './components/PageHeader';
 export type { PageHeaderProps } from './components/PageHeader';
@@ -180,6 +191,36 @@ export { Toaster, toast } from 'sonner';
 
 export { CustomToast, notificationService } from './components/CustomToast';
 export type { CustomToastProps, ToastType } from './components/CustomToast';
+
+export { MobileActionBar, MobileHeaderActions, PageActions } from './components/MobileActionBar';
+export type {
+  MobileActionBarProps,
+  MobileHeaderActionsProps,
+  PageAction,
+  PageActionsProps,
+} from './components/MobileActionBar';
+export {
+  MobileActionBarSlot,
+  MobileHeaderActionsSlot,
+  useHideMobileNav,
+  useMobileExit,
+  useMobileExitHandler,
+  useMobileNavHidden,
+  __resetMobileChrome,
+} from './components/MobileChrome';
+
+export { LineItemEditor, LineItemSheet } from './components/LineItemSheet';
+export type {
+  LineItemEditorProps,
+  LineItemField,
+  LineItemSheetProps,
+} from './components/LineItemSheet';
+
+export { MobileListToolbar, FloatingActionButton } from './components/MobileListToolbar';
+export type {
+  MobileListToolbarProps,
+  FloatingActionButtonProps,
+} from './components/MobileListToolbar';
 
 export { DotActionsMenu } from './components/DotActionsMenu';
 export type { DotActionsMenuProps, DotAction } from './components/DotActionsMenu';
@@ -233,6 +274,8 @@ export {
   TABLE_CELL,
   TABLE_CELL_CAPTION,
 } from './components/tableStyles';
+export { ScrollTable } from './components/ScrollTable';
+export type { ScrollTableProps } from './components/ScrollTable';
 
 export { SearchInput } from './components/SearchInput';
 export type { SearchInputProps } from './components/SearchInput';

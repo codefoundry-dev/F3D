@@ -38,6 +38,7 @@ import {
   UserRole,
   UserStatus,
 } from '@prisma/client';
+import { isUUID } from 'class-validator';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -51,8 +52,10 @@ import { AuditService } from '../audit/audit.service';
 import { BrandingService } from '../export/branding.service';
 import { NotificationService } from '../notification-feed/notification.service';
 import { EmailAttachment, EmailService } from '../notifications/email.service';
+import { loadCompanyPoTerms } from '../purchase-orders/po-terms.util';
 import { StorageService } from '../storage/storage.service';
 
+import { deliveryVarianceDays } from './quote-comparison';
 import { AwardSplitDto } from './quote-response.dto';
 import { collectProjectMemberEmails, normalizeCcEmails } from './rfq-cc.util';
 import {
@@ -61,6 +64,7 @@ import {
   normalizeRfqLineItem,
   resolveRfqLineItemMaterialName,
 } from './rfq-line-item.util';
+import { formatRfqLocation } from './rfq-location.util';
 import { RfqVisibilityService } from './rfq-visibility.service';
 import { VENDOR_STATUS_MAP, VENDOR_STATUS_TO_RFQ } from './vendor-status.constants';
 
@@ -123,6 +127,23 @@ const RFQ_INVITED_VENDORS_INCLUDE = {
   },
 } satisfies Prisma.RfqVendorInclude;
 
+/**
+ * Quote-line slice carried on the RFQ detail: the delivery window + notes the
+ * list cards need, plus each line's quoted price so the PO wizard can fill a
+ * from-RFQ PO with the vendor's actual per-line price (FOR-391).
+ */
+const QUOTE_LINE_DETAIL_SELECT = {
+  id: true,
+  rfqLineItemId: true,
+  unitPrice: true,
+  quotedQuantity: true,
+  approvedQuantity: true,
+  deliveryDate: true,
+  availability: true,
+  notes: true,
+  status: true,
+} satisfies Prisma.QuoteResponseLineItemSelect;
+
 const RFQ_DETAIL_INCLUDE = {
   project: { select: { id: true, name: true, code: true } },
   projects: { include: { project: { select: { id: true, name: true, code: true } } } },
@@ -130,7 +151,7 @@ const RFQ_DETAIL_INCLUDE = {
   createdBy: { select: { id: true, name: true } },
   lineItems: {
     include: {
-      material: { select: { id: true, name: true, uom: true } },
+      material: { select: { id: true, name: true, uom: true, imageUrl: true } },
       project: { select: { id: true, name: true } },
       deliveryLocation: { select: { id: true, label: true, address: true } },
     },
@@ -140,7 +161,7 @@ const RFQ_DETAIL_INCLUDE = {
       vendor: { select: { legalName: true } },
       _count: { select: { attachments: true } },
       lineItems: {
-        select: { deliveryDate: true, availability: true, notes: true, status: true },
+        select: QUOTE_LINE_DETAIL_SELECT,
       },
     },
   },
@@ -318,9 +339,7 @@ export class RfqsService {
           isPickUp,
           pickUp: isPickUp || !!rfq.pickUpLocation,
           deliveryLocationId: rfqAny.deliveryLocationId ?? null,
-          deliveryLocation: deliveryLocation
-            ? (deliveryLocation.label ?? deliveryLocation.address)
-            : null,
+          deliveryLocation: formatRfqLocation(deliveryLocation),
           pickUpLocation: rfq.pickUpLocation,
           recVendors: rfq.quoteResponses.length,
           recQuotes: rfq._count.quoteResponses,
@@ -366,7 +385,7 @@ export class RfqsService {
               vendor: { select: { legalName: true, users: { select: { id: true } } } },
               _count: { select: { attachments: true } },
               lineItems: {
-                select: { deliveryDate: true, availability: true, notes: true, status: true },
+                select: QUOTE_LINE_DETAIL_SELECT,
               },
             },
           },
@@ -390,6 +409,20 @@ export class RfqsService {
     // Project-based visibility (FOR-351) — also closes the previous gap where
     // the detail read carried no company/invitation check at all.
     await this.rfqVisibility.assertRfqVisible(user, rfq);
+
+    // POs raised from this RFQ (FOR-396), so an awarded RFQ links to the draft
+    // its award created instead of offering to create another. Buyers only.
+    const purchaseOrders = isVendor
+      ? []
+      : ((await this.prisma.purchaseOrder.findMany({
+          where: {
+            rfqId: id,
+            status: { not: PoStatus.CANCELLED },
+            poType: { not: PoType.SPLIT },
+          },
+          select: { id: true, poNumber: true, status: true },
+          orderBy: { createdAt: 'asc' },
+        })) ?? []);
 
     // Compute vendor status from the vendor's own quote response
     let vendorStatus: string | undefined;
@@ -457,14 +490,13 @@ export class RfqsService {
       // Vendor-only: the current user's own quote id, for the per-quote message
       // thread (FOR-288). Null for buyers and for vendors who haven't quoted.
       myQuoteResponseId,
+      purchaseOrders,
       status: vendorStatus ?? rfq.status,
       isPickUp,
       pickUp: isPickUp || !!rfq.pickUpLocation,
       pickUpDate: rfq.pickUpDate?.toISOString() ?? null,
       deliveryLocationId: rfqAny.deliveryLocationId ?? null,
-      deliveryLocation: rfqDeliveryLocation
-        ? (rfqDeliveryLocation.label ?? rfqDeliveryLocation.address)
-        : null,
+      deliveryLocation: formatRfqLocation(rfqDeliveryLocation),
       pickUpLocation: rfq.pickUpLocation,
       currency: rfqAny.currency ?? null,
       needByDate: rfqAny.needByDate ? (rfqAny.needByDate as Date).toISOString() : null,
@@ -495,6 +527,10 @@ export class RfqsService {
           materialName: resolveRfqLineItemMaterialName(
             li as unknown as { material: { name: string } | null; materialName: string | null },
           ),
+          // Live catalogue image (FOR-361) so buyers and vendors see what's being
+          // quoted. Read through the material link rather than snapshotted, so a
+          // corrected catalogue image reaches open RFQs; free-text lines get null.
+          imageUrl: li.material?.imageUrl ?? null,
           description: li.description,
           notes,
           hasNotes: Boolean(notes),
@@ -515,11 +551,7 @@ export class RfqsService {
             (liAny.deliveryLocationId as string | null | undefined) ??
             rfqAny.deliveryLocationId ??
             null,
-          deliveryLocation: liLocation
-            ? (liLocation.label ?? liLocation.address)
-            : rfqDeliveryLocation
-              ? (rfqDeliveryLocation.label ?? rfqDeliveryLocation.address)
-              : null,
+          deliveryLocation: formatRfqLocation(liLocation ?? rfqDeliveryLocation),
         };
       }),
       vendors:
@@ -579,9 +611,22 @@ export class RfqsService {
           };
         }) ?? [],
       quoteResponses: rfq.quoteResponses.map((qr) => {
+        const expectedByRfqLine = new Map(
+          rfq.lineItems.map((li) => {
+            const expected =
+              (li as unknown as { expectedDeliveryDate: Date | null }).expectedDeliveryDate ??
+              rfq.needByDate;
+            return [li.id, expected?.toISOString() ?? null] as const;
+          }),
+        );
         const qrAny = qr as unknown as {
           _count?: { attachments: number };
           lineItems?: {
+            id: string;
+            rfqLineItemId: string;
+            unitPrice: Prisma.Decimal;
+            quotedQuantity: number;
+            approvedQuantity: number | null;
             deliveryDate: Date | null;
             availability: string;
             notes: string | null;
@@ -596,6 +641,22 @@ export class RfqsService {
           .map((li) => (li.deliveryDate as Date).getTime());
         const bulkTime = qrAny.bulkDeliveryTime ? qrAny.bulkDeliveryTime.getTime() : null;
         const allTimes = bulkTime !== null ? [bulkTime] : deliveryTimes;
+        // FOR-392: each quoted line's delivery against the line's expected date.
+        const quoteLines = (qrAny.lineItems ?? []).map((li) => {
+          const quoted = li.availability !== 'NO_QUOTE' && li.deliveryDate;
+          return {
+            li,
+            variance: quoted
+              ? deliveryVarianceDays(
+                  (li.deliveryDate as Date).toISOString(),
+                  expectedByRfqLine.get(li.rfqLineItemId) ?? null,
+                )
+              : null,
+          };
+        });
+        const lateVariances = quoteLines
+          .map((ql) => ql.variance)
+          .filter((v): v is number => v !== null && v > 0);
         return {
           id: qr.id,
           vendorId: qr.vendorId,
@@ -613,6 +674,23 @@ export class RfqsService {
             allTimes.length > 0 ? new Date(Math.max(...allTimes)).toISOString() : null,
           attachmentCount: qrAny._count?.attachments ?? 0,
           hasNotes: (qrAny.lineItems ?? []).some((li) => !!li.notes) || !!qr.message,
+          // Per-line quoted prices (FOR-391) — the PO wizard prices from-RFQ lines
+          // from these instead of spreading the quote total across lines.
+          // Lines quoted after their expected date, and the worst slip in days.
+          lateLineCount: lateVariances.length,
+          maxLateDays: lateVariances.length > 0 ? Math.max(...lateVariances) : null,
+          hasDeliveryComparison: quoteLines.some((ql) => ql.variance !== null),
+          lineItems: quoteLines.map(({ li, variance }) => ({
+            id: li.id,
+            rfqLineItemId: li.rfqLineItemId,
+            unitPrice: Number(li.unitPrice),
+            quotedQuantity: li.quotedQuantity,
+            approvedQuantity: li.approvedQuantity,
+            availability: li.availability,
+            status: li.status,
+            deliveryDate: li.deliveryDate?.toISOString() ?? null,
+            deliveryVarianceDays: variance,
+          })),
         };
       }),
       documents: rfq.documents.map((doc) => ({
@@ -794,7 +872,7 @@ export class RfqsService {
     // Validate all vendorIds exist, are vendor-type companies, and are assigned to this contractor.
     // Why: enforces the M:N relationship — a contractor can only invite vendors on their list,
     // not arbitrary platform vendors belonging to other contractors.
-    await this.assertVendorsAssigned(dto.vendorIds, user.companyId);
+    await this.assertVendorsAssigned(dto.vendorIds, user.companyId, projectIds);
 
     // Validate the chosen sales reps and group them by vendor so each invited
     // vendor records exactly the reps that should be emailed (US 5.05).
@@ -909,7 +987,7 @@ export class RfqsService {
     // Validate vendor assignment scope + chosen sales reps (when vendors provided)
     let repsByCompany = new Map<string, string[]>();
     if (dto.vendorIds && dto.vendorIds.length > 0) {
-      await this.assertVendorsAssigned(dto.vendorIds, user.companyId);
+      await this.assertVendorsAssigned(dto.vendorIds, user.companyId, projectIds);
       repsByCompany = await this.assertSalesRepsValid(dto.salesRepIds, dto.vendorIds);
     }
 
@@ -1066,7 +1144,11 @@ export class RfqsService {
     // Validate vendorIds + chosen sales reps if provided — same checks as createRfq.
     let repsByCompany = new Map<string, string[]>();
     if (dto.vendorIds) {
-      await this.assertVendorsAssigned(dto.vendorIds, rfq.companyId);
+      await this.assertVendorsAssigned(
+        dto.vendorIds,
+        rfq.companyId,
+        await getEffectiveProjectIds(),
+      );
       repsByCompany = await this.assertSalesRepsValid(dto.salesRepIds, dto.vendorIds);
     }
 
@@ -1185,6 +1267,8 @@ export class RfqsService {
         id: true,
         status: true,
         companyId: true,
+        isPickUp: true,
+        deliveryLocationId: true,
         _count: { select: { lineItems: true, invitedVendors: true } },
       },
     });
@@ -1202,6 +1286,12 @@ export class RfqsService {
 
     if (rfq._count.invitedVendors === 0) {
       throw new BadRequestException(ERR.rfqs.mustHaveVendors);
+    }
+
+    // Mirrors the wizard's client-side check (FOR-387): a delivered RFQ needs
+    // somewhere to deliver to.
+    if (!rfq.isPickUp && !rfq.deliveryLocationId) {
+      throw new BadRequestException(ERR.rfqs.mustHaveDeliveryLocation);
     }
 
     const ccEmails = normalizeCcEmails(dto?.cc);
@@ -1282,12 +1372,13 @@ export class RfqsService {
   // ── Award Quote (FOR-209) ────────────────────────────────────────────────────
 
   /**
-   * Award a received quote: approve it, mark the RFQ AWARDED, and auto-create a
-   * draft Purchase Order pre-filled from the awarded quote's line items so the
-   * contractor can review and issue it. The award decision is captured on the
+   * Award a received quote: approve it, mark the RFQ AWARDED, and auto-create
+   * draft Purchase Order(s) pre-filled from the awarded quote's line items so
+   * the contractor can review and issue them. A multi-project RFQ (US 5.05)
+   * yields one draft PO per project. The award decision is captured on the
    * RFQ's quote audit trail (APPROVED). The quote approval, RFQ status change,
    * audit entry and PO creation all run in one transaction so they are
-   * all-or-nothing.
+   * all-or-nothing. This is the buyer's "Approve" action (FOR-396).
    */
   async awardQuote(rfqId: string, quoteId: string, user: AuthenticatedUser) {
     const quote = await this.prisma.quoteResponse.findUnique({
@@ -1308,8 +1399,11 @@ export class RfqsService {
         lineItems: {
           orderBy: QUOTE_LINE_ITEM_ORDER,
           include: {
+            substituteItem: { select: { name: true } },
             rfqLineItem: {
               select: {
+                projectId: true,
+                deliveryLocationId: true,
                 materialId: true,
                 materialName: true,
                 unit: true,
@@ -1326,24 +1420,43 @@ export class RfqsService {
         },
       },
     });
-    if (!quote) throw new NotFoundException(ERR.rfqs.quoteNotFound);
+    // A quote addressed through another RFQ's URL must not award (and flip the
+    // status of) the wrong RFQ.
+    if (!quote || quote.rfqId !== rfqId) throw new NotFoundException(ERR.rfqs.quoteNotFound);
     this.assertCompanyAccess(user, quote.rfq.companyId);
     this.assertQuoteAwardable(quote.status);
 
-    // Derive PO lines from the awarded quote, dropping lines the vendor did not
-    // actually quote (NO_QUOTE). qty × unit mirrors the PO module's line total.
-    const poLineItems = quote.lineItems
-      .filter((li) => li.availability !== QuoteLineItemAvailability.NO_QUOTE)
-      .map((li, idx) => {
+    // Derive PO lines from the awarded quote, keeping only lines the buyer can
+    // actually buy: quoted (not NO_QUOTE / UNAVAILABLE) and not declined at line
+    // review — the same rule the PO wizard applies (FOR-391). The ordered
+    // quantity is the approved quantity when one was set, else the quoted one.
+    const byProject = new Map<string, typeof quote.lineItems>();
+    for (const li of quote.lineItems) {
+      if (
+        li.availability === QuoteLineItemAvailability.NO_QUOTE ||
+        li.availability === QuoteLineItemAvailability.UNAVAILABLE ||
+        li.status === QuoteLineItemStatus.DECLINED
+      ) {
+        continue;
+      }
+      const projectId = li.rfqLineItem.projectId ?? quote.rfq.projectId;
+      byProject.set(projectId, [...(byProject.get(projectId) ?? []), li]);
+    }
+    if (byProject.size === 0) throw new BadRequestException(ERR.rfqs.awardNoPurchasableLines);
+
+    const drafts = [...byProject].map(([projectId, lines]) => {
+      const poLineItems = lines.map((li, idx) => {
         const unitPrice = Number(li.unitPrice);
+        const quantityOrdered = li.approvedQuantity ?? li.quotedQuantity;
         return {
           lineNumber: idx + 1,
           materialId: li.rfqLineItem.materialId,
-          description: li.rfqLineItem.description ?? li.rfqLineItem.materialName,
-          quantityOrdered: li.quotedQuantity,
+          description:
+            li.substituteItem?.name ?? li.rfqLineItem.description ?? li.rfqLineItem.materialName,
+          quantityOrdered,
           unitOfMeasure: li.rfqLineItem.unit,
           unitPrice,
-          lineTotal: li.quotedQuantity * unitPrice,
+          lineTotal: quantityOrdered * unitPrice,
           costCode: li.rfqLineItem.costCode,
           // Carry the RFQ line's catalogue snapshots onto the PO line (they were
           // captured at RFQ create; dropping them here blanked UPC/MPN/tax code
@@ -1356,23 +1469,33 @@ export class RfqsService {
           // equivalent, so the RFQ line's value carries straight through.
           expectedDeliveryDate: li.deliveryDate,
           deliveryTime: li.rfqLineItem.deliveryTime,
+          deliveryLocationId: li.rfqLineItem.deliveryLocationId,
           notes: li.notes,
           pickUp: li.rfqLineItem.pickUp,
         };
       });
+      return {
+        projectId,
+        poLineItems,
+        subtotal: poLineItems.reduce((sum, li) => sum + li.lineTotal, 0),
+        totalRequestedQty: poLineItems.reduce((sum, li) => sum + li.quantityOrdered, 0),
+      };
+    });
 
-    const subtotal = poLineItems.reduce((sum, li) => sum + li.lineTotal, 0);
-    const totalRequestedQty = poLineItems.reduce((sum, li) => sum + li.quantityOrdered, 0);
-    // Number generated before the transaction, mirroring the PO module's own
-    // creation path (count scoped to the contractor's company).
-    const poNumber = await nextSequentialNumber(
+    // Numbers minted before the transaction, mirroring the PO module's own
+    // creation path (max+1 scoped to the contractor's company); further drafts
+    // of a multi-project award take the following numbers.
+    const firstPoNumber = await nextSequentialNumber(
       this.prisma,
       'purchaseOrder',
       'PO',
       quote.rfq.companyId,
     );
+    const firstSeq = Number.parseInt(firstPoNumber.slice('PO-'.length), 10);
+    const poNumberAt = (i: number) => `PO-${String(firstSeq + i).padStart(5, '0')}`;
+    const termsAndConditions = await loadCompanyPoTerms(this.prisma, quote.rfq.companyId);
 
-    const { quoteResult, purchaseOrder } = await this.prisma.$transaction(async (tx) => {
+    const { quoteResult, purchaseOrders } = await this.prisma.$transaction(async (tx) => {
       const quoteResult = await tx.quoteResponse.update({
         where: { id: quoteId },
         data: { status: QuoteResponseStatus.APPROVED },
@@ -1395,50 +1518,59 @@ export class RfqsService {
         },
       });
 
-      const purchaseOrder = await tx.purchaseOrder.create({
-        data: {
-          poNumber,
-          companyId: quote.rfq.companyId,
-          projectId: quote.rfq.projectId,
-          vendorId: quote.vendorId,
-          rfqId,
-          createdByUserId: user.id,
-          status: PoStatus.DRAFT,
-          poType: PoType.STANDARD,
-          sourceOfCreation: PoSourceOfCreation.RFQ,
-          currency: quote.rfq.currency,
-          deliveryLocationId: quote.rfq.deliveryLocationId,
-          // The buyer's need-by date follows the award onto the PO — it is the
-          // PO's planned delivery date until the contractor edits the draft.
-          plannedDeliveryDate: quote.rfq.needByDate,
-          holdForRelease: quote.rfq.holdForRelease,
-          deadlineStart: quote.rfq.deadlineStart,
-          deadlineEnd: quote.rfq.deadlineEnd,
-          message: quote.message,
-          subtotal,
-          totalAmount: subtotal,
-          lineItemCount: poLineItems.length,
-          totalRequestedQty,
-          lineItems: { create: poLineItems },
-        },
-        select: { id: true, poNumber: true },
-      });
+      const purchaseOrders: { id: string; poNumber: string }[] = [];
+      for (const [i, draft] of drafts.entries()) {
+        purchaseOrders.push(
+          await tx.purchaseOrder.create({
+            data: {
+              poNumber: poNumberAt(i),
+              companyId: quote.rfq.companyId,
+              projectId: draft.projectId,
+              vendorId: quote.vendorId,
+              rfqId,
+              createdByUserId: user.id,
+              status: PoStatus.DRAFT,
+              poType: PoType.STANDARD,
+              sourceOfCreation: PoSourceOfCreation.RFQ,
+              currency: quote.rfq.currency,
+              deliveryLocationId: quote.rfq.deliveryLocationId,
+              // The buyer's need-by date follows the award onto the PO — it is
+              // the PO's planned delivery date until the contractor edits it.
+              plannedDeliveryDate: quote.rfq.needByDate,
+              holdForRelease: quote.rfq.holdForRelease,
+              deadlineStart: quote.rfq.deadlineStart,
+              deadlineEnd: quote.rfq.deadlineEnd,
+              termsAndConditions,
+              message: quote.message,
+              subtotal: draft.subtotal,
+              totalAmount: draft.subtotal,
+              lineItemCount: draft.poLineItems.length,
+              totalRequestedQty: draft.totalRequestedQty,
+              lineItems: { create: draft.poLineItems },
+            },
+            select: { id: true, poNumber: true },
+          }),
+        );
+      }
 
-      return { quoteResult, purchaseOrder };
+      return { quoteResult, purchaseOrders };
     });
 
-    await this.auditAwardPoCreated(purchaseOrder.id, user, { source: 'RFQ_AWARD', rfqId });
+    for (const po of purchaseOrders) {
+      await this.auditAwardPoCreated(po.id, user, { source: 'RFQ_AWARD', rfqId });
+    }
 
-    // The PO is intentionally left as a DRAFT: the contractor reviews it and
-    // issues it to the vendor manually from the PO detail page. Awarding a quote
-    // does NOT auto-send the PO to the vendor.
+    // The POs are intentionally left as DRAFTs: the contractor reviews them and
+    // issues them to the vendor manually from the PO detail page. Awarding a
+    // quote does NOT auto-send a PO to the vendor.
     return {
       id: quoteResult.id,
       vendorName: quoteResult.vendor.legalName,
       status: quoteResult.status,
       totalCost: Number(quoteResult.totalCost),
-      purchaseOrderId: purchaseOrder.id,
-      poNumber: purchaseOrder.poNumber,
+      purchaseOrderId: purchaseOrders[0].id,
+      poNumber: purchaseOrders[0].poNumber,
+      purchaseOrders,
     };
   }
 
@@ -1663,6 +1795,8 @@ export class RfqsService {
       groups.set(groupKey, group);
     }
 
+    const termsAndConditions = await loadCompanyPoTerms(this.prisma, rfq.companyId);
+
     const splitResult = await this.prisma.$transaction(async (tx) => {
       // 1. Persist per-vendor approved qty + APPROVED status on awarded lines.
       for (const a of dto.allocations) {
@@ -1714,6 +1848,7 @@ export class RfqsService {
           holdForRelease: rfq.holdForRelease,
           deadlineStart: rfq.deadlineStart,
           deadlineEnd: rfq.deadlineEnd,
+          termsAndConditions,
         },
         select: { id: true, poNumber: true },
       });
@@ -1753,6 +1888,7 @@ export class RfqsService {
             deadlineStart: rfq.deadlineStart,
             deadlineEnd: rfq.deadlineEnd,
             message: group.message,
+            termsAndConditions,
             subtotal,
             totalAmount: subtotal,
             lineItemCount: poLineItems.length,
@@ -2126,8 +2262,23 @@ export class RfqsService {
       ];
     }
 
+    // The list filter sends location ids (FOR-387); free text still matches
+    // the label or address so API callers can search by name. Comparing free
+    // text to the UUID column matched nothing.
     if (query.deliveryLocation) {
-      (where as Record<string, unknown>).deliveryLocationId = query.deliveryLocation;
+      where.AND = [
+        ...((where.AND as Prisma.RfqWhereInput[] | undefined) ?? []),
+        isUUID(query.deliveryLocation)
+          ? { deliveryLocationId: query.deliveryLocation }
+          : {
+              deliveryLocation: {
+                OR: [
+                  { label: { contains: query.deliveryLocation, mode: 'insensitive' } },
+                  { address: { contains: query.deliveryLocation, mode: 'insensitive' } },
+                ],
+              },
+            },
+      ];
     }
 
     if (query.createdByUserId) where.createdByUserId = query.createdByUserId;
@@ -2354,6 +2505,7 @@ export class RfqsService {
         body: `You have been invited to quote on RFQ ${rfqNumber}.`,
         entityType: NotificationEntityType.RFQ,
         entityId: rfqId,
+        sender: { userId: sentByUserId ?? rfq.createdByUserId },
       });
     }
 
@@ -2387,6 +2539,7 @@ export class RfqsService {
         body: `RFQ ${rfqNumber} for ${rfq.project.name} was sent to vendors.`,
         entityType: NotificationEntityType.RFQ,
         entityId: rfqId,
+        sender: { userId: sentByUserId ?? rfq.createdByUserId },
       });
     }
   }
@@ -2423,6 +2576,8 @@ export class RfqsService {
     vendorName: string,
     /** The vendor's note on the quote, rendered as the user comment. */
     comment: string | null = null,
+    /** The vendor rep who submitted — the in-app sender (FOR-366). */
+    submittedByUserId: string | null = null,
   ): Promise<void> {
     try {
       const rfq = await this.resolveQuoteWatchers(rfqId);
@@ -2454,6 +2609,7 @@ export class RfqsService {
         body: `${vendorName} submitted a quote for RFQ ${rfqNumber}.`,
         entityType: NotificationEntityType.RFQ,
         entityId: rfqId,
+        sender: submittedByUserId ? { userId: submittedByUserId } : { companyName: vendorName },
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -2540,6 +2696,8 @@ export class RfqsService {
     vendorName: string,
     /** The vendor's note on the revised quote, rendered as the user comment. */
     comment: string | null = null,
+    /** The vendor rep who revised it — the in-app sender (FOR-366). */
+    submittedByUserId: string | null = null,
   ): Promise<void> {
     try {
       const rfq = await this.resolveQuoteWatchers(rfqId);
@@ -2572,6 +2730,7 @@ export class RfqsService {
         body: `${vendorName} updated their quote for RFQ ${rfqNumber}.`,
         entityType: NotificationEntityType.RFQ,
         entityId: rfqId,
+        sender: submittedByUserId ? { userId: submittedByUserId } : { companyName: vendorName },
       });
     } catch {
       // fire-and-forget: email failures are non-critical
@@ -2668,6 +2827,7 @@ export class RfqsService {
   private async assertVendorsAssigned(
     vendorIds: string[],
     contractorId: string | null | undefined,
+    rfqProjectIds: string[],
   ): Promise<void> {
     if (vendorIds.length === 0) return;
     if (!contractorId) throw new BadRequestException(ERR.rfqs.invalidVendorIds);
@@ -2678,12 +2838,16 @@ export class RfqsService {
         vendorId: { in: vendorIds },
         vendor: { type: CompanyType.VENDOR },
       },
-      select: { vendorId: true },
+      select: { vendorId: true, oneOffProjectId: true },
     });
 
     const assignedIds = new Set(assignments.map((a) => a.vendorId));
     if (assignedIds.size !== new Set(vendorIds).size) {
       throw new BadRequestException(ERR.rfqs.invalidVendorIds);
+    }
+    // A one-off vendor (FOR-395) only serves the project it was added for.
+    if (assignments.some((a) => a.oneOffProjectId && !rfqProjectIds.includes(a.oneOffProjectId))) {
+      throw new BadRequestException(ERR.vendors.oneOffWrongProject);
     }
   }
 

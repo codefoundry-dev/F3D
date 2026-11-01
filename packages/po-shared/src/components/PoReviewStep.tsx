@@ -1,6 +1,13 @@
 import type { ProjectDetail, VendorAssignment } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { FileChip, FileDropzone, MessageBadgeIcon, Textarea } from '@forethread/ui-components';
+import { PO_TERMS_MAX_LENGTH } from '@forethread/shared-types/client';
+import {
+  FileChip,
+  FileDropzone,
+  MessageBadgeIcon,
+  Textarea,
+  ScrollTable,
+} from '@forethread/ui-components';
 import EditWithoutLineIcon from '@forethread/ui-components/assets/icons/edit-without-line.svg?react';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import EditInSquareIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
@@ -165,17 +172,14 @@ export function PoReviewStep({
             </button>
           )}
         </div>
-        <div className="overflow-x-auto -mx-6 px-6">
+        <ScrollTable className="px-6" wrapperClassName="-mx-6">
           <table
             className="w-full text-sm"
             style={{ borderCollapse: 'separate', borderSpacing: 0 }}
           >
             <thead>
               <tr className="text-left bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
-                <th className={TH_CLASS} style={{ width: '8%' }}>
-                  {t('create.lineItemId')}
-                </th>
-                <th className={TH_CLASS} style={{ width: '14%' }}>
+                <th className={TH_CLASS} style={{ width: '22%' }}>
                   {t('create.itemMaterial')}
                 </th>
                 <th className={TH_CLASS} style={{ width: '12%' }}>
@@ -212,7 +216,6 @@ export function PoReviewStep({
                 const lineTotal = Number(item.unitPrice) * Number(item.quantityOrdered);
                 return (
                   <tr key={i}>
-                    <td className={TD_CLASS}>{i + 1}</td>
                     <td className={TD_CLASS}>{item.materialName}</td>
                     <td className={TD_CLASS}>{item.description ?? '-'}</td>
                     <td className={TD_CLASS}>{item.unitOfMeasure}</td>
@@ -241,7 +244,7 @@ export function PoReviewStep({
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
         <div className="flex items-center justify-between mt-4 pt-3 border-t border-border text-sm">
           <div className="flex gap-6">
             <span>
@@ -304,6 +307,18 @@ export function PoReviewStep({
             {...register('message')}
             rows={4}
             placeholder={t('create.poMessagePlaceholder')}
+          />
+        </div>
+
+        {/* FOR-398: the company's default T&Cs, editable for this PO only. */}
+        <div className="bg-card rounded-lg border border-border p-6">
+          <h3 className="font-semibold mb-1">{t('create.termsAndConditions')}</h3>
+          <p className="text-xs text-muted-foreground mb-2">{t('create.termsAndConditionsHint')}</p>
+          <Textarea
+            {...register('termsAndConditions')}
+            rows={6}
+            maxLength={PO_TERMS_MAX_LENGTH}
+            placeholder={t('create.termsAndConditionsPlaceholder')}
           />
         </div>
       </div>

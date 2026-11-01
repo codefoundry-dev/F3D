@@ -1,9 +1,10 @@
 import type { RfqLineItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { MessageBadgeIcon } from '@forethread/ui-components';
+import { MessageBadgeIcon, ScrollTable } from '@forethread/ui-components';
 import EditInSquareIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
 
 import { formatDate } from './detail-primitives';
+import { MaterialImageThumb } from './MaterialImageThumb';
 
 interface RfqLineItemsTabProps {
   lineItems: RfqLineItem[];
@@ -21,14 +22,11 @@ export function RfqLineItemsTab({ lineItems, layout = 'panel' }: RfqLineItemsTab
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <ScrollTable>
         <table className="w-full min-w-[600px] text-sm">
           <thead>
             <tr className="border-b border-foreground/10 text-left">
               <th className="pb-2 pr-3 font-medium text-muted-foreground text-xs">
-                {t('lineItemsTab.lineItemId')}
-              </th>
-              <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
                 {t('lineItemsTab.materialName')}
               </th>
               <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
@@ -51,8 +49,12 @@ export function RfqLineItemsTab({ lineItems, layout = 'panel' }: RfqLineItemsTab
           <tbody>
             {lineItems.map((item) => (
               <tr key={item.id} className="border-b border-foreground/10">
-                <td className="py-2.5 pr-3 text-foreground">{item.id}</td>
-                <td className="py-2.5 px-3 text-foreground">{item.materialName}</td>
+                <td className="py-2.5 pr-3 text-foreground">
+                  <span className="flex items-center gap-2">
+                    <MaterialImageThumb url={item.imageUrl} name={item.materialName} />
+                    {item.materialName}
+                  </span>
+                </td>
                 <td className="py-2.5 px-3 text-foreground">{item.quantity}</td>
                 <td className="py-2.5 px-3 text-muted-foreground">{item.unit}</td>
                 <td className="py-2.5 px-3 text-muted-foreground">
@@ -71,7 +73,7 @@ export function RfqLineItemsTab({ lineItems, layout = 'panel' }: RfqLineItemsTab
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollTable>
 
       <div className="flex justify-start mt-3 pt-3 border-t border-foreground/10">
         <span className="text-sm text-muted-foreground">

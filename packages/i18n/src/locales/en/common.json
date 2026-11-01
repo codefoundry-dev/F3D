@@ -17,6 +17,12 @@
   "pageOf": "Page {{page}} of {{totalPages}} ({{total}} items)",
   "pageLabel": "Page {{page}} of {{totalPages}}",
   "back": "Back",
+  "unsavedChanges": {
+    "title": "Leave without saving?",
+    "message": "Your changes will be lost if you leave this page now.",
+    "leave": "Leave",
+    "stay": "Keep editing"
+  },
   "rowsPerPage": "Rows per page:",
   "showingItems": "Showing {{from}} to {{to}} of {{total}} items",
   "errorTitle": "Something went wrong",
@@ -25,6 +31,11 @@
   "errorBack": "Go back",
   "search": "Search",
   "genericError": "An error occurred. Please try again.",
+  "inlineEdit": {
+    "editLabel": "Edit {{label}}: {{value}}",
+    "hint": "Click to edit",
+    "saveFailed": "Could not save. Try again."
+  },
   "saving": "Saving…",
   "all": "All",
   "yes": "Yes",

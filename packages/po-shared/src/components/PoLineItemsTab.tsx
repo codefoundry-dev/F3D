@@ -8,6 +8,7 @@ import {
   Button,
   Alert,
   onDigitsOnly,
+  ScrollTable,
 } from '@forethread/ui-components';
 import EditInSquareIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
 import EditWithoutLineIcon from '@forethread/ui-components/assets/icons/edit-without-line.svg?react';
@@ -78,7 +79,7 @@ export function PoLineItemsTab({
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
+      <ScrollTable>
         <table
           className="w-full min-w-[800px] text-sm"
           style={{ borderCollapse: 'separate', borderSpacing: 0 }}
@@ -182,7 +183,7 @@ export function PoLineItemsTab({
           </tbody>
           {/* Footer totals */}
           <tfoot>
-            <tr className="border-t border-border bg-muted/50">
+            <tr className="border-t border-border bg-[color:color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]">
               <td colSpan={columnCount} className="px-6 py-3">
                 <div className="flex items-center gap-8 text-sm">
                   <span className="text-muted-foreground">
@@ -202,7 +203,7 @@ export function PoLineItemsTab({
             </tr>
           </tfoot>
         </table>
-      </div>
+      </ScrollTable>
 
       {/* Edit Modal */}
       {editingItem && poId && !readOnly && (

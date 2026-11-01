@@ -21,8 +21,7 @@ import {
 } from '@forethread/po-shared';
 import type { PoTab, RelatedDocument } from '@forethread/po-shared';
 import { usePageTitleStore } from '@forethread/rfq-shared';
-import { Button, Spinner, notificationService } from '@forethread/ui-components';
-import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
+import { PageActions, Spinner, notificationService, useIsPhone } from '@forethread/ui-components';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import { useQuery } from '@tanstack/react-query';
@@ -39,7 +38,14 @@ import { useProposePoChange } from '../services/purchase-orders.service';
 
 const ACTIONABLE_STATUSES = ['SENT', 'ACKNOWLEDGED'];
 /** Statuses for which the backend accepts a change proposal (po-change.service). */
-const CHANGEABLE_STATUSES = ['SENT', 'ACKNOWLEDGED', 'ACCEPTED'];
+// Accepted POs move on to scheduled / late by themselves (FOR-396).
+const CHANGEABLE_STATUSES = [
+  'SENT',
+  'ACKNOWLEDGED',
+  'ACCEPTED',
+  'SCHEDULED_FOR_DELIVERY',
+  'LATE_FOR_DELIVERY',
+];
 
 export default function PurchaseOrderDetailPage() {
   const { t } = useTranslation('purchaseOrders');
@@ -172,6 +178,7 @@ export default function PurchaseOrderDetailPage() {
     return docs;
   }, [po]);
 
+  const isPhone = useIsPhone();
   const isActionable = po ? ACTIONABLE_STATUSES.includes(po.status) : false;
   const canChange = po ? CHANGEABLE_STATUSES.includes(po.status) && has('po.proposeChange') : false;
 
@@ -213,6 +220,43 @@ export default function PurchaseOrderDetailPage() {
     );
   }
 
+  // Export / Change request / Cancel: inline on the Details tab on desktop, the
+  // top-bar ⋯ menu on phones (B7). Acknowledge / Accept / Decline is the main
+  // action and lives in PoVendorActions (the footer bar on phones).
+  const actions = (
+    <PageActions
+      className="gap-3"
+      secondary={[
+        {
+          key: 'export',
+          label: t('actions.exportAs'),
+          icon: <DownloadIcon className="w-4 h-4" />,
+          onClick: () => {
+            void exportPurchaseOrders('pdf', { search: po.id }).then(({ url }) =>
+              window.open(url, '_blank'),
+            );
+          },
+        },
+        ...(canChange
+          ? [
+              {
+                key: 'changeRequest',
+                label: t('actions.changeRequest'),
+                onClick: () =>
+                  navigate(`${ROUTES.purchaseOrderChangeRequest.replace(':id', po.id)}`),
+              },
+              {
+                key: 'cancel',
+                label: t('actions.requestCancellation'),
+                icon: <CrossIcon className="w-3.5 h-3.5" />,
+                onClick: () => setShowCancelModal(true),
+              },
+            ]
+          : []),
+      ]}
+    />
+  );
+
   return (
     <div className="flex flex-col h-full">
       {/* Vendor action banner + buttons */}
@@ -232,48 +276,10 @@ export default function PurchaseOrderDetailPage() {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           tabs={validTabs}
-          rightSlot={
-            <div className="flex gap-3 items-center">
-              {activeTab === 'details' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  leftIcon={<DownloadIcon className="w-4 h-4" />}
-                  onClick={() => {
-                    void exportPurchaseOrders('pdf', { search: po.id }).then(({ url }) =>
-                      window.open(url, '_blank'),
-                    );
-                  }}
-                >
-                  {t('actions.exportAs')}
-                </Button>
-              )}
-              {canChange && activeTab === 'details' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  rightIcon={<ChevronDownIcon className="w-4 h-4" />}
-                  onClick={() =>
-                    navigate(`${ROUTES.purchaseOrderChangeRequest.replace(':id', po.id)}`)
-                  }
-                >
-                  {t('actions.changeRequest')}
-                </Button>
-              )}
-              {canChange && activeTab === 'details' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  leftIcon={<CrossIcon className="w-3.5 h-3.5" />}
-                  onClick={() => setShowCancelModal(true)}
-                >
-                  {t('actions.requestCancellation')}
-                </Button>
-              )}
-            </div>
-          }
+          rightSlot={activeTab === 'details' && !isPhone ? actions : undefined}
         />
       </div>
+      {isPhone && actions}
 
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-6 md:pb-8">

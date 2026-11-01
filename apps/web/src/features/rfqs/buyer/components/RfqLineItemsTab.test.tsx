@@ -6,12 +6,19 @@ vi.mock('@forethread/i18n', () => ({
 }));
 
 const mockDeleteLineItem = vi.hoisted(() => vi.fn());
+const mockUpdateLineItem = vi.hoisted(() => vi.fn());
+const mockToast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock('@forethread/api-client', () => ({
   deleteLineItem: mockDeleteLineItem,
-  updateLineItem: vi.fn(),
+  updateLineItem: mockUpdateLineItem,
 }));
 
-vi.mock('@forethread/ui-components', () => ({
+vi.mock('@forethread/ui-components', async () => ({
+  InlineEditCell: (
+    await vi.importActual<typeof import('@forethread/ui-components')>('@forethread/ui-components')
+  ).InlineEditCell,
+  toast: mockToast,
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   Button: ({ children }: { children: React.ReactNode }) => (
     <button data-testid="btn">{children}</button>
   ),
@@ -52,11 +59,13 @@ const MOCK_LINE_ITEMS = [
     id: 'LI-001',
     projectName: 'Project Alpha',
     materialName: 'Steel Beam',
+    imageUrl: 'https://img/beam.png',
     description: 'W10x22 beam',
     quantity: 50,
     unit: 'pcs',
     expectedDeliveryDate: '2024-04-01',
     deliveryLocation: 'Site A',
+    costCode: 'CC-01',
   },
   {
     id: 'LI-002',
@@ -98,6 +107,19 @@ describe('RfqLineItemsTab', () => {
     expect(screen.queryByText('Project Alpha')).not.toBeInTheDocument();
     expect(screen.queryByText('W10x22 beam')).not.toBeInTheDocument();
   });
+
+  it.each(['panel', 'page'] as const)(
+    'shows a catalogue image thumbnail only for lines that have one (%s layout, FOR-361)',
+    (layout) => {
+      renderWithQuery(
+        <RfqLineItemsTab rfqId="rfq-1" lineItems={MOCK_LINE_ITEMS} layout={layout} />,
+      );
+      const thumbs = screen.getAllByTestId('material-image-thumb');
+      expect(thumbs).toHaveLength(1);
+      expect(thumbs[0]).toHaveAttribute('href', 'https://img/beam.png');
+      expect(thumbs[0].querySelector('img')).toHaveAttribute('alt', 'Steel Beam');
+    },
+  );
 
   it('renders total items footer', () => {
     render(<RfqLineItemsTab lineItems={MOCK_LINE_ITEMS} layout="panel" />);
@@ -178,5 +200,34 @@ describe('RfqLineItemsTab', () => {
     expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('cancel-delete'));
     expect(screen.queryByTestId('confirm-dialog')).not.toBeInTheDocument();
+  });
+
+  it('edits the cost code in place and saves it on Enter (FOR-365)', async () => {
+    mockUpdateLineItem.mockResolvedValue({});
+    renderWithQuery(<RfqLineItemsTab rfqId="rfq-1" lineItems={MOCK_LINE_ITEMS} layout="page" />);
+    const cell = screen.getByTestId('rfq-line-cost-code-LI-001');
+    expect(cell).toHaveTextContent('CC-01');
+    fireEvent.click(cell);
+    const input = screen.getByTestId('rfq-line-cost-code-LI-001-input');
+    fireEvent.change(input, { target: { value: 'CC-99' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await vi.waitFor(() => {
+      expect(mockUpdateLineItem).toHaveBeenCalledWith('rfq-1', 'LI-001', { costCode: 'CC-99' });
+      expect(mockToast.success).toHaveBeenCalledWith('lineItemsTab.costCodeSaved');
+    });
+  });
+
+  it('clears the cost code to null and rolls back when the save fails (FOR-365)', async () => {
+    mockUpdateLineItem.mockRejectedValue(new Error('nope'));
+    renderWithQuery(<RfqLineItemsTab rfqId="rfq-1" lineItems={MOCK_LINE_ITEMS} layout="page" />);
+    fireEvent.click(screen.getByTestId('rfq-line-cost-code-LI-001'));
+    const input = screen.getByTestId('rfq-line-cost-code-LI-001-input');
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.blur(input);
+    await vi.waitFor(() => {
+      expect(mockUpdateLineItem).toHaveBeenCalledWith('rfq-1', 'LI-001', { costCode: null });
+      expect(mockToast.error).toHaveBeenCalledWith('lineItemsTab.costCodeSaveError');
+      expect(screen.getByTestId('rfq-line-cost-code-LI-001')).toHaveTextContent('CC-01');
+    });
   });
 });

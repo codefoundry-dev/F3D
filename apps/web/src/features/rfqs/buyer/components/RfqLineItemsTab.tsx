@@ -1,7 +1,14 @@
 import type { RfqLineItem } from '@forethread/api-client';
-import { deleteLineItem } from '@forethread/api-client';
+import { deleteLineItem, updateLineItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { ConfirmDialog, formatDate } from '@forethread/ui-components';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
+import {
+  ConfirmDialog,
+  formatDate,
+  InlineEditCell,
+  ScrollTable,
+  toast,
+} from '@forethread/ui-components';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import EditRowIcon from '@forethread/ui-components/assets/icons/edit.svg?react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -38,19 +45,27 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
     },
   });
 
+  // Cost code is edited in place (FOR-365); the other fields keep the modal.
+  const costCodeMutation = useMutation({
+    mutationFn: ({ lineItemId, costCode }: { lineItemId: string; costCode: string }) =>
+      updateLineItem(rfqId, lineItemId, { costCode: costCode || null }),
+    onSuccess: () => {
+      toast.success(t('lineItemsTab.costCodeSaved'));
+      return queryClient.invalidateQueries({ queryKey: ['rfqs', rfqId] });
+    },
+    onError: () => toast.error(t('lineItemsTab.costCodeSaveError')),
+  });
+
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-base font-bold text-foreground">{t('lineItemsTab.title')}</h2>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <ScrollTable className="rounded-lg border border-border">
         <table className="w-full min-w-[600px] text-sm">
           <thead>
-            <tr className="bg-foreground/5">
-              <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
-                {t('lineItemsTab.lineItemId')}
-              </th>
+            <tr className="bg-[color:color-mix(in_srgb,hsl(var(--foreground))_5%,hsl(var(--card)))]">
               <th className="p-3 text-left text-xs font-bold tracking-[0.6px] text-[hsl(var(--table-header-foreground))] border-r border-border">
                 {t('lineItemsTab.materialName')}
               </th>
@@ -89,11 +104,26 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
           <tbody>
             {lineItems.map((item) => (
               <tr key={item.id} className="border-t border-border">
-                <td className="p-3 text-foreground border border-border">{item.id}</td>
-                <td className="p-3 text-foreground border border-border">{item.materialName}</td>
+                <td className="p-3 text-foreground border border-border">
+                  <span className="flex items-center gap-2">
+                    <MaterialImageThumb url={item.imageUrl} name={item.materialName} />
+                    {item.materialName}
+                  </span>
+                </td>
                 <td className="p-3 text-foreground border border-border">{item.quantity}</td>
                 <td className="p-3 text-foreground border border-border">{item.unit}</td>
-                <td className="p-3 text-foreground border border-border">{item.costCode ?? '-'}</td>
+                <td className="px-3 py-2 text-foreground border border-border">
+                  <InlineEditCell
+                    value={item.costCode}
+                    label={t('lineItemsTab.costCode')}
+                    emptyDisplay="-"
+                    maxLength={100}
+                    onSave={(costCode) =>
+                      costCodeMutation.mutateAsync({ lineItemId: item.id, costCode })
+                    }
+                    data-testid={`rfq-line-cost-code-${item.id}`}
+                  />
+                </td>
                 <td className="p-3 text-foreground border border-border">{item.upc ?? '-'}</td>
                 <td className="p-3 text-foreground border border-border">
                   {item.manufacturerPartNumber ?? '-'}
@@ -132,8 +162,8 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
             ))}
           </tbody>
           <tfoot>
-            <tr className="border-t border-border bg-muted/50">
-              <td colSpan={12} className="px-6 py-3">
+            <tr className="border-t border-border bg-[color:color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]">
+              <td colSpan={11} className="px-6 py-3">
                 <span className="text-sm text-muted-foreground">
                   {t('lineItemsTab.totalItems')}:{' '}
                   <span className="text-foreground">{lineItems.length}</span>
@@ -142,7 +172,7 @@ function LineItemsPageLayout({ rfqId, lineItems }: { rfqId: string; lineItems: R
             </tr>
           </tfoot>
         </table>
-      </div>
+      </ScrollTable>
 
       {editingItem && (
         <EditLineItemModal
@@ -171,14 +201,11 @@ function LineItemsPanelLayout({ lineItems }: { lineItems: RfqLineItem[] }) {
   const { t } = useTranslation('rfqs');
   return (
     <div>
-      <div className="overflow-x-auto">
+      <ScrollTable>
         <table className="w-full min-w-[500px] text-sm">
           <thead>
             <tr className="border-b border-foreground/10 text-left">
               <th className="pb-2 pr-3 font-medium text-muted-foreground text-xs">
-                {t('lineItemsTab.lineItemId')}
-              </th>
-              <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
                 {t('lineItemsTab.materialName')}
               </th>
               <th className="pb-2 px-3 font-medium text-muted-foreground text-xs">
@@ -192,15 +219,19 @@ function LineItemsPanelLayout({ lineItems }: { lineItems: RfqLineItem[] }) {
           <tbody>
             {lineItems.map((item) => (
               <tr key={item.id} className="border-b border-foreground/10">
-                <td className="py-2.5 pr-3 text-foreground">{item.id}</td>
-                <td className="py-2.5 px-3 text-foreground">{item.materialName}</td>
+                <td className="py-2.5 pr-3 text-foreground">
+                  <span className="flex items-center gap-2">
+                    <MaterialImageThumb url={item.imageUrl} name={item.materialName} />
+                    {item.materialName}
+                  </span>
+                </td>
                 <td className="py-2.5 px-3 text-foreground">{item.quantity}</td>
                 <td className="py-2.5 px-3 text-muted-foreground">{item.unit}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollTable>
 
       <div className="flex justify-end mt-3 pt-3 border-t border-foreground/10">
         <span className="text-sm text-muted-foreground">

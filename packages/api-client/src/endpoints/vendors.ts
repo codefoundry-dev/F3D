@@ -45,6 +45,8 @@ export interface VendorListItem {
   specialisations: string[];
   categories: string[];
   representatives: VendorRepresentativeItem[];
+  /** Set for a one-off vendor (FOR-395): the only project it can be used on. */
+  oneOffProject?: { id: string; name: string } | null;
 }
 
 export interface VendorListParams {
@@ -62,6 +64,12 @@ export interface VendorListParams {
   dateTo?: string;
   sortBy?: string;
   sortDir?: 'asc' | 'desc';
+  /** One-off vendors (FOR-395) are hidden unless asked for: `true` includes all of them. */
+  includeOneOff?: boolean;
+  /** Comma-separated project ids whose one-off vendors to include (RFQ/PO wizards). */
+  projectIds?: string;
+  /** Only one-off vendors (with `projectIds`: the project Vendors tab). */
+  oneOffOnly?: boolean;
 }
 
 /** Filter sentinel for vendors carrying no Vendor Category at all (ADR-0018). */
@@ -112,6 +120,8 @@ export async function updateVendorCategories(
 export interface ResolveVendorSelectionInput {
   category?: string;
   search?: string;
+  /** Projects of the RFQ being built: their one-off vendors are included (FOR-395). */
+  projectIds?: string[];
 }
 
 /** A vendor matched by {@link resolveVendorSelection}, carrying enough to render
@@ -150,6 +160,45 @@ export async function resolveVendorSelection(
   return data.data;
 }
 
+// ── One-off vendors (FOR-395) ────────────────────────────────────────────────
+
+export interface CreateOneOffVendorInput {
+  projectId: string;
+  legalName: string;
+  contactEmail: string;
+  contactPhone?: string;
+}
+
+export interface OneOffVendorResult {
+  companyId: string;
+  companyName?: string;
+  /** Null when the email matched a vendor that is already a full vendor. */
+  oneOffProject: { id: string; name: string } | null;
+  /** True when the email matched a vendor the company already had. */
+  alreadyAssigned?: boolean;
+}
+
+/** Add a vendor for one project only: name + email, no portal invite. */
+export async function createOneOffVendor(
+  input: CreateOneOffVendorInput,
+  config?: AxiosRequestConfig,
+): Promise<OneOffVendorResult> {
+  const { data } = await getApiClient().post<{ data: OneOffVendorResult }>(
+    VENDORS_PATHS.ONE_OFF,
+    input,
+    config,
+  );
+  return data.data;
+}
+
+/** Make a one-off vendor a full vendor of the company. */
+export async function promoteOneOffVendor(vendorId: string): Promise<OneOffVendorResult> {
+  const { data } = await getApiClient().post<{ data: OneOffVendorResult }>(
+    VENDORS_PATHS.promote(vendorId),
+  );
+  return data.data;
+}
+
 // ── Vendor Profile ───────────────────────────────────────────────────────────
 
 export interface VendorProfile {
@@ -168,6 +217,8 @@ export interface VendorProfile {
   /** The *viewing contractor's* classification of this vendor. Empty for a
    *  vendor viewing itself, and never another contractor's categories. */
   categories: string[];
+  /** Set when the viewing contractor holds this vendor as a one-off (FOR-395). */
+  oneOffProject?: { id: string; name: string } | null;
   warehouseLocations: WarehouseLocation[];
   representatives: VendorRepresentative[];
 }

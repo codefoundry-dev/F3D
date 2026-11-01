@@ -38,6 +38,9 @@ vi.mock('@forethread/ui-components', () => ({
   Spinner: () => <span data-testid="spinner" />,
   formatDate: (d: string) => d,
   notificationService: { success: vi.fn(), error: vi.fn() },
+  // B7 (FOR-373): desktop layout in tests.
+  useIsPhone: () => false,
+  PageActions: ({ primary }: any) => <div>{primary}</div>,
 }));
 
 vi.mock('./BulkOrderDetailTabs', () => ({

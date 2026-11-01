@@ -48,6 +48,7 @@ export interface RfqListItem {
   status: string;
   reqQuantities: number;
   pickUp: boolean;
+  deliveryLocationId: string | null;
   deliveryLocation: string | null;
   pickUpLocation: string | null;
   recVendors: number;
@@ -101,10 +102,14 @@ export interface RfqDocument {
 
 export interface RfqLineItem {
   id: string;
+  /** Line-level project (US 5.05 multi-project RFQs); null = the RFQ's primary project. */
+  projectId?: string | null;
   projectName: string;
   /** Catalogue material id when the line references a catalogue material (null for free-text/BOM lines). */
   materialId?: string | null;
   materialName: string;
+  /** Catalogue material image URL (null for free-text/BOM lines or materials without one). */
+  imageUrl?: string | null;
   description: string | null;
   quantity: number;
   unit: string;
@@ -120,12 +125,29 @@ export interface RfqLineItem {
   hasNotes?: boolean;
 }
 
+/** One quoted line on an RFQ's quote response, as carried on {@link RfqDetail}. */
+export interface RfqQuoteLine {
+  id: string;
+  rfqLineItemId: string;
+  unitPrice: number;
+  quotedQuantity: number;
+  /** Per-vendor quantity set at split award (US 5.19); null until awarded. */
+  approvedQuantity: number | null;
+  availability: string;
+  status: string;
+  deliveryDate: string | null;
+  /** Quoted minus expected delivery in calendar days (FOR-392); null when not comparable. */
+  deliveryVarianceDays: number | null;
+}
+
 export interface RfqDetail {
   id: string;
   name: string;
   rfqNumber: string | null;
   projectName: string;
   projectId: string;
+  /** Every project the RFQ spans (US 5.05), primary first. */
+  projectIds?: string[];
   /** Human-readable project code (PRJ-YYYY-NNN); shown wherever a "Project ID" is labelled. */
   projectCode: string;
   status: string;
@@ -135,6 +157,8 @@ export interface RfqDetail {
    * have not submitted a quote yet.
    */
   myQuoteResponseId?: string | null;
+  /** Buyer-only: non-cancelled POs raised from this RFQ, oldest first (FOR-396). */
+  purchaseOrders?: { id: string; poNumber: string; status: string }[];
   rfqType: string | null;
   paymentTerms: string | null;
   pickUp: boolean;
@@ -169,6 +193,13 @@ export interface RfqDetail {
     attachmentCount?: number;
     /** True when the vendor left a note on the quote or any of its lines. */
     hasNotes?: boolean;
+    /** The vendor's per-line quote (FOR-391): what a from-RFQ PO line is priced at. */
+    lineItems?: RfqQuoteLine[];
+    /** FOR-392: lines quoted after their expected date, and the worst slip in days. */
+    lateLineCount?: number;
+    maxLateDays?: number | null;
+    /** True when at least one quoted line could be compared with an expected date. */
+    hasDeliveryComparison?: boolean;
   }>;
   documents: RfqDocument[];
   createdAt: string;
@@ -216,6 +247,8 @@ export interface AwardQuoteResult {
   /** Id of the draft PO auto-created from the awarded quote — redirect target. */
   purchaseOrderId: string;
   poNumber: string;
+  /** Every draft PO created — one per project on a multi-project RFQ (FOR-396). */
+  purchaseOrders: { id: string; poNumber: string }[];
 }
 
 /**
@@ -671,6 +704,10 @@ export interface QuoteResponseLineItem {
   notes: string | null;
   lineTotal: number;
   status: string;
+  /** FOR-392: the buyer's wanted date for the line (line date, else RFQ need-by). */
+  expectedDeliveryDate?: string | null;
+  /** Quoted minus expected delivery in calendar days; null when not comparable. */
+  deliveryVarianceDays?: number | null;
 }
 
 /** Per-line review status set by the buyer while reviewing quotes (US 5.19). */
@@ -791,6 +828,10 @@ export interface QuoteComparisonCell {
   discountType: string | null;
   availability: string | null;
   deliveryDate: string | null;
+  /** Quoted minus expected delivery in calendar days (FOR-392): > 0 late, < 0 early. */
+  deliveryVarianceDays: number | null;
+  /** True when the quoted delivery is after the line's expected date. */
+  isLate: boolean;
   /** Per-line review status: PENDING | APPROVED | DECLINED. */
   status: string | null;
   /** Per-vendor approved quantity once the line is awarded (US 5.19); null otherwise. */
@@ -813,6 +854,8 @@ export interface QuoteComparisonRow {
   unit: string;
   projectId: string;
   projectName: string;
+  /** The buyer's wanted delivery date (line date, else the RFQ need-by date). */
+  expectedDeliveryDate: string | null;
   cells: QuoteComparisonCell[];
   lowestVendorId: string | null;
 }
@@ -850,10 +893,15 @@ export interface GuestRfqDetail {
   lineItems: Array<{
     id: string;
     materialName: string;
+    /** Catalogue material image URL, when the line references one. */
+    imageUrl?: string | null;
     unit: string;
     quantity: number;
     description: string | null;
     costCode: string | null;
+    expectedDeliveryDate: string | null;
+    /** Line location (label — address), falling back to the RFQ's. */
+    deliveryLocation: string | null;
   }>;
   attachments: Array<{
     id: string;

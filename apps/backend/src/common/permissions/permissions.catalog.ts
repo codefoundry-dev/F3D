@@ -36,6 +36,8 @@ export const PERMISSIONS = {
   'company.readDocuments': 'List and export company documents',
   'company.uploadDocument': 'Upload a company document',
   'company.deleteDocument': 'Delete a company document',
+  // Own company only (controller-scoped). The logo brands PO and invoice PDFs (FOR-389).
+  'company.updateLogo': 'Upload the company logo shown on PO and invoice PDFs',
 
   // ── Invoices ────────────────────────────────────────────────────────────
   'invoice.list': 'List invoices',
@@ -53,6 +55,8 @@ export const PERMISSIONS = {
   // ── Materials ───────────────────────────────────────────────────────────
   'material.list': 'List materials',
   'material.listCategories': 'List material categories',
+  // Categories are global (FOR-362): SUPER_ADMIN only, via ALL_KEYS_LIST.
+  'material.manageCategories': 'Create, rename and deactivate material categories',
   'material.suggestions': 'Material autocomplete suggestions',
   'material.create': 'Create materials',
   'material.import': 'Bulk-import materials from a confirmed catalogue extraction',
@@ -261,6 +265,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'company.readDocuments',
     'company.uploadDocument',
     'company.deleteDocument',
+    'company.updateLogo',
 
     'invoice.list',
     'invoice.read',
@@ -428,6 +433,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'company.readDocuments',
     'company.uploadDocument',
     'company.deleteDocument',
+    'company.updateLogo',
 
     'invoice.list',
     'invoice.read',

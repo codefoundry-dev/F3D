@@ -47,7 +47,7 @@ export interface GridModalProps {
 /** lg swaps the 480px width baked into `REGISTRATION_MODAL_CARD_CLASS` for 720px. */
 const SIZE_WIDTHS: Record<GridModalSize, string> = {
   md: '',
-  lg: 'toolbar:min-w-[720px] toolbar:max-w-[720px]',
+  lg: 'md:min-w-[720px] md:max-w-[720px]',
 };
 
 /**
@@ -116,6 +116,7 @@ export function GridModal({
       decoration={<ModalGridBackground />}
       scrollBody={scrollBody}
       maxWidth={maxWidth}
+      mobile={size === 'lg' ? 'fullscreen' : undefined}
       cardClassName={cn(REGISTRATION_MODAL_CARD_CLASS, SIZE_WIDTHS[size], cardClassName)}
     >
       {showClose && (

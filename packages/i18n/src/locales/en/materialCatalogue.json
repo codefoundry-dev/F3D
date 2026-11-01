@@ -18,7 +18,7 @@
     }
   },
   "tabs": {
-    "public": "Public Materials",
+    "public": "Global Materials",
     "pending": "Pending Approval",
     "archived": "Archived",
     "favorites": "Favorite Items",
@@ -27,6 +27,7 @@
   "actions": {
     "createNew": "Create new",
     "upload": "Upload",
+    "manageCategories": "Manage categories",
     "view": "View material",
     "edit": "Edit material",
     "archive": "Archive",
@@ -53,7 +54,7 @@
     "noResultsBody": "We couldn't find any results matching \"{{query}}\". Try adjusting your search or filters to find what you're looking for."
   },
   "status": {
-    "public": "Public",
+    "public": "Global",
     "private": "Private",
     "pending": "Pending",
     "archived": "Archived"
@@ -77,7 +78,9 @@
       "lastPrice": "Last Price",
       "updated": "Updated",
       "actions": "Actions"
-    }
+    },
+    "codeSaved": "{{field}} saved",
+    "codeSaveError": "Could not save the {{field}}"
   },
   "pending": {
     "loading": "Loading pending materials…",
@@ -398,8 +401,8 @@
         "description": "Description"
       },
       "autoMapNote": "The system will attempt to auto-map columns and flag unrecognised values for your review before importing.",
-      "destinationCompany": "Materials you import are added to your company's private catalogue and grouped into a material list named after your file. They're visible only to your company — nothing is published to the public catalogue.",
-      "destinationPublic": "Materials you import are published to the shared public catalogue and become visible to every company.",
+      "destinationCompany": "Materials you import are added to your company's private catalogue and grouped into a material list named after your file. They're visible only to your company — nothing is published to the global catalogue.",
+      "destinationPublic": "Materials you import are published to the shared global catalogue and become visible to every company.",
       "proceed": "Proceed file",
       "uploading": "Uploading…",
       "processing": "Extracting material file…"
@@ -443,7 +446,7 @@
       "edit": "Edit",
       "delete": "Delete",
       "done": "Done",
-      "duplicateStrip": "Possible duplicate detected — {{code}} \"{{name}}\" already exists in the public catalogue.",
+      "duplicateStrip": "Possible duplicate detected — {{code}} \"{{name}}\" already exists in the global catalogue.",
       "viewMatch": "View ({{code}})",
       "add": "Add material",
       "adding": "Adding materials…"
@@ -585,14 +588,44 @@
   },
   "contributeSuccess": {
     "title": "Material added to private catalogue",
-    "description": "Your material is now available for internal use and has been submitted for approval to be added to the public catalogue.",
+    "description": "Your material is now available for internal use and has been submitted for approval to be added to the global catalogue.",
     "button": "Back to Material Catalogue page",
     "redirect": "Redirecting to Material Catalogue page in {{seconds}} seconds…"
   },
   "changeSubmittedSuccess": {
     "title": "Changes submitted for review",
-    "description": "Your updates have been saved and sent for review by a Super Admin before being published to the public catalogue.",
+    "description": "Your updates have been saved and sent for review by a Super Admin before being published to the global catalogue.",
     "button": "Back to Material Catalogue page",
     "redirect": "Redirecting to Material Catalogue page in {{seconds}} seconds…"
+  },
+  "categories": {
+    "title": "Manage categories",
+    "subtitle": "Categories are shared across the global catalogue and every company's materials. Deactivated categories stay on their materials but can't be picked for new ones.",
+    "addLabel": "New category",
+    "addPlaceholder": "e.g. Pipe fittings",
+    "add": "Add",
+    "filterPlaceholder": "Search categories",
+    "empty": "No categories match your search.",
+    "materialCount_one": "{{count}} material",
+    "materialCount_other": "{{count}} materials",
+    "active": "Active",
+    "inactive": "Inactive",
+    "system": "System",
+    "rename": "Rename",
+    "renameLabel": "Rename {{name}}",
+    "save": "Save",
+    "cancel": "Cancel",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "toasts": {
+      "created": "Category \"{{name}}\" added",
+      "renamed": "Category renamed to \"{{name}}\"",
+      "activated": "\"{{name}}\" is active again",
+      "deactivated": "\"{{name}}\" deactivated"
+    },
+    "errors": {
+      "nameRequired": "Enter a category name",
+      "saveFailed": "Couldn't save the category. Try again."
+    }
   }
 }

@@ -1,16 +1,24 @@
-import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import { type ReactNode, useCallback, useState } from 'react';
 
 import ArrowRightIcon from '../assets/icons/arrow-right.svg?react';
 import OpenSidebarIcon from '../assets/icons/open-sidebar.svg?react';
 import { cn } from '../utils/cn';
 
+import { useMobileNavHidden } from './MobileChrome';
+import { Modal } from './Modal';
 import { Tooltip } from './Tooltip';
 
-const STORAGE_KEY = 'sidebar-collapsed';
+// v2: the v1 key was written on every mount, so a stored "false" never meant the
+// user chose to expand. v2 is only written when the user toggles the rail.
+const STORAGE_KEY = 'sidebar-collapsed-v2';
+/** Below this viewport width (13–14" laptops) the rail starts collapsed. */
+const AUTO_COLLAPSE_BELOW_PX = 1280;
 
 export interface SidebarNavItem {
   icon: ReactNode;
   label: string;
+  /** Compact label for the phone bottom bar (falls back to `label`). */
+  shortLabel?: string;
   href: string;
   isActive: boolean;
   hasSubmenu?: boolean;
@@ -23,14 +31,58 @@ export interface SidebarProps {
   onLogoClick?: () => void;
   /** Brand / company wordmark shown next to the logo when expanded. */
   companyName?: string;
+  /**
+   * Phone bottom bar (ADR-0019 / FOR-369): the hrefs to show, in order, when the
+   * role has more than {@link MOBILE_BAR_SLOTS} items. The rest go in "More".
+   * Ignored when every item fits.
+   */
+  mobilePrimaryHrefs?: readonly string[];
+  /** Label for the "More" tab + sheet title. */
+  moreLabel?: string;
+  /** Extra rows at the bottom of the More sheet (e.g. Profile, Log out). */
+  moreExtras?: ReactNode;
+  /** Controlled open state of the More sheet (so the top-bar avatar can open it). */
+  moreOpen?: boolean;
+  onMoreOpenChange?: (open: boolean) => void;
+}
+
+/** Bottom-bar section slots on phones; a 5th slot is "More" when needed. */
+export const MOBILE_BAR_SLOTS = 4;
+
+/** Split nav items into the phone bottom bar and the More sheet. */
+export function splitMobileNav(
+  items: SidebarNavItem[],
+  primaryHrefs: readonly string[] = [],
+): { bar: SidebarNavItem[]; more: SidebarNavItem[] } {
+  if (items.length <= MOBILE_BAR_SLOTS) return { bar: items, more: [] };
+  const byHref = new Map(items.map((i) => [i.href, i]));
+  const picked = primaryHrefs
+    .map((h) => byHref.get(h))
+    .filter((i): i is SidebarNavItem => !!i)
+    .slice(0, MOBILE_BAR_SLOTS);
+  const bar = picked.length ? picked : items.slice(0, MOBILE_BAR_SLOTS);
+  const barHrefs = new Set(bar.map((i) => i.href));
+  return { bar, more: items.filter((i) => !barHrefs.has(i.href)) };
+}
+
+function MoreIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <circle cx="5" cy="12" r="1.75" />
+      <circle cx="12" cy="12" r="1.75" />
+      <circle cx="19" cy="12" r="1.75" />
+    </svg>
+  );
 }
 
 function readCollapsed(): boolean {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'true';
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored !== null) return stored === 'true';
   } catch {
-    return false;
+    /* storage blocked — fall through to the width default */
   }
+  return typeof window !== 'undefined' && window.innerWidth < AUTO_COLLAPSE_BELOW_PX;
 }
 
 /** A single 34px square icon-button used for the logo + collapse toggle. */
@@ -53,18 +105,42 @@ function RailIconButton({
   );
 }
 
-export function Sidebar({ items, onNavigate, logo, onLogoClick, companyName }: SidebarProps) {
+export function Sidebar({
+  items,
+  onNavigate,
+  logo,
+  onLogoClick,
+  companyName,
+  mobilePrimaryHrefs,
+  moreLabel = 'More',
+  moreExtras,
+  moreOpen,
+  onMoreOpenChange,
+}: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(readCollapsed);
+  const [moreOpenLocal, setMoreOpenLocal] = useState(false);
+  const isMoreOpen = moreOpen ?? moreOpenLocal;
+  const setMoreOpen = (open: boolean) => {
+    setMoreOpenLocal(open);
+    onMoreOpenChange?.(open);
+  };
+  const { bar, more } = splitMobileNav(items, mobilePrimaryHrefs);
+  // Wizards hide the phone bottom nav while open (ADR-0019 B8).
+  const navHidden = useMobileNavHidden();
+  const moreActive = more.some((i) => i.isActive);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, String(isCollapsed));
-    } catch {
-      /* noop */
-    }
-  }, [isCollapsed]);
-
-  const toggle = useCallback(() => setIsCollapsed((c) => !c), []);
+  const toggle = useCallback(
+    () =>
+      setIsCollapsed((c) => {
+        try {
+          localStorage.setItem(STORAGE_KEY, String(!c));
+        } catch {
+          /* noop */
+        }
+        return !c;
+      }),
+    [],
+  );
 
   return (
     <>
@@ -164,25 +240,102 @@ export function Sidebar({ items, onNavigate, logo, onLogoClick, companyName }: S
         )}
       </aside>
 
-      {/* Mobile: bottom tab bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[#E8EAED] flex items-center justify-around h-14">
-        {items.map((item) => (
-          <button
+      {/* Phone: bottom tab bar — up to 4 labelled sections + "More" (ADR-0019). */}
+      <nav
+        aria-label="Primary"
+        className={cn(
+          'md:hidden fixed bottom-0 left-0 right-0 z-40 items-stretch border-t border-[#E8EAED] bg-white pb-[env(safe-area-inset-bottom)]',
+          navHidden ? 'hidden' : 'flex',
+        )}
+      >
+        {bar.map((item) => (
+          <MobileTab
             key={item.href}
-            type="button"
-            aria-label={item.label}
+            icon={item.icon}
+            label={item.shortLabel ?? item.label}
+            active={item.isActive}
             onClick={() => onNavigate(item.href)}
-            className={cn(
-              'flex items-center justify-center w-10 h-10 rounded-[10px] transition-colors [&_svg]:size-[20px]',
-              item.isActive
-                ? 'bg-[#F4F4F6] text-[#1B1D22]'
-                : 'text-gray-500 hover:text-foreground hover:bg-[#F4F4F6]',
-            )}
-          >
-            {item.icon}
-          </button>
+          />
         ))}
+        {more.length > 0 && (
+          <MobileTab
+            icon={<MoreIcon />}
+            label={moreLabel}
+            active={moreActive || isMoreOpen}
+            onClick={() => setMoreOpen(true)}
+          />
+        )}
       </nav>
+
+      {isMoreOpen && (
+        <Modal onClose={() => setMoreOpen(false)} mobile="sheet">
+          <div className="px-4 pb-4">
+            <h2 className="px-2 pb-2 text-base font-semibold text-foreground">{moreLabel}</h2>
+            <ul className="flex flex-col">
+              {more.map((item) => (
+                <li key={item.href}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      onNavigate(item.href);
+                    }}
+                    className={cn(
+                      'flex h-12 w-full items-center gap-3 rounded-[10px] px-2 text-left text-[15px] font-semibold [&_svg]:size-[20px]',
+                      item.isActive ? 'bg-[#F4F4F6] text-[#1B1D22]' : 'text-gray-700',
+                    )}
+                  >
+                    <span className="flex size-6 items-center justify-center">{item.icon}</span>
+                    {item.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {moreExtras && (
+              <div className={cn(more.length > 0 && 'mt-2 border-t border-[#E8EAED] pt-2')}>
+                {moreExtras}
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
     </>
+  );
+}
+
+/** One phone bottom-bar slot: icon over a label, ≥48px tall touch target. */
+function MobileTab({
+  icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'flex min-h-[56px] min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 transition-colors [&_svg]:size-[22px]',
+        active ? 'text-[#1B1D22]' : 'text-gray-500',
+      )}
+    >
+      <span
+        className={cn(
+          'flex h-7 w-12 items-center justify-center rounded-full',
+          active && 'bg-[#F4F4F6]',
+        )}
+      >
+        {icon}
+      </span>
+      <span className="w-full truncate text-center text-[11px] font-semibold leading-none">
+        {label}
+      </span>
+    </button>
   );
 }

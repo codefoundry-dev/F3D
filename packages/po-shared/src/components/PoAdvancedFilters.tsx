@@ -10,6 +10,8 @@ interface PoAdvancedFiltersProps {
   items: PoListItem[];
   statusKeys: readonly string[];
   typeKeys: readonly string[];
+  /** Label statuses the way the vendor sees them (vendorStatus overrides). */
+  isVendorView?: boolean;
 }
 
 const OPERATIONAL_STATE_KEYS = [
@@ -26,6 +28,7 @@ export function PoAdvancedFilters({
   items,
   statusKeys,
   typeKeys,
+  isVendorView = false,
 }: PoAdvancedFiltersProps) {
   const { t } = useTranslation(['purchaseOrders', 'common']);
 
@@ -39,7 +42,9 @@ export function PoAdvancedFilters({
 
   const statusOptions = statusKeys.map((key) => ({
     value: key,
-    label: t(`status.${key}` as never),
+    label: isVendorView
+      ? t([`vendorStatus.${key}`, `status.${key}`] as never)
+      : t(`status.${key}` as never),
   }));
 
   const typeOptions = typeKeys.map((key) => ({

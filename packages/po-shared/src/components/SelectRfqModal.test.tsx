@@ -59,6 +59,28 @@ const mockUseQueryReturn = vi.hoisted(() => ({
           totalCost: 1000,
           discountPercent: 10,
           discountAmount: 100,
+          lineItems: [
+            {
+              id: 'ql-1',
+              rfqLineItemId: 'li-1',
+              unitPrice: 40,
+              quotedQuantity: 10,
+              approvedQuantity: null,
+              availability: 'AVAILABLE',
+              status: 'PENDING',
+              deliveryDate: null,
+            },
+            {
+              id: 'ql-2',
+              rfqLineItemId: 'li-2',
+              unitPrice: 12,
+              quotedQuantity: 50,
+              approvedQuantity: null,
+              availability: 'AVAILABLE',
+              status: 'PENDING',
+              deliveryDate: null,
+            },
+          ],
         },
       ],
     } as Record<string, unknown> | undefined,
@@ -265,6 +287,28 @@ describe('SelectRfqModal', () => {
           totalCost: 1000,
           discountPercent: 10,
           discountAmount: 100,
+          lineItems: [
+            {
+              id: 'ql-1',
+              rfqLineItemId: 'li-1',
+              unitPrice: 40,
+              quotedQuantity: 10,
+              approvedQuantity: null,
+              availability: 'AVAILABLE',
+              status: 'PENDING',
+              deliveryDate: null,
+            },
+            {
+              id: 'ql-2',
+              rfqLineItemId: 'li-2',
+              unitPrice: 12,
+              quotedQuantity: 50,
+              approvedQuantity: null,
+              availability: 'AVAILABLE',
+              status: 'PENDING',
+              deliveryDate: null,
+            },
+          ],
         },
       ],
     };
@@ -387,12 +431,15 @@ describe('SelectRfqModal', () => {
     expect(mockOnSelect).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'rfq-1' }),
       expect.any(Set),
+      expect.any(Set),
     );
     // The Set should contain original lineItemIds, not composite IDs
     const selectedIds: Set<string> = mockOnSelect.mock.calls[0][1];
     expect(selectedIds.has('li-1')).toBe(true);
     expect(selectedIds.has('li-2')).toBe(true);
     expect(selectedIds.size).toBe(2);
+    // FOR-391: plus the picked quote lines, so the PO is priced from that vendor.
+    expect([...mockOnSelect.mock.calls[0][2]]).toEqual(['ql-1', 'ql-2']);
   });
 
   it('item-level Select/Deselect buttons toggle selection', () => {

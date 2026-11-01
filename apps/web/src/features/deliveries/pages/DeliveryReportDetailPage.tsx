@@ -11,6 +11,8 @@ import {
   formatDate,
   getStatusColor,
   notificationService,
+  PageActions,
+  ScrollTable,
 } from '@forethread/ui-components';
 import CheckIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
@@ -89,26 +91,32 @@ export default function DeliveryReportDetailPage() {
   return (
     <div className="flex flex-col px-4 pb-6 pt-4 sm:px-8 sm:pb-8 sm:pt-6">
       {/* ═══ Action bar ═══ */}
+      {/* Inline on desktop; the fixed footer bar (50/50) on phones (B7). */}
       {canReview && (
-        <div className="mb-4 flex items-center justify-end gap-2">
-          <Button
-            variant="primary"
-            leftIcon={<CheckIcon className="h-4 w-4" />}
-            isLoading={approveMutation.isPending}
-            onClick={handleApprove}
-            data-testid="delivery-detail-approve"
-          >
-            {t('detail.approve')}
-          </Button>
-          <Button
-            variant="outline"
-            leftIcon={<CrossIcon className="h-4 w-4" />}
-            onClick={() => setShowReject(true)}
-            data-testid="delivery-detail-reject"
-          >
-            {t('detail.reject')}
-          </Button>
-        </div>
+        <PageActions
+          className="mb-4 justify-end"
+          primary={
+            <>
+              <Button
+                variant="primary"
+                leftIcon={<CheckIcon className="h-4 w-4" />}
+                isLoading={approveMutation.isPending}
+                onClick={handleApprove}
+                data-testid="delivery-detail-approve"
+              >
+                {t('detail.approve')}
+              </Button>
+              <Button
+                variant="outline"
+                leftIcon={<CrossIcon className="h-4 w-4" />}
+                onClick={() => setShowReject(true)}
+                data-testid="delivery-detail-reject"
+              >
+                {t('detail.reject')}
+              </Button>
+            </>
+          }
+        />
       )}
 
       {/* ═══ Information ═══ */}
@@ -144,13 +152,12 @@ export default function DeliveryReportDetailPage() {
       {/* ═══ Line Items ═══ */}
       <div className="mt-4 rounded-[14px] border border-border bg-card p-4 sm:p-6">
         <h2 className="mb-4 text-base font-semibold text-foreground">{t('detail.lineItems')}</h2>
-        <div className="overflow-x-auto rounded-lg border border-border">
+        <ScrollTable className="rounded-lg border border-border">
           <table className="w-full text-sm" data-testid="delivery-detail-table">
             <thead>
               <tr className="border-b border-border bg-[hsl(var(--table-header))] text-left text-[hsl(var(--table-header-foreground))]">
                 {(
                   [
-                    'lineItemId',
                     'itemMaterial',
                     'description',
                     'unit',
@@ -175,7 +182,7 @@ export default function DeliveryReportDetailPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       </div>
 
       {showReject && (
@@ -199,7 +206,6 @@ function LineRow({ line }: { line: DeliveryReportLineResponse }) {
         className="border-b border-border last:border-b-0"
         data-testid={`delivery-detail-row-${line.id}`}
       >
-        <td className="px-3 py-2.5 text-foreground">{line.lineItemRef}</td>
         <td className="px-3 py-2.5 font-medium text-foreground">{line.materialName}</td>
         <td className="max-w-[260px] truncate px-3 py-2.5 text-foreground">
           {line.description ?? '-'}
@@ -227,7 +233,7 @@ function LineRow({ line }: { line: DeliveryReportLineResponse }) {
 
       {line.notes && (
         <tr className="border-b border-border">
-          <td colSpan={8} className="px-3 py-3">
+          <td colSpan={7} className="px-3 py-3">
             <p className="text-xs font-semibold text-foreground">{t('detail.notes')}</p>
             <p className="mt-1 text-sm text-muted-foreground">{line.notes}</p>
           </td>
@@ -236,7 +242,7 @@ function LineRow({ line }: { line: DeliveryReportLineResponse }) {
 
       {isDamaged && (
         <tr className="border-b border-border">
-          <td colSpan={8} className="px-3 py-4">
+          <td colSpan={7} className="px-3 py-4">
             <p className="mb-3 text-sm font-semibold text-foreground">{t('damage.title')}</p>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="grid grid-cols-3 gap-x-10 gap-y-2">

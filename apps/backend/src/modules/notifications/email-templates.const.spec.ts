@@ -24,10 +24,11 @@ describe('EMAIL_TEMPLATES', () => {
     expect(EMAIL_TEMPLATES.PO_PENDING_APPROVAL).toBe('po-pending-approval');
     expect(EMAIL_TEMPLATES.PO_APPROVAL_UNROUTABLE).toBe('po-approval-unroutable');
     expect(EMAIL_TEMPLATES.DELIVERY_CODE).toBe('delivery-code');
+    expect(EMAIL_TEMPLATES.OVERDUE_REMINDER).toBe('overdue-reminder');
   });
 
-  it('should have exactly 34 templates', () => {
-    expect(Object.keys(EMAIL_TEMPLATES)).toHaveLength(34);
+  it('should have exactly 35 templates', () => {
+    expect(Object.keys(EMAIL_TEMPLATES)).toHaveLength(35);
   });
 
   it('should have unique values', () => {

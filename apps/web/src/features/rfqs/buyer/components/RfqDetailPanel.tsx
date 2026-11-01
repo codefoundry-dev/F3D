@@ -80,7 +80,6 @@ export function RfqDetailPanel({ rfqId, onClose }: RfqDetailPanelProps) {
           <QuoteResponseActions
             rfqId={rfq.id}
             quoteId={openQuote.id}
-            vendorId={rfq.quoteResponses.find((qr) => qr.id === openQuote.id)?.vendorId}
             status={rfq.quoteResponses.find((qr) => qr.id === openQuote.id)?.status ?? ''}
             size="sm"
           />

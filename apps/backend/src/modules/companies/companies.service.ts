@@ -1,3 +1,4 @@
+import { PO_TERMS_MAX_LENGTH } from '@forethread/shared-types';
 import {
   Injectable,
   NotFoundException,
@@ -12,13 +13,16 @@ import {
   IsOptional,
   IsEnum,
   IsArray,
+  IsBoolean,
   IsUrl,
   Matches,
+  MaxLength,
   IsDateString,
 } from 'class-validator';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { PrismaService } from '../../prisma/prisma.service';
+import { normalisePoTerms } from '../purchase-orders/po-terms.util';
 
 export class AssignVendorsDto {
   /** NB: despite the name these are VENDOR ids — see assignVendorsToContractor. */
@@ -156,6 +160,17 @@ export class UpdateCompanyDto {
   @IsArray()
   @IsString({ each: true })
   specialisations?: string[];
+
+  /** Approving a material request also creates its draft RFQ (FOR-396). Company Admin only. */
+  @IsOptional()
+  @IsBoolean()
+  autoConvertApprovedMrToRfq?: boolean;
+
+  /** Default general terms & conditions copied onto every new PO (FOR-398). Company Admin only. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(PO_TERMS_MAX_LENGTH)
+  poTermsAndConditions?: string | null;
 }
 
 export class CompanyListQueryDto {
@@ -309,7 +324,25 @@ export class CompaniesService {
   async updateCompany(id: string, dto: UpdateCompanyDto, requestingUser: RequestingUser) {
     await this.getCompany(id, requestingUser); // validates existence + access
 
-    return this.prisma.company.update({ where: { id }, data: dto });
+    // Only a Super Admin may edit another company: getCompany scopes Company
+    // Admins alone, which left every other role able to patch any company.
+    const isSuperAdmin = requestingUser.role === UserRole.SUPER_ADMIN;
+    if (!isSuperAdmin && requestingUser.companyId !== id) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
+    // Procurement automation is a company policy: Company Admin (or SA) only.
+    // So are the PO terms & conditions every new PO inherits (FOR-398).
+    const touchesPolicy =
+      dto.autoConvertApprovedMrToRfq !== undefined || dto.poTermsAndConditions !== undefined;
+    if (touchesPolicy && !isSuperAdmin && requestingUser.role !== UserRole.COMPANY_ADMIN) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
+
+    const data =
+      dto.poTermsAndConditions !== undefined
+        ? { ...dto, poTermsAndConditions: normalisePoTerms(dto.poTermsAndConditions) }
+        : dto;
+    return this.prisma.company.update({ where: { id }, data });
   }
 
   async getCompanyVendors(companyId: string) {
@@ -318,7 +351,14 @@ export class CompaniesService {
       include: { vendor: { include: { _count: { select: { users: true } } } } },
       orderBy: { assignedAt: 'desc' },
     });
-    return assignments.map((a) => ({ ...a.vendor, assignedAt: a.assignedAt }));
+    // One-off vendors (FOR-395) are included and flagged: invoice and delivery
+    // pickers need every vendor the company deals with, while the PO wizards
+    // offer a one-off only on its own project.
+    return assignments.map((a) => ({
+      ...a.vendor,
+      assignedAt: a.assignedAt,
+      oneOffProjectId: a.oneOffProjectId,
+    }));
   }
 
   async assignVendorsToContractor(

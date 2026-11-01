@@ -35,14 +35,6 @@
       "outputs": ["coverage/**"],
       "inputs": ["src/**", "test/**", "__tests__/**", "jest.config.*"]
     },
-    "test:integration": {
-      "cache": false,
-      "inputs": ["src/**", "test/**"]
-    },
-    "test:contract": {
-      "cache": false,
-      "inputs": ["src/**", "test/**"]
-    },
     "db:generate": {
       "inputs": ["src/prisma/schema.prisma"],
       "outputs": ["node_modules/.prisma/**"],

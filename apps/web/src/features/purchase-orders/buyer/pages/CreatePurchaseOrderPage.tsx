@@ -1,8 +1,9 @@
 import { type CreatePurchaseOrderInput } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { CreatePoWizard } from '@forethread/po-shared';
+import { CreatePoWizard, rfqToFormDefaults } from '@forethread/po-shared';
 import type { PoCreationMode } from '@forethread/po-shared';
 import { usePageTitleStore } from '@forethread/rfq-shared';
+import { PageLoader } from '@forethread/ui-components';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -12,13 +13,25 @@ import {
   useProjectsList,
   useProjectDetail,
   useCompanyVendors,
+  useCompanyPoTerms,
   useCreatePurchaseOrder,
+  useSourceRfq,
 } from '../services/purchase-orders.service';
 
 interface RouteState {
   mode?: PoCreationMode;
   defaultValues?: Record<string, unknown>;
   lockedFields?: string[];
+  /**
+   * "Start now" from an RFQ's quote review (FOR-391): build the wizard from this
+   * quote here, so every line carries the vendor's quoted price.
+   */
+  rfqSource?: {
+    rfqId: string;
+    quoteResponseId?: string;
+    quoteLineItemIds?: string[];
+    projectId?: string;
+  };
 }
 
 export default function CreatePurchaseOrderPage() {
@@ -26,6 +39,22 @@ export default function CreatePurchaseOrderPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const routeState = (location.state as RouteState) ?? {};
+  const { rfqSource } = routeState;
+
+  const { data: sourceRfq, isError: sourceRfqError } = useSourceRfq(rfqSource?.rfqId);
+  const rfqDefaults = useMemo(
+    () =>
+      sourceRfq && rfqSource
+        ? rfqToFormDefaults(sourceRfq, {
+            quoteResponseId: rfqSource.quoteResponseId,
+            projectId: rfqSource.projectId,
+            quoteLineItemIds: rfqSource.quoteLineItemIds
+              ? new Set(rfqSource.quoteLineItemIds)
+              : undefined,
+          })
+        : null,
+    [sourceRfq, rfqSource],
+  );
 
   // App-bar breadcrumb: PO Management › Create Purchase Order.
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
@@ -39,18 +68,28 @@ export default function CreatePurchaseOrderPage() {
 
   const { data: projectsData } = useProjectsList();
   const { data: vendorsData } = useCompanyVendors();
+  const defaultTermsAndConditions = useCompanyPoTerms();
   const createMutation = useCreatePurchaseOrder();
 
-  // If route state has a projectId, use it as initial; otherwise empty
-  const initialProjectId = (routeState.defaultValues?.projectId as string) ?? '';
-  const [projectId, setProjectId] = useState(initialProjectId);
-  const { data: projectDetail } = useProjectDetail(projectId);
+  const initialValues: Record<string, unknown> | undefined =
+    rfqDefaults?.defaultValues ?? routeState.defaultValues ?? undefined;
 
-  const initialValues = routeState.defaultValues ?? undefined;
-  const lockedFields = useMemo(
-    () => (routeState.lockedFields ? new Set<string>(routeState.lockedFields) : undefined),
-    [routeState.lockedFields],
+  // If the defaults carry a projectId, use it as initial; otherwise empty
+  const [projectId, setProjectId] = useState((initialValues?.projectId as string) ?? '');
+  useEffect(() => {
+    if (rfqDefaults?.defaultValues.projectId) setProjectId(rfqDefaults.defaultValues.projectId);
+  }, [rfqDefaults]);
+  const { data: projectDetail } = useProjectDetail(projectId);
+  // A one-off vendor (FOR-395) is offered only on the project it was added for.
+  const projectVendors = useMemo(
+    () => vendorsData?.filter((v) => !v.oneOffProjectId || v.oneOffProjectId === projectId),
+    [vendorsData, projectId],
   );
+
+  const lockedFields = useMemo(() => {
+    if (rfqDefaults) return new Set<string>(rfqDefaults.lockedFields);
+    return routeState.lockedFields ? new Set<string>(routeState.lockedFields) : undefined;
+  }, [rfqDefaults, routeState.lockedFields]);
 
   const handleCreatePo = useCallback(
     (
@@ -65,12 +104,15 @@ export default function CreatePurchaseOrderPage() {
     [createMutation],
   );
 
+  // The wizard reads its defaults once, so wait for the source RFQ (if any).
+  if (rfqSource && !rfqDefaults && !sourceRfqError) return <PageLoader />;
+
   return (
     <CreatePoWizard
       onNavigateBack={() => navigate(ROUTES.purchaseOrders)}
       onSuccess={() => navigate(ROUTES.purchaseOrders)}
       projectsData={projectsData}
-      vendorsData={vendorsData}
+      vendorsData={projectVendors}
       projectDetail={projectDetail}
       onProjectIdChange={setProjectId}
       onCreatePo={handleCreatePo}
@@ -78,6 +120,7 @@ export default function CreatePurchaseOrderPage() {
       initialValues={initialValues}
       lockedFields={lockedFields}
       creationMode={routeState.mode ?? 'manual'}
+      defaultTermsAndConditions={defaultTermsAndConditions}
     />
   );
 }

@@ -148,7 +148,7 @@ export const AddressInput = forwardRef<HTMLInputElement, AddressInputProps>(
           }}
           autoComplete="off"
           className={cn(
-            'w-full py-2.5 px-3 border border-input bg-muted rounded-xl text-sm placeholder-muted-foreground',
+            'w-full py-2.5 px-3 border border-input bg-muted rounded-xl text-base md:text-sm placeholder-muted-foreground',
             'focus:outline-none focus:border-foreground/50 focus:bg-muted',
             'disabled:opacity-50 disabled:cursor-not-allowed',
             className,

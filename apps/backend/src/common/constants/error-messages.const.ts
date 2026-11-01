@@ -119,11 +119,13 @@ export const ERR = {
     cannotSendNotDraft: (status: string) => t(errors.rfqs.cannotSendNotDraft, { status }),
     mustHaveLineItems: errors.rfqs.mustHaveLineItems,
     mustHaveVendors: errors.rfqs.mustHaveVendors,
+    mustHaveDeliveryLocation: errors.rfqs.mustHaveDeliveryLocation,
     invalidProjectIds: errors.rfqs.invalidProjectIds,
     lineItemProjectNotInRfq: errors.rfqs.lineItemProjectNotInRfq,
     coverageOnlyDraft: errors.rfqs.coverageOnlyDraft,
     coverageExceedsLineQuantity: errors.rfqs.coverageExceedsLineQuantity,
     awardSplitEmpty: errors.rfqs.awardSplitEmpty,
+    awardNoPurchasableLines: errors.rfqs.awardNoPurchasableLines,
     awardSplitDuplicateLine: errors.rfqs.awardSplitDuplicateLine,
     awardSplitLineNotInRfq: errors.rfqs.awardSplitLineNotInRfq,
     awardSplitLineNotQuoted: errors.rfqs.awardSplitLineNotQuoted,
@@ -145,6 +147,7 @@ export const ERR = {
     cannotIssue: (status: string) => t(errors.purchaseOrders.cannotIssue, { status }),
     cannotIssueSplitParent: errors.purchaseOrders.cannotIssueSplitParent,
     holdForReleaseRequiresDeadline: errors.purchaseOrders.holdForReleaseRequiresDeadline,
+    invalidQuoteLine: errors.purchaseOrders.invalidQuoteLine,
     cannotConfirm: (status: string) => t(errors.purchaseOrders.cannotConfirm, { status }),
     cannotAccept: (status: string) => t(errors.purchaseOrders.cannotAccept, { status }),
     cannotVendorDecline: (status: string) =>
@@ -235,6 +238,11 @@ export const ERR = {
     changeRequestNotFound: errors.materials.changeRequestNotFound,
     changeRequestNotPending: errors.materials.changeRequestNotPending,
     publicReadOnly: errors.materials.publicReadOnly,
+    categoryNotFound: errors.materials.categoryNotFound,
+    categoryNameRequired: errors.materials.categoryNameRequired,
+    categoryDuplicateName: errors.materials.categoryDuplicateName,
+    categoryInactive: errors.materials.categoryInactive,
+    categoryProtected: errors.materials.categoryProtected,
   },
 
   // ── Material lists (US 5.05) ───────────────────────────────
@@ -261,6 +269,10 @@ export const ERR = {
   // ── Vendors ─────────────────────────────────────────────
   vendors: {
     alreadyAssigned: errors.vendors.alreadyAssigned,
+    projectNotFound: errors.vendors.projectNotFound,
+    oneOffOnOtherProject: errors.vendors.oneOffOnOtherProject,
+    notOneOff: errors.vendors.notOneOff,
+    oneOffWrongProject: errors.vendors.oneOffWrongProject,
     companyEmailInUse: errors.vendors.companyEmailInUse,
     userEmailInUse: errors.vendors.userEmailInUse,
     notFound: errors.vendors.notFound,

@@ -1,5 +1,4 @@
 import {
-  approveQuote,
   awardSplit,
   createBulkOrder,
   createPurchaseOrder,
@@ -17,6 +16,7 @@ import {
   cn,
   formatCurrency,
   toast,
+  ScrollTable,
 } from '@forethread/ui-components';
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
@@ -37,13 +37,11 @@ import { useNavigate } from 'react-router-dom';
 
 import { PO_CREATE_ROUTE, RFQ_ROUTES } from '../constants/routes';
 import { useDropdown } from '../hooks/useDropdown';
-import {
-  useCreateDraftPoFromQuote,
-  useRfqQuoteComparison,
-  useUpdateQuoteLineItemStatuses,
-} from '../hooks/useRfqs';
+import { useApproveQuote } from '../hooks/useApproveQuote';
+import { useRfqQuoteComparison, useUpdateQuoteLineItemStatuses } from '../hooks/useRfqs';
 import { buildSplitAllocations, findOverAllocatedLineIds } from '../utils/splitAward';
 
+import { DeliveryVarianceBadge } from './DeliveryVarianceBadge';
 import { SortingDropdown, type QuoteSortOrder } from './SortingDropdown';
 import { StartOrderModal, type StartOrderKind } from './StartOrderModal';
 import {
@@ -227,21 +225,14 @@ export function QuoteComparisonTable({
   const [orderQuantities, setOrderQuantities] = useState<Map<string, string>>(new Map());
   const [openNoteCell, setOpenNoteCell] = useState<string | null>(null);
   const [startOrder, setStartOrder] = useState<StartOrderKind | null>(null);
-  /** Quote that was just approved from the footer — drives the post-approve PO prompt. */
-  const [approvedPrompt, setApprovedPrompt] = useState<string | null>(null);
 
   const groupDropdown = useDropdown();
   const projectDropdown = useDropdown();
 
   const lineStatusMutation = useUpdateQuoteLineItemStatuses(rfqId);
 
-  const approveMutation = useMutation({
-    mutationFn: (quoteId: string) => approveQuote(rfqId, quoteId),
-    onSuccess: (_r, quoteId) => {
-      void queryClient.invalidateQueries({ queryKey: ['rfqs', rfqId] });
-      setApprovedPrompt(quoteId);
-    },
-  });
+  // Approving awards the quote and opens its new draft PO (FOR-396).
+  const approveQuote = useApproveQuote(rfqId);
 
   const declineMutation = useMutation({
     mutationFn: (quoteId: string) => declineQuote(rfqId, quoteId),
@@ -554,34 +545,30 @@ export function QuoteComparisonTable({
   const startOrderNow = (kind: StartOrderKind) => {
     if (kind === 'po') {
       const target = selectionTargets[0];
+      // FOR-391: the PO page builds the selected lines from this quote, each at
+      // its quoted price.
       navigate(PO_CREATE_ROUTE, {
         state: {
           mode: 'from-rfq',
-          defaultValues: target
-            ? { projectId: target.projectId, vendorId: target.vendorId }
-            : undefined,
+          rfqSource: target
+            ? {
+                rfqId,
+                quoteResponseId: target.quoteResponseId,
+                projectId: target.projectId,
+                quoteLineItemIds: [...selection.values()]
+                  .filter(
+                    (sel) =>
+                      sel.quoteResponseId === target.quoteResponseId &&
+                      sel.projectId === target.projectId,
+                  )
+                  .map((sel) => sel.quoteLineItemId),
+              }
+            : { rfqId },
         },
       });
     } else {
       createDraftMutation.mutate('bulk');
     }
-  };
-
-  // The post-approve prompt creates a draft PO for the whole approved quote.
-  const approvedQuote = approvedPrompt
-    ? (data?.vendors.find((v) => v.quoteResponseId === approvedPrompt) ?? null)
-    : null;
-
-  const approvedDraftMutation = useCreateDraftPoFromQuote(rfqId);
-
-  const createApprovedDraft = (quoteResponseId: string) => {
-    approvedDraftMutation.mutate(quoteResponseId, {
-      onSuccess: () => {
-        toast.success(t('startOrder.poDraftCreated'));
-        setApprovedPrompt(null);
-      },
-      onError: () => toast.error(t('startOrder.createError')),
-    });
   };
 
   // ── Early states ─────────────────────────────────────────────────────────────
@@ -820,7 +807,7 @@ export function QuoteComparisonTable({
     order: 'min-w-[96px]',
     lineDiscount: 'min-w-[88px]',
     lineTotal: 'min-w-[164px]',
-    deliveryDate: 'min-w-[120px]',
+    deliveryDate: 'min-w-[156px]',
     actions: 'min-w-[92px]',
   };
 
@@ -1088,7 +1075,10 @@ export function QuoteComparisonTable({
         case 'deliveryDate':
           return (
             <td key={col} className={base}>
-              {cellDate(cell.deliveryDate)}
+              <span className="flex items-center gap-1.5">
+                {cellDate(cell.deliveryDate)}
+                <DeliveryVarianceBadge days={cell.deliveryVarianceDays} />
+              </span>
             </td>
           );
         case 'actions':
@@ -1174,7 +1164,7 @@ export function QuoteComparisonTable({
       {visibleVendors.length === 0 ? (
         <p className="py-8 text-sm text-muted-foreground">{t('reviewTable.noQuotes')}</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-foreground/10">
+        <ScrollTable className="rounded-lg border border-foreground/10" pinColumn={false}>
           <table className="border-separate border-spacing-0 text-sm w-max min-w-full">
             <thead>
               <tr>
@@ -1340,6 +1330,13 @@ export function QuoteComparisonTable({
                           <span className="block truncate" title={row.materialName ?? undefined}>
                             {row.materialName ?? '-'}
                           </span>
+                          {/* FOR-392: the date each vendor's delivery is measured against;
+                              kept in the pinned column so it stays beside every vendor. */}
+                          {row.expectedDeliveryDate && (
+                            <span className="block truncate text-xs text-muted-foreground">
+                              {t('deliveryVariance.expected')}: {cellDate(row.expectedDeliveryDate)}
+                            </span>
+                          )}
                         </td>
                         {visibleVendors.map((vendor) => renderVendorCells(row, vendor))}
                       </tr>
@@ -1399,8 +1396,8 @@ export function QuoteComparisonTable({
                               </button>
                               <button
                                 type="button"
-                                disabled={approveMutation.isPending}
-                                onClick={() => approveMutation.mutate(vendor.quoteResponseId)}
+                                disabled={approveQuote.isPending}
+                                onClick={() => approveQuote.approve(vendor.quoteResponseId)}
                                 className="flex items-center gap-1.5 h-8 px-3 bg-card border border-black rounded-xl text-sm font-medium text-black hover:bg-black/5 transition-colors disabled:opacity-50"
                               >
                                 <CheckCircleIcon className="w-4 h-4" />
@@ -1449,7 +1446,7 @@ export function QuoteComparisonTable({
               </tr>
             </tfoot>
           </table>
-        </div>
+        </ScrollTable>
       )}
 
       {showTableManagement && (
@@ -1467,23 +1464,6 @@ export function QuoteComparisonTable({
           onStartNow={() => startOrderNow(startOrder)}
           onCreateDraft={() => createDraftMutation.mutate(startOrder)}
           onClose={() => setStartOrder(null)}
-        />
-      )}
-
-      {approvedQuote && (
-        <StartOrderModal
-          kind="po"
-          isCreating={approvedDraftMutation.isPending}
-          onStartNow={() => {
-            navigate(PO_CREATE_ROUTE, {
-              state: {
-                mode: 'from-rfq',
-                defaultValues: { vendorId: approvedQuote.vendorId },
-              },
-            });
-          }}
-          onCreateDraft={() => createApprovedDraft(approvedQuote.quoteResponseId)}
-          onClose={() => setApprovedPrompt(null)}
         />
       )}
     </div>

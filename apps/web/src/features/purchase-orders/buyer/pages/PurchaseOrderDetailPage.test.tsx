@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, fireEvent } from '@testing-library/react';
+import type React from 'react';
 import type { ReactNode } from 'react';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -86,6 +87,38 @@ vi.mock('@forethread/po-shared', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  // B7 (FOR-373): desktop layout in tests; PageActions renders its actions inline.
+  useIsPhone: () => false,
+  useHideMobileNav: () => {},
+  MobileActionBar: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  PageActions: ({
+    primary,
+    secondary = [],
+  }: {
+    primary?: React.ReactNode;
+    secondary?: Array<{
+      key: string;
+      label: string;
+      onClick: () => void;
+      disabled?: boolean;
+      testId?: string;
+    }>;
+  }) => (
+    <div>
+      {secondary.map((a) => (
+        <button
+          key={a.key}
+          type="button"
+          onClick={a.onClick}
+          disabled={a.disabled}
+          data-testid={a.testId}
+        >
+          {a.label}
+        </button>
+      ))}
+      {primary}
+    </div>
+  ),
   Button: ({
     children,
     leftIcon,
@@ -204,7 +237,7 @@ describe('PurchaseOrderDetailPage', () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
 
     render(<PurchaseOrderDetailPage />, { wrapper });
-    fireEvent.click(screen.getByTestId('export-btn'));
+    fireEvent.click(screen.getByText('actions.exportAs'));
 
     await vi.waitFor(() => {
       expect(mockExportPurchaseOrders).toHaveBeenCalledWith('pdf', { search: 'po-456' });

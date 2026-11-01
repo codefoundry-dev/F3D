@@ -9,6 +9,7 @@ import {
   cn,
   formatDateTime,
   formatStatus,
+  ScrollTable,
 } from '@forethread/ui-components';
 import AlertIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
 
@@ -100,10 +101,10 @@ export function PoEmailLogTab({ poId }: PoEmailLogTabProps) {
       )}
 
       <div className="rounded-[10px] border border-foreground/10 overflow-hidden">
-        <div className="overflow-x-auto">
+        <ScrollTable>
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-foreground/10 bg-muted/40 text-left text-xs font-medium text-muted-foreground">
+              <tr className="border-b border-foreground/10 bg-[color:color-mix(in_srgb,hsl(var(--muted))_40%,hsl(var(--card)))] text-left text-xs font-medium text-muted-foreground">
                 <th className="px-4 py-3 font-medium">{t('emailLogTab.columns.recipient')}</th>
                 <th className="px-4 py-3 font-medium">{t('emailLogTab.columns.subject')}</th>
                 <th className="px-4 py-3 font-medium">{t('emailLogTab.columns.status')}</th>
@@ -149,7 +150,7 @@ export function PoEmailLogTab({ poId }: PoEmailLogTabProps) {
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       </div>
     </div>
   );

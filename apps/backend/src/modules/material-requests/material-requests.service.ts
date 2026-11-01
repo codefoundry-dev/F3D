@@ -38,7 +38,10 @@ import { AuditService } from '../audit/audit.service';
 import { BrandingService } from '../export/branding.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { NotificationService } from '../notification-feed/notification.service';
+import { SYSTEM_SENDER } from '../notification-feed/notification.types';
 import { EmailService } from '../notifications/email.service';
+import { loadCompanyPoTerms } from '../purchase-orders/po-terms.util';
+import { assertVendorUsableOnProject } from '../vendors/vendor-access.util';
 
 import {
   ConvertToPoDto,
@@ -140,7 +143,7 @@ export class MaterialRequestsService {
 
     const submit = dto.submit === true;
     const status = submit ? MaterialRequestStatus.SUBMITTED : MaterialRequestStatus.DRAFT;
-    const mrNumber = await this.nextMrNumber(companyId);
+    const mrNumber = await nextSequentialNumber(this.prisma, 'materialRequest', 'MR', companyId);
 
     // FOR-347: the one-shot create is the wizard's submit door, so nominees ride
     // on it. Vet them against the Pool BEFORE creating anything — a bad id is a
@@ -453,7 +456,41 @@ export class MaterialRequestsService {
       issued,
     });
 
+    await this.autoConvertToRfq(mr, issued, user);
+
     return this.get(id, user);
+  }
+
+  /**
+   * FOR-396: a company that opted in gets the approved MR's draft RFQ straight
+   * away, so buyers don't have to press "Convert to RFQ". This is skipped when
+   * stock covered every line (nothing is left to buy). A failure leaves the MR
+   * approved and convertible by hand; the approval itself has already committed.
+   */
+  private async autoConvertToRfq(
+    mr: { id: string; companyId: string; lineItems: { id: string; quantity: number }[] },
+    issued: { lineId: string; issued: number }[],
+    user: AuthenticatedUser,
+  ): Promise<void> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: mr.companyId },
+      select: { autoConvertApprovedMrToRfq: true },
+    });
+    if (!company?.autoConvertApprovedMrToRfq) return;
+
+    const issuedByLine = new Map(issued.map((i) => [i.lineId, i.issued]));
+    const coveredFromStock = mr.lineItems.every(
+      (li) => (issuedByLine.get(li.id) ?? 0) >= li.quantity,
+    );
+    if (coveredFromStock) return;
+
+    try {
+      await this.convertToRfq(mr.id, user);
+    } catch (err) {
+      this.logger.warn(
+        `Auto-convert of approved MR ${mr.id} to RFQ failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   // ── Decline (SUBMITTED → DECLINED, reason required) ───────────────────────────
@@ -614,6 +651,7 @@ export class MaterialRequestsService {
     if (!dto.vendorId) {
       throw new BadRequestException(ERR.materialRequests.vendorRequired);
     }
+    await assertVendorUsableOnProject(this.prisma, dto.vendorId, mr.companyId, mr.projectId);
     assertTransitionOrThrow(mr.status, MaterialRequestStatus.CONVERTED);
 
     const poNumber = await nextSequentialNumber(this.prisma, 'purchaseOrder', 'PO', mr.companyId);
@@ -624,6 +662,8 @@ export class MaterialRequestsService {
       this.prisma,
       mr.lineItems.map((li) => li.materialId),
     );
+
+    const termsAndConditions = await loadCompanyPoTerms(this.prisma, mr.companyId);
 
     const po = await this.prisma.$transaction(async (tx) => {
       const createdPo = await tx.purchaseOrder.create({
@@ -641,6 +681,7 @@ export class MaterialRequestsService {
           // date — the PO has no separate "need by", and without this the date
           // the MR was raised against was silently lost on conversion.
           plannedDeliveryDate: mr.neededByDate,
+          termsAndConditions,
           subtotal: 0,
           totalAmount: 0,
           lineItemCount: mr.lineItems.length,
@@ -748,7 +789,7 @@ export class MaterialRequestsService {
 
     if (notify.length > 0) {
       // Best-effort: a mail failure must not undo a recorded nomination.
-      this.notifyNominatedApprovers(id, notify).catch(() => {});
+      this.notifyNominatedApprovers(id, notify, user.id).catch(() => {});
     }
 
     return view;
@@ -851,6 +892,7 @@ export class MaterialRequestsService {
       body: `Material request ${mr.mrNumber} for ${mr.project.name} needs your approval.`,
       entityType: NotificationEntityType.MATERIAL_REQUEST,
       entityId: mrId,
+      sender: { userId: mr.requestedById },
     });
   }
 
@@ -863,6 +905,7 @@ export class MaterialRequestsService {
   private async notifyNominatedApprovers(
     mrId: string,
     nominees: ApproverPoolMember[],
+    nominatedByUserId: string,
   ): Promise<void> {
     const mr = await this.prisma.materialRequest.findUnique({
       where: { id: mrId },
@@ -894,6 +937,7 @@ export class MaterialRequestsService {
       body: `Material request ${mr.mrNumber} for ${mr.project.name} needs your approval.`,
       entityType: NotificationEntityType.MATERIAL_REQUEST,
       entityId: mrId,
+      sender: { userId: nominatedByUserId },
     });
   }
 
@@ -943,6 +987,7 @@ export class MaterialRequestsService {
       body,
       entityType: NotificationEntityType.MATERIAL_REQUEST,
       entityId: mrId,
+      sender: SYSTEM_SENDER,
     });
 
     // The requester gets the same signal in-app even when they are not an
@@ -956,6 +1001,7 @@ export class MaterialRequestsService {
         body,
         entityType: NotificationEntityType.MATERIAL_REQUEST,
         entityId: mrId,
+        sender: SYSTEM_SENDER,
       });
     }
   }
@@ -986,11 +1032,6 @@ export class MaterialRequestsService {
   }
 
   /** Next "MR-00001" number for a company, sequential by existing MR count. */
-  private async nextMrNumber(companyId: string): Promise<string> {
-    const count = await this.prisma.materialRequest.count({ where: { companyId } });
-    return `MR-${String(count + 1).padStart(5, '0')}`;
-  }
-
   /**
    * Each line must carry a catalogue material id OR a free-text name, and every
    * referenced catalogue material id must exist (mirrors RfqsService line-item

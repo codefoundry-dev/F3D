@@ -7,6 +7,7 @@ import {
   UserRole,
 } from '@prisma/client';
 
+import { ERR } from '../../../common/constants/error-messages.const';
 import { RfqVisibilityService } from '../rfq-visibility.service';
 import { RfqsService } from '../rfqs.service';
 
@@ -162,6 +163,7 @@ const mockPrisma = {
   },
   company: {
     findMany: jest.fn(),
+    findUnique: jest.fn(),
   },
   companyVendorAssignment: {
     findMany: jest.fn(),
@@ -435,7 +437,8 @@ describe('RfqsService', () => {
       expect(first.pickUp).toBe(true);
       expect(first.deadlineRange).toBeNull(); // needs both start and end
       expect(first.deadlineEnd).toBeNull();
-      expect(second.deliveryLocation).toBe('Depot');
+      // Labelled locations keep their address visible (FOR-387).
+      expect(second.deliveryLocation).toBe('Depot — 12 Wharf St');
       expect(second.deadlineRange).toBeNull();
       expect(second.deadlineEnd).toBe(new Date('2026-04-15').toISOString());
     });
@@ -587,10 +590,25 @@ describe('RfqsService', () => {
 
     // ── Additional filter branches ──
 
-    it('applies deliveryLocation filter', async () => {
+    it('filters by delivery location id when given a UUID (FOR-387)', async () => {
+      const locId = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
+      await service.listRfqs(q({ deliveryLocation: locId }), companyAdmin);
+      const where = mockPrisma.rfq.findMany.mock.calls[0][0].where;
+      expect(where.AND).toContainEqual({ deliveryLocationId: locId });
+    });
+
+    it('matches free-text delivery location on label or address', async () => {
       await service.listRfqs(q({ deliveryLocation: 'Main St' }), companyAdmin);
       const where = mockPrisma.rfq.findMany.mock.calls[0][0].where;
-      expect(where.deliveryLocationId).toBe('Main St');
+      expect(where.deliveryLocationId).toBeUndefined();
+      expect(where.AND).toContainEqual({
+        deliveryLocation: {
+          OR: [
+            { label: { contains: 'Main St', mode: 'insensitive' } },
+            { address: { contains: 'Main St', mode: 'insensitive' } },
+          ],
+        },
+      });
     });
 
     it('applies createdByUserId filter', async () => {
@@ -901,9 +919,18 @@ describe('RfqsService', () => {
           {
             id: 'li-1',
             materialId: 'mat-steel-1',
-            material: { name: 'Steel' },
+            material: { name: 'Steel', imageUrl: 'https://img/steel.png' },
             quantity: 100,
             unit: 'tonnes',
+            description: null,
+          },
+          {
+            id: 'li-2',
+            materialId: null,
+            materialName: 'Bolts',
+            material: null,
+            quantity: 10,
+            unit: 'ea',
             description: null,
           },
         ],
@@ -926,7 +953,9 @@ describe('RfqsService', () => {
       const result = await service.getRfq('rfq-1', companyAdmin);
       expect(result.id).toBe('rfq-1');
       expect(result.projectName).toBe('Alpha');
-      expect(result.lineItems).toHaveLength(1);
+      expect(result.lineItems).toHaveLength(2);
+      // FOR-361: catalogue image read through the material link; null for free text.
+      expect(result.lineItems.map((li) => li.imageUrl)).toEqual(['https://img/steel.png', null]);
       expect(result.quoteResponses).toHaveLength(1);
       expect(result.quoteResponses[0].vendorName).toBe('VendorCo');
     });
@@ -1556,6 +1585,7 @@ describe('RfqsService', () => {
         totalCost: 50,
         purchaseOrderId: 'po-1',
         poNumber: 'PO-00001',
+        purchaseOrders: [{ id: 'po-1', poNumber: 'PO-00001' }],
       });
 
       expect(mockPrisma.quoteResponse.update).toHaveBeenCalledWith({
@@ -1605,6 +1635,21 @@ describe('RfqsService', () => {
       expect(poData.lineItems.create[0].deliveryTime).toBe('09:30');
     });
 
+    it("snapshots the company's PO terms & conditions onto the awarded PO (FOR-398)", async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue(awardableQuote);
+      mockPrisma.company.findUnique.mockResolvedValueOnce({ poTermsAndConditions: '  Net 30.  ' });
+      primeAwardTransaction();
+
+      await service.awardQuote('rfq-1', 'quote-1', companyAdmin);
+
+      expect(mockPrisma.company.findUnique).toHaveBeenCalledWith({
+        where: { id: 'comp-1' },
+        select: { poTermsAndConditions: true },
+      });
+      const poData = mockPrisma.purchaseOrder.create.mock.calls[0][0].data;
+      expect(poData.termsAndConditions).toBe('Net 30.');
+    });
+
     it('derives PO line items from the quote, dropping NO_QUOTE lines', async () => {
       mockPrisma.quoteResponse.findUnique.mockResolvedValue(awardableQuote);
       primeAwardTransaction();
@@ -1648,6 +1693,80 @@ describe('RfqsService', () => {
           taxCode: 'GST',
         }),
       );
+    });
+
+    it('404s when the quote belongs to a different RFQ than the URL (FOR-396)', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue(awardableQuote);
+      await expect(service.awardQuote('rfq-other', 'quote-1', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('drops UNAVAILABLE and declined lines and orders the approved quantity (FOR-396)', async () => {
+      const [cement, sand] = awardableQuote.lineItems;
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({
+        ...awardableQuote,
+        lineItems: [
+          { ...cement, approvedQuantity: 3 },
+          { ...cement, availability: QuoteLineItemAvailability.UNAVAILABLE },
+          { ...sand, availability: QuoteLineItemAvailability.AVAILABLE, status: 'DECLINED' },
+        ],
+      });
+      primeAwardTransaction();
+
+      await service.awardQuote('rfq-1', 'quote-1', companyAdmin);
+
+      const poData = mockPrisma.purchaseOrder.create.mock.calls[0][0].data;
+      expect(poData.lineItems.create).toHaveLength(1);
+      expect(poData.lineItems.create[0]).toEqual(
+        expect.objectContaining({ quantityOrdered: 3, lineTotal: 30 }),
+      );
+      expect(poData.subtotal).toBe(30);
+    });
+
+    it('400s when no line is left to order (FOR-396)', async () => {
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({
+        ...awardableQuote,
+        lineItems: [awardableQuote.lineItems[1]],
+      });
+      await expect(service.awardQuote('rfq-1', 'quote-1', companyAdmin)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('creates one draft PO per project on a multi-project RFQ, numbered in sequence (FOR-396)', async () => {
+      const [cement] = awardableQuote.lineItems;
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({
+        ...awardableQuote,
+        lineItems: [
+          cement,
+          {
+            ...cement,
+            rfqLineItem: {
+              ...cement.rfqLineItem,
+              projectId: 'proj-2',
+              deliveryLocationId: 'loc-9',
+            },
+          },
+        ],
+      });
+      primeAwardTransaction();
+      mockPrisma.purchaseOrder.findMany.mockResolvedValue([{ poNumber: 'PO-00041' }]);
+      mockPrisma.purchaseOrder.create
+        .mockResolvedValueOnce({ id: 'po-a', poNumber: 'PO-00042' })
+        .mockResolvedValueOnce({ id: 'po-b', poNumber: 'PO-00043' });
+
+      const result = await service.awardQuote('rfq-1', 'quote-1', companyAdmin);
+
+      const calls = mockPrisma.purchaseOrder.create.mock.calls.map((c) => c[0].data);
+      expect(calls.map((d) => [d.projectId, d.poNumber])).toEqual([
+        ['proj-1', 'PO-00042'],
+        ['proj-2', 'PO-00043'],
+      ]);
+      expect(calls[1].lineItems.create[0].deliveryLocationId).toBe('loc-9');
+      expect(result.purchaseOrderId).toBe('po-a');
+      expect(result.purchaseOrders).toHaveLength(2);
     });
   });
 
@@ -2637,6 +2756,20 @@ describe('RfqsService', () => {
       );
     });
 
+    it('rejects a one-off vendor added for a project the RFQ does not cover (FOR-395)', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'proj-1', companyId: 'comp-1' });
+      mockPrisma.projectLocation.findUnique.mockResolvedValue({ id: 'loc-1', projectId: 'proj-1' });
+      mockPrisma.material.findMany.mockResolvedValue([{ id: 'mat-1' }, { id: 'mat-2' }]);
+      mockPrisma.companyVendorAssignment.findMany.mockResolvedValue([
+        { vendorId: 'vendor-1', oneOffProjectId: null },
+        { vendorId: 'vendor-2', oneOffProjectId: 'proj-other' },
+      ]);
+
+      await expect(service.createRfq(createDto as never, procOfficer)).rejects.toThrow(
+        'A one-off vendor can only be used on the project it was added for',
+      );
+    });
+
     // ── FOR-197: M:N vendor scoping ─────────────────────────────────────
     it('scopes vendor validation to the contractor company (M:N assignment check)', async () => {
       setupCreateSuccess();
@@ -3071,12 +3204,29 @@ describe('RfqsService', () => {
       await expect(service.sendRfq('rfq-1', {}, procOfficer)).rejects.toThrow(BadRequestException);
     });
 
+    it('rejects a delivered RFQ with no delivery location (FOR-387)', async () => {
+      mockPrisma.rfq.findUnique.mockResolvedValue({
+        id: 'rfq-1',
+        status: 'DRAFT',
+        companyId: 'comp-1',
+        isPickUp: false,
+        deliveryLocationId: null,
+        _count: { lineItems: 1, invitedVendors: 1 },
+      });
+
+      await expect(service.sendRfq('rfq-1', {}, procOfficer)).rejects.toThrow(
+        ERR.rfqs.mustHaveDeliveryLocation,
+      );
+      expect(mockPrisma.rfq.update).not.toHaveBeenCalled();
+    });
+
     it('sends RFQ and generates invitation tokens for vendors', async () => {
       mockPrisma.rfq.findUnique
         .mockResolvedValueOnce({
           id: 'rfq-1',
           status: 'DRAFT',
           companyId: 'comp-1',
+          deliveryLocationId: 'loc-1',
           _count: { lineItems: 2, invitedVendors: 1 },
         })
         // generateInvitationTokensAndNotify
@@ -3167,6 +3317,7 @@ describe('RfqsService', () => {
           id: 'rfq-1',
           status: 'DRAFT',
           companyId: 'comp-1',
+          deliveryLocationId: 'loc-1',
           _count: { lineItems: 2, invitedVendors: 1 },
         })
         // generateInvitationTokensAndNotify — a vendor with a chosen rep plus
@@ -3236,6 +3387,7 @@ describe('RfqsService', () => {
           id: 'rfq-1',
           status: 'DRAFT',
           companyId: 'comp-1',
+          deliveryLocationId: 'loc-1',
           _count: { lineItems: 2, invitedVendors: 1 },
         })
         .mockResolvedValueOnce({
@@ -3305,6 +3457,7 @@ describe('RfqsService', () => {
           id: 'rfq-1',
           status: 'DRAFT',
           companyId: 'comp-1',
+          deliveryLocationId: 'loc-1',
           _count: { lineItems: 2, invitedVendors: 1 },
         })
         // generateInvitationTokensAndNotify
@@ -3370,6 +3523,7 @@ describe('RfqsService', () => {
           id: 'rfq-1',
           status: 'DRAFT',
           companyId: 'comp-1',
+          deliveryLocationId: 'loc-1',
           _count: { lineItems: 2, invitedVendors: 1 },
         })
         // generateInvitationTokensAndNotify (fire-and-forget)
@@ -3422,6 +3576,7 @@ describe('RfqsService', () => {
           id: 'rfq-1',
           status: 'DRAFT',
           companyId: 'comp-1',
+          deliveryLocationId: 'loc-1',
           _count: { lineItems: 2, invitedVendors: 1 },
         })
         .mockResolvedValueOnce({
@@ -3476,6 +3631,7 @@ describe('RfqsService', () => {
           id: 'rfq-1',
           status: 'DRAFT',
           companyId: 'comp-1',
+          deliveryLocationId: 'loc-1',
           _count: { lineItems: 2, invitedVendors: 1 },
         })
         // generateInvitationTokensAndNotify
@@ -3558,6 +3714,7 @@ describe('RfqsService', () => {
           id: 'rfq-1',
           status: 'DRAFT',
           companyId: 'comp-1',
+          deliveryLocationId: 'loc-1',
           _count: { lineItems: 2, invitedVendors: 1 },
         })
         // generateInvitationTokensAndNotify
@@ -3638,6 +3795,7 @@ describe('RfqsService', () => {
           id: 'rfq-1',
           status: 'DRAFT',
           companyId: 'comp-1',
+          deliveryLocationId: 'loc-1',
           _count: { lineItems: 2, invitedVendors: 1 },
         })
         .mockResolvedValueOnce({
@@ -3722,6 +3880,7 @@ describe('RfqsService', () => {
           id: 'rfq-1',
           status: 'DRAFT',
           companyId: 'comp-1',
+          deliveryLocationId: 'loc-1',
           _count: { lineItems: 2, invitedVendors: 1 },
         })
         // generateInvitationTokensAndNotify — the sender (po-1) is a member of
@@ -3797,6 +3956,7 @@ describe('RfqsService', () => {
         body: 'RFQ RFQ-1 for Proj was sent to vendors.',
         entityType: 'RFQ',
         entityId: 'rfq-1',
+        sender: { userId: 'po-1' },
       });
     });
 
@@ -3806,6 +3966,7 @@ describe('RfqsService', () => {
           id: 'rfq-1',
           status: 'DRAFT',
           companyId: 'comp-1',
+          deliveryLocationId: 'loc-1',
           _count: { lineItems: 2, invitedVendors: 1 },
         })
         // generateInvitationTokensAndNotify — member-2 can read RFQs, the

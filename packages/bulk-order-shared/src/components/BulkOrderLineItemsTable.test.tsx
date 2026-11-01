@@ -6,6 +6,7 @@ vi.mock('@forethread/i18n', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: any) => children,
   formatCurrency: (n: number) => `$${n}`,
 }));
 

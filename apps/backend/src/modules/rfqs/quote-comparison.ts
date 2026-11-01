@@ -26,6 +26,8 @@ export interface ComparisonRfqLineItemInput {
   /** Line-level project (US 5.05 multi-project RFQs); null falls back to the RFQ's primary project. */
   projectId: string | null;
   projectName: string | null;
+  /** The buyer's wanted delivery date for this line; null falls back to the RFQ need-by date. */
+  expectedDeliveryDate: Date | string | null;
 }
 
 export interface ComparisonQuoteLineItemInput {
@@ -67,6 +69,8 @@ export interface ComparisonRfqInput {
   currency: string;
   projectId: string;
   projectName: string;
+  /** RFQ-level need-by date — the expected date of lines without their own. */
+  needByDate: Date | string | null;
   lineItems: ComparisonRfqLineItemInput[];
 }
 
@@ -113,6 +117,13 @@ export interface QuoteComparisonCell {
   discountType: string | null;
   availability: string | null;
   deliveryDate: string | null;
+  /**
+   * Quoted minus expected delivery, in calendar days (FOR-392): positive = late,
+   * 0 = on the day, negative = early. Null when either date is missing.
+   */
+  deliveryVarianceDays: number | null;
+  /** True when the vendor quoted a delivery after the line's expected date. */
+  isLate: boolean;
   /** Per-line review status: PENDING | APPROVED | DECLINED. */
   status: string | null;
   /** Per-vendor approved quantity once the line is awarded (US 5.19); null otherwise. */
@@ -134,6 +145,8 @@ export interface QuoteComparisonRow {
   unit: string;
   projectId: string;
   projectName: string;
+  /** The date the buyer wants this line delivered (line date, else RFQ need-by). */
+  expectedDeliveryDate: string | null;
   cells: QuoteComparisonCell[];
   /** Vendor with the lowest line total for this line, or null when no one quoted it. */
   lowestVendorId: string | null;
@@ -151,6 +164,23 @@ export interface QuoteComparison {
 function toIso(value: Date | string | null): string | null {
   if (value === null || value === undefined) return null;
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Midnight UTC of the calendar day an ISO timestamp falls on. */
+function utcDay(iso: string): number {
+  const d = new Date(iso);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
+/** Whole calendar days from `expected` to `quoted` (positive = late); null if either is missing. */
+export function deliveryVarianceDays(
+  quoted: string | null,
+  expected: string | null,
+): number | null {
+  if (!quoted || !expected) return null;
+  return Math.round((utcDay(quoted) - utcDay(expected)) / DAY_MS);
 }
 
 /** A quote line counts toward comparison only when it has a positive price and is not flagged NO_QUOTE. */
@@ -191,10 +221,14 @@ export function buildQuoteComparison(
   const vendorCovered = new Map<string, number>();
 
   const rows: QuoteComparisonRow[] = rfq.lineItems.map((rfqLine) => {
+    const expectedDeliveryDate = toIso(rfqLine.expectedDeliveryDate ?? rfq.needByDate);
     const cells: QuoteComparisonCell[] = quotes.map((quote) => {
       const line = linesByQuote.get(quote.id)?.get(rfqLine.id) ?? null;
       const real = line !== null && isRealQuote(line);
       const extendedCost = line !== null && real ? line.unitPrice * line.quotedQuantity : null;
+      const deliveryDate = line !== null ? toIso(line.deliveryDate) : null;
+      // Lateness only means something on a line the vendor actually quoted.
+      const variance = real ? deliveryVarianceDays(deliveryDate, expectedDeliveryDate) : null;
 
       if (extendedCost !== null) {
         vendorTotals.set(quote.vendorId, (vendorTotals.get(quote.vendorId) ?? 0) + extendedCost);
@@ -212,7 +246,9 @@ export function buildQuoteComparison(
         discount: line !== null && real ? line.discount : null,
         discountType: line !== null && real ? line.discountType : null,
         availability: line !== null ? String(line.availability) : null,
-        deliveryDate: line !== null ? toIso(line.deliveryDate) : null,
+        deliveryDate,
+        deliveryVarianceDays: variance,
+        isLate: variance !== null && variance > 0,
         status: line !== null ? line.status : null,
         approvedQuantity: line !== null ? line.approvedQuantity : null,
         notes: line !== null ? line.notes : null,
@@ -246,6 +282,7 @@ export function buildQuoteComparison(
       unit: rfqLine.unit,
       projectId: rfqLine.projectId ?? rfq.projectId,
       projectName: rfqLine.projectName ?? rfq.projectName,
+      expectedDeliveryDate,
       cells,
       lowestVendorId,
     };

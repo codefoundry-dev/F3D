@@ -51,6 +51,10 @@ model Company {
   // invoices-<key>@INVOICE_INBOUND_DOMAIN. Generated lazily the first time the
   // team views their intake address.
   invoiceInboxKey String?     @unique @map("invoice_inbox_key") @db.VarChar(32)
+  // Approving a material request also converts it to a draft RFQ (FOR-396).
+  autoConvertApprovedMrToRfq Boolean @default(false) @map("auto_convert_approved_mr_to_rfq")
+  // Default general terms & conditions copied onto every new PO (FOR-398).
+  poTermsAndConditions String? @map("po_terms_and_conditions") @db.Text
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
@@ -108,13 +112,18 @@ model CompanyVendorAssignment {
   contractorId String          @map("contractor_id")
   categories   VendorCategory[]
   assignedAt   DateTime        @default(now()) @map("assigned_at")
+  // Set for a one-off vendor (FOR-395): usable on this project only and hidden
+  // from the company vendor list. Null = a full vendor. Promotion clears it.
+  oneOffProjectId String?      @map("one_off_project_id")
 
-  vendor     Company @relation("VendorCompany", fields: [vendorId], references: [id], onDelete: Cascade)
-  contractor Company @relation("ContractorCompany", fields: [contractorId], references: [id], onDelete: Cascade)
+  vendor        Company  @relation("VendorCompany", fields: [vendorId], references: [id], onDelete: Cascade)
+  contractor    Company  @relation("ContractorCompany", fields: [contractorId], references: [id], onDelete: Cascade)
+  oneOffProject Project? @relation("OneOffVendorProject", fields: [oneOffProjectId], references: [id], onDelete: Cascade)
 
   @@unique([vendorId, contractorId], map: "idx_vendor_contractor_unique")
   @@index([vendorId], map: "idx_vendor_assignment_vendor")
   @@index([contractorId], map: "idx_vendor_assignment_contractor")
+  @@index([oneOffProjectId], map: "idx_vendor_assignment_one_off_project")
   @@map("company_vendor_assignments")
 }
 

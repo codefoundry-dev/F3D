@@ -11,6 +11,15 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
+  useIsPhone: () => false,
+  LineItemEditor: () => null,
+  Button: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
+    <button type="button" onClick={onClick}>
+      {children}
+    </button>
+  ),
+  Textarea: () => <textarea />,
   todayIso: () => new Date().toISOString().slice(0, 10),
   Checkbox: ({
     checked,
@@ -136,6 +145,7 @@ const makeItem = (overrides: Partial<LineItemFormState> = {}): LineItemFormState
   included: true,
   materialName: 'Cement',
   materialId: 'mat-1',
+  imageUrl: null,
   unit: 'kg',
   requestedQty: 100,
   availQty: '50',
@@ -234,6 +244,30 @@ describe('ResponseLineItemsTable', () => {
     const props = { ...baseProps, lineItems: [makeItem({ materialId: null })] };
     render(<ResponseLineItemsTable {...props} />);
     expect(screen.getByText('Cement').closest('a')).toBeNull();
+  });
+
+  it('shows the catalogue image of the requested material (FOR-361)', () => {
+    const props = { ...baseProps, lineItems: [makeItem({ imageUrl: 'https://img/cement.png' })] };
+    render(<ResponseLineItemsTable {...props} />);
+    const thumb = screen.getByTestId('material-image-thumb');
+    expect(thumb).toHaveAttribute('href', 'https://img/cement.png');
+    expect(thumb).toHaveAttribute('target', '_blank');
+    expect(thumb.querySelector('img')).toHaveAttribute('src', 'https://img/cement.png');
+  });
+
+  it('renders no thumbnail when the line has no image', () => {
+    render(<ResponseLineItemsTable {...baseProps} />);
+    expect(screen.queryByTestId('material-image-thumb')).not.toBeInTheDocument();
+  });
+
+  it('hides the requested image once a substitute is picked', () => {
+    const item = makeItem({
+      imageUrl: 'https://img/cement.png',
+      substituteItemId: 'mat-2',
+      substituteName: 'Rapid Cement',
+    });
+    render(<ResponseLineItemsTable {...baseProps} lineItems={[item]} />);
+    expect(screen.queryByTestId('material-image-thumb')).not.toBeInTheDocument();
   });
 
   it('renders toggle switch for include', () => {

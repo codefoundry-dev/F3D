@@ -262,6 +262,19 @@ describe('PoExportService', () => {
     );
   });
 
+  it('labels a vendor-approved (ACCEPTED) PO "Approved" (FOR-397)', async () => {
+    mockPoService.listPurchaseOrders.mockResolvedValue({
+      items: [{ ...sampleItems[0], status: 'ACCEPTED' }],
+      meta: {},
+    });
+    mockPdfExportService.exportToPDF.mockResolvedValue({ url: 'https://storage/pos.pdf' });
+
+    await service.exportPos('pdf', q(), companyAdmin as never);
+
+    const { rows } = mockPdfExportService.exportToPDF.mock.calls[0][0];
+    expect(rows[0]).toEqual(expect.objectContaining({ 'PO Status': 'Approved' }));
+  });
+
   it('maps aging column based on issuedAt or updatedAt', async () => {
     mockPdfExportService.exportToCSV.mockResolvedValue({ url: 'https://storage/pos.csv' });
 
@@ -552,7 +565,7 @@ describe('PoExportService', () => {
       // Signatures — buyer line pre-filled with approver name
       expect(options.signatures).toEqual([
         { label: 'Authorised by (Buyer)', name: 'Priya Approver' },
-        { label: 'Accepted by (Vendor)' },
+        { label: 'Approved by (Vendor)' },
       ]);
     });
 
@@ -673,6 +686,30 @@ describe('PoExportService', () => {
       expect(options.terms?.lines).toEqual(['', '', '', '']);
       // no approver/creator → buyer signature name is undefined
       expect(options.signatures?.[0]).toEqual({ label: 'Authorised by (Buyer)', name: undefined });
+      // no T&Cs → no legal section
+      expect(options.legalText).toBeUndefined();
+    });
+
+    it('prints the PO terms & conditions as their own closing section (FOR-398)', () => {
+      const options = service.buildPoPdfOptions({
+        poNumber: 'PO-TC',
+        projectName: 'P',
+        status: 'SENT',
+        currency: 'AUD',
+        totalAmount: 0,
+        termsAndConditions: "1. Goods remain at the vendor's risk until delivered.",
+        lineItems: [],
+        deliveries: [],
+        createdAt: '2026-06-01T00:00:00.000Z',
+      } as never);
+
+      expect(options.legalText).toEqual({
+        label: 'General Terms & Conditions',
+        text: "1. Goods remain at the vendor's risk until delivered.",
+      });
+      expect(options.terms?.lines).toContain(
+        'This order is subject to the General Terms & Conditions below.',
+      );
     });
 
     // Covers the nullish-collection fallbacks (lineItems/deliveries undefined) and

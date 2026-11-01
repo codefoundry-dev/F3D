@@ -1,15 +1,15 @@
 import type { MaterialListItemDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import {
-  Checkbox,
+  Button,
   cn,
-  DatePicker,
   Input,
+  LineItemEditor,
   MessageBadgeIcon,
-  onDecimalOnly,
-  StepperInput,
-  ToggleSwitch,
-  todayIso,
+  ScrollTable,
+  useIsPhone,
+  type LineItemField,
 } from '@forethread/ui-components';
 import CircleReloadIcon from '@forethread/ui-components/assets/icons/circle-reload.svg?react';
 import CrossInCircleIcon from '@forethread/ui-components/assets/icons/cross-in-circle.svg?react';
@@ -24,8 +24,14 @@ import type { LineItemFormState, QuoteTotals } from '../hooks/useRfqResponse';
 
 import { LineItemExpandedRow } from './LineItemExpandedRow';
 import { MaterialSearchPopup } from './MaterialSearchPopup';
+import {
+  calcLineTotal,
+  useQuoteLineFields,
+  type QuoteLineField,
+  type QuoteLineFieldKey,
+} from './quoteLineFields';
 
-const NAKED_INPUT_CLASS = '!bg-transparent !rounded-none !border-0 !shadow-none';
+type CellFields = Record<QuoteLineFieldKey, QuoteLineField>;
 
 const TH_CLASS =
   'py-2.5 px-3 text-xs font-bold whitespace-nowrap tracking-wide border-r border-border';
@@ -46,6 +52,10 @@ interface ResponseLineItemsTableProps {
   onOpenSubstitute: (index: number) => void;
   onCloseSubstitute: () => void;
   onSelectSubstitute: (material: MaterialListItemDto) => void;
+  /** Material search needs a session, so the guest page turns substitutes off (phone sheet). */
+  substituteEnabled?: boolean;
+  /** RFQ need-by date: the requested delivery of lines without their own date (FOR-392). */
+  needByDate?: string | null;
 }
 
 export function ResponseLineItemsTable({
@@ -60,8 +70,113 @@ export function ResponseLineItemsTable({
   onOpenSubstitute,
   onCloseSubstitute,
   onSelectSubstitute,
+  substituteEnabled = true,
+  needByDate = null,
 }: ResponseLineItemsTableProps) {
   const { t } = useTranslation('rfqs');
+  const isPhone = useIsPhone();
+  // Line fields are defined once (B10): grid cells on desktop, the edit sheet on phones.
+  const cellFields = Object.fromEntries(
+    useQuoteLineFields({ onUpdateItem, onToggleInclude, variant: 'cell', needByDate }).map((f) => [
+      f.key,
+      f,
+    ]),
+  ) as CellFields;
+  const sheetFields = useQuoteLineFields({
+    onUpdateItem,
+    onToggleInclude,
+    variant: 'sheet',
+    needByDate,
+  });
+
+  if (isPhone) {
+    const substituteField: LineItemField<LineItemFormState> = {
+      key: 'substitute',
+      label: t('response.substituteItem'),
+      hidden: (item) => !substituteEnabled || !item.included,
+      input: (item, index) =>
+        substituteOpenIdx === index ? (
+          <div className="flex flex-col gap-2">
+            <Input
+              ref={(el) => {
+                if (el && document.activeElement !== el) el.focus();
+              }}
+              value={substituteQuery}
+              onChange={(e) => onSubstituteQueryChange(e.target.value)}
+              placeholder={t('response.searchMaterials')}
+              leftIcon={<SearchIcon className="w-4 h-4 text-muted-foreground" />}
+              className="h-11 w-full text-base"
+            />
+            <MaterialSearchPopup
+              open
+              inline
+              searchQuery={substituteQuery}
+              onClose={onCloseSubstitute}
+              onSelect={onSelectSubstitute}
+            />
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+              {item.substituteName ?? '-'}
+            </span>
+            {item.substituteItemId && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  onUpdateItem(index, 'substituteItemId', null);
+                  onUpdateItem(index, 'substituteName', null);
+                }}
+              >
+                {t('response.clearAll')}
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              leftIcon={<PackageIcon className="size-4" />}
+              onClick={() => onOpenSubstitute(index)}
+            >
+              {t('response.searchMaterials')}
+            </Button>
+          </div>
+        ),
+    };
+    const lineTotalField: LineItemField<LineItemFormState> = {
+      key: 'lineTotal',
+      label: t('response.lineTotal'),
+      value: (item) =>
+        item.included ? formatCurrency(calcLineTotal(item)) : t('response.noQuote'),
+      hidden: () => true,
+      input: () => null,
+    };
+
+    return (
+      <div className="flex flex-col gap-3">
+        <h2 className="text-base font-medium text-foreground">{t('response.lineItems')}</h2>
+        <LineItemEditor
+          lines={lineItems}
+          fields={[...sheetFields, substituteField, lineTotalField]}
+          getKey={(item) => item.rfqLineItemId}
+          getTitle={(item) => item.substituteName ?? item.materialName}
+          getSubtitle={(item) =>
+            `${t('response.reqQty')}: ${item.requestedQty} ${item.unit}` +
+            (item.included ? '' : ` · ${t('response.noQuote')}`)
+          }
+          hasError={(item) => availExceedsRequested(item)}
+          // FOR-273: Avail Qty may not exceed Req Qty — keep the sheet on the line.
+          validateLine={(i) => {
+            const item = lineItems[i];
+            return !item || !availExceedsRequested(item);
+          }}
+        />
+        <QuoteTotalsSummary totals={totals} stacked />
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-xl border border-border bg-card">
@@ -69,7 +184,7 @@ export function ResponseLineItemsTable({
         <h2 className="text-base font-medium text-foreground">{t('response.lineItems')}</h2>
       </div>
 
-      <div className="p-4 overflow-x-auto">
+      <ScrollTable className="p-4">
         <table className="min-w-[1200px] w-full text-sm border border-border rounded-lg">
           <thead>
             <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
@@ -104,7 +219,6 @@ export function ResponseLineItemsTable({
                   index={idx}
                   lineTotal={lineTotal}
                   hasQuote={hasQuote}
-                  onToggleInclude={onToggleInclude}
                   onUpdateItem={onUpdateItem}
                   onToggleExpanded={onToggleExpanded}
                   isSubstituteOpen={substituteOpenIdx === idx}
@@ -113,6 +227,7 @@ export function ResponseLineItemsTable({
                   onOpenSubstitute={onOpenSubstitute}
                   onCloseSubstitute={onCloseSubstitute}
                   onSelectSubstitute={onSelectSubstitute}
+                  fields={cellFields}
                 />
               );
             })}
@@ -120,54 +235,12 @@ export function ResponseLineItemsTable({
             {/* Footer totals row */}
             <tr className="border-t border-border bg-[hsl(var(--table-header))]">
               <td colSpan={12} className="py-3 px-4">
-                {totals.totalItemsQuoted > 0 ? (
-                  <div className="flex items-center gap-8 text-sm">
-                    <span className="text-muted-foreground">
-                      {t('response.totalItemsQuoted')}{' '}
-                      <span className="font-medium text-foreground">
-                        {totals.totalItemsQuoted}/{totals.totalItems}
-                      </span>
-                    </span>
-                    <span className="text-muted-foreground">
-                      {t('response.subtotal')}{' '}
-                      <span className="font-medium text-foreground">
-                        {formatCurrency(totals.subtotal)}
-                      </span>
-                    </span>
-                    <span className="text-muted-foreground">
-                      {t('response.discounts')}{' '}
-                      <span className="font-medium text-foreground">
-                        {totals.discountTotal > 0
-                          ? `${((totals.discountTotal / (totals.subtotal || 1)) * 100).toFixed(0)}%`
-                          : '-'}
-                      </span>
-                    </span>
-                    <span className="text-muted-foreground">
-                      GST{' '}
-                      <span className="font-medium text-foreground">
-                        {totals.gstTotal > 0
-                          ? `${((totals.gstTotal / (totals.subtotal || 1)) * 100).toFixed(0)}%`
-                          : '-'}
-                      </span>
-                    </span>
-                    <span className="ml-auto text-muted-foreground">
-                      {t('response.totalQuote')}{' '}
-                      <span className="font-semibold text-foreground">
-                        {formatCurrency(totals.totalQuote)}
-                      </span>
-                    </span>
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground">
-                    {t('response.totalItems')}{' '}
-                    <span className="font-medium text-foreground">{totals.totalItems}</span>
-                  </div>
-                )}
+                <QuoteTotalsSummary totals={totals} />
               </td>
             </tr>
           </tbody>
         </table>
-      </div>
+      </ScrollTable>
     </div>
   );
 }
@@ -181,7 +254,6 @@ function LineItemRow({
   index,
   lineTotal,
   hasQuote,
-  onToggleInclude,
   onUpdateItem,
   onToggleExpanded,
   isSubstituteOpen,
@@ -190,12 +262,13 @@ function LineItemRow({
   onOpenSubstitute,
   onCloseSubstitute,
   onSelectSubstitute,
+  fields,
 }: {
+  fields: CellFields;
   item: LineItemFormState;
   index: number;
   lineTotal: number;
   hasQuote: boolean;
-  onToggleInclude: (i: number) => void;
   onUpdateItem: (i: number, field: keyof LineItemFormState, value: unknown) => void;
   onToggleExpanded: (i: number, section: 'notes' | 'backorder') => void;
   isSubstituteOpen: boolean;
@@ -222,9 +295,7 @@ function LineItemRow({
     <>
       <tr className={cn(rowBg, excluded && 'text-muted-foreground')}>
         {/* Include toggle */}
-        <td className={TD_CLASS}>
-          <ToggleSwitch checked={item.included} onChange={() => onToggleInclude(index)} />
-        </td>
+        <td className={TD_CLASS}>{fields.included.input(item, index)}</td>
 
         {/* Material Name (or inline substitute search) */}
         <td className={cn(TD_CLASS, 'overflow-clip')}>
@@ -244,11 +315,15 @@ function LineItemRow({
             />
           ) : (
             <span className="flex items-center gap-1.5 whitespace-nowrap">
-              {hasSubstitute && (
+              {hasSubstitute ? (
                 <CircleReloadIcon
                   className="w-4 h-4 shrink-0 text-foreground"
                   aria-label={t('response.substituteItem')}
                 />
+              ) : (
+                // The requested material's image — hidden once a substitute is
+                // picked, since it would no longer show the item being quoted.
+                <MaterialImageThumb url={item.imageUrl} name={item.materialName} />
               )}
               {item.materialId ? (
                 <Link
@@ -283,103 +358,25 @@ function LineItemRow({
         {/* Avail Qty */}
         <td className={cn(TD_CLASS, 'px-1', availExceedsReq && 'bg-destructive/5')}>
           <div className="flex flex-col gap-0.5">
-            <StepperInput
-              value={item.availQty}
-              onValueChange={(v) => onUpdateItem(index, 'availQty', v)}
-              className={cn('h-8 w-full text-sm', NAKED_INPUT_CLASS)}
-              disabled={!item.included}
-              aria-invalid={availExceedsReq || undefined}
-            />
-            {availExceedsReq && (
-              <span className="text-[10px] leading-tight text-destructive">
-                {t('response.availExceedsReq', { requested: item.requestedQty })}
-              </span>
-            )}
+            {fields.availQty.input(item, index)}
+            {fields.availQty.hint?.(item, index)}
           </div>
         </td>
 
         {/* Unit Price */}
-        <td className={cn(TD_CLASS, 'overflow-clip')}>
-          <Input
-            value={item.unitPrice}
-            onChange={(e) => onUpdateItem(index, 'unitPrice', e.target.value)}
-            onKeyDown={onDecimalOnly}
-            className={cn('h-8 w-full text-sm', NAKED_INPUT_CLASS)}
-            disabled={!item.included}
-          />
-        </td>
+        <td className={cn(TD_CLASS, 'overflow-clip')}>{fields.unitPrice.input(item, index)}</td>
 
         {/* Discount */}
-        <td className={cn(TD_CLASS, 'overflow-clip')}>
-          <Input
-            value={item.discount}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (item.discountType === 'PERCENT' && v !== '' && parseFloat(v) > 100) return;
-              onUpdateItem(index, 'discount', v);
-            }}
-            onKeyDown={onDecimalOnly}
-            rightIcon={
-              <button
-                type="button"
-                disabled={!item.included}
-                className="text-sm text-foreground cursor-pointer disabled:cursor-not-allowed disabled:text-muted-foreground"
-                onClick={() =>
-                  onUpdateItem(
-                    index,
-                    'discountType',
-                    item.discountType === 'PERCENT' ? 'AMOUNT' : 'PERCENT',
-                  )
-                }
-              >
-                {item.discountType === 'PERCENT' ? '%' : '$'}
-              </button>
-            }
-            className={cn('h-8 w-full text-sm', NAKED_INPUT_CLASS)}
-            disabled={!item.included}
-          />
-        </td>
+        <td className={cn(TD_CLASS, 'overflow-clip')}>{fields.discount.input(item, index)}</td>
 
         {/* GST */}
-        <td className={cn(TD_CLASS, 'overflow-clip')}>
-          <Input
-            value={item.gst}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === '' || parseFloat(v) <= 100) onUpdateItem(index, 'gst', v);
-            }}
-            onKeyDown={onDecimalOnly}
-            rightIcon={
-              <span
-                className={cn('text-sm', excluded ? 'text-muted-foreground' : 'text-foreground')}
-              >
-                %
-              </span>
-            }
-            className={cn('h-8 w-full text-sm', NAKED_INPUT_CLASS)}
-            disabled={!item.included}
-          />
-        </td>
+        <td className={cn(TD_CLASS, 'overflow-clip')}>{fields.gst.input(item, index)}</td>
 
         {/* Tax Incl */}
-        <td className={cn(TD_CLASS, 'text-center')}>
-          <Checkbox
-            checked={item.taxIncluded}
-            onChange={(v) => onUpdateItem(index, 'taxIncluded', v)}
-            disabled={!item.included}
-          />
-        </td>
+        <td className={cn(TD_CLASS, 'text-center')}>{fields.taxIncluded.input(item, index)}</td>
 
         {/* Delivery Date */}
-        <td className={TD_CLASS}>
-          <DatePicker
-            value={item.deliveryDate}
-            onChange={(v) => onUpdateItem(index, 'deliveryDate', v)}
-            borderless
-            disabled={!item.included}
-            minDate={todayIso()}
-          />
-        </td>
+        <td className={TD_CLASS}>{fields.deliveryDate.input(item, index)}</td>
 
         {/* Line Total — empty until quoted; "No quote" only for excluded rows */}
         <td className={cn(TD_CLASS, 'overflow-clip')}>
@@ -467,20 +464,75 @@ function LineItemRow({
 
 /* ─── Helpers ───────────────────────────────────────────────────────────────── */
 
-function calcLineTotal(item: LineItemFormState): number {
-  const qty = parseFloat(item.availQty || '0');
-  const price = parseFloat(item.unitPrice || '0');
-  const discountValue = parseFloat(item.discount || '0');
-  const gstPct = parseFloat(item.gst || '0');
-  const subtotal = qty * price;
-  const discountAmount =
-    item.discountType === 'AMOUNT' ? discountValue : subtotal * (discountValue / 100);
-  const afterDiscount = subtotal - discountAmount;
-  const gst = item.taxIncluded ? 0 : afterDiscount * (gstPct / 100);
-  return afterDiscount + gst;
-}
-
 function formatCurrency(value: number): string {
   if (value === 0) return '0';
   return value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+/* ─── Totals ────────────────────────────────────────────────────────────────── */
+
+function QuoteTotalsSummary({
+  totals,
+  stacked = false,
+}: {
+  totals: QuoteTotals;
+  stacked?: boolean;
+}) {
+  const { t } = useTranslation('rfqs');
+  if (totals.totalItemsQuoted === 0) {
+    return (
+      <div
+        className={cn(
+          'text-sm text-muted-foreground',
+          stacked && 'rounded-xl border border-border bg-card p-4',
+        )}
+      >
+        {t('response.totalItems')}{' '}
+        <span className="font-medium text-foreground">{totals.totalItems}</span>
+      </div>
+    );
+  }
+  const pct = (part: number) =>
+    part > 0 ? `${((part / (totals.subtotal || 1)) * 100).toFixed(0)}%` : '-';
+  const rows: [string, string][] = [
+    [t('response.totalItemsQuoted'), `${totals.totalItemsQuoted}/${totals.totalItems}`],
+    [t('response.subtotal'), formatCurrency(totals.subtotal)],
+    [t('response.discounts'), pct(totals.discountTotal)],
+    ['GST', pct(totals.gstTotal)],
+  ];
+
+  // Phones: a stacked summary card instead of one wide row.
+  if (stacked) {
+    return (
+      <dl
+        className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4 text-sm"
+        data-testid="quote-totals"
+      >
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex items-center justify-between gap-3">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="font-medium text-foreground">{value}</dd>
+          </div>
+        ))}
+        <div className="flex items-center justify-between gap-3 border-t border-border pt-2">
+          <dt className="text-muted-foreground">{t('response.totalQuote')}</dt>
+          <dd className="font-semibold text-foreground">{formatCurrency(totals.totalQuote)}</dd>
+        </div>
+      </dl>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-8 text-sm">
+      {rows.map(([label, value]) => (
+        <span key={label} className="text-muted-foreground">
+          {label} <span className="font-medium text-foreground">{value}</span>
+        </span>
+      ))}
+      <span className="ml-auto text-muted-foreground">
+        {t('response.totalQuote')}{' '}
+        <span className="font-semibold text-foreground">{formatCurrency(totals.totalQuote)}</span>
+      </span>
+    </div>
+  );
 }

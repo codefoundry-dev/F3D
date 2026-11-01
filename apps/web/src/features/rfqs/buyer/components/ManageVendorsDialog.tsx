@@ -24,6 +24,8 @@ interface ManageVendorsDialogProps {
   onCancel: () => void;
   /** Receives the chosen vendors + reps (vendorIds always ≥ 1 — Save is disabled at 0). */
   onSave: (selection: { vendorIds: string[]; salesRepIds: string[] }) => void;
+  /** The RFQ's projects: their one-off vendors are offered too (FOR-395). */
+  projectIds?: string[];
 }
 
 /**
@@ -40,20 +42,21 @@ export function ManageVendorsDialog({
   isError,
   onCancel,
   onSave,
+  projectIds,
 }: ManageVendorsDialogProps) {
   const { t } = useTranslation('rfqs');
   const [selection, setSelection] = useState<VendorSelection>({
     vendorIds: currentVendorIds,
     repIds: currentSalesRepIds,
   });
-  const picker = useVendorPicker(selection, setSelection);
+  const picker = useVendorPicker(selection, setSelection, projectIds);
 
   return (
     <Modal onClose={onCancel} maxWidth="max-w-4xl" scrollBody decoration={<ModalGridBackground />}>
       <ModalHeader onClose={onCancel} className="relative">
         {t('manageVendors.title')}
       </ModalHeader>
-      <ModalBody className="relative toolbar:flex-1 toolbar:min-h-0 toolbar:overflow-y-auto">
+      <ModalBody className="relative md:flex-1 md:min-h-0 md:overflow-y-auto">
         <p className="mb-4 text-sm text-muted-foreground">{t('manageVendors.subtitle')}</p>
 
         <SelectVendorsCard

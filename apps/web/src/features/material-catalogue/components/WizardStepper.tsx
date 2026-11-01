@@ -1,9 +1,11 @@
-import { cn } from '@forethread/ui-components';
+import { CompactStepper, cn, useIsPhone } from '@forethread/ui-components';
 import { Fragment, type ReactNode } from 'react';
 
 export interface WizardStepperStep {
   /** Full segment label, e.g. "Step 1/3: Enter mandatory information". */
   label: string;
+  /** Label for the phone compact stepper; defaults to `label` minus its "Step 1/3:" prefix. */
+  shortLabel?: string;
   /** Per-step glyph rendered inside the badge; recoloured by state. */
   icon: ReactNode;
 }
@@ -42,6 +44,18 @@ const labelStyles: Record<StepState, string> = {
  * inert. Matches Figma node 6545:256118.
  */
 export function WizardStepper({ steps, current, onStepSelect, backLabel }: WizardStepperProps) {
+  const isPhone = useIsPhone();
+  // Phones: one line + progress bar instead of the pills (ADR-0019 B8).
+  if (isPhone) {
+    const active = steps[current - 1];
+    return (
+      <CompactStepper
+        current={current}
+        total={steps.length}
+        label={active?.shortLabel ?? active?.label.replace(/^[^:]*\d+\s*\/\s*\d+\s*:\s*/, '') ?? ''}
+      />
+    );
+  }
   return (
     <div
       className="flex w-full items-center overflow-x-auto rounded-[18px] border border-[#e8eaed] bg-[#f9f9fa] p-2"

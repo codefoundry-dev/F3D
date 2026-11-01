@@ -6,7 +6,13 @@ import type {
   VendorAssignment,
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Button, StatusSuccessModal, StatusErrorModal } from '@forethread/ui-components';
+import {
+  Button,
+  MobileActionBar,
+  StatusSuccessModal,
+  StatusErrorModal,
+  useIsPhone,
+} from '@forethread/ui-components';
 import { useCallback, useEffect, useMemo } from 'react';
 
 import { usePoDropdownOptions } from '../hooks/usePoDropdownOptions';
@@ -17,6 +23,7 @@ import { PoChangeReviewStep } from './PoChangeReviewStep';
 import { PoCreateLineItemsStep } from './PoCreateLineItemsStep';
 import { PoReviewStep } from './PoReviewStep';
 import { Stepper } from './Stepper';
+import { scrollToFirstInvalid, useWizardChrome } from './wizard-chrome';
 
 import type { FormValues, PoCreationMode } from '../schemas/create-po.schema';
 
@@ -61,6 +68,11 @@ export interface CreatePoWizardProps {
   ) => void;
   /** FLOW 3 change mode: loading flag for the "Submit PO changes" button. */
   isSubmittingChange?: boolean;
+  /**
+   * FOR-398: the company's default PO terms & conditions, prefilled into the
+   * review step once loaded (`undefined` while loading; `null` = none set).
+   */
+  defaultTermsAndConditions?: string | null;
 }
 
 export function CreatePoWizard({
@@ -81,6 +93,7 @@ export function CreatePoWizard({
   existingPo,
   onProposeChange,
   isSubmittingChange,
+  defaultTermsAndConditions,
 }: CreatePoWizardProps) {
   const { t } = useTranslation('purchaseOrders');
 
@@ -143,8 +156,13 @@ export function CreatePoWizard({
     control,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = form;
+
+  // Phones (ADR-0019 B8): no bottom nav, back arrow confirms unsaved changes,
+  // and Back / Save draft / Next live in the fixed footer bar.
+  const isPhone = useIsPhone();
+  const { exitConfirm } = useWizardChrome({ isDirty, onExit: onNavigateBack });
 
   // Change mode: seed the project / vendor / locations this PO already points at
   // so the prefilled dropdowns render their real label even before the fetched
@@ -181,6 +199,14 @@ export function CreatePoWizard({
     extraLocations: existingPoLocations,
   });
 
+  // Prefill the company's T&Cs once they arrive, unless the field already holds
+  // a value (from initialValues or an earlier prefill).
+  useEffect(() => {
+    if (isChange || defaultTermsAndConditions === undefined) return;
+    if (form.getValues('termsAndConditions') !== undefined) return;
+    setValue('termsAndConditions', defaultTermsAndConditions ?? '');
+  }, [isChange, defaultTermsAndConditions, form, setValue]);
+
   const watchedProjectId = watch('projectId');
   const watchedVendorId = watch('vendorId');
 
@@ -200,6 +226,62 @@ export function CreatePoWizard({
   );
 
   const stepLabels = [t('create.stepLabel1'), t('create.stepLabel2'), t('create.stepLabel3')];
+
+  const saveDraftButton = isChange ? null : (
+    <Button
+      type="button"
+      variant="outline"
+      size="lg"
+      onClick={handleSaveDraft}
+      isLoading={isCreating}
+    >
+      {t('create.saveDraft')}
+    </Button>
+  );
+  const backButton = (
+    <Button
+      type="button"
+      variant="outline"
+      size="lg"
+      leftIcon={<span>&larr;</span>}
+      onClick={handleBack}
+    >
+      {t('create.back')}
+    </Button>
+  );
+  const nextButton =
+    step < 3 ? (
+      <Button
+        type="button"
+        variant="primary"
+        size="lg"
+        rightIcon={<span>&rarr;</span>}
+        disabled={!canContinue}
+        onClick={() => void handleContinue()}
+      >
+        {t('create.continue')}
+      </Button>
+    ) : isChange ? (
+      <Button
+        type="button"
+        variant="primary"
+        size="lg"
+        isLoading={isSubmittingChange}
+        onClick={() => submitChange()}
+      >
+        {t('change.submitChanges')}
+      </Button>
+    ) : (
+      <Button
+        type="button"
+        variant="primary"
+        size="lg"
+        isLoading={isCreating}
+        onClick={() => void handleSubmit(onSubmit, () => scrollToFirstInvalid())()}
+      >
+        {t('create.submitPo')}
+      </Button>
+    );
 
   return (
     <div className="p-4 flex flex-col flex-1 min-h-full bg-secondary">
@@ -269,68 +351,26 @@ export function CreatePoWizard({
           ))}
 
         {/* Footer */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between mt-8 gap-3">
-          {/* Change mode has no draft; keep the row right-aligned with a spacer. */}
-          {isChange ? (
-            <span className="hidden sm:block" />
-          ) : (
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={handleSaveDraft}
-              isLoading={isCreating}
-            >
-              {t('create.saveDraft')}
-            </Button>
-          )}
+        {isPhone ? (
+          <MobileActionBar>
+            {backButton}
+            {saveDraftButton}
+            {nextButton}
+          </MobileActionBar>
+        ) : (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between mt-8 gap-3">
+            {/* Change mode has no draft; keep the row right-aligned with a spacer. */}
+            {saveDraftButton ?? <span className="hidden sm:block" />}
 
-          <div className="flex items-center gap-3 sm:gap-4 justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              leftIcon={<span>&larr;</span>}
-              onClick={handleBack}
-            >
-              {t('create.back')}
-            </Button>
-
-            {step < 3 ? (
-              <Button
-                type="button"
-                variant="primary"
-                size="lg"
-                rightIcon={<span>&rarr;</span>}
-                disabled={!canContinue}
-                onClick={() => void handleContinue()}
-              >
-                {t('create.continue')}
-              </Button>
-            ) : isChange ? (
-              <Button
-                type="button"
-                variant="primary"
-                size="lg"
-                isLoading={isSubmittingChange}
-                onClick={() => submitChange()}
-              >
-                {t('change.submitChanges')}
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="primary"
-                size="lg"
-                isLoading={isCreating}
-                onClick={() => void handleSubmit(onSubmit)()}
-              >
-                {t('create.submitPo')}
-              </Button>
-            )}
+            <div className="flex items-center gap-3 sm:gap-4 justify-end">
+              {backButton}
+              {nextButton}
+            </div>
           </div>
-        </div>
+        )}
       </div>
+
+      {exitConfirm}
 
       {showSuccess && isChange && (
         <StatusSuccessModal

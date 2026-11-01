@@ -685,6 +685,10 @@ describe('PoStatusService', () => {
         id: 'po-1',
         status: 'ACKNOWLEDGED',
         vendorId: 'vendor-comp-1',
+        plannedDeliveryDate: null,
+        deadlineEnd: null,
+        deliveries: [],
+        lineItems: [],
       });
       mockPrisma.purchaseOrder.update.mockResolvedValue({});
 
@@ -887,6 +891,10 @@ describe('PoStatusService', () => {
         id: 'po-1',
         status: 'ACKNOWLEDGED',
         vendorId: 'vendor-comp-1',
+        plannedDeliveryDate: null,
+        deadlineEnd: null,
+        deliveries: [],
+        lineItems: [],
       });
       mockPrisma.purchaseOrder.update.mockResolvedValue({});
       mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue({
@@ -908,6 +916,10 @@ describe('PoStatusService', () => {
         id: 'po-1',
         status: 'ACKNOWLEDGED',
         vendorId: 'vendor-comp-1',
+        plannedDeliveryDate: null,
+        deadlineEnd: null,
+        deliveries: [],
+        lineItems: [],
       });
       mockPrisma.purchaseOrder.update.mockResolvedValue({});
       mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue({
@@ -921,6 +933,31 @@ describe('PoStatusService', () => {
           data: expect.objectContaining({ paymentTermsDays: 60 }),
         }),
       );
+    });
+
+    it('schedules the PO for delivery straight away when it has a delivery date (FOR-396)', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'ACKNOWLEDGED',
+        vendorId: 'vendor-comp-1',
+        plannedDeliveryDate: null,
+        deadlineEnd: null,
+        deliveries: [],
+        lineItems: [{ expectedDeliveryDate: new Date('2026-11-20') }],
+      });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({});
+      mockPurchaseOrdersService.getPurchaseOrder.mockResolvedValue({ id: 'po-1' });
+
+      await service.acceptPurchaseOrder('po-1', undefined, vendorUser);
+
+      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'SCHEDULED_FOR_DELIVERY' }),
+        }),
+      );
+      // The activity log keeps both steps: accepted, then scheduled.
+      const actions = mockAuditService.log.mock.calls.map((c: [{ action: string }]) => c[0].action);
+      expect(actions).toEqual(expect.arrayContaining(['PO_ACCEPTED', 'PO_SCHEDULED']));
     });
   });
 
@@ -1180,7 +1217,14 @@ describe('PoStatusService', () => {
     });
 
     it('accepts the PO and applies optional payment terms', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ id: 'po-1', status: 'ACKNOWLEDGED' });
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'ACKNOWLEDGED',
+        plannedDeliveryDate: null,
+        deadlineEnd: null,
+        deliveries: [],
+        lineItems: [],
+      });
       mockPrisma.purchaseOrder.update.mockResolvedValue({});
       mockPurchaseOrdersService.getPurchaseOrderById.mockResolvedValue({
         id: 'po-1',
@@ -1201,6 +1245,32 @@ describe('PoStatusService', () => {
       );
       expect(mockAuditService.log).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'PO_ACCEPTED', performedById: null }),
+      );
+    });
+  });
+
+  describe('acceptPurchaseOrderViaToken scheduling (FOR-396)', () => {
+    it('schedules a dated PO accepted through the portal and logs both steps', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        status: 'ACKNOWLEDGED',
+        plannedDeliveryDate: new Date('2026-11-20'),
+        deadlineEnd: null,
+        deliveries: [],
+        lineItems: [],
+      });
+      mockPrisma.purchaseOrder.update.mockResolvedValue({});
+      mockPurchaseOrdersService.getPurchaseOrderById.mockResolvedValue({ id: 'po-1' });
+
+      await service.acceptPurchaseOrderViaToken('po-1', undefined);
+
+      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'SCHEDULED_FOR_DELIVERY' }),
+        }),
+      );
+      expect(mockAuditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PO_SCHEDULED', performedById: null }),
       );
     });
   });

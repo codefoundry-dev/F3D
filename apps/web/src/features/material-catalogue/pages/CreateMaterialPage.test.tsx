@@ -30,8 +30,8 @@ const mockedCreate = apiClient.createMaterial as unknown as ReturnType<typeof vi
 const mockedCategories = apiClient.getMaterialCategories as unknown as ReturnType<typeof vi.fn>;
 
 const CATEGORIES = [
-  { id: 'cat-roofing', name: 'Roofing', parentId: null },
-  { id: 'cat-cement', name: 'Cement', parentId: null },
+  { id: 'cat-roofing', name: 'Roofing', isActive: true, materialCount: 0 },
+  { id: 'cat-cement', name: 'Cement', isActive: true, materialCount: 0 },
 ];
 
 function renderPage() {

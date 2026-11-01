@@ -1,6 +1,6 @@
 import { type MaterialChangeRequestDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { Badge, Button } from '@forethread/ui-components';
+import { Badge, Button, ScrollTable } from '@forethread/ui-components';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 
 import { formatDateTime, humanizeKey } from '../lib/format';
@@ -97,7 +97,7 @@ export function PendingChangeRequestCard({
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto border-t border-border pt-4">
+      <ScrollTable className="border-t border-border pt-4" wrapperClassName="mt-4">
         <table className="w-full text-sm" data-testid={`change-request-diff-${request.id}`}>
           <thead className="text-xs uppercase text-muted-foreground">
             <tr>
@@ -122,7 +122,7 @@ export function PendingChangeRequestCard({
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollTable>
 
       {request.reason ? (
         <p className="mt-3 text-sm text-muted-foreground">

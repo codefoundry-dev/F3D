@@ -29,6 +29,8 @@ export interface AssignVendorsDto {
 
 export interface VendorAssignment extends CompanyResponse {
   assignedAt: string;
+  /** Set for a one-off vendor (FOR-395): the only project it can be used on. */
+  oneOffProjectId?: string | null;
 }
 
 export interface UpdateCompanyDto {
@@ -42,6 +44,10 @@ export interface UpdateCompanyDto {
   website?: string;
   status?: CompanyStatus;
   specialisations?: string[];
+  /** Approving a material request also creates its draft RFQ (FOR-396). Company Admin only. */
+  autoConvertApprovedMrToRfq?: boolean;
+  /** Default general terms & conditions copied onto every new PO (FOR-398). Company Admin only. */
+  poTermsAndConditions?: string | null;
 }
 
 export interface CompanyListParams {
@@ -66,6 +72,10 @@ export interface CompanyResponse {
   logoUrl: string | null;
   status: string;
   specialisations: string[];
+  /** FOR-396 procurement automation setting. */
+  autoConvertApprovedMrToRfq?: boolean;
+  /** FOR-398 default PO terms & conditions. */
+  poTermsAndConditions?: string | null;
   createdAt: string;
   updatedAt: string;
   _count?: { users: number };

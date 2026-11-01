@@ -39,6 +39,10 @@ describe('PO send-gate threshold enforcement (FOR-210, e2e)', () => {
   let contractorId: string;
   let projectId: string;
   let locationId: string;
+  // Everything this suite creates, so afterAll can remove it again.
+  const createdPoIds: string[] = [];
+  let createdLocationId: string | undefined;
+  let createdProjectId: string | undefined;
   let caUserId: string;
   let poUserId: string;
   let poToken: string;
@@ -121,6 +125,7 @@ describe('PO send-gate threshold enforcement (FOR-210, e2e)', () => {
       },
       select: { id: true },
     });
+    createdPoIds.push(po.id);
     return po.id;
   }
 
@@ -147,7 +152,11 @@ describe('PO send-gate threshold enforcement (FOR-210, e2e)', () => {
     prisma = moduleFixture.get(PrismaService);
     jwt = moduleFixture.get(JwtService);
 
-    const contractor = await prisma.company.findFirst({ where: { type: CompanyType.CONTRACTOR } });
+    const contractor = await prisma.company.findFirst({
+      // Pinned: an unordered findFirst returns whichever contractor row Postgres
+      // reads first, which changes after any UPDATE to a company row.
+      where: { type: CompanyType.CONTRACTOR, abn: 'TEST-CONTRACTOR-001' },
+    });
     if (!contractor) {
       throw new Error('Test seed missing — expected at least one CONTRACTOR company.');
     }
@@ -221,10 +230,12 @@ describe('PO send-gate threshold enforcement (FOR-210, e2e)', () => {
         },
       });
       locationId = loc.id;
+      createdLocationId = loc.id;
     } else {
       const created = await prisma.project.create({
         data: {
           name: `FOR-210 send-gate test ${Date.now()}`,
+          code: `E2E-SG-${Date.now().toString().slice(-9)}`,
           status: ProjectStatus.ONGOING,
           companyId: contractorId,
           createdByUserId: caUserId,
@@ -240,6 +251,7 @@ describe('PO send-gate threshold enforcement (FOR-210, e2e)', () => {
         include: { locations: true },
       });
       projectId = created.id;
+      createdProjectId = created.id;
       locationId = created.locations[0].id;
     }
   });
@@ -270,6 +282,26 @@ describe('PO send-gate threshold enforcement (FOR-210, e2e)', () => {
           })
           .catch(() => undefined);
       }
+    }
+
+    // Remove the POs, and any location/project this suite had to create, so
+    // reruns don't pile rows onto the shared dev DB. Deleting a PO cascades to
+    // its line items.
+    if (createdPoIds.length > 0) {
+      await prisma.purchaseOrder
+        .deleteMany({ where: { id: { in: createdPoIds } } })
+        .catch(() => undefined);
+    }
+    if (createdLocationId) {
+      await prisma.projectLocation
+        .delete({ where: { id: createdLocationId } })
+        .catch(() => undefined);
+    }
+    if (createdProjectId) {
+      await prisma.projectLocation
+        .deleteMany({ where: { projectId: createdProjectId } })
+        .catch(() => undefined);
+      await prisma.project.delete({ where: { id: createdProjectId } }).catch(() => undefined);
     }
 
     await app.close();

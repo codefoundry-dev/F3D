@@ -15,6 +15,8 @@ const mockVendorsService = {
   deleteWarehouse: jest.fn(),
   getRepresentatives: jest.fn(),
   addRepresentative: jest.fn(),
+  createOneOffVendor: jest.fn(),
+  promoteOneOffVendor: jest.fn(),
 };
 const mockInviteService = { inviteVendor: jest.fn() };
 const mockUserInviteService = {
@@ -68,6 +70,18 @@ describe('VendorsController', () => {
     const result = await controller.inviteVendor(dto as never, mockUser as never);
     expect(mockInviteService.inviteVendor).toHaveBeenCalledWith(dto, mockUser);
     expect(result).toEqual(expected);
+  });
+
+  it('createOneOffVendor + promoteOneOffVendor delegate to VendorsService (FOR-395)', async () => {
+    const dto = { projectId: 'p1', legalName: 'Quick', contactEmail: 'q@q.test' };
+    mockVendorsService.createOneOffVendor.mockResolvedValue({ companyId: 'v-9' });
+    mockVendorsService.promoteOneOffVendor.mockResolvedValue({ companyId: 'v-9' });
+
+    await controller.createOneOffVendor(dto as never, mockUser as never);
+    await controller.promoteOneOffVendor('v-9', mockUser as never);
+
+    expect(mockVendorsService.createOneOffVendor).toHaveBeenCalledWith(dto, mockUser);
+    expect(mockVendorsService.promoteOneOffVendor).toHaveBeenCalledWith('v-9', mockUser);
   });
 
   // ── Vendor Profile (US-3.07) ──────────────────────────────────────────────

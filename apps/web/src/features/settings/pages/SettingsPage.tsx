@@ -9,7 +9,12 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
-import { useUserRole } from '@/shared/role';
+import { useAuthStore } from '@/features/auth/state/auth.store';
+import { CompanyLogoCard } from '@/features/company-profile/buyer/components/CompanyLogoCard';
+import { usePermissions, useUserRole } from '@/shared/role';
+
+import { PoTermsCard } from '../components/PoTermsCard';
+import { ProcurementAutomationCard } from '../components/ProcurementAutomationCard';
 
 interface SettingsLinkProps {
   icon: React.ReactNode;
@@ -30,7 +35,7 @@ function SettingsLink({ icon, title, subtitle, onClick }: SettingsLinkProps) {
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-gray-900">{title}</p>
-        <p className="truncate text-xs text-gray-500">{subtitle}</p>
+        <p className="line-clamp-2 text-xs text-gray-500 md:truncate">{subtitle}</p>
       </div>
       <ChevronRightIcon className="size-4 shrink-0 text-gray-400" />
     </button>
@@ -57,6 +62,10 @@ export default function SettingsPage() {
   const { t: tRoles } = useTranslation('roles');
   const navigate = useNavigate();
   const role = useUserRole();
+  const { has } = usePermissions();
+  const companyId = useAuthStore((s) => s.currentUser?.companyId);
+  // Logo for PO/invoice PDFs (FOR-389): granted to Company Admin + Procurement Officer.
+  const canManageLogo = Boolean(companyId) && has('company.updateLogo');
 
   // Surface the page title in the global app bar (breadcrumb trail).
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
@@ -122,6 +131,14 @@ export default function SettingsPage() {
           ))}
         </div>
       )}
+
+      {canManageLogo && companyId && <CompanyLogoCard companyId={companyId} />}
+
+      {role === UserRole.COMPANY_ADMIN && companyId && (
+        <ProcurementAutomationCard companyId={companyId} />
+      )}
+
+      {role === UserRole.COMPANY_ADMIN && companyId && <PoTermsCard companyId={companyId} />}
     </div>
   );
 }

@@ -44,6 +44,12 @@ enum NotificationType {
   MATERIAL_REQUEST_APPROVAL_UNROUTABLE
   PAYMENT_DUE
   PAYMENT_OVERDUE
+  // Daily overdue reminders (FOR-394): a requested item passed its date and is
+  // still unfulfilled — an MR not yet ordered, an RFQ not yet awarded, a PO not
+  // yet delivered. Sent once per document (ledger: overdueReminderSentAt).
+  MATERIAL_REQUEST_OVERDUE
+  RFQ_OVERDUE
+  PO_DELIVERY_OVERDUE
   MESSAGE_RECEIVED
 }
 

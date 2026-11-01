@@ -22,6 +22,7 @@ export {
   useRfqQuoteComparison,
   useRfqEmailLog,
   useAwardQuote,
+  useApproveQuote,
   useQuoteDetail,
   useUpdateQuoteLineItemStatuses,
   useCreateDraftPoFromQuote,
@@ -60,6 +61,7 @@ export {
   TableManagementModal,
   DEFAULT_COLUMN_VISIBILITY,
   RfqLineItemsTab,
+  MaterialImageThumb,
   RfqDocumentsTab,
   DocumentRow,
   ToolbarIconButton,
@@ -73,6 +75,7 @@ export {
   formatCurrency,
   VendorList,
   VendorContactPopover,
+  DeliveryVarianceBadge,
 } from './components';
 export type {
   RfqTab,
@@ -91,3 +94,4 @@ export type {
 // Utils
 export { buildSplitAllocations, findOverAllocatedLineIds } from './utils/splitAward';
 export type { SplitAllocation } from './utils/splitAward';
+export { deliveryVarianceDays } from './utils/deliveryVariance';

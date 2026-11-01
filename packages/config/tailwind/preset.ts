@@ -115,10 +115,6 @@ const preset: Partial<Config> = {
       },
 
       /* ───── Custom breakpoints ───── */
-      screens: {
-        toolbar: '900px',
-      },
-
       /* ───── Border color default ───── */
       borderColor: {
         DEFAULT: 'hsl(var(--border))',

@@ -4,13 +4,19 @@ import { usePageTitleStore } from '@forethread/rfq-shared';
 import {
   Alert,
   Button,
+  ConfirmDialog,
   CustomDropdown,
   DatePicker,
   FormField,
   Spinner,
   formatCurrency,
+  MobileActionBar,
   notificationService,
   todayIso,
+  ScrollTable,
+  useHideMobileNav,
+  useIsPhone,
+  useMobileExitHandler,
 } from '@forethread/ui-components';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import EditIcon from '@forethread/ui-components/assets/icons/edit-in-square.svg?react';
@@ -42,7 +48,11 @@ export function CreateBulkOrderPage({ isVendorView = false }: CreateBulkOrderPag
   const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
-    setTitle(t('create.title') as string, t('create.subtitle') as string);
+    setTitle(
+      t('create.title') as string,
+      t('create.subtitle') as string,
+      BULK_ORDER_ROUTES.bulkOrders,
+    );
     return () => setTitle(null);
   }, [setTitle, t]);
 
@@ -90,6 +100,14 @@ export function CreateBulkOrderPage({ isVendorView = false }: CreateBulkOrderPag
 
   const handleCancel = () => navigate(BULK_ORDER_ROUTES.bulkOrders);
 
+  // Phones (ADR-0019 B8): no bottom nav, the top-bar back arrow confirms before
+  // dropping a picked RFQ / end date, and Cancel / Create sit in the footer bar.
+  const isPhone = useIsPhone();
+  const [confirmExit, setConfirmExit] = useState(false);
+  const isDirty = (!!selectedRfqId || !!endDate) && !mutation.isSuccess;
+  useHideMobileNav();
+  useMobileExitHandler(() => (isDirty ? setConfirmExit(true) : handleCancel()));
+
   const handleCreate = () => {
     if (!canSubmit || !approvedResponse) return;
     mutation.mutate(
@@ -117,6 +135,22 @@ export function CreateBulkOrderPage({ isVendorView = false }: CreateBulkOrderPag
       },
     );
   };
+
+  const cancelButton = (
+    <Button
+      variant="outline"
+      size="lg"
+      leftIcon={<CrossIcon className="w-4 h-4" />}
+      onClick={handleCancel}
+    >
+      {t('create.cancel')}
+    </Button>
+  );
+  const createButton = (
+    <Button variant="primary" size="lg" disabled={!canSubmit} onClick={handleCreate}>
+      {mutation.isPending ? t('create.creating') : t('create.create')}
+    </Button>
+  );
 
   return (
     <div className="flex flex-col gap-6 p-4">
@@ -181,10 +215,10 @@ export function CreateBulkOrderPage({ isVendorView = false }: CreateBulkOrderPag
 
         {/* Populated line items */}
         {isPopulated && (
-          <div className="mt-6 overflow-x-auto rounded-lg border border-border">
+          <ScrollTable className="rounded-lg border border-border" wrapperClassName="mt-6">
             <table className="w-full min-w-[800px] text-sm">
               <thead>
-                <tr className="bg-foreground/5">
+                <tr className="bg-[color:color-mix(in_srgb,hsl(var(--foreground))_5%,hsl(var(--card)))]">
                   {LINE_ITEM_COLUMN_KEYS.map((key) => (
                     <th
                       key={key}
@@ -218,7 +252,7 @@ export function CreateBulkOrderPage({ isVendorView = false }: CreateBulkOrderPag
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t border-border bg-muted/50">
+                <tr className="border-t border-border bg-[color:color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]">
                   <td colSpan={4} />
                   <td className="px-3 py-4 align-top" colSpan={2}>
                     <p className="text-sm text-muted-foreground">
@@ -245,24 +279,39 @@ export function CreateBulkOrderPage({ isVendorView = false }: CreateBulkOrderPag
                 </tr>
               </tfoot>
             </table>
-          </div>
+          </ScrollTable>
         )}
       </div>
 
       {/* Footer action bar */}
-      <div className="flex items-center justify-between">
-        <Button
-          variant="outline"
-          size="lg"
-          leftIcon={<CrossIcon className="w-4 h-4" />}
-          onClick={handleCancel}
-        >
-          {t('create.cancel')}
-        </Button>
-        <Button variant="primary" size="lg" disabled={!canSubmit} onClick={handleCreate}>
-          {mutation.isPending ? t('create.creating') : t('create.create')}
-        </Button>
-      </div>
+      {isPhone ? (
+        <MobileActionBar>
+          {cancelButton}
+          {createButton}
+        </MobileActionBar>
+      ) : (
+        <div className="flex items-center justify-between">
+          {cancelButton}
+          {createButton}
+        </div>
+      )}
+
+      {confirmExit && (
+        <ConfirmDialog
+          title={t('common:unsavedChanges.title', { defaultValue: 'Leave without saving?' })}
+          message={t('common:unsavedChanges.message', {
+            defaultValue: 'Your changes will be lost if you leave this page now.',
+          })}
+          confirmLabel={t('common:unsavedChanges.leave', { defaultValue: 'Leave' })}
+          cancelLabel={t('common:unsavedChanges.stay', { defaultValue: 'Keep editing' })}
+          confirmVariant="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          onConfirm={() => {
+            setConfirmExit(false);
+            handleCancel();
+          }}
+          onCancel={() => setConfirmExit(false)}
+        />
+      )}
     </div>
   );
 }

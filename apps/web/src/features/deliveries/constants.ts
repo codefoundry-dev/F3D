@@ -31,6 +31,13 @@ export const DELIVERY_STATUS_FILTER_OPTIONS = ['SUBMITTED', 'APPROVED', 'REJECTE
 export const DELIVERY_ATTACHMENT_ACCEPT = '.pdf,.xlsx,.docx,.jpg,.jpeg,.png,.csv';
 
 /**
+ * Damage photo evidence. An image MIME type (not an extension list) makes
+ * phones offer the camera next to the photo library (ADR-0019, FOR-380); iOS
+ * hands over HEIC captures as JPEG.
+ */
+export const DELIVERY_PHOTO_ACCEPT = 'image/*';
+
+/**
  * List-card delivery timestamp, e.g. "12/12/2024 12:00" (screenshot 01). Distinct
  * from the shared `formatDate` ("Jan 20, 2025") used on the detail page.
  */

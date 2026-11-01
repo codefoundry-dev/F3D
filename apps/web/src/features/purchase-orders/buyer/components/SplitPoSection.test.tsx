@@ -18,6 +18,7 @@ vi.mock('@forethread/api-client', () => ({
 }));
 
 vi.mock('@forethread/ui-components', () => ({
+  ScrollTable: ({ children }: { children: JSX.Element }) => children,
   Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Button: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
     <button onClick={onClick}>{children}</button>

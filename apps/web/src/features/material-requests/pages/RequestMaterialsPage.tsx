@@ -1,13 +1,19 @@
 import { NominateApproversModal } from '@forethread/approval-shared';
 import { useTranslation } from '@forethread/i18n';
+import { scrollToFirstInvalid, useWizardChrome } from '@forethread/po-shared';
 import { usePageTitleStore } from '@forethread/rfq-shared';
-import { StatusErrorModal } from '@forethread/ui-components';
+import { MobileActionBar, StatusErrorModal, useIsPhone } from '@forethread/ui-components';
 import RequestIcon from '@forethread/ui-components/assets/icons/request.svg?react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
 import { useAuthStore } from '@/features/auth/state/auth.store';
+import {
+  applyNeedByDefault,
+  trackNeedByOverrides,
+  type NeedByDefault,
+} from '@/shared/need-by/lineNeedBy';
 
 import { PrimaryButton, SecondaryButton } from '../components/MobileButtons';
 import { MobileHeader } from '../components/MobileHeader';
@@ -58,6 +64,9 @@ export default function RequestMaterialsPage() {
 
   const [step, setStep] = useState<WizardStep>(0);
   const [lines, setLines] = useState<MrWizardLine[]>([]);
+  // "Need by" for all lines (FOR-364): fills every line the foreman hasn't
+  // changed by hand, including lines added later.
+  const [needBy, setNeedBy] = useState<NeedByDefault>({ date: '', time: '' });
   const [detailErrors, setDetailErrors] = useState<MrDetailsErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showNominate, setShowNominate] = useState(false);
@@ -135,16 +144,29 @@ export default function RequestMaterialsPage() {
     setLines((prev) => prev.filter((l) => l.key !== key));
   }, []);
 
-  const patchLine = useCallback((key: string, patch: Partial<MrWizardLine>) => {
-    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
-    // Clear that line's errors as the foreman edits.
-    setDetailErrors((prev) => {
-      if (!prev[key]) return prev;
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-  }, []);
+  useEffect(() => {
+    setLines((prev) => applyNeedByDefault(prev, needBy));
+  }, [lines, needBy]);
+
+  const patchLine = useCallback(
+    (key: string, patch: Partial<MrWizardLine>) => {
+      setLines((prev) =>
+        trackNeedByOverrides(
+          prev,
+          prev.map((l) => (l.key === key ? { ...l, ...patch } : l)),
+          needBy,
+        ),
+      );
+      // Clear that line's errors as the foreman edits.
+      setDetailErrors((prev) => {
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    },
+    [needBy],
+  );
 
   const goBack = () => {
     if (step === 0) {
@@ -162,7 +184,10 @@ export default function RequestMaterialsPage() {
   const handleContinueFromDetails = () => {
     const errors = validateDetails(lines);
     setDetailErrors(errors);
-    if (hasDetailsErrors(errors)) return;
+    if (hasDetailsErrors(errors)) {
+      scrollToFirstInvalid();
+      return;
+    }
     setStep(2);
   };
 
@@ -219,26 +244,38 @@ export default function RequestMaterialsPage() {
         ? t('materialDetails.title')
         : t('review.title');
 
+  const overviewPath = ROUTES.materialRequestJobOverview.replace(':projectId', projectId);
+
+  // Phones (ADR-0019 B8): the shell top bar carries the title + back arrow
+  // (which confirms before dropping picked lines), the bottom nav is hidden,
+  // and the step navigation sits in the fixed footer bar.
+  const isPhone = useIsPhone();
+  const { exitConfirm } = useWizardChrome({
+    isDirty: lines.length > 0 && !createMutation.isSuccess,
+    onExit: () => navigate(overviewPath),
+  });
+
   // App-bar breadcrumb / page title reflects the current wizard step.
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
   useEffect(() => {
-    const overviewPath = ROUTES.materialRequestJobOverview.replace(':projectId', projectId);
     setPageTitle(headerTitle, null, overviewPath, [
       { label: t('jobOverview.title'), to: overviewPath },
       { label: headerTitle },
     ]);
     return () => setPageTitle(null);
-  }, [setPageTitle, headerTitle, projectId, t]);
+  }, [setPageTitle, headerTitle, overviewPath, t]);
 
   return (
     <MobileShell
       header={
-        <MobileHeader
-          title={headerTitle}
-          onBack={goBack}
-          icon={<RequestIcon />}
-          trailing={renderActions()}
-        />
+        isPhone ? undefined : (
+          <MobileHeader
+            title={headerTitle}
+            onBack={goBack}
+            icon={<RequestIcon />}
+            trailing={renderActions()}
+          />
+        )
       }
     >
       <StepProgress steps={stepLabels} current={step + 1} />
@@ -261,6 +298,8 @@ export default function RequestMaterialsPage() {
             locationOptions={locationOptions}
             memberOptions={memberOptions}
             onPatchLine={patchLine}
+            needBy={needBy}
+            onNeedByChange={(patch) => setNeedBy((prev) => ({ ...prev, ...patch }))}
           />
         )}
         {step === 2 && (
@@ -308,6 +347,19 @@ export default function RequestMaterialsPage() {
         />
       )}
 
+      {isPhone && (
+        <MobileActionBar>
+          {step > 0 && (
+            <SecondaryButton onClick={goBack} data-testid="mr-back">
+              {t('common:back', { defaultValue: 'Back' })}
+            </SecondaryButton>
+          )}
+          {renderPrimaryAction()}
+        </MobileActionBar>
+      )}
+
+      {exitConfirm}
+
       {submitError && (
         <StatusErrorModal
           title={t('review.submitFailed')}
@@ -327,6 +379,25 @@ export default function RequestMaterialsPage() {
 
   /** Step-specific navigation, rendered in the page-header actions slot. */
   function renderActions() {
+    if (step < 2) return renderPrimaryAction();
+    // step 2 — Review
+    return (
+      <>
+        <SecondaryButton
+          disabled
+          title={t('review.raisePoUnavailable')}
+          className="w-full sm:w-auto"
+          data-testid="mr-raise-po"
+        >
+          {t('review.raisePo')}
+        </SecondaryButton>
+        {renderPrimaryAction()}
+      </>
+    );
+  }
+
+  /** The step's forward action (Next / Submit Request). */
+  function renderPrimaryAction() {
     if (step === 0) {
       return (
         <PrimaryButton
@@ -352,27 +423,16 @@ export default function RequestMaterialsPage() {
         </PrimaryButton>
       );
     }
-    // step 2 — Review
     return (
-      <>
-        <SecondaryButton
-          disabled
-          title={t('review.raisePoUnavailable')}
-          className="w-full sm:w-auto"
-          data-testid="mr-raise-po"
-        >
-          {t('review.raisePo')}
-        </SecondaryButton>
-        <PrimaryButton
-          onClick={handleSubmit}
-          disabled={createMutation.isPending || lines.length === 0}
-          className="w-full sm:w-auto"
-          data-testid="mr-submit"
-          leading={<CheckIcon />}
-        >
-          {t('review.submit')}
-        </PrimaryButton>
-      </>
+      <PrimaryButton
+        onClick={handleSubmit}
+        disabled={createMutation.isPending || lines.length === 0}
+        className="w-full sm:w-auto"
+        data-testid="mr-submit"
+        leading={<CheckIcon />}
+      >
+        {t('review.submit')}
+      </PrimaryButton>
     );
   }
 }

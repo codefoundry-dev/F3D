@@ -10,6 +10,7 @@ function stubPrisma(field: string, values: Array<string | null>) {
   const findMany = jest.fn().mockResolvedValue(values.map((v) => ({ [field]: v })));
   return {
     prisma: {
+      materialRequest: { findMany },
       purchaseOrder: { findMany },
       rfq: { findMany },
       bulkOrder: { findMany },
@@ -82,5 +83,16 @@ describe('nextSequentialNumber', () => {
 
     const bom = stubPrisma('bomNumber', ['BOM-00100', 'BOM-00099']);
     await expect(nextSequentialNumber(bom.prisma, 'bom', 'BOM', 'c1')).resolves.toBe('BOM-00101');
+  });
+
+  it('works for MR prefixes/fields, scoped to the company', async () => {
+    const mr = stubPrisma('mrNumber', ['MR-00002', 'MR-00007']);
+    await expect(nextSequentialNumber(mr.prisma, 'materialRequest', 'MR', 'c1')).resolves.toBe(
+      'MR-00008',
+    );
+    expect(mr.findMany).toHaveBeenCalledWith({
+      where: { companyId: 'c1' },
+      select: { mrNumber: true },
+    });
   });
 });
