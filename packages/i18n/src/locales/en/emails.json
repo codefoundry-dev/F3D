@@ -2,7 +2,8 @@
   "footer": {
     "privacyPolicy": "Privacy policy",
     "and": "and",
-    "termsOfService": "Terms of service"
+    "termsOfService": "Terms of service",
+    "poweredBy": "Powered by Forethread"
   },
   "invitation": {
     "subject": "Welcome to Forethread — Activate Your Account",
@@ -61,12 +62,17 @@
     "ignore": "If you didn't expect this invitation, you can safely ignore this email."
   },
   "rfqReceived": {
-    "subject": "Forethread — New RFQ Received ({{rfqNumber}})",
-    "greeting": "Hi,",
-    "heading": "You have received a new Request for Quotation.",
-    "body": "A contractor has sent your company an RFQ ({{rfqNumber}}). Please review the details and submit your quote before the deadline.",
-    "buttonLabel": "View & Respond",
-    "expiry": "You can respond even if your account has not been activated yet."
+    "subject": "Request for Quotation – {{projectName}} | {{rfqNumber}}",
+    "greeting": "Hi {{recipientFirstName}},",
+    "body": "{{senderFirstName}} from {{contractorCompanyName}} has invited {{supplierCompanyName}} to submit a quotation for the following project.",
+    "detailsHeading": "RFQ Details",
+    "projectLabel": "Project",
+    "referenceLabel": "RFQ Reference",
+    "requestedByLabel": "Requested by",
+    "deadlineLabel": "Submission deadline",
+    "callToAction": "Please review the RFQ details and submit your quotation before the deadline.",
+    "buttonLabel": "View RFQ & Submit Quote",
+    "expiry": "You can respond to this RFQ even if your Forethread account has not been activated."
   },
   "poIssued": {
     "subject": "Forethread — New Purchase Order Received ({{poNumber}})",
@@ -175,11 +181,17 @@
     "buttonLabel": "Review Invoice"
   },
   "materialRequestPendingApproval": {
-    "subject": "Forethread — Material Request Needs Your Approval ({{mrNumber}})",
-    "greeting": "Hi,",
-    "heading": "A material request needs your approval.",
-    "body": "Material request {{mrNumber}} for {{projectName}} has been submitted and is awaiting approval before procurement can proceed. Please review and approve or decline it.",
-    "buttonLabel": "Review Request"
+    "subject": "New Material Request – {{projectName}} | {{mrNumber}}",
+    "greeting": "Hi {{recipientFirstName}},",
+    "body": "{{requesterFirstName}} has submitted a new material request for {{projectName}}, requiring your review.",
+    "detailsHeading": "Request Details",
+    "referenceLabel": "Reference",
+    "projectLabel": "Project",
+    "requestedByLabel": "Requested by",
+    "requiredByLabel": "Required by",
+    "priorityLabel": "Priority",
+    "callToAction": "Please review the requested materials and take the necessary action.",
+    "buttonLabel": "View Material Request"
   },
   "materialRequestApprovalUnroutable": {
     "subject": "Forethread — No One Can Approve Material Request {{mrNumber}}",

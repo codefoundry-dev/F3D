@@ -75,6 +75,13 @@ const MR_DETAIL_INCLUDE = {
   },
 } satisfies Prisma.MaterialRequestInclude;
 
+/** The MR fields the pending-approval email lists beyond its number + project. */
+const MR_EMAIL_DETAIL_SELECT = {
+  priority: true,
+  neededByDate: true,
+  requestedBy: { select: { name: true } },
+} satisfies Prisma.MaterialRequestSelect;
+
 @Injectable()
 export class MaterialRequestsService {
   private readonly logger = new Logger(MaterialRequestsService.name);
@@ -833,6 +840,7 @@ export class MaterialRequestsService {
       select: {
         mrNumber: true,
         requestedById: true,
+        ...MR_EMAIL_DETAIL_SELECT,
         project: { select: { name: true } },
       },
     });
@@ -873,18 +881,7 @@ export class MaterialRequestsService {
     );
     const recipients = [...new Set(targets.map((m) => m.email))];
 
-    await Promise.all(
-      recipients.map((email) =>
-        this.emailService.sendMaterialRequestPendingApprovalEmail(
-          email,
-          mr.mrNumber,
-          mr.project.name,
-          viewUrl,
-          log,
-          brand,
-        ),
-      ),
-    );
+    await this.emailPendingMr(mr, recipients, targets, viewUrl, log, brand);
 
     await this.notifications.createForEmails(recipients, {
       type: NotificationType.MATERIAL_REQUEST_PENDING_APPROVAL,
@@ -909,7 +906,12 @@ export class MaterialRequestsService {
   ): Promise<void> {
     const mr = await this.prisma.materialRequest.findUnique({
       where: { id: mrId },
-      select: { mrNumber: true, companyId: true, project: { select: { name: true } } },
+      select: {
+        mrNumber: true,
+        companyId: true,
+        ...MR_EMAIL_DETAIL_SELECT,
+        project: { select: { name: true } },
+      },
     });
     if (!mr) return;
 
@@ -918,18 +920,7 @@ export class MaterialRequestsService {
     const brand = await this.branding.getEmailBrand(mr.companyId);
     const recipients = [...new Set(nominees.map((n) => n.email))];
 
-    await Promise.all(
-      recipients.map((email) =>
-        this.emailService.sendMaterialRequestPendingApprovalEmail(
-          email,
-          mr.mrNumber,
-          mr.project.name,
-          viewUrl,
-          log,
-          brand,
-        ),
-      ),
-    );
+    await this.emailPendingMr(mr, recipients, nominees, viewUrl, log, brand);
 
     await this.notifications.createForEmails(recipients, {
       type: NotificationType.MATERIAL_REQUEST_PENDING_APPROVAL,
@@ -939,6 +930,45 @@ export class MaterialRequestsService {
       entityId: mrId,
       sender: { userId: nominatedByUserId },
     });
+  }
+
+  /**
+   * Send the pending-approval email to each recipient, greeting them by name
+   * and listing the request details (client format, Nov 2026).
+   */
+  private async emailPendingMr(
+    mr: {
+      mrNumber: string;
+      priority: string;
+      neededByDate: Date | null;
+      requestedBy: { name: string } | null;
+      project: { name: string };
+    },
+    recipients: string[],
+    people: ReadonlyArray<{ email: string; name: string }>,
+    viewUrl: string,
+    log: { companyId: string },
+    brand: Awaited<ReturnType<BrandingService['getEmailBrand']>>,
+  ): Promise<void> {
+    const nameByEmail = new Map(people.map((p) => [p.email, p.name]));
+    await Promise.all(
+      recipients.map((email) =>
+        this.emailService.sendMaterialRequestPendingApprovalEmail(
+          email,
+          mr.mrNumber,
+          mr.project.name,
+          viewUrl,
+          log,
+          brand,
+          {
+            recipientName: nameByEmail.get(email) ?? null,
+            requesterName: mr.requestedBy?.name ?? null,
+            requiredBy: mr.neededByDate,
+            priority: mr.priority,
+          },
+        ),
+      ),
+    );
   }
 
   /**

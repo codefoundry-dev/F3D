@@ -2382,6 +2382,9 @@ export class RfqsService {
         createdByUserId: true,
         ccEmails: true,
         needByDate: true,
+        // Named in the vendor invitation copy: the response deadline and who sent it.
+        deadlineEnd: true,
+        createdBy: { select: { name: true } },
         // Members of every project the RFQ spans are auto-CC'd on the vendor
         // emails (FOR-255) and get the in-app RFQ_SENT mirror (FOR-351). Both
         // the primary project and the rfq_projects join are read so legacy rows
@@ -2419,15 +2422,17 @@ export class RfqsService {
             // send (CONTEXT.md), and the buyer's selection can outlive their
             // deactivation.
             contacts: {
-              select: { user: { select: { email: true, status: true } } },
+              select: { user: { select: { email: true, status: true, name: true } } },
             },
             vendor: {
               select: {
                 id: true,
+                legalName: true,
+                tradeName: true,
                 contactEmail: true,
                 users: {
                   where: { role: UserRole.VENDOR },
-                  select: { email: true, status: true },
+                  select: { email: true, status: true, name: true },
                 },
               },
             },
@@ -2452,6 +2457,18 @@ export class RfqsService {
     const brand = await this.branding.getEmailBrand(rfq.companyId);
 
     const ttlMs = this.invitationTokenTtlMs(rfq.needByDate);
+
+    // The invitation names the person who sent it. A re-send by someone other
+    // than the creator credits the re-sender.
+    const senderName =
+      sentByUserId && sentByUserId !== rfq.createdByUserId
+        ? ((
+            await this.prisma.user.findUnique({
+              where: { id: sentByUserId },
+              select: { name: true },
+            })
+          )?.name ?? null)
+        : (rfq.createdBy?.name ?? null);
 
     // Issue a single-use access token (A15) per vendor and send emails. The
     // token is presented in the guest invitation link and burned on submit.
@@ -2485,6 +2502,12 @@ export class RfqsService {
         iv.vendor.contactEmail,
       );
 
+      // Greet each rep by name; a bare company contact email has none.
+      const nameByEmail = new Map<string, string>();
+      for (const u of [...iv.vendor.users, ...(iv.contacts ?? []).map((c) => c.user)]) {
+        if (u.name) nameByEmail.set(u.email.trim().toLowerCase(), u.name);
+      }
+
       await Promise.all(
         emails.map((email) =>
           this.emailService.sendRfqReceivedEmail(email, rfqNumber, replyUrl, {
@@ -2493,6 +2516,16 @@ export class RfqsService {
             ...(brand ? { brand } : {}),
             // Track each vendor email so it surfaces on the RFQ email log (FOR-213).
             log: { companyId: rfq.companyId, rfqId, sentByUserId: rfq.createdByUserId },
+            details: {
+              recipientName: nameByEmail.get(email.trim().toLowerCase()) ?? null,
+              senderName,
+              // Trading name when set — it is what the vendor is known by.
+              supplierCompanyName: iv.vendor.tradeName?.trim()
+                ? iv.vendor.tradeName
+                : iv.vendor.legalName,
+              projectName: rfq.project?.name ?? null,
+              deadline: rfq.deadlineEnd,
+            },
           }),
         ),
       );

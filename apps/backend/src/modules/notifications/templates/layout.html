@@ -42,6 +42,14 @@
               {{{content}}}
             </td>
           </tr>
+          {{#if brand}}
+          <!-- Sent on behalf of a company: credit the platform beneath the message. -->
+          <tr>
+            <td style="padding:0 0 24px;font-family:'Inter',system-ui,sans-serif;font-size:12px;line-height:18px;color:#767676;">
+              {{footer.poweredBy}}
+            </td>
+          </tr>
+          {{/if}}
           <!-- Footer -->
           <tr>
             <td align="center" style="border-top:1px solid #efefef;padding:24px 0 0;">
