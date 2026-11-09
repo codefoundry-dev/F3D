@@ -51,8 +51,13 @@ jest.mock(
       greeting: 'Hello,',
     },
     rfqReceived: {
-      subject: 'Forethread — New RFQ Received: {{rfqNumber}}',
-      greeting: 'Hello,',
+      subject: 'Request for Quotation – {{projectName}} | {{rfqNumber}}',
+      greeting: 'Hi {{recipientFirstName}},',
+      body: '{{senderFirstName}} from {{contractorCompanyName}} has invited {{supplierCompanyName}} to submit a quotation for the following project.',
+      projectLabel: 'Project',
+      referenceLabel: 'RFQ Reference',
+      requestedByLabel: 'Requested by',
+      deadlineLabel: 'Submission deadline',
     },
     poIssued: {
       subject: 'Forethread — Purchase Order Issued: {{poNumber}}',
@@ -137,8 +142,14 @@ jest.mock(
       greeting: 'Hi,',
     },
     materialRequestPendingApproval: {
-      subject: 'Forethread — Material Request Needs Your Approval ({{mrNumber}})',
-      greeting: 'Hi,',
+      subject: 'New Material Request – {{projectName}} | {{mrNumber}}',
+      greeting: 'Hi {{recipientFirstName}},',
+      body: '{{requesterFirstName}} has submitted a new material request for {{projectName}}, requiring your review.',
+      referenceLabel: 'Reference',
+      projectLabel: 'Project',
+      requestedByLabel: 'Requested by',
+      requiredByLabel: 'Required by',
+      priorityLabel: 'Priority',
     },
     materialRequestApprovalUnroutable: {
       subject: 'Forethread — No One Can Approve Material Request {{mrNumber}}',
@@ -507,6 +518,58 @@ describe('EmailService', () => {
         service.sendRfqReceivedEmail('vendor@test.com', 'RFQ-001', 'https://reply.test'),
       ).resolves.toBeUndefined();
     });
+
+    it('names the rep, sender, both companies, project and deadline (client format)', async () => {
+      const templateFn = require('handlebars').compile();
+
+      await service.sendRfqReceivedEmail('vendor@test.com', 'RFQ-001', 'https://reply.test', {
+        brand: { name: 'Acme Builders' },
+        details: {
+          recipientName: 'Sarah Lee',
+          senderName: 'James Carter',
+          supplierCompanyName: 'Steelco',
+          projectName: 'Harbour View',
+          deadline: new Date('2026-11-20T00:00:00.000Z'),
+        },
+      });
+
+      expect(mockSendMail).toHaveBeenCalledWith(
+        expect.objectContaining({ subject: 'Request for Quotation – Harbour View | RFQ-001' }),
+      );
+      expect(templateFn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          t: expect.objectContaining({
+            greeting: 'Hi Sarah,',
+            body: 'James from Acme Builders has invited Steelco to submit a quotation for the following project.',
+          }),
+          details: [
+            { label: 'Project', value: 'Harbour View' },
+            { label: 'RFQ Reference', value: 'RFQ-001' },
+            { label: 'Requested by', value: 'James Carter, Acme Builders' },
+            // A calendar date stored as UTC midnight must not slip a day.
+            { label: 'Submission deadline', value: 'November 20, 2026' },
+          ],
+        }),
+      );
+    });
+
+    it('degrades gracefully when names and project are unknown', async () => {
+      const templateFn = require('handlebars').compile();
+
+      await service.sendRfqReceivedEmail('vendor@test.com', 'RFQ-001', 'https://reply.test');
+
+      expect(mockSendMail).toHaveBeenCalledWith(
+        expect.objectContaining({ subject: 'Request for Quotation | RFQ-001' }),
+      );
+      expect(templateFn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          t: expect.objectContaining({
+            greeting: 'Hi there,',
+            body: 'A contractor has invited your company to submit a quotation for the following project.',
+          }),
+        }),
+      );
+    });
   });
 
   describe('sendPoIssuedEmail', () => {
@@ -718,6 +781,62 @@ describe('EmailService', () => {
           'https://view.test',
         ),
       ).resolves.toBeUndefined();
+    });
+
+    it('greets the approver and lists the request details (client format)', async () => {
+      const templateFn = require('handlebars').compile();
+
+      await service.sendMaterialRequestPendingApprovalEmail(
+        'user@test.com',
+        'MR-00001',
+        'Downtown Reno',
+        'https://view.test',
+        undefined,
+        undefined,
+        {
+          recipientName: 'Priya Shah',
+          requesterName: 'Tom Nguyen',
+          requiredBy: new Date('2026-11-18T00:00:00.000Z'),
+          priority: 'URGENT',
+        },
+      );
+
+      expect(mockSendMail).toHaveBeenCalledWith(
+        expect.objectContaining({ subject: 'New Material Request – Downtown Reno | MR-00001' }),
+      );
+      expect(templateFn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          t: expect.objectContaining({
+            greeting: 'Hi Priya,',
+            body: 'Tom has submitted a new material request for Downtown Reno, requiring your review.',
+          }),
+          details: [
+            { label: 'Reference', value: 'MR-00001' },
+            { label: 'Project', value: 'Downtown Reno' },
+            { label: 'Requested by', value: 'Tom Nguyen' },
+            { label: 'Required by', value: 'November 18, 2026' },
+            { label: 'Priority', value: 'Urgent' },
+          ],
+        }),
+      );
+    });
+
+    it('shows a dash when the request has no required-by date', async () => {
+      const templateFn = require('handlebars').compile();
+
+      await service.sendMaterialRequestPendingApprovalEmail(
+        'user@test.com',
+        'MR-00001',
+        'Downtown Reno',
+        'https://view.test',
+      );
+
+      expect(templateFn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          t: expect.objectContaining({ greeting: 'Hi there,' }),
+          details: expect.arrayContaining([{ label: 'Required by', value: '—' }]),
+        }),
+      );
     });
   });
 

@@ -170,6 +170,8 @@ const mockPrisma = {
   },
   user: {
     findMany: jest.fn(),
+    // The RFQ invitation names whoever (re-)sent it.
+    findUnique: jest.fn().mockResolvedValue({ name: 'Proc Officer' }),
   },
   $transaction: jest.fn(),
 };
@@ -3326,12 +3328,16 @@ describe('RfqsService', () => {
           rfqNumber: 'RFQ-1',
           ccEmails: [],
           documents: [],
+          project: { name: 'Harbour View', members: [] },
+          deadlineEnd: new Date('2026-11-20T00:00:00.000Z'),
           invitedVendors: [
             {
               id: 'iv-1',
-              contacts: [{ user: { email: 'chosen@vendor.com' } }],
+              contacts: [{ user: { email: 'chosen@vendor.com', name: 'Sarah Lee' } }],
               vendor: {
                 id: 'v-1',
+                legalName: 'Steelco Supplies Pty Ltd',
+                tradeName: 'Steelco',
                 contactEmail: 'contact@vendor.com',
                 users: [{ email: 'other@vendor.com', status: 'ACTIVE' }],
               },
@@ -3377,7 +3383,18 @@ describe('RfqsService', () => {
         'chosen@vendor.com',
         'RFQ-1',
         'http://localhost:5179/invitation/issued-token-xyz',
-        expect.objectContaining({ log: expect.objectContaining({ rfqId: 'rfq-1' }) }),
+        expect.objectContaining({
+          log: expect.objectContaining({ rfqId: 'rfq-1' }),
+          // The client-format invitation copy (Nov 2026): rep, sender, vendor
+          // trading name, project and response deadline.
+          details: {
+            recipientName: 'Sarah Lee',
+            senderName: 'Proc Officer',
+            supplierCompanyName: 'Steelco',
+            projectName: 'Harbour View',
+            deadline: new Date('2026-11-20T00:00:00.000Z'),
+          },
+        }),
       );
     });
 

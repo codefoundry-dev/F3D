@@ -743,6 +743,12 @@ describe('MaterialRequestsService', () => {
         expect.stringContaining('/material-requests/mr-1'),
         expect.anything(),
         undefined,
+        {
+          recipientName: 'Ama Approver',
+          requesterName: 'Foreman Joe',
+          requiredBy: expect.any(Date),
+          priority: 'MEDIUM',
+        },
       );
       expect(notifications.createForEmails).toHaveBeenCalledWith(
         ['ama@example.com'],
@@ -944,6 +950,12 @@ describe('MaterialRequestsService', () => {
         expect.any(String),
         expect.anything(),
         undefined,
+        {
+          recipientName: 'Ama Approver',
+          requesterName: 'Foreman Joe',
+          requiredBy: expect.any(Date),
+          priority: 'MEDIUM',
+        },
       );
       expect(notifications.createForEmails).toHaveBeenCalledWith(
         ['ama@example.com'],

@@ -35,6 +35,66 @@ export interface EmailBrand {
   logoUrl?: string;
 }
 
+/** Context for the vendor RFQ invitation copy. Every field is best-effort. */
+export interface RfqInvitationDetails {
+  /** The vendor rep being emailed; absent for a company contact email. */
+  recipientName?: string | null;
+  /** The contractor user who sent the RFQ. */
+  senderName?: string | null;
+  /** Overrides the brand name as the contractor company in the copy. */
+  contractorCompanyName?: string | null;
+  supplierCompanyName?: string | null;
+  projectName?: string | null;
+  /** Response deadline (`Rfq.deadlineEnd`) — a calendar date. */
+  deadline?: Date | null;
+}
+
+/** Context for the material-request pending-approval copy. */
+export interface MaterialRequestEmailDetails {
+  recipientName?: string | null;
+  requesterName?: string | null;
+  requiredBy?: Date | null;
+  priority?: string | null;
+}
+
+/** Placeholder for a detail the record does not carry. */
+const NOT_SPECIFIED = '—';
+
+/** The trimmed string, or `undefined` when it is missing or blank. */
+function nonBlank(value?: string | null): string | undefined {
+  return value?.trim() || undefined; // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing -- '' must fall through
+}
+
+/** First word of a display name (`User.name` is a single field); `undefined` when blank. */
+function firstNameOf(name?: string | null): string | undefined {
+  return nonBlank(name)?.split(/\s+/)[0];
+}
+
+/**
+ * Calendar dates (deadlines, need-by dates) are stored as UTC midnight, so they
+ * are formatted in UTC — a local timezone would show the previous day.
+ */
+function formatEmailDate(date?: Date | null): string {
+  if (!date) return NOT_SPECIFIED;
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/** Remove a clause from translated copy; tolerant of a missing key. */
+function dropClause(text: string | undefined, clause: string): string {
+  return (text ?? '').replace(clause, '');
+}
+
+/** `URGENT` → `Urgent`. */
+function formatPriority(priority?: string | null): string {
+  if (!priority) return NOT_SPECIFIED;
+  return priority.charAt(0).toUpperCase() + priority.slice(1).toLowerCase();
+}
+
 /** A rendered message ready to hand to whichever transport is active. */
 interface EmailMessage {
   to: string;
@@ -412,6 +472,12 @@ export class EmailService implements OnModuleInit {
     }
   }
 
+  /**
+   * Invite a vendor rep to quote on an RFQ. The copy names who invited whom, for
+   * which project, and by when (client format, Nov 2026). Every name is optional
+   * at the call site — a vendor quick-added with only a contact email has no rep
+   * name, so the greeting degrades to "Hi there,".
+   */
   async sendRfqReceivedEmail(
     to: string,
     rfqNumber: string,
@@ -421,16 +487,48 @@ export class EmailService implements OnModuleInit {
       attachments?: EmailAttachment[];
       brand?: EmailBrand;
       log?: EmailLogContext;
+      details?: RfqInvitationDetails;
     },
   ): Promise<void> {
-    const t = this.getTranslations('rfqReceived', { rfqNumber });
+    const d = options?.details;
+    const senderFullName = nonBlank(d?.senderName);
+    const contractorCompanyName =
+      nonBlank(d?.contractorCompanyName) ?? nonBlank(options?.brand?.name);
+    const projectName = nonBlank(d?.projectName);
+    const t = this.getTranslations('rfqReceived', {
+      rfqNumber,
+      recipientFirstName: firstNameOf(d?.recipientName) ?? 'there',
+      senderFirstName: firstNameOf(senderFullName) ?? 'A contractor',
+      contractorCompanyName: contractorCompanyName ?? NOT_SPECIFIED,
+      supplierCompanyName: nonBlank(d?.supplierCompanyName) ?? 'your company',
+      projectName: projectName ?? NOT_SPECIFIED,
+    });
+    // Drop clauses that would otherwise render a bare "—" placeholder.
+    if (!contractorCompanyName) t.body = dropClause(t.body, ` from ${NOT_SPECIFIED}`);
+    if (!projectName) t.subject = dropClause(t.subject, ` – ${NOT_SPECIFIED}`);
+    const details = [
+      { label: t.projectLabel, value: projectName ?? NOT_SPECIFIED },
+      { label: t.referenceLabel, value: rfqNumber },
+      {
+        label: t.requestedByLabel,
+        value:
+          nonBlank([senderFullName, contractorCompanyName].filter(Boolean).join(', ')) ??
+          NOT_SPECIFIED,
+      },
+      { label: t.deadlineLabel, value: formatEmailDate(d?.deadline) },
+    ];
 
     try {
       await this.dispatch({
         to,
         ...(options?.cc && options.cc.length > 0 ? { cc: options.cc } : {}),
         subject: t.subject,
-        html: this.renderEmail(EMAIL_TEMPLATES.RFQ_RECEIVED, t, { replyUrl }, options?.brand),
+        html: this.renderEmail(
+          EMAIL_TEMPLATES.RFQ_RECEIVED,
+          t,
+          { replyUrl, details },
+          options?.brand,
+        ),
         ...this.brandSender(options?.brand),
         ...(options?.attachments && options.attachments.length > 0
           ? { attachments: options.attachments }
@@ -598,8 +696,22 @@ export class EmailService implements OnModuleInit {
     viewUrl: string,
     log?: EmailLogContext,
     brand?: EmailBrand,
+    details?: MaterialRequestEmailDetails,
   ): Promise<void> {
-    const t = this.getTranslations('materialRequestPendingApproval', { mrNumber, projectName });
+    const requesterName = nonBlank(details?.requesterName);
+    const t = this.getTranslations('materialRequestPendingApproval', {
+      mrNumber,
+      projectName,
+      recipientFirstName: firstNameOf(details?.recipientName) ?? 'there',
+      requesterFirstName: firstNameOf(requesterName) ?? 'A team member',
+    });
+    const rows = [
+      { label: t.referenceLabel, value: mrNumber },
+      { label: t.projectLabel, value: projectName },
+      { label: t.requestedByLabel, value: requesterName ?? NOT_SPECIFIED },
+      { label: t.requiredByLabel, value: formatEmailDate(details?.requiredBy) },
+      { label: t.priorityLabel, value: formatPriority(details?.priority) },
+    ];
 
     try {
       await this.dispatch({
@@ -608,7 +720,7 @@ export class EmailService implements OnModuleInit {
         html: this.renderEmail(
           EMAIL_TEMPLATES.MATERIAL_REQUEST_PENDING_APPROVAL,
           t,
-          { viewUrl },
+          { viewUrl, details: rows },
           brand,
         ),
         ...this.brandSender(brand),
