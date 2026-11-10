@@ -142,6 +142,7 @@ export default function EditProjectPage() {
         currency: project.currency,
         startDate: project.startDate ? project.startDate.split('T')[0] : '',
         expectedEndDate: project.expectedEndDate ? project.expectedEndDate.split('T')[0] : '',
+        pointOfContactId: project.pointOfContact?.id ?? null,
         locations: project.locations.map((l) => ({
           type: l.type as LocationType,
           address: l.address,
@@ -185,6 +186,19 @@ export default function EditProjectPage() {
 
   const currencyOptions = currencies.map((c) => ({ value: c, label: c }));
 
+  // Same pool as the create wizard: the project's assigned users. The current
+  // contact stays selectable even if they've since left the team, and "Not set"
+  // ('' in the dropdown, null in the form) clears it.
+  const teamUsers = project?.assignedUsers ?? [];
+  const currentContact = project?.pointOfContact ?? null;
+  const pointOfContactOptions = [
+    { value: '', label: t('detail.notSet') },
+    ...teamUsers.map((u) => ({ value: u.id, label: u.name })),
+    ...(currentContact && !teamUsers.some((u) => u.id === currentContact.id)
+      ? [{ value: currentContact.id, label: currentContact.name }]
+      : []),
+  ];
+
   const onSubmit = (data: UpdateProjectFormValues) => {
     updateMutation.mutate(
       {
@@ -195,6 +209,7 @@ export default function EditProjectPage() {
         plannedBudget: data.plannedBudget ?? null,
         startDate: blankToNull(data.startDate),
         expectedEndDate: blankToNull(data.expectedEndDate),
+        pointOfContactId: blankToNull(data.pointOfContactId),
       },
       {
         onSuccess: () => navigate(ROUTES.projectDetail.replace(':id', id ?? '')),
@@ -221,6 +236,7 @@ export default function EditProjectPage() {
       currency: t('create.currency'),
       startDate: t('create.startDate'),
       expectedEndDate: t('create.expectedEndDate'),
+      pointOfContactId: t('create.pointOfContact'),
     };
     return labels[field];
   };
@@ -357,6 +373,21 @@ export default function EditProjectPage() {
               />
             </FormField>
           </div>
+
+          <FormField label={t('create.pointOfContact')} optional>
+            <Controller
+              name="pointOfContactId"
+              control={control}
+              render={({ field }) => (
+                <CustomDropdown
+                  options={pointOfContactOptions}
+                  value={field.value ?? ''}
+                  onChange={(v) => field.onChange(blankToNull(v))}
+                  placeholder={t('create.selectUser')}
+                />
+              )}
+            />
+          </FormField>
         </section>
 
         {/* Delivery Locations */}
