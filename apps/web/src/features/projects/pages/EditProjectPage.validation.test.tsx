@@ -50,7 +50,17 @@ vi.mock('@forethread/ui-components', async () => {
     ),
     Textarea: forwardRef((props: any, ref: any) => <textarea ref={ref} {...props} />),
     CustomDropdown: (props: any) => (
-      <select value={props.value ?? ''} onChange={(e: any) => props.onChange?.(e.target.value)} />
+      <select
+        aria-label={props.placeholder}
+        value={props.value ?? ''}
+        onChange={(e: any) => props.onChange?.(e.target.value)}
+      >
+        {(props.options ?? []).map((o: any) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
     ),
     RadioButton: (props: any) => (
       <input type="radio" checked={props.checked} onChange={props.onChange} />
@@ -197,5 +207,69 @@ describe('EditProjectPage — real schema validation', () => {
       'create.validationToast:create.storageLocations',
     );
     expect(mockMutate).not.toHaveBeenCalled();
+  });
+
+  describe('point of contact can be edited after the project is saved', () => {
+    const ALICE = { id: '11111111-1111-4111-8111-111111111111', name: 'Alice' };
+    const BOB = { id: '22222222-2222-4222-8222-222222222222', name: 'Bob' };
+    const pocSelect = () => screen.getByLabelText<HTMLSelectElement>('create.selectUser');
+
+    it('changes the contact to another team member', async () => {
+      mockUseProject.mockReturnValue({
+        data: { ...bareProject, assignedUsers: [ALICE, BOB], pointOfContact: ALICE },
+        isLoading: false,
+      });
+      render(<EditProjectPage />);
+
+      await waitFor(() => expect(pocSelect().value).toBe(ALICE.id));
+      fireEvent.change(pocSelect(), { target: { value: BOB.id } });
+      save();
+
+      await waitFor(() => expect(mockMutate).toHaveBeenCalledTimes(1));
+      expect(mockMutate.mock.calls[0][0].pointOfContactId).toBe(BOB.id);
+    });
+
+    it('sets a contact on a project saved without one', async () => {
+      mockUseProject.mockReturnValue({
+        data: { ...bareProject, assignedUsers: [ALICE], pointOfContact: null },
+        isLoading: false,
+      });
+      render(<EditProjectPage />);
+
+      fireEvent.change(pocSelect(), { target: { value: ALICE.id } });
+      save();
+
+      await waitFor(() => expect(mockMutate).toHaveBeenCalledTimes(1));
+      expect(mockMutate.mock.calls[0][0].pointOfContactId).toBe(ALICE.id);
+    });
+
+    it('clears the contact with "Not set" (sends null)', async () => {
+      mockUseProject.mockReturnValue({
+        data: { ...bareProject, assignedUsers: [ALICE], pointOfContact: ALICE },
+        isLoading: false,
+      });
+      render(<EditProjectPage />);
+
+      await waitFor(() => expect(pocSelect().value).toBe(ALICE.id));
+      fireEvent.change(pocSelect(), { target: { value: '' } });
+      save();
+
+      await waitFor(() => expect(mockMutate).toHaveBeenCalledTimes(1));
+      expect(mockMutate.mock.calls[0][0].pointOfContactId).toBeNull();
+    });
+
+    it('keeps a contact who is no longer on the team selectable and unchanged', async () => {
+      mockUseProject.mockReturnValue({
+        data: { ...bareProject, assignedUsers: [ALICE], pointOfContact: BOB },
+        isLoading: false,
+      });
+      render(<EditProjectPage />);
+
+      await waitFor(() => expect(pocSelect().value).toBe(BOB.id));
+      save();
+
+      await waitFor(() => expect(mockMutate).toHaveBeenCalledTimes(1));
+      expect(mockMutate.mock.calls[0][0].pointOfContactId).toBe(BOB.id);
+    });
   });
 });

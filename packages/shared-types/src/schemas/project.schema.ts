@@ -115,7 +115,8 @@ export const updateProjectSchema = z
     assignedUserIds: z.array(z.string().uuid()).min(1).optional(),
     plannedBudget: z.number().min(0).optional(),
     currency: z.string().max(3).optional(),
-    pointOfContactId: z.string().uuid().optional(),
+    // `null` clears the contact (the API disconnects it); omitted = unchanged.
+    pointOfContactId: z.string().uuid().nullable().optional(),
     startDate: optionalDateString,
     expectedEndDate: optionalDateString,
   })
