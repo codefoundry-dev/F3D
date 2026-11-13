@@ -404,13 +404,18 @@ export class VendorsService {
     };
   }
 
-  async updateVendorProfile(
+  /**
+   * Throws unless `user` may edit this vendor's profile (name, details, logo):
+   * 404 when it is not a vendor, 403 unless it is the vendor's own company or a
+   * contractor the vendor is assigned to (ADR-0016).
+   */
+  async assertCanEditVendorProfile(
     vendorCompanyId: string,
-    dto: UpdateVendorProfileDto,
     user: AuthenticatedUser,
-  ) {
+  ): Promise<void> {
     const company = await this.prisma.company.findFirst({
       where: { id: vendorCompanyId, type: CompanyType.VENDOR },
+      select: { id: true },
     });
 
     if (!company) {
@@ -418,6 +423,14 @@ export class VendorsService {
     }
 
     await this.validateVendorAccess(vendorCompanyId, user);
+  }
+
+  async updateVendorProfile(
+    vendorCompanyId: string,
+    dto: UpdateVendorProfileDto,
+    user: AuthenticatedUser,
+  ) {
+    await this.assertCanEditVendorProfile(vendorCompanyId, user);
 
     const updated = await this.prisma.company.update({
       where: { id: vendorCompanyId },

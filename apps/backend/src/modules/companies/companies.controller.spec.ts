@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { PERMISSIONS_KEY } from '../../common/permissions/permissions.decorator';
+import { CompanyLogoService } from '../storage/company-logo.service';
 
 import { CompaniesController } from './companies.controller';
 import { CompaniesService, CompanyListQueryDto, AssignVendorsDto } from './companies.service';
@@ -86,6 +87,7 @@ describe('CompaniesController', () => {
       storageService as never,
       prisma as never,
       docIntelligence as never,
+      new CompanyLogoService(storageService as never, prisma as never),
     );
   });
 

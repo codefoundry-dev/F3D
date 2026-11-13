@@ -389,6 +389,49 @@ describe('VendorsService', () => {
 
   // ── updateVendorProfile ─────────────────────────────────────────────────
 
+  describe('assertCanEditVendorProfile', () => {
+    it('lets a contractor edit a vendor assigned to it (logo upload regression)', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({ id: 'vendor-comp-1' });
+      mockPrisma.companyVendorAssignment.findFirst.mockResolvedValue({ id: 'assign-1' });
+
+      await expect(
+        service.assertCanEditVendorProfile('vendor-comp-1', companyAdmin),
+      ).resolves.toBeUndefined();
+      expect(mockPrisma.companyVendorAssignment.findFirst).toHaveBeenCalledWith({
+        where: { vendorId: 'vendor-comp-1', contractorId: 'comp-1' },
+      });
+    });
+
+    it('lets a vendor edit its own company', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({ id: 'vendor-comp-1' });
+      await expect(
+        service.assertCanEditVendorProfile('vendor-comp-1', vendorUser),
+      ).resolves.toBeUndefined();
+    });
+
+    it('refuses a contractor the vendor is not assigned to', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({ id: 'vendor-comp-1' });
+      mockPrisma.companyVendorAssignment.findFirst.mockResolvedValue(null);
+      await expect(
+        service.assertCanEditVendorProfile('vendor-comp-1', companyAdmin),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('refuses a vendor editing another vendor', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue({ id: 'other-vendor' });
+      await expect(service.assertCanEditVendorProfile('other-vendor', vendorUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('404s when the company is not a vendor', async () => {
+      mockPrisma.company.findFirst.mockResolvedValue(null);
+      await expect(service.assertCanEditVendorProfile('comp-1', companyAdmin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
   describe('updateVendorProfile', () => {
     it('throws NotFoundException when vendor not found', async () => {
       mockPrisma.company.findFirst.mockResolvedValue(null);

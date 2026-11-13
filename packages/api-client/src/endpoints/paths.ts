@@ -289,6 +289,7 @@ export const VENDORS_PATHS = {
   promote: (id: string) => `/vendors/${id}/promote`,
   categories: (id: string) => `/vendors/${id}/categories`,
   profile: (id: string) => `/vendors/${id}/profile`,
+  logo: (id: string) => `/vendors/${id}/logo`,
   warehouses: (id: string) => `/vendors/${id}/warehouses`,
   warehouse: (id: string, whId: string) => `/vendors/${id}/warehouses/${whId}`,
   representatives: (id: string) => `/vendors/${id}/representatives`,

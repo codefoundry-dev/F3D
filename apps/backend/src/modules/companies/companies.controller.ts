@@ -27,6 +27,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/permissions';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DocIntelligenceService } from '../doc-intelligence/doc-intelligence.service';
+import { CompanyLogoService } from '../storage/company-logo.service';
 import { StorageService } from '../storage/storage.service';
 
 import {
@@ -97,6 +98,7 @@ export class CompaniesController {
     private readonly storageService: StorageService,
     private readonly prisma: PrismaService,
     private readonly docIntelligence: DocIntelligenceService,
+    private readonly companyLogo: CompanyLogoService,
   ) {}
 
   @Get()
@@ -182,36 +184,10 @@ export class CompaniesController {
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: AuthUser,
   ) {
+    // A contractor's own logo only. Vendor logos go through POST /vendors/:id/logo,
+    // which applies the vendor-profile access rule instead.
     this.assertCompanyScope(id, user);
-    if (!file) throw new BadRequestException(ERR.storage.noFileProvided);
-    if (!['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'].includes(file.mimetype)) {
-      throw new BadRequestException(ERR.storage.onlyImagesAllowed);
-    }
-    if (file.size > 5 * 1024 * 1024) throw new BadRequestException(ERR.storage.fileTooLarge('5MB'));
-
-    const ext = path.extname(file.originalname);
-    const key = `logos/${id}/${randomUUID()}${ext}`;
-
-    const result = await this.storageService.upload(key, file.buffer, file.mimetype);
-
-    // Save file record
-    await this.prisma.file.create({
-      data: {
-        bucket: result.bucket,
-        key: result.key,
-        filename: file.originalname,
-        mimeType: file.mimetype,
-        size: file.size,
-        uploadedById: user.id,
-      },
-    });
-
-    await this.prisma.company.update({
-      where: { id },
-      data: { logoUrl: result.key },
-    });
-
-    return { id, logoUrl: await this.storageService.getSignedUrl(result.key) };
+    return this.companyLogo.save(id, file, user.id);
   }
 
   // Deliberately NOT company-scoped: logos render cross-company (vendor logos
