@@ -14,7 +14,7 @@ import {
   deleteWarehouse,
   addVendorRepresentative,
   getCompanyLogoUrl,
-  uploadCompanyLogo,
+  uploadVendorLogo,
   type VendorListParams,
   type InviteVendorDto,
   type CreateCompanyDto,
@@ -234,7 +234,7 @@ export function useUploadVendorLogo() {
 
   return useMutation({
     mutationFn: ({ companyId, file }: { companyId: string; file: File }) =>
-      uploadCompanyLogo(companyId, file),
+      uploadVendorLogo(companyId, file),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [VENDORS_KEY] });
       void queryClient.invalidateQueries({ queryKey: [LOGO_URL_KEY] });

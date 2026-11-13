@@ -307,6 +307,25 @@ export async function updateVendorProfile(
   return data.data;
 }
 
+/**
+ * Upload a vendor's logo. Works for the vendor itself and for a contractor the
+ * vendor is assigned to — unlike `uploadCompanyLogo`, which only accepts the
+ * caller's own company.
+ */
+export async function uploadVendorLogo(
+  id: string,
+  file: File,
+): Promise<{ id: string; logoUrl: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const { data } = await getApiClient().post<{ data: { id: string; logoUrl: string } }>(
+    VENDORS_PATHS.logo(id),
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return data.data;
+}
+
 export async function addWarehouse(
   vendorId: string,
   input: CreateWarehouseInput,

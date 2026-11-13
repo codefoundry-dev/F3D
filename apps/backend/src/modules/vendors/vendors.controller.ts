@@ -9,11 +9,15 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/permissions';
+import { CompanyLogoService } from '../storage/company-logo.service';
 
 import { VendorInviteService } from './vendor-invite.service';
 import { VendorUserInviteService } from './vendor-user-invite.service';
@@ -39,6 +43,7 @@ export class VendorsController {
     private readonly vendorsService: VendorsService,
     private readonly vendorInviteService: VendorInviteService,
     private readonly vendorUserInviteService: VendorUserInviteService,
+    private readonly companyLogo: CompanyLogoService,
   ) {}
 
   @Post('invite')
@@ -144,6 +149,30 @@ export class VendorsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.vendorsService.updateVendorProfile(id, dto, user);
+  }
+
+  /**
+   * Upload a vendor's logo. Same rule as editing the rest of the vendor
+   * profile: the vendor itself, or a contractor the vendor is assigned to.
+   * (POST /companies/:id/logo only accepts the caller's own company, so a
+   * contractor setting a vendor's logo there was refused with a 403.)
+   */
+  @Post(':id/logo')
+  @RequirePermissions('vendor.updateProfile')
+  @UseInterceptors(FileInterceptor('file'))
+  @HttpCode(HttpStatus.OK)
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload a vendor company logo' })
+  @ApiResponse({ status: 200, description: 'Logo uploaded' })
+  @ApiResponse({ status: 403, description: 'No access to this vendor' })
+  @ApiResponse({ status: 404, description: 'Vendor not found' })
+  async uploadVendorLogo(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.vendorsService.assertCanEditVendorProfile(id, user);
+    return this.companyLogo.save(id, file, user.id);
   }
 
   // ── Warehouses (US-3.07) ──────────────────────────────────────────────────

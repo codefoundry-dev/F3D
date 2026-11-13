@@ -1,6 +1,9 @@
+import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserRole } from '@prisma/client';
 
+import { PERMISSIONS_KEY } from '../../../common/permissions/permissions.decorator';
+import { CompanyLogoService } from '../../storage/company-logo.service';
 import { VendorInviteService } from '../vendor-invite.service';
 import { VendorUserInviteService } from '../vendor-user-invite.service';
 import { VendorsController } from '../vendors.controller';
@@ -17,7 +20,9 @@ const mockVendorsService = {
   addRepresentative: jest.fn(),
   createOneOffVendor: jest.fn(),
   promoteOneOffVendor: jest.fn(),
+  assertCanEditVendorProfile: jest.fn(),
 };
+const mockCompanyLogo = { save: jest.fn() };
 const mockInviteService = { inviteVendor: jest.fn() };
 const mockUserInviteService = {
   inviteVendorUser: jest.fn(),
@@ -50,6 +55,7 @@ describe('VendorsController', () => {
         { provide: VendorsService, useValue: mockVendorsService },
         { provide: VendorInviteService, useValue: mockInviteService },
         { provide: VendorUserInviteService, useValue: mockUserInviteService },
+        { provide: CompanyLogoService, useValue: mockCompanyLogo },
       ],
     }).compile();
     controller = module.get<VendorsController>(VendorsController);
@@ -101,6 +107,36 @@ describe('VendorsController', () => {
     const result = await controller.updateVendorProfile('v-1', dto as never, mockUser as never);
     expect(mockVendorsService.updateVendorProfile).toHaveBeenCalledWith('v-1', dto, mockUser);
     expect(result).toEqual(expected);
+  });
+
+  describe('uploadVendorLogo', () => {
+    const file = { originalname: 'logo.png' } as Express.Multer.File;
+
+    it('requires vendor.updateProfile, the same key as editing the profile', () => {
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const handler = VendorsController.prototype.uploadVendorLogo;
+      expect(Reflect.getMetadata(PERMISSIONS_KEY, handler)).toEqual(['vendor.updateProfile']);
+    });
+
+    it('checks vendor access, then saves the logo', async () => {
+      mockVendorsService.assertCanEditVendorProfile.mockResolvedValue(undefined);
+      mockCompanyLogo.save.mockResolvedValue({ id: 'v-1', logoUrl: 'https://signed/x' });
+
+      const result = await controller.uploadVendorLogo('v-1', file, mockUser as never);
+
+      expect(mockVendorsService.assertCanEditVendorProfile).toHaveBeenCalledWith('v-1', mockUser);
+      expect(mockCompanyLogo.save).toHaveBeenCalledWith('v-1', file, 'ca-1');
+      expect(result).toEqual({ id: 'v-1', logoUrl: 'https://signed/x' });
+    });
+
+    it('does not save when access is refused', async () => {
+      mockVendorsService.assertCanEditVendorProfile.mockRejectedValue(new ForbiddenException());
+
+      await expect(
+        controller.uploadVendorLogo('v-1', file, mockVendorUser as never),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockCompanyLogo.save).not.toHaveBeenCalled();
+    });
   });
 
   // ── Warehouses (US-3.07) ──────────────────────────────────────────────────
