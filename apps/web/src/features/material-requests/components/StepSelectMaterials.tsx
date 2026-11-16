@@ -29,6 +29,8 @@ export interface StepSelectMaterialsProps {
   onRemoveLine: (key: string) => void;
   /** Inline edit of an already-added line (manual rows stay editable). */
   onPatchLine: (key: string, patch: Partial<MrWizardLine>) => void;
+  /** Whether the Manual tab's blank row is complete and about to become a line. */
+  onManualDraftReadyChange?: (ready: boolean) => void;
 }
 
 /** A pickable catalogue/BOM row, normalised across the two data sources. */
@@ -126,6 +128,7 @@ export function StepSelectMaterials({
   onAddManual,
   onRemoveLine,
   onPatchLine,
+  onManualDraftReadyChange,
 }: StepSelectMaterialsProps) {
   const { t } = useTranslation('materialRequests');
   const [tab, setTab] = useState<SourceTab>('CATALOG');
@@ -266,6 +269,7 @@ export function StepSelectMaterials({
             onAddManual={onAddManual}
             onPatchLine={onPatchLine}
             onRemove={onRemoveLine}
+            onDraftReadyChange={onManualDraftReadyChange}
             onOpenModal={() => setShowNewModal(true)}
           />
         )}
@@ -363,12 +367,14 @@ function ManualTab({
   onAddManual,
   onPatchLine,
   onRemove,
+  onDraftReadyChange,
   onOpenModal,
 }: {
   lines: MrWizardLine[];
   onAddManual: (draft: NewMaterialDraft) => void;
   onPatchLine: (key: string, patch: Partial<MrWizardLine>) => void;
   onRemove: (key: string) => void;
+  onDraftReadyChange?: (ready: boolean) => void;
   onOpenModal: () => void;
 }) {
   const { t } = useTranslation('materialRequests');
@@ -379,6 +385,7 @@ function ManualTab({
         onAdd={onAddManual}
         onPatch={onPatchLine}
         onRemove={onRemove}
+        onDraftReadyChange={onDraftReadyChange}
       />
 
       <button

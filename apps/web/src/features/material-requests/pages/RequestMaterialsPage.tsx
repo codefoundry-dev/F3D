@@ -67,6 +67,9 @@ export default function RequestMaterialsPage() {
   // "Need by" for all lines (FOR-364): fills every line the foreman hasn't
   // changed by hand, including lines added later.
   const [needBy, setNeedBy] = useState<NeedByDefault>({ date: '', time: '' });
+  // A completed blank row on the Manual tab becomes a line the moment focus
+  // leaves it (FOR-403), so Next must already be clickable while it is pending.
+  const [manualDraftReady, setManualDraftReady] = useState(false);
   const [detailErrors, setDetailErrors] = useState<MrDetailsErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showNominate, setShowNominate] = useState(false);
@@ -289,6 +292,7 @@ export default function RequestMaterialsPage() {
             onAddManual={addManual}
             onRemoveLine={removeLine}
             onPatchLine={patchLine}
+            onManualDraftReadyChange={setManualDraftReady}
           />
         )}
         {step === 1 && (
@@ -403,7 +407,7 @@ export default function RequestMaterialsPage() {
         <PrimaryButton
           withArrow
           onClick={handleContinueFromSelect}
-          disabled={selectedCount === 0}
+          disabled={selectedCount === 0 && !manualDraftReady}
           className="w-full sm:w-auto"
           data-testid="mr-step1-next"
         >

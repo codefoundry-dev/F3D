@@ -221,6 +221,58 @@ describe('StepSelectMaterials', () => {
     );
   });
 
+  it('always shows a blank row, with or without existing lines (FOR-403)', () => {
+    setup();
+    fireEvent.click(screen.getByText('requestMaterials.tabManual'));
+    const list = screen.getByTestId('mr-manual-list');
+    expect(list).toContainElement(screen.getByTestId('mr-manual-draft'));
+    expect(screen.getByTestId('mr-manual-draft-name')).toHaveValue('');
+  });
+
+  it('auto-adds a completed blank row when focus leaves it (FOR-403)', () => {
+    const { onAddManual } = setup();
+    fireEvent.click(screen.getByText('requestMaterials.tabManual'));
+
+    fireEvent.change(screen.getByTestId('mr-manual-draft-name'), { target: { value: 'Anchor' } });
+    fireEvent.change(screen.getByTestId('mr-manual-draft-qty'), { target: { value: '2' } });
+
+    // Moving between the row's own fields must not add it yet.
+    fireEvent.blur(screen.getByTestId('mr-manual-draft-qty'), {
+      relatedTarget: screen.getByTestId('mr-manual-draft-unit'),
+    });
+    expect(onAddManual).not.toHaveBeenCalled();
+
+    fireEvent.blur(screen.getByTestId('mr-manual-draft-unit'), { relatedTarget: document.body });
+    expect(onAddManual).toHaveBeenCalledTimes(1);
+    expect(onAddManual).toHaveBeenCalledWith(
+      expect.objectContaining({ materialName: 'Anchor', quantity: 2 }),
+    );
+    expect(screen.getByTestId('mr-manual-draft-name')).toHaveValue('');
+  });
+
+  it('leaves an unfinished blank row alone on blur, without errors (FOR-403)', () => {
+    const { onAddManual } = setup();
+    fireEvent.click(screen.getByText('requestMaterials.tabManual'));
+
+    fireEvent.change(screen.getByTestId('mr-manual-draft-name'), { target: { value: 'Anchor' } });
+    fireEvent.blur(screen.getByTestId('mr-manual-draft-name'), { relatedTarget: document.body });
+
+    expect(onAddManual).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('mr-manual-draft-error')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mr-manual-draft-name')).toHaveValue('Anchor');
+  });
+
+  it('adds the blank row once on Enter in the quantity field (FOR-403)', () => {
+    const { onAddManual } = setup();
+    fireEvent.click(screen.getByText('requestMaterials.tabManual'));
+
+    fireEvent.change(screen.getByTestId('mr-manual-draft-name'), { target: { value: 'Anchor' } });
+    fireEvent.change(screen.getByTestId('mr-manual-draft-qty'), { target: { value: '5' } });
+    fireEvent.keyUp(screen.getByTestId('mr-manual-draft-qty'), { key: 'Enter' });
+
+    expect(onAddManual).toHaveBeenCalledTimes(1);
+  });
+
   it('links the draft row to a catalogue material picked from the suggestions popup', () => {
     mockSuggestionGroups.mockReturnValue({
       isLoading: false,

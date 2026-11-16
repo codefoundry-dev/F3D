@@ -49,8 +49,6 @@
     "noBomHint": "This job has no bill of materials yet. Use the Catalog or Manual tab to add materials.",
     "noCatalogResults": "No materials found",
     "noCatalogResultsHint": "Try a different search term.",
-    "manualEmptyTitle": "There is no materials yet",
-    "manualEmptyHint": "Add a material that is needed",
     "addMaterial": "Add Material",
     "addMaterialDetailed": "Add material with photo & details",
     "unitLabel": "Unit: {{unit}}",
