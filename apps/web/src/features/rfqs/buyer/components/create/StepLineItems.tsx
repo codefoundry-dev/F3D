@@ -5,6 +5,7 @@ import type {
   RfqAvailabilityResult,
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import {
   Button,
   DatePicker,
@@ -80,6 +81,8 @@ interface ManualDraft {
   quantity: string;
   uom: string;
   materialId?: string;
+  /** Image of the picked catalogue material; dropped with `materialId`. */
+  imageUrl?: string | null;
 }
 
 const EMPTY_MANUAL_DRAFT: ManualDraft = { name: '', description: '', quantity: '', uom: '' };
@@ -161,6 +164,7 @@ export function StepLineItems({
         category: material.categoryName ?? undefined,
         unit: material.unitOfMeasure,
         description: material.description ?? undefined,
+        imageUrl: material.imageUrl ?? undefined,
       })),
     [materials],
   );
@@ -181,6 +185,7 @@ export function StepLineItems({
         source: 'CATALOG',
         materialId: material.id,
         materialName: material.name,
+        imageUrl: material.imageUrl,
         description: material.description,
         quantity: 1,
         uom: material.unit ?? 'unit',
@@ -207,6 +212,7 @@ export function StepLineItems({
     patchManualDraft(projectId, {
       name: material.name,
       materialId: material.id,
+      imageUrl: material.imageUrl,
       uom: draft.uom.trim() ? draft.uom : (material.uom ?? ''),
       description: draft.description.trim() ? draft.description : (material.description ?? ''),
     });
@@ -226,6 +232,7 @@ export function StepLineItems({
         source: 'CATALOG',
         materialId: draft.materialId,
         materialName: draft.name.trim(),
+        imageUrl: draft.materialId ? draft.imageUrl : undefined,
         description: draft.description.trim() || undefined,
         quantity,
         uom: draft.uom.trim(),
@@ -355,16 +362,27 @@ export function StepLineItems({
       // with the same catalogue autocomplete as the desktop manual row.
       input: ({ item }) =>
         !isPhone || item.materialId || item.source !== 'CATALOG' ? (
-          <span className="text-foreground">{item.materialName}</span>
+          <span className="flex items-center gap-2 text-foreground">
+            <MaterialImageThumb url={item.imageUrl} name={item.materialName} />
+            {item.materialName}
+          </span>
         ) : (
           <div className="rounded-xl border border-border bg-background [&_input]:h-11 [&_input]:text-base">
             <ManualMaterialNameCell
               value={item.materialName}
-              onValueChange={(name) => updateItem(item.key, { materialName: name })}
+              // Typing a name unlinks the line from the catalogue, image included.
+              onValueChange={(name) =>
+                updateItem(item.key, {
+                  materialName: name,
+                  materialId: undefined,
+                  imageUrl: undefined,
+                })
+              }
               onSelectMaterial={(material) =>
                 updateItem(item.key, {
                   materialName: material.name,
                   materialId: material.id,
+                  imageUrl: material.imageUrl,
                   uom: item.uom.trim() ? item.uom : (material.uom ?? ''),
                   description: item.description ?? material.description ?? undefined,
                 })
@@ -611,9 +629,14 @@ export function StepLineItems({
                 lines={rows}
                 fields={lineFields}
                 getKey={({ item }) => item.key}
-                getTitle={({ item }) =>
-                  item.materialName || t('create.lineItems.manualNamePlaceholder')
-                }
+                getTitle={({ item }) => (
+                  <span className="flex min-w-0 items-center gap-2">
+                    <MaterialImageThumb plain url={item.imageUrl} name={item.materialName} />
+                    <span className="min-w-0 truncate">
+                      {item.materialName || t('create.lineItems.manualNamePlaceholder')}
+                    </span>
+                  </span>
+                )}
                 validateLine={validatePhoneLine(rows)}
                 hasError={({ item }) => invalidKeys.has(item.key) && !isLineComplete(item)}
                 onRemove={(i) => {
@@ -733,7 +756,11 @@ export function StepLineItems({
                           <ManualMaterialNameCell
                             value={draft.name}
                             onValueChange={(name) =>
-                              patchManualDraft(groupId, { name, materialId: undefined })
+                              patchManualDraft(groupId, {
+                                name,
+                                materialId: undefined,
+                                imageUrl: undefined,
+                              })
                             }
                             onSelectMaterial={(material) => selectManualMaterial(groupId, material)}
                             onCommit={() => commitManualDraft(groupId)}

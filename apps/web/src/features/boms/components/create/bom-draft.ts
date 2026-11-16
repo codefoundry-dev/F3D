@@ -20,6 +20,12 @@ export interface BomDraftRow {
   materialType: string;
   matchedMaterialId: string | null;
   matchedMaterialName: string | null;
+  /**
+   * Catalogue image of the matched material — display only. Never sent:
+   * `rowsToCreateItems` and `rowsToBomResult` build their payloads field by
+   * field and leave it out.
+   */
+  matchedImageUrl?: string | null;
   /** Auto/candidate similarity score; null once the user picked manually. */
   matchConfidence: number | null;
   candidates: BomCatalogueCandidate[];
@@ -86,6 +92,7 @@ function rowFromLineItem(item: BomLineItem): BomDraftRow {
     materialType: source?.subCategory ?? '',
     matchedMaterialId,
     matchedMaterialName: item.matchedMaterialName ?? source?.name ?? null,
+    matchedImageUrl: source?.imageUrl ?? null,
     matchConfidence: item.matchConfidence ?? source?.confidence ?? null,
     candidates,
     manuallyResolved: false,
@@ -116,6 +123,7 @@ export function rowsFromBomItems(items: BomItemDto[]): BomDraftRow[] {
       materialType: item.materialType ?? '',
       matchedMaterialId: item.matchedMaterialId || null,
       matchedMaterialName: item.matchedMaterialName,
+      matchedImageUrl: item.matchedMaterialId ? (item.imageUrl ?? null) : null,
       matchConfidence: item.matchConfidence,
       candidates: [],
       manuallyResolved: false,

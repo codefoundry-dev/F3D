@@ -127,6 +127,30 @@ describe('GuestChangeRequestPage', () => {
     expect(screen.getByText('Steel Beam')).toBeInTheDocument();
   });
 
+  it('shows the catalogue image of a line that has one (FOR-402)', () => {
+    mockQuery.value = {
+      ...mockQuery.value,
+      data: {
+        id: 'po-1',
+        poNumber: 'PO-001',
+        lineItems: [
+          { id: 'li-1', materialName: 'Steel Beam', imageUrl: 'https://cdn.example/beam.png' },
+        ],
+      },
+    };
+    render(<GuestChangeRequestPage />);
+    expect(screen.getByRole('img', { name: 'Steel Beam' })).toHaveAttribute(
+      'src',
+      'https://cdn.example/beam.png',
+    );
+  });
+
+  it('renders no image for a line without one (FOR-402)', () => {
+    render(<GuestChangeRequestPage />);
+    expect(screen.getByText('Steel Beam')).toBeInTheDocument();
+    expect(screen.queryByTestId('material-image-thumb')).not.toBeInTheDocument();
+  });
+
   it('submits a derived change request via the tokenised endpoint', () => {
     render(<GuestChangeRequestPage />);
     fireEvent.click(screen.getByText('guest.change.submit'));

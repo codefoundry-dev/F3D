@@ -1,7 +1,7 @@
 import type { PoLineItemDetail } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { usePurchaseOrder } from '@forethread/po-shared';
-import { usePageTitleStore } from '@forethread/rfq-shared';
+import { MaterialImageThumb, usePageTitleStore } from '@forethread/rfq-shared';
 import { DeliveryOutcome } from '@forethread/shared-types/client';
 import type { CreateDeliveryReportLineInput } from '@forethread/shared-types/client';
 import {
@@ -44,6 +44,8 @@ interface LineRow {
   poLineItemId: string;
   lineItemRef: string;
   materialName: string;
+  /** The line material's catalogue image (FOR-402); display only, never submitted. */
+  imageUrl?: string | null;
   description: string | null;
   uom: string;
   quantityOrdered: number;
@@ -59,6 +61,7 @@ function poLineToRow(li: PoLineItemDetail): LineRow {
     poLineItemId: li.id,
     lineItemRef: li.materialCode ?? String(li.lineNumber),
     materialName: li.materialName ?? li.description ?? `#${li.lineNumber}`,
+    imageUrl: li.imageUrl,
     description: li.description,
     uom: li.unitOfMeasure,
     quantityOrdered: li.quantityOrdered,
@@ -335,7 +338,12 @@ export default function CreateDeliveryReportPage() {
             lines={rows}
             fields={phoneFields}
             getKey={(row) => row.poLineItemId}
-            getTitle={(row) => row.materialName}
+            getTitle={(row) => (
+              <span className="flex min-w-0 items-center gap-2">
+                <MaterialImageThumb plain url={row.imageUrl} name={row.materialName} />
+                {row.materialName}
+              </span>
+            )}
             getSubtitle={(row) => row.lineItemRef}
             hasError={(row) => !isRowValid(row)}
           />
@@ -374,7 +382,10 @@ export default function CreateDeliveryReportPage() {
                         data-testid={`delivery-row-${row.poLineItemId}`}
                       >
                         <td className="px-3 py-2.5 font-medium text-foreground">
-                          {row.materialName}
+                          <span className="flex items-center gap-2">
+                            <MaterialImageThumb url={row.imageUrl} name={row.materialName} />
+                            {row.materialName}
+                          </span>
                         </td>
                         <td className="max-w-[260px] truncate px-3 py-2.5 text-foreground">
                           {row.description ?? '-'}

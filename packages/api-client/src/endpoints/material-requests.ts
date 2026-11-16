@@ -84,6 +84,8 @@ export interface MrLineItemDetail {
   id: string;
   materialId: string | null;
   materialName: string | null;
+  /** Catalogue image of the linked material; null for free-text lines or no image. */
+  imageUrl?: string | null;
   description: string | null;
   quantity: number;
   unit: string;

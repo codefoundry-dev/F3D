@@ -2,6 +2,7 @@ import { type PoDetail, type RfqDocument, openFileInNewTab } from '@forethread/a
 import { useTranslation } from '@forethread/i18n';
 import {
   DocumentRow,
+  MaterialImageThumb,
   MessageAttachmentLinks,
   MessageComposer,
   useMessageThread,
@@ -247,7 +248,13 @@ function LineItemsTab({ lineItems }: { lineItems: PoDetail['lineItems'] }) {
               <tr key={item.id} className="border-b border-foreground/10">
                 <td className="py-2.5 pr-3 text-foreground">{i + 1}</td>
                 <td className="py-2.5 px-3 text-foreground">
-                  {item.materialName ?? item.description ?? '-'}
+                  <span className="flex items-center gap-2">
+                    <MaterialImageThumb
+                      url={item.imageUrl}
+                      name={item.materialName ?? item.description ?? ''}
+                    />
+                    {item.materialName ?? item.description ?? '-'}
+                  </span>
                 </td>
                 <td className="py-2.5 px-3 text-foreground">
                   {item.quantityOrdered} {item.unitOfMeasure}

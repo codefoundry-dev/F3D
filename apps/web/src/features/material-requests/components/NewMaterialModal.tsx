@@ -17,6 +17,8 @@ export interface NewMaterialDraft {
    * raised against the real material instead of a loose name.
    */
   materialId?: string;
+  /** Catalogue image of the linked material — shown on the line, never sent. */
+  imageUrl?: string | null;
 }
 
 export interface NewMaterialModalProps {

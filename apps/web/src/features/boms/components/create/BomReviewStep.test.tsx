@@ -132,6 +132,60 @@ describe('BomReviewStep', () => {
     mockApi.getMaterialCategories.mockResolvedValue([{ id: 'c1', name: 'Cat' }]);
   });
 
+  it('shows the matched material image beside its name (FOR-402)', () => {
+    renderHarness([
+      row({
+        materialName: 'Steel',
+        matchedMaterialId: 'm1',
+        matchedMaterialName: 'Steel Beam',
+        matchedImageUrl: 'https://cdn.test/beam.png',
+      }),
+      row({ materialName: 'Bolt', matchedMaterialId: 'm2', matchedMaterialName: 'Bolt M8' }),
+    ]);
+    const image = within(screen.getByTestId('bom-match-cell-0')).getByTestId('bom-match-thumb');
+    expect(image).toHaveAttribute('src', 'https://cdn.test/beam.png');
+    expect(image).toHaveAttribute('alt', 'Steel Beam');
+    // No image on the row whose material has none.
+    expect(
+      within(screen.getByTestId('bom-match-cell-1')).queryByTestId('bom-match-thumb'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId('bom-match-cell-1')).toHaveTextContent('Bolt M8');
+  });
+
+  it('shows the suggested candidate image while the row is unmatched (FOR-402)', () => {
+    renderHarness([
+      row({
+        materialName: 'Steel',
+        matchedMaterialId: null,
+        candidates: [
+          {
+            materialId: 'cm1',
+            name: 'Suggested',
+            confidence: 0.6,
+            imageUrl: 'https://cdn.test/suggested.png',
+          },
+        ],
+      }),
+    ]);
+    expect(
+      within(screen.getByTestId('bom-match-cell-0')).getByTestId('bom-match-thumb'),
+    ).toHaveAttribute('src', 'https://cdn.test/suggested.png');
+  });
+
+  it('hides the matched material image when it fails to load (FOR-402)', () => {
+    renderHarness([
+      row({
+        materialName: 'Steel',
+        matchedMaterialId: 'm1',
+        matchedMaterialName: 'Steel Beam',
+        matchedImageUrl: 'https://cdn.test/broken.png',
+      }),
+    ]);
+    fireEvent.error(screen.getByTestId('bom-match-thumb'));
+    expect(screen.queryByTestId('bom-match-thumb')).not.toBeInTheDocument();
+    expect(screen.getByTestId('bom-match-cell-0')).toHaveTextContent('Steel Beam');
+  });
+
   it('renders the table headers', () => {
     renderHarness([]);
     expect(screen.getByTestId('bom-review-table')).toBeInTheDocument();

@@ -1,4 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import {
   DatePicker,
   Input,
@@ -19,6 +20,8 @@ import {
   type MrDetailsErrors,
   type MrPriorityToggle,
 } from '../wizard/wizard-types';
+
+import { MaterialThumb } from './MaterialThumb';
 
 export interface DeliveryLocationOption {
   id: string;
@@ -325,7 +328,17 @@ export function StepMaterialDetails({
           lines={lines}
           fields={phoneFields}
           getKey={(line) => line.key}
-          getTitle={(line) => line.materialName}
+          getTitle={(line) => (
+            <span className="flex min-w-0 items-center gap-2">
+              <MaterialThumb
+                url={line.imageUrl}
+                alt={line.materialName}
+                className="size-8 rounded"
+                fallback={false}
+              />
+              <span className="min-w-0 truncate">{line.materialName}</span>
+            </span>
+          )}
           getSubtitle={(line) => line.unit}
           hasError={(line) => Object.values(errors[line.key] ?? {}).some(Boolean)}
         />
@@ -368,7 +381,10 @@ export function StepMaterialDetails({
                   <tr className="border-b border-border align-top last:border-b-0">
                     {/* Material */}
                     <td className={TD}>
-                      <p className="font-medium text-foreground">{line.materialName}</p>
+                      <p className="flex items-center gap-2 font-medium text-foreground">
+                        <MaterialImageThumb url={line.imageUrl} name={line.materialName} />
+                        {line.materialName}
+                      </p>
                     </td>
 
                     {/* Unit */}

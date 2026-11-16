@@ -1,6 +1,7 @@
 import { receivePurchaseOrder } from '@forethread/api-client';
 import type { PoDetail } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import {
   Modal,
   ModalGridBackground,
@@ -23,6 +24,8 @@ interface ReceiveDeliveryModalProps {
 interface ReceiveRow {
   id: string;
   name: string;
+  /** The line material's catalogue image (FOR-402); display only. */
+  imageUrl?: string | null;
   quantityOrdered: number;
   alreadyDelivered: number;
   /** The new cumulative delivered qty the user is entering (string for input). */
@@ -51,6 +54,7 @@ export function ReceiveDeliveryModal({ po, onClose, onReceived }: ReceiveDeliver
     (po.lineItems ?? []).map((li) => ({
       id: li.id,
       name: li.materialName ?? li.description ?? `#${li.lineNumber}`,
+      imageUrl: li.imageUrl,
       quantityOrdered: li.quantityOrdered,
       alreadyDelivered: li.quantityDelivered,
       value: String(li.quantityDelivered),
@@ -100,8 +104,11 @@ export function ReceiveDeliveryModal({ po, onClose, onReceived }: ReceiveDeliver
               const invalid = !isValidRow(row);
               return (
                 <div key={row.id} className="grid grid-cols-12 gap-3 items-center">
-                  <div className="col-span-6 text-sm text-foreground truncate" title={row.name}>
-                    {row.name}
+                  <div className="col-span-6 flex min-w-0 items-center gap-2 text-sm text-foreground">
+                    <MaterialImageThumb url={row.imageUrl} name={row.name} />
+                    <span className="truncate" title={row.name}>
+                      {row.name}
+                    </span>
                   </div>
                   <div className="col-span-2 text-right text-sm text-foreground">
                     {row.quantityOrdered}

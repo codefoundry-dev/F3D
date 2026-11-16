@@ -1,4 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import {
   Alert,
   Button,
@@ -252,7 +253,18 @@ export function PoCreateLineItemsStep({
               fields={phoneFields}
               getKey={(row) => row.id}
               getTitle={(row) =>
-                row.isFilled ? row.item?.materialName : t('create.enterMaterialName')
+                row.isFilled ? (
+                  <span className="flex items-center gap-2">
+                    <MaterialImageThumb
+                      plain
+                      url={row.item?.imageUrl}
+                      name={row.item?.materialName ?? ''}
+                    />
+                    {row.item?.materialName}
+                  </span>
+                ) : (
+                  t('create.enterMaterialName')
+                )
               }
               getSubtitle={(row) => row.item?.materialCode || undefined}
               hasError={(row) =>

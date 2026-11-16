@@ -69,7 +69,7 @@ const MR_DETAIL_INCLUDE = {
   convertedToPo: { select: { id: true, poNumber: true } },
   lineItems: {
     include: {
-      material: { select: { id: true, name: true, uom: true } },
+      material: { select: { id: true, name: true, uom: true, imageUrl: true } },
       deliveryLocation: { select: { id: true, label: true, address: true } },
     },
   },
@@ -1171,6 +1171,7 @@ export class MaterialRequestsService {
         id: li.id,
         materialId: li.materialId,
         materialName: li.material?.name ?? li.materialName,
+        imageUrl: li.material?.imageUrl ?? null,
         description: li.description,
         quantity: li.quantity,
         unit: li.unit,

@@ -1,7 +1,7 @@
 import type { InvoiceDetail, InvoicePoInfoResult } from '@forethread/api-client';
 import { InvoicePoTab } from '@forethread/invoice-shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -250,5 +250,45 @@ describe('InvoicePoTab (FOR-355)', () => {
 
     expect(await screen.findByTestId('invoice-po-comparison')).toBeInTheDocument();
     expect(screen.queryByTestId('invoice-po-tab-unsaved')).not.toBeInTheDocument();
+  });
+
+  it('shows the catalogue image on the PO side of a compared line (FOR-402)', async () => {
+    const info = makePoInfo();
+    const poLine = {
+      id: 'pl-1',
+      lineNumber: 1,
+      materialCode: 'AB-6061',
+      description: 'Aluminum Beam 6061',
+      quantityOrdered: 10,
+      quantityDelivered: 6,
+      unitOfMeasure: 'EA',
+      unitPrice: 11,
+      lineTotal: 110,
+      costCode: null,
+    };
+    mockGetInvoicePoInfo.mockResolvedValue({
+      ...info,
+      match: {
+        ...info.match,
+        poLines: [
+          { ...poLine, imageUrl: 'https://cdn.example/beam.png' },
+          { ...poLine, id: 'pl-2', lineNumber: 2, description: 'Free-text line', imageUrl: null },
+        ],
+      },
+    });
+
+    render(<InvoicePoTab invoice={makeInvoice()} />, { wrapper });
+
+    const table = await screen.findByTestId('invoice-po-comparison-rows');
+    expect(within(table).getByRole('img', { name: 'Aluminum Beam 6061' })).toHaveAttribute(
+      'src',
+      'https://cdn.example/beam.png',
+    );
+    // One thumbnail in the table and one in the narrow cards — none for the
+    // line whose material has no image.
+    expect(within(table).getAllByTestId('material-image-thumb')).toHaveLength(1);
+    const cards = screen.getByTestId('invoice-po-comparison-cards');
+    expect(within(cards).getAllByTestId('material-image-thumb')).toHaveLength(1);
+    expect(within(table).getByText('Free-text line')).toBeInTheDocument();
   });
 });

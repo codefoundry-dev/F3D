@@ -30,6 +30,22 @@ function li(overrides: Partial<MrLineItemDetail>): MrLineItemDetail {
 }
 
 describe('MrLineItemsTable', () => {
+  it('shows the catalogue image next to the material name when present (FOR-402)', () => {
+    render(
+      <MrLineItemsTable
+        lineItems={[
+          li({ imageUrl: 'https://cdn.test/lumber.png' }),
+          li({ id: 'line-2', materialName: 'Loose item', imageUrl: null }),
+        ]}
+      />,
+    );
+    const images = screen.getAllByRole('img');
+    expect(images).toHaveLength(1);
+    expect(images[0]).toHaveAttribute('src', 'https://cdn.test/lumber.png');
+    expect(images[0]).toHaveAttribute('alt', '2x4 Lumber');
+    expect(screen.getByText('Loose item')).toBeInTheDocument();
+  });
+
   it('renders an empty message when there are no line items', () => {
     render(<MrLineItemsTable lineItems={[]} />);
     expect(screen.getByText('detail.noLineItems')).toBeInTheDocument();

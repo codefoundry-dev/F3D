@@ -137,4 +137,63 @@ describe('PoChangeDiff', () => {
     expect(screen.queryByText('notes')).not.toBeInTheDocument();
     expect(screen.queryByText('expectedDeliveryDate')).not.toBeInTheDocument();
   });
+
+  describe('catalogue images (FOR-402)', () => {
+    const changed: PoChangedFields = {
+      lineItems: [
+        {
+          lineItemId: 'li-1',
+          name: 'Aluminum Beam 6061',
+          changes: { unitPrice: { from: 30, to: 10 } },
+        },
+      ],
+      removedLineItems: [{ lineItemId: 'li-2', name: 'Copper Wire' }],
+      addedLineItems: [
+        {
+          name: 'Steel Bolt M10',
+          materialId: 'mat-9',
+          quantityOrdered: 4,
+          unitOfMeasure: 'EA',
+          unitPrice: 2,
+        },
+      ],
+    };
+
+    it('shows the image of changed and removed lines, looked up by lineItemId', () => {
+      render(
+        <PoChangeDiff
+          changedFields={changed}
+          poLineItems={[
+            { id: 'li-1', imageUrl: 'https://cdn.example/beam.png' },
+            { id: 'li-2', imageUrl: 'https://cdn.example/wire.png' },
+          ]}
+        />,
+      );
+      expect(screen.getByRole('img', { name: 'Aluminum Beam 6061' })).toHaveAttribute(
+        'src',
+        'https://cdn.example/beam.png',
+      );
+      expect(screen.getByRole('img', { name: 'Copper Wire' })).toHaveAttribute(
+        'src',
+        'https://cdn.example/wire.png',
+      );
+      // Added lines are not on the PO yet, so they have no image to look up.
+      expect(screen.getAllByTestId('material-image-thumb')).toHaveLength(2);
+    });
+
+    it('renders no image without PO lines, or for lines whose material has none', () => {
+      const { rerender } = render(<PoChangeDiff changedFields={changed} />);
+      expect(screen.queryByTestId('material-image-thumb')).not.toBeInTheDocument();
+
+      rerender(
+        <PoChangeDiff
+          changedFields={changed}
+          poLineItems={[{ id: 'li-1', imageUrl: null }, { id: 'li-2' }]}
+        />,
+      );
+      expect(screen.queryByTestId('material-image-thumb')).not.toBeInTheDocument();
+      expect(screen.getByText('Aluminum Beam 6061')).toBeInTheDocument();
+      expect(screen.getByText('Copper Wire')).toBeInTheDocument();
+    });
+  });
 });

@@ -79,6 +79,32 @@ function matchCellText(row: BomDraftRow, t: TFn): { text: string; muted: boolean
   return { text: t('create.select'), muted: true };
 }
 
+/** Catalogue image of whichever material `matchCellText` names, if it has one. */
+function matchCellImageUrl(row: BomDraftRow): string | null {
+  if (row.matchedMaterialName) return row.matchedImageUrl ?? null;
+  return row.candidates[0]?.imageUrl ?? null;
+}
+
+/**
+ * Catalogue image beside the matched material name (FOR-402). A plain image
+ * rather than a link because it sits inside the match button; renders nothing
+ * without a URL or when the image fails to load.
+ */
+function MatchThumb({ url, name }: { url: string | null; name: string }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  if (!url || failedUrl === url) return null;
+  return (
+    <img
+      src={url}
+      alt={name}
+      loading="lazy"
+      onError={() => setFailedUrl(url)}
+      className="h-7 w-7 shrink-0 rounded border border-border object-cover"
+      data-testid="bom-match-thumb"
+    />
+  );
+}
+
 interface MatchCellProps {
   index: number;
   row: BomDraftRow;
@@ -107,8 +133,11 @@ function MatchCell({ index, row, open, onOpen, onClose, onPick, onCreateNew, t }
         data-testid={`bom-match-cell-${index}`}
         className="flex w-full items-center justify-between gap-1 h-9 px-2 text-sm text-left hover:bg-muted/40 rounded"
       >
-        <span className={cn('truncate', muted ? 'text-muted-foreground' : 'text-foreground')}>
-          {text}
+        <span className="flex min-w-0 items-center gap-2">
+          <MatchThumb url={matchCellImageUrl(row)} name={text} />
+          <span className={cn('truncate', muted ? 'text-muted-foreground' : 'text-foreground')}>
+            {text}
+          </span>
         </span>
         <ChevronDownIcon className="w-4 h-4 shrink-0 text-muted-foreground" />
       </button>
@@ -205,6 +234,8 @@ export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomRev
     updateRow(index, {
       matchedMaterialId: material.id,
       matchedMaterialName: material.name,
+      // Display only (see BomDraftRow.matchedImageUrl).
+      matchedImageUrl: material.imageUrl ?? candidate?.imageUrl ?? null,
       // Confirming a scored suggestion keeps its score; a fresh pick is the
       // human's call ("Manual").
       matchConfidence: candidate?.confidence ?? null,
@@ -505,6 +536,7 @@ export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomRev
             updateRow(createMaterialRow, {
               matchedMaterialId: material.id,
               matchedMaterialName: material.name,
+              matchedImageUrl: material.imageUrl ?? null,
               matchConfidence: null,
               uom: firstNonEmpty(rows[createMaterialRow].uom, material.unitOfMeasure),
               // The newly created material defines the line, so its category /

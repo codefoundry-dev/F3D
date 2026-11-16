@@ -15,12 +15,14 @@ import { useState } from 'react';
 
 import { hasAnyChange } from '../utils/change-diff';
 
-import { PoChangeDiff } from './PoChangeDiff';
+import { PoChangeDiff, type PoChangeDiffLine } from './PoChangeDiff';
 
 interface PoChangeRequestTabProps {
   poId: string;
   /** The pending change request to render (status PENDING). */
   changeRequest: PoChangeRequest;
+  /** The PO's current lines, so the diff can show catalogue images (FOR-402). */
+  poLineItems?: PoChangeDiffLine[];
   /** Resolve deliveryLocationId → label for the diff. */
   locationOptions?: { value: string; label: string }[];
   /**
@@ -51,6 +53,7 @@ interface PoChangeRequestTabProps {
 export function PoChangeRequestTab({
   poId,
   changeRequest,
+  poLineItems,
   locationOptions,
   currentUserName,
   readOnly,
@@ -137,6 +140,7 @@ export function PoChangeRequestTab({
         {hasChanges ? (
           <PoChangeDiff
             changedFields={changeRequest.changedFields}
+            poLineItems={poLineItems}
             locationOptions={locationOptions}
             lineItemsAsCards
           />

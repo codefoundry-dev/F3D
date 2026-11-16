@@ -20,6 +20,29 @@ interface MaterialSearchPopupProps {
   inline?: boolean;
 }
 
+/** Result thumbnail: the catalogue image, or the grey placeholder when the
+ * material has none or the image fails to load. */
+function ResultThumb({ url, name }: { url?: string | null; name: string }) {
+  const [failed, setFailed] = useState(false);
+  if (url && !failed) {
+    return (
+      <img
+        src={url}
+        alt={name}
+        loading="lazy"
+        onError={() => setFailed(true)}
+        className="w-12 h-12 rounded-lg object-cover border border-border shrink-0"
+        data-testid="material-result-image"
+      />
+    );
+  }
+  return (
+    <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center shrink-0">
+      <div className="w-4 h-5 bg-muted-foreground/30 rounded-sm" />
+    </div>
+  );
+}
+
 export function MaterialSearchPopup({
   open,
   onClose,
@@ -185,9 +208,7 @@ export function MaterialSearchPopup({
               close();
             }}
           >
-            <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center shrink-0">
-              <div className="w-4 h-5 bg-muted-foreground/30 rounded-sm" />
-            </div>
+            <ResultThumb url={material.imageUrl} name={material.name} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-foreground">{material.name}</span>

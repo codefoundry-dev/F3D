@@ -105,6 +105,20 @@ describe('deriveApprovedQuoteResponses', () => {
     expect(response.lineItems[1].description).toBe(''); // null coerced to empty
   });
 
+  it('carries the RFQ line catalogue image for the preview, null when absent (FOR-402)', () => {
+    const base = makeRfq();
+    const [response] = deriveApprovedQuoteResponses(
+      makeRfq({
+        lineItems: [
+          { ...base.lineItems[0], imageUrl: 'https://cdn.test/beam.png' },
+          base.lineItems[1],
+        ],
+      }),
+    );
+    expect(response.lineItems[0].imageUrl).toBe('https://cdn.test/beam.png');
+    expect(response.lineItems[1].imageUrl).toBeNull();
+  });
+
   it('falls back to the RFQ name when rfqNumber is null', () => {
     const [response] = deriveApprovedQuoteResponses(makeRfq({ rfqNumber: null }));
     expect(response.rfqReference).toBe('Alpha RFQ');

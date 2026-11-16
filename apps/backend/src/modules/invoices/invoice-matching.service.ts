@@ -50,6 +50,8 @@ type PoWithLines = {
     unitPrice: { toNumber(): number };
     lineTotal: { toNumber(): number };
     costCode: string | null;
+    /** Optional so hand-built fixtures without the relation still type-check. */
+    material?: { imageUrl: string | null } | null;
   }[];
 };
 
@@ -80,6 +82,7 @@ const PO_SELECT = {
       unitPrice: true,
       lineTotal: true,
       costCode: true,
+      material: { select: { imageUrl: true } },
     },
   },
 };
@@ -523,6 +526,7 @@ function toPoLineDto(line: PoWithLines['lineItems'][number]): InvoicePoMatchPoLi
     lineNumber: line.lineNumber,
     materialCode: line.materialCode,
     description: line.description,
+    imageUrl: line.material?.imageUrl ?? null,
     quantityOrdered: line.quantityOrdered,
     quantityDelivered: line.quantityDelivered,
     unitOfMeasure: line.unitOfMeasure,

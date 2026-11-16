@@ -205,6 +205,20 @@ describe('buildCreateInput', () => {
     expect(input.lineItems[0].deliveryTime).toBeUndefined();
   });
 
+  it('never sends the display-only catalogue image (FOR-402)', () => {
+    const input = buildCreateInput({
+      projectId: 'p',
+      lines: [
+        makeLine({ materialId: 'mat-1', imageUrl: 'https://cdn.test/a.png' }),
+        makeLine({ source: 'MANUAL', materialId: undefined, imageUrl: null }),
+      ],
+    });
+    for (const lineItem of input.lineItems) {
+      expect(lineItem).not.toHaveProperty('imageUrl');
+    }
+    expect(JSON.stringify(input)).not.toContain('imageUrl');
+  });
+
   it('honours submit:false for a draft', () => {
     const input = buildCreateInput({ projectId: 'p', lines: [makeLine()] }, { submit: false });
     expect(input.submit).toBe(false);

@@ -9,6 +9,8 @@ export interface BomItemResponse {
   materialName: string;
   matchedMaterialId: string;
   matchedMaterialName: string | null;
+  /** Catalogue image of the matched material, or null. */
+  imageUrl: string | null;
   description: string | null;
   uom: string | null;
   quantity: number | null;
@@ -60,6 +62,7 @@ export function toBomDetailResponse(bom: BomWithItems): BomDetailResponse {
       materialName: item.materialName,
       matchedMaterialId: item.matchedMaterialId,
       matchedMaterialName: item.matchedMaterial?.name ?? null,
+      imageUrl: item.matchedMaterial?.imageUrl ?? null,
       description: item.description,
       uom: item.uom,
       quantity: item.quantity === null ? null : Number(item.quantity),

@@ -1,7 +1,6 @@
 import { useTranslation } from '@forethread/i18n';
 import { useDebounce } from '@forethread/ui-components';
 import CheckmarkIcon from '@forethread/ui-components/assets/icons/checkmark.svg?react';
-import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
 import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
 import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
 import { useMemo, useState } from 'react';
@@ -14,6 +13,7 @@ import {
 import { nextLineKey, type MrWizardLine } from '../wizard/wizard-types';
 
 import { ManualLineItems } from './ManualLineItems';
+import { MaterialThumb } from './MaterialThumb';
 import { NewMaterialModal, type NewMaterialDraft } from './NewMaterialModal';
 
 type SourceTab = 'BOM' | 'CATALOG' | 'MANUAL';
@@ -42,6 +42,8 @@ interface PickRow {
   sku?: string;
   unit: string;
   description?: string;
+  /** Catalogue image of the material, when it has one. */
+  imageUrl?: string | null;
   source: 'CATALOG' | 'BOM';
 }
 
@@ -87,9 +89,7 @@ function PickableRow({
       aria-pressed={selected}
       className="flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-accent/50"
     >
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-        <PackageIcon className="size-4" />
-      </span>
+      <MaterialThumb url={row.imageUrl} alt={row.name} className="size-10 rounded-md" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium text-foreground">{row.name}</span>
         {row.sku ? (
@@ -157,6 +157,7 @@ export function StepSelectMaterials({
         name: m.name,
         unit: m.uom ?? 'Each',
         description: m.description ?? undefined,
+        imageUrl: m.imageUrl,
         source: 'CATALOG' as const,
       })),
     [suggestionsQuery.data],
@@ -173,6 +174,7 @@ export function StepSelectMaterials({
         name: it.materialName,
         unit: it.uom ?? 'Each',
         description: it.description ?? undefined,
+        imageUrl: it.imageUrl,
         source: 'BOM' as const,
       }));
   }, [bomDetailQuery.data, debouncedSearch]);
@@ -193,6 +195,7 @@ export function StepSelectMaterials({
       materialName: row.name,
       description: row.description,
       sku: row.sku,
+      imageUrl: row.imageUrl,
       unit: row.unit,
       quantity: 0,
       priority: 'STANDARD',

@@ -10,6 +10,7 @@ import {
   isApiError,
 } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import { DeliveryOutcome } from '@forethread/shared-types/client';
 import type { DeliveryPortalPoResponse } from '@forethread/shared-types/client';
 import {
@@ -726,9 +727,12 @@ function ReportFormStep({
                   key={l.id}
                   className="flex items-center justify-between gap-3 rounded-xl border border-black/10 p-3"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-foreground">{l.materialName}</p>
-                    <p className="truncate text-xs text-muted-foreground">{l.lineItemRef}</p>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <MaterialImageThumb url={l.imageUrl} name={l.materialName} />
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-foreground">{l.materialName}</p>
+                      <p className="truncate text-xs text-muted-foreground">{l.lineItemRef}</p>
+                    </div>
                   </div>
                   <span className="whitespace-nowrap text-sm text-muted-foreground">
                     {l.quantityOrdered} {l.uom}

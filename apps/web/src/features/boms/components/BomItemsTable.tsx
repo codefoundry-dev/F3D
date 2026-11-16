@@ -1,5 +1,6 @@
 import type { BomItemDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import { Badge, ScrollTable } from '@forethread/ui-components';
 
 type TFn = (key: string, options?: Record<string, unknown>) => string;
@@ -55,7 +56,12 @@ export function BomItemsTable({ items }: { items: BomItemDto[] }) {
                 className="border-t border-border"
                 data-testid={`bom-item-${item.id}`}
               >
-                <td className={td}>{item.materialName}</td>
+                <td className={td}>
+                  <span className="flex items-center gap-2">
+                    <MaterialImageThumb url={item.imageUrl} name={item.materialName} />
+                    {item.materialName}
+                  </span>
+                </td>
                 <td className={td}>{item.matchedMaterialName ?? '—'}</td>
                 <td className={`${td} text-muted-foreground`}>{item.description ?? '—'}</td>
                 <td className={td}>{item.uom ?? '—'}</td>

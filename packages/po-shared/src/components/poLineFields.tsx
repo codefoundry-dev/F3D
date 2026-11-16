@@ -1,4 +1,5 @@
 import { type useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import {
   CustomDropdown,
   DatePicker,
@@ -79,6 +80,7 @@ function applyMaterialToRow(
 ) {
   setValue(`lineItems.${index}.materialName`, mat.name);
   setValue(`lineItems.${index}.materialId`, mat.id);
+  setValue(`lineItems.${index}.imageUrl`, mat.imageUrl ?? undefined);
   setValue(`lineItems.${index}.materialCode`, mat.sku ?? '');
   setValue(`lineItems.${index}.costCode`, mat.costCode ?? '');
   setValue(`lineItems.${index}.upc`, mat.upc ?? '');
@@ -136,7 +138,12 @@ export function buildPoLineFields(ctx: PoLineFieldsContext): PoLineField[] {
       required: true,
       input: ({ index, item, isFilled }) => {
         if (isFilled) {
-          return <span className="text-sm text-foreground px-2">{item?.materialName}</span>;
+          return (
+            <span className="flex items-center gap-2 text-sm text-foreground px-2">
+              <MaterialImageThumb url={item?.imageUrl} name={item?.materialName ?? ''} />
+              {item?.materialName}
+            </span>
+          );
         }
         // FOR-274 parity with the RFQ manual row: the cell popup is single-pick —
         // clicking anywhere on a result row links the material to the line.

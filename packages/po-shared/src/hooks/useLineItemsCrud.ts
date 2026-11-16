@@ -108,6 +108,7 @@ export function useLineItemsCrud({
         const mat = mats[0];
         setValue(`lineItems.${lastIdx}.materialName`, mat.name);
         setValue(`lineItems.${lastIdx}.materialId`, mat.id);
+        setValue(`lineItems.${lastIdx}.imageUrl`, mat.imageUrl ?? undefined);
         setValue(`lineItems.${lastIdx}.materialCode`, mat.sku ?? '');
         setValue(`lineItems.${lastIdx}.costCode`, mat.costCode ?? '');
         setValue(`lineItems.${lastIdx}.upc`, mat.upc ?? '');
@@ -123,6 +124,7 @@ export function useLineItemsCrud({
           ...EMPTY_LINE_ITEM,
           materialName: mat.name,
           materialId: mat.id,
+          imageUrl: mat.imageUrl ?? undefined,
           materialCode: mat.sku ?? '',
           costCode: mat.costCode ?? '',
           upc: mat.upc ?? '',

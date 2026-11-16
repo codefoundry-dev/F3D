@@ -34,6 +34,9 @@ export interface MrWizardLine {
   description?: string;
   /** Display SKU (catalogue lines only) — never sent to the API. */
   sku?: string;
+  /** Catalogue image of the linked material — display only, never sent to the
+   * API (`toLineInput` builds the payload field by field). */
+  imageUrl?: string | null;
   /** Unit of measure (e.g. pcs, Each, Box). */
   unit: string;
   /** Quantity needed — 0 until the foreman fills it on step 2. */

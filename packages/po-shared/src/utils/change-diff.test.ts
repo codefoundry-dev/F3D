@@ -176,6 +176,28 @@ describe('computePoChangedFields', () => {
     expect(deriveChangeType(diff)).toBe('COMMERCIAL');
   });
 
+  it('keeps the display-only imageUrl out of the payload (FOR-402)', () => {
+    const po = makePo();
+    po.lineItems[0].imageUrl = 'https://cdn.example/beam.png';
+    const form = makeForm(po);
+    form.lineItems[0].imageUrl = 'https://cdn.example/beam.png';
+    form.lineItems[0].unitPrice = 10;
+    form.lineItems.push({
+      ...EMPTY_LINE_ITEM,
+      materialName: 'New Material',
+      materialId: 'mat-9',
+      imageUrl: 'https://cdn.example/new.png',
+      unitOfMeasure: 'EA',
+      unitPrice: 5,
+      quantityOrdered: 2,
+    });
+    const diff = computePoChangedFields(form, po);
+    expect(diff.lineItems).toHaveLength(1);
+    expect(diff.addedLineItems).toHaveLength(1);
+    expect(diff.addedLineItems?.[0]).not.toHaveProperty('imageUrl');
+    expect(JSON.stringify(diff)).not.toContain('imageUrl');
+  });
+
   it('skips incomplete added rows (the wizard blank trailing row)', () => {
     const po = makePo();
     const form = makeForm(po);

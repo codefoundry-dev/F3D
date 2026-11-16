@@ -291,6 +291,7 @@ export default function PurchaseOrderDetailPage() {
             <PoChangeRequestTab
               poId={po.id}
               changeRequest={pendingCr}
+              poLineItems={po.lineItems}
               locationOptions={locationOptions}
               currentUserName={currentUser?.name}
             />
@@ -320,6 +321,7 @@ export default function PurchaseOrderDetailPage() {
             logs={actionLogs}
             isLoading={isLoadingLog}
             changeRequests={changeRequests ?? []}
+            poLineItems={po.lineItems}
             locationOptions={locationOptions}
           />
         )}

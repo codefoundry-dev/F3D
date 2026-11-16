@@ -1,5 +1,5 @@
 import type { DeliveryPortalPoResponse } from '@forethread/shared-types/client';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -349,12 +349,51 @@ describe('PublicDeliveryPage', () => {
 
     const sheet = await screen.findByTestId('portal-po-details');
     expect(sheet).toHaveTextContent('PO-2024-001');
+    // The default line has no catalogue image, so no thumbnail (FOR-402).
+    expect(within(sheet).queryByTestId('material-image-thumb')).not.toBeInTheDocument();
     expect(sheet).toHaveTextContent('Downtown');
     expect(sheet).toHaveTextContent('BuildSupply');
 
     // Closing dismisses it.
     fireEvent.click(screen.getByTestId('portal-po-details-close'));
     expect(screen.queryByTestId('portal-po-details')).not.toBeInTheDocument();
+  });
+
+  it('shows catalogue images in the PO details sheet (FOR-402)', async () => {
+    const base = poResponse();
+    mockUseQuery.mockReturnValue({
+      data: poResponse({
+        lines: [{ ...base.lines[0], imageUrl: 'https://cdn.example/steel-beams.png' }],
+      }),
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+    render(<PublicDeliveryPage />);
+    fireEvent.change(screen.getByTestId('portal-identify-name'), { target: { value: 'Alex' } });
+    fireEvent.change(screen.getByTestId('portal-identify-email'), {
+      target: { value: 'alex@example.com' },
+    });
+    fireEvent.click(screen.getByTestId('portal-identify-submit'));
+    await screen.findByText('portal.code.title');
+    for (let i = 0; i < 6; i++) {
+      fireEvent.change(screen.getByTestId(`portal-code-digit-${i}`), { target: { value: '1' } });
+    }
+    fireEvent.click(screen.getByTestId('portal-code-verify'));
+    await screen.findByTestId('portal-submit');
+    fireEvent.click(screen.getByTestId('portal-view-po'));
+
+    const sheet = await screen.findByTestId('portal-po-details');
+    expect(within(sheet).getByRole('img', { name: 'Steel Beams 6m' })).toHaveAttribute(
+      'src',
+      'https://cdn.example/steel-beams.png',
+    );
+
+    // Display only: the submitted report carries no imageUrl.
+    fireEvent.click(screen.getByTestId('portal-po-details-close'));
+    fireEvent.click(screen.getByTestId('portal-submit'));
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalled());
+    expect(JSON.stringify(mockSubmit.mock.calls[0])).not.toContain('imageUrl');
   });
 
   it('renders the locked-link error on a 429 (FOR-386)', () => {

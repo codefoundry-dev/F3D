@@ -4,7 +4,7 @@ import { Badge, Spinner, formatAuditAction, formatDateTime } from '@forethread/u
 import CheckCircleIcon from '@forethread/ui-components/assets/icons/checkcircle-icon.svg?react';
 import ClockIcon from '@forethread/ui-components/assets/icons/clock.svg?react';
 
-import { PoChangeDiff } from './PoChangeDiff';
+import { PoChangeDiff, type PoChangeDiffLine } from './PoChangeDiff';
 
 export interface PoActionLogEntry {
   id: string;
@@ -23,6 +23,8 @@ interface PoActionLogTabProps {
    * there is no PO-scoped audit feed in api-client.
    */
   changeRequests?: PoChangeRequest[];
+  /** The PO's current lines, so the diffs can show catalogue images (FOR-402). */
+  poLineItems?: PoChangeDiffLine[];
   /** Resolve deliveryLocationId → label for the diff. */
   locationOptions?: { value: string; label: string }[];
   isLoading?: boolean;
@@ -31,6 +33,7 @@ interface PoActionLogTabProps {
 export function PoActionLogTab({
   logs,
   changeRequests = [],
+  poLineItems,
   locationOptions,
   isLoading,
 }: PoActionLogTabProps) {
@@ -110,6 +113,7 @@ export function PoActionLogTab({
 
                   <PoChangeDiff
                     changedFields={cr.changedFields}
+                    poLineItems={poLineItems}
                     locationOptions={locationOptions}
                   />
 

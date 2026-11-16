@@ -37,6 +37,27 @@ function line(overrides: Partial<MrWizardLine> = {}): MrWizardLine {
 }
 
 describe('StepReview', () => {
+  it('shows the catalogue image when a line has one, else the glyph (FOR-402)', () => {
+    render(
+      <StepReview
+        jobCode="JOB-1"
+        projectName="Site A"
+        lines={[
+          line({ imageUrl: 'https://cdn.test/rebar.png' }),
+          line({ key: 'k2', materialName: 'Plywood', imageUrl: null }),
+        ]}
+        onEditLine={vi.fn()}
+        onDeleteLine={vi.fn()}
+        onAddMore={vi.fn()}
+      />,
+    );
+    const images = screen.getAllByTestId('mr-material-thumb');
+    expect(images).toHaveLength(1);
+    expect(images[0]).toHaveAttribute('src', 'https://cdn.test/rebar.png');
+    expect(images[0]).toHaveAttribute('alt', 'Steel Rebar #4');
+    expect(screen.getAllByTestId('mr-review-item')).toHaveLength(2);
+  });
+
   it('renders the empty state with no lines', () => {
     render(
       <StepReview

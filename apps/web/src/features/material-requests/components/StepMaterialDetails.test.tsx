@@ -151,6 +151,50 @@ const MEMBERS = [
 ];
 
 describe('StepMaterialDetails', () => {
+  it('shows the catalogue image next to the material name when the line has one (FOR-402)', () => {
+    render(
+      <StepMaterialDetails
+        lines={[
+          line({ imageUrl: 'https://cdn.test/rebar.png' }),
+          line({ key: 'k2', materialName: 'Plywood', imageUrl: null }),
+        ]}
+        errors={{}}
+        locationOptions={LOCATIONS}
+        memberOptions={MEMBERS}
+        onPatchLine={vi.fn()}
+      />,
+    );
+    const images = screen.getAllByRole('img');
+    expect(images).toHaveLength(1);
+    expect(images[0]).toHaveAttribute('src', 'https://cdn.test/rebar.png');
+    expect(images[0]).toHaveAttribute('alt', 'Steel Rebar #4');
+    expect(screen.getByText('Plywood')).toBeInTheDocument();
+  });
+
+  it('shows the catalogue image in the phone card title (FOR-402)', () => {
+    phone.value = true;
+    try {
+      render(
+        <StepMaterialDetails
+          lines={[
+            line({ imageUrl: 'https://cdn.test/rebar.png' }),
+            line({ key: 'k2', materialName: 'Plywood' }),
+          ]}
+          errors={{}}
+          locationOptions={LOCATIONS}
+          memberOptions={MEMBERS}
+          onPatchLine={vi.fn()}
+        />,
+      );
+      const images = screen.getAllByTestId('mr-material-thumb');
+      expect(images).toHaveLength(1);
+      expect(images[0]).toHaveAttribute('src', 'https://cdn.test/rebar.png');
+      expect(screen.getByText('Plywood')).toBeInTheDocument();
+    } finally {
+      phone.value = false;
+    }
+  });
+
   it('renders a table row per line with the material name', () => {
     render(
       <StepMaterialDetails

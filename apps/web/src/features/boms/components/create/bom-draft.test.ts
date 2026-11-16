@@ -4,6 +4,7 @@ import {
   emptyRow,
   isRowEmpty,
   realRows,
+  rowsFromBomItems,
   rowsFromExtraction,
   rowsToBomResult,
   rowsToCreateItems,
@@ -250,6 +251,69 @@ describe('bom-draft', () => {
       quantity: undefined,
       sortOrder: 1,
     });
+  });
+
+  it('carries the matched candidate image onto the row for display (FOR-402)', () => {
+    const rows = rowsFromExtraction({
+      ...extraction,
+      items: [
+        {
+          ...extraction.items[0],
+          matchCandidates: [
+            { ...extraction.items[0].matchCandidates[0], imageUrl: 'https://cdn.test/cement.png' },
+          ],
+        },
+        extraction.items[1],
+      ],
+    });
+    expect(rows[0].matchedImageUrl).toBe('https://cdn.test/cement.png');
+    expect(rows[1].matchedImageUrl).toBeNull();
+  });
+
+  it('carries a saved BOM item image onto the edit row (FOR-402)', () => {
+    const rows = rowsFromBomItems([
+      {
+        id: 'i1',
+        materialName: 'Cement',
+        matchedMaterialId: 'mat-1',
+        matchedMaterialName: 'Portland Cement Type I',
+        imageUrl: 'https://cdn.test/cement.png',
+        description: null,
+        uom: 'bag',
+        quantity: 5,
+        category: null,
+        materialType: null,
+        matchConfidence: null,
+        sortOrder: 0,
+      },
+      {
+        id: 'i2',
+        materialName: 'Sand',
+        matchedMaterialId: 'mat-2',
+        matchedMaterialName: 'Sand',
+        description: null,
+        uom: null,
+        quantity: null,
+        category: null,
+        materialType: null,
+        matchConfidence: null,
+        sortOrder: 1,
+      },
+    ]);
+    expect(rows[0].matchedImageUrl).toBe('https://cdn.test/cement.png');
+    expect(rows[1].matchedImageUrl).toBeNull();
+  });
+
+  it('never sends the display-only image in the create / update payload (FOR-402)', () => {
+    const rows = [matchedRow({ matchedImageUrl: 'https://cdn.test/cement.png' })];
+    const items = rowsToCreateItems(rows);
+    expect(items[0]).not.toHaveProperty('matchedImageUrl');
+    expect(items[0]).not.toHaveProperty('imageUrl');
+    expect(JSON.stringify(items)).not.toContain('cdn.test');
+
+    const result = rowsToBomResult(rows, extraction);
+    expect(result.items[0]).not.toHaveProperty('matchedImageUrl');
+    expect(result.items[0]).not.toHaveProperty('imageUrl');
   });
 
   it('round-trips rows into the canonical extraction result for confirmation', () => {

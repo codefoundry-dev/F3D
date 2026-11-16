@@ -43,6 +43,8 @@ export interface BomItemDto {
   materialName: string;
   matchedMaterialId: string;
   matchedMaterialName: string | null;
+  /** Catalogue image of the matched material, or null. */
+  imageUrl?: string | null;
   description: string | null;
   uom: string | null;
   quantity: number | null;

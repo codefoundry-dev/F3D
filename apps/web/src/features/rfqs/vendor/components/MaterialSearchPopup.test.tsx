@@ -8,6 +8,7 @@ const mockMaterials = vi.hoisted(() => ({
       unitOfMeasure: string;
       categoryName?: string;
       description?: string;
+      imageUrl?: string | null;
     }>,
   },
 }));
@@ -128,6 +129,33 @@ describe('MaterialSearchPopup', () => {
     expect(screen.getByText('Steel Beam')).toBeInTheDocument();
     expect(screen.getByText('Copper Wire')).toBeInTheDocument();
     expect(screen.getByText('pcs')).toBeInTheDocument();
+  });
+
+  it('shows the catalogue image of a result that has one and the placeholder otherwise (FOR-402)', () => {
+    mockMaterials.value = {
+      items: [
+        {
+          id: 'm-1',
+          name: 'Steel Beam',
+          unitOfMeasure: 'pcs',
+          imageUrl: 'https://cdn.test/beam.jpg',
+        },
+        { id: 'm-2', name: 'Copper Wire', unitOfMeasure: 'm', imageUrl: null },
+        { id: 'm-3', name: 'Loose Bolt', unitOfMeasure: 'ea' },
+      ],
+    };
+    render(<MaterialSearchPopup open onClose={onClose} onSelect={onSelect} />);
+    const images = screen.getAllByTestId('material-result-image');
+    expect(images).toHaveLength(1);
+    expect(images[0]).toHaveAttribute('src', 'https://cdn.test/beam.jpg');
+    expect(images[0]).toHaveAttribute('alt', 'Steel Beam');
+    expect(screen.getByText('Copper Wire')).toBeInTheDocument();
+    expect(screen.getByText('Loose Bolt')).toBeInTheDocument();
+
+    // A broken image falls back to the placeholder instead of a broken glyph.
+    fireEvent.error(images[0]);
+    expect(screen.queryByTestId('material-result-image')).not.toBeInTheDocument();
+    expect(screen.getByText('Steel Beam')).toBeInTheDocument();
   });
 
   it('shows category badge for materials with categoryName', () => {

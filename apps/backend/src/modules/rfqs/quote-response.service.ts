@@ -70,9 +70,9 @@ export class QuoteResponseService {
       orderBy: QUOTE_LINE_ITEM_ORDER,
       include: {
         rfqLineItem: {
-          include: { material: { select: { id: true, name: true, uom: true } } },
+          include: { material: { select: { id: true, name: true, uom: true, imageUrl: true } } },
         },
-        substituteItem: { select: { id: true, name: true, uom: true } },
+        substituteItem: { select: { id: true, name: true, uom: true, imageUrl: true } },
       },
     },
     attachments: {
@@ -444,8 +444,12 @@ export class QuoteResponseService {
         lineItems: {
           orderBy: QUOTE_LINE_ITEM_ORDER,
           include: {
-            rfqLineItem: { include: { material: { select: { id: true, name: true, uom: true } } } },
-            substituteItem: { select: { id: true, name: true, uom: true } },
+            rfqLineItem: {
+              include: {
+                material: { select: { id: true, name: true, uom: true, imageUrl: true } },
+              },
+            },
+            substituteItem: { select: { id: true, name: true, uom: true, imageUrl: true } },
           },
         },
         attachments: {
@@ -598,7 +602,7 @@ export class QuoteResponseService {
           select: {
             id: true,
             materialName: true,
-            material: { select: { name: true } },
+            material: { select: { name: true, imageUrl: true } },
             quantity: true,
             unit: true,
             projectId: true,
@@ -666,6 +670,7 @@ export class QuoteResponseService {
         lineItems: rfq.lineItems.map((li) => ({
           id: li.id,
           materialName: li.materialName ?? li.material?.name ?? null,
+          imageUrl: li.material?.imageUrl ?? null,
           quantity: li.quantity,
           unit: li.unit,
           projectId: li.projectId,

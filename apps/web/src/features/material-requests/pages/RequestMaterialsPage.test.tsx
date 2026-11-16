@@ -24,6 +24,7 @@ vi.mock('@forethread/i18n', () => ({
 }));
 
 vi.mock('@forethread/rfq-shared', () => ({
+  MaterialImageThumb: () => null,
   usePageTitleStore: (selector: (s: { setTitle: () => void }) => unknown) =>
     selector({ setTitle: vi.fn() }),
 }));

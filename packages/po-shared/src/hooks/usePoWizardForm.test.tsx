@@ -121,6 +121,37 @@ describe('usePoWizardForm — drawdown payload (US 5.09)', () => {
     expect(captured.input?.lineItems[0].bulkOrderLineItemId).toBeUndefined();
   });
 
+  it('never sends the display-only imageUrl in the create or draft payload (FOR-402)', async () => {
+    const captured: Captured = { input: null };
+    const { hook } = setup('manual', undefined, captured);
+    setLineItems(hook, [
+      {
+        materialName: 'Steel',
+        materialId: 'mat-1',
+        imageUrl: 'https://cdn.example/steel.png',
+        unitOfMeasure: 'kg',
+        unitPrice: 5,
+        quantityOrdered: 10,
+      },
+    ]);
+
+    await act(async () => {
+      hook.result.current.onSubmit(hook.result.current.form.getValues());
+    });
+
+    expect(captured.input?.lineItems).toHaveLength(1);
+    expect(captured.input?.lineItems[0].materialId).toBe('mat-1');
+    expect(captured.input?.lineItems[0]).not.toHaveProperty('imageUrl');
+    expect(JSON.stringify(captured.input)).not.toContain('imageUrl');
+
+    captured.input = null;
+    await act(async () => {
+      hook.result.current.handleSaveDraft();
+    });
+    expect(captured.input).not.toBeNull();
+    expect(JSON.stringify(captured.input)).not.toContain('imageUrl');
+  });
+
   it('sends the edited terms & conditions, and omits them when never prefilled (FOR-398)', async () => {
     const line = { materialName: 'Steel', unitOfMeasure: 'kg', unitPrice: 5, quantityOrdered: 1 };
 
@@ -292,5 +323,32 @@ describe('usePoWizardForm — change mode (FLOW 3)', () => {
       from: '111',
       to: '999',
     });
+  });
+
+  it('never sends the display-only imageUrl in the change-request payload (FOR-402)', () => {
+    const { hook, onProposeChange } = setupChange();
+    act(() => {
+      // An existing line carrying its catalogue image, edited…
+      hook.result.current.form.setValue('lineItems.0.imageUrl', 'https://cdn.example/beam.png');
+      hook.result.current.form.setValue('lineItems.0.unitPrice', 12);
+      // …plus a line added in the editor from a catalogue pick.
+      hook.result.current.form.setValue('lineItems.1', {
+        ...EMPTY_LINE_ITEM,
+        materialName: 'Bolt',
+        materialId: 'mat-2',
+        imageUrl: 'https://cdn.example/bolt.png',
+        unitOfMeasure: 'EA',
+        unitPrice: 2,
+        quantityOrdered: 4,
+      });
+    });
+    act(() => hook.result.current.submitChange());
+
+    expect(onProposeChange).toHaveBeenCalledTimes(1);
+    const payload = onProposeChange.mock.calls[0][0];
+    expect(payload.changedFields.lineItems[0].changes.unitPrice).toEqual({ from: 30, to: 12 });
+    expect(payload.changedFields.addedLineItems[0].materialId).toBe('mat-2');
+    expect(payload.changedFields.addedLineItems[0]).not.toHaveProperty('imageUrl');
+    expect(JSON.stringify(payload)).not.toContain('imageUrl');
   });
 });

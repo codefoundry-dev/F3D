@@ -22,6 +22,9 @@ vi.mock('@forethread/i18n', () => ({
 }));
 vi.mock('@forethread/rfq-shared', () => ({
   usePageTitleStore: (sel: (s: { setTitle: () => void }) => unknown) => sel({ setTitle: () => {} }),
+  // Mirrors the real thumb: nothing without a URL.
+  MaterialImageThumb: ({ url, name }: { url?: string | null; name: string }) =>
+    url ? <img data-testid="material-image-thumb" src={url} alt={name} /> : null,
 }));
 vi.mock('@forethread/ui-components', () => ({
   // B7 (FOR-373): desktop layout in tests; PageActions renders its actions inline.
@@ -179,6 +182,30 @@ describe('DeliveryReportDetailPage', () => {
     expect(screen.getByText('Marcus Webb')).toBeInTheDocument();
     const table = screen.getByTestId('delivery-detail-table');
     expect(within(table).getByText('Aluminum Beam 6061')).toBeInTheDocument();
+  });
+
+  it('shows the catalogue image of a line that has one (FOR-402)', () => {
+    const base = detail();
+    mockUseDeliveryReport.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: detail({
+        lines: [
+          { ...base.lines[0], imageUrl: 'https://cdn.example/beam.png' },
+          { ...base.lines[0], id: 'rl-2', materialName: 'Copper Wire', imageUrl: null },
+        ],
+      }),
+    });
+    render(<DeliveryReportDetailPage />);
+    expect(
+      within(screen.getByTestId('delivery-detail-row-rl-1')).getByRole('img', {
+        name: 'Aluminum Beam 6061',
+      }),
+    ).toHaveAttribute('src', 'https://cdn.example/beam.png');
+    // A line without an image keeps its name and gets no thumbnail.
+    const plain = screen.getByTestId('delivery-detail-row-rl-2');
+    expect(within(plain).getByText('Copper Wire')).toBeInTheDocument();
+    expect(within(plain).queryByTestId('material-image-thumb')).not.toBeInTheDocument();
   });
 
   it('renders the expandable notes row', () => {

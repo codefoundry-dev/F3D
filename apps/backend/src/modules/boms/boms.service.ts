@@ -22,7 +22,7 @@ const bomDetailInclude = {
   ...bomListInclude,
   items: {
     orderBy: { sortOrder: 'asc' },
-    include: { matchedMaterial: { select: { id: true, name: true } } },
+    include: { matchedMaterial: { select: { id: true, name: true, imageUrl: true } } },
   },
 } satisfies Prisma.BomInclude;
 

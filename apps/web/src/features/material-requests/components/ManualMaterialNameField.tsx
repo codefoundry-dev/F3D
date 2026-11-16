@@ -1,11 +1,19 @@
 import type { MaterialSuggestionDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { useDebounce } from '@forethread/ui-components';
-import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
-import { useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import {
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import { createPortal } from 'react-dom';
 
 import { useMrMaterialSuggestionGroups } from '../services/material-requests.service';
+
+import { MaterialThumb } from './MaterialThumb';
 
 export interface ManualMaterialNameFieldProps {
   value: string;
@@ -19,33 +27,14 @@ export interface ManualMaterialNameFieldProps {
   invalid?: boolean;
   className?: string;
   testId?: string;
+  /** Shown before the input — the linked material's image on a committed row. */
+  leading?: ReactNode;
 }
 
 /** Popup width on desktop; clamped to the viewport on small screens. */
 const POPUP_WIDTH = 420;
 /** Minimum room below the input before the popup flips above it. */
 const POPUP_FLIP_HEIGHT = 280;
-
-/** Small square material thumbnail — image when present, else a box glyph. */
-function Thumb({ url, alt }: { url?: string | null; alt: string }) {
-  if (url) {
-    return (
-      <img
-        src={url}
-        alt={alt}
-        className="size-9 shrink-0 rounded-lg border border-border object-cover"
-      />
-    );
-  }
-  return (
-    <span
-      className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"
-      aria-hidden="true"
-    >
-      <PackageIcon className="size-4" />
-    </span>
-  );
-}
 
 function SuggestionRow({
   material,
@@ -67,7 +56,7 @@ function SuggestionRow({
       className="flex w-full items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover:bg-muted/50"
       data-testid={`mr-manual-suggestion-${material.id}`}
     >
-      <Thumb url={material.imageUrl} alt={material.name} />
+      <MaterialThumb url={material.imageUrl} alt={material.name} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
           <span className="truncate text-sm font-medium text-foreground" title={material.name}>
@@ -129,6 +118,7 @@ export function ManualMaterialNameField({
   invalid,
   className,
   testId,
+  leading,
 }: ManualMaterialNameFieldProps) {
   const { t } = useTranslation('materialRequests');
   const [open, setOpen] = useState(false);
@@ -177,8 +167,8 @@ export function ManualMaterialNameField({
   const recentlyUsed = suggestionsQuery.data?.recentlyUsed ?? [];
   const hasAnyContent = results.length > 0 || frequentlyUsed.length > 0 || recentlyUsed.length > 0;
 
-  return (
-    <div ref={anchorRef} className="relative min-w-0">
+  const field = (
+    <div ref={anchorRef} className="relative min-w-0 flex-1">
       <input
         value={value}
         onChange={(e) => {
@@ -251,6 +241,14 @@ export function ManualMaterialNameField({
           </div>,
           document.body,
         )}
+    </div>
+  );
+
+  if (!leading) return field;
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      {leading}
+      {field}
     </div>
   );
 }

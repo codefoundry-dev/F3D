@@ -1,3 +1,4 @@
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import type React from 'react';
 
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
@@ -6,6 +7,8 @@ import PlusInCircleIcon from '@forethread/ui-components/assets/icons/plus-in-cir
 interface ModalItemCardProps {
   id: string;
   name: string;
+  /** Catalogue image of the item's material, shown next to the name (FOR-402). */
+  imageUrl?: string | null;
   isSelected: boolean;
   isInTable: boolean;
   alreadyAddedLabel: string;
@@ -16,6 +19,7 @@ interface ModalItemCardProps {
 export function ModalItemCard({
   id,
   name,
+  imageUrl,
   isSelected,
   isInTable,
   alreadyAddedLabel,
@@ -33,7 +37,10 @@ export function ModalItemCard({
       }`}
     >
       {/* Item name */}
-      <p className="text-sm font-medium text-[hsl(var(--success))] mb-2">{name}</p>
+      <p className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--success))] mb-2">
+        <MaterialImageThumb url={imageUrl} name={name} />
+        {name}
+      </p>
 
       {/* Metadata */}
       <div className="flex items-center gap-6">{children}</div>

@@ -161,7 +161,16 @@ export function ResponseLineItemsTable({
           lines={lineItems}
           fields={[...sheetFields, substituteField, lineTotalField]}
           getKey={(item) => item.rfqLineItemId}
-          getTitle={(item) => item.substituteName ?? item.materialName}
+          getTitle={(item) => (
+            // Same rule as the desktop row: the requested material's image is
+            // hidden once a substitute is picked.
+            <span className="flex min-w-0 items-center gap-2">
+              {!item.substituteItemId && (
+                <MaterialImageThumb plain url={item.imageUrl} name={item.materialName} />
+              )}
+              <span className="min-w-0 truncate">{item.substituteName ?? item.materialName}</span>
+            </span>
+          )}
           getSubtitle={(item) =>
             `${t('response.reqQty')}: ${item.requestedQty} ${item.unit}` +
             (item.included ? '' : ` · ${t('response.noQuote')}`)

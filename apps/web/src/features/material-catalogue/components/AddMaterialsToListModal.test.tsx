@@ -1,6 +1,6 @@
 import * as apiClient from '@forethread/api-client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AddMaterialsToListModal } from './AddMaterialsToListModal';
@@ -75,6 +75,26 @@ describe('AddMaterialsToListModal', () => {
     expect(screen.getByTestId('add-materials-row-m-3')).toBeInTheDocument();
     // m-2 is already in the list, so it is filtered out of the browse view.
     expect(screen.queryByTestId('add-materials-row-m-2')).not.toBeInTheDocument();
+  });
+
+  it('shows the catalogue image on rows that have one, the glyph otherwise (FOR-402)', async () => {
+    mockedGetMaterials.mockResolvedValue(
+      materialsPage([{ imageUrl: 'https://cdn.test/cement.png' }, { imageUrl: null }]),
+    );
+    renderModal();
+
+    const withImage = await screen.findByTestId('add-materials-row-m-1');
+    const image = within(withImage).getByTestId('add-materials-row-image');
+    expect(image).toHaveAttribute('src', 'https://cdn.test/cement.png');
+    expect(image).toHaveAttribute('alt', 'Material 1');
+    expect(
+      within(screen.getByTestId('add-materials-row-m-2')).queryByTestId('add-materials-row-image'),
+    ).not.toBeInTheDocument();
+
+    // A broken image falls back to the glyph instead of a broken-image icon.
+    fireEvent.error(image);
+    expect(screen.queryByTestId('add-materials-row-image')).not.toBeInTheDocument();
+    expect(screen.getByTestId('add-materials-row-m-1')).toBeInTheDocument();
   });
 
   it('Submit is disabled until something is selected, then submits selected ids', async () => {

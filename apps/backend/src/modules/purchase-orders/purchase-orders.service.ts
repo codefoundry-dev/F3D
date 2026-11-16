@@ -277,7 +277,7 @@ export class PurchaseOrdersService {
           orderBy: { sequence: 'asc' },
           include: { deliveryLocation: { select: { label: true, address: true } } },
         },
-        lineItems: { include: { material: { select: { name: true } } } },
+        lineItems: { include: { material: { select: { name: true, imageUrl: true } } } },
         documents: {
           include: {
             file: { include: { uploadedBy: { select: { id: true, name: true, email: true } } } },
@@ -367,6 +367,7 @@ export class PurchaseOrdersService {
         lineNumber: li.lineNumber,
         materialId: li.materialId,
         materialName: li.material?.name ?? null,
+        imageUrl: li.material?.imageUrl ?? null,
         materialCode: li.materialCode,
         description: li.description,
         quantityOrdered: li.quantityOrdered,

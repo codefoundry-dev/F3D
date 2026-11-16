@@ -8,6 +8,7 @@ import { useEffect, useState, type FocusEvent, type KeyboardEvent, type ReactNod
 import type { MrWizardLine } from '../wizard/wizard-types';
 
 import { ManualMaterialNameField } from './ManualMaterialNameField';
+import { MaterialThumb } from './MaterialThumb';
 import type { NewMaterialDraft } from './NewMaterialModal';
 
 /**
@@ -35,6 +36,8 @@ interface ManualDraft {
   unit: string;
   /** Set when the name was picked from the catalogue popup; dropped on edit. */
   materialId?: string;
+  /** Catalogue image of the picked material; dropped with `materialId`. */
+  imageUrl?: string | null;
 }
 
 const EMPTY_DRAFT: ManualDraft = { name: '', description: '', quantity: '', unit: '' };
@@ -109,6 +112,7 @@ export function ManualLineItems({
       ...prev,
       name: material.name,
       materialId: material.id,
+      imageUrl: material.imageUrl,
       unit: prev.unit.trim() ? prev.unit : (material.uom ?? ''),
       description: prev.description.trim() ? prev.description : (material.description ?? ''),
     }));
@@ -132,6 +136,7 @@ export function ManualLineItems({
     onAdd({
       materialName: draft.name.trim(),
       materialId: draft.materialId,
+      imageUrl: draft.materialId ? draft.imageUrl : undefined,
       unit: draft.unit.trim() || DEFAULT_UNIT,
       quantity: draftQty,
       description: draft.description.trim() || undefined,
@@ -183,13 +188,25 @@ export function ManualLineItems({
             <Field label={t('requestMaterials.colMaterialName')} className={WIDE_CELL}>
               <ManualMaterialNameField
                 value={line.materialName}
+                leading={
+                  line.materialId ? (
+                    <MaterialThumb
+                      url={line.imageUrl}
+                      alt={line.materialName}
+                      className="size-10 rounded-lg md:size-9"
+                      fallback={false}
+                    />
+                  ) : undefined
+                }
                 onValueChange={(materialName) =>
-                  onPatch(line.key, { materialName, materialId: undefined })
+                  // Editing the name unlinks the catalogue material, image included.
+                  onPatch(line.key, { materialName, materialId: undefined, imageUrl: undefined })
                 }
                 onSelectMaterial={(material) =>
                   onPatch(line.key, {
                     materialId: material.id,
                     materialName: material.name,
+                    imageUrl: material.imageUrl,
                     // Keep whatever the foreman already typed; only fill gaps.
                     unit: line.unit.trim()
                       ? line.unit
@@ -256,7 +273,9 @@ export function ManualLineItems({
           <Field label={t('requestMaterials.colMaterialName')} className={WIDE_CELL}>
             <ManualMaterialNameField
               value={draft.name}
-              onValueChange={(name) => patchDraft({ name, materialId: undefined })}
+              onValueChange={(name) =>
+                patchDraft({ name, materialId: undefined, imageUrl: undefined })
+              }
               onSelectMaterial={selectMaterial}
               onEnter={commitDraft}
               placeholder={t('requestMaterials.manualNamePlaceholder')}

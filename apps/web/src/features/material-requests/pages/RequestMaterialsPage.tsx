@@ -131,6 +131,8 @@ export default function RequestMaterialsPage() {
           // Set when the inline row's name was picked from the catalogue — the
           // line is then raised against the real material, not a loose name.
           materialId: draft.materialId,
+          // Display only; a free-text line has no catalogue image.
+          imageUrl: draft.materialId ? draft.imageUrl : undefined,
           materialName: draft.materialName,
           description: draft.description,
           unit: draft.unit,

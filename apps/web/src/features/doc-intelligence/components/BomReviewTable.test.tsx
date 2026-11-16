@@ -13,6 +13,81 @@ function bomWith(items: BomLineItem[]): Record<string, unknown> {
 }
 
 describe('BomReviewTable', () => {
+  it('shows the matched candidate image beside the matched material name (FOR-402)', () => {
+    render(
+      <BomReviewTable
+        value={bomWith([
+          {
+            description: 'Cement',
+            quantity: 1,
+            unit: 'bag',
+            targetPrice: null,
+            notes: null,
+            matchedMaterialId: 'mat-1',
+            matchedMaterialName: 'Portland Cement',
+            matchConfidence: 0.9,
+            matchCandidates: [
+              {
+                materialId: 'mat-1',
+                name: 'Portland Cement',
+                confidence: 0.9,
+                imageUrl: 'https://cdn.test/cement.png',
+              },
+            ],
+          },
+          {
+            description: 'Rebar',
+            quantity: 1,
+            unit: 'm',
+            targetPrice: null,
+            notes: null,
+            matchedMaterialId: 'mat-2',
+            matchedMaterialName: 'Rebar #4',
+            matchConfidence: null,
+            matchCandidates: [{ materialId: 'mat-2', name: 'Rebar #4', confidence: 0.7 }],
+          },
+        ])}
+        onChange={vi.fn()}
+      />,
+    );
+    const image = within(screen.getByTestId('bom-match-0')).getByRole('img');
+    expect(image).toHaveAttribute('src', 'https://cdn.test/cement.png');
+    expect(image).toHaveAttribute('alt', 'Portland Cement');
+    // A match without a catalogue image renders its name and no image.
+    expect(within(screen.getByTestId('bom-match-1')).queryByRole('img')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('bom-match-1')).getByText('Rebar #4')).toBeInTheDocument();
+  });
+
+  it('shows the suggested candidate image for an unmatched line (FOR-402)', () => {
+    render(
+      <BomReviewTable
+        value={bomWith([
+          {
+            description: 'Cement',
+            quantity: 1,
+            unit: 'bag',
+            targetPrice: null,
+            notes: null,
+            matchedMaterialId: null,
+            matchCandidates: [
+              {
+                materialId: 'mat-1',
+                name: 'Portland Cement',
+                confidence: 0.6,
+                imageUrl: 'https://cdn.test/cement.png',
+              },
+            ],
+          },
+        ])}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(within(screen.getByTestId('bom-match-0')).getByRole('img')).toHaveAttribute(
+      'src',
+      'https://cdn.test/cement.png',
+    );
+  });
+
   it('coerces malformed input into the empty BOM shape', () => {
     const onChange = vi.fn();
     render(<BomReviewTable value={null} onChange={onChange} />);

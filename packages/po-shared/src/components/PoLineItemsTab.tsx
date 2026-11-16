@@ -1,6 +1,7 @@
 import type { PoLineItemDetail } from '@forethread/api-client';
 import { updatePurchaseOrder } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import {
   GridModal,
   Input,
@@ -114,7 +115,13 @@ export function PoLineItemsTab({
                   <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>
                     {/* Manual-name lines have no catalogue material — their name
                         lives in `description` (create-payload convention). */}
-                    {item.materialName || item.description || '-'}
+                    <span className="flex items-center gap-2">
+                      <MaterialImageThumb
+                        url={item.imageUrl}
+                        name={item.materialName || item.description || ''}
+                      />
+                      {item.materialName || item.description || '-'}
+                    </span>
                   </td>
                   {isPageLayout && (
                     <td className={`px-3 py-2.5 text-foreground ${cellBorder}`}>

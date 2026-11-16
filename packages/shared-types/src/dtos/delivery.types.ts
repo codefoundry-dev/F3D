@@ -45,6 +45,8 @@ export interface DeliveryReportLineResponse {
   materialId: string | null;
   /** Resolved name shown in the "Item/Material" column. */
   materialName: string;
+  /** Catalogue image of the linked material; null for free-text lines or no image. */
+  imageUrl?: string | null;
   description: string | null;
   /** Unit of measure (e.g. pcs, rolls, units). */
   uom: string;
@@ -206,6 +208,8 @@ export interface DeliveryPortalLine {
   id: string;
   lineItemRef: string;
   materialName: string;
+  /** Catalogue image of the linked material; null for free-text lines or no image. */
+  imageUrl?: string | null;
   description: string | null;
   uom: string;
   quantityOrdered: number;

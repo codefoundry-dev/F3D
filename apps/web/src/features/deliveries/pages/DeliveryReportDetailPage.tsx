@@ -1,5 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
-import { usePageTitleStore } from '@forethread/rfq-shared';
+import { MaterialImageThumb, usePageTitleStore } from '@forethread/rfq-shared';
 import type { DeliveryReportLineResponse } from '@forethread/shared-types/client';
 import { DeliveryOutcome, DeliveryReportStatus } from '@forethread/shared-types/client';
 import {
@@ -206,7 +206,12 @@ function LineRow({ line }: { line: DeliveryReportLineResponse }) {
         className="border-b border-border last:border-b-0"
         data-testid={`delivery-detail-row-${line.id}`}
       >
-        <td className="px-3 py-2.5 font-medium text-foreground">{line.materialName}</td>
+        <td className="px-3 py-2.5 font-medium text-foreground">
+          <span className="flex items-center gap-2">
+            <MaterialImageThumb url={line.imageUrl} name={line.materialName} />
+            {line.materialName}
+          </span>
+        </td>
         <td className="max-w-[260px] truncate px-3 py-2.5 text-foreground">
           {line.description ?? '-'}
         </td>

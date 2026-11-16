@@ -1,5 +1,6 @@
-import type { PoChangedFields, PoChangeFieldDiff } from '@forethread/api-client';
+import type { PoChangedFields, PoChangeFieldDiff, PoLineItemDetail } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import { Alert, formatCurrency, formatDate } from '@forethread/ui-components';
 import ArrowRightIcon from '@forethread/ui-components/assets/icons/arrow-right.svg?react';
 
@@ -8,8 +9,17 @@ const CURRENCY_FIELDS = new Set(['unitPrice']);
 /** Fields rendered as a localised date in the diff (yyyy-MM-dd or ISO). */
 const DATE_FIELDS = new Set(['plannedDeliveryDate', 'expectedDeliveryDate']);
 
+/** The slice of a PO line the diff needs to show its catalogue image (FOR-402). */
+export type PoChangeDiffLine = Pick<PoLineItemDetail, 'id' | 'imageUrl'>;
+
 export interface PoChangeDiffProps {
   changedFields: PoChangedFields;
+  /**
+   * The PO's current line items. The diff payload only carries `lineItemId` +
+   * `name`, so changed and removed lines look their catalogue image up here.
+   * Optional: without it (or once a removed line is gone) no image renders.
+   */
+  poLineItems?: PoChangeDiffLine[];
   /** Resolve a deliveryLocationId to its human label for the diff. */
   locationOptions?: { value: string; label: string }[];
   /**
@@ -32,6 +42,7 @@ export interface PoChangeDiffProps {
  */
 export function PoChangeDiff({
   changedFields,
+  poLineItems,
   locationOptions,
   lineItemsAsCards = false,
   onEditFields,
@@ -44,6 +55,7 @@ export function PoChangeDiff({
   const removedLineItems = changedFields.removedLineItems ?? [];
   const addedLineItems = changedFields.addedLineItems ?? [];
   const isCancellation = changedFields.cancelPo === true;
+  const imageByLineId = new Map((poLineItems ?? []).map((li) => [li.id, li.imageUrl]));
 
   const formatValue = (field: string, value: unknown): string => {
     if (value === null || value === undefined || value === '') return t('change.empty');
@@ -114,7 +126,10 @@ export function PoChangeDiff({
                 key={`${li.lineItemId}-${idx}`}
                 className={lineItemsAsCards ? 'rounded-lg border border-border p-4' : undefined}
               >
-                <p className="font-semibold text-foreground mb-3">{li.name}</p>
+                <p className="flex items-center gap-2 font-semibold text-foreground mb-3">
+                  <MaterialImageThumb url={imageByLineId.get(li.lineItemId)} name={li.name} />
+                  {li.name}
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
                   {Object.entries(li.changes).map(([field, diff]) => (
                     <DiffRow
@@ -206,8 +221,11 @@ export function PoChangeDiff({
                 key={`${li.lineItemId}-${idx}`}
                 className="flex items-center justify-between rounded-lg border border-border p-3"
               >
-                <span className="text-sm text-muted-foreground line-through truncate">
-                  {li.name}
+                <span className="flex min-w-0 items-center gap-2">
+                  <MaterialImageThumb url={imageByLineId.get(li.lineItemId)} name={li.name} />
+                  <span className="text-sm text-muted-foreground line-through truncate">
+                    {li.name}
+                  </span>
                 </span>
                 <span className="shrink-0 rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive">
                   {t('change.removedBadge')}

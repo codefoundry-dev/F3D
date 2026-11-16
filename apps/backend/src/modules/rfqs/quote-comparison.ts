@@ -21,6 +21,8 @@ const NO_QUOTE_AVAILABILITY: QuoteLineItemAvailability = QuoteLineItemAvailabili
 export interface ComparisonRfqLineItemInput {
   id: string;
   materialName: string | null;
+  /** Catalogue image of the linked material; absent/null for free-text lines. */
+  imageUrl?: string | null;
   quantity: number;
   unit: string;
   /** Line-level project (US 5.05 multi-project RFQs); null falls back to the RFQ's primary project. */
@@ -141,6 +143,7 @@ export interface QuoteComparisonCell {
 export interface QuoteComparisonRow {
   rfqLineItemId: string;
   materialName: string | null;
+  imageUrl: string | null;
   quantity: number;
   unit: string;
   projectId: string;
@@ -278,6 +281,7 @@ export function buildQuoteComparison(
     return {
       rfqLineItemId: rfqLine.id,
       materialName: rfqLine.materialName,
+      imageUrl: rfqLine.imageUrl ?? null,
       quantity: rfqLine.quantity,
       unit: rfqLine.unit,
       projectId: rfqLine.projectId ?? rfq.projectId,

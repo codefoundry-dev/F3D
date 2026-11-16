@@ -95,7 +95,7 @@ const REPORT_DETAIL_INCLUDE = {
   lines: {
     orderBy: { id: 'asc' as const },
     include: {
-      material: { select: { id: true, name: true, uom: true } },
+      material: { select: { id: true, name: true, uom: true, imageUrl: true } },
       poLineItem: {
         select: {
           id: true,
@@ -860,6 +860,7 @@ export class DeliveriesService {
       lineItemRef,
       materialId: line.materialId,
       materialName: line.material?.name ?? poLine?.description ?? '',
+      imageUrl: line.material?.imageUrl ?? null,
       description: poLine?.description ?? null,
       uom: line.material?.uom ?? poLine?.unitOfMeasure ?? '',
       quantityOrdered: line.quantityOrdered,

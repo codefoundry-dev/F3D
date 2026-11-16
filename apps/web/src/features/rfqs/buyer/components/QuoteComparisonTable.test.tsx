@@ -201,6 +201,29 @@ describe('QuoteComparisonTable', () => {
     expect(screen.getAllByText('reviewTable.availableRequested')).toHaveLength(2);
   });
 
+  it('shows the catalogue image beside a material that has one and none otherwise (FOR-402)', async () => {
+    mockGetComparison.mockResolvedValue({
+      ...comparison,
+      rows: [
+        { ...comparison.rows[0], imageUrl: 'https://cdn.test/hoses.jpg' },
+        { ...comparison.rows[1], imageUrl: null },
+      ],
+    });
+    renderTable();
+
+    const image = await screen.findByRole('img', { name: 'Rubber Hoses' });
+    expect(image).toHaveAttribute('src', 'https://cdn.test/hoses.jpg');
+    // The row with `imageUrl: null` still renders its name, with no image.
+    expect(screen.getByText('Glass Panes')).toBeInTheDocument();
+    expect(screen.getAllByTestId('material-image-thumb')).toHaveLength(1);
+  });
+
+  it('renders no image when the comparison rows carry no imageUrl at all', async () => {
+    renderTable();
+    expect(await screen.findByText('Rubber Hoses')).toBeInTheDocument();
+    expect(screen.queryByTestId('material-image-thumb')).not.toBeInTheDocument();
+  });
+
   it('renders a "Not quoted" cell when the vendor skipped the line', async () => {
     renderTable();
     expect(await screen.findByText('reviewTable.notQuoted')).toBeInTheDocument();

@@ -154,6 +154,8 @@ export interface PoLineItemDetail {
   lineNumber: number;
   materialId: string | null;
   materialName: string | null;
+  /** Catalogue image of the linked material; null for free-text lines or no image. */
+  imageUrl?: string | null;
   materialCode: string | null;
   description: string | null;
   quantityOrdered: number;

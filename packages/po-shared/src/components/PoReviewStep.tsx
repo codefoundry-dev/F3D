@@ -1,5 +1,6 @@
 import type { ProjectDetail, VendorAssignment } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import { PO_TERMS_MAX_LENGTH } from '@forethread/shared-types/client';
 import {
   FileChip,
@@ -216,7 +217,12 @@ export function PoReviewStep({
                 const lineTotal = Number(item.unitPrice) * Number(item.quantityOrdered);
                 return (
                   <tr key={i}>
-                    <td className={TD_CLASS}>{item.materialName}</td>
+                    <td className={TD_CLASS}>
+                      <span className="flex items-center gap-2">
+                        <MaterialImageThumb url={item.imageUrl} name={item.materialName} />
+                        {item.materialName}
+                      </span>
+                    </td>
                     <td className={TD_CLASS}>{item.description ?? '-'}</td>
                     <td className={TD_CLASS}>{item.unitOfMeasure}</td>
                     <td className={TD_CLASS}>{item.quantityOrdered}</td>

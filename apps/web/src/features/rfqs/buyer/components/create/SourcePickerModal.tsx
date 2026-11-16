@@ -30,6 +30,8 @@ export interface SourceItem {
   name: string;
   /** Catalogue material the item resolves to (if matched/linked). */
   materialId?: string;
+  /** Catalogue image of the linked material; the box icon shows without one. */
+  imageUrl?: string | null;
   manufacturer?: string;
   uom?: string;
   description?: string;
@@ -57,7 +59,22 @@ interface SourceTexts {
 
 /* ─── Row primitives ──────────────────────────────────────────────── */
 
-function ItemIcon() {
+/** Row thumbnail: the material's catalogue image, or the box icon when there
+ * is none (containers, free-text BOM lines) or the image fails to load. */
+function ItemIcon({ imageUrl, name }: { imageUrl?: string | null; name?: string }) {
+  const [failed, setFailed] = useState(false);
+  if (imageUrl && !failed) {
+    return (
+      <img
+        src={imageUrl}
+        alt={name ?? ''}
+        loading="lazy"
+        onError={() => setFailed(true)}
+        className="w-10 h-10 rounded-lg object-cover border border-border shrink-0"
+        data-testid="picker-item-image"
+      />
+    );
+  }
   return (
     <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
       <PackageIcon className="w-5 h-5 text-muted-foreground" />
@@ -401,7 +418,7 @@ function ItemListPhase({
                   )}
                   data-testid={`picker-item-${item.id}`}
                 >
-                  <ItemIcon />
+                  <ItemIcon imageUrl={item.imageUrl} name={item.name} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
