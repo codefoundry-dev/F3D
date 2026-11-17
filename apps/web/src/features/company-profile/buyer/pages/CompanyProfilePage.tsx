@@ -37,6 +37,7 @@ import { OverviewTab } from '@/features/companies/ui/OverviewTab';
 import { useUsersStore } from '@/features/users/company-admin/state/users.store';
 import { CreateUserModal } from '@/features/users/company-admin/ui/CreateUserModal';
 import { InvitationSuccessModal } from '@/features/users/company-admin/ui/InvitationSuccessModal';
+import { useSettingsCrumb } from '@/shared/layout/useSettingsCrumb';
 
 import { BuyerCompanyUsersTab } from '../components/BuyerCompanyUsersTab';
 import { useCompanyLogo } from '../hooks/useCompanyLogo';
@@ -49,6 +50,7 @@ export default function CompanyProfilePage() {
   const { t } = useTranslation(['company', 'common', 'users']);
   const companyId = useAuthStore((s) => s.currentUser?.companyId);
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  const settingsCrumb = useSettingsCrumb();
   const isPhone = useIsPhone();
   const queryClient = useQueryClient();
 
@@ -85,9 +87,9 @@ export default function CompanyProfilePage() {
   } = useUsersStore();
 
   useEffect(() => {
-    setPageTitle(t('companyDetails'), null, null, [{ label: t('companyDetails') }]);
+    setPageTitle(t('companyDetails'), null, null, [settingsCrumb, { label: t('companyDetails') }]);
     return () => setPageTitle(null);
-  }, [setPageTitle, t]);
+  }, [setPageTitle, t, settingsCrumb]);
 
   const { data: companyUsers } = useQuery({
     queryKey: ['users', { companyId }],

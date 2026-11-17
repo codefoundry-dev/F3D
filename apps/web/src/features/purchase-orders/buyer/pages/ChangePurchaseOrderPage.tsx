@@ -42,10 +42,18 @@ export default function ChangePurchaseOrderPage() {
   }, [po?.projectId]);
   const { data: projectDetail } = useProjectDetail(projectId);
 
+  // App-bar breadcrumb: PO Management › <PO number> › Change Purchase Order.
+  const poNumber = po?.poNumber;
   useEffect(() => {
-    setPageTitle(t('change.title'));
+    setPageTitle(t('change.title'), null, null, [
+      { label: t('list.title'), to: ROUTES.purchaseOrders },
+      ...(poNumber
+        ? [{ label: poNumber, to: ROUTES.purchaseOrderDetail.replace(':id', poId) }]
+        : []),
+      { label: t('change.title') },
+    ]);
     return () => setPageTitle(null);
-  }, [setPageTitle, t]);
+  }, [setPageTitle, t, poNumber, poId]);
 
   const initialValues = useMemo(() => (po ? poToFormDefaults(po).defaultValues : undefined), [po]);
 

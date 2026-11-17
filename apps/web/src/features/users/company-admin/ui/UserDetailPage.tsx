@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { useSettingsCrumb } from '@/shared/layout/useSettingsCrumb';
 
 import { ProfileInfoGrid } from '../../../profile/ui/ProfileInfoGrid';
 import {
@@ -41,14 +42,19 @@ export default function UserDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  const settingsCrumb = useSettingsCrumb();
   const [isProjectAccessOpen, setIsProjectAccessOpen] = useState(false);
 
   // Surface the page title + subtitle in the global app header; back-arrow
   // returns to the users list (matches Figma — every screen titles itself there).
   useEffect(() => {
-    setPageTitle(t('detail.pageTitle'), t('detail.pageSubtitle'), ROUTES.users);
+    setPageTitle(t('detail.pageTitle'), t('detail.pageSubtitle'), ROUTES.users, [
+      settingsCrumb,
+      { label: t('userManagement'), to: ROUTES.users },
+      { label: t('detail.pageTitle') },
+    ]);
     return () => setPageTitle(null);
-  }, [setPageTitle, t]);
+  }, [setPageTitle, t, settingsCrumb]);
 
   const {
     isEditModalOpen,

@@ -107,7 +107,10 @@ export default function CreateDeliveryReportPage() {
   const { data: po, isLoading, isError } = usePurchaseOrder(poId ?? '');
 
   useEffect(() => {
-    setPageTitle(t('create.title'), t('create.subtitle'), ROUTES.deliveries);
+    setPageTitle(t('create.title'), t('create.subtitle'), ROUTES.deliveries, [
+      { label: t('list.title'), to: ROUTES.deliveries },
+      { label: t('create.title') },
+    ]);
     return () => setPageTitle(null);
   }, [setPageTitle, t]);
 

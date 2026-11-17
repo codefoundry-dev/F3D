@@ -62,10 +62,15 @@ export default function ProjectDetailPage() {
   const { data: project, isLoading, isError } = useProject(id ?? '');
 
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  // App-bar breadcrumb: Projects › <project name>.
+  const projectName = project?.name;
   useEffect(() => {
-    setPageTitle(t('detail.title'), null, ROUTES.projects);
+    setPageTitle(t('detail.title'), null, ROUTES.projects, [
+      { label: t('list.title'), to: ROUTES.projects },
+      { label: projectName ?? t('detail.title') },
+    ]);
     return () => setPageTitle(null);
-  }, [setPageTitle, t]);
+  }, [setPageTitle, t, projectName]);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') as Tab | null;

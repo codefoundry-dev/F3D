@@ -28,18 +28,26 @@ import {
  */
 export default function BulkOrderDrawdownPage() {
   const { t } = useTranslation('purchaseOrders');
+  const { t: tBulk } = useTranslation('bulkOrders');
   const { id } = useParams<{ id: string }>();
   const bulkOrderId = id ?? '';
   const navigate = useNavigate();
 
-  // Phone top bar title + back arrow to the bulk order (ADR-0019 B8).
-  const setPageTitle = usePageTitleStore((s) => s.setTitle);
-  useEffect(() => {
-    setPageTitle(t('create.title'), null, ROUTES.bulkOrderDetail.replace(':id', bulkOrderId));
-    return () => setPageTitle(null);
-  }, [setPageTitle, t, bulkOrderId]);
-
   const { data: bulkOrder, isLoading, isError } = useBulkOrder(bulkOrderId);
+
+  // App-bar breadcrumb: Bulk order › <bulk id> › Create Purchase Order. On
+  // phones the title + back arrow return to the bulk order (ADR-0019 B8).
+  const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  const bulkId = bulkOrder?.bulkId;
+  useEffect(() => {
+    const detailPath = ROUTES.bulkOrderDetail.replace(':id', bulkOrderId);
+    setPageTitle(t('create.title'), null, detailPath, [
+      { label: tBulk('list.title'), to: ROUTES.bulkOrders },
+      ...(bulkId ? [{ label: bulkId, to: detailPath }] : []),
+      { label: t('create.title') },
+    ]);
+    return () => setPageTitle(null);
+  }, [setPageTitle, t, tBulk, bulkOrderId, bulkId]);
   const { data: projectsData } = useProjectsList();
   const { data: vendorsData } = useCompanyVendors();
   const defaultTermsAndConditions = useCompanyPoTerms();

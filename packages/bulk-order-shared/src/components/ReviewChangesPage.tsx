@@ -54,7 +54,13 @@ export function ReviewChangesPage({ isVendorView = false }: ReviewChangesPagePro
   const setTitle = usePageTitleStore((s) => s.setTitle);
 
   useEffect(() => {
-    if (data) setTitle(data.bulkId, t('list.subtitle') as string);
+    if (data) {
+      setTitle(data.bulkId, t('list.subtitle') as string, null, [
+        { label: t('list.title') as string, to: BULK_ORDER_ROUTES.bulkOrders },
+        { label: data.bulkId, to: BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', data.id) },
+        { label: t('changeRequests.title') as string },
+      ]);
+    }
     return () => setTitle(null);
   }, [data, setTitle, t]);
 

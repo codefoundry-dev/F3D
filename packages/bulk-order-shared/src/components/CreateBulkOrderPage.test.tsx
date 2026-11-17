@@ -156,7 +156,10 @@ beforeEach(() => {
 describe('CreateBulkOrderPage', () => {
   it('sets the page title on mount', () => {
     render(<CreateBulkOrderPage />);
-    expect(mockSetTitle).toHaveBeenCalledWith('create.title', 'create.subtitle', '/bulk-orders');
+    expect(mockSetTitle).toHaveBeenCalledWith('create.title', 'create.subtitle', '/bulk-orders', [
+      { label: 'list.title', to: '/bulk-orders' },
+      { label: 'create.title' },
+    ]);
   });
 
   it('shows the auto-populate info banner and a disabled Create in the empty state', () => {

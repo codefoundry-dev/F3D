@@ -15,6 +15,7 @@ import { PrimaryButton, SecondaryButton } from '../components/MobileButtons';
 import { MobileHeader } from '../components/MobileHeader';
 import { MobileShell } from '../components/MobileShell';
 import { useMaterialRequest } from '../services/material-requests.service';
+import { useMaterialRequestsCrumb } from '../useMaterialRequestsCrumb';
 
 interface ConfirmationState {
   mr?: MrDetail;
@@ -46,12 +47,14 @@ export default function RequestConfirmationPage() {
 
   // App-bar breadcrumb / page title.
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  const rootCrumb = useMaterialRequestsCrumb();
   useEffect(() => {
     setPageTitle(t('confirmation.title'), null, ROUTES.materialRequests, [
+      rootCrumb,
       { label: t('confirmation.title') },
     ]);
     return () => setPageTitle(null);
-  }, [setPageTitle, t]);
+  }, [setPageTitle, t, rootCrumb]);
 
   if (!mr) {
     return fetched.isLoading ? (

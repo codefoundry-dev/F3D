@@ -82,7 +82,10 @@ export default function CreateProjectPage() {
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
   // Header (title + back arrow) is owned by the app shell.
   useEffect(() => {
-    setPageTitle(t('create.title'), t('create.subtitle'), ROUTES.projects);
+    setPageTitle(t('create.title'), t('create.subtitle'), ROUTES.projects, [
+      { label: t('list.title'), to: ROUTES.projects },
+      { label: t('create.title') },
+    ]);
     return () => setPageTitle(null);
   }, [setPageTitle, t]);
 

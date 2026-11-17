@@ -13,6 +13,7 @@ import { ROUTES } from '@/app/route-config';
 import { MobileHeader } from '../components/MobileHeader';
 import { MobileShell } from '../components/MobileShell';
 import { useMrProjects } from '../services/material-requests.service';
+import { useMaterialRequestsCrumb } from '../useMaterialRequestsCrumb';
 
 /**
  * Job picker (Figma 2002:176 — "My Jobs"). The Foreman's landing for the
@@ -26,12 +27,14 @@ export default function JobPickerPage() {
 
   // App-bar breadcrumb / page title.
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  const rootCrumb = useMaterialRequestsCrumb();
   useEffect(() => {
     setPageTitle(t('jobOverview.selectJob'), null, ROUTES.materialRequests, [
+      rootCrumb,
       { label: t('jobOverview.selectJob') },
     ]);
     return () => setPageTitle(null);
-  }, [setPageTitle, t]);
+  }, [setPageTitle, t, rootCrumb]);
 
   if (isLoading) return <PageLoader />;
 

@@ -52,6 +52,10 @@ export function CreateBulkOrderPage({ isVendorView = false }: CreateBulkOrderPag
       t('create.title') as string,
       t('create.subtitle') as string,
       BULK_ORDER_ROUTES.bulkOrders,
+      [
+        { label: t('list.title') as string, to: BULK_ORDER_ROUTES.bulkOrders },
+        { label: t('create.title') as string },
+      ],
     );
     return () => setTitle(null);
   }, [setTitle, t]);

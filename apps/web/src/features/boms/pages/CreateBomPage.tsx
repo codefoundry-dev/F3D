@@ -140,10 +140,11 @@ export default function CreateBomPage() {
     onExit: exitToProject,
   });
 
-  // App-bar breadcrumb: Bill of Materials (BOM) › Create BOM.
+  // App-bar breadcrumb: Projects › Bill of Materials (BOM) › Create BOM.
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
   useEffect(() => {
     setPageTitle(t('create.createBom'), null, projectBomTabUrl, [
+      { label: tProjects('list.title'), to: ROUTES.projects },
       { label: tProjects('detail.tabs.bom'), to: projectBomTabUrl },
       { label: t('create.createBom') },
     ]);

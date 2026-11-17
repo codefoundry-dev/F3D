@@ -58,11 +58,19 @@ export default function VendorRepresentativeDetailPage() {
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
 
+  // App-bar breadcrumb: Vendors › Vendor Company Profile › Representative.
   useEffect(() => {
+    const repTitle = t('vendors:repDetail.pageTitle', { defaultValue: 'Representative' });
+    const vendorPath = vendorId ? ROUTES.vendorDetail.replace(':id', vendorId) : ROUTES.vendors;
     setPageTitle(
-      t('vendors:repDetail.pageTitle', { defaultValue: 'Representative' }),
+      repTitle,
       t('vendors:repDetail.pageSubtitle', { defaultValue: 'View and manage this sales rep' }),
-      vendorId ? ROUTES.vendorDetail.replace(':id', vendorId) : ROUTES.vendors,
+      vendorPath,
+      [
+        { label: t('vendors:title'), to: ROUTES.vendors },
+        ...(vendorId ? [{ label: t('vendors:vendorProfile.pageTitle'), to: vendorPath }] : []),
+        { label: repTitle },
+      ],
     );
     return () => setPageTitle(null);
   }, [setPageTitle, t, vendorId]);

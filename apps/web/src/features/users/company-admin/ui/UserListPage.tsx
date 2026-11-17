@@ -40,6 +40,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { useSettingsCrumb } from '@/shared/layout/useSettingsCrumb';
 
 import { RoleBadge, StatusBadge } from '../../shared/userBadges';
 import {
@@ -78,6 +79,7 @@ export default function UserListPage() {
   const isPhone = useIsPhone();
   const navigate = useNavigate();
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  const settingsCrumb = useSettingsCrumb();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') as (typeof TABS)[number] | null;
   const activeTab =
@@ -140,9 +142,9 @@ export default function UserListPage() {
   // Surface the page title in the global app bar via a breadcrumb trail
   // (breadcrumbs are app-wide now — no back-arrow).
   useEffect(() => {
-    setPageTitle(t('userManagement'), null, null, [{ label: t('userManagement') }]);
+    setPageTitle(t('userManagement'), null, null, [settingsCrumb, { label: t('userManagement') }]);
     return () => setPageTitle(null);
-  }, [setPageTitle, t]);
+  }, [setPageTitle, t, settingsCrumb]);
 
   const deactivateMutation = useDeactivateUser();
   const reactivateMutation = useReactivateUser();

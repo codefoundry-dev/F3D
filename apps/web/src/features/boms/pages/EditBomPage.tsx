@@ -48,6 +48,7 @@ function EditBomForm({ bom }: { bom: BomDetailDto }) {
   const { id: projectId = '' } = useParams<{ id: string; bomId: string }>();
   const { t: tRaw } = useTranslation('boms');
   const t = tRaw as (key: string, options?: Record<string, unknown>) => string;
+  const { t: tProjects } = useTranslation('projects');
   const navigate = useNavigate();
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
   const updateMutation = useUpdateBom(bom.id);
@@ -58,10 +59,18 @@ function EditBomForm({ bom }: { bom: BomDetailDto }) {
 
   const detailUrl = ROUTES.projectBomDetail.replace(':id', projectId).replace(':bomId', bom.id);
 
+  const bomTabUrl = `${ROUTES.projectDetail.replace(':id', projectId)}?tab=bom`;
+
+  // App-bar breadcrumb: Projects › Bill of Materials (BOM) › BOM-XXXX › Edit BOM.
   useEffect(() => {
-    setPageTitle(t('edit.title'), t('edit.subtitle'), detailUrl);
+    setPageTitle(t('edit.title'), t('edit.subtitle'), detailUrl, [
+      { label: tProjects('list.title'), to: ROUTES.projects },
+      { label: tProjects('detail.tabs.bom'), to: bomTabUrl },
+      { label: bom.bomNumber, to: detailUrl },
+      { label: t('edit.title') },
+    ]);
     return () => setPageTitle(null);
-  }, [setPageTitle, t, detailUrl]);
+  }, [setPageTitle, t, tProjects, detailUrl, bomTabUrl, bom.bomNumber]);
 
   const unmatched = unmatchedCount(rows);
 

@@ -27,7 +27,11 @@ vi.mock('react-router-dom', () => ({
   useParams: () => ({ id: 'proj-1', bomId: 'bom-1' }),
 }));
 vi.mock('@/app/route-config', () => ({
-  ROUTES: { projectBomDetail: '/projects/:id/bom/:bomId' },
+  ROUTES: {
+    projects: '/projects',
+    projectDetail: '/projects/:id',
+    projectBomDetail: '/projects/:id/bom/:bomId',
+  },
 }));
 vi.mock('../components/create/BomReviewStep', () => ({
   BomReviewStep: ({ rows, variant }: { rows: unknown[]; variant: string }) => (
@@ -80,6 +84,12 @@ describe('EditBomPage', () => {
       'edit.title',
       'edit.subtitle',
       '/projects/proj-1/bom/bom-1',
+      [
+        { label: 'list.title', to: '/projects' },
+        { label: 'detail.tabs.bom', to: '/projects/proj-1?tab=bom' },
+        { label: 'BOM-2024-234', to: '/projects/proj-1/bom/bom-1' },
+        { label: 'edit.title' },
+      ],
     );
     expect(screen.getByText('edit.banner')).toBeInTheDocument();
     const step = screen.getByTestId('review-step');

@@ -48,7 +48,10 @@ export default function DeliveryReportDetailPage() {
   const [showReject, setShowReject] = useState(false);
 
   useEffect(() => {
-    setPageTitle(t('detail.title'), t('detail.subtitle'), ROUTES.deliveries);
+    setPageTitle(t('detail.title'), t('detail.subtitle'), ROUTES.deliveries, [
+      { label: t('list.title'), to: ROUTES.deliveries },
+      { label: t('detail.title') },
+    ]);
     return () => setPageTitle(null);
   }, [setPageTitle, t]);
 

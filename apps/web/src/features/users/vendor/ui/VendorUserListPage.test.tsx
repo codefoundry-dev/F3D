@@ -429,7 +429,10 @@ describe('VendorUserListPage', () => {
 
   it('sets the User Management page title + breadcrumb in the app header', () => {
     render(<VendorUserListPage />);
-    expect(mockSetPageTitle).toHaveBeenCalledWith('title', null, null, [{ label: 'title' }]);
+    expect(mockSetPageTitle).toHaveBeenCalledWith('title', null, null, [
+      { label: 'Settings', to: '/settings' },
+      { label: 'title' },
+    ]);
   });
 
   it('renders table column headers', () => {

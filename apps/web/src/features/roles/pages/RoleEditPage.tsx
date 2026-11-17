@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { useSettingsCrumb } from '@/shared/layout/useSettingsCrumb';
 
 import { PermissionGrid, parseThresholdInput } from '../components/PermissionGrid';
 import { groupCatalogByDomain } from '../hooks/usePermissionGroups';
@@ -41,15 +42,17 @@ function RoleEditor({ role }: RoleEditorProps) {
   const catalogQuery = usePermissionCatalog();
   const updateMutation = useUpdateRolePermissions(role);
 
-  // Surface the role name in the app-bar breadcrumb (Roles › {role}).
+  // Surface the role name in the app-bar breadcrumb (Settings › Roles › {role}).
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  const settingsCrumb = useSettingsCrumb();
   useEffect(() => {
     setPageTitle(t(`roleNames.${role}`), null, ROUTES.roles, [
+      settingsCrumb,
       { label: t('title'), to: ROUTES.roles },
       { label: t(`roleNames.${role}`) },
     ]);
     return () => setPageTitle(null);
-  }, [setPageTitle, t, role]);
+  }, [setPageTitle, t, role, settingsCrumb]);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [thresholdInputs, setThresholdInputs] = useState<Record<string, string>>({});

@@ -77,7 +77,13 @@ export function BulkOrderDetailPage({
   const isPhone = useIsPhone();
 
   useEffect(() => {
-    if (data) setTitle(data.bulkId, t('list.subtitle') as string, BULK_ORDER_ROUTES.bulkOrders);
+    // App-bar breadcrumb: Bulk order › <bulk id>.
+    if (data) {
+      setTitle(data.bulkId, t('list.subtitle') as string, BULK_ORDER_ROUTES.bulkOrders, [
+        { label: t('list.title') as string, to: BULK_ORDER_ROUTES.bulkOrders },
+        { label: data.bulkId },
+      ]);
+    }
     return () => setTitle(null);
   }, [data, setTitle, t]);
 

@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { useSettingsCrumb } from '@/shared/layout/useSettingsCrumb';
 import { usePermissions } from '@/shared/role';
 
 import { PermissionGrid, parseThresholdInput } from '../components/PermissionGrid';
@@ -56,17 +57,19 @@ function CustomRoleEditor({ id }: { id: string }) {
   const [hydrated, setHydrated] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  // Surface the role name in the app-bar breadcrumb (Roles › {name}).
+  // Surface the role name in the app-bar breadcrumb (Settings › Roles › {name}).
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  const settingsCrumb = useSettingsCrumb();
   const roleName = detailQuery.data?.name;
   useEffect(() => {
     if (!roleName) return;
     setPageTitle(roleName, null, ROUTES.roles, [
+      settingsCrumb,
       { label: t('title'), to: ROUTES.roles },
       { label: roleName },
     ]);
     return () => setPageTitle(null);
-  }, [setPageTitle, t, roleName]);
+  }, [setPageTitle, t, roleName, settingsCrumb]);
 
   useEffect(() => {
     if (detailQuery.data && !hydrated) {

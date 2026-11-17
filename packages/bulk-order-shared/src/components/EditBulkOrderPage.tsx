@@ -38,7 +38,11 @@ export function EditBulkOrderPage() {
 
   useEffect(() => {
     if (data) {
-      setTitle(data.bulkId, t('list.subtitle') as string);
+      setTitle(data.bulkId, t('list.subtitle') as string, null, [
+        { label: t('list.title') as string, to: BULK_ORDER_ROUTES.bulkOrders },
+        { label: data.bulkId, to: BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', data.id) },
+        { label: t('modals.editTitle') as string },
+      ]);
       if (!initialized) {
         setBrands(((data as unknown as Record<string, unknown>).brands as string) ?? '');
         setEndDate(data.endDate ? data.endDate.split('T')[0] : '');

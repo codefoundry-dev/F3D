@@ -31,6 +31,7 @@ import {
   useCreateMaterialRequest,
   useMrProjectDetail,
 } from '../services/material-requests.service';
+import { useMaterialRequestsCrumb } from '../useMaterialRequestsCrumb';
 import {
   buildCreateInput,
   nextLineKey,
@@ -262,13 +263,16 @@ export default function RequestMaterialsPage() {
 
   // App-bar breadcrumb / page title reflects the current wizard step.
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  const rootCrumb = useMaterialRequestsCrumb();
   useEffect(() => {
     setPageTitle(headerTitle, null, overviewPath, [
+      rootCrumb,
+      { label: t('jobOverview.selectJob'), to: ROUTES.materialRequestJobs },
       { label: t('jobOverview.title'), to: overviewPath },
       { label: headerTitle },
     ]);
     return () => setPageTitle(null);
-  }, [setPageTitle, headerTitle, overviewPath, t]);
+  }, [setPageTitle, headerTitle, overviewPath, t, rootCrumb]);
 
   return (
     <MobileShell

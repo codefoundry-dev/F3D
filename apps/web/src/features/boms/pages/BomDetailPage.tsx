@@ -19,6 +19,7 @@ export default function BomDetailPage() {
   const { id: projectId = '', bomId = '' } = useParams<{ id: string; bomId: string }>();
   const { t: tRaw } = useTranslation('boms');
   const t = tRaw as (key: string, options?: Record<string, unknown>) => string;
+  const { t: tProjects } = useTranslation('projects');
   const navigate = useNavigate();
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
 
@@ -26,9 +27,16 @@ export default function BomDetailPage() {
   const backToBomTab = `${ROUTES.projectDetail.replace(':id', projectId)}?tab=bom`;
 
   useEffect(() => {
-    if (bom) setPageTitle(bom.bomNumber, t('detail.subtitle'), backToBomTab);
+    // App-bar breadcrumb: Projects › Bill of Materials (BOM) › BOM-XXXX.
+    if (bom) {
+      setPageTitle(bom.bomNumber, t('detail.subtitle'), backToBomTab, [
+        { label: tProjects('list.title'), to: ROUTES.projects },
+        { label: tProjects('detail.tabs.bom'), to: backToBomTab },
+        { label: bom.bomNumber },
+      ]);
+    }
     return () => setPageTitle(null);
-  }, [bom, setPageTitle, t, backToBomTab]);
+  }, [bom, setPageTitle, t, tProjects, backToBomTab]);
 
   if (isLoading) {
     return (

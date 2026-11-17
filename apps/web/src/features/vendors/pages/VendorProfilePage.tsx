@@ -16,7 +16,10 @@ export default function VendorProfilePage() {
   // Surface the page title + subtitle in the global app header; back-arrow
   // returns to the vendor list (US 3.07 — every screen titles itself there).
   useEffect(() => {
-    setPageTitle(t('vendorProfile.pageTitle'), t('vendorProfile.pageSubtitle'), ROUTES.vendors);
+    setPageTitle(t('vendorProfile.pageTitle'), t('vendorProfile.pageSubtitle'), ROUTES.vendors, [
+      { label: t('title'), to: ROUTES.vendors },
+      { label: t('vendorProfile.pageTitle') },
+    ]);
     return () => setPageTitle(null);
   }, [setPageTitle, t]);
 

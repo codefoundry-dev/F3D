@@ -12,6 +12,7 @@ import { PrimaryButton } from '../components/MobileButtons';
 import { MobileHeader } from '../components/MobileHeader';
 import { MobileShell } from '../components/MobileShell';
 import { useMrProjectDetail } from '../services/material-requests.service';
+import { useMaterialRequestsCrumb } from '../useMaterialRequestsCrumb';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -48,13 +49,15 @@ export default function JobOverviewPage() {
 
   // App-bar breadcrumb / page title (back → job picker).
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  const rootCrumb = useMaterialRequestsCrumb();
   useEffect(() => {
     setPageTitle(t('jobOverview.title'), null, ROUTES.materialRequestJobs, [
+      rootCrumb,
       { label: t('jobOverview.selectJob'), to: ROUTES.materialRequestJobs },
       { label: t('jobOverview.title') },
     ]);
     return () => setPageTitle(null);
-  }, [setPageTitle, t]);
+  }, [setPageTitle, t, rootCrumb]);
 
   const deliveryLocation = useMemo(
     () =>

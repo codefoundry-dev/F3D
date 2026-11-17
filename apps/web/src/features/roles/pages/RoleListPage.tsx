@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ROUTES } from '@/app/route-config';
+import { useSettingsCrumb } from '@/shared/layout/useSettingsCrumb';
 import { usePermissions, useUserRole } from '@/shared/role';
 
 import { CreateCustomRoleModal } from '../components/CreateCustomRoleModal';
@@ -40,10 +41,11 @@ export default function RoleListPage() {
 
   // Surface the page title in the global app bar (breadcrumb trail).
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  const settingsCrumb = useSettingsCrumb();
   useEffect(() => {
-    setPageTitle(t('title'), null, null, [{ label: t('title') }]);
+    setPageTitle(t('title'), null, null, [settingsCrumb, { label: t('title') }]);
     return () => setPageTitle(null);
-  }, [setPageTitle, t]);
+  }, [setPageTitle, t, settingsCrumb]);
 
   return (
     <div className="flex flex-1 flex-col gap-3 px-6 py-4">

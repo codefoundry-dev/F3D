@@ -88,10 +88,16 @@ export default function PurchaseOrderDetailPage() {
     [projectDetail],
   );
 
+  // App-bar breadcrumb: PO Management › <PO number>.
   useEffect(() => {
-    if (po) setPageTitle(po.poNumber, null, ROUTES.purchaseOrders);
+    if (po) {
+      setPageTitle(po.poNumber, null, ROUTES.purchaseOrders, [
+        { label: t('list.title'), to: ROUTES.purchaseOrders },
+        { label: po.poNumber },
+      ]);
+    }
     return () => setPageTitle(null);
-  }, [po, setPageTitle]);
+  }, [po, setPageTitle, t]);
 
   const pendingCr = useMemo(
     () => changeRequests?.find((cr) => cr.status === 'PENDING'),
