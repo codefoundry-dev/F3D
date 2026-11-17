@@ -176,9 +176,13 @@ model RfqLineItem {
   // source MR line when the RFQ is created by conversion; see
   // MaterialRequestLineItem.deliveryTime.
   deliveryTime         String?   @map("delivery_time") @db.VarChar(5)
+  // Requester's photo carried over from the source MR line (FOR-404). When set
+  // it is shown in place of the catalogue image.
+  photoFileId          String?   @map("photo_file_id")
 
   rfq                Rfq                     @relation(fields: [rfqId], references: [id], onDelete: Cascade)
   material           Material?               @relation(fields: [materialId], references: [id])
+  photoFile          File?                   @relation("RfqLinePhoto", fields: [photoFileId], references: [id], onDelete: SetNull)
   project            Project?                @relation("RfqLineItemProject", fields: [projectId], references: [id])
   deliveryLocation   ProjectLocation?        @relation("RfqLineItemDeliveryLocation", fields: [deliveryLocationId], references: [id])
   quoteResponseItems QuoteResponseLineItem[]

@@ -85,6 +85,11 @@ const mockAudit = {
   log: jest.fn(),
 };
 
+// Signs requester line photos on PO detail (FOR-404).
+const mockStorage = {
+  getSignedUrl: jest.fn((key: string) => Promise.resolve(`https://signed.example/${key}`)),
+};
+
 describe('PurchaseOrdersService', () => {
   let service: PurchaseOrdersService;
 
@@ -94,7 +99,11 @@ describe('PurchaseOrdersService', () => {
     // supplied (the snapshot fallback only fires when a material row matches).
     mockPrisma.material.findMany.mockResolvedValue([]);
     mockPrisma.companyVendorAssignment.findUnique.mockResolvedValue(null);
-    service = new PurchaseOrdersService(mockPrisma as never, mockAudit as never);
+    service = new PurchaseOrdersService(
+      mockPrisma as never,
+      mockAudit as never,
+      mockStorage as never,
+    );
     // createPurchaseOrder now runs its create + drawdown bookkeeping inside a
     // $transaction callback. Default: invoke the callback with mockPrisma so
     // `tx.*` resolves to the same mocks. updatePurchaseOrder uses the array
@@ -2014,91 +2023,123 @@ describe('PurchaseOrdersService', () => {
   });
 
   describe('getPurchaseOrder – null material and null uploadedBy (lines 267, 286-287)', () => {
+    const nullMaterialPo = {
+      id: 'po-nullmat',
+      poNumber: 'PO-NULLMAT',
+      documentName: null,
+      projectId: 'proj-1',
+      status: 'DRAFT',
+      poType: 'STANDARD',
+      approvalStatus: 'NOT_REQUIRED',
+      sourceOfCreation: 'MANUAL',
+      revision: 1,
+      priority: null,
+      pickUp: false,
+      holdForRelease: false,
+      deliveryLocationId: null,
+      deliveryLocation: null,
+      pickUpLocation: null,
+      pickUpTimeExpectation: null,
+      pickUpPersonName: null,
+      pickUpPersonPhone: null,
+      currency: 'AUD',
+      subtotal: null,
+      discountAmount: null,
+      taxAmount: null,
+      totalAmount: null,
+      paymentTermsDays: null,
+      costCode: null,
+      lineItemCount: 1,
+      totalRequestedQty: 5,
+      deadlineStart: null,
+      deadlineEnd: null,
+      plannedDeliveryDate: null,
+      deliveryNotes: null,
+      message: null,
+      deliveryResponsibleName: null,
+      deliveryResponsibleEmail: null,
+      issuedAt: null,
+      parentPoId: null,
+      rfqId: null,
+      createdAt: new Date('2026-03-01'),
+      updatedAt: new Date('2026-03-01'),
+      project: { name: 'Alpha' },
+      vendor: null,
+      company: { id: 'comp-1', legalName: 'TestCo' },
+      createdBy: { id: 'u-1', name: 'User' },
+      approvedBy: null,
+      lastModifiedBy: null,
+      lineItems: [
+        {
+          id: 'li-nullmat',
+          lineNumber: 1,
+          materialId: null,
+          material: null,
+          materialCode: null,
+          description: 'Custom item',
+          quantityOrdered: 5,
+          quantityDelivered: 0,
+          unitOfMeasure: 'pcs',
+          unitPrice: 10,
+          lineTotal: 50,
+          costCode: null,
+          expectedDeliveryDate: null,
+          deliveryLocationId: null,
+          notes: null,
+          pickUp: false,
+        },
+      ],
+      documents: [
+        {
+          id: 'doc-nouploader',
+          fileId: 'f-2',
+          createdAt: new Date('2026-03-01'),
+          file: {
+            filename: 'report.pdf',
+            uploadedBy: null,
+          },
+        },
+      ],
+      invoices: [],
+    };
+
     it('returns null materialName when line item has no material', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
-        id: 'po-nullmat',
-        poNumber: 'PO-NULLMAT',
-        documentName: null,
-        projectId: 'proj-1',
-        status: 'DRAFT',
-        poType: 'STANDARD',
-        approvalStatus: 'NOT_REQUIRED',
-        sourceOfCreation: 'MANUAL',
-        revision: 1,
-        priority: null,
-        pickUp: false,
-        holdForRelease: false,
-        deliveryLocationId: null,
-        deliveryLocation: null,
-        pickUpLocation: null,
-        pickUpTimeExpectation: null,
-        pickUpPersonName: null,
-        pickUpPersonPhone: null,
-        currency: 'AUD',
-        subtotal: null,
-        discountAmount: null,
-        taxAmount: null,
-        totalAmount: null,
-        paymentTermsDays: null,
-        costCode: null,
-        lineItemCount: 1,
-        totalRequestedQty: 5,
-        deadlineStart: null,
-        deadlineEnd: null,
-        plannedDeliveryDate: null,
-        deliveryNotes: null,
-        message: null,
-        deliveryResponsibleName: null,
-        deliveryResponsibleEmail: null,
-        issuedAt: null,
-        parentPoId: null,
-        rfqId: null,
-        createdAt: new Date('2026-03-01'),
-        updatedAt: new Date('2026-03-01'),
-        project: { name: 'Alpha' },
-        vendor: null,
-        company: { id: 'comp-1', legalName: 'TestCo' },
-        createdBy: { id: 'u-1', name: 'User' },
-        approvedBy: null,
-        lastModifiedBy: null,
-        lineItems: [
-          {
-            id: 'li-nullmat',
-            lineNumber: 1,
-            materialId: null,
-            material: null,
-            materialCode: null,
-            description: 'Custom item',
-            quantityOrdered: 5,
-            quantityDelivered: 0,
-            unitOfMeasure: 'pcs',
-            unitPrice: 10,
-            lineTotal: 50,
-            costCode: null,
-            expectedDeliveryDate: null,
-            deliveryLocationId: null,
-            notes: null,
-            pickUp: false,
-          },
-        ],
-        documents: [
-          {
-            id: 'doc-nouploader',
-            fileId: 'f-2',
-            createdAt: new Date('2026-03-01'),
-            file: {
-              filename: 'report.pdf',
-              uploadedBy: null,
-            },
-          },
-        ],
-        invoices: [],
-      });
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(nullMaterialPo);
 
       const result = await service.getPurchaseOrder('po-nullmat', companyAdmin);
       expect(result.lineItems[0].materialName).toBeNull();
+      expect(result.lineItems[0].imageUrl).toBeNull();
       expect(result.documents[0].uploadedBy.name).toBe('');
       expect(result.documents[0].uploadedBy.email).toBe('');
+    });
+
+    it('shows a requester photo on the line in place of the catalogue image (FOR-404)', async () => {
+      const base = nullMaterialPo;
+      mockStorage.getSignedUrl.mockImplementation((key: string) =>
+        Promise.resolve(`https://signed.example/${key}`),
+      );
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        ...base,
+        lineItems: [
+          {
+            ...base.lineItems[0],
+            id: 'li-photo',
+            material: { name: 'Bracket', imageUrl: 'https://cat/img.png' },
+            photoFile: { key: 'line-photos/u-1/a.jpg' },
+          },
+          {
+            ...base.lineItems[0],
+            id: 'li-catalogue',
+            material: { name: 'Bracket', imageUrl: 'https://cat/img.png' },
+            photoFile: null,
+          },
+        ],
+      });
+
+      const result = await service.getPurchaseOrder('po-nullmat', companyAdmin);
+
+      expect(result.lineItems[0].imageUrl).toBe('https://signed.example/line-photos/u-1/a.jpg');
+      expect(result.lineItems[1].imageUrl).toBe('https://cat/img.png');
     });
   });
 

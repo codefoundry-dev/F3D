@@ -90,9 +90,13 @@ model MaterialRequestLineItem {
   deliveryTime         String?                  @map("delivery_time") @db.VarChar(5)
   deliveryLocationId   String?                  @map("delivery_location_id")
   notes                String?
+  // Requester's photo of the item (FOR-404), uploaded before the request is
+  // created. Copied by reference onto the RFQ / PO line on conversion.
+  photoFileId          String?                  @map("photo_file_id")
 
   materialRequest  MaterialRequest  @relation(fields: [materialRequestId], references: [id], onDelete: Cascade)
   material         Material?        @relation(fields: [materialId], references: [id])
+  photoFile        File?            @relation("MaterialRequestLinePhoto", fields: [photoFileId], references: [id], onDelete: SetNull)
   deliveryLocation ProjectLocation? @relation("MaterialRequestLineItemDeliveryLocation", fields: [deliveryLocationId], references: [id])
 
   @@index([materialRequestId], map: "idx_material_request_line_items_mr")

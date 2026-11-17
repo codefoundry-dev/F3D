@@ -3,6 +3,7 @@ import {
   getMaterialRequest,
   getMaterialRequestAuditTrail,
   createMaterialRequest,
+  uploadMaterialRequestLinePhoto,
   approveMaterialRequest,
   declineMaterialRequest,
   cancelMaterialRequest,
@@ -49,6 +50,13 @@ export function useMaterialRequestAudit(id: string | undefined) {
     queryKey: queryKeys.materialRequests.audit(id ?? ''),
     queryFn: () => getMaterialRequestAuditTrail(id as string),
     enabled: !!id,
+  });
+}
+
+/** Upload a photo for a request line before the request exists (FOR-404). */
+export function useUploadMrLinePhoto() {
+  return useMutation({
+    mutationFn: (file: File) => uploadMaterialRequestLinePhoto(file, { skipErrorHandler: true }),
   });
 }
 

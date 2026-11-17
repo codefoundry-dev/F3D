@@ -34,9 +34,12 @@ export interface MrWizardLine {
   description?: string;
   /** Display SKU (catalogue lines only) — never sent to the API. */
   sku?: string;
-  /** Catalogue image of the linked material — display only, never sent to the
-   * API (`toLineInput` builds the payload field by field). */
+  /** Image shown for the line: the uploaded photo preview, else the linked
+   * material's catalogue image. Display only, never sent to the API
+   * (`toLineInput` builds the payload field by field). */
   imageUrl?: string | null;
+  /** File id of a photo uploaded in the New Material modal (FOR-404). Sent. */
+  photoFileId?: string;
   /** Unit of measure (e.g. pcs, Each, Box). */
   unit: string;
   /** Quantity needed — 0 until the foreman fills it on step 2. */
@@ -169,6 +172,7 @@ function toLineInput(line: MrWizardLine): CreateMrLineItemInput {
   if (line.expectedDeliveryDate) input.expectedDeliveryDate = toIsoDate(line.expectedDeliveryDate);
   if (line.deliveryTime?.trim()) input.deliveryTime = line.deliveryTime.trim();
   if (line.deliveryLocationId) input.deliveryLocationId = line.deliveryLocationId;
+  if (line.photoFileId) input.photoFileId = line.photoFileId;
   const notes = composeLineNotes(line);
   if (notes) input.notes = notes;
   return input;

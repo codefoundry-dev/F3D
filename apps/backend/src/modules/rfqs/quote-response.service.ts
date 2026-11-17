@@ -24,6 +24,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { AuditService } from '../audit/audit.service';
 import { DocIntelligenceService } from '../doc-intelligence/doc-intelligence.service';
+import { signLinePhotoUrls } from '../storage/line-photo.util';
 import { StorageService } from '../storage/storage.service';
 
 import { buildQuoteComparison, deliveryVarianceDays } from './quote-comparison';
@@ -793,6 +794,7 @@ export class QuoteResponseService {
           include: {
             material: { select: { id: true, name: true, uom: true, imageUrl: true } },
             deliveryLocation: { select: { label: true, address: true } },
+            photoFile: { select: { key: true } },
           },
         },
         project: { select: { name: true } },
@@ -855,6 +857,8 @@ export class QuoteResponseService {
         url: await this.storageService.getSignedUrl(file.key),
       })),
     );
+    // Requester photos carried over from the source MR lines (FOR-404).
+    const photoUrls = await signLinePhotoUrls(this.storageService, rfq.lineItems);
 
     return {
       id: rfq.id,
@@ -872,7 +876,8 @@ export class QuoteResponseService {
         // this, manual RFQ lines render nameless on the guest quote portal.
         materialName: li.material?.name ?? li.materialName ?? li.description ?? '',
         // Catalogue image so the guest vendor sees what's being quoted (FOR-361).
-        imageUrl: li.material?.imageUrl ?? null,
+        // A requester's own photo (FOR-404) wins over the catalogue image.
+        imageUrl: photoUrls.get(li.id) ?? li.material?.imageUrl ?? null,
         unit: li.unit,
         quantity: li.quantity,
         description: li.description,

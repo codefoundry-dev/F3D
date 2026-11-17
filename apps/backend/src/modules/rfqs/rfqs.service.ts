@@ -53,6 +53,7 @@ import { BrandingService } from '../export/branding.service';
 import { NotificationService } from '../notification-feed/notification.service';
 import { EmailAttachment, EmailService } from '../notifications/email.service';
 import { loadCompanyPoTerms } from '../purchase-orders/po-terms.util';
+import { signLinePhotoUrls } from '../storage/line-photo.util';
 import { StorageService } from '../storage/storage.service';
 
 import { deliveryVarianceDays } from './quote-comparison';
@@ -154,6 +155,7 @@ const RFQ_DETAIL_INCLUDE = {
       material: { select: { id: true, name: true, uom: true, imageUrl: true } },
       project: { select: { id: true, name: true } },
       deliveryLocation: { select: { id: true, label: true, address: true } },
+      photoFile: { select: { key: true } },
     },
   },
   quoteResponses: {
@@ -474,6 +476,8 @@ export class RfqsService {
       address: string;
     } | null;
     const isPickUp = (rfqAny.isPickUp as boolean | undefined) ?? false;
+    // Requester photos carried over from the source MR lines (FOR-404).
+    const photoUrls = await signLinePhotoUrls(this.storageService, rfq.lineItems);
 
     return {
       id: rfq.id,
@@ -530,7 +534,8 @@ export class RfqsService {
           // Live catalogue image (FOR-361) so buyers and vendors see what's being
           // quoted. Read through the material link rather than snapshotted, so a
           // corrected catalogue image reaches open RFQs; free-text lines get null.
-          imageUrl: li.material?.imageUrl ?? null,
+          // A requester's own photo (FOR-404) wins over the catalogue image.
+          imageUrl: photoUrls.get(li.id) ?? li.material?.imageUrl ?? null,
           description: li.description,
           notes,
           hasNotes: Boolean(notes),
@@ -758,6 +763,7 @@ export class RfqsService {
           create: source.lineItems.map((li) => ({
             materialId: (li as Record<string, unknown>).materialId as string | null,
             materialName: (li as Record<string, unknown>).materialName as string | null,
+            photoFileId: (li as Record<string, unknown>).photoFileId as string | null | undefined,
             quantity: li.quantity,
             unit: li.unit,
             description: li.description,

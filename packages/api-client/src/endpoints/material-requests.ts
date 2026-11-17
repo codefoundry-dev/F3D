@@ -36,6 +36,16 @@ export interface CreateMrLineItemInput {
   deliveryTime?: string;
   deliveryLocationId?: string;
   notes?: string;
+  /** File id from {@link uploadMaterialRequestLinePhoto} (FOR-404). */
+  photoFileId?: string;
+}
+
+/** A requester's photo of a line item, uploaded before the request is created. */
+export interface MrLinePhotoUpload {
+  fileId: string;
+  fileName: string;
+  /** Short-lived preview URL; null if it could not be signed. */
+  url: string | null;
 }
 
 export interface CreateMaterialRequestInput {
@@ -84,8 +94,13 @@ export interface MrLineItemDetail {
   id: string;
   materialId: string | null;
   materialName: string | null;
-  /** Catalogue image of the linked material; null for free-text lines or no image. */
+  /**
+   * Image to show for the line: the requester's uploaded photo when there is
+   * one (FOR-404), otherwise the linked material's catalogue image.
+   */
   imageUrl?: string | null;
+  /** File id of the requester's uploaded photo, if any. */
+  photoFileId?: string | null;
   description: string | null;
   quantity: number;
   unit: string;
@@ -182,6 +197,21 @@ export async function getMaterialRequestAuditTrail(
   const { data } = await getApiClient().get<{ data: MrAuditEntry[] }>(
     MATERIAL_REQUESTS_PATHS.audit(id),
     config,
+  );
+  return data.data;
+}
+
+/** Upload a photo for a request line; send the returned `fileId` as `photoFileId`. */
+export async function uploadMaterialRequestLinePhoto(
+  file: File,
+  config?: AxiosRequestConfig,
+): Promise<MrLinePhotoUpload> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const { data } = await getApiClient().post<{ data: MrLinePhotoUpload }>(
+    `${MATERIAL_REQUESTS_PATHS.ROOT}/line-photos`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' }, ...config },
   );
   return data.data;
 }

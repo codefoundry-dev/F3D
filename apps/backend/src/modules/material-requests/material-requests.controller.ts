@@ -9,14 +9,18 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ApprovalEntityType } from '@prisma/client';
 
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/permissions';
 import { NominateApproversDto } from '../approvals/approvals.dto';
 import { ApprovalsService } from '../approvals/approvals.service';
+import { LinePhotoService } from '../storage/line-photo.service';
 
 import {
   ConvertToPoDto,
@@ -36,6 +40,7 @@ export class MaterialRequestsController {
   constructor(
     private readonly materialRequestsService: MaterialRequestsService,
     private readonly approvalsService: ApprovalsService,
+    private readonly linePhotos: LinePhotoService,
   ) {}
 
   // ── POST /v1/material-requests ─────────────────────────────────────────────
@@ -49,6 +54,25 @@ export class MaterialRequestsController {
   @ApiResponse({ status: 404, description: 'Project not found' })
   async create(@Body() dto: CreateMaterialRequestDto, @CurrentUser() user: AuthenticatedUser) {
     return this.materialRequestsService.create(user, dto);
+  }
+
+  // ── POST /v1/material-requests/line-photos ─────────────────────────────────
+
+  @Post('line-photos')
+  @UseInterceptors(FileInterceptor('file'))
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('materialRequest.create')
+  @ApiOperation({
+    summary: 'Upload a photo for a request line; send the returned fileId as photoFileId',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiResponse({ status: 201, description: 'Photo uploaded' })
+  @ApiResponse({ status: 400, description: 'Missing file, not an image, or too large' })
+  async uploadLinePhoto(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.linePhotos.upload(file, user.id);
   }
 
   // ── GET /v1/material-requests ──────────────────────────────────────────────

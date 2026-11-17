@@ -189,7 +189,8 @@ export function ManualLineItems({
               <ManualMaterialNameField
                 value={line.materialName}
                 leading={
-                  line.materialId ? (
+                  // A catalogue image or the requester's uploaded photo (FOR-404).
+                  line.imageUrl ? (
                     <MaterialThumb
                       url={line.imageUrl}
                       alt={line.materialName}
@@ -200,13 +201,18 @@ export function ManualLineItems({
                 }
                 onValueChange={(materialName) =>
                   // Editing the name unlinks the catalogue material, image included.
-                  onPatch(line.key, { materialName, materialId: undefined, imageUrl: undefined })
+                  onPatch(line.key, {
+                    materialName,
+                    materialId: undefined,
+                    // An uploaded photo (FOR-404) stays; only a catalogue image goes.
+                    imageUrl: line.photoFileId ? line.imageUrl : undefined,
+                  })
                 }
                 onSelectMaterial={(material) =>
                   onPatch(line.key, {
                     materialId: material.id,
                     materialName: material.name,
-                    imageUrl: material.imageUrl,
+                    imageUrl: line.photoFileId ? line.imageUrl : material.imageUrl,
                     // Keep whatever the foreman already typed; only fill gaps.
                     unit: line.unit.trim()
                       ? line.unit

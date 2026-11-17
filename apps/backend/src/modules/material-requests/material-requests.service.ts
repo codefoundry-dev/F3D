@@ -41,6 +41,9 @@ import { NotificationService } from '../notification-feed/notification.service';
 import { SYSTEM_SENDER } from '../notification-feed/notification.types';
 import { EmailService } from '../notifications/email.service';
 import { loadCompanyPoTerms } from '../purchase-orders/po-terms.util';
+import { LinePhotoService } from '../storage/line-photo.service';
+import { signLinePhotoUrls } from '../storage/line-photo.util';
+import { StorageService } from '../storage/storage.service';
 import { assertVendorUsableOnProject } from '../vendors/vendor-access.util';
 
 import {
@@ -71,6 +74,7 @@ const MR_DETAIL_INCLUDE = {
     include: {
       material: { select: { id: true, name: true, uom: true, imageUrl: true } },
       deliveryLocation: { select: { id: true, label: true, address: true } },
+      photoFile: { select: { key: true } },
     },
   },
 } satisfies Prisma.MaterialRequestInclude;
@@ -98,6 +102,8 @@ export class MaterialRequestsService {
     private readonly notifications: NotificationService,
     private readonly branding: BrandingService,
     config: ConfigService,
+    private readonly linePhotos: LinePhotoService,
+    private readonly storageService: StorageService,
   ) {
     this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
   }
@@ -147,6 +153,10 @@ export class MaterialRequestsService {
 
     await this.assertLineItemsValid(dto.lineItems);
     await this.assertDeliveryLocationsInProject(dto, project.id);
+    await this.linePhotos.assertOwnedPhotos(
+      dto.lineItems.map((li) => li.photoFileId),
+      user.id,
+    );
 
     const submit = dto.submit === true;
     const status = submit ? MaterialRequestStatus.SUBMITTED : MaterialRequestStatus.DRAFT;
@@ -304,6 +314,19 @@ export class MaterialRequestsService {
     // A line-item replacement (when provided) is validated like create.
     if (dto.lineItems) {
       await this.assertLineItemsValid(dto.lineItems);
+      // Photos already on this request stay valid whoever edits the draft; only
+      // newly attached ones must be the editor's own uploads.
+      const existing = await this.prisma.materialRequestLineItem.findMany({
+        where: { materialRequestId: id, photoFileId: { not: null } },
+        select: { photoFileId: true },
+      });
+      const alreadyAttached = new Set(existing.map((li) => li.photoFileId));
+      await this.linePhotos.assertOwnedPhotos(
+        dto.lineItems
+          .map((li) => li.photoFileId)
+          .filter((fid) => !alreadyAttached.has(fid ?? null)),
+        user.id,
+      );
     }
     await this.assertDeliveryLocationsInProject(dto, mr.projectId);
 
@@ -613,6 +636,7 @@ export class MaterialRequestsService {
                 deliveryTime: li.deliveryTime,
                 deliveryLocationId: li.deliveryLocationId,
                 notes: li.notes,
+                photoFileId: li.photoFileId,
               };
             }),
           },
@@ -716,6 +740,7 @@ export class MaterialRequestsService {
                 deliveryTime: li.deliveryTime,
                 deliveryLocationId: li.deliveryLocationId,
                 notes: li.notes,
+                photoFileId: li.photoFileId,
               };
             }),
           },
@@ -1131,11 +1156,15 @@ export class MaterialRequestsService {
         ? { connect: { id: li.deliveryLocationId } }
         : undefined,
       notes: li.notes ?? null,
+      photoFile: li.photoFileId ? { connect: { id: li.photoFileId } } : undefined,
     };
   }
 
   /** Serialise a fully-included MR row into the detail response shape. */
-  private toDetail(mr: Prisma.MaterialRequestGetPayload<{ include: typeof MR_DETAIL_INCLUDE }>) {
+  private async toDetail(
+    mr: Prisma.MaterialRequestGetPayload<{ include: typeof MR_DETAIL_INCLUDE }>,
+  ) {
+    const photoUrls = await signLinePhotoUrls(this.storageService, mr.lineItems);
     return {
       id: mr.id,
       mrNumber: mr.mrNumber,
@@ -1171,7 +1200,9 @@ export class MaterialRequestsService {
         id: li.id,
         materialId: li.materialId,
         materialName: li.material?.name ?? li.materialName,
-        imageUrl: li.material?.imageUrl ?? null,
+        // The requester's own photo (FOR-404) wins over the catalogue image.
+        imageUrl: photoUrls.get(li.id) ?? li.material?.imageUrl ?? null,
+        photoFileId: li.photoFileId,
         description: li.description,
         quantity: li.quantity,
         unit: li.unit,

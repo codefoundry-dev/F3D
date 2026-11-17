@@ -200,8 +200,12 @@ model PoLineItem {
   notes                 String?
   pickUp                Boolean   @default(false) @map("pick_up")
 
+  // Requester's photo carried over from the source MR line (FOR-404).
+  photoFileId           String?   @map("photo_file_id")
+
   purchaseOrder    PurchaseOrder    @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   material         Material?        @relation(fields: [materialId], references: [id])
+  photoFile        File?            @relation("PoLinePhoto", fields: [photoFileId], references: [id], onDelete: SetNull)
   deliveryLocation ProjectLocation? @relation("PoLineItemDeliveryLocation", fields: [deliveryLocationId], references: [id])
 
   deliveryReportLines DeliveryReportLine[] @relation("DeliveryReportLinePoLine")

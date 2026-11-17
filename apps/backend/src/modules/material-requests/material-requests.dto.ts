@@ -77,6 +77,13 @@ export class CreateMrLineItemDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'File id of a photo uploaded via POST /material-requests/line-photos',
+  })
+  @IsOptional()
+  @IsUUID()
+  photoFileId?: string;
 }
 
 /**
