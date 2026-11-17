@@ -1,10 +1,10 @@
-import { getMaterialCategories } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { NAKED_INPUT_CLASS, UOM_OPTIONS } from '@forethread/po-shared';
 import { BOM_MATCH_CONFIDENCE_THRESHOLD } from '@forethread/shared-types/client';
 import {
   Alert,
   Badge,
+  Button,
   CustomDropdown,
   Input,
   LineItemEditor,
@@ -16,32 +16,36 @@ import {
   ScrollTable,
   useIsPhone,
 } from '@forethread/ui-components';
+import CheckIcon from '@forethread/ui-components/assets/icons/check-stroke.svg?react';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 import CopyIcon from '@forethread/ui-components/assets/icons/copy.svg?react';
+import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import DeleteIcon from '@forethread/ui-components/assets/icons/delete.svg?react';
 import InfoIcon from '@forethread/ui-components/assets/icons/info.svg?react';
-import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { useMaterialSearchQuery } from '../../hooks/useMaterialSearchQuery';
 
-import { emptyRow, firstNonEmpty, isRowEmpty, unmatchedCount, type BomDraftRow } from './bom-draft';
+import {
+  acceptSuggestion,
+  dismissSuggestion,
+  emptyRow,
+  firstNonEmpty,
+  isRowEmpty,
+  pendingSuggestion,
+  pendingSuggestionCount,
+  unmatchedCount,
+  type BomDraftRow,
+} from './bom-draft';
 import { CreatePrivateMaterialModal } from './CreatePrivateMaterialModal';
 
 type TFn = (key: string, options?: Record<string, unknown>) => string;
 
-type BomFieldKey =
-  | 'materialName'
-  | 'match'
-  | 'description'
-  | 'uom'
-  | 'quantity'
-  | 'category'
-  | 'materialType'
-  | 'confidence';
+type BomFieldKey = 'materialName' | 'match' | 'uom' | 'quantity' | 'confidence';
 
-// Row tints from the US 5.01 design: red = no match and no candidates,
-// amber = unmatched with a low-confidence suggestion, blue = resolved by hand.
+// Row tints from the US 5.01 design: red = no match and nothing suggested (or
+// the suggestion was ignored), amber = a suggestion waiting to be accepted or
+// ignored, blue = resolved by hand.
 const ROW_TINT = {
   red: 'bg-[#FFC9CB]/60',
   amber: 'bg-[#FFE6CA]/60',
@@ -51,19 +55,16 @@ const ROW_TINT = {
 function rowTint(row: BomDraftRow): string {
   if (isRowEmpty(row)) return '';
   if (row.manuallyResolved) return ROW_TINT.blue;
-  if (!row.matchedMaterialId) return row.candidates.length > 0 ? ROW_TINT.amber : ROW_TINT.red;
-  // Auto-accepted low-confidence suggestion: matched so the wizard can proceed,
-  // but kept amber to flag it for review. A high-confidence match gets no tint.
-  if (row.matchConfidence !== null && row.matchConfidence < BOM_MATCH_CONFIDENCE_THRESHOLD) {
-    return ROW_TINT.amber;
-  }
+  if (!row.matchedMaterialId) return pendingSuggestion(row) ? ROW_TINT.amber : ROW_TINT.red;
+  // Matched lines get no tint, whatever their score: the confidence badge
+  // still shows it, and amber means only "waiting for a decision".
   return '';
 }
 
 function confidenceBadge(row: BomDraftRow, t: TFn): { label: string; pct: string | null } {
   const score = row.matchedMaterialId
     ? row.matchConfidence
-    : (row.candidates[0]?.confidence ?? null);
+    : (pendingSuggestion(row)?.confidence ?? null);
   if (row.matchedMaterialId && score === null) return { label: t('create.manual'), pct: null };
   if (score === null) return { label: t('create.noMatch'), pct: null };
   const pct = `${Math.round(score * 100)}%`;
@@ -72,17 +73,18 @@ function confidenceBadge(row: BomDraftRow, t: TFn): { label: string; pct: string
   return { label: t('create.low'), pct };
 }
 
-/** Match-cell display text: confirmed match, else best suggestion, else "Select". */
+/** Match-cell display text: confirmed match, else pending suggestion, else "Select". */
 function matchCellText(row: BomDraftRow, t: TFn): { text: string; muted: boolean } {
   if (row.matchedMaterialName) return { text: row.matchedMaterialName, muted: false };
-  if (row.candidates[0]) return { text: row.candidates[0].name, muted: true };
+  const suggestion = pendingSuggestion(row);
+  if (suggestion) return { text: suggestion.name, muted: true };
   return { text: t('create.select'), muted: true };
 }
 
 /** Catalogue image of whichever material `matchCellText` names, if it has one. */
 function matchCellImageUrl(row: BomDraftRow): string | null {
   if (row.matchedMaterialName) return row.matchedImageUrl ?? null;
-  return row.candidates[0]?.imageUrl ?? null;
+  return pendingSuggestion(row)?.imageUrl ?? null;
 }
 
 /**
@@ -113,10 +115,24 @@ interface MatchCellProps {
   onClose: () => void;
   onPick: (material: MaterialItem) => void;
   onCreateNew: () => void;
+  /** Accept / ignore the row's pending suggestion. */
+  onAccept: () => void;
+  onDismiss: () => void;
   t: TFn;
 }
 
-function MatchCell({ index, row, open, onOpen, onClose, onPick, onCreateNew, t }: MatchCellProps) {
+function MatchCell({
+  index,
+  row,
+  open,
+  onOpen,
+  onClose,
+  onPick,
+  onCreateNew,
+  onAccept,
+  onDismiss,
+  t,
+}: MatchCellProps) {
   const [query, setQuery] = useState('');
   const { results, totalCount } = useMaterialSearchQuery(query);
 
@@ -126,21 +142,50 @@ function MatchCell({ index, row, open, onOpen, onClose, onPick, onCreateNew, t }
 
   if (!open) {
     const { text, muted } = matchCellText(row, t);
+    const pending = pendingSuggestion(row) !== null;
+    const decide =
+      'flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground';
     return (
-      <button
-        type="button"
-        onClick={onOpen}
-        data-testid={`bom-match-cell-${index}`}
-        className="flex w-full items-center justify-between gap-1 h-9 px-2 text-sm text-left hover:bg-muted/40 rounded"
-      >
-        <span className="flex min-w-0 items-center gap-2">
-          <MatchThumb url={matchCellImageUrl(row)} name={text} />
-          <span className={cn('truncate', muted ? 'text-muted-foreground' : 'text-foreground')}>
-            {text}
+      <div className="flex w-full items-center gap-1">
+        <button
+          type="button"
+          onClick={onOpen}
+          data-testid={`bom-match-cell-${index}`}
+          className="flex min-w-0 flex-1 items-center justify-between gap-1 h-9 px-2 text-sm text-left hover:bg-muted/40 rounded"
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <MatchThumb url={matchCellImageUrl(row)} name={text} />
+            <span className={cn('truncate', muted ? 'text-muted-foreground' : 'text-foreground')}>
+              {text}
+            </span>
           </span>
-        </span>
-        <ChevronDownIcon className="w-4 h-4 shrink-0 text-muted-foreground" />
-      </button>
+          <ChevronDownIcon className="w-4 h-4 shrink-0 text-muted-foreground" />
+        </button>
+        {pending && (
+          <>
+            <button
+              type="button"
+              onClick={onAccept}
+              aria-label={t('create.acceptSuggestion')}
+              title={t('create.acceptSuggestion')}
+              data-testid={`bom-accept-suggestion-${index}`}
+              className={cn(decide, 'hover:border-success-600 hover:text-success-600')}
+            >
+              <CheckIcon className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={onDismiss}
+              aria-label={t('create.ignoreSuggestion')}
+              title={t('create.ignoreSuggestion')}
+              data-testid={`bom-ignore-suggestion-${index}`}
+              className={cn(decide, 'mr-1 hover:border-destructive hover:text-destructive')}
+            >
+              <CrossIcon className="w-3.5 h-3.5" />
+            </button>
+          </>
+        )}
+      </div>
     );
   }
 
@@ -182,7 +227,7 @@ export interface BomReviewStepProps {
   rows: BomDraftRow[];
   onRowsChange: (rows: BomDraftRow[]) => void;
   /**
-   * 'create' (default) is the upload wizard: shows the destructive unmatched
+   * 'create' (default) is the upload wizard: shows the unmatched warning
    * alert and colour-codes rows by match state. 'edit' (US 5.02 Edit BOM) is
    * the cleaner in-place editor — the page owns its own info banner, so the
    * alert and row tints are suppressed to match the design.
@@ -191,9 +236,10 @@ export interface BomReviewStepProps {
 }
 
 /**
- * Step 2 of 3 — Review Extracted Items. Editable line-item table; every line
- * must be matched to a catalogue material (via the search popup or by creating
- * a private material) before the wizard can continue.
+ * Step 2 of 3 — Review Extracted Items. Editable line-item table; each line is
+ * matched to a catalogue material (via the search popup or by creating a
+ * private material). Lines left unmatched are flagged but don't block the
+ * wizard — the page confirms them before continuing.
  */
 export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomReviewStepProps) {
   const { t: tRaw } = useTranslation('boms');
@@ -201,11 +247,6 @@ export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomRev
   const isPhone = useIsPhone();
   const [openMatchRow, setOpenMatchRow] = useState<number | null>(null);
   const [createMaterialRow, setCreateMaterialRow] = useState<number | null>(null);
-
-  const { data: categories = [] } = useQuery({
-    queryKey: ['materials', 'categories'],
-    queryFn: () => getMaterialCategories(),
-  });
 
   // Keep one empty trailing row so users can add lines manually (the design's
   // "Enter" placeholder row).
@@ -239,9 +280,11 @@ export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomRev
       // Confirming a scored suggestion keeps its score; a fresh pick is the
       // human's call ("Manual").
       matchConfidence: candidate?.confidence ?? null,
+      suggestionDismissed: false,
       uom: firstNonEmpty(rows[index].uom, material.unit),
-      // A manual pick is authoritative about the material, so its catalogue
-      // category / type replace any values carried from the prior suggestion;
+      // Category / type have no column — they ride along with the line and are
+      // saved with it. A manual pick is authoritative about the material, so
+      // its catalogue values replace any carried from the prior suggestion;
       // fall back to the existing value only when the picked material lacks one.
       category: firstNonEmpty(material.category, rows[index].category),
       materialType: firstNonEmpty(material.subCategory, rows[index].materialType),
@@ -251,6 +294,7 @@ export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomRev
   };
 
   const unmatched = unmatchedCount(rows);
+  const pending = pendingSuggestionCount(rows);
 
   const th =
     'px-3 py-3 text-left text-xs font-bold leading-4 tracking-[0.6px] whitespace-nowrap text-[hsl(var(--table-header-foreground))]';
@@ -258,16 +302,6 @@ export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomRev
 
   const uomOptionsFor = (value: string) => {
     const base = UOM_OPTIONS.map((o) => ({ value: o.value as string, label: o.label as string }));
-    if (value && !base.some((o) => o.value === value)) base.unshift({ value, label: value });
-    return base;
-  };
-
-  const categoryOptionsFor = (value: string) => {
-    // Deactivated categories aren't offered (FOR-362); a row already holding
-    // one keeps it via the unshift below.
-    const base = categories
-      .filter((c) => c.isActive !== false)
-      .map((c) => ({ value: c.name, label: c.name }));
     if (value && !base.some((o) => o.value === value)) base.unshift({ value, label: value });
     return base;
   };
@@ -307,22 +341,11 @@ export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomRev
               setOpenMatchRow(null);
               setCreateMaterialRow(index);
             }}
+            onAccept={() => updateRow(index, acceptSuggestion(row))}
+            onDismiss={() => updateRow(index, dismissSuggestion(row))}
             t={t}
           />
         </div>
-      ),
-    },
-    {
-      key: 'description',
-      label: t('create.columns.description'),
-      input: (row, index) => (
-        <Input
-          aria-label={t('create.columns.description')}
-          value={row.description}
-          placeholder={t('create.enterPlaceholder')}
-          onChange={(e) => updateRow(index, { description: e.target.value })}
-          className={inputClass}
-        />
       ),
     },
     {
@@ -352,7 +375,7 @@ export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomRev
             value={row.quantity}
             placeholder={isRowEmpty(row) ? t('create.enterPlaceholder') : '0'}
             onChange={(e) => updateRow(index, { quantity: e.target.value })}
-            className={inputClass}
+            className={isPhone ? undefined : cn(NAKED_INPUT_CLASS, 'w-16')}
           />
           <div className="flex flex-col shrink-0">
             <button
@@ -386,34 +409,6 @@ export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomRev
       ),
     },
     {
-      key: 'category',
-      label: t('create.columns.category'),
-      value: (row) => row.category || '-',
-      input: (row, index) => (
-        <CustomDropdown
-          options={categoryOptionsFor(row.category)}
-          value={row.category}
-          onChange={(value) => updateRow(index, { category: value })}
-          placeholder="—"
-          searchable
-          borderless={!isPhone}
-        />
-      ),
-    },
-    {
-      key: 'materialType',
-      label: t('create.columns.materialType'),
-      input: (row, index) => (
-        <Input
-          aria-label={t('create.columns.materialType')}
-          value={row.materialType}
-          placeholder="—"
-          onChange={(e) => updateRow(index, { materialType: e.target.value })}
-          className={inputClass}
-        />
-      ),
-    },
-    {
       key: 'confidence',
       label: t('create.columns.confidence'),
       input: (row) => {
@@ -433,9 +428,31 @@ export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomRev
   return (
     <div className="space-y-6" data-testid="bom-review-step">
       {variant === 'create' && unmatched > 0 && (
-        <Alert variant="destructive" icon={<InfoIcon className="w-[18px] h-[18px]" />}>
-          {t('create.unmatchedAlert')}
+        <Alert variant="warning" icon={<InfoIcon className="w-[18px] h-[18px]" />}>
+          {t('create.unmatchedAlert', { count: unmatched })}
         </Alert>
+      )}
+
+      {/* Bulk decision on the suggestions still waiting; gone once none are. */}
+      {pending > 0 && (
+        <div
+          className="flex flex-wrap items-center justify-end gap-3"
+          data-testid="bom-suggestion-actions"
+        >
+          <Button
+            variant="outline"
+            onClick={() => onRowsChange(rows.map(dismissSuggestion))}
+            data-testid="bom-ignore-all"
+          >
+            {t('create.ignoreAllSuggestions')}
+          </Button>
+          <Button
+            onClick={() => onRowsChange(rows.map(acceptSuggestion))}
+            data-testid="bom-accept-all"
+          >
+            {t('create.acceptAllSuggestions', { count: pending })}
+          </Button>
+        </div>
       )}
 
       {/* Phones: one card per line + the line edit sheet (B10). */}
@@ -457,18 +474,20 @@ export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomRev
       {!isPhone && (
         <div className="bg-card border border-border rounded-lg overflow-visible">
           <ScrollTable className="overflow-y-visible">
-            <table className="w-full min-w-[1180px] text-sm" data-testid="bom-review-table">
+            <table
+              className="w-full min-w-[1040px] table-fixed text-sm"
+              data-testid="bom-review-table"
+            >
               <thead>
+                {/* Fixed layout: the small columns keep a set width and the
+                    material name takes whatever is left. */}
                 <tr className="bg-[hsl(var(--table-header))]">
-                  <th className={cn(th, 'w-[22%]')}>{t('create.columns.materialName')}</th>
-                  <th className={cn(th, 'w-[13%]')}>{t('create.columns.match')}</th>
-                  <th className={cn(th, 'w-[15%]')}>{t('create.columns.description')}</th>
-                  <th className={cn(th, 'w-[8%]')}>{t('create.columns.uom')}</th>
-                  <th className={cn(th, 'w-[10%]')}>{t('create.columns.quantity')}</th>
-                  <th className={cn(th, 'w-[10%]')}>{t('create.columns.category')}</th>
-                  <th className={cn(th, 'w-[8%]')}>{t('create.columns.materialType')}</th>
-                  <th className={cn(th, 'w-[8%]')}>{t('create.columns.confidence')}</th>
-                  <th className={cn(th, 'w-[6%]')}>{t('create.columns.actions')}</th>
+                  <th className={th}>{t('create.columns.materialName')}</th>
+                  <th className={cn(th, 'w-[26%]')}>{t('create.columns.match')}</th>
+                  <th className={cn(th, 'w-[110px]')}>{t('create.columns.uom')}</th>
+                  <th className={cn(th, 'w-[110px]')}>{t('create.columns.quantity')}</th>
+                  <th className={cn(th, 'w-[150px]')}>{t('create.columns.confidence')}</th>
+                  <th className={cn(th, 'w-[90px]')}>{t('create.columns.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -482,11 +501,8 @@ export function BomReviewStep({ rows, onRowsChange, variant = 'create' }: BomRev
                     >
                       <td className={td}>{field('materialName', row, index)}</td>
                       <td className={cn(td, 'relative')}>{field('match', row, index)}</td>
-                      <td className={td}>{field('description', row, index)}</td>
                       <td className={td}>{field('uom', row, index)}</td>
                       <td className={td}>{field('quantity', row, index)}</td>
-                      <td className={td}>{field('category', row, index)}</td>
-                      <td className={td}>{field('materialType', row, index)}</td>
                       <td className={cn(td, 'px-3')}>{field('confidence', row, index)}</td>
                       <td className={cn(td, 'px-3')}>
                         <div className="flex items-center gap-3">

@@ -15,6 +15,7 @@ import {
   type BomDraftRow,
 } from '../components/create/bom-draft';
 import { BomReviewStep } from '../components/create/BomReviewStep';
+import { UnmatchedItemsModal } from '../components/create/UnmatchedItemsModal';
 import { useBom, useUpdateBom } from '../hooks/useBoms';
 
 /**
@@ -73,6 +74,7 @@ function EditBomForm({ bom }: { bom: BomDetailDto }) {
   }, [setPageTitle, t, tProjects, detailUrl, bomTabUrl, bom.bomNumber]);
 
   const unmatched = unmatchedCount(rows);
+  const [confirmUnmatched, setConfirmUnmatched] = useState(false);
 
   const handleSave = () => {
     updateMutation.mutate(
@@ -107,15 +109,27 @@ function EditBomForm({ bom }: { bom: BomDetailDto }) {
         </Button>
         <Button
           size="lg"
-          className="h-12 text-sm disabled:bg-[#999FAD] disabled:opacity-100"
-          disabled={unmatched > 0}
+          className="h-12 text-sm"
           isLoading={updateMutation.isPending}
-          onClick={handleSave}
+          // Unmatched lines don't block: confirm them first, then save.
+          onClick={() => (unmatched > 0 ? setConfirmUnmatched(true) : handleSave())}
           data-testid="bom-save"
         >
-          {unmatched > 0 ? t('edit.matchItemsFirst') : t('edit.save')}
+          {t('edit.save')}
         </Button>
       </div>
+
+      {confirmUnmatched && (
+        <UnmatchedItemsModal
+          rows={rows}
+          confirmLabel={t('unmatchedModal.saveAnyway')}
+          onClose={() => setConfirmUnmatched(false)}
+          onConfirm={() => {
+            setConfirmUnmatched(false);
+            handleSave();
+          }}
+        />
+      )}
     </div>
   );
 }

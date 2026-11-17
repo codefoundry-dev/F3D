@@ -73,6 +73,7 @@ function makeService() {
   const prisma = {
     project: { findFirst: jest.fn() },
     material: { count: jest.fn() },
+    bomItem: { groupBy: jest.fn().mockResolvedValue([]) },
     bom: {
       count: jest.fn().mockResolvedValue(0),
       findMany: jest.fn().mockResolvedValue([]),
@@ -82,6 +83,7 @@ function makeService() {
   } as unknown as PrismaService & {
     project: { findFirst: jest.Mock };
     material: { count: jest.Mock };
+    bomItem: { groupBy: jest.Mock };
     bom: { count: jest.Mock; findMany: jest.Mock; findFirst: jest.Mock };
     $transaction: jest.Mock;
   };
@@ -120,6 +122,43 @@ describe('BomsService', () => {
       expect(createArgs.data.items.create).toHaveLength(2);
       // sortOrder defaults to the array position when not supplied.
       expect(createArgs.data.items.create[1].sortOrder).toBe(1);
+    });
+
+    it('saves a line without a catalogue match as unmatched', async () => {
+      const { service, prisma, tx, materials } = makeService();
+      prisma.project.findFirst.mockResolvedValue({ id: 'project-1' });
+      prisma.material.count.mockResolvedValue(1);
+      tx.bom.create.mockResolvedValue({ id: 'bom-1' });
+
+      await service.createBom(
+        makeDto({
+          items: [
+            { materialName: 'Portland Cement Type I', matchedMaterialId: 'mat-1' },
+            { materialName: 'Ladder 4/70 90D Bend' },
+            { materialName: 'Cover Peak 30D', matchedMaterialId: null },
+          ],
+        }),
+        user,
+      );
+
+      // Only the given match is checked against the catalogue and recorded.
+      expect(prisma.material.count).toHaveBeenCalledWith({ where: { id: { in: ['mat-1'] } } });
+      expect(materials.recordMaterialUsage).toHaveBeenCalledWith('user-1', ['mat-1']);
+      const lines = tx.bom.create.mock.calls[0][0].data.items.create;
+      expect(
+        lines.map((line: { matchedMaterialId: string | null }) => line.matchedMaterialId),
+      ).toEqual(['mat-1', null, null]);
+    });
+
+    it('skips the catalogue check when no line is matched', async () => {
+      const { service, prisma, tx } = makeService();
+      prisma.project.findFirst.mockResolvedValue({ id: 'project-1' });
+      tx.bom.create.mockResolvedValue({ id: 'bom-1' });
+
+      await service.createBom(makeDto({ items: [{ materialName: 'Ladder 4/70' }] }), user);
+
+      expect(prisma.material.count).not.toHaveBeenCalled();
+      expect(tx.bom.create).toHaveBeenCalled();
     });
 
     it('rejects a project outside the user company', async () => {
@@ -192,6 +231,29 @@ describe('BomsService', () => {
       expect(createArgs.data[0].sortOrder).toBe(5);
     });
 
+    it('keeps a line without a catalogue match as unmatched', async () => {
+      const { service, prisma, tx } = makeService();
+      prisma.bom.findFirst.mockResolvedValue({ id: 'bom-1' });
+      prisma.material.count.mockResolvedValue(1);
+      tx.bom.update.mockResolvedValue({ id: 'bom-1' });
+
+      await service.updateBom(
+        'bom-1',
+        makeUpdateDto({
+          items: [
+            { materialName: 'Portland Cement Type I', matchedMaterialId: 'mat-1' },
+            { materialName: 'Ladder 4/70 90D Bend' },
+          ],
+        }),
+        user,
+      );
+
+      expect(prisma.material.count).toHaveBeenCalledWith({ where: { id: { in: ['mat-1'] } } });
+      const lines = tx.bomItem.createMany.mock.calls[0][0].data;
+      expect(lines[0].matchedMaterialId).toBe('mat-1');
+      expect(lines[1].matchedMaterialId).toBeNull();
+    });
+
     it('allows clearing all lines (empty items): deletes, skips recreate and the material check', async () => {
       const { service, prisma, tx } = makeService();
       prisma.bom.findFirst.mockResolvedValue({ id: 'bom-1' });
@@ -249,6 +311,21 @@ describe('BomsService', () => {
           orderBy: { createdAt: 'desc' },
         }),
       );
+    });
+
+    it('attaches the number of unmatched lines to each BOM', async () => {
+      const { service, prisma } = makeService();
+      prisma.bom.findMany.mockResolvedValue([{ id: 'bom-1' }, { id: 'bom-2' }]);
+      prisma.bomItem.groupBy.mockResolvedValue([{ bomId: 'bom-2', _count: { _all: 3 } }]);
+
+      const result = await service.listBoms(undefined, user);
+
+      expect(prisma.bomItem.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { bomId: { in: ['bom-1', 'bom-2'] }, matchedMaterialId: null },
+        }),
+      );
+      expect(result.map((bom) => bom.unmatchedCount)).toEqual([0, 3]);
     });
 
     it('omits the project filter when not provided', async () => {

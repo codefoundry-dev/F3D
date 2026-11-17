@@ -31,6 +31,8 @@ export interface BomDraftRow {
   candidates: BomCatalogueCandidate[];
   /** Resolved by hand this session (manual pick / created material) — blue row tint. */
   manuallyResolved: boolean;
+  /** The user ignored this row's suggestion; it is no longer offered. */
+  suggestionDismissed?: boolean;
 }
 
 /** First value that is a non-blank string, else ''. */
@@ -70,14 +72,12 @@ export function isRowEmpty(row: BomDraftRow): boolean {
 
 function rowFromLineItem(item: BomLineItem): BomDraftRow {
   const candidates = item.matchCandidates ?? [];
-  // Resolve the catalogue material this line is matched to. High-confidence
-  // lines arrive already matched (matchedMaterialId set by the extractor).
-  // Lower-confidence lines arrive as ranked suggestions instead — accept the
-  // top one by default so the user isn't forced to confirm every row to proceed,
-  // but the row stays flagged for review (amber + confidence badge, see
-  // rowTint) so a wrong guess is easy to spot and override. A line with no
-  // candidates at all stays unmatched and must be resolved by hand.
-  const matchedMaterialId = item.matchedMaterialId ?? candidates[0]?.materialId ?? null;
+  // Only high-confidence lines arrive matched (matchedMaterialId set by the
+  // extractor). A lower-confidence line arrives with ranked suggestions and
+  // stays unmatched: its top suggestion is shown as pending until the user
+  // accepts or ignores it (see pendingSuggestion). A line with no candidates
+  // at all is simply unmatched.
+  const matchedMaterialId = item.matchedMaterialId ?? null;
   const source = matchedMaterialId
     ? candidates.find((candidate) => candidate.materialId === matchedMaterialId)
     : undefined;
@@ -86,17 +86,62 @@ function rowFromLineItem(item: BomLineItem): BomDraftRow {
     description: item.description,
     uom: item.unit ?? '',
     quantity: item.quantity !== null && item.quantity !== undefined ? String(item.quantity) : '',
-    // Category / Material type come from the matched (or accepted) catalogue
-    // material; both stay user-editable, blank only with no associated material.
+    // Category / Material type come from the matched catalogue material; blank
+    // until the line has one.
     category: source?.category ?? '',
     materialType: source?.subCategory ?? '',
     matchedMaterialId,
-    matchedMaterialName: item.matchedMaterialName ?? source?.name ?? null,
+    matchedMaterialName: matchedMaterialId
+      ? (item.matchedMaterialName ?? source?.name ?? null)
+      : null,
     matchedImageUrl: source?.imageUrl ?? null,
-    matchConfidence: item.matchConfidence ?? source?.confidence ?? null,
+    matchConfidence: matchedMaterialId
+      ? (item.matchConfidence ?? source?.confidence ?? null)
+      : null,
     candidates,
     manuallyResolved: false,
   };
+}
+
+/**
+ * The suggestion waiting for the user's decision on this row: the top-ranked
+ * candidate of a line that is not matched and whose suggestion has not been
+ * ignored. Null when there is nothing to accept or ignore.
+ */
+export function pendingSuggestion(row: BomDraftRow): BomCatalogueCandidate | null {
+  if (isRowEmpty(row) || row.matchedMaterialId || row.suggestionDismissed) return null;
+  return row.candidates[0] ?? null;
+}
+
+/** How many rows have a suggestion waiting to be accepted or ignored. */
+export function pendingSuggestionCount(rows: BomDraftRow[]): number {
+  return rows.filter((row) => pendingSuggestion(row) !== null).length;
+}
+
+/** Match the row to its pending suggestion (no-op without one). */
+export function acceptSuggestion(row: BomDraftRow): BomDraftRow {
+  const suggestion = pendingSuggestion(row);
+  if (!suggestion) return row;
+  return {
+    ...row,
+    matchedMaterialId: suggestion.materialId,
+    matchedMaterialName: suggestion.name,
+    matchedImageUrl: suggestion.imageUrl ?? null,
+    // The score is kept so the confidence badge still shows how sure the
+    // matcher was about a suggestion the user accepted.
+    matchConfidence: suggestion.confidence,
+    uom: firstNonEmpty(row.uom, suggestion.uom),
+    category: firstNonEmpty(suggestion.category, row.category),
+    materialType: firstNonEmpty(suggestion.subCategory, row.materialType),
+  };
+}
+
+/**
+ * Ignore the row's pending suggestion (no-op without one). The line stays
+ * unmatched and can still be matched from the catalogue search.
+ */
+export function dismissSuggestion(row: BomDraftRow): BomDraftRow {
+  return pendingSuggestion(row) ? { ...row, suggestionDismissed: true } : row;
 }
 
 /** Map a completed BOM extraction result into editable review rows. */
@@ -121,7 +166,7 @@ export function rowsFromBomItems(items: BomItemDto[]): BomDraftRow[] {
       quantity: item.quantity !== null && item.quantity !== undefined ? String(item.quantity) : '',
       category: item.category ?? '',
       materialType: item.materialType ?? '',
-      matchedMaterialId: item.matchedMaterialId || null,
+      matchedMaterialId: item.matchedMaterialId ?? null,
       matchedMaterialName: item.matchedMaterialName,
       matchedImageUrl: item.matchedMaterialId ? (item.imageUrl ?? null) : null,
       matchConfidence: item.matchConfidence,
@@ -143,16 +188,24 @@ export function realRows(rows: BomDraftRow[]): BomDraftRow[] {
   return rows.filter((row) => !isRowEmpty(row));
 }
 
-/** Rows that still need a catalogue match before the wizard may continue. */
+/** Real rows with no catalogue match, in display order. */
+export function unmatchedRows(rows: BomDraftRow[]): BomDraftRow[] {
+  return realRows(rows).filter((row) => !row.matchedMaterialId);
+}
+
+/**
+ * How many rows have no catalogue match. They don't block saving — the user is
+ * asked to confirm, and the lines are saved unmatched.
+ */
 export function unmatchedCount(rows: BomDraftRow[]): number {
-  return realRows(rows).filter((row) => !row.matchedMaterialId).length;
+  return unmatchedRows(rows).length;
 }
 
 /** Map the reviewed rows to the POST /boms payload. */
 export function rowsToCreateItems(rows: BomDraftRow[]): CreateBomItemInput[] {
   return realRows(rows).map((row, index) => ({
     materialName: row.materialName.trim() || row.description.trim(),
-    matchedMaterialId: row.matchedMaterialId as string,
+    matchedMaterialId: row.matchedMaterialId ?? undefined,
     description: row.description.trim() || undefined,
     uom: row.uom.trim() || undefined,
     quantity: parseQuantity(row.quantity),

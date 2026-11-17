@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  acceptSuggestion,
+  dismissSuggestion,
   emptyRow,
   isRowEmpty,
+  pendingSuggestion,
+  pendingSuggestionCount,
   realRows,
   rowsFromBomItems,
   rowsFromExtraction,
   rowsToBomResult,
   rowsToCreateItems,
   unmatchedCount,
+  unmatchedRows,
   type BomDraftRow,
 } from './bom-draft';
 
@@ -126,7 +131,7 @@ describe('bom-draft', () => {
     expect(row.materialType).toBe('Reinforcement');
   });
 
-  it('auto-accepts the top suggestion (kept flagged) when the line is not high-confidence matched', () => {
+  it('keeps a low-confidence suggestion pending instead of matching the line', () => {
     const [row] = rowsFromExtraction({
       ...extraction,
       items: [
@@ -137,8 +142,7 @@ describe('bom-draft', () => {
           targetPrice: null,
           notes: null,
           // Below the auto-match threshold: the extractor leaves it unmatched
-          // with ranked suggestions. We accept the top one so the row counts as
-          // matched (wizard can proceed), while matchConfidence keeps it flagged.
+          // with ranked suggestions. The top one is offered, not applied.
           matchedMaterialId: null,
           matchedMaterialName: null,
           matchConfidence: null,
@@ -161,14 +165,43 @@ describe('bom-draft', () => {
         },
       ],
     });
-    expect(row.matchedMaterialId).toBe('mat-bend');
-    expect(row.matchedMaterialName).toBe('12B Bend 90 150W SS316');
-    expect(row.matchConfidence).toBe(0.62);
-    expect(row.category).toBe('Pipe Fittings');
-    expect(row.materialType).toBe('Bends');
+    expect(row.matchedMaterialId).toBeNull();
+    expect(row.matchedMaterialName).toBeNull();
+    expect(row.matchConfidence).toBeNull();
+    expect(row.category).toBe('');
+    expect(unmatchedCount([row])).toBe(1);
+    expect(pendingSuggestion(row)?.materialId).toBe('mat-bend');
+    expect(pendingSuggestionCount([row, emptyRow()])).toBe(1);
+
+    // Accepting applies the top suggestion and keeps its score.
+    const accepted = acceptSuggestion(row);
+    expect(accepted).toMatchObject({
+      matchedMaterialId: 'mat-bend',
+      matchedMaterialName: '12B Bend 90 150W SS316',
+      matchConfidence: 0.62,
+      category: 'Pipe Fittings',
+      materialType: 'Bends',
+      manuallyResolved: false,
+    });
+    expect(pendingSuggestion(accepted)).toBeNull();
+
+    // Ignoring leaves the line unmatched with nothing left to offer.
+    const dismissed = dismissSuggestion(row);
+    expect(dismissed.matchedMaterialId).toBeNull();
+    expect(pendingSuggestion(dismissed)).toBeNull();
+    expect(unmatchedCount([dismissed])).toBe(1);
   });
 
-  it('leaves a line with no candidates unmatched so it still blocks the wizard', () => {
+  it('leaves rows without a pending suggestion untouched on accept / ignore', () => {
+    const matched = { ...emptyRow(), materialName: 'Steel', matchedMaterialId: 'm1' };
+    const bare = { ...emptyRow(), materialName: 'Mystery' };
+    for (const row of [matched, bare, emptyRow()]) {
+      expect(acceptSuggestion(row)).toBe(row);
+      expect(dismissSuggestion(row)).toBe(row);
+    }
+  });
+
+  it('leaves a line with no candidates unmatched', () => {
     const [row] = rowsFromExtraction({
       ...extraction,
       items: [
@@ -224,6 +257,24 @@ describe('bom-draft', () => {
     ];
     expect(unmatchedCount(rows)).toBe(1);
     expect(realRows(rows)).toHaveLength(2);
+  });
+
+  it('lists the unmatched rows and sends them without a catalogue match', () => {
+    const matched = {
+      ...emptyRow(),
+      materialName: 'Steel Bar',
+      matchedMaterialId: 'm1',
+      matchedMaterialName: 'Steel Bar',
+    };
+    const unmatched = { ...emptyRow(), materialName: 'Ladder 4/70', quantity: '6' };
+    const rows = [matched, unmatched, emptyRow()];
+
+    expect(unmatchedRows(rows)).toEqual([unmatched]);
+    const items = rowsToCreateItems(rows);
+    expect(items).toHaveLength(2);
+    expect(items[0].matchedMaterialId).toBe('m1');
+    expect(items[1]).toMatchObject({ materialName: 'Ladder 4/70', quantity: 6 });
+    expect(items[1].matchedMaterialId).toBeUndefined();
   });
 
   it('treats a row with only whitespace as empty', () => {

@@ -8,7 +8,8 @@ import { BOMS_PATHS } from './paths';
 
 export interface CreateBomItemInput {
   materialName: string;
-  matchedMaterialId: string;
+  /** Omitted for a line saved without a catalogue match. */
+  matchedMaterialId?: string | null;
   description?: string;
   uom?: string;
   quantity?: number;
@@ -41,7 +42,8 @@ export type BomStatusValue = 'ACTIVE' | 'SUPERSEDED';
 export interface BomItemDto {
   id: string;
   materialName: string;
-  matchedMaterialId: string;
+  /** Null for a line saved without a catalogue match. */
+  matchedMaterialId: string | null;
   matchedMaterialName: string | null;
   /** Catalogue image of the matched material, or null. */
   imageUrl?: string | null;

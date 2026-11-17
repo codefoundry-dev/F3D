@@ -131,6 +131,20 @@ describe('BomItemsModal', () => {
     expect(dashes.length).toBe(6);
   });
 
+  it('marks a line saved without a catalogue match as not matched', () => {
+    mockUseBom.mockReturnValue({
+      data: makeBom([
+        makeItem({ matchedMaterialId: null, matchedMaterialName: null, matchConfidence: null }),
+      ]),
+      isLoading: false,
+    });
+    render(<BomItemsModal bomId="bom-1" onClose={() => {}} />);
+
+    expect(screen.getByText('viewModal.notMatched')).toBeInTheDocument();
+    // "No match", not "Manual": nobody matched this line by hand.
+    expect(screen.getByTestId('badge')).toHaveTextContent('create.noMatch');
+  });
+
   it('labels a manual (null confidence) match with no percentage', () => {
     mockUseBom.mockReturnValue({
       data: makeBom([makeItem({ matchConfidence: null })]),

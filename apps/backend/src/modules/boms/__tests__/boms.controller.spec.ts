@@ -78,6 +78,26 @@ describe('BomsController', () => {
     expect(result[0]).toMatchObject({ id: 'bom-1', itemCount: 1, matchedCount: 1 });
   });
 
+  it('reports unmatched lines in the matched count', async () => {
+    const unmatchedItem = {
+      ...makeBom().items[0],
+      id: 'item-2',
+      matchedMaterialId: null,
+      matchedMaterial: null,
+    };
+    mockService.listBoms.mockResolvedValue([makeBom({ _count: { items: 4 }, unmatchedCount: 3 })]);
+    mockService.getBom.mockResolvedValue(
+      makeBom({ _count: { items: 2 }, items: [makeBom().items[0], unmatchedItem] }),
+    );
+
+    const list = await controller.list({} as never, user as never);
+    const detail = await controller.get('bom-1', user as never);
+
+    expect(list[0]).toMatchObject({ itemCount: 4, matchedCount: 1 });
+    expect(detail).toMatchObject({ itemCount: 2, matchedCount: 1 });
+    expect(detail.items[1]).toMatchObject({ matchedMaterialId: null, matchedMaterialName: null });
+  });
+
   it('get delegates to the service and maps the detail response', async () => {
     mockService.getBom.mockResolvedValue(makeBom());
 

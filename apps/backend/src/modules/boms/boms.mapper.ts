@@ -7,7 +7,8 @@ import type { BomWithCounts, BomWithItems } from './boms.service';
 export interface BomItemResponse {
   id: string;
   materialName: string;
-  matchedMaterialId: string;
+  /** Null for a line saved without a catalogue match. */
+  matchedMaterialId: string | null;
   matchedMaterialName: string | null;
   /** Catalogue image of the matched material, or null. */
   imageUrl: string | null;
@@ -45,9 +46,7 @@ export function toBomListItemResponse(bom: BomWithCounts): BomListItemResponse {
     status: bom.status,
     extractionId: bom.extractionId,
     itemCount: bom._count.items,
-    // Every saved line is catalogue-matched (enforced at create), so the
-    // "Matched" column reads n/n today; kept separate for future partial saves.
-    matchedCount: bom._count.items,
+    matchedCount: bom._count.items - (bom.unmatchedCount ?? 0),
     createdBy: { id: bom.createdBy.id, name: bom.createdBy.name },
     createdAt: bom.createdAt.toISOString(),
     updatedAt: bom.updatedAt.toISOString(),
@@ -57,6 +56,7 @@ export function toBomListItemResponse(bom: BomWithCounts): BomListItemResponse {
 export function toBomDetailResponse(bom: BomWithItems): BomDetailResponse {
   return {
     ...toBomListItemResponse(bom),
+    matchedCount: bom.items.filter((item) => item.matchedMaterialId !== null).length,
     items: bom.items.map((item) => ({
       id: item.id,
       materialName: item.materialName,

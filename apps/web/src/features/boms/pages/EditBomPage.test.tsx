@@ -33,6 +33,17 @@ vi.mock('@/app/route-config', () => ({
     projectBomDetail: '/projects/:id/bom/:bomId',
   },
 }));
+vi.mock('../components/create/UnmatchedItemsModal', () => ({
+  UnmatchedItemsModal: (p: any) => (
+    <div data-testid="unmatched-modal">
+      <button data-testid="unmatched-back" onClick={p.onClose} />
+      <button data-testid="unmatched-confirm" onClick={p.onConfirm}>
+        {p.confirmLabel}
+      </button>
+    </div>
+  ),
+}));
+
 vi.mock('../components/create/BomReviewStep', () => ({
   BomReviewStep: ({ rows, variant }: { rows: unknown[]; variant: string }) => (
     <div data-testid="review-step" data-variant={variant}>
@@ -111,5 +122,57 @@ describe('EditBomPage', () => {
     expect(payload.items).toHaveLength(1);
     expect(payload.items[0].matchedMaterialId).toBe('m1');
     expect(mockNavigate).toHaveBeenCalledWith('/projects/proj-1/bom/bom-1');
+    expect(screen.queryByTestId('unmatched-modal')).not.toBeInTheDocument();
+  });
+
+  describe('with an unmatched line', () => {
+    const unmatchedItem = {
+      ...matchedItem,
+      id: 'i2',
+      materialName: 'Ladder 4/70',
+      matchedMaterialId: null,
+      matchedMaterialName: null,
+      matchConfidence: null,
+      sortOrder: 1,
+    };
+    const partialBom = { ...bom, items: [matchedItem, unmatchedItem] };
+
+    it('keeps save enabled and asks for confirmation instead of saving', () => {
+      mockUseBom.mockReturnValue({ data: partialBom, isLoading: false, isError: false });
+      render(<EditBomPage />);
+
+      const save = screen.getByText('edit.save');
+      expect(save).toBeEnabled();
+      fireEvent.click(save);
+
+      expect(screen.getByTestId('unmatched-modal')).toBeInTheDocument();
+      expect(screen.getByTestId('unmatched-confirm')).toHaveTextContent(
+        'unmatchedModal.saveAnyway',
+      );
+      expect(mockMutate).not.toHaveBeenCalled();
+    });
+
+    it('does not save when the user goes back', () => {
+      mockUseBom.mockReturnValue({ data: partialBom, isLoading: false, isError: false });
+      render(<EditBomPage />);
+      fireEvent.click(screen.getByText('edit.save'));
+      fireEvent.click(screen.getByTestId('unmatched-back'));
+
+      expect(screen.queryByTestId('unmatched-modal')).not.toBeInTheDocument();
+      expect(mockMutate).not.toHaveBeenCalled();
+    });
+
+    it('saves the line as unmatched once confirmed', () => {
+      mockUseBom.mockReturnValue({ data: partialBom, isLoading: false, isError: false });
+      render(<EditBomPage />);
+      fireEvent.click(screen.getByText('edit.save'));
+      fireEvent.click(screen.getByTestId('unmatched-confirm'));
+
+      expect(screen.queryByTestId('unmatched-modal')).not.toBeInTheDocument();
+      const [payload] = mockMutate.mock.calls[0];
+      expect(payload.items).toHaveLength(2);
+      expect(payload.items[0].matchedMaterialId).toBe('m1');
+      expect(payload.items[1].matchedMaterialId).toBeUndefined();
+    });
   });
 });

@@ -53,6 +53,17 @@ vi.mock('../hooks/useBoms', () => ({
   useCreateBom: () => mockUseCreateBom(),
 }));
 
+vi.mock('../components/create/UnmatchedItemsModal', () => ({
+  UnmatchedItemsModal: (p: any) => (
+    <div data-testid="unmatched-modal">
+      <button data-testid="unmatched-back" onClick={p.onClose} />
+      <button data-testid="unmatched-confirm" onClick={p.onConfirm}>
+        {p.confirmLabel}
+      </button>
+    </div>
+  ),
+}));
+
 vi.mock('../components/create/BomReviewStep', () => ({
   BomReviewStep: (_p: any) => <div data-testid="bom-review-step" />,
 }));
@@ -326,7 +337,7 @@ describe('CreateBomPage', () => {
     expect(continueBtn).toHaveTextContent('create.continue');
   });
 
-  it('disables continue and shows matchItemsFirst when a real row is unmatched', () => {
+  function gotoStep2WithUnmatchedRow() {
     mockDocExtractionQuery.mockReturnValue({
       data: {
         status: 'COMPLETED',
@@ -349,12 +360,57 @@ describe('CreateBomPage', () => {
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [new File(['x'], 'bom.xlsx')] } });
     fireEvent.click(screen.getByTestId('bom-proceed'));
+  }
+
+  it('keeps continue enabled when a real row is unmatched', () => {
+    gotoStep2WithUnmatchedRow();
     const continueBtn = screen.getByTestId('bom-continue');
-    expect(continueBtn).toBeDisabled();
-    expect(continueBtn).toHaveTextContent('create.matchItemsFirst');
+    expect(continueBtn).toBeEnabled();
+    expect(continueBtn).toHaveTextContent('create.continue');
   });
 
-  it('auto-accepts a suggested match so continue is enabled on step 2', () => {
+  it('asks for confirmation before continuing with unmatched rows', () => {
+    gotoStep2WithUnmatchedRow();
+    expect(screen.queryByTestId('unmatched-modal')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('bom-continue'));
+
+    expect(screen.getByTestId('unmatched-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('unmatched-confirm')).toHaveTextContent(
+      'unmatchedModal.continueAnyway',
+    );
+    // Still on step 2 until the user confirms.
+    expect(screen.getByText('create.step2Title')).toBeInTheDocument();
+  });
+
+  it('stays on step 2 when the user goes back from the confirmation', () => {
+    gotoStep2WithUnmatchedRow();
+    fireEvent.click(screen.getByTestId('bom-continue'));
+    fireEvent.click(screen.getByTestId('unmatched-back'));
+
+    expect(screen.queryByTestId('unmatched-modal')).not.toBeInTheDocument();
+    expect(screen.getByText('create.step2Title')).toBeInTheDocument();
+  });
+
+  it('continues to step 3 and creates the BOM with the row left unmatched', () => {
+    const mutate = vi.fn();
+    mockUseCreateBom.mockReturnValue({ mutate, isPending: false });
+    gotoStep2WithUnmatchedRow();
+    fireEvent.click(screen.getByTestId('bom-continue'));
+    fireEvent.click(screen.getByTestId('unmatched-confirm'));
+
+    expect(screen.queryByTestId('unmatched-modal')).not.toBeInTheDocument();
+    expect(screen.getByText('create.step3Title')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('bom-project-proj-1'));
+    fireEvent.click(screen.getByTestId('bom-create'));
+    const [payload] = mutate.mock.calls[0];
+    expect(payload.items).toHaveLength(1);
+    expect(payload.items[0].materialName).toBe('Steel');
+    expect(payload.items[0].matchedMaterialId).toBeUndefined();
+  });
+
+  it('keeps continue enabled while a suggested match is still pending', () => {
     mockDocExtractionQuery.mockReturnValue({
       data: {
         status: 'COMPLETED',
@@ -364,8 +420,8 @@ describe('CreateBomPage', () => {
               description: '90 bend',
               quantity: 10,
               unit: 'unit',
-              // A below-threshold suggestion (no confirmed match) is accepted by
-              // default, so the row is matched and the wizard can proceed.
+              // A below-threshold suggestion is only offered, so the row is
+              // still unmatched — which no longer blocks the wizard.
               matchedMaterialId: null,
               matchedMaterialName: null,
               matchConfidence: null,

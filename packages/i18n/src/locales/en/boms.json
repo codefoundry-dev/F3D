@@ -43,7 +43,16 @@
       "confidence": "Confidence"
     },
     "manual": "Manual",
+    "notMatched": "Not matched",
     "close": "Close"
+  },
+  "unmatchedModal": {
+    "title_one": "{{count}} item is not matched",
+    "title_other": "{{count}} items are not matched",
+    "description": "These lines have no catalogue material. You can go back and match them, or carry on and match them later from Edit BOM.",
+    "back": "Go back and match",
+    "continueAnyway": "Continue anyway",
+    "saveAnyway": "Save anyway"
   },
   "detail": {
     "subtitle": "Bill of materials line items",
@@ -60,7 +69,6 @@
     "cancel": "Cancel",
     "save": "Save changes",
     "saving": "Saving…",
-    "matchItemsFirst": "Match items first",
     "loading": "Loading BOM…",
     "notFound": "This BOM could not be found.",
     "saveSuccess": "BOM updated.",
@@ -90,21 +98,22 @@
     "tryAgain": "Try again",
     "uploadError": "Upload failed. Please try again.",
     "step2Title": "Step 2 of 3: Review Extracted Items",
-    "step2Subtitle": "Check the extracted lines and match every item to a catalogue material before continuing.",
-    "unmatchedAlert": "Unmatched items detected. All BOM line items must be matched to materials in the catalogue before proceeding. Review and resolve unmatched entries to continue.",
+    "step2Subtitle": "Check the extracted lines and match items to catalogue materials. Anything left unmatched can be matched later.",
+    "unmatchedAlert_one": "{{count}} item is not matched to the catalogue. Match it now, or continue and match it later from Edit BOM.",
+    "unmatchedAlert_other": "{{count}} items are not matched to the catalogue. Match them now, or continue and match them later from Edit BOM.",
     "columns": {
       "materialName": "Material name *",
       "match": "Matched mat. cat. item*",
-      "description": "Original item description *",
       "uom": "UoM *",
       "quantity": "Quantity *",
-      "category": "Category",
-      "materialType": "Material type",
       "confidence": "Confidence",
       "actions": "Actions"
     },
-    "matchItemsFirst": "Match items first",
     "continue": "Continue",
+    "acceptAllSuggestions": "Accept all suggestions ({{count}})",
+    "ignoreAllSuggestions": "Ignore all suggestions",
+    "acceptSuggestion": "Accept suggested match",
+    "ignoreSuggestion": "Ignore suggested match",
     "select": "Select",
     "noMatch": "No match",
     "low": "Low",
