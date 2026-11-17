@@ -170,7 +170,7 @@ export function StepSelectMaterials({
       .filter((it) => !term || it.materialName.toLowerCase().includes(term))
       .map((it) => ({
         pickId: it.id,
-        materialId: it.matchedMaterialId || undefined,
+        materialId: it.matchedMaterialId ?? undefined,
         name: it.materialName,
         unit: it.uom ?? 'Each',
         description: it.description ?? undefined,
