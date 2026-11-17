@@ -31,6 +31,7 @@ import {
   useCreateMaterialRequest,
   useMrProjectDetail,
 } from '../services/material-requests.service';
+import { useMaterialRequestsCrumb } from '../useMaterialRequestsCrumb';
 import {
   buildCreateInput,
   nextLineKey,
@@ -67,6 +68,9 @@ export default function RequestMaterialsPage() {
   // "Need by" for all lines (FOR-364): fills every line the foreman hasn't
   // changed by hand, including lines added later.
   const [needBy, setNeedBy] = useState<NeedByDefault>({ date: '', time: '' });
+  // A completed blank row on the Manual tab becomes a line the moment focus
+  // leaves it (FOR-403), so Next must already be clickable while it is pending.
+  const [manualDraftReady, setManualDraftReady] = useState(false);
   const [detailErrors, setDetailErrors] = useState<MrDetailsErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showNominate, setShowNominate] = useState(false);
@@ -128,6 +132,11 @@ export default function RequestMaterialsPage() {
           // Set when the inline row's name was picked from the catalogue — the
           // line is then raised against the real material, not a loose name.
           materialId: draft.materialId,
+          // The requester's uploaded photo (FOR-404); sent as photoFileId.
+          photoFileId: draft.photoFileId,
+          // Display only: the uploaded photo's preview, else the catalogue
+          // image of a linked material. A plain free-text line has neither.
+          imageUrl: draft.photoFileId || draft.materialId ? draft.imageUrl : undefined,
           materialName: draft.materialName,
           description: draft.description,
           unit: draft.unit,
@@ -257,13 +266,16 @@ export default function RequestMaterialsPage() {
 
   // App-bar breadcrumb / page title reflects the current wizard step.
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  const rootCrumb = useMaterialRequestsCrumb();
   useEffect(() => {
     setPageTitle(headerTitle, null, overviewPath, [
+      rootCrumb,
+      { label: t('jobOverview.selectJob'), to: ROUTES.materialRequestJobs },
       { label: t('jobOverview.title'), to: overviewPath },
       { label: headerTitle },
     ]);
     return () => setPageTitle(null);
-  }, [setPageTitle, headerTitle, overviewPath, t]);
+  }, [setPageTitle, headerTitle, overviewPath, t, rootCrumb]);
 
   return (
     <MobileShell
@@ -289,6 +301,7 @@ export default function RequestMaterialsPage() {
             onAddManual={addManual}
             onRemoveLine={removeLine}
             onPatchLine={patchLine}
+            onManualDraftReadyChange={setManualDraftReady}
           />
         )}
         {step === 1 && (
@@ -403,7 +416,7 @@ export default function RequestMaterialsPage() {
         <PrimaryButton
           withArrow
           onClick={handleContinueFromSelect}
-          disabled={selectedCount === 0}
+          disabled={selectedCount === 0 && !manualDraftReady}
           className="w-full sm:w-auto"
           data-testid="mr-step1-next"
         >

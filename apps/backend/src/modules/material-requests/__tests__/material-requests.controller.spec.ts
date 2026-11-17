@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ApprovalEntityType, UserRole } from '@prisma/client';
 
 import { ApprovalsService } from '../../approvals/approvals.service';
+import { LinePhotoService } from '../../storage/line-photo.service';
 import { MaterialRequestsController } from '../material-requests.controller';
 import { MaterialRequestsService } from '../material-requests.service';
 
@@ -26,6 +27,10 @@ const mockApprovals = {
   withdrawNomination: jest.fn(),
 };
 
+const mockLinePhotos = {
+  upload: jest.fn(),
+};
+
 const mockUser = {
   id: 'fm-1',
   email: 'foreman@test.com',
@@ -44,10 +49,23 @@ describe('MaterialRequestsController', () => {
       providers: [
         { provide: MaterialRequestsService, useValue: mockService },
         { provide: ApprovalsService, useValue: mockApprovals },
+        { provide: LinePhotoService, useValue: mockLinePhotos },
       ],
     }).compile();
 
     controller = module.get<MaterialRequestsController>(MaterialRequestsController);
+  });
+
+  describe('uploadLinePhoto (FOR-404)', () => {
+    it('stores the photo as the current user and returns the file id', async () => {
+      const expected = { fileId: 'file-1', fileName: 'a.jpg', url: 'https://signed/a.jpg' };
+      mockLinePhotos.upload.mockResolvedValue(expected);
+      const file = { originalname: 'a.jpg' } as Express.Multer.File;
+
+      const result = await controller.uploadLinePhoto(file, mockUser);
+      expect(mockLinePhotos.upload).toHaveBeenCalledWith(file, 'fm-1');
+      expect(result).toEqual(expected);
+    });
   });
 
   describe('create', () => {

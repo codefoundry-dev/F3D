@@ -15,6 +15,7 @@ import {
   type BomDraftRow,
 } from '../components/create/bom-draft';
 import { BomReviewStep } from '../components/create/BomReviewStep';
+import { UnmatchedItemsModal } from '../components/create/UnmatchedItemsModal';
 import { useBom, useUpdateBom } from '../hooks/useBoms';
 
 /**
@@ -48,6 +49,7 @@ function EditBomForm({ bom }: { bom: BomDetailDto }) {
   const { id: projectId = '' } = useParams<{ id: string; bomId: string }>();
   const { t: tRaw } = useTranslation('boms');
   const t = tRaw as (key: string, options?: Record<string, unknown>) => string;
+  const { t: tProjects } = useTranslation('projects');
   const navigate = useNavigate();
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
   const updateMutation = useUpdateBom(bom.id);
@@ -58,12 +60,21 @@ function EditBomForm({ bom }: { bom: BomDetailDto }) {
 
   const detailUrl = ROUTES.projectBomDetail.replace(':id', projectId).replace(':bomId', bom.id);
 
+  const bomTabUrl = `${ROUTES.projectDetail.replace(':id', projectId)}?tab=bom`;
+
+  // App-bar breadcrumb: Projects › Bill of Materials (BOM) › BOM-XXXX › Edit BOM.
   useEffect(() => {
-    setPageTitle(t('edit.title'), t('edit.subtitle'), detailUrl);
+    setPageTitle(t('edit.title'), t('edit.subtitle'), detailUrl, [
+      { label: tProjects('list.title'), to: ROUTES.projects },
+      { label: tProjects('detail.tabs.bom'), to: bomTabUrl },
+      { label: bom.bomNumber, to: detailUrl },
+      { label: t('edit.title') },
+    ]);
     return () => setPageTitle(null);
-  }, [setPageTitle, t, detailUrl]);
+  }, [setPageTitle, t, tProjects, detailUrl, bomTabUrl, bom.bomNumber]);
 
   const unmatched = unmatchedCount(rows);
+  const [confirmUnmatched, setConfirmUnmatched] = useState(false);
 
   const handleSave = () => {
     updateMutation.mutate(
@@ -98,15 +109,27 @@ function EditBomForm({ bom }: { bom: BomDetailDto }) {
         </Button>
         <Button
           size="lg"
-          className="h-12 text-sm disabled:bg-[#999FAD] disabled:opacity-100"
-          disabled={unmatched > 0}
+          className="h-12 text-sm"
           isLoading={updateMutation.isPending}
-          onClick={handleSave}
+          // Unmatched lines don't block: confirm them first, then save.
+          onClick={() => (unmatched > 0 ? setConfirmUnmatched(true) : handleSave())}
           data-testid="bom-save"
         >
-          {unmatched > 0 ? t('edit.matchItemsFirst') : t('edit.save')}
+          {t('edit.save')}
         </Button>
       </div>
+
+      {confirmUnmatched && (
+        <UnmatchedItemsModal
+          rows={rows}
+          confirmLabel={t('unmatchedModal.saveAnyway')}
+          onClose={() => setConfirmUnmatched(false)}
+          onConfirm={() => {
+            setConfirmUnmatched(false);
+            handleSave();
+          }}
+        />
+      )}
     </div>
   );
 }

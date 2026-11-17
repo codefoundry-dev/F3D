@@ -190,6 +190,7 @@
     "notFound": "Material request not found",
     "projectNotFound": "Project not found",
     "invalidLineItem": "Each line item must have a catalogue material or a material name",
+    "invalidLinePhoto": "A line item photo is missing or was not uploaded by you",
     "invalidMaterialIds": "Some material IDs are invalid or not accessible",
     "invalidDeliveryLocation": "Delivery location does not belong to the selected project",
     "cannotUpdateNonDraft": "Only Draft material requests can be edited",

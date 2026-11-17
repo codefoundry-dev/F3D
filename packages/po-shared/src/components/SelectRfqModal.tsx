@@ -1,6 +1,7 @@
 import { getRfqs, getRfq } from '@forethread/api-client';
 import type { RfqListItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import {
   Button,
   Modal,
@@ -397,6 +398,10 @@ export function SelectRfqModal({ open, onClose, onSelect }: SelectRfqModalProps)
                                   {/* Item header: name + delivery badge + select */}
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
+                                      <MaterialImageThumb
+                                        url={item.imageUrl}
+                                        name={item.materialName}
+                                      />
                                       <p className="text-sm font-semibold text-foreground">
                                         {item.materialName}
                                       </p>

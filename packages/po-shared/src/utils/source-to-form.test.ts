@@ -116,6 +116,31 @@ describe('rfqToFormDefaults', () => {
     });
   });
 
+  it('carries the RFQ line catalogue image onto the PO row (FOR-402)', () => {
+    const line = {
+      id: 'li-1',
+      projectName: 'Project Alpha',
+      materialId: 'mat-1',
+      materialName: 'Concrete',
+      description: null,
+      quantity: 100,
+      unit: 'kg',
+      expectedDeliveryDate: null,
+      deliveryLocation: null,
+    };
+    const rfq = makeRfq({
+      lineItems: [
+        { ...line, imageUrl: 'https://cdn.example/concrete.png' },
+        { ...line, id: 'li-2', materialId: null, materialName: 'Free text', imageUrl: null },
+      ],
+    });
+
+    const { defaultValues } = rfqToFormDefaults(rfq);
+
+    expect(defaultValues.lineItems![0].imageUrl).toBe('https://cdn.example/concrete.png');
+    expect(defaultValues.lineItems![1].imageUrl).toBeUndefined();
+  });
+
   it('sets lockedFields to projectId, deliveryLocationId, plannedDeliveryDate', () => {
     const { lockedFields } = rfqToFormDefaults(makeRfq());
 
@@ -620,6 +645,22 @@ describe('poToFormDefaults', () => {
     expect(defaultValues.lineItems![0].quantityOrdered).toBe(10);
     expect(defaultValues.lineItems![0].costCode).toBe('111');
     expect(defaultValues.lineItems![0].expectedDeliveryDate).toBe('2025-01-20');
+  });
+
+  it('carries the line catalogue image for display, and none without one (FOR-402)', () => {
+    const base = makePoDetail();
+    const withImage = poToFormDefaults(
+      makePoDetail({
+        lineItems: [{ ...base.lineItems[0], imageUrl: 'https://cdn.example/beam.png' }],
+      }),
+    );
+    expect(withImage.defaultValues.lineItems![0].imageUrl).toBe('https://cdn.example/beam.png');
+
+    const withNull = poToFormDefaults(
+      makePoDetail({ lineItems: [{ ...base.lineItems[0], imageUrl: null }] }),
+    );
+    expect(withNull.defaultValues.lineItems![0].imageUrl).toBeUndefined();
+    expect(poToFormDefaults(base).defaultValues.lineItems![0].imageUrl).toBeUndefined();
   });
 
   it('falls back to poNumber when documentName is null', () => {

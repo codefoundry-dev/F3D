@@ -20,6 +20,8 @@ export interface PortalLineDraft {
   id: string;
   lineItemRef: string;
   materialName: string;
+  /** The line material's catalogue image (FOR-402); display only, never submitted. */
+  imageUrl?: string | null;
   description: string | null;
   uom: string;
   quantityOrdered: number;
@@ -44,6 +46,7 @@ export function portalPoLineToDraft(line: DeliveryPortalLine): PortalLineDraft {
     id: line.id,
     lineItemRef: line.lineItemRef,
     materialName: line.materialName,
+    imageUrl: line.imageUrl,
     description: line.description,
     uom: line.uom,
     quantityOrdered: line.quantityOrdered,

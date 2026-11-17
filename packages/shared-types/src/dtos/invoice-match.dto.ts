@@ -75,6 +75,8 @@ export interface InvoicePoMatchPoLine {
   lineNumber: number;
   materialCode: string | null;
   description: string | null;
+  /** Catalogue image of the linked material; null for free-text lines or no image. */
+  imageUrl?: string | null;
   quantityOrdered: number;
   quantityDelivered: number;
   unitOfMeasure: string;

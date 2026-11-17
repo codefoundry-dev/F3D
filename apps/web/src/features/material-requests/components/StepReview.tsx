@@ -6,6 +6,7 @@ import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
 
 import { toggleToPriority, type MrWizardLine } from '../wizard/wizard-types';
 
+import { MaterialThumb } from './MaterialThumb';
 import { PriorityBadge } from './PriorityBadge';
 
 export interface StepReviewProps {
@@ -74,9 +75,12 @@ export function StepReview({
             className="flex items-start gap-4 px-4 py-3"
             data-testid="mr-review-item"
           >
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-              <PackageIcon className="size-5" />
-            </span>
+            <MaterialThumb
+              url={line.imageUrl}
+              alt={line.materialName}
+              className="size-12 rounded-md"
+              iconClassName="size-5"
+            />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <p className="truncate text-sm font-medium text-foreground">{line.materialName}</p>
               <p className="text-xs text-muted-foreground">

@@ -135,13 +135,16 @@ function buildPayload(
   return payload;
 }
 
-/** Map server line-item ids back onto local rows (persisted in array order). */
+/** Map server line-item ids back onto local rows (persisted in array order).
+ * The saved draft also says which catalogue image each line resolved to, so
+ * lines seeded without one (e.g. matched BOM rows) pick it up here (FOR-402). */
 function withServerIds(items: WizardLineItem[], detail: RfqDetail): WizardLineItem[] {
   const serverItems = detail.lineItems ?? [];
   if (serverItems.length !== items.length) return items;
   return items.map((item, index) => ({
     ...item,
     serverId: serverItems[index]?.id ?? item.serverId,
+    imageUrl: serverItems[index]?.imageUrl ?? item.imageUrl,
   }));
 }
 
@@ -299,6 +302,7 @@ export default function CreateRfqPage() {
         source: item.source,
         materialId: item.materialId,
         materialName: item.materialName,
+        imageUrl: item.imageUrl,
         description: item.description,
         quantity: item.quantity,
         uom: item.uom,
@@ -500,6 +504,7 @@ export default function CreateRfqPage() {
         source: item.source,
         materialId: item.materialId,
         materialName: item.materialName,
+        imageUrl: item.imageUrl,
         description: item.description,
         quantity: item.quantity,
         uom: item.uom,

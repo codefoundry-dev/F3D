@@ -15,6 +15,9 @@ export const lineItemSchema = z.object({
   // catalogue; links the PO line to the material so the backend snapshots the
   // material's codes and the detail view can show the live material name.
   materialId: z.string().optional(),
+  // FOR-402: the linked material's catalogue image. Display-only — it is never
+  // sent to the API (every payload builder picks its fields explicitly).
+  imageUrl: z.string().nullable().optional(),
   materialCode: z.string().optional(),
   costCode: z.string().optional(),
   // Snapshots defaulted from the linked catalogue material (UPC / MPN / tax code).
@@ -125,6 +128,7 @@ export type FormValues = z.infer<typeof formSchema>;
 export const EMPTY_LINE_ITEM = {
   materialName: '',
   materialId: '',
+  imageUrl: undefined as string | null | undefined,
   materialCode: '',
   costCode: '',
   upc: '',

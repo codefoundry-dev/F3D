@@ -6,10 +6,12 @@ import type { UseFormRegister } from 'react-hook-form';
 import type { FormValues } from '../schemas/create-po.schema';
 import { hasAnyChange } from '../utils/change-diff';
 
-import { PoChangeDiff } from './PoChangeDiff';
+import { PoChangeDiff, type PoChangeDiffLine } from './PoChangeDiff';
 
 interface PoChangeReviewStepProps {
   changedFields: PoChangedFields;
+  /** The PO's current lines, so the diff can show catalogue images (FOR-402). */
+  poLineItems?: PoChangeDiffLine[];
   register: UseFormRegister<FormValues>;
   locationOptions: { value: string; label: string }[];
   onEditStep?: (step: number) => void;
@@ -26,6 +28,7 @@ interface PoChangeReviewStepProps {
  */
 export function PoChangeReviewStep({
   changedFields,
+  poLineItems,
   register,
   locationOptions,
   onEditStep,
@@ -45,6 +48,7 @@ export function PoChangeReviewStep({
         {hasChanges ? (
           <PoChangeDiff
             changedFields={changedFields}
+            poLineItems={poLineItems}
             locationOptions={locationOptions}
             onEditFields={onEditStep ? () => onEditStep(1) : undefined}
             onEditLineItems={onEditStep ? () => onEditStep(2) : undefined}

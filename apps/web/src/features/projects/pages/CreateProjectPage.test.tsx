@@ -143,7 +143,10 @@ describe('CreateProjectPage', () => {
 
   it('sets the wizard title and back route on mount', () => {
     render(<CreateProjectPage />);
-    expect(mockSetPageTitle).toHaveBeenCalledWith('create.title', 'create.subtitle', '/projects');
+    expect(mockSetPageTitle).toHaveBeenCalledWith('create.title', 'create.subtitle', '/projects', [
+      { label: 'list.title', to: '/projects' },
+      { label: 'create.title' },
+    ]);
   });
 
   it('renders the stepper starting at step 1', () => {

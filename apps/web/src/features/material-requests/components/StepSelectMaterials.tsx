@@ -1,7 +1,6 @@
 import { useTranslation } from '@forethread/i18n';
 import { useDebounce } from '@forethread/ui-components';
 import CheckmarkIcon from '@forethread/ui-components/assets/icons/checkmark.svg?react';
-import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?react';
 import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
 import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
 import { useMemo, useState } from 'react';
@@ -14,6 +13,7 @@ import {
 import { nextLineKey, type MrWizardLine } from '../wizard/wizard-types';
 
 import { ManualLineItems } from './ManualLineItems';
+import { MaterialThumb } from './MaterialThumb';
 import { NewMaterialModal, type NewMaterialDraft } from './NewMaterialModal';
 
 type SourceTab = 'BOM' | 'CATALOG' | 'MANUAL';
@@ -29,6 +29,8 @@ export interface StepSelectMaterialsProps {
   onRemoveLine: (key: string) => void;
   /** Inline edit of an already-added line (manual rows stay editable). */
   onPatchLine: (key: string, patch: Partial<MrWizardLine>) => void;
+  /** Whether the Manual tab's blank row is complete and about to become a line. */
+  onManualDraftReadyChange?: (ready: boolean) => void;
 }
 
 /** A pickable catalogue/BOM row, normalised across the two data sources. */
@@ -40,6 +42,8 @@ interface PickRow {
   sku?: string;
   unit: string;
   description?: string;
+  /** Catalogue image of the material, when it has one. */
+  imageUrl?: string | null;
   source: 'CATALOG' | 'BOM';
 }
 
@@ -85,9 +89,7 @@ function PickableRow({
       aria-pressed={selected}
       className="flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-accent/50"
     >
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-        <PackageIcon className="size-4" />
-      </span>
+      <MaterialThumb url={row.imageUrl} alt={row.name} className="size-10 rounded-md" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium text-foreground">{row.name}</span>
         {row.sku ? (
@@ -126,6 +128,7 @@ export function StepSelectMaterials({
   onAddManual,
   onRemoveLine,
   onPatchLine,
+  onManualDraftReadyChange,
 }: StepSelectMaterialsProps) {
   const { t } = useTranslation('materialRequests');
   const [tab, setTab] = useState<SourceTab>('CATALOG');
@@ -154,6 +157,7 @@ export function StepSelectMaterials({
         name: m.name,
         unit: m.uom ?? 'Each',
         description: m.description ?? undefined,
+        imageUrl: m.imageUrl,
         source: 'CATALOG' as const,
       })),
     [suggestionsQuery.data],
@@ -166,10 +170,11 @@ export function StepSelectMaterials({
       .filter((it) => !term || it.materialName.toLowerCase().includes(term))
       .map((it) => ({
         pickId: it.id,
-        materialId: it.matchedMaterialId || undefined,
+        materialId: it.matchedMaterialId ?? undefined,
         name: it.materialName,
         unit: it.uom ?? 'Each',
         description: it.description ?? undefined,
+        imageUrl: it.imageUrl,
         source: 'BOM' as const,
       }));
   }, [bomDetailQuery.data, debouncedSearch]);
@@ -190,6 +195,7 @@ export function StepSelectMaterials({
       materialName: row.name,
       description: row.description,
       sku: row.sku,
+      imageUrl: row.imageUrl,
       unit: row.unit,
       quantity: 0,
       priority: 'STANDARD',
@@ -266,6 +272,7 @@ export function StepSelectMaterials({
             onAddManual={onAddManual}
             onPatchLine={onPatchLine}
             onRemove={onRemoveLine}
+            onDraftReadyChange={onManualDraftReadyChange}
             onOpenModal={() => setShowNewModal(true)}
           />
         )}
@@ -363,12 +370,14 @@ function ManualTab({
   onAddManual,
   onPatchLine,
   onRemove,
+  onDraftReadyChange,
   onOpenModal,
 }: {
   lines: MrWizardLine[];
   onAddManual: (draft: NewMaterialDraft) => void;
   onPatchLine: (key: string, patch: Partial<MrWizardLine>) => void;
   onRemove: (key: string) => void;
+  onDraftReadyChange?: (ready: boolean) => void;
   onOpenModal: () => void;
 }) {
   const { t } = useTranslation('materialRequests');
@@ -379,6 +388,7 @@ function ManualTab({
         onAdd={onAddManual}
         onPatch={onPatchLine}
         onRemove={onRemove}
+        onDraftReadyChange={onDraftReadyChange}
       />
 
       <button

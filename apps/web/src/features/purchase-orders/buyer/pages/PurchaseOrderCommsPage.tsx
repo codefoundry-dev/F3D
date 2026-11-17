@@ -6,6 +6,8 @@ import { Spinner } from '@forethread/ui-components';
 import { useCallback, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 
+import { ROUTES } from '@/app/route-config';
+
 export default function PurchaseOrderCommsPage() {
   const { t } = useTranslation('purchaseOrders');
   const { id } = useParams<{ id: string }>();
@@ -22,10 +24,17 @@ export default function PurchaseOrderCommsPage() {
     [setSearchParams],
   );
 
+  // App-bar breadcrumb: PO Management › <PO number> › Messages.
   useEffect(() => {
-    if (po) setPageTitle(po.poNumber);
+    if (po) {
+      setPageTitle(po.poNumber, null, null, [
+        { label: t('list.title'), to: ROUTES.purchaseOrders },
+        { label: po.poNumber, to: ROUTES.purchaseOrderDetail.replace(':id', po.id) },
+        { label: t('comms.messages') },
+      ]);
+    }
     return () => setPageTitle(null);
-  }, [po, setPageTitle]);
+  }, [po, setPageTitle, t]);
 
   if (isLoading) {
     return (

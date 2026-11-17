@@ -94,6 +94,51 @@ function renderModal(overrides: Partial<SourcePickerModalProps> = {}) {
   return { ...result, props };
 }
 
+describe('SourcePickerModal — item images (FOR-402)', () => {
+  it('shows the catalogue image of an item that has one and the icon box otherwise', () => {
+    renderModal({
+      openEntity: entities[0],
+      items: [
+        { ...items[0], imageUrl: 'https://cdn.test/beam.jpg' },
+        { ...items[1], imageUrl: null },
+        items[2],
+      ],
+    });
+    const image = within(screen.getByTestId('picker-item-i1')).getByTestId('picker-item-image');
+    expect(image).toHaveAttribute('src', 'https://cdn.test/beam.jpg');
+    expect(image).toHaveAttribute('alt', 'Steel Beam');
+    expect(
+      within(screen.getByTestId('picker-item-i2')).queryByTestId('picker-item-image'),
+    ).not.toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('picker-item-i3')).queryByTestId('picker-item-image'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('falls back to the icon box when the image fails to load', () => {
+    renderModal({
+      openEntity: entities[0],
+      items: [{ ...items[0], imageUrl: 'https://cdn.test/broken.jpg' }],
+    });
+    fireEvent.error(screen.getByTestId('picker-item-image'));
+    expect(screen.queryByTestId('picker-item-image')).not.toBeInTheDocument();
+    expect(screen.getByTestId('picker-item-i1')).toHaveTextContent('Steel Beam');
+  });
+
+  it('carries the image of a picked item into the committed selection', () => {
+    const { props } = renderModal({
+      openEntity: entities[0],
+      items: [{ ...items[0], imageUrl: 'https://cdn.test/beam.jpg' }],
+    });
+    fireEvent.click(screen.getByTestId('picker-pick-i1'));
+    fireEvent.click(screen.getByTestId('picker-add-selected'));
+    expect(props.onCommit).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: 'i1', imageUrl: 'https://cdn.test/beam.jpg' })],
+      [],
+    );
+  });
+});
+
 describe('SourcePickerModal — header & shell', () => {
   it('renders the title and subtitle from texts', () => {
     renderModal();

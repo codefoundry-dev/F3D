@@ -221,12 +221,70 @@ describe('StepSelectMaterials', () => {
     );
   });
 
+  it('always shows a blank row, with or without existing lines (FOR-403)', () => {
+    setup();
+    fireEvent.click(screen.getByText('requestMaterials.tabManual'));
+    const list = screen.getByTestId('mr-manual-list');
+    expect(list).toContainElement(screen.getByTestId('mr-manual-draft'));
+    expect(screen.getByTestId('mr-manual-draft-name')).toHaveValue('');
+  });
+
+  it('auto-adds a completed blank row when focus leaves it (FOR-403)', () => {
+    const { onAddManual } = setup();
+    fireEvent.click(screen.getByText('requestMaterials.tabManual'));
+
+    fireEvent.change(screen.getByTestId('mr-manual-draft-name'), { target: { value: 'Anchor' } });
+    fireEvent.change(screen.getByTestId('mr-manual-draft-qty'), { target: { value: '2' } });
+
+    // Moving between the row's own fields must not add it yet.
+    fireEvent.blur(screen.getByTestId('mr-manual-draft-qty'), {
+      relatedTarget: screen.getByTestId('mr-manual-draft-unit'),
+    });
+    expect(onAddManual).not.toHaveBeenCalled();
+
+    fireEvent.blur(screen.getByTestId('mr-manual-draft-unit'), { relatedTarget: document.body });
+    expect(onAddManual).toHaveBeenCalledTimes(1);
+    expect(onAddManual).toHaveBeenCalledWith(
+      expect.objectContaining({ materialName: 'Anchor', quantity: 2 }),
+    );
+    expect(screen.getByTestId('mr-manual-draft-name')).toHaveValue('');
+  });
+
+  it('leaves an unfinished blank row alone on blur, without errors (FOR-403)', () => {
+    const { onAddManual } = setup();
+    fireEvent.click(screen.getByText('requestMaterials.tabManual'));
+
+    fireEvent.change(screen.getByTestId('mr-manual-draft-name'), { target: { value: 'Anchor' } });
+    fireEvent.blur(screen.getByTestId('mr-manual-draft-name'), { relatedTarget: document.body });
+
+    expect(onAddManual).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('mr-manual-draft-error')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mr-manual-draft-name')).toHaveValue('Anchor');
+  });
+
+  it('adds the blank row once on Enter in the quantity field (FOR-403)', () => {
+    const { onAddManual } = setup();
+    fireEvent.click(screen.getByText('requestMaterials.tabManual'));
+
+    fireEvent.change(screen.getByTestId('mr-manual-draft-name'), { target: { value: 'Anchor' } });
+    fireEvent.change(screen.getByTestId('mr-manual-draft-qty'), { target: { value: '5' } });
+    fireEvent.keyUp(screen.getByTestId('mr-manual-draft-qty'), { key: 'Enter' });
+
+    expect(onAddManual).toHaveBeenCalledTimes(1);
+  });
+
   it('links the draft row to a catalogue material picked from the suggestions popup', () => {
     mockSuggestionGroups.mockReturnValue({
       isLoading: false,
       data: {
         results: [
-          { id: 'mat-7', name: 'Rebar #4', uom: 'Rod', description: 'Grade 60', imageUrl: null },
+          {
+            id: 'mat-7',
+            name: 'Rebar #4',
+            uom: 'Rod',
+            description: 'Grade 60',
+            imageUrl: 'https://cdn.test/rebar.png',
+          },
         ],
         frequentlyUsed: [],
         recentlyUsed: [],
@@ -244,9 +302,151 @@ describe('StepSelectMaterials', () => {
     expect(onAddManual).toHaveBeenCalledWith({
       materialName: 'Rebar #4',
       materialId: 'mat-7',
+      imageUrl: 'https://cdn.test/rebar.png',
       unit: 'Rod',
       quantity: 12,
       description: 'Grade 60',
+    });
+  });
+
+  it('drops the catalogue image when the picked name is edited afterwards (FOR-402)', () => {
+    mockSuggestionGroups.mockReturnValue({
+      isLoading: false,
+      data: {
+        results: [
+          { id: 'mat-7', name: 'Rebar #4', uom: 'Rod', imageUrl: 'https://cdn.test/r.png' },
+        ],
+        frequentlyUsed: [],
+        recentlyUsed: [],
+      },
+    });
+    const { onAddManual } = setup();
+    fireEvent.click(screen.getByText('requestMaterials.tabManual'));
+
+    const nameInput = screen.getByTestId('mr-manual-draft-name');
+    fireEvent.change(nameInput, { target: { value: 'reb' } });
+    fireEvent.mouseDown(screen.getByTestId('mr-manual-suggestion-mat-7'));
+    fireEvent.change(nameInput, { target: { value: 'Rebar #4 custom' } });
+    fireEvent.change(screen.getByTestId('mr-manual-draft-qty'), { target: { value: '2' } });
+    fireEvent.click(screen.getByTestId('mr-manual-draft-add'));
+
+    const draft = onAddManual.mock.calls[0][0];
+    expect(draft.materialId).toBeUndefined();
+    expect(draft.imageUrl).toBeUndefined();
+  });
+
+  it('shows the catalogue image on a pick row and carries it onto the line (FOR-402)', () => {
+    mockSuggestions.mockReturnValue({
+      data: [
+        { id: 'mat-1', name: '2x4x8 Lumber', uom: 'Each', imageUrl: 'https://cdn.test/lumber.png' },
+        { id: 'mat-2', name: 'Drywall Sheets 4x8', uom: 'Sheet', imageUrl: null },
+      ],
+    });
+    const { onToggleLine } = setup();
+
+    // One image (mat-1); mat-2 keeps the placeholder glyph.
+    const images = screen.getAllByTestId('mr-material-thumb');
+    expect(images).toHaveLength(1);
+    expect(images[0]).toHaveAttribute('src', 'https://cdn.test/lumber.png');
+
+    fireEvent.click(screen.getByText('2x4x8 Lumber'));
+    expect(onToggleLine).toHaveBeenCalledWith(
+      expect.objectContaining({ materialId: 'mat-1', imageUrl: 'https://cdn.test/lumber.png' }),
+    );
+  });
+
+  it('falls back to the glyph when a pick row image fails to load (FOR-402)', () => {
+    mockSuggestions.mockReturnValue({
+      data: [
+        { id: 'mat-1', name: '2x4x8 Lumber', uom: 'Each', imageUrl: 'https://cdn.test/x.png' },
+      ],
+    });
+    setup();
+    fireEvent.error(screen.getByTestId('mr-material-thumb'));
+    expect(screen.queryByTestId('mr-material-thumb')).not.toBeInTheDocument();
+    expect(screen.getByText('2x4x8 Lumber')).toBeInTheDocument();
+  });
+
+  it('shows the matched material image on BOM rows (FOR-402)', () => {
+    mockBoms.mockReturnValue({ data: [{ id: 'bom-1', status: 'ACTIVE' }] });
+    mockBomDetail.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: 'bi-1',
+            materialName: 'Copper Pipe',
+            matchedMaterialId: 'mat-9',
+            uom: 'm',
+            description: null,
+            imageUrl: 'https://cdn.test/pipe.png',
+          },
+          {
+            id: 'bi-2',
+            materialName: 'Elbow',
+            matchedMaterialId: 'mat-10',
+            uom: 'Each',
+            description: null,
+            imageUrl: null,
+          },
+        ],
+      },
+    });
+    setup();
+    fireEvent.click(screen.getByText('requestMaterials.tabBom'));
+
+    const images = screen.getAllByTestId('mr-material-thumb');
+    expect(images).toHaveLength(1);
+    expect(images[0]).toHaveAttribute('src', 'https://cdn.test/pipe.png');
+  });
+
+  it('shows the linked material image on a committed manual row (FOR-402)', () => {
+    setup([
+      {
+        key: 'm1',
+        source: 'MANUAL',
+        materialId: 'mat-7',
+        materialName: 'Rebar #4',
+        imageUrl: 'https://cdn.test/rebar.png',
+        unit: 'Rod',
+        quantity: 2,
+        priority: 'STANDARD',
+      },
+      {
+        key: 'm2',
+        source: 'MANUAL',
+        materialName: 'Loose item',
+        unit: 'Each',
+        quantity: 1,
+        priority: 'STANDARD',
+      },
+    ]);
+    fireEvent.click(screen.getByText('requestMaterials.tabManual'));
+
+    const images = screen.getAllByTestId('mr-material-thumb');
+    expect(images).toHaveLength(1);
+    expect(images[0]).toHaveAttribute('src', 'https://cdn.test/rebar.png');
+  });
+
+  it('clears the image with the material link when a committed manual name is edited', () => {
+    const { onPatchLine } = setup([
+      {
+        key: 'm1',
+        source: 'MANUAL',
+        materialId: 'mat-7',
+        materialName: 'Rebar #4',
+        imageUrl: 'https://cdn.test/rebar.png',
+        unit: 'Rod',
+        quantity: 2,
+        priority: 'STANDARD',
+      },
+    ]);
+    fireEvent.click(screen.getByText('requestMaterials.tabManual'));
+    fireEvent.change(screen.getByTestId('mr-manual-name-m1'), { target: { value: 'Rebar' } });
+
+    expect(onPatchLine).toHaveBeenCalledWith('m1', {
+      materialName: 'Rebar',
+      materialId: undefined,
+      imageUrl: undefined,
     });
   });
 });

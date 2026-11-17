@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  acceptSuggestion,
+  dismissSuggestion,
   emptyRow,
   isRowEmpty,
+  pendingSuggestion,
+  pendingSuggestionCount,
   realRows,
+  rowsFromBomItems,
   rowsFromExtraction,
   rowsToBomResult,
   rowsToCreateItems,
   unmatchedCount,
+  unmatchedRows,
   type BomDraftRow,
 } from './bom-draft';
 
@@ -125,7 +131,7 @@ describe('bom-draft', () => {
     expect(row.materialType).toBe('Reinforcement');
   });
 
-  it('auto-accepts the top suggestion (kept flagged) when the line is not high-confidence matched', () => {
+  it('keeps a low-confidence suggestion pending instead of matching the line', () => {
     const [row] = rowsFromExtraction({
       ...extraction,
       items: [
@@ -136,8 +142,7 @@ describe('bom-draft', () => {
           targetPrice: null,
           notes: null,
           // Below the auto-match threshold: the extractor leaves it unmatched
-          // with ranked suggestions. We accept the top one so the row counts as
-          // matched (wizard can proceed), while matchConfidence keeps it flagged.
+          // with ranked suggestions. The top one is offered, not applied.
           matchedMaterialId: null,
           matchedMaterialName: null,
           matchConfidence: null,
@@ -160,14 +165,43 @@ describe('bom-draft', () => {
         },
       ],
     });
-    expect(row.matchedMaterialId).toBe('mat-bend');
-    expect(row.matchedMaterialName).toBe('12B Bend 90 150W SS316');
-    expect(row.matchConfidence).toBe(0.62);
-    expect(row.category).toBe('Pipe Fittings');
-    expect(row.materialType).toBe('Bends');
+    expect(row.matchedMaterialId).toBeNull();
+    expect(row.matchedMaterialName).toBeNull();
+    expect(row.matchConfidence).toBeNull();
+    expect(row.category).toBe('');
+    expect(unmatchedCount([row])).toBe(1);
+    expect(pendingSuggestion(row)?.materialId).toBe('mat-bend');
+    expect(pendingSuggestionCount([row, emptyRow()])).toBe(1);
+
+    // Accepting applies the top suggestion and keeps its score.
+    const accepted = acceptSuggestion(row);
+    expect(accepted).toMatchObject({
+      matchedMaterialId: 'mat-bend',
+      matchedMaterialName: '12B Bend 90 150W SS316',
+      matchConfidence: 0.62,
+      category: 'Pipe Fittings',
+      materialType: 'Bends',
+      manuallyResolved: false,
+    });
+    expect(pendingSuggestion(accepted)).toBeNull();
+
+    // Ignoring leaves the line unmatched with nothing left to offer.
+    const dismissed = dismissSuggestion(row);
+    expect(dismissed.matchedMaterialId).toBeNull();
+    expect(pendingSuggestion(dismissed)).toBeNull();
+    expect(unmatchedCount([dismissed])).toBe(1);
   });
 
-  it('leaves a line with no candidates unmatched so it still blocks the wizard', () => {
+  it('leaves rows without a pending suggestion untouched on accept / ignore', () => {
+    const matched = { ...emptyRow(), materialName: 'Steel', matchedMaterialId: 'm1' };
+    const bare = { ...emptyRow(), materialName: 'Mystery' };
+    for (const row of [matched, bare, emptyRow()]) {
+      expect(acceptSuggestion(row)).toBe(row);
+      expect(dismissSuggestion(row)).toBe(row);
+    }
+  });
+
+  it('leaves a line with no candidates unmatched', () => {
     const [row] = rowsFromExtraction({
       ...extraction,
       items: [
@@ -225,6 +259,24 @@ describe('bom-draft', () => {
     expect(realRows(rows)).toHaveLength(2);
   });
 
+  it('lists the unmatched rows and sends them without a catalogue match', () => {
+    const matched = {
+      ...emptyRow(),
+      materialName: 'Steel Bar',
+      matchedMaterialId: 'm1',
+      matchedMaterialName: 'Steel Bar',
+    };
+    const unmatched = { ...emptyRow(), materialName: 'Ladder 4/70', quantity: '6' };
+    const rows = [matched, unmatched, emptyRow()];
+
+    expect(unmatchedRows(rows)).toEqual([unmatched]);
+    const items = rowsToCreateItems(rows);
+    expect(items).toHaveLength(2);
+    expect(items[0].matchedMaterialId).toBe('m1');
+    expect(items[1]).toMatchObject({ materialName: 'Ladder 4/70', quantity: 6 });
+    expect(items[1].matchedMaterialId).toBeUndefined();
+  });
+
   it('treats a row with only whitespace as empty', () => {
     const row = { ...emptyRow(), materialName: '   ' };
     expect(isRowEmpty(row)).toBe(true);
@@ -250,6 +302,69 @@ describe('bom-draft', () => {
       quantity: undefined,
       sortOrder: 1,
     });
+  });
+
+  it('carries the matched candidate image onto the row for display (FOR-402)', () => {
+    const rows = rowsFromExtraction({
+      ...extraction,
+      items: [
+        {
+          ...extraction.items[0],
+          matchCandidates: [
+            { ...extraction.items[0].matchCandidates[0], imageUrl: 'https://cdn.test/cement.png' },
+          ],
+        },
+        extraction.items[1],
+      ],
+    });
+    expect(rows[0].matchedImageUrl).toBe('https://cdn.test/cement.png');
+    expect(rows[1].matchedImageUrl).toBeNull();
+  });
+
+  it('carries a saved BOM item image onto the edit row (FOR-402)', () => {
+    const rows = rowsFromBomItems([
+      {
+        id: 'i1',
+        materialName: 'Cement',
+        matchedMaterialId: 'mat-1',
+        matchedMaterialName: 'Portland Cement Type I',
+        imageUrl: 'https://cdn.test/cement.png',
+        description: null,
+        uom: 'bag',
+        quantity: 5,
+        category: null,
+        materialType: null,
+        matchConfidence: null,
+        sortOrder: 0,
+      },
+      {
+        id: 'i2',
+        materialName: 'Sand',
+        matchedMaterialId: 'mat-2',
+        matchedMaterialName: 'Sand',
+        description: null,
+        uom: null,
+        quantity: null,
+        category: null,
+        materialType: null,
+        matchConfidence: null,
+        sortOrder: 1,
+      },
+    ]);
+    expect(rows[0].matchedImageUrl).toBe('https://cdn.test/cement.png');
+    expect(rows[1].matchedImageUrl).toBeNull();
+  });
+
+  it('never sends the display-only image in the create / update payload (FOR-402)', () => {
+    const rows = [matchedRow({ matchedImageUrl: 'https://cdn.test/cement.png' })];
+    const items = rowsToCreateItems(rows);
+    expect(items[0]).not.toHaveProperty('matchedImageUrl');
+    expect(items[0]).not.toHaveProperty('imageUrl');
+    expect(JSON.stringify(items)).not.toContain('cdn.test');
+
+    const result = rowsToBomResult(rows, extraction);
+    expect(result.items[0]).not.toHaveProperty('matchedImageUrl');
+    expect(result.items[0]).not.toHaveProperty('imageUrl');
   });
 
   it('round-trips rows into the canonical extraction result for confirmation', () => {

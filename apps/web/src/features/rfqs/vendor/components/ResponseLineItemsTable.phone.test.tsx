@@ -16,7 +16,10 @@ vi.mock('react-router-dom', () => ({
     <a href={to}>{children}</a>
   ),
 }));
-vi.mock('@forethread/rfq-shared', () => ({ MaterialImageThumb: () => null }));
+vi.mock('@forethread/rfq-shared', () => ({
+  MaterialImageThumb: ({ url, name }: { url?: string | null; name: string }) =>
+    url ? <img data-testid="material-image-thumb" src={url} alt={name} /> : null,
+}));
 vi.mock('./MaterialSearchPopup', () => ({
   MaterialSearchPopup: () => <div data-testid="material-search-inline" />,
 }));
@@ -74,9 +77,15 @@ const totals: QuoteTotals = {
   totalQuote: 500,
 };
 
-function Harness({ substituteEnabled = true }: { substituteEnabled?: boolean }) {
+function Harness({
+  substituteEnabled = true,
+  first = {},
+}: {
+  substituteEnabled?: boolean;
+  first?: Partial<LineItemFormState>;
+}) {
   const [items, setItems] = useState([
-    makeItem(),
+    makeItem(first),
     makeItem({ rfqLineItemId: 'li-2', materialName: 'Sand', availQty: '' }),
   ]);
   const update = (i: number, field: keyof LineItemFormState, value: unknown) =>
@@ -131,6 +140,33 @@ describe('ResponseLineItemsTable on phones', () => {
     fireEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
     expect(screen.queryByTestId('line-item-sheet')).not.toBeInTheDocument();
     expect(screen.getAllByTestId('line-item-card')[0]).toHaveTextContent('12');
+  });
+
+  it('shows the catalogue image on the card of a line that has one (FOR-402)', () => {
+    render(<Harness first={{ imageUrl: 'https://cdn.test/cement.jpg' }} />);
+    const [withImage, withoutImage] = screen.getAllByTestId('line-item-card');
+    expect(within(withImage).getByTestId('material-image-thumb')).toHaveAttribute(
+      'src',
+      'https://cdn.test/cement.jpg',
+    );
+    // The second line has `imageUrl: null`: its title still renders, no image.
+    expect(withoutImage).toHaveTextContent('Sand');
+    expect(within(withoutImage).queryByTestId('material-image-thumb')).not.toBeInTheDocument();
+  });
+
+  it('hides the requested material image once a substitute is picked, like the desktop row', () => {
+    render(
+      <Harness
+        first={{
+          imageUrl: 'https://cdn.test/cement.jpg',
+          substituteItemId: 'mat-9',
+          substituteName: 'Quick-set cement',
+        }}
+      />,
+    );
+    const [card] = screen.getAllByTestId('line-item-card');
+    expect(card).toHaveTextContent('Quick-set cement');
+    expect(within(card).queryByTestId('material-image-thumb')).not.toBeInTheDocument();
   });
 
   it('offers a substitute search only when substitutes are enabled', () => {

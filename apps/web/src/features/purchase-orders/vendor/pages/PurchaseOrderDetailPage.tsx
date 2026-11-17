@@ -58,10 +58,16 @@ export default function PurchaseOrderDetailPage() {
   const { has } = usePermissions();
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
 
+  // App-bar breadcrumb: PO Management › <PO number>.
   useEffect(() => {
-    if (po) setPageTitle(po.poNumber, null, ROUTES.purchaseOrders);
+    if (po) {
+      setPageTitle(po.poNumber, null, ROUTES.purchaseOrders, [
+        { label: t('list.title'), to: ROUTES.purchaseOrders },
+        { label: po.poNumber },
+      ]);
+    }
     return () => setPageTitle(null);
-  }, [po, setPageTitle]);
+  }, [po, setPageTitle, t]);
 
   // A buyer-proposed change surfaces in the "Changes request" tab so the vendor
   // can Apply-all / Reject it; the vendor's own pending proposal shows there too
@@ -308,6 +314,7 @@ export default function PurchaseOrderDetailPage() {
             <PoChangeRequestTab
               poId={po.id}
               changeRequest={pendingCr}
+              poLineItems={po.lineItems}
               locationOptions={locationOptions}
               currentUserName={currentUser?.name}
             />
@@ -345,6 +352,7 @@ export default function PurchaseOrderDetailPage() {
             logs={actionLogs}
             isLoading={isLoadingLog}
             changeRequests={changeRequests ?? []}
+            poLineItems={po.lineItems}
             locationOptions={locationOptions}
           />
         )}

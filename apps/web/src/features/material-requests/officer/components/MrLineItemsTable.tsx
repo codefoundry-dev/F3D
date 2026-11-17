@@ -1,5 +1,6 @@
 import type { MrLineItemDetail } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import { formatDate, ScrollTable } from '@forethread/ui-components';
 
 interface MrLineItemsTableProps {
@@ -52,7 +53,12 @@ export function MrLineItemsTable({ lineItems }: MrLineItemsTableProps) {
         <tbody>
           {lineItems.map((li) => (
             <tr key={li.id} className="border-b border-border last:border-b-0 text-foreground">
-              <td className="px-3 py-3">{li.materialName ?? DASH}</td>
+              <td className="px-3 py-3">
+                <span className="flex items-center gap-2">
+                  <MaterialImageThumb url={li.imageUrl} name={li.materialName ?? ''} />
+                  {li.materialName ?? DASH}
+                </span>
+              </td>
               <td className="max-w-[220px] truncate px-3 py-3 text-muted-foreground">
                 {li.description ?? DASH}
               </td>

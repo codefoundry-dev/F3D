@@ -1,5 +1,5 @@
 import type { PoDetail } from '@forethread/api-client';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -20,6 +20,9 @@ vi.mock('@forethread/i18n', () => ({
 }));
 vi.mock('@forethread/rfq-shared', () => ({
   usePageTitleStore: (sel: (s: { setTitle: () => void }) => unknown) => sel({ setTitle: () => {} }),
+  // Mirrors the real thumb: nothing without a URL.
+  MaterialImageThumb: ({ url, name }: { url?: string | null; name: string }) =>
+    url ? <img data-testid="material-image-thumb" src={url} alt={name} /> : null,
 }));
 const phone = vi.hoisted(() => ({ value: false }));
 vi.mock('@forethread/ui-components', () => ({
@@ -192,7 +195,46 @@ describe('CreateDeliveryReportPage', () => {
         lines: [expect.objectContaining({ poLineItemId: 'li-1', quantityReceived: 30 })],
       }),
     );
+    // FOR-402: the line's catalogue image is display-only and never submitted.
+    expect(JSON.stringify(mockCreate.mock.calls[0][0])).not.toContain('imageUrl');
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/deliveries/d-99'));
+  });
+
+  describe('catalogue images (FOR-402)', () => {
+    const withImage = () => {
+      const base = po();
+      return po({
+        lineItems: [{ ...base.lineItems[0], imageUrl: 'https://cdn.example/beam.png' }],
+      });
+    };
+
+    it('shows the material image next to the name in the table', () => {
+      mockUsePurchaseOrder.mockReturnValue({ data: withImage(), isLoading: false, isError: false });
+      render(<CreateDeliveryReportPage />);
+      const row = screen.getByTestId('delivery-row-li-1');
+      expect(within(row).getByRole('img', { name: 'Aluminum Beam 6061' })).toHaveAttribute(
+        'src',
+        'https://cdn.example/beam.png',
+      );
+    });
+
+    it('shows it on the phone line card too', () => {
+      phone.value = true;
+      mockUsePurchaseOrder.mockReturnValue({ data: withImage(), isLoading: false, isError: false });
+      render(<CreateDeliveryReportPage />);
+      expect(
+        within(screen.getByTestId('line-item-card')).getByRole('img', {
+          name: 'Aluminum Beam 6061',
+        }),
+      ).toBeInTheDocument();
+    });
+
+    it('renders no image for a line without one', () => {
+      mockUsePurchaseOrder.mockReturnValue({ data: po(), isLoading: false, isError: false });
+      render(<CreateDeliveryReportPage />);
+      expect(screen.getByText('Aluminum Beam 6061')).toBeInTheDocument();
+      expect(screen.queryByTestId('material-image-thumb')).not.toBeInTheDocument();
+    });
   });
 
   describe('on phones (ADR-0019 B10, FOR-380)', () => {

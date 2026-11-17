@@ -674,6 +674,7 @@ ${fileBuffer.toString('utf-8')}`;
           uom: true,
           subCategory: true,
           description: true,
+          imageUrl: true,
           category: { select: { name: true } },
         },
       });
@@ -687,6 +688,7 @@ ${fileBuffer.toString('utf-8')}`;
         uom: m.uom,
         subCategory: m.subCategory,
         description: m.description,
+        imageUrl: m.imageUrl,
         category: m.category?.name,
       }));
       return annotateBomWithMatches(bom, catalogue) as unknown as Record<string, unknown>;

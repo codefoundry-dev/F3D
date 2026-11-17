@@ -1,4 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import { DamageDisposition, DamageType, DeliveryOutcome } from '@forethread/shared-types/client';
 import {
   Badge,
@@ -60,6 +61,7 @@ export function PortalLineItem({ line, onChange }: PortalLineItemProps) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
+            <MaterialImageThumb url={line.imageUrl} name={line.materialName} />
             <span className="font-semibold text-foreground">{line.materialName}</span>
             <Badge className={cn('shrink-0', getStatusColor(DELIVERY_OUTCOME_COLORS, outcome))}>
               {t(`outcome.${outcome}` as never)}

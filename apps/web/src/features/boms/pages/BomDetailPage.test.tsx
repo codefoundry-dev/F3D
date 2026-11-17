@@ -25,6 +25,7 @@ vi.mock('react-router-dom', () => ({
 }));
 vi.mock('@/app/route-config', () => ({
   ROUTES: {
+    projects: '/projects',
     projectDetail: '/projects/:id',
     projectBomEdit: '/projects/:id/bom/:bomId/edit',
   },
@@ -62,6 +63,11 @@ describe('BomDetailPage', () => {
       'BOM-2024-234',
       'detail.subtitle',
       '/projects/proj-1?tab=bom',
+      [
+        { label: 'list.title', to: '/projects' },
+        { label: 'detail.tabs.bom', to: '/projects/proj-1?tab=bom' },
+        { label: 'BOM-2024-234' },
+      ],
     );
     expect(screen.getByTestId('bom-items-table')).toHaveTextContent('2 items');
   });

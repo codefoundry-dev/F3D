@@ -60,6 +60,8 @@ vi.mock('@forethread/i18n', () => ({
 vi.mock('@forethread/rfq-shared', () => ({
   usePageTitleStore: (selector: (s: { setTitle: () => void }) => unknown) =>
     selector({ setTitle: vi.fn() }),
+  // Rendered by the PO comparison's line rows (FOR-402).
+  MaterialImageThumb: () => null,
 }));
 
 // The nomination modal has its own suite; here it is a probe for "did saving a

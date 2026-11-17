@@ -18,6 +18,8 @@ export interface ApprovedQuoteLineItem {
   /** Stable key (responseId-rfqLineItemId). */
   id: string;
   itemReference: string;
+  /** Catalogue image of the RFQ line's material — preview only, never saved. */
+  imageUrl?: string | null;
   description: string;
   unit: string;
   quantity: number;
@@ -27,8 +29,7 @@ export interface ApprovedQuoteLineItem {
   lineTotalWithTax: number;
 }
 
-const isApproved = (status: string): boolean =>
-  status === 'APPROVED' || status === 'Approved';
+const isApproved = (status: string): boolean => status === 'APPROVED' || status === 'Approved';
 
 /**
  * Derive the approved quote responses (with per-line pricing) from an RFQ detail.
@@ -52,6 +53,7 @@ export function deriveApprovedQuoteResponses(rfq: RfqDetail): ApprovedQuoteRespo
     const lineItems: ApprovedQuoteLineItem[] = rfq.lineItems.map((li) => ({
       id: `${qr.id}-${li.id}`,
       itemReference: li.materialName,
+      imageUrl: li.imageUrl ?? null,
       description: li.description ?? '',
       unit: li.unit,
       quantity: li.quantity,

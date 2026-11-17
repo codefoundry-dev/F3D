@@ -1,5 +1,6 @@
 import { type MaterialListItemDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import { Badge, Button } from '@forethread/ui-components';
 import CrossIcon from '@forethread/ui-components/assets/icons/cross.svg?react';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
@@ -88,6 +89,7 @@ export function PendingApprovalList({
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <Badge className="bg-muted text-muted-foreground">{t('pending.newBadge')}</Badge>
+              <MaterialImageThumb url={material.imageUrl} name={material.name} />
               <h3
                 className="text-base font-semibold text-foreground truncate"
                 title={material.name}

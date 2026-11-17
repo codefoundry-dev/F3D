@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { useState } from 'react';
 
 const mockApi = vi.hoisted(() => ({
@@ -23,6 +23,11 @@ vi.mock('@forethread/ui-components', () => ({
   ScrollTable: ({ children }: { children: JSX.Element }) => children,
   Alert: (p: any) => <div role="alert">{p.children}</div>,
   Badge: (p: any) => <span data-testid="badge">{p.children}</span>,
+  Button: (p: any) => (
+    <button onClick={p.onClick} data-testid={p['data-testid']}>
+      {p.children}
+    </button>
+  ),
   Input: (p: any) => (
     <input
       aria-label={p['aria-label']}
@@ -110,8 +115,12 @@ function row(overrides: Partial<BomDraftRow> = {}): BomDraftRow {
  * Controlled wrapper that owns the rows state so the trailing-empty-row effect
  * and updates flow through onRowsChange like in the real page.
  */
+let latestRows: BomDraftRow[] = [];
+
 function Harness({ initialRows }: { initialRows: BomDraftRow[] }) {
   const [rows, setRows] = useState<BomDraftRow[]>(initialRows);
+  // Category / material type have no column, so tests read them off the state.
+  latestRows = rows;
   return <BomReviewStep rows={rows} onRowsChange={setRows} />;
 }
 
@@ -132,6 +141,60 @@ describe('BomReviewStep', () => {
     mockApi.getMaterialCategories.mockResolvedValue([{ id: 'c1', name: 'Cat' }]);
   });
 
+  it('shows the matched material image beside its name (FOR-402)', () => {
+    renderHarness([
+      row({
+        materialName: 'Steel',
+        matchedMaterialId: 'm1',
+        matchedMaterialName: 'Steel Beam',
+        matchedImageUrl: 'https://cdn.test/beam.png',
+      }),
+      row({ materialName: 'Bolt', matchedMaterialId: 'm2', matchedMaterialName: 'Bolt M8' }),
+    ]);
+    const image = within(screen.getByTestId('bom-match-cell-0')).getByTestId('bom-match-thumb');
+    expect(image).toHaveAttribute('src', 'https://cdn.test/beam.png');
+    expect(image).toHaveAttribute('alt', 'Steel Beam');
+    // No image on the row whose material has none.
+    expect(
+      within(screen.getByTestId('bom-match-cell-1')).queryByTestId('bom-match-thumb'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId('bom-match-cell-1')).toHaveTextContent('Bolt M8');
+  });
+
+  it('shows the suggested candidate image while the row is unmatched (FOR-402)', () => {
+    renderHarness([
+      row({
+        materialName: 'Steel',
+        matchedMaterialId: null,
+        candidates: [
+          {
+            materialId: 'cm1',
+            name: 'Suggested',
+            confidence: 0.6,
+            imageUrl: 'https://cdn.test/suggested.png',
+          },
+        ],
+      }),
+    ]);
+    expect(
+      within(screen.getByTestId('bom-match-cell-0')).getByTestId('bom-match-thumb'),
+    ).toHaveAttribute('src', 'https://cdn.test/suggested.png');
+  });
+
+  it('hides the matched material image when it fails to load (FOR-402)', () => {
+    renderHarness([
+      row({
+        materialName: 'Steel',
+        matchedMaterialId: 'm1',
+        matchedMaterialName: 'Steel Beam',
+        matchedImageUrl: 'https://cdn.test/broken.png',
+      }),
+    ]);
+    fireEvent.error(screen.getByTestId('bom-match-thumb'));
+    expect(screen.queryByTestId('bom-match-thumb')).not.toBeInTheDocument();
+    expect(screen.getByTestId('bom-match-cell-0')).toHaveTextContent('Steel Beam');
+  });
+
   it('renders the table headers', () => {
     renderHarness([]);
     expect(screen.getByTestId('bom-review-table')).toBeInTheDocument();
@@ -139,6 +202,16 @@ describe('BomReviewStep', () => {
     expect(screen.getByText('create.columns.match')).toBeInTheDocument();
     expect(screen.getByText('create.columns.confidence')).toBeInTheDocument();
     expect(screen.getByText('create.columns.actions')).toBeInTheDocument();
+  });
+
+  it('has no description, category or material type columns', () => {
+    renderHarness([
+      row({ materialName: 'Steel', description: 'Steel', category: 'Cat', materialType: 'Raw' }),
+    ]);
+    expect(screen.queryByText('create.columns.description')).not.toBeInTheDocument();
+    expect(screen.queryByText('create.columns.category')).not.toBeInTheDocument();
+    expect(screen.queryByText('create.columns.materialType')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('columnheader')).toHaveLength(6);
   });
 
   it('appends a trailing empty row when given no rows', () => {
@@ -153,7 +226,7 @@ describe('BomReviewStep', () => {
     expect(screen.getByTestId('bom-review-row-1')).toBeInTheDocument();
   });
 
-  it('shows the unmatched destructive alert when a real row is unmatched', () => {
+  it('shows the unmatched warning when a real row is unmatched', () => {
     renderHarness([row({ materialName: 'Steel', matchedMaterialId: null })]);
     expect(screen.getByRole('alert')).toHaveTextContent('create.unmatchedAlert');
   });
@@ -172,15 +245,6 @@ describe('BomReviewStep', () => {
     expect(
       (screen.getAllByLabelText('create.columns.materialName')[0] as HTMLInputElement).value,
     ).toBe('Cement');
-  });
-
-  it('edits the description input', () => {
-    renderHarness([]);
-    const input = screen.getAllByLabelText('create.columns.description')[0] as HTMLInputElement;
-    fireEvent.change(input, { target: { value: 'Fine grade' } });
-    expect(
-      (screen.getAllByLabelText('create.columns.description')[0] as HTMLInputElement).value,
-    ).toBe('Fine grade');
   });
 
   it('edits the quantity input', () => {
@@ -224,33 +288,6 @@ describe('BomReviewStep', () => {
     expect(screen.getByRole('option', { name: 'drum' })).toBeInTheDocument();
   });
 
-  it('edits the category dropdown after categories load', async () => {
-    renderHarness([row({ materialName: 'Steel', category: '' })]);
-    const tr = screen.getByTestId('bom-review-row-0');
-    await waitFor(() =>
-      expect(within(tr).getByRole('option', { name: 'Cat' })).toBeInTheDocument(),
-    );
-    const select = within(tr).getByLabelText('—');
-    fireEvent.change(select, { target: { value: 'Cat' } });
-    expect(
-      within(screen.getByTestId('bom-review-row-0')).getByLabelText<HTMLSelectElement>('—').value,
-    ).toBe('Cat');
-  });
-
-  it('keeps a custom category value as an option', () => {
-    renderHarness([row({ materialName: 'Steel', category: 'Custom Cat' })]);
-    expect(screen.getByRole('option', { name: 'Custom Cat' })).toBeInTheDocument();
-  });
-
-  it('edits the material type input', () => {
-    renderHarness([row({ materialName: 'Steel' })]);
-    const input = screen.getAllByLabelText('create.columns.materialType')[0] as HTMLInputElement;
-    fireEvent.change(input, { target: { value: 'Raw' } });
-    expect(
-      (screen.getAllByLabelText('create.columns.materialType')[0] as HTMLInputElement).value,
-    ).toBe('Raw');
-  });
-
   it('duplicates a row', () => {
     renderHarness([row({ materialName: 'Steel' })]);
     fireEvent.click(screen.getAllByLabelText('create.duplicateRow')[0]);
@@ -273,11 +310,7 @@ describe('BomReviewStep', () => {
     // the picked name now shows in the (closed) match cell
     expect(screen.getByTestId('bom-match-cell-0')).toHaveTextContent('Mat');
     // category + material type are filled from the picked catalogue material
-    const tr = screen.getByTestId('bom-review-row-0');
-    expect(within(tr).getByLabelText<HTMLSelectElement>('—').value).toBe('Steel');
-    expect(within(tr).getByLabelText<HTMLInputElement>('create.columns.materialType').value).toBe(
-      'Reinforcement',
-    );
+    expect(latestRows[0]).toMatchObject({ category: 'Steel', materialType: 'Reinforcement' });
   });
 
   it('overwrites a suggestion-derived category and material type when a different material is picked', () => {
@@ -286,11 +319,7 @@ describe('BomReviewStep', () => {
     renderHarness([row({ materialName: 'Steel', category: 'OldCat', materialType: 'OldType' })]);
     fireEvent.click(screen.getByTestId('bom-match-cell-0'));
     fireEvent.click(screen.getByTestId('panel-pick'));
-    const tr = screen.getByTestId('bom-review-row-0');
-    expect(within(tr).getByLabelText<HTMLSelectElement>('—').value).toBe('Steel');
-    expect(within(tr).getByLabelText<HTMLInputElement>('create.columns.materialType').value).toBe(
-      'Reinforcement',
-    );
+    expect(latestRows[0]).toMatchObject({ category: 'Steel', materialType: 'Reinforcement' });
   });
 
   it('opens the create-private-material modal from the panel footer and patches the row on create', () => {
@@ -302,11 +331,7 @@ describe('BomReviewStep', () => {
     expect(screen.queryByTestId('create-private-modal')).not.toBeInTheDocument();
     expect(screen.getByTestId('bom-match-cell-0')).toHaveTextContent('Priv');
     // material type is filled from the created material's sub-category
-    expect(
-      within(screen.getByTestId('bom-review-row-0')).getByLabelText<HTMLInputElement>(
-        'create.columns.materialType',
-      ).value,
-    ).toBe('PrivSub');
+    expect(latestRows[0].materialType).toBe('PrivSub');
   });
 
   it('closes the create-private-material modal without changes', () => {
@@ -389,7 +414,7 @@ describe('BomReviewStep', () => {
     expect(tr.className).toContain('FFE6CA');
   });
 
-  it('tints an auto-accepted low-confidence match amber (flagged for review)', () => {
+  it('does not tint a matched low-confidence line but keeps its score', () => {
     renderHarness([
       row({
         materialName: 'Steel',
@@ -398,7 +423,129 @@ describe('BomReviewStep', () => {
         matchConfidence: 0.6,
       }),
     ]);
-    expect(screen.getByTestId('bom-review-row-0').className).toContain('FFE6CA');
+    const tr = screen.getByTestId('bom-review-row-0');
+    expect(tr.className).not.toContain('FFE6CA');
+    expect(within(tr).getByText('create.medium')).toBeInTheDocument();
+    expect(within(tr).getByText('60%')).toBeInTheDocument();
+  });
+
+  describe('pending suggestions', () => {
+    const suggested = (name: string, materialId: string) =>
+      row({
+        materialName: name,
+        candidates: [
+          {
+            materialId,
+            name: `${name} (catalogue)`,
+            confidence: 0.6,
+            category: 'Cable Management',
+            subCategory: 'Bends',
+            uom: 'EA',
+          },
+        ],
+      });
+    const matched = row({
+      materialName: 'Steel',
+      matchedMaterialId: 'm1',
+      matchedMaterialName: 'Steel Bar',
+      matchConfidence: 0.95,
+    });
+    const picked = row({
+      materialName: 'Cement',
+      matchedMaterialId: 'm2',
+      matchedMaterialName: 'Cement Type I',
+      manuallyResolved: true,
+    });
+
+    it('offers accept / ignore only on lines with a pending suggestion', () => {
+      renderHarness([suggested('Ladder', 'c1'), matched, row({ materialName: 'Mystery' })]);
+      expect(screen.getByTestId('bom-accept-suggestion-0')).toBeInTheDocument();
+      expect(screen.getByTestId('bom-ignore-suggestion-0')).toBeInTheDocument();
+      expect(screen.queryByTestId('bom-accept-suggestion-1')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('bom-accept-suggestion-2')).not.toBeInTheDocument();
+    });
+
+    it('accepts one suggestion: the line is matched, untinted, and keeps its score', () => {
+      renderHarness([suggested('Ladder', 'c1'), suggested('Cover', 'c2')]);
+      fireEvent.click(screen.getByTestId('bom-accept-suggestion-0'));
+
+      expect(latestRows[0]).toMatchObject({
+        matchedMaterialId: 'c1',
+        matchedMaterialName: 'Ladder (catalogue)',
+        matchConfidence: 0.6,
+        category: 'Cable Management',
+        materialType: 'Bends',
+        uom: 'EA',
+        manuallyResolved: false,
+      });
+      const tr = screen.getByTestId('bom-review-row-0');
+      expect(tr.className).not.toContain('FFE6CA');
+      expect(within(tr).getByText('60%')).toBeInTheDocument();
+      expect(screen.queryByTestId('bom-accept-suggestion-0')).not.toBeInTheDocument();
+      // The other line is still waiting.
+      expect(latestRows[1].matchedMaterialId).toBeNull();
+      expect(screen.getByTestId('bom-accept-suggestion-1')).toBeInTheDocument();
+    });
+
+    it('ignores one suggestion: the line turns red and shows "Select"', () => {
+      renderHarness([suggested('Ladder', 'c1')]);
+      fireEvent.click(screen.getByTestId('bom-ignore-suggestion-0'));
+
+      expect(latestRows[0].matchedMaterialId).toBeNull();
+      const tr = screen.getByTestId('bom-review-row-0');
+      expect(tr.className).toContain('FFC9CB');
+      expect(screen.getByTestId('bom-match-cell-0')).toHaveTextContent('create.select');
+      expect(within(tr).getByText('create.noMatch')).toBeInTheDocument();
+      expect(screen.queryByTestId('bom-ignore-suggestion-0')).not.toBeInTheDocument();
+    });
+
+    it('still lets an ignored line be matched from the catalogue search', () => {
+      renderHarness([suggested('Ladder', 'c1')]);
+      fireEvent.click(screen.getByTestId('bom-ignore-suggestion-0'));
+      fireEvent.click(screen.getByTestId('bom-match-cell-0'));
+      fireEvent.click(screen.getByTestId('panel-pick'));
+      expect(screen.getByTestId('bom-match-cell-0')).toHaveTextContent('Mat');
+      expect(latestRows[0].matchedMaterialId).not.toBeNull();
+    });
+
+    it('accepts every pending suggestion and leaves other lines alone', () => {
+      renderHarness([suggested('Ladder', 'c1'), matched, picked, suggested('Cover', 'c2')]);
+      expect(screen.getByTestId('bom-accept-all')).toHaveTextContent('create.acceptAllSuggestions');
+      fireEvent.click(screen.getByTestId('bom-accept-all'));
+
+      expect(latestRows.slice(0, 4).map((r) => r.matchedMaterialId)).toEqual([
+        'c1',
+        'm1',
+        'm2',
+        'c2',
+      ]);
+      expect(latestRows[2].manuallyResolved).toBe(true);
+      // Nothing left to decide, so the bulk buttons and the warning go away.
+      expect(screen.queryByTestId('bom-suggestion-actions')).not.toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('ignores every pending suggestion and leaves matched lines alone', () => {
+      renderHarness([suggested('Ladder', 'c1'), matched, picked, suggested('Cover', 'c2')]);
+      fireEvent.click(screen.getByTestId('bom-ignore-all'));
+
+      expect(latestRows.slice(0, 4).map((r) => r.matchedMaterialId)).toEqual([
+        null,
+        'm1',
+        'm2',
+        null,
+      ]);
+      expect(screen.getByTestId('bom-review-row-0').className).toContain('FFC9CB');
+      expect(screen.getByTestId('bom-review-row-3').className).toContain('FFC9CB');
+      expect(screen.queryByTestId('bom-suggestion-actions')).not.toBeInTheDocument();
+      // The ignored lines are still unmatched, so the warning stays.
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+    });
+
+    it('hides the bulk buttons when no suggestion is pending', () => {
+      renderHarness([matched, row({ materialName: 'Mystery' })]);
+      expect(screen.queryByTestId('bom-suggestion-actions')).not.toBeInTheDocument();
+    });
   });
 
   it('does not tint a high-confidence match', () => {

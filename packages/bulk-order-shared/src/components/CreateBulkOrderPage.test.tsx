@@ -19,9 +19,21 @@ const APPROVED_RFQ_DETAIL = vi.hoisted(() => ({
       id: 'li-1',
       projectName: 'Alpha Project',
       materialName: 'Steel Beam',
+      imageUrl: 'https://cdn.test/beam.png',
       description: '12ft',
       quantity: 10,
       unit: 'pcs',
+      expectedDeliveryDate: null,
+      deliveryLocation: null,
+    },
+    {
+      id: 'li-2',
+      projectName: 'Alpha Project',
+      materialName: 'Loose Gravel',
+      imageUrl: null,
+      description: '',
+      quantity: 5,
+      unit: 't',
       expectedDeliveryDate: null,
       deliveryLocation: null,
     },
@@ -31,9 +43,9 @@ const APPROVED_RFQ_DETAIL = vi.hoisted(() => ({
       id: 'qr-1',
       vendorId: 'vendor-9',
       vendorName: 'Vendor A',
-      totalCost: 1000,
+      totalCost: 2000,
       discountPercent: 5,
-      discountAmount: 50,
+      discountAmount: 100,
       status: 'APPROVED',
       submittedAt: null,
     },
@@ -45,6 +57,8 @@ vi.mock('@forethread/i18n', () => ({
 }));
 
 vi.mock('@forethread/rfq-shared', () => ({
+  MaterialImageThumb: ({ url, name }: any) =>
+    url ? <img data-testid="material-image-thumb" src={url} alt={name} /> : null,
   usePageTitleStore: (selector: any) => selector({ setTitle: mockSetTitle }),
 }));
 
@@ -142,7 +156,10 @@ beforeEach(() => {
 describe('CreateBulkOrderPage', () => {
   it('sets the page title on mount', () => {
     render(<CreateBulkOrderPage />);
-    expect(mockSetTitle).toHaveBeenCalledWith('create.title', 'create.subtitle', '/bulk-orders');
+    expect(mockSetTitle).toHaveBeenCalledWith('create.title', 'create.subtitle', '/bulk-orders', [
+      { label: 'list.title', to: '/bulk-orders' },
+      { label: 'create.title' },
+    ]);
   });
 
   it('shows the auto-populate info banner and a disabled Create in the empty state', () => {
@@ -184,7 +201,22 @@ describe('CreateBulkOrderPage', () => {
       unit: 'pcs',
       pricePerUnit: 100,
     });
+    // The catalogue image is preview-only (FOR-402): never part of the payload.
+    for (const lineItem of payload.lineItems) {
+      expect(lineItem).not.toHaveProperty('imageUrl');
+    }
     expect(mockNavigate).toHaveBeenCalledWith('/bulk-orders/bo-99');
+  });
+
+  it('shows the catalogue image next to the item name in the preview (FOR-402)', () => {
+    state.hasDetail = true;
+    render(<CreateBulkOrderPage />);
+    const images = screen.getAllByTestId('material-image-thumb');
+    expect(images).toHaveLength(1);
+    expect(images[0]).toHaveAttribute('src', 'https://cdn.test/beam.png');
+    expect(images[0]).toHaveAttribute('alt', 'Steel Beam');
+    // A line without an image still renders its name.
+    expect(screen.getByText('Loose Gravel')).toBeInTheDocument();
   });
 
   it('navigates back to the list when Cancel is clicked', () => {

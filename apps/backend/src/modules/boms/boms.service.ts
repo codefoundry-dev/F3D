@@ -22,11 +22,21 @@ const bomDetailInclude = {
   ...bomListInclude,
   items: {
     orderBy: { sortOrder: 'asc' },
-    include: { matchedMaterial: { select: { id: true, name: true } } },
+    include: { matchedMaterial: { select: { id: true, name: true, imageUrl: true } } },
   },
 } satisfies Prisma.BomInclude;
 
-export type BomWithCounts = Prisma.BomGetPayload<{ include: typeof bomListInclude }>;
+export type BomWithCounts = Prisma.BomGetPayload<{ include: typeof bomListInclude }> & {
+  /** Lines with no catalogue match. Set by {@link BomsService.listBoms}. */
+  unmatchedCount?: number;
+};
+
+/** Distinct catalogue materials the payload's lines are matched to. */
+function matchedMaterialIds(items: { matchedMaterialId?: string | null }[]): string[] {
+  return [
+    ...new Set(items.flatMap((item) => (item.matchedMaterialId ? [item.matchedMaterialId] : []))),
+  ];
+}
 export type BomWithItems = Prisma.BomGetPayload<{ include: typeof bomDetailInclude }>;
 
 /**
@@ -51,15 +61,16 @@ export class BomsService {
     });
     if (!project) throw new NotFoundException(ERR.projects.notFound);
 
-    // Every line must already be matched to a real material (the review step
-    // enforces this in the UI; re-validate here for nicer errors than a raw FK
-    // violation).
-    const materialIds = [...new Set(dto.items.map((item) => item.matchedMaterialId))];
-    const materialCount = await this.prisma.material.count({
-      where: { id: { in: materialIds } },
-    });
-    if (materialCount !== materialIds.length) {
-      throw new BadRequestException(ERR.materials.notFound);
+    // A line may be saved unmatched, but a match that is given must point at a
+    // real material (nicer error than a raw FK violation).
+    const materialIds = matchedMaterialIds(dto.items);
+    if (materialIds.length > 0) {
+      const materialCount = await this.prisma.material.count({
+        where: { id: { in: materialIds } },
+      });
+      if (materialCount !== materialIds.length) {
+        throw new BadRequestException(ERR.materials.notFound);
+      }
     }
 
     const bomNumber = await nextSequentialNumber(this.prisma, 'bom', 'BOM', companyId);
@@ -79,7 +90,7 @@ export class BomsService {
           items: {
             create: dto.items.map((item, index) => ({
               materialName: item.materialName,
-              matchedMaterialId: item.matchedMaterialId,
+              matchedMaterialId: item.matchedMaterialId ?? null,
               description: item.description ?? null,
               uom: item.uom ?? null,
               quantity: item.quantity ?? null,
@@ -97,10 +108,7 @@ export class BomsService {
     // Record a per-user usage signal for the matched catalogue materials
     // (US 4.04), backing the catalogue search "recently/frequently used"
     // groups. Best-effort, outside the transaction so it never fails the create.
-    await this.materials.recordMaterialUsage(
-      user.id,
-      dto.items.map((item) => item.matchedMaterialId),
-    );
+    await this.materials.recordMaterialUsage(user.id, materialIds);
 
     return bom;
   }
@@ -125,7 +133,7 @@ export class BomsService {
 
     // Re-validate matches against the catalogue (same as create) for a nicer
     // error than a raw FK violation. Skipped when the edit clears all lines.
-    const materialIds = [...new Set(dto.items.map((item) => item.matchedMaterialId))];
+    const materialIds = matchedMaterialIds(dto.items);
     if (materialIds.length > 0) {
       const materialCount = await this.prisma.material.count({
         where: { id: { in: materialIds } },
@@ -142,7 +150,7 @@ export class BomsService {
           data: dto.items.map((item, index) => ({
             bomId: id,
             materialName: item.materialName,
-            matchedMaterialId: item.matchedMaterialId,
+            matchedMaterialId: item.matchedMaterialId ?? null,
             description: item.description ?? null,
             uom: item.uom ?? null,
             quantity: item.quantity ?? null,
@@ -166,11 +174,22 @@ export class BomsService {
     const companyId = user.companyId;
     if (!companyId) throw new ForbiddenException(ERR.general.accessDenied);
 
-    return this.prisma.bom.findMany({
+    const boms = await this.prisma.bom.findMany({
       where: { companyId, ...(projectId ? { projectId } : {}) },
       include: bomListInclude,
       orderBy: { createdAt: 'desc' },
     });
+    if (boms.length === 0) return boms;
+
+    // The list doesn't load lines, so count the unmatched ones per BOM for the
+    // "Matched n/m" column.
+    const unmatched = await this.prisma.bomItem.groupBy({
+      by: ['bomId'],
+      where: { bomId: { in: boms.map((bom) => bom.id) }, matchedMaterialId: null },
+      _count: { _all: true },
+    });
+    const unmatchedByBom = new Map(unmatched.map((row) => [row.bomId, row._count._all]));
+    return boms.map((bom) => ({ ...bom, unmatchedCount: unmatchedByBom.get(bom.id) ?? 0 }));
   }
 
   async getBom(id: string, user: AuthenticatedUser): Promise<BomWithItems> {

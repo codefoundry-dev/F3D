@@ -258,6 +258,7 @@ function RfqQuoteCard({ rfqId, rfqName, materialName, onAddToPo }: RfqQuoteCardP
                       ...EMPTY_LINE_ITEM,
                       materialName,
                       materialId: rfqLine?.materialId ?? '',
+                      imageUrl: rfqLine?.imageUrl ?? undefined,
                       costCode: rfqLine?.costCode ?? '',
                       unitOfMeasure: rfqLine?.unit ?? '',
                       unitPrice: ql.unitPrice,

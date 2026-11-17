@@ -256,6 +256,7 @@ export const ERR = {
     notFound: errors.materialRequests.notFound,
     projectNotFound: errors.materialRequests.projectNotFound,
     invalidLineItem: errors.materialRequests.invalidLineItem,
+    invalidLinePhoto: errors.materialRequests.invalidLinePhoto,
     invalidMaterialIds: errors.materialRequests.invalidMaterialIds,
     invalidDeliveryLocation: errors.materialRequests.invalidDeliveryLocation,
     cannotUpdateNonDraft: errors.materialRequests.cannotUpdateNonDraft,

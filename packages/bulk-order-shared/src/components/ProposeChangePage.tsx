@@ -103,7 +103,11 @@ export function ProposeChangePage({ isVendorView = false }: ProposeChangePagePro
 
   useEffect(() => {
     if (data && !initialized) {
-      setTitle(data.bulkId, t('list.subtitle') as string);
+      setTitle(data.bulkId, t('list.subtitle') as string, null, [
+        { label: t('list.title') as string, to: BULK_ORDER_ROUTES.bulkOrders },
+        { label: data.bulkId, to: BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', data.id) },
+        { label: t('changeRequests.title') as string },
+      ]);
       setEndDate(data.endDate ? data.endDate.split('T')[0] : '');
       setSelectedProject(data.projectName);
       setInitialized(true);

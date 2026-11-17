@@ -44,6 +44,7 @@ function mapQuoteItemToFormItem(qi: DerivedQuoteItem): FormValues['lineItems'][n
     ...EMPTY_LINE_ITEM,
     materialName: qi.materialName,
     materialId: qi.materialId ?? '',
+    imageUrl: qi.imageUrl ?? undefined,
     materialCode: '',
     costCode: qi.costCode ?? '',
     upc: qi.upc ?? '',
@@ -339,6 +340,7 @@ export function ApprovedQuotesModal({
                       key={item.id}
                       id={item.id}
                       name={item.materialName}
+                      imageUrl={item.imageUrl}
                       isSelected={sel.selectedItems.has(item.id)}
                       isInTable={alreadyInTable.has(item.id)}
                       alreadyAddedLabel={t('approvedQuotes.alreadyAdded', {

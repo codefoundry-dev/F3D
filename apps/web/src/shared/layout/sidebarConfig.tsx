@@ -57,6 +57,11 @@ const INVOICE_VIEWERS: readonly UserRole[] = [
   UserRole.VENDOR,
 ];
 
+/** `pathname` is `base` itself or a page nested under it (`/company` ≠ `/companies`). */
+function isUnder(pathname: string, base: string): boolean {
+  return pathname === base || pathname.startsWith(base + '/');
+}
+
 export function getSidebarItemsForRole(
   role: UserRole | null,
   pathname: string,
@@ -147,7 +152,13 @@ export function getSidebarItemsForRole(
       // Super Admin + Company Admin, plus Vendor (self-manages its own company).
       roles: [UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.VENDOR],
       hasSubmenu: true,
-      matchPathname: (p) => p === ROUTES.settings || p.startsWith(ROUTES.settings + '/'),
+      // Company and (outside the Super Admin, who has a Users sidebar entry)
+      // Users are only reached through Settings, so they keep it highlighted —
+      // matching the `Settings › …` breadcrumb those pages show.
+      matchPathname: (p) =>
+        isUnder(p, ROUTES.settings) ||
+        isUnder(p, ROUTES.companyProfile) ||
+        (role !== UserRole.SUPER_ADMIN && isUnder(p, ROUTES.users)),
     },
   ];
 

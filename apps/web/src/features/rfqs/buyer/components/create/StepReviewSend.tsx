@@ -1,5 +1,6 @@
 import type { ProjectListItem, VendorListItem } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import { Button, FileChip, Textarea, cn, ScrollTable } from '@forethread/ui-components';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 import ChevronRightIcon from '@forethread/ui-components/assets/icons/chevron-right.svg?react';
@@ -264,7 +265,12 @@ export function StepReviewSend({
                     {!isCollapsed &&
                       groupItems.map((item) => (
                         <tr key={item.key} className={TABLE_BODY_ROW}>
-                          <td className="py-2.5 px-3 text-foreground">{item.materialName}</td>
+                          <td className="py-2.5 px-3 text-foreground">
+                            <span className="flex items-center gap-2">
+                              <MaterialImageThumb url={item.imageUrl} name={item.materialName} />
+                              {item.materialName}
+                            </span>
+                          </td>
                           <td className="py-2.5 px-3">{item.uom}</td>
                           <td className="py-2.5 px-3">{item.quantity}</td>
                           <td className="py-2.5 px-3">

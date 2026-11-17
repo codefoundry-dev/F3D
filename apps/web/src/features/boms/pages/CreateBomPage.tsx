@@ -40,6 +40,7 @@ import {
   type BomDraftRow,
 } from '../components/create/bom-draft';
 import { BomReviewStep } from '../components/create/BomReviewStep';
+import { UnmatchedItemsModal } from '../components/create/UnmatchedItemsModal';
 import { useCreateBom } from '../hooks/useBoms';
 
 const ACCEPTED_EXTENSIONS = '.xlsx,.csv,.pdf';
@@ -106,6 +107,7 @@ export default function CreateBomPage() {
   const navigate = useNavigate();
 
   const [step, setStep] = useState<WizardStep>(1);
+  const [confirmUnmatched, setConfirmUnmatched] = useState(false);
   const [phase, setPhase] = useState<UploadPhase>('idle');
   const [file, setFile] = useState<File | null>(null);
   // Worksheet names of the uploaded spreadsheet, and the subset the user wants
@@ -140,10 +142,11 @@ export default function CreateBomPage() {
     onExit: exitToProject,
   });
 
-  // App-bar breadcrumb: Bill of Materials (BOM) › Create BOM.
+  // App-bar breadcrumb: Projects › Bill of Materials (BOM) › Create BOM.
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
   useEffect(() => {
     setPageTitle(t('create.createBom'), null, projectBomTabUrl, [
+      { label: tProjects('list.title'), to: ROUTES.projects },
       { label: tProjects('detail.tabs.bom'), to: projectBomTabUrl },
       { label: t('create.createBom') },
     ]);
@@ -465,11 +468,12 @@ export default function CreateBomPage() {
         <Button
           size="lg"
           className="h-12 text-sm disabled:bg-[#999FAD] disabled:opacity-100"
-          disabled={unmatched > 0 || !hasRows}
-          onClick={() => setStep(3)}
+          disabled={!hasRows}
+          // Unmatched lines don't block: confirm them first, then carry on.
+          onClick={() => (unmatched > 0 ? setConfirmUnmatched(true) : setStep(3))}
           data-testid="bom-continue"
         >
-          {unmatched > 0 ? t('create.matchItemsFirst') : t('create.continue')}
+          {t('create.continue')}
         </Button>
       )}
 
@@ -519,6 +523,18 @@ export default function CreateBomPage() {
       </div>
 
       {exitConfirm}
+
+      {confirmUnmatched && (
+        <UnmatchedItemsModal
+          rows={rows}
+          confirmLabel={t('unmatchedModal.continueAnyway')}
+          onClose={() => setConfirmUnmatched(false)}
+          onConfirm={() => {
+            setConfirmUnmatched(false);
+            setStep(3);
+          }}
+        />
+      )}
 
       {createdProjectName !== null && (
         <GridModal

@@ -32,6 +32,34 @@ export interface AddMaterialsToListModalProps {
 
 type View = 'browse' | 'selected';
 
+/**
+ * Row thumbnail: the material's catalogue image when it has one (FOR-402),
+ * otherwise the box glyph. An image that fails to load falls back to the glyph.
+ */
+function MaterialRowThumb({ url, name }: { url?: string | null; name: string }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  if (url && failedUrl !== url) {
+    return (
+      <img
+        src={url}
+        alt={name}
+        loading="lazy"
+        onError={() => setFailedUrl(url)}
+        className="w-10 h-10 rounded-lg border border-border object-cover flex-shrink-0"
+        data-testid="add-materials-row-image"
+      />
+    );
+  }
+  return (
+    <span
+      className="flex items-center justify-center w-10 h-10 rounded-lg bg-muted text-muted-foreground flex-shrink-0"
+      aria-hidden="true"
+    >
+      <PackageIcon className="w-5 h-5" />
+    </span>
+  );
+}
+
 /** One browsable / selected catalogue row (thumb, name, category chip, meta, description). */
 function MaterialRow({
   material,
@@ -45,9 +73,7 @@ function MaterialRow({
       className="flex items-start gap-3 p-3 rounded-xl border border-border"
       data-testid={`add-materials-row-${material.id}`}
     >
-      <span className="flex items-center justify-center w-10 h-10 rounded-lg bg-muted text-muted-foreground flex-shrink-0">
-        <PackageIcon className="w-5 h-5" />
-      </span>
+      <MaterialRowThumb url={material.imageUrl} name={material.name} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="font-medium text-foreground truncate">{material.name}</span>

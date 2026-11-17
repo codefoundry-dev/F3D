@@ -55,6 +55,7 @@ export function rfqToFormDefaults(
     materialName: li.materialName,
     // Carry the RFQ line's catalogue link + code snapshots onto the PO line.
     materialId: li.materialId ?? '',
+    imageUrl: li.imageUrl ?? undefined,
     costCode: li.costCode ?? '',
     upc: li.upc ?? '',
     manufacturerPartNumber: li.manufacturerPartNumber ?? '',
@@ -190,6 +191,7 @@ export function poToFormDefaults(po: PoDetail): { defaultValues: Partial<FormVal
     lineItemId: li.id,
     materialName: li.materialName ?? li.description ?? '',
     materialId: li.materialId ?? '',
+    imageUrl: li.imageUrl ?? undefined,
     materialCode: li.materialCode ?? '',
     costCode: li.costCode ?? '',
     // Keep the line's catalogue snapshots across a change — otherwise the

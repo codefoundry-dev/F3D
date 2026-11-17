@@ -1,6 +1,6 @@
 import { getRfqs, getRfq } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
-import { usePageTitleStore } from '@forethread/rfq-shared';
+import { MaterialImageThumb, usePageTitleStore } from '@forethread/rfq-shared';
 import {
   Alert,
   Button,
@@ -52,6 +52,10 @@ export function CreateBulkOrderPage({ isVendorView = false }: CreateBulkOrderPag
       t('create.title') as string,
       t('create.subtitle') as string,
       BULK_ORDER_ROUTES.bulkOrders,
+      [
+        { label: t('list.title') as string, to: BULK_ORDER_ROUTES.bulkOrders },
+        { label: t('create.title') as string },
+      ],
     );
     return () => setTitle(null);
   }, [setTitle, t]);
@@ -232,7 +236,12 @@ export function CreateBulkOrderPage({ isVendorView = false }: CreateBulkOrderPag
               <tbody>
                 {lineItems.map((li) => (
                   <tr key={li.id} className="border-t border-border">
-                    <td className="p-3 text-foreground">{li.itemReference}</td>
+                    <td className="p-3 text-foreground">
+                      <span className="flex items-center gap-2">
+                        <MaterialImageThumb url={li.imageUrl} name={li.itemReference} />
+                        {li.itemReference}
+                      </span>
+                    </td>
                     <td className="p-3 text-foreground truncate max-w-[160px]">{li.description}</td>
                     <td className="p-3 text-foreground">{formatCurrency(li.pricePerUnit)}</td>
                     <td className="p-3 text-foreground">{li.unit}</td>

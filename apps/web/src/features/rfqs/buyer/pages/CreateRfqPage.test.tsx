@@ -537,6 +537,96 @@ describe('CreateRfqPage', () => {
     expect(payload.lineItems[0]).not.toHaveProperty('needByDateOverridden');
   });
 
+  it('shows catalogue images on wizard lines but never sends imageUrl to the API (FOR-402)', async () => {
+    mockUseLocation.mockReturnValue({
+      state: {
+        seed: {
+          source: 'MATERIAL_LIST',
+          items: [
+            {
+              source: 'MATERIAL_LIST',
+              materialId: MATERIAL_ID,
+              materialName: 'Cement',
+              imageUrl: 'https://cdn.test/cement.jpg',
+              quantity: 3,
+              uom: 'bag',
+              projectId: PROJECT_ID,
+            },
+            // Free-text line: no catalogue link, so no image either.
+            { source: 'BOM', materialName: 'Rebar', quantity: 1, uom: 'ea', projectId: PROJECT_ID },
+            {
+              source: 'BOM',
+              materialId: '77777777-7777-4777-8777-777777777777',
+              materialName: 'Mesh',
+              imageUrl: null,
+              quantity: 2,
+              uom: 'ea',
+              projectId: PROJECT_ID,
+            },
+          ],
+        },
+      },
+    });
+    // The saved draft reports the image the server resolved for the third line.
+    const saved = {
+      id: 'rfq-1',
+      lineItems: [
+        { id: 'srv-li-1', imageUrl: 'https://cdn.test/cement.jpg' },
+        { id: 'srv-li-2', imageUrl: null },
+        { id: 'srv-li-3', imageUrl: 'https://cdn.test/mesh.jpg' },
+      ],
+    };
+    mockSaveDraft.mutateAsync.mockResolvedValue(saved);
+    mockUpdateDraft.mutateAsync.mockResolvedValue(saved);
+
+    renderPage();
+    fillBasics();
+
+    const table = screen.getByTestId('line-items-table');
+    expect(within(table).getByRole('img', { name: 'Cement' })).toHaveAttribute(
+      'src',
+      'https://cdn.test/cement.jpg',
+    );
+    // Lines without an image render their name and nothing else.
+    expect(within(table).getAllByRole('img')).toHaveLength(1);
+    expect(within(table).getByText('Rebar')).toBeInTheDocument();
+
+    // Availability check: POST draft + availability lookup.
+    fireEvent.click(screen.getByTestId('check-availability'));
+    await waitFor(() => expect(mockApi.checkRfqAvailability).toHaveBeenCalledTimes(1));
+    // Create (step 1 → review): PATCH of the saved draft.
+    continueWizard();
+    await screen.findByText(/create\.headings\.step4Title/);
+    // Send: PATCH again before the send mutation.
+    fireEvent.click(screen.getByTestId('submit-rfq'));
+    fireEvent.click(screen.getByTestId('confirm-send-rfq'));
+    await waitFor(() => expect(mockSendRfq.mutateAsync).toHaveBeenCalledTimes(1));
+
+    expect(mockSaveDraft.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(mockUpdateDraft.mutateAsync).toHaveBeenCalledTimes(2);
+    const bodies = [
+      mockSaveDraft.mutateAsync.mock.calls[0][0],
+      ...mockUpdateDraft.mutateAsync.mock.calls.map(([arg]) => (arg as { dto: unknown }).dto),
+      mockApi.checkRfqAvailability.mock.calls[0][0],
+    ] as Array<{ lineItems: Array<Record<string, unknown>> }>;
+    for (const body of bodies) {
+      expect(body.lineItems).toHaveLength(3);
+      for (const lineItem of body.lineItems) expect(lineItem).not.toHaveProperty('imageUrl');
+      // Belt and braces: the key appears nowhere in the body, at any depth.
+      expect(JSON.stringify(body)).not.toContain('imageUrl');
+    }
+    // The catalogue line still goes out by id, exactly as before.
+    expect(bodies[0].lineItems[0]).toMatchObject({ source: 'CATALOG', materialId: MATERIAL_ID });
+
+    // Review rows show the images too, including the one learned from the save.
+    const review = screen.getByTestId('review-line-items');
+    expect(
+      within(review)
+        .getAllByRole('img')
+        .map((img) => img.getAttribute('src')),
+    ).toEqual(['https://cdn.test/cement.jpg', 'https://cdn.test/mesh.jpg']);
+  });
+
   it('seeds from a confirmed BOM extraction passed via route state (FOR-200)', () => {
     mockUseLocation.mockReturnValue({ state: { bomExtractionId: 'ext-1' } });
     mockUseConfirmedBoms.mockReturnValue({

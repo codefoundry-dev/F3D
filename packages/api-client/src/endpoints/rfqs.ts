@@ -686,14 +686,19 @@ export interface QuoteResponseLineItem {
   deliveryDate: string;
   substituteItemId: string | null;
   /** Substitute material suggested by the vendor (suggestion-replace, US 5.06). */
-  substituteItem?: { id: string; name: string; uom: string | null } | null;
+  substituteItem?: {
+    id: string;
+    name: string;
+    uom: string | null;
+    imageUrl?: string | null;
+  } | null;
   /** The RFQ line this quote line answers — carries the requested material/qty. */
   rfqLineItem?: {
     id: string;
     materialName: string | null;
     quantity: number;
     unit: string;
-    material?: { id: string; name: string; uom: string | null } | null;
+    material?: { id: string; name: string; uom: string | null; imageUrl?: string | null } | null;
   };
   discount: number | null;
   discountType: 'PERCENT' | 'AMOUNT' | null;
@@ -850,6 +855,8 @@ export interface QuoteComparisonCell {
 export interface QuoteComparisonRow {
   rfqLineItemId: string;
   materialName: string | null;
+  /** Catalogue image of the linked material; null for free-text lines or no image. */
+  imageUrl?: string | null;
   quantity: number;
   unit: string;
   projectId: string;

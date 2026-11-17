@@ -593,6 +593,9 @@ export class PoLineItemResponseDto {
   @ApiPropertyOptional()
   deliveryTime!: string | null;
 
+  @ApiPropertyOptional({ description: 'Catalogue image of the linked material' })
+  imageUrl?: string | null;
+
   @ApiPropertyOptional()
   deliveryLocationId!: string | null;
 

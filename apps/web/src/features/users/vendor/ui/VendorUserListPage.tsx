@@ -27,6 +27,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { StatusBadge } from '@/features/users/shared/userBadges';
+import { useSettingsCrumb } from '@/shared/layout/useSettingsCrumb';
 
 import { useVendorUserSort, type SortField } from '../hooks/useVendorUserSort';
 import {
@@ -62,6 +63,7 @@ export default function VendorUserListPage() {
   const { t } = useTranslation(['vendorUsers', 'common']);
   const navigate = useNavigate();
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
+  const settingsCrumb = useSettingsCrumb();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [search, setSearch] = useState('');
@@ -90,9 +92,9 @@ export default function VendorUserListPage() {
 
   // App-bar breadcrumb / page title (breadcrumbs app-wide; no back-arrow). (US 3.10)
   useEffect(() => {
-    setPageTitle(t('title'), null, null, [{ label: t('title') }]);
+    setPageTitle(t('title'), null, null, [settingsCrumb, { label: t('title') }]);
     return () => setPageTitle(null);
-  }, [setPageTitle, t]);
+  }, [setPageTitle, t, settingsCrumb]);
 
   const { data, isLoading, isError } = useVendorUsers({
     page,

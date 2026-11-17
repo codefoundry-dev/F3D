@@ -10,6 +10,8 @@ export interface DerivedQuoteItem {
   quoteLineItemId: string;
   /** Catalogue material link + code snapshots carried from the RFQ line. */
   materialId: string | null;
+  /** The linked material's catalogue image (FOR-402); null for free-text lines. */
+  imageUrl: string | null;
   costCode: string | null;
   upc: string | null;
   manufacturerPartNumber: string | null;
@@ -60,6 +62,7 @@ export function deriveVendorGroups(rfq: RfqDetail): VendorGroup[] {
       lineItemId: li.id,
       quoteLineItemId: ql.id,
       materialId: li.materialId ?? null,
+      imageUrl: li.imageUrl ?? null,
       costCode: li.costCode ?? null,
       upc: li.upc ?? null,
       manufacturerPartNumber: li.manufacturerPartNumber ?? null,

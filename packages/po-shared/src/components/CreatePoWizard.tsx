@@ -329,6 +329,7 @@ export function CreatePoWizard({
           (isChange ? (
             <PoChangeReviewStep
               changedFields={changedFields}
+              poLineItems={existingPo?.lineItems}
               register={register}
               locationOptions={locationOptions}
               onEditStep={setStep}

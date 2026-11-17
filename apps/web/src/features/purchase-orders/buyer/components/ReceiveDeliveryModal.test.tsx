@@ -158,4 +158,27 @@ describe('ReceiveDeliveryModal', () => {
     await waitFor(() => expect(onReceived).toHaveBeenCalled());
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('shows the catalogue image of a line that has one, and never submits it (FOR-402)', async () => {
+    const base = makePo();
+    const po = makePo({
+      lineItems: [
+        { ...base.lineItems[0], imageUrl: 'https://cdn.example/steel-beam.png' },
+        { ...base.lineItems[1], imageUrl: null },
+      ],
+    });
+    render(<ReceiveDeliveryModal po={po} onClose={vi.fn()} />, { wrapper });
+
+    expect(screen.getByRole('img', { name: 'Steel Beam' })).toHaveAttribute(
+      'src',
+      'https://cdn.example/steel-beam.png',
+    );
+    // The line without an image lists by name only.
+    expect(screen.getByText('Concrete Mix')).toBeInTheDocument();
+    expect(screen.getAllByTestId('material-image-thumb')).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Record delivery' }));
+    await waitFor(() => expect(mockReceive).toHaveBeenCalled());
+    expect(JSON.stringify(mockReceive.mock.calls[0])).not.toContain('imageUrl');
+  });
 });

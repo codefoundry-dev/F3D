@@ -472,4 +472,20 @@ describe('SelectRfqModal', () => {
     expect(screen.getAllByText('selectRfqModal.select')).toHaveLength(2);
     expect(screen.queryByText(/selectRfqModal.itemsSelected/)).not.toBeInTheDocument();
   });
+
+  it('shows the catalogue image of a quoted line that has one (FOR-402)', () => {
+    const detail = mockUseQueryReturn.detail.data as { lineItems: Record<string, unknown>[] };
+    detail.lineItems[0].imageUrl = 'https://cdn.example/steel-beam.png';
+    detail.lineItems[1].imageUrl = null;
+    renderModal();
+    fireEvent.click(screen.getAllByTitle('approvedQuotes.viewQuotes')[0]);
+
+    expect(screen.getByRole('img', { name: 'Steel Beam' })).toHaveAttribute(
+      'src',
+      'https://cdn.example/steel-beam.png',
+    );
+    // The line without an image still lists, just without a thumbnail.
+    expect(screen.getByText('Copper Wire')).toBeInTheDocument();
+    expect(screen.getAllByTestId('material-image-thumb')).toHaveLength(1);
+  });
 });

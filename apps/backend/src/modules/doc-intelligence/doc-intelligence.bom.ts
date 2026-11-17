@@ -142,6 +142,7 @@ function normalizeCandidates(raw: unknown): BomCatalogueCandidate[] | undefined 
       if ('category' in c) candidate.category = asNullableString(c.category);
       if ('subCategory' in c) candidate.subCategory = asNullableString(c.subCategory);
       if ('description' in c) candidate.description = asNullableString(c.description);
+      if ('imageUrl' in c) candidate.imageUrl = asNullableString(c.imageUrl);
       return candidate;
     })
     .filter((c): c is BomCatalogueCandidate => c !== null);

@@ -35,6 +35,7 @@ export interface CatalogueMaterial {
   category?: string | null;
   subCategory?: string | null;
   description?: string | null;
+  imageUrl?: string | null;
 }
 
 /** Matching fields the scorer contributes to a {@link BomLineItem}. */
@@ -104,6 +105,7 @@ export function matchLineToCatalogue(
       if (material.category !== undefined) candidate.category = material.category;
       if (material.subCategory !== undefined) candidate.subCategory = material.subCategory;
       if (material.description !== undefined) candidate.description = material.description;
+      if (material.imageUrl !== undefined) candidate.imageUrl = material.imageUrl;
       return candidate;
     })
     .filter((candidate) => candidate.confidence >= BOM_MATCH_CANDIDATE_FLOOR)

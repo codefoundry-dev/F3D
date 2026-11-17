@@ -94,6 +94,22 @@ describe('BomItemsModal', () => {
     expect(screen.getByText('Raw')).toBeInTheDocument();
   });
 
+  it('shows the matched material image next to the material name (FOR-402)', () => {
+    mockUseBom.mockReturnValue({
+      data: makeBom([
+        makeItem({ imageUrl: 'https://cdn.test/beam.png' }),
+        makeItem({ id: 'item-2', materialName: 'Bolt', imageUrl: null }),
+      ]),
+      isLoading: false,
+    });
+    render(<BomItemsModal bomId="bom-1" onClose={() => {}} />);
+    const images = screen.getAllByRole('img');
+    expect(images).toHaveLength(1);
+    expect(images[0]).toHaveAttribute('src', 'https://cdn.test/beam.png');
+    expect(images[0]).toHaveAttribute('alt', 'Steel Beam');
+    expect(screen.getByTestId('bom-item-item-2')).toHaveTextContent('Bolt');
+  });
+
   it('renders an em dash for each null field', () => {
     mockUseBom.mockReturnValue({
       data: makeBom([
@@ -113,6 +129,20 @@ describe('BomItemsModal', () => {
 
     const dashes = screen.getAllByText('—');
     expect(dashes.length).toBe(6);
+  });
+
+  it('marks a line saved without a catalogue match as not matched', () => {
+    mockUseBom.mockReturnValue({
+      data: makeBom([
+        makeItem({ matchedMaterialId: null, matchedMaterialName: null, matchConfidence: null }),
+      ]),
+      isLoading: false,
+    });
+    render(<BomItemsModal bomId="bom-1" onClose={() => {}} />);
+
+    expect(screen.getByText('viewModal.notMatched')).toBeInTheDocument();
+    // "No match", not "Manual": nobody matched this line by hand.
+    expect(screen.getByTestId('badge')).toHaveTextContent('create.noMatch');
   });
 
   it('labels a manual (null confidence) match with no percentage', () => {

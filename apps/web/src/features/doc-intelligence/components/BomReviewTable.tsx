@@ -1,4 +1,5 @@
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import {
   type BomExtractionResult,
   type BomLineItem,
@@ -87,8 +88,15 @@ function MatchCell({
   let toneClass: string;
   let badgeText: string;
   let detail: string | null = null;
+  // Catalogue image of the material `detail` names (FOR-402). Only candidates
+  // carry one, so a match picked outside the suggestions shows no image.
+  let imageUrl: string | null = null;
+  let imageName = '';
 
   if (item.matchedMaterialId) {
+    imageUrl =
+      item.matchCandidates?.find((c) => c.materialId === item.matchedMaterialId)?.imageUrl ?? null;
+    imageName = item.matchedMaterialName ?? '';
     toneClass = 'bg-green-100 text-green-800';
     badgeText =
       typeof item.matchConfidence === 'number'
@@ -98,6 +106,8 @@ function MatchCell({
   } else if (candidate) {
     toneClass = 'bg-amber-100 text-amber-800';
     badgeText = t('bom.match.review');
+    imageUrl = candidate.imageUrl ?? null;
+    imageName = candidate.name;
     detail = t('bom.match.suggested', {
       name: candidate.name,
       pct: toPercent(candidate.confidence),
@@ -115,9 +125,12 @@ function MatchCell({
     <div className="space-y-1.5" data-testid={`bom-match-${index}`}>
       <Badge className={toneClass}>{badgeText}</Badge>
       {detail ? (
-        <p className="text-xs text-muted-foreground truncate" title={detail}>
-          {detail}
-        </p>
+        <div className="flex min-w-0 items-center gap-2">
+          <MaterialImageThumb url={imageUrl} name={imageName} />
+          <p className="min-w-0 text-xs text-muted-foreground truncate" title={detail}>
+            {detail}
+          </p>
+        </div>
       ) : null}
       {!readOnly && options ? (
         <CustomDropdown

@@ -80,6 +80,24 @@ describe('StepLineItems on phones', () => {
     expect(card).toHaveTextContent('4');
   });
 
+  it('shows the catalogue image on a line that has one and none otherwise (FOR-402)', () => {
+    render(
+      <Harness
+        initial={[
+          { ...line, imageUrl: 'https://cdn.test/copper.jpg' },
+          { ...line, key: 'l2', materialName: 'Flux', imageUrl: null },
+        ]}
+      />,
+    );
+    const [withImage, withoutImage] = screen.getAllByTestId('line-item-card');
+    expect(within(withImage).getByRole('img', { name: 'Copper pipe' })).toHaveAttribute(
+      'src',
+      'https://cdn.test/copper.jpg',
+    );
+    expect(withoutImage).toHaveTextContent('Flux');
+    expect(within(withoutImage).queryByRole('img')).not.toBeInTheDocument();
+  });
+
   it('edits quantity in the sheet', () => {
     render(<Harness initial={[line]} />);
     fireEvent.click(screen.getAllByTestId('line-item-card')[0]);

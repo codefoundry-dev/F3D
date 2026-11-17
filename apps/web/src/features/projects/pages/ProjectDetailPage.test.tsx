@@ -210,10 +210,13 @@ describe('ProjectDetailPage', () => {
     expect(screen.getByText('detail.notFound')).toBeInTheDocument();
   });
 
-  it('sets the page title with a back route on mount', () => {
+  it('sets the page title and a Projects › <name> breadcrumb on mount', () => {
     mockUseProject.mockReturnValue({ data: mockProject, isLoading: false, isError: false });
     render(<ProjectDetailPage />);
-    expect(mockSetPageTitle).toHaveBeenCalledWith('detail.title', null, '/projects');
+    expect(mockSetPageTitle).toHaveBeenCalledWith('detail.title', null, '/projects', [
+      { label: 'list.title', to: '/projects' },
+      { label: 'Alpha Project' },
+    ]);
   });
 
   it('renders the five Figma tabs', () => {

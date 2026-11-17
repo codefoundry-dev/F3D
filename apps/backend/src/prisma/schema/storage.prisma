@@ -20,6 +20,11 @@ model File {
   docExtractions      DocExtraction[]
   deliveryDamagePhotos      DeliveryDamagePhoto[]      @relation("DeliveryDamagePhotoFile")
   deliveryReportAttachments DeliveryReportAttachment[] @relation("DeliveryReportAttachmentFile")
+  // Requester-uploaded line photos (FOR-404); one file can sit on an MR line
+  // and on the RFQ / PO lines converted from it.
+  materialRequestLinePhotos MaterialRequestLineItem[]  @relation("MaterialRequestLinePhoto")
+  rfqLinePhotos             RfqLineItem[]              @relation("RfqLinePhoto")
+  poLinePhotos              PoLineItem[]               @relation("PoLinePhoto")
 
   @@index([uploadedById], map: "idx_files_uploaded_by")
   @@map("files")

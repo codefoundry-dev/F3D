@@ -42,6 +42,7 @@ import { useRfqQuoteComparison, useUpdateQuoteLineItemStatuses } from '../hooks/
 import { buildSplitAllocations, findOverAllocatedLineIds } from '../utils/splitAward';
 
 import { DeliveryVarianceBadge } from './DeliveryVarianceBadge';
+import { MaterialImageThumb } from './MaterialImageThumb';
 import { SortingDropdown, type QuoteSortOrder } from './SortingDropdown';
 import { StartOrderModal, type StartOrderKind } from './StartOrderModal';
 import {
@@ -1327,8 +1328,14 @@ export function QuoteComparisonTable({
                     group.rows.map((row) => (
                       <tr key={row.rfqLineItemId}>
                         <td className="sticky left-0 z-10 bg-card border-b border-foreground/10 px-3 py-3 text-sm text-foreground min-w-[140px] max-w-[180px]">
-                          <span className="block truncate" title={row.materialName ?? undefined}>
-                            {row.materialName ?? '-'}
+                          <span className="flex min-w-0 items-center gap-2">
+                            <MaterialImageThumb url={row.imageUrl} name={row.materialName ?? ''} />
+                            <span
+                              className="block min-w-0 truncate"
+                              title={row.materialName ?? undefined}
+                            >
+                              {row.materialName ?? '-'}
+                            </span>
                           </span>
                           {/* FOR-392: the date each vendor's delivery is measured against;
                               kept in the pinned column so it stays beside every vendor. */}

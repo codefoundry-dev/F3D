@@ -81,6 +81,21 @@ describe('getSidebarItemsForRole', () => {
     expect(onDetail.find((i) => i.label === 'Users management')?.isActive).toBe(true);
   });
 
+  it('keeps Settings active on the pages only reached through it', () => {
+    const settingsActive = (role: UserRole, pathname: string) =>
+      getSidebarItemsForRole(role, pathname, LABELS).find((i) => i.label === 'Settings')?.isActive;
+
+    expect(settingsActive(UserRole.COMPANY_ADMIN, '/company')).toBe(true);
+    expect(settingsActive(UserRole.COMPANY_ADMIN, '/users')).toBe(true);
+    expect(settingsActive(UserRole.VENDOR, '/users/u-123')).toBe(true);
+    expect(settingsActive(UserRole.SUPER_ADMIN, '/settings/roles')).toBe(true);
+    // The Super Admin has a dedicated Users sidebar entry, and /companies is
+    // not the /company profile.
+    expect(settingsActive(UserRole.SUPER_ADMIN, '/users')).toBe(false);
+    expect(settingsActive(UserRole.SUPER_ADMIN, '/companies/c-1')).toBe(false);
+    expect(settingsActive(UserRole.COMPANY_ADMIN, '/rfqs')).toBe(false);
+  });
+
   it('marks the RFQs item active when pathname starts with /rfqs', () => {
     const items = getSidebarItemsForRole(UserRole.COMPANY_ADMIN, '/rfqs/123', LABELS);
     const rfqItem = items.find((i) => i.label === 'RFQs');

@@ -35,6 +35,7 @@ import {
 
 import { DeliveryVarianceBadge } from './DeliveryVarianceBadge';
 import { DocumentRow } from './DocumentCard';
+import { MaterialImageThumb } from './MaterialImageThumb';
 import { MessageAttachmentLinks } from './MessageAttachmentLinks';
 import { MessageComposer } from './MessageComposer';
 
@@ -547,10 +548,22 @@ function QuoteLineItemsTab({
     const bg = opts?.bg ?? (isLowest ? ROW_BEST_PRICE_BG : undefined);
     const struck = opts?.struck ?? false;
     const textCls = struck ? 'line-through' : undefined;
+    // The struck row is the requested material; the row under it (and any row
+    // where a substitute's name is shown) is the vendor's proposed substitute.
+    // The image follows whichever material the name belongs to (FOR-402).
+    const substituteName = struck ? undefined : li.substituteItem?.name;
+    const name = substituteName ?? lineName(li);
+    const imageUrl =
+      substituteName !== undefined
+        ? li.substituteItem?.imageUrl
+        : li.rfqLineItem?.material?.imageUrl;
     return (
       <tr key={`${li.id}${struck ? '-orig' : ''}`} className={bg}>
         <td className={cellClass(cn('font-normal', textCls))}>
-          {struck ? lineName(li) : (li.substituteItem?.name ?? lineName(li))}
+          <span className="flex items-center gap-2">
+            <MaterialImageThumb url={imageUrl} name={name} />
+            {name}
+          </span>
         </td>
         <td className={cellClass(textCls)}>
           <span className="inline-flex items-center gap-1.5">

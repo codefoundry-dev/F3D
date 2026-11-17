@@ -14,6 +14,7 @@ import {
   hasAnyChange,
   poToFormDefaults,
 } from '@forethread/po-shared';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import {
   Alert,
   Button,
@@ -100,6 +101,8 @@ interface GuestLineRow {
   id: string;
   index: number;
   name: string;
+  /** The line material's catalogue image (FOR-402); absent for free-text lines. */
+  imageUrl?: string | null;
 }
 
 type GuestLineFieldKey = 'unitPrice' | 'qty' | 'delivery' | 'deliveryTime' | 'notes';
@@ -154,7 +157,12 @@ function GuestChangeForm({ po, token }: { po: PoDetail; token: string }) {
   const rows: GuestLineRow[] = fields.map((field, index) => {
     // Rows can be removed, so match the source PO line by id, not by index (FOR-352).
     const source = po.lineItems.find((li) => li.id === field.lineItemId);
-    return { id: field.id, index, name: source?.materialName ?? source?.description ?? '—' };
+    return {
+      id: field.id,
+      index,
+      name: source?.materialName ?? source?.description ?? '—',
+      imageUrl: source?.imageUrl,
+    };
   });
 
   // ── Line fields, defined once (ADR-0019 B10): table cells on desktop, the
@@ -313,7 +321,12 @@ function GuestChangeForm({ po, token }: { po: PoDetail; token: string }) {
               lines={rows}
               fields={lineFields}
               getKey={(row) => row.id}
-              getTitle={(row) => row.name}
+              getTitle={(row) => (
+                <span className="flex min-w-0 items-center gap-2">
+                  <MaterialImageThumb plain url={row.imageUrl} name={row.name} />
+                  {row.name}
+                </span>
+              )}
               // At least one line must remain — removing them all is a
               // cancellation, which has its own flow.
               onRemove={fields.length > 1 ? (i) => remove(i) : undefined}
@@ -342,7 +355,12 @@ function GuestChangeForm({ po, token }: { po: PoDetail; token: string }) {
                 <tbody>
                   {rows.map((row) => (
                     <tr key={row.id} className="border-b border-border last:border-0 align-top">
-                      <td className="py-3 pr-3 text-foreground">{row.name}</td>
+                      <td className="py-3 pr-3 text-foreground">
+                        <span className="flex items-center gap-2">
+                          <MaterialImageThumb url={row.imageUrl} name={row.name} />
+                          {row.name}
+                        </span>
+                      </td>
                       <td className="py-3 px-3">{field('unitPrice', row)}</td>
                       <td className="py-3 px-3">{field('qty', row)}</td>
                       <td className="py-3 px-3">{field('delivery', row)}</td>
@@ -396,7 +414,11 @@ function GuestChangeForm({ po, token }: { po: PoDetail; token: string }) {
             {t('guest.change.previewHeading')}
           </h2>
           {hasChanges ? (
-            <PoChangeDiff changedFields={changedFields} lineItemsAsCards />
+            <PoChangeDiff
+              changedFields={changedFields}
+              poLineItems={po.lineItems}
+              lineItemsAsCards
+            />
           ) : (
             <p className="text-sm text-muted-foreground">{t('guest.change.noChanges')}</p>
           )}

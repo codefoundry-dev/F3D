@@ -24,6 +24,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { AuditService } from '../audit/audit.service';
 import { DocIntelligenceService } from '../doc-intelligence/doc-intelligence.service';
+import { signLinePhotoUrls } from '../storage/line-photo.util';
 import { StorageService } from '../storage/storage.service';
 
 import { buildQuoteComparison, deliveryVarianceDays } from './quote-comparison';
@@ -70,9 +71,9 @@ export class QuoteResponseService {
       orderBy: QUOTE_LINE_ITEM_ORDER,
       include: {
         rfqLineItem: {
-          include: { material: { select: { id: true, name: true, uom: true } } },
+          include: { material: { select: { id: true, name: true, uom: true, imageUrl: true } } },
         },
-        substituteItem: { select: { id: true, name: true, uom: true } },
+        substituteItem: { select: { id: true, name: true, uom: true, imageUrl: true } },
       },
     },
     attachments: {
@@ -444,8 +445,12 @@ export class QuoteResponseService {
         lineItems: {
           orderBy: QUOTE_LINE_ITEM_ORDER,
           include: {
-            rfqLineItem: { include: { material: { select: { id: true, name: true, uom: true } } } },
-            substituteItem: { select: { id: true, name: true, uom: true } },
+            rfqLineItem: {
+              include: {
+                material: { select: { id: true, name: true, uom: true, imageUrl: true } },
+              },
+            },
+            substituteItem: { select: { id: true, name: true, uom: true, imageUrl: true } },
           },
         },
         attachments: {
@@ -598,7 +603,7 @@ export class QuoteResponseService {
           select: {
             id: true,
             materialName: true,
-            material: { select: { name: true } },
+            material: { select: { name: true, imageUrl: true } },
             quantity: true,
             unit: true,
             projectId: true,
@@ -666,6 +671,7 @@ export class QuoteResponseService {
         lineItems: rfq.lineItems.map((li) => ({
           id: li.id,
           materialName: li.materialName ?? li.material?.name ?? null,
+          imageUrl: li.material?.imageUrl ?? null,
           quantity: li.quantity,
           unit: li.unit,
           projectId: li.projectId,
@@ -788,6 +794,7 @@ export class QuoteResponseService {
           include: {
             material: { select: { id: true, name: true, uom: true, imageUrl: true } },
             deliveryLocation: { select: { label: true, address: true } },
+            photoFile: { select: { key: true } },
           },
         },
         project: { select: { name: true } },
@@ -850,6 +857,8 @@ export class QuoteResponseService {
         url: await this.storageService.getSignedUrl(file.key),
       })),
     );
+    // Requester photos carried over from the source MR lines (FOR-404).
+    const photoUrls = await signLinePhotoUrls(this.storageService, rfq.lineItems);
 
     return {
       id: rfq.id,
@@ -867,7 +876,8 @@ export class QuoteResponseService {
         // this, manual RFQ lines render nameless on the guest quote portal.
         materialName: li.material?.name ?? li.materialName ?? li.description ?? '',
         // Catalogue image so the guest vendor sees what's being quoted (FOR-361).
-        imageUrl: li.material?.imageUrl ?? null,
+        // A requester's own photo (FOR-404) wins over the catalogue image.
+        imageUrl: photoUrls.get(li.id) ?? li.material?.imageUrl ?? null,
         unit: li.unit,
         quantity: li.quantity,
         description: li.description,

@@ -68,7 +68,10 @@ export default function MaterialListDetailPage() {
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
   useEffect(() => {
     if (!list) return;
-    setPageTitle(list.name, list.description ?? t('listDetail.subtitle'), backRoute);
+    setPageTitle(list.name, list.description ?? t('listDetail.subtitle'), backRoute, [
+      { label: t('page.title'), to: backRoute },
+      { label: list.name },
+    ]);
     return () => setPageTitle(null);
   }, [setPageTitle, list, t, backRoute]);
 

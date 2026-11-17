@@ -36,6 +36,8 @@ import {
 import { nextSequentialNumber } from '../../common/utils/sequential-number.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { signLinePhotoUrls } from '../storage/line-photo.util';
+import { StorageService } from '../storage/storage.service';
 import { assertVendorUsableOnProject } from '../vendors/vendor-access.util';
 
 import { loadCompanyPoTerms, normalisePoTerms } from './po-terms.util';
@@ -47,6 +49,7 @@ export class PurchaseOrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly storageService: StorageService,
   ) {}
 
   /**
@@ -277,7 +280,12 @@ export class PurchaseOrdersService {
           orderBy: { sequence: 'asc' },
           include: { deliveryLocation: { select: { label: true, address: true } } },
         },
-        lineItems: { include: { material: { select: { name: true } } } },
+        lineItems: {
+          include: {
+            material: { select: { name: true, imageUrl: true } },
+            photoFile: { select: { key: true } },
+          },
+        },
         documents: {
           include: {
             file: { include: { uploadedBy: { select: { id: true, name: true, email: true } } } },
@@ -302,6 +310,9 @@ export class PurchaseOrdersService {
     });
 
     if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
+
+    // Requester photos carried over from the source MR lines (FOR-404).
+    const photoUrls = await signLinePhotoUrls(this.storageService, po.lineItems);
 
     return {
       id: po.id,
@@ -367,6 +378,8 @@ export class PurchaseOrdersService {
         lineNumber: li.lineNumber,
         materialId: li.materialId,
         materialName: li.material?.name ?? null,
+        // A requester's own photo (FOR-404) wins over the catalogue image.
+        imageUrl: photoUrls.get(li.id) ?? li.material?.imageUrl ?? null,
         materialCode: li.materialCode,
         description: li.description,
         quantityOrdered: li.quantityOrdered,

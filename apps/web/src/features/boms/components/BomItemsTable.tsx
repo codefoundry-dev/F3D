@@ -1,15 +1,22 @@
 import type { BomItemDto } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
+import { MaterialImageThumb } from '@forethread/rfq-shared';
 import { Badge, ScrollTable } from '@forethread/ui-components';
 
 type TFn = (key: string, options?: Record<string, unknown>) => string;
 
 /**
- * Confidence pill + percentage for a saved BOM item. A null score means the
- * line was matched by hand ("Manual"); otherwise it bands the similarity score
+ * Confidence pill + percentage for a saved BOM item. An unmatched line reads
+ * "No match"; a null score on a matched line means it was matched by hand
+ * ("Manual"); otherwise it bands the similarity score
  * the same way the create wizard does.
  */
-function confidenceLabel(confidence: number | null, t: TFn): { badge: string; pct: string | null } {
+function confidenceLabel(
+  confidence: number | null,
+  matched: boolean,
+  t: TFn,
+): { badge: string; pct: string | null } {
+  if (!matched) return { badge: t('create.noMatch'), pct: null };
   if (confidence === null) return { badge: t('viewModal.manual'), pct: null };
   const pct = `${Math.round(confidence * 100)}%`;
   if (confidence >= 0.85) return { badge: t('create.high'), pct };
@@ -48,15 +55,27 @@ export function BomItemsTable({ items }: { items: BomItemDto[] }) {
         </thead>
         <tbody>
           {items.map((item) => {
-            const { badge, pct } = confidenceLabel(item.matchConfidence, t);
+            const matched = Boolean(item.matchedMaterialId);
+            const { badge, pct } = confidenceLabel(item.matchConfidence, matched, t);
             return (
               <tr
                 key={item.id}
                 className="border-t border-border"
                 data-testid={`bom-item-${item.id}`}
               >
-                <td className={td}>{item.materialName}</td>
-                <td className={td}>{item.matchedMaterialName ?? '—'}</td>
+                <td className={td}>
+                  <span className="flex items-center gap-2">
+                    <MaterialImageThumb url={item.imageUrl} name={item.materialName} />
+                    {item.materialName}
+                  </span>
+                </td>
+                <td className={td}>
+                  {matched ? (
+                    (item.matchedMaterialName ?? '—')
+                  ) : (
+                    <span className="text-muted-foreground">{t('viewModal.notMatched')}</span>
+                  )}
+                </td>
                 <td className={`${td} text-muted-foreground`}>{item.description ?? '—'}</td>
                 <td className={td}>{item.uom ?? '—'}</td>
                 <td className={td}>{item.quantity ?? '—'}</td>

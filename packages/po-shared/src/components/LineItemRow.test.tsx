@@ -11,6 +11,7 @@ const MAT = vi.hoisted(() => ({
   manufacturerPartNumber: 'MPN-1',
   costCode: 'CC-100',
   taxCode: 'TX-A',
+  imageUrl: 'https://cdn.example/steel-beam.png',
 }));
 
 vi.mock('@forethread/ui-components', () => ({
@@ -131,6 +132,7 @@ describe('LineItemRow — manual material cell (FOR-274)', () => {
     const calls = new Map(setValueSpy.mock.calls.map(([name, value]) => [name, value]));
     expect(calls.get('lineItems.0.materialName')).toBe('Steel Beam W12x26');
     expect(calls.get('lineItems.0.materialId')).toBe('mat-1');
+    expect(calls.get('lineItems.0.imageUrl')).toBe('https://cdn.example/steel-beam.png');
     expect(calls.get('lineItems.0.materialCode')).toBe('SB-W12X26');
     expect(calls.get('lineItems.0.costCode')).toBe('CC-100');
     expect(calls.get('lineItems.0.upc')).toBe('01234567');
@@ -161,5 +163,31 @@ describe('LineItemRow — price from an approved quote (FOR-391)', () => {
     render(<Harness line={filled} isFilled />);
     expect(screen.queryByText('create.quotedPriceTag')).not.toBeInTheDocument();
     expect(document.querySelector('[name="lineItems.0.unitPrice"]')).not.toBeNull();
+  });
+});
+
+describe('LineItemRow — catalogue image (FOR-402)', () => {
+  const filled = {
+    ...EMPTY_LINE_ITEM,
+    materialName: 'Steel Beam W12x26',
+    materialId: 'mat-1',
+    unitOfMeasure: 'ea',
+    unitPrice: 42.5,
+    quantityOrdered: 3,
+  };
+
+  it('shows the material image next to the name of a filled row', () => {
+    render(
+      <Harness line={{ ...filled, imageUrl: 'https://cdn.example/steel-beam.png' }} isFilled />,
+    );
+    const thumb = screen.getByTestId('material-image-thumb');
+    expect(thumb).toHaveAttribute('href', 'https://cdn.example/steel-beam.png');
+    expect(screen.getByRole('img', { name: 'Steel Beam W12x26' })).toBeInTheDocument();
+  });
+
+  it('renders the name alone when the line has no image', () => {
+    render(<Harness line={{ ...filled, imageUrl: null }} isFilled />);
+    expect(screen.getByText('Steel Beam W12x26')).toBeInTheDocument();
+    expect(screen.queryByTestId('material-image-thumb')).not.toBeInTheDocument();
   });
 });

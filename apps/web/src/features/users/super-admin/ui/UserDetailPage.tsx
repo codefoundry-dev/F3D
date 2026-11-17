@@ -44,7 +44,10 @@ export default function UserDetailPage() {
   // Surface the page title + subtitle in the global app header; back-arrow
   // returns to the users list (matches Figma — every screen titles itself there).
   useEffect(() => {
-    setPageTitle(t('detail.pageTitle'), t('detail.pageSubtitle'), ROUTES.users);
+    setPageTitle(t('detail.pageTitle'), t('detail.pageSubtitle'), ROUTES.users, [
+      { label: t('userManagement'), to: ROUTES.users },
+      { label: t('detail.pageTitle') },
+    ]);
     return () => setPageTitle(null);
   }, [setPageTitle, t]);
 

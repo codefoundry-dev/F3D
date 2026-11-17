@@ -262,6 +262,7 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
           <PoChangeRequestTab
             poId={po.id}
             changeRequest={pendingCr}
+            poLineItems={po.lineItems}
             locationOptions={locationOptions}
             readOnly
           />

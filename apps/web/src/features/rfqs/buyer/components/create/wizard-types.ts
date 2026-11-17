@@ -21,6 +21,9 @@ export interface WizardLineItem {
    * for BOM lines that were matched to the catalogue. */
   materialId?: string;
   materialName: string;
+  /** Catalogue image of the linked material (FOR-402). Display-only: it is
+   * never sent to the API, the server derives it from `materialId`. */
+  imageUrl?: string | null;
   description?: string;
   quantity: number;
   uom: string;
@@ -81,7 +84,7 @@ export interface WizardSeed {
   /** Projects implied by the seed (BOM flow) — locked in step 1. */
   projectIds?: string[];
   items: Array<
-    Pick<WizardLineItem, 'source' | 'materialId' | 'materialName' | 'description'> & {
+    Pick<WizardLineItem, 'source' | 'materialId' | 'materialName' | 'imageUrl' | 'description'> & {
       quantity: number;
       uom: string;
       projectId?: string;

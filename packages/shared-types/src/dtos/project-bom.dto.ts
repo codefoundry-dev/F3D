@@ -23,9 +23,15 @@ export class CreateBomItemDto {
   @MaxLength(500)
   materialName!: string;
 
-  @ApiProperty({ description: 'Catalogue material this line was matched to.' })
+  @ApiPropertyOptional({
+    description:
+      'Catalogue material this line was matched to. Omitted or null for a ' +
+      'line saved without a match.',
+    nullable: true,
+  })
+  @IsOptional()
   @IsUUID()
-  matchedMaterialId!: string;
+  matchedMaterialId?: string | null;
 
   @ApiPropertyOptional({ description: 'Original line description from the uploaded document.' })
   @IsOptional()

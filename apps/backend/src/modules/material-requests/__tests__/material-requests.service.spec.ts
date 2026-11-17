@@ -16,6 +16,8 @@ import { BrandingService } from '../../export/branding.service';
 import { InventoryService } from '../../inventory/inventory.service';
 import { NotificationService } from '../../notification-feed/notification.service';
 import { EmailService } from '../../notifications/email.service';
+import { LinePhotoService } from '../../storage/line-photo.service';
+import { StorageService } from '../../storage/storage.service';
 import {
   ConvertToPoDto,
   CreateMaterialRequestDto,
@@ -57,6 +59,15 @@ function makeService() {
     },
   };
 
+  // Line photos (FOR-404): ownership check passes and signing echoes the key
+  // by default; individual tests override either.
+  const linePhotos = {
+    assertOwnedPhotos: jest.fn().mockResolvedValue(undefined),
+  } as unknown as LinePhotoService & { assertOwnedPhotos: jest.Mock };
+  const storage = {
+    getSignedUrl: jest.fn((key: string) => Promise.resolve(`https://signed.example/${key}`)),
+  } as unknown as StorageService & { getSignedUrl: jest.Mock };
+
   const prisma = {
     materialRequest: {
       findUnique: jest.fn(),
@@ -73,10 +84,12 @@ function makeService() {
     companyVendorAssignment: { findUnique: jest.fn().mockResolvedValue(null) },
     project: { findUnique: jest.fn() },
     material: { findMany: jest.fn().mockResolvedValue([]) },
+    materialRequestLineItem: { findMany: jest.fn().mockResolvedValue([]) },
     projectLocation: { findMany: jest.fn().mockResolvedValue([]) },
     auditLog: { findMany: jest.fn().mockResolvedValue([]) },
     $transaction: jest.fn((cb: (t: typeof tx) => Promise<unknown>) => cb(tx)),
   } as unknown as PrismaService & {
+    materialRequestLineItem: { findMany: jest.Mock };
     materialRequest: {
       findUnique: jest.Mock;
       findMany: jest.Mock;
@@ -169,10 +182,14 @@ function makeService() {
     notifications,
     branding,
     config,
+    linePhotos,
+    storage,
   );
   return {
     service,
     prisma,
+    linePhotos,
+    storage,
     audit,
     permissions,
     inventory,
@@ -229,8 +246,10 @@ function makeMr(overrides: Record<string, unknown> = {}) {
         deliveryTime: '09:30',
         deliveryLocationId: null,
         notes: null,
+        photoFileId: null,
         material: null,
         deliveryLocation: null,
+        photoFile: null,
       },
     ],
     ...overrides,
@@ -537,6 +556,126 @@ describe('MaterialRequestsService', () => {
   });
 
   // ── get ─────────────────────────────────────────────────────────────────────
+  // ── line photos (FOR-404) ───────────────────────────────────────────────────
+  describe('line photos (FOR-404)', () => {
+    const photoLine = (overrides: Record<string, unknown> = {}) => ({
+      ...makeMr().lineItems[0],
+      photoFileId: 'file-1',
+      photoFile: { key: 'line-photos/fm-1/a.jpg' },
+      ...overrides,
+    });
+
+    it('checks the photos belong to the requester and attaches them on create', async () => {
+      const { service, prisma, linePhotos } = makeService();
+      prisma.project.findUnique.mockResolvedValue({ id: 'project-1', companyId: 'company-1' });
+      prisma.materialRequest.findUnique.mockResolvedValue(makeMr());
+
+      await service.create(
+        foreman,
+        makeCreateDto({
+          lineItems: [
+            { materialName: 'Odd bracket', quantity: 2, unit: 'Each', photoFileId: 'file-1' },
+            { materialName: 'Plain line', quantity: 1, unit: 'Each' },
+          ],
+        }),
+      );
+
+      expect(linePhotos.assertOwnedPhotos).toHaveBeenCalledWith(['file-1', undefined], 'fm-1');
+      const lines = prisma.materialRequest.create.mock.calls[0][0].data.lineItems.create;
+      expect(lines[0].photoFile).toEqual({ connect: { id: 'file-1' } });
+      expect(lines[1].photoFile).toBeUndefined();
+    });
+
+    it("rejects the create when a photo is not the requester's own upload", async () => {
+      const { service, prisma, linePhotos } = makeService();
+      prisma.project.findUnique.mockResolvedValue({ id: 'project-1', companyId: 'company-1' });
+      linePhotos.assertOwnedPhotos.mockRejectedValue(new BadRequestException('bad photo'));
+
+      await expect(
+        service.create(
+          foreman,
+          makeCreateDto({
+            lineItems: [{ materialName: 'X', quantity: 1, unit: 'Each', photoFileId: 'file-9' }],
+          }),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.materialRequest.create).not.toHaveBeenCalled();
+    });
+
+    it('on update only checks photos that are new to the request', async () => {
+      const { service, prisma, linePhotos } = makeService();
+      prisma.materialRequest.findUnique.mockResolvedValue(
+        makeMr({ status: MaterialRequestStatus.DRAFT }),
+      );
+      prisma.materialRequestLineItem.findMany.mockResolvedValue([{ photoFileId: 'file-old' }]);
+
+      await service.update('mr-1', officer, {
+        lineItems: [
+          { materialName: 'Kept', quantity: 1, unit: 'Each', photoFileId: 'file-old' },
+          { materialName: 'New', quantity: 1, unit: 'Each', photoFileId: 'file-new' },
+        ],
+      } as never);
+
+      expect(linePhotos.assertOwnedPhotos).toHaveBeenCalledWith(['file-new'], officer.id);
+    });
+
+    it('returns the signed photo in place of the catalogue image', async () => {
+      const { service, prisma, storage } = makeService();
+      prisma.materialRequest.findUnique.mockResolvedValue(
+        makeMr({
+          lineItems: [
+            photoLine({
+              materialId: 'mat-1',
+              material: { id: 'mat-1', name: 'Rebar', uom: 'pcs', imageUrl: 'https://cat/img.png' },
+            }),
+          ],
+        }),
+      );
+
+      const detail = await service.get('mr-1', officer);
+
+      expect(storage.getSignedUrl).toHaveBeenCalledWith('line-photos/fm-1/a.jpg');
+      expect(detail.lineItems[0].imageUrl).toBe('https://signed.example/line-photos/fm-1/a.jpg');
+      expect(detail.lineItems[0].photoFileId).toBe('file-1');
+    });
+
+    it('falls back to the catalogue image when there is no photo or signing fails', async () => {
+      const { service, prisma, storage } = makeService();
+      const material = { id: 'mat-1', name: 'Rebar', uom: 'pcs', imageUrl: 'https://cat/img.png' };
+      storage.getSignedUrl.mockRejectedValue(new Error('storage down'));
+      prisma.materialRequest.findUnique.mockResolvedValue(
+        makeMr({
+          lineItems: [
+            photoLine({ id: 'li-1', materialId: 'mat-1', material }),
+            { ...makeMr().lineItems[0], id: 'li-2', materialId: 'mat-1', material },
+          ],
+        }),
+      );
+
+      const detail = await service.get('mr-1', officer);
+
+      expect(detail.lineItems[0].imageUrl).toBe('https://cat/img.png');
+      expect(detail.lineItems[1].imageUrl).toBe('https://cat/img.png');
+    });
+
+    it('carries the photo onto the RFQ line and the PO line on conversion', async () => {
+      const { service, prisma, tx } = makeService();
+      prisma.materialRequest.findUnique.mockResolvedValue(
+        makeMr({ status: MaterialRequestStatus.APPROVED, lineItems: [photoLine()] }),
+      );
+      await service.convertToRfq('mr-1', officer);
+      expect(tx.rfq.create.mock.calls[0][0].data.lineItems.create[0].photoFileId).toBe('file-1');
+
+      prisma.materialRequest.findUnique.mockResolvedValue(
+        makeMr({ status: MaterialRequestStatus.APPROVED, lineItems: [photoLine()] }),
+      );
+      await service.convertToPo('mr-1', officer, { vendorId: 'vendor-1' } as never);
+      expect(tx.purchaseOrder.create.mock.calls[0][0].data.lineItems.create[0].photoFileId).toBe(
+        'file-1',
+      );
+    });
+  });
+
   describe('get', () => {
     it('throws NotFound when the MR is missing', async () => {
       const { service, prisma } = makeService();

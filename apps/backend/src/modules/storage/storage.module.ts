@@ -5,6 +5,7 @@ import * as multer from 'multer';
 import { PrismaModule } from '../../prisma/prisma.module';
 
 import { CompanyLogoService } from './company-logo.service';
+import { LinePhotoService } from './line-photo.service';
 import { StorageController } from './storage.controller';
 import { StorageService } from './storage.service';
 
@@ -16,7 +17,7 @@ import { StorageService } from './storage.service';
     }),
   ],
   controllers: [StorageController],
-  providers: [StorageService, CompanyLogoService],
-  exports: [StorageService, CompanyLogoService],
+  providers: [StorageService, CompanyLogoService, LinePhotoService],
+  exports: [StorageService, CompanyLogoService, LinePhotoService],
 })
 export class StorageModule {}

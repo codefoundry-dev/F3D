@@ -18,6 +18,8 @@ export interface BomCatalogueCandidate {
   category?: string | null;
   subCategory?: string | null;
   description?: string | null;
+  /** Catalogue image of the candidate material, when it has one. */
+  imageUrl?: string | null;
 }
 
 /**
