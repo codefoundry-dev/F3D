@@ -35,8 +35,8 @@ const RfqDetailRoleSwitch = lazy(() => import('@/features/rfqs/RfqDetailRoleSwit
 const MaterialDetailRoleSwitch = lazy(() => import('@/features/rfqs/MaterialDetailRoleSwitch'));
 const CreateRfqPage = lazy(() => import('@/features/rfqs/buyer/pages/CreateRfqPage'));
 const BomConversionPage = lazy(() => import('@/features/rfqs/buyer/pages/BomConversionPage'));
-const QuoteResponseDetailPage = lazy(
-  () => import('@/features/rfqs/buyer/pages/QuoteResponseDetailPage'),
+const QuoteResponseDetailRoleSwitch = lazy(
+  () => import('@/features/rfqs/QuoteResponseDetailRoleSwitch'),
 );
 const RfqResponsePage = lazy(() => import('@/features/rfqs/vendor/pages/RfqResponsePage'));
 const GuestInvitationPage = lazy(() => import('@/features/rfqs/vendor/pages/GuestInvitationPage'));
@@ -269,6 +269,12 @@ export const routes: RouteObject[] = [
                 children: [
                   { path: ROUTES.rfqs, element: withSuspense(<RfqListRoleSwitch />) },
                   { path: ROUTES.rfqDetail, element: withSuspense(<RfqDetailRoleSwitch />) },
+                  // Buyers review the quote here; a vendor following a "New
+                  // message" notification is sent on to their RFQ page's chat.
+                  {
+                    path: ROUTES.quoteResponseDetail,
+                    element: withSuspense(<QuoteResponseDetailRoleSwitch />),
+                  },
                 ],
               },
               {
@@ -283,10 +289,6 @@ export const routes: RouteObject[] = [
                         element: withSuspense(<BomConversionPage />),
                       },
                     ],
-                  },
-                  {
-                    path: ROUTES.quoteResponseDetail,
-                    element: withSuspense(<QuoteResponseDetailPage />),
                   },
                 ],
               },

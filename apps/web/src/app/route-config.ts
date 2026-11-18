@@ -108,3 +108,6 @@ export const ROUTES = {
 } as const;
 
 export type RouteKey = keyof typeof ROUTES;
+
+/** Hash the vendor RFQ page scrolls to so a message deep-link lands on the chat. */
+export const RFQ_MESSAGES_HASH = '#messages';
