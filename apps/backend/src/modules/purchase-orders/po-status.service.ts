@@ -37,6 +37,7 @@ import { NotificationService } from '../notification-feed/notification.service';
 import { SYSTEM_SENDER } from '../notification-feed/notification.types';
 import { EmailService } from '../notifications/email.service';
 
+import { DELIVERABLE_PO_STATUSES, DELIVERY_LINK_TTL_MS } from './delivery-link.const';
 import { acceptedStatusFor } from './po-delivery-schedule.service';
 import { PoExportService } from './po-export.service';
 import { assertTransition } from './po-state-machine';
@@ -50,7 +51,6 @@ import { PurchaseOrdersService } from './purchase-orders.service';
  * is printed on paperwork / shown as a QR and must outlast the whole delivery
  * window; like PO_VIEW it is validated, never consumed, and re-mintable.
  */
-const DELIVERY_LINK_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 /**
  * Audit-trail label for a PO action taken by a vendor through a tokenised portal
@@ -1094,15 +1094,7 @@ export class PoStatusService {
       throw new ForbiddenException(ERR.general.accessDenied);
     }
 
-    const deliverable: PrismaPoStatus[] = [
-      PrismaPoStatus.SENT,
-      PrismaPoStatus.ACKNOWLEDGED,
-      PrismaPoStatus.ACCEPTED,
-      PrismaPoStatus.SCHEDULED_FOR_DELIVERY,
-      PrismaPoStatus.PARTIALLY_DELIVERED,
-      PrismaPoStatus.LATE_FOR_DELIVERY,
-    ];
-    if (!deliverable.includes(po.status)) {
+    if (!DELIVERABLE_PO_STATUSES.includes(po.status)) {
       throw new BadRequestException(
         `A delivery link cannot be generated for a PO in status ${po.status}.`,
       );
