@@ -22,6 +22,7 @@ vi.mock('@forethread/i18n', () => ({
 vi.mock('react-router-dom', () => ({
   useParams: () => ({ id: 'rfq-1' }),
   useNavigate: () => vi.fn(),
+  useLocation: () => ({ pathname: '/rfqs/rfq-1', hash: '' }),
 }));
 
 vi.mock('@forethread/api-client', () => ({

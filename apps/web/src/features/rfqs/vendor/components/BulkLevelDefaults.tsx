@@ -9,6 +9,7 @@ import {
   onDecimalOnly,
   onDigitsOnly,
   todayIso,
+  ToggleSwitch,
 } from '@forethread/ui-components';
 import ChevronDownIcon from '@forethread/ui-components/assets/icons/chevron-down.svg?react';
 
@@ -17,6 +18,9 @@ import type { BulkDefaults } from '../hooks/useRfqResponse';
 export interface BulkLevelDefaultsProps {
   bulkDefaults: BulkDefaults;
   onFieldChange: (field: keyof BulkDefaults, value: string) => void;
+  /** Quoted prices already include tax — one switch for every line. */
+  taxIncluded: boolean;
+  onTaxIncludedChange: (value: boolean) => void;
   expanded: boolean;
   onToggleExpanded: (v: boolean) => void;
   warehouses: WarehouseLocation[];
@@ -27,6 +31,8 @@ export interface BulkLevelDefaultsProps {
 export function BulkLevelDefaults({
   bulkDefaults,
   onFieldChange,
+  taxIncluded,
+  onTaxIncludedChange,
   expanded,
   onToggleExpanded,
   warehouses,
@@ -100,6 +106,14 @@ export function BulkLevelDefaults({
                 }}
                 onKeyDown={onDecimalOnly}
               />
+              <div className="mt-2 flex items-center gap-2">
+                <ToggleSwitch
+                  checked={taxIncluded}
+                  onChange={onTaxIncludedChange}
+                  aria-label={t('response.pricesIncludeTax')}
+                />
+                <span className="text-sm text-foreground">{t('response.pricesIncludeTax')}</span>
+              </div>
             </div>
           </div>
 

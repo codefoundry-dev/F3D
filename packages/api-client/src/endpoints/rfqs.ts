@@ -390,6 +390,22 @@ export async function sendRfq(
   return resp.data;
 }
 
+/** A colleague the sender can CC on an RFQ (send dialog dropdown). */
+export interface RfqCcCandidate {
+  id: string;
+  name: string;
+  email: string;
+}
+
+/** Active users of the caller's company, offered as CC recipients on send. */
+export async function getRfqCcCandidates(config?: AxiosRequestConfig): Promise<RfqCcCandidate[]> {
+  const { data } = await getApiClient().get<{ data: RfqCcCandidate[] }>(
+    RFQS_PATHS.CC_CANDIDATES,
+    config,
+  );
+  return data.data;
+}
+
 export async function deleteRfq(id: string, config?: AxiosRequestConfig): Promise<void> {
   await getApiClient().delete(RFQS_PATHS.byId(id), config);
 }

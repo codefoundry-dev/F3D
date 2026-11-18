@@ -11,6 +11,7 @@ import { AuthService } from './auth.service';
 import { OtpService } from './otp.service';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { TrustedDeviceService } from './trusted-device.service';
 
 @Module({
   imports: [
@@ -29,7 +30,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, OtpService, JwtStrategy, JwtRefreshStrategy],
+  providers: [AuthService, OtpService, TrustedDeviceService, JwtStrategy, JwtRefreshStrategy],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

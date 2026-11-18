@@ -50,33 +50,104 @@ describe('AuthController', () => {
     it('should call authService.login and return userId + otpExpiresAt', async () => {
       const dto: LoginDto = { email: 'test@example.com', password: 'password123' };
       const expiresAt = new Date('2026-03-05T12:00:00Z');
-      authService.login.mockResolvedValue({ userId: 'user-1', otpExpiresAt: expiresAt });
+      authService.login.mockResolvedValue({
+        otpRequired: true,
+        userId: 'user-1',
+        otpExpiresAt: expiresAt,
+      });
+      const res = mockResponse();
 
-      const result = await controller.login(dto);
+      const result = await controller.login(dto, mockRequest(), res);
 
-      expect(authService.login).toHaveBeenCalledWith('test@example.com', 'password123');
-      expect(result).toEqual({ userId: 'user-1', otpExpiresAt: expiresAt });
+      expect(authService.login).toHaveBeenCalledWith('test@example.com', 'password123', undefined);
+      expect(result).toEqual({ otpRequired: true, userId: 'user-1', otpExpiresAt: expiresAt });
+      // No session yet — the code still has to be entered.
+      expect(res.cookie).not.toHaveBeenCalled();
+    });
+
+    it('signs a trusted browser straight in: session cookies set, no code step', async () => {
+      const dto: LoginDto = { email: 'test@example.com', password: 'password123' };
+      authService.login.mockResolvedValue({
+        otpRequired: false,
+        userId: 'user-1',
+        tokens: { accessToken: 'access-tok', refreshToken: 'refresh-tok' },
+      });
+      const res = mockResponse();
+      const req = mockRequest({ cookies: { trusted_device: 'browser-token' } });
+
+      const result = await controller.login(dto, req, res);
+
+      expect(authService.login).toHaveBeenCalledWith(
+        'test@example.com',
+        'password123',
+        'browser-token',
+      );
+      expect(result).toEqual({ otpRequired: false });
+      // access + refresh + the renewed trusted-browser cookie; tokens stay out of the body.
+      expect(res.cookie).toHaveBeenCalledTimes(3);
+      expect(res.cookie).toHaveBeenCalledWith(
+        'trusted_device',
+        'browser-token',
+        expect.objectContaining({ httpOnly: true }),
+      );
+    });
+
+    it('reads the trusted-browser cookie scoped to the calling app', async () => {
+      const dto: LoginDto = { email: 'test@example.com', password: 'password123' };
+      authService.login.mockResolvedValue({
+        otpRequired: true,
+        userId: 'user-1',
+        otpExpiresAt: new Date(),
+      });
+      const req = mockRequest({
+        headers: { 'x-app-id': 'web' },
+        cookies: { trusted_device: 'other-app', trusted_device_web: 'web-token' },
+      });
+
+      await controller.login(dto, req, mockResponse());
+
+      expect(authService.login).toHaveBeenCalledWith(
+        'test@example.com',
+        'password123',
+        'web-token',
+      );
     });
 
     it('should propagate errors from authService.login', async () => {
       const dto: LoginDto = { email: 'test@example.com', password: 'wrong' };
       authService.login.mockRejectedValue(new Error('Invalid email or password'));
 
-      await expect(controller.login(dto)).rejects.toThrow('Invalid email or password');
+      await expect(controller.login(dto, mockRequest(), mockResponse())).rejects.toThrow(
+        'Invalid email or password',
+      );
     });
   });
 
   describe('verifyOtp', () => {
     it('should call authService.verifyOtp, set cookies and return success', async () => {
       const dto: VerifyOtpDto = { userId: 'user-1', otp: '123456' };
-      const tokens = { accessToken: 'access-tok', refreshToken: 'refresh-tok' };
+      const tokens = {
+        accessToken: 'access-tok',
+        refreshToken: 'refresh-tok',
+        trustedDeviceToken: 'new-browser-token',
+      };
       authService.verifyOtp.mockResolvedValue(tokens);
       const res = mockResponse();
 
-      const result = await controller.verifyOtp(dto, mockRequest(), res);
+      const result = await controller.verifyOtp(
+        dto,
+        mockRequest({ headers: { 'user-agent': 'Mozilla/5.0' } }),
+        res,
+      );
 
-      expect(authService.verifyOtp).toHaveBeenCalledWith('user-1', '123456');
-      expect(res.cookie).toHaveBeenCalledTimes(2);
+      expect(authService.verifyOtp).toHaveBeenCalledWith('user-1', '123456', 'Mozilla/5.0');
+      // access + refresh + the trusted-browser cookie that skips the code next time.
+      expect(res.cookie).toHaveBeenCalledTimes(3);
+      expect(res.cookie).toHaveBeenCalledWith(
+        'trusted_device',
+        'new-browser-token',
+        expect.objectContaining({ httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000 }),
+      );
       expect(result).toEqual({ success: true });
     });
 

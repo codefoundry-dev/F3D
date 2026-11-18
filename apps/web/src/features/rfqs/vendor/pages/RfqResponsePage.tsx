@@ -334,6 +334,8 @@ function RfqResponseForm({
             <BulkLevelDefaults
               bulkDefaults={form.bulkDefaults}
               onFieldChange={form.setBulkField}
+              taxIncluded={form.taxIncluded}
+              onTaxIncludedChange={form.setTaxIncluded}
               expanded={form.bulkExpanded}
               onToggleExpanded={form.setBulkExpanded}
               warehouses={form.warehouses}

@@ -2308,6 +2308,31 @@ describe('RfqsService', () => {
     });
   });
 
+  // ── listCcCandidates (send dialog CC dropdown) ────────────────────────────
+
+  describe('listCcCandidates', () => {
+    it("returns the active users of the caller's own company, name-ordered", async () => {
+      const users = [{ id: 'u-1', name: 'Ama', email: 'ama@acme.com' }];
+      mockPrisma.user.findMany.mockResolvedValue(users);
+
+      const result = await service.listCcCandidates(procOfficer);
+
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith({
+        where: { companyId: 'comp-1', status: 'ACTIVE' },
+        select: { id: true, name: true, email: true },
+        orderBy: [{ name: 'asc' }, { email: 'asc' }],
+      });
+      expect(result).toEqual(users);
+    });
+
+    it('returns nothing for a user with no company (never lists across companies)', async () => {
+      const result = await service.listCcCandidates(superAdmin);
+
+      expect(result).toEqual([]);
+      expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
+    });
+  });
+
   // ── listApprovedResponses (US 5.08 — bulk-order creation) ─────────────────
 
   describe('listApprovedResponses', () => {

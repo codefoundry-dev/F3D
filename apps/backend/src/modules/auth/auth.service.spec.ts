@@ -14,6 +14,7 @@ import { EmailService } from '../notifications/email.service';
 
 import { AuthService } from './auth.service';
 import { OtpService } from './otp.service';
+import { TrustedDeviceService } from './trusted-device.service';
 
 jest.mock('argon2');
 
@@ -32,6 +33,7 @@ describe('AuthService', () => {
   let jwtService: { sign: jest.Mock; signAsync: jest.Mock };
   let configService: { get: jest.Mock };
   let otpService: { generateAndStore: jest.Mock; verifyOtp: jest.Mock };
+  let trustedDevices: { isTrusted: jest.Mock; trust: jest.Mock; revokeAll: jest.Mock };
   let emailService: {
     sendOtpEmail: jest.Mock;
     sendPasswordResetEmail: jest.Mock;
@@ -95,15 +97,25 @@ describe('AuthService', () => {
       sendAccountActivatedEmail: jest.fn().mockResolvedValue(undefined),
     };
 
+    trustedDevices = {
+      isTrusted: jest.fn(),
+      trust: jest.fn(),
+      revokeAll: jest.fn(),
+    };
+
     service = new AuthService(
       prisma as unknown as PrismaService,
       jwtService as unknown as JwtService,
       configService as unknown as ConfigService,
       otpService as unknown as OtpService,
       emailService as unknown as EmailService,
+      trustedDevices as unknown as TrustedDeviceService,
     );
 
     jest.clearAllMocks();
+    trustedDevices.isTrusted.mockResolvedValue(false);
+    trustedDevices.trust.mockResolvedValue('trusted-token');
+    trustedDevices.revokeAll.mockResolvedValue(undefined);
   });
 
   describe('login', () => {
@@ -124,7 +136,56 @@ describe('AuthService', () => {
         '123456',
         expiresAt,
       );
-      expect(result).toEqual({ otpExpiresAt: expiresAt, userId: 'user-1' });
+      expect(result).toEqual({ otpRequired: true, otpExpiresAt: expiresAt, userId: 'user-1' });
+    });
+
+    it('skips the code and starts the session on a trusted browser', async () => {
+      prisma.user.findUnique.mockResolvedValue(activeUser);
+      mockedArgon2.verify.mockResolvedValue(true);
+      mockedArgon2.hash.mockResolvedValue('hashed-refresh-token');
+      trustedDevices.isTrusted.mockResolvedValue(true);
+      jwtService.signAsync
+        .mockResolvedValueOnce('access-token')
+        .mockResolvedValueOnce('refresh-token');
+      prisma.user.update.mockResolvedValue({});
+
+      const result = await service.login('user@example.com', 'password123', 'browser-token');
+
+      expect(trustedDevices.isTrusted).toHaveBeenCalledWith('user-1', 'browser-token');
+      expect(otpService.generateAndStore).not.toHaveBeenCalled();
+      expect(emailService.sendOtpEmail).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        otpRequired: false,
+        userId: 'user-1',
+        tokens: { accessToken: 'access-token', refreshToken: 'refresh-token' },
+      });
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { refreshTokenHash: 'hashed-refresh-token', lastLoginAt: expect.any(Date) },
+      });
+    });
+
+    it('still asks for the code when the browser token is not trusted for this user', async () => {
+      prisma.user.findUnique.mockResolvedValue(activeUser);
+      mockedArgon2.verify.mockResolvedValue(true);
+      trustedDevices.isTrusted.mockResolvedValue(false);
+      const expiresAt = new Date('2026-03-05T12:10:00Z');
+      otpService.generateAndStore.mockResolvedValue({ otp: '123456', expiresAt });
+
+      const result = await service.login('user@example.com', 'password123', 'someone-elses-token');
+
+      expect(result).toEqual({ otpRequired: true, otpExpiresAt: expiresAt, userId: 'user-1' });
+      expect(emailService.sendOtpEmail).toHaveBeenCalled();
+    });
+
+    it('never consults the trusted browser before the password is verified', async () => {
+      prisma.user.findUnique.mockResolvedValue(activeUser);
+      mockedArgon2.verify.mockResolvedValue(false);
+
+      await expect(service.login('user@example.com', 'wrongpass', 'browser-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(trustedDevices.isTrusted).not.toHaveBeenCalled();
     });
 
     it('should throw UnauthorizedException if email not found', async () => {
@@ -216,10 +277,16 @@ describe('AuthService', () => {
       mockedArgon2.hash.mockResolvedValue('hashed-refresh-token');
       prisma.user.update.mockResolvedValue({});
 
-      const result = await service.verifyOtp('user-1', '123456');
+      const result = await service.verifyOtp('user-1', '123456', 'Mozilla/5.0');
 
       expect(otpService.verifyOtp).toHaveBeenCalledWith('user-1', '123456');
-      expect(result).toEqual({ accessToken: 'access-token', refreshToken: 'refresh-token' });
+      // Passing the code makes this browser trusted for next time.
+      expect(trustedDevices.trust).toHaveBeenCalledWith('user-1', 'Mozilla/5.0');
+      expect(result).toEqual({
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+        trustedDeviceToken: 'trusted-token',
+      });
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
         data: {
@@ -360,6 +427,8 @@ describe('AuthService', () => {
           refreshTokenHash: null,
         },
       });
+      // Every browser must pass the sign-in code again after a reset.
+      expect(trustedDevices.revokeAll).toHaveBeenCalledWith('user-1');
     });
 
     it('should throw BadRequestException for invalid token', async () => {

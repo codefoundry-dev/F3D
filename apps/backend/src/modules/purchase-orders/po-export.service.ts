@@ -1,12 +1,22 @@
 import { PoListQueryDto } from '@forethread/shared-types';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { AccessTokenPurpose, AccessTokenSubject } from '@prisma/client';
+import * as QRCode from 'qrcode';
 
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { formatEnum } from '../../common/utils/format-enum';
+import { AccessTokensService } from '../access-tokens/access-tokens.service';
 import { BrandingService } from '../export/branding.service';
-import { InvoiceExportOptions, PdfBrand, PdfExportService } from '../export/pdf-export.service';
+import {
+  InvoiceExportOptions,
+  PdfBrand,
+  PdfExportService,
+  PdfQrBlock,
+} from '../export/pdf-export.service';
 
+import { DELIVERABLE_PO_STATUSES, DELIVERY_LINK_TTL_MS } from './delivery-link.const';
 import { PurchaseOrdersService } from './purchase-orders.service';
 
 /** Resolved single-PO detail shape (return type of PurchaseOrdersService.getPurchaseOrder). */
@@ -215,7 +225,14 @@ export class PoExportService {
     private readonly poService: PurchaseOrdersService,
     private readonly pdfExportService: PdfExportService,
     private readonly brandingService: BrandingService,
-  ) {}
+    private readonly accessTokens: AccessTokensService,
+    config: ConfigService,
+  ) {
+    this.webAppUrl = config.get<string>('WEB_APP_URL', 'http://localhost:5179');
+  }
+
+  private readonly logger = new Logger(PoExportService.name);
+  private readonly webAppUrl: string;
 
   async exportPos(
     format: string,
@@ -287,14 +304,16 @@ export class PoExportService {
     }
     const po = await this.poService.getPurchaseOrder(id, user);
     const brand = await this.brandingService.getPdfBrand(po.company?.id);
-    return this.pdfExportService.exportInvoicePDF(this.buildPoPdfOptions(po, brand));
+    const qr = await this.buildDeliveryQr(po, user.id);
+    return this.pdfExportService.exportInvoicePDF(this.buildPoPdfOptions(po, brand, qr));
   }
 
   /** Generate a PO PDF buffer (for email attachment — not uploaded to storage). */
   async generatePoPdfBuffer(id: string, user: AuthenticatedUser): Promise<Buffer> {
     const po = await this.poService.getPurchaseOrder(id, user);
     const brand = await this.brandingService.getPdfBrand(po.company?.id);
-    return this.pdfExportService.generateInvoicePDFBuffer(this.buildPoPdfOptions(po, brand));
+    const qr = await this.buildDeliveryQr(po, user.id);
+    return this.pdfExportService.generateInvoicePDFBuffer(this.buildPoPdfOptions(po, brand, qr));
   }
 
   /**
@@ -305,7 +324,51 @@ export class PoExportService {
   async exportPublicPoPdf(id: string): Promise<{ url: string }> {
     const po = await this.poService.getPurchaseOrderById(id);
     const brand = await this.brandingService.getPdfBrand(po.company?.id);
-    return this.pdfExportService.exportInvoicePDF(this.buildPoPdfOptions(po, brand));
+    const qr = await this.buildDeliveryQr(po);
+    return this.pdfExportService.exportInvoicePDF(this.buildPoPdfOptions(po, brand, qr));
+  }
+
+  /**
+   * The "scan to confirm delivery" QR for a PO printout: a public
+   * delivery-portal link (the same DELIVERY_SUBMIT grant the buyer's "Generate
+   * delivery QR" button mints), so whoever receives the goods on site can open
+   * the PO and log the delivery from their phone without an account.
+   *
+   * Only issued once the PO is deliverable — a draft carries no QR. A stored
+   * token can't be turned back into a link (only its hash is kept), so each
+   * printout mints its own; they all stay valid for the usual 90 days. Never a
+   * reason the PDF fails: any error just leaves the QR off.
+   */
+  private async buildDeliveryQr(
+    po: PoDetail,
+    createdByUserId?: string,
+  ): Promise<PdfQrBlock | undefined> {
+    if (!DELIVERABLE_PO_STATUSES.includes(po.status)) return undefined;
+    try {
+      const { token } = await this.accessTokens.issueToken({
+        subjectType: AccessTokenSubject.PURCHASE_ORDER,
+        subjectId: po.id,
+        purpose: AccessTokenPurpose.DELIVERY_SUBMIT,
+        ttlMs: DELIVERY_LINK_TTL_MS,
+        createdByUserId: createdByUserId ?? null,
+      });
+      const image = await QRCode.toBuffer(`${this.webAppUrl}/delivery/${token}`, {
+        type: 'png',
+        margin: 1,
+        width: 336,
+      });
+      return {
+        image,
+        title: 'Scan to confirm delivery',
+        caption:
+          'Receiving this order on site? Scan with your phone camera to view the PO and log what was delivered. No login needed.',
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Delivery QR skipped for PO ${po.id}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return undefined;
+    }
   }
 
   /**
@@ -313,7 +376,7 @@ export class PoExportService {
    * line items, the multi-delivery schedule (FOR-210), terms and signature lines.
    * Shared by the download and email-attachment paths so both stay in sync.
    */
-  buildPoPdfOptions(po: PoDetail, brand?: PdfBrand): InvoiceExportOptions {
+  buildPoPdfOptions(po: PoDetail, brand?: PdfBrand, qr?: PdfQrBlock): InvoiceExportOptions {
     const currency = po.currency || 'AUD';
     const money = (value: unknown): string => formatMoney(value, currency);
 
@@ -322,9 +385,17 @@ export class PoExportService {
     const vendorName = po.vendor?.name ?? '—';
     const buyerName = po.company?.name ?? '—';
 
+    // Item code + cost code columns appear only when some line carries one, so
+    // a PO without codes keeps the roomier five-column layout.
+    const lines = po.lineItems ?? [];
+    const showCode = lines.some((li) => li.materialCode);
+    const showCostCode = lines.some((li) => li.costCode);
+    const compact = showCode || showCostCode;
+
     return {
       heading: 'Purchase Order',
       ...(brand ? { brand } : {}),
+      ...(qr ? { qr } : {}),
       date: createdDate,
       infoLeft: {
         label: 'PO Details',
@@ -335,6 +406,7 @@ export class PoExportService {
           `Type: ${formatEnum(po.poType ?? 'STANDARD')}`,
           `Revision: ${str(po.revision)}`,
           `Buyer: ${buyerName}`,
+          ...(po.costCode ? [`Cost Code: ${po.costCode}`] : []),
         ],
       },
       infoRight: {
@@ -346,16 +418,21 @@ export class PoExportService {
         ],
       },
       // Sized to the A4 printable width (515pt less cell padding and gaps) so nothing
-      // is scaled or clipped (FOR-388).
+      // is scaled or clipped (FOR-388). With a code column the numeric columns
+      // tighten up to make room, keeping codes and "Cost Code" on one line.
       columns: [
-        { header: 'Item', width: 165 },
-        { header: 'Qty', width: 40, align: 'right' },
-        { header: 'Unit', width: 45 },
-        { header: 'Unit Price', width: 100, align: 'right' },
-        { header: 'Total', width: 105, align: 'right' },
+        ...(showCode ? [{ header: 'Code', width: 62 }] : []),
+        { header: 'Item', width: compact ? 118 : 165 },
+        ...(showCostCode ? [{ header: 'Cost Code', width: 56 }] : []),
+        { header: 'Qty', width: compact ? 26 : 40, align: 'right' as const },
+        { header: 'Unit', width: compact ? 30 : 45 },
+        { header: 'Unit Price', width: compact ? 66 : 100, align: 'right' as const },
+        { header: 'Total', width: compact ? 73 : 105, align: 'right' as const },
       ],
-      rows: (po.lineItems ?? []).map((li) => ({
+      rows: lines.map((li) => ({
+        ...(showCode ? { Code: str(li.materialCode) } : {}),
         Item: str(li.materialName ?? li.description ?? ''),
+        ...(showCostCode ? { 'Cost Code': str(li.costCode) } : {}),
         Qty: str(li.quantityOrdered),
         Unit: str(li.unitOfMeasure),
         'Unit Price': money(li.unitPrice),

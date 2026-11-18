@@ -1978,6 +1978,24 @@ export class RfqsService {
     };
   }
 
+  // ── CC candidates for the send dialog ─────────────────────────────────────
+
+  /**
+   * The active users of the sender's own company, offered as CC recipients when
+   * sending an RFQ. Deliberately its own narrow read (id/name/email only) behind
+   * `rfq.send` rather than GET /users: procurement officers send RFQs but do not
+   * hold `user.list`.
+   */
+  async listCcCandidates(user: AuthenticatedUser) {
+    if (!user.companyId) return [];
+
+    return this.prisma.user.findMany({
+      where: { companyId: user.companyId, status: UserStatus.ACTIVE },
+      select: { id: true, name: true, email: true },
+      orderBy: [{ name: 'asc' }, { email: 'asc' }],
+    });
+  }
+
   // ── Approved RFQ responses for bulk-order creation (US 5.08) ──────────────
 
   /**

@@ -10,10 +10,10 @@ import {
 import { Button, PageActions, Spinner, useIsPhone } from '@forethread/ui-components';
 import DownloadIcon from '@forethread/ui-components/assets/icons/download.svg?react';
 import PaperPlaneIcon from '@forethread/ui-components/assets/icons/paper-plane.svg?react';
-import { useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
-import { ROUTES } from '@/app/route-config';
+import { RFQ_MESSAGES_HASH, ROUTES } from '@/app/route-config';
 
 import { VendorRfqDetailsTab } from '../components/VendorRfqDetailsTab';
 import { useCanRespond } from '../hooks/useCanRespond';
@@ -26,6 +26,17 @@ export default function RfqDetailPage() {
   const setPageTitle = usePageTitleStore((s) => s.setTitle);
   const { canCreate, canEdit } = useCanRespond(rfq);
   const isPhone = useIsPhone();
+  const { hash } = useLocation();
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const messagesReady = Boolean(rfq?.myQuoteResponseId);
+
+  // A "New message" notification lands here with #messages — the chat sits at
+  // the bottom of a long page, so bring it into view.
+  useEffect(() => {
+    if (hash === RFQ_MESSAGES_HASH && messagesReady) {
+      messagesRef.current?.scrollIntoView?.({ block: 'start' });
+    }
+  }, [hash, messagesReady]);
 
   // App-bar breadcrumb: RFQ Management › RFQ-XXXX (FOR-393).
   useEffect(() => {
@@ -112,7 +123,7 @@ export default function RfqDetailPage() {
         {/* Messages — buyer↔vendor thread for this vendor's quote (FOR-288). Only
             once the vendor has submitted a quote (myQuoteResponseId is set). */}
         {rfq.myQuoteResponseId && (
-          <div className="rounded-xl border border-border bg-card p-6">
+          <div ref={messagesRef} className="rounded-xl border border-border bg-card p-6">
             <h2 className="text-base font-medium text-foreground mb-4">
               {t('quoteResponseDetail.messages')}
             </h2>

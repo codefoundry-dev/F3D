@@ -8,10 +8,16 @@ import { type QuoteExtractionResult, EMPTY_QUOTE_RESULT } from '@forethread/shar
 import { useMutation } from '@tanstack/react-query';
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
-import { availExceedsRequested } from './availExceedsRequested';
 import { matchExtractedQuote } from './matchExtractedQuote';
+import { quotedQty } from './quoteQty';
 import { useQuoteExtraction } from './useQuoteExtraction';
-import type { BulkDefaults, LineItemFormState, QuoteTotals } from './useRfqResponse';
+import {
+  allTaxIncluded,
+  applyBulkDefaultToLines,
+  type BulkDefaults,
+  type LineItemFormState,
+  type QuoteTotals,
+} from './useRfqResponse';
 
 /** How the vendor is entering their quote: by hand, or by uploading a PDF. */
 export type ResponseMode = 'manual' | 'upload';
@@ -25,18 +31,6 @@ const INITIAL_BULK_DEFAULTS: BulkDefaults = {
   bulkDeliveryTime: '',
 };
 
-/**
- * Bulk-level defaults that have a per-line-item equivalent. Entering one of
- * these seeds the matching column on every line item that's still empty.
- * Shipment + warehouse are bulk-only and have no per-line column.
- */
-const BULK_TO_LINE_FIELD: Partial<Record<keyof BulkDefaults, keyof LineItemFormState>> = {
-  bulkAvailability: 'availQty',
-  bulkDiscount: 'discount',
-  bulkTax: 'gst',
-  bulkDeliveryTime: 'deliveryDate',
-};
-
 function safeFloat(value: string): number {
   const parsed = parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -48,13 +42,12 @@ function safeFloat(value: string): number {
  */
 export type QuoteValidationError =
   | { type: 'NO_ITEMS' }
-  | { type: 'LINE_ITEM'; index: number; material: string }
-  | { type: 'AVAIL_EXCEEDS_REQ'; index: number; material: string; requested: number };
+  | { type: 'LINE_ITEM'; index: number; material: string };
 
 /**
  * Each included line item must have a positive unit price, a positive available
- * quantity and a delivery date; at least one line item must be included. The
- * available quantity must also not exceed the requested quantity (FOR-273).
+ * quantity and a delivery date; at least one line item must be included. An
+ * available quantity above or below the requested one never blocks submit.
  */
 export function validateGuestQuote(lineItems: LineItemFormState[]): QuoteValidationError[] {
   const included = lineItems.filter((item) => item.included);
@@ -68,14 +61,6 @@ export function validateGuestQuote(lineItems: LineItemFormState[]): QuoteValidat
     const hasDate = item.deliveryDate.trim().length > 0;
     if (!hasPrice || !hasQty || !hasDate) {
       errors.push({ type: 'LINE_ITEM', index, material: item.materialName });
-    }
-    if (availExceedsRequested(item)) {
-      errors.push({
-        type: 'AVAIL_EXCEEDS_REQ',
-        index,
-        material: item.materialName,
-        requested: item.requestedQty,
-      });
     }
   });
   return errors;
@@ -119,31 +104,17 @@ export function useGuestRfqResponse(rfq: GuestRfqDetail, token: string) {
 
   const setBulkField = useCallback(
     (field: keyof BulkDefaults, value: string) => {
-      const lineField = BULK_TO_LINE_FIELD[field];
       const oldValue = bulkDefaults[field];
-
       setBulkDefaults((prev) => ({ ...prev, [field]: value }));
-
-      // Seed the matching per-line column. A cell is updated when it's empty or
-      // still holds the previous bulk value (i.e. it was seeded by this default
-      // and the vendor hasn't since edited it) — so typing "30" digit by digit
-      // keeps the line in sync instead of sticking on the first keystroke.
-      // Cells the vendor changed, and clearing the bulk field, are left alone.
-      if (!lineField || value === '') return;
-      setLineItems((prev) =>
-        prev.map((item) => {
-          const current = item[lineField] as string;
-          if (current !== '' && current !== oldValue) return item;
-          // A bulk discount is a percentage, so pin the line's discount mode too.
-          if (lineField === 'discount') {
-            return { ...item, discount: value, discountType: 'PERCENT' as const };
-          }
-          return { ...item, [lineField]: value };
-        }),
-      );
+      setLineItems((prev) => applyBulkDefaultToLines(prev, field, value, oldValue));
     },
     [bulkDefaults],
   );
+
+  const taxIncluded = useMemo(() => allTaxIncluded(lineItems), [lineItems]);
+  const setTaxIncluded = useCallback((value: boolean) => {
+    setLineItems((prev) => prev.map((item) => ({ ...item, taxIncluded: value })));
+  }, []);
 
   // ── Quote entry mode + PDF extraction (FOR-206) ─────────────────────────────
   const [mode, setMode] = useState<ResponseMode>('manual');
@@ -166,7 +137,11 @@ export function useGuestRfqResponse(rfq: GuestRfqDetail, token: string) {
       matchedCount,
       unmatchedCount,
     } = matchExtractedQuote(initGuestLineItems(rfq.lineItems), result ?? EMPTY_QUOTE_RESULT);
-    setLineItems(prefilled);
+    // The rows are rebuilt from the RFQ, so carry the quote-level tax toggle over.
+    setLineItems((prev) => {
+      const keepTaxIncluded = allTaxIncluded(prev);
+      return prefilled.map((item) => ({ ...item, taxIncluded: keepTaxIncluded }));
+    });
     setSourceFileId(job.file.id);
     setMatchStats({ matched: matchedCount, unmatched: unmatchedCount });
   }, [extraction.job, rfq.lineItems]);
@@ -224,9 +199,8 @@ export function useGuestRfqResponse(rfq: GuestRfqDetail, token: string) {
     let gstTotal = 0;
 
     for (const item of includedItems) {
-      const qty = safeFloat(item.availQty);
       const price = safeFloat(item.unitPrice);
-      const lineSubtotal = qty * price;
+      const lineSubtotal = quotedQty(item) * price;
       subtotal += lineSubtotal;
 
       const discountValue = safeFloat(item.discount || bulkDefaults.bulkDiscount);
@@ -236,6 +210,8 @@ export function useGuestRfqResponse(rfq: GuestRfqDetail, token: string) {
           : (lineSubtotal * discountValue) / 100;
       discountTotal += lineDiscount;
 
+      // Tax-inclusive prices already carry the GST, so nothing is added on top.
+      if (item.taxIncluded) continue;
       const gstPercent = safeFloat(item.gst || bulkDefaults.bulkTax);
       const taxableAmount = lineSubtotal - lineDiscount;
       gstTotal += (taxableAmount * gstPercent) / 100;
@@ -266,7 +242,8 @@ export function useGuestRfqResponse(rfq: GuestRfqDetail, token: string) {
         const lineItem: SubmitQuoteLineItemInput = {
           rfqLineItemId: item.rfqLineItemId,
           unitPrice: safeFloat(item.unitPrice),
-          quotedQuantity: safeFloat(item.availQty),
+          // The buyer is quoted for at most what they asked for.
+          quotedQuantity: quotedQty(item),
           deliveryDate: item.deliveryDate,
         };
 
@@ -274,10 +251,8 @@ export function useGuestRfqResponse(rfq: GuestRfqDetail, token: string) {
           lineItem.discount = safeFloat(item.discount);
           lineItem.discountType = item.discountType;
         }
-        if (item.gst) {
-          lineItem.tax = safeFloat(item.gst);
-          lineItem.taxIncluded = item.taxIncluded;
-        }
+        if (item.gst) lineItem.tax = safeFloat(item.gst);
+        if (item.gst || item.taxIncluded) lineItem.taxIncluded = item.taxIncluded;
         if (item.notes) lineItem.notes = item.notes;
         if (item.backOrderQty) lineItem.backOrderQty = safeFloat(item.backOrderQty);
         if (item.backOrderDeliveryDate) lineItem.backOrderDeliveryDate = item.backOrderDeliveryDate;
@@ -322,6 +297,8 @@ export function useGuestRfqResponse(rfq: GuestRfqDetail, token: string) {
   return {
     bulkDefaults,
     setBulkField,
+    taxIncluded,
+    setTaxIncluded,
     bulkExpanded,
     setBulkExpanded,
     lineItems,

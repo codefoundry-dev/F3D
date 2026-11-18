@@ -266,8 +266,8 @@ nav and footer bar (`Toaster mobileOffset`).
   The desktop grid renders each field's `input` in its cell (`variant: 'cell'`); phones render
   `LineItemEditor` with the same fields (`variant: 'sheet'`), plus line notes, back-order qty/date
   and a substitute search (`MaterialSearchPopup` `inline`) that the desktop shows in its expanded
-  row. FOR-273 is enforced in the sheet: while Avail Qty exceeds Req Qty the card is flagged and
-  Save / Previous / Next stay on the line. Totals become a stacked summary card.
+  row. An Avail Qty below the Req Qty flags the card and the field but never blocks Save (a
+  surplus is not flagged; lines are priced on the smaller of the two). Totals become a stacked summary card.
 - **Invoice review lines** (`InvoiceReviewPanel`): one `lineFields` list drives both the desktop
   grid's header and cells and the phone cards/sheet; PO-match badges show under the card title.
 

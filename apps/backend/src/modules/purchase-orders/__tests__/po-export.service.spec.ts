@@ -28,6 +28,14 @@ const mockBrandingService = {
   getPdfBrand: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockAccessTokens = {
+  issueToken: jest.fn().mockResolvedValue({ token: 'tok-abc' }),
+};
+
+const mockConfig = {
+  get: jest.fn().mockReturnValue('https://app.test'),
+};
+
 function q(overrides: Partial<PoListQueryDto> = {}): PoListQueryDto {
   return Object.assign(new PoListQueryDto(), overrides);
 }
@@ -112,6 +120,8 @@ describe('PoExportService', () => {
       mockPoService as never,
       mockPdfExportService as never,
       mockBrandingService as never,
+      mockAccessTokens as never,
+      mockConfig as never,
     );
     mockPoService.listPurchaseOrders.mockResolvedValue({ items: sampleItems, meta: {} });
   });
@@ -600,6 +610,81 @@ describe('PoExportService', () => {
       expect(mockPdfExportService.exportInvoicePDF).toHaveBeenCalledWith(
         expect.objectContaining({ brand }),
       );
+    });
+
+    it('prints item code and cost code columns when a line carries them', () => {
+      const options = service.buildPoPdfOptions({
+        ...poDetail,
+        costCode: 'CC-PROJ',
+        lineItems: [
+          { ...poDetail.lineItems[0], materialCode: 'MAT-0001', costCode: 'CC-100' },
+          { ...poDetail.lineItems[1], materialCode: null, costCode: null },
+        ],
+      } as never);
+
+      expect(options.columns.map((c) => c.header)).toEqual([
+        'Code',
+        'Item',
+        'Cost Code',
+        'Qty',
+        'Unit',
+        'Unit Price',
+        'Total',
+      ]);
+      expect(options.rows[0]).toMatchObject({ Code: 'MAT-0001', 'Cost Code': 'CC-100' });
+      expect(options.rows[1]).toMatchObject({ Code: '', 'Cost Code': '' });
+      expect(options.infoLeft?.lines).toContain('Cost Code: CC-PROJ');
+    });
+
+    it('leaves the code columns off when no line has a code', () => {
+      const options = service.buildPoPdfOptions(poDetail as never);
+      expect(options.columns.map((c) => c.header)).toEqual([
+        'Item',
+        'Qty',
+        'Unit',
+        'Unit Price',
+        'Total',
+      ]);
+    });
+
+    it('prints a delivery QR on a deliverable PO, minting a delivery-portal link', async () => {
+      mockPoService.getPurchaseOrder.mockResolvedValue(poDetail);
+      mockPdfExportService.exportInvoicePDF.mockResolvedValue({ url: 'https://storage/po.pdf' });
+
+      await service.exportSinglePo('po-123', 'pdf', companyAdmin as never);
+
+      expect(mockAccessTokens.issueToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subjectId: 'po-123',
+          purpose: 'DELIVERY_SUBMIT',
+          createdByUserId: 'ca-1',
+        }),
+      );
+      const { qr } = mockPdfExportService.exportInvoicePDF.mock.calls[0][0];
+      expect(qr.title).toBe('Scan to confirm delivery');
+      // PNG magic bytes — a real, drawable image.
+      expect(qr.image.subarray(0, 4)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    });
+
+    it('prints no QR (and mints no link) on a draft PO', async () => {
+      mockPoService.getPurchaseOrder.mockResolvedValue({ ...poDetail, status: 'DRAFT' });
+      mockPdfExportService.exportInvoicePDF.mockResolvedValue({ url: 'https://storage/po.pdf' });
+
+      await service.exportSinglePo('po-123', 'pdf', companyAdmin as never);
+
+      expect(mockAccessTokens.issueToken).not.toHaveBeenCalled();
+      expect(mockPdfExportService.exportInvoicePDF.mock.calls[0][0].qr).toBeUndefined();
+    });
+
+    it('still generates the PDF when the delivery link cannot be minted', async () => {
+      mockPoService.getPurchaseOrder.mockResolvedValue(poDetail);
+      mockPdfExportService.exportInvoicePDF.mockResolvedValue({ url: 'https://storage/po.pdf' });
+      mockAccessTokens.issueToken.mockRejectedValueOnce(new Error('db down'));
+
+      const result = await service.exportSinglePo('po-123', 'pdf', companyAdmin as never);
+
+      expect(result).toEqual({ url: 'https://storage/po.pdf' });
+      expect(mockPdfExportService.exportInvoicePDF.mock.calls[0][0].qr).toBeUndefined();
     });
 
     it('exportSinglePo rejects non-PDF formats', async () => {

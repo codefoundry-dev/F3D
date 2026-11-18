@@ -1,7 +1,6 @@
 import { useTranslation } from '@forethread/i18n';
 import { DeliveryVarianceBadge, deliveryVarianceDays } from '@forethread/rfq-shared';
 import {
-  Checkbox,
   cn,
   DatePicker,
   formatDate,
@@ -14,7 +13,7 @@ import {
   type LineItemField,
 } from '@forethread/ui-components';
 
-import { availExceedsRequested } from '../hooks/availExceedsRequested';
+import { availBelowRequested, quotedQty } from '../hooks/quoteQty';
 import type { LineItemFormState } from '../hooks/useRfqResponse';
 
 const NAKED_INPUT_CLASS = '!bg-transparent !rounded-none !border-0 !shadow-none';
@@ -25,7 +24,6 @@ export type QuoteLineFieldKey =
   | 'unitPrice'
   | 'discount'
   | 'gst'
-  | 'taxIncluded'
   | 'deliveryDate'
   | 'notes'
   | 'backOrderQty'
@@ -81,20 +79,19 @@ export function useQuoteLineFields({
           inputMode="decimal"
           className={inputClass}
           disabled={!item.included}
-          aria-invalid={availExceedsRequested(item) || undefined}
           aria-label={t('response.availQty')}
         />
       ),
-      // FOR-273: same rule as both validators.
+      // A shortfall is flagged but never blocks; surplus stock is not flagged.
       hint: (item) =>
-        availExceedsRequested(item) ? (
+        availBelowRequested(item) ? (
           <span
             className={cn(
               'text-destructive',
               cell ? 'text-[10px] leading-tight' : 'text-xs leading-snug',
             )}
           >
-            {t('response.availExceedsReq', { requested: item.requestedQty })}
+            {t('response.availBelowReq', { requested: item.requestedQty })}
           </span>
         ) : null,
     },
@@ -171,17 +168,6 @@ export function useQuoteLineFields({
           className={inputClass}
           disabled={!item.included}
           aria-label={t('response.gst')}
-        />
-      ),
-    },
-    {
-      key: 'taxIncluded',
-      label: t('response.taxIncl'),
-      input: (item, index) => (
-        <Checkbox
-          checked={item.taxIncluded}
-          onChange={(v) => onUpdateItem(index, 'taxIncluded', v)}
-          disabled={!item.included}
         />
       ),
     },
@@ -295,9 +281,12 @@ function RequestedDelivery({
   );
 }
 
-/** Quote line total: qty × price, less discount, plus GST unless tax-inclusive. */
+/**
+ * Quote line total: quoted qty × price, less discount, plus GST unless
+ * tax-inclusive. The quoted qty is min(available, required).
+ */
 export function calcLineTotal(item: LineItemFormState): number {
-  const qty = parseFloat(item.availQty || '0');
+  const qty = quotedQty(item);
   const price = parseFloat(item.unitPrice || '0');
   const discountValue = parseFloat(item.discount || '0');
   const gstPct = parseFloat(item.gst || '0');

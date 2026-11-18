@@ -98,7 +98,20 @@ export interface InvoiceExportOptions {
   legalText?: { label: string; text: string };
   /** Issuing-company brand mark for the header (defaults to the Forethread wordmark). */
   brand?: PdfBrand;
+  /**
+   * Optional scannable QR block rendered above the signature lines (e.g. the
+   * delivery-confirmation link on a PO printout).
+   */
+  qr?: PdfQrBlock;
   filenamePrefix: string;
+}
+
+/** A QR code with a heading and a line of guidance beside it. */
+export interface PdfQrBlock {
+  /** QR image bytes (PNG). */
+  image: Buffer;
+  title: string;
+  caption?: string;
 }
 
 export interface CsvExportOptions {
@@ -381,6 +394,11 @@ export class PdfExportService {
         currentY = 50;
       }
       currentY = this.drawInfoBlock(doc, terms, leftMargin, currentY, rightEdge - leftMargin) + 10;
+    }
+
+    // ── QR block (e.g. scan to confirm delivery) ───────────────────────
+    if (options.qr) {
+      currentY = this.drawQrBlock(doc, leftMargin, rightEdge, currentY, options.qr);
     }
 
     // ── Signatures ─────────────────────────────────────────────────────
@@ -670,6 +688,43 @@ export class PdfExportService {
     }
 
     return currentY;
+  }
+
+  /** Render a QR code with its heading + guidance to the right; returns the Y below it. */
+  private drawQrBlock(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    doc: any,
+    leftMargin: number,
+    rightEdge: number,
+    startY: number,
+    qr: PdfQrBlock,
+  ): number {
+    const size = 84;
+    let currentY = startY + 16;
+
+    if (currentY + size > doc.page.height - 50) {
+      doc.addPage();
+      currentY = 50;
+    }
+
+    doc.image(qr.image, leftMargin, currentY, { fit: [size, size] });
+
+    const textX = leftMargin + size + 14;
+    const textWidth = rightEdge - textX;
+    doc
+      .fontSize(11)
+      .font('Helvetica-Bold')
+      .fillColor(PDF_STYLES.text.primary)
+      .text(qr.title, textX, currentY + 18, { width: textWidth });
+    if (qr.caption) {
+      doc
+        .fontSize(9)
+        .font('Helvetica')
+        .fillColor(PDF_STYLES.text.secondary)
+        .text(qr.caption, textX, currentY + 36, { width: textWidth });
+    }
+
+    return currentY + size;
   }
 
   /** Render signature lines side by side; returns the Y below them. */

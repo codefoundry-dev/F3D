@@ -16,7 +16,12 @@ import { Response } from 'express';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
-import { clearAuthCookies, setAuthCookies } from '../../common/utils/set-auth-cookies.util';
+import {
+  clearAuthCookies,
+  readTrustedDeviceCookie,
+  setAuthCookies,
+  setTrustedDeviceCookie,
+} from '../../common/utils/set-auth-cookies.util';
 
 import { AuthService } from './auth.service';
 import { RequestNewInvitationDto } from './dto/request-new-invitation.dto';
@@ -83,13 +88,33 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @ApiOperation({ summary: 'Step 1 of login: validate credentials and send OTP' })
-  @ApiResponse({ status: 200, description: 'OTP sent to email' })
+  @ApiOperation({
+    summary:
+      'Step 1 of login: validate credentials, then send an OTP — or sign in directly on a trusted browser',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'otpRequired=true: OTP sent to email. otpRequired=false: signed in (cookies set).',
+  })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   @ApiResponse({ status: 403, description: 'Account not activated' })
-  async login(@Body() dto: LoginDto) {
-    const result = await this.authService.login(dto.email, dto.password);
-    return { userId: result.userId, otpExpiresAt: result.otpExpiresAt };
+  async login(
+    @Body() dto: LoginDto,
+    @Request() req: { headers: Record<string, string | string[] | undefined> },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const trustedToken = readTrustedDeviceCookie(req as never);
+    const result = await this.authService.login(dto.email, dto.password, trustedToken);
+
+    if (!result.otpRequired) {
+      // Trusted browser: no code needed. Renew the cookie alongside the
+      // server-side expiry so a browser in regular use stays trusted.
+      setAuthCookies(res, result.tokens.accessToken, result.tokens.refreshToken, req as never);
+      if (trustedToken) setTrustedDeviceCookie(res, trustedToken, req as never);
+      return { otpRequired: false };
+    }
+
+    return { otpRequired: true, userId: result.userId, otpExpiresAt: result.otpExpiresAt };
   }
 
   @Public()
@@ -104,8 +129,16 @@ export class AuthController {
     @Request() req: { headers: Record<string, string | string[] | undefined> },
     @Res({ passthrough: true }) res: Response,
   ) {
-    const tokens = await this.authService.verifyOtp(dto.userId, dto.otp);
+    const userAgent = req.headers['user-agent'];
+    const tokens = await this.authService.verifyOtp(
+      dto.userId,
+      dto.otp,
+      typeof userAgent === 'string' ? userAgent : null,
+    );
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken, req as never);
+    // This browser has now passed the code — remember it so the next sign-in
+    // from here skips the code.
+    setTrustedDeviceCookie(res, tokens.trustedDeviceToken, req as never);
     return { success: true };
   }
 

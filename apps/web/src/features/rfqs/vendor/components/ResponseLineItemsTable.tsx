@@ -19,7 +19,7 @@ import PackageIcon from '@forethread/ui-components/assets/icons/package.svg?reac
 import SearchIcon from '@forethread/ui-components/assets/icons/search.svg?react';
 import { Link } from 'react-router-dom';
 
-import { availExceedsRequested } from '../hooks/availExceedsRequested';
+import { availBelowRequested } from '../hooks/quoteQty';
 import type { LineItemFormState, QuoteTotals } from '../hooks/useRfqResponse';
 
 import { LineItemExpandedRow } from './LineItemExpandedRow';
@@ -175,12 +175,8 @@ export function ResponseLineItemsTable({
             `${t('response.reqQty')}: ${item.requestedQty} ${item.unit}` +
             (item.included ? '' : ` · ${t('response.noQuote')}`)
           }
-          hasError={(item) => availExceedsRequested(item)}
-          // FOR-273: Avail Qty may not exceed Req Qty — keep the sheet on the line.
-          validateLine={(i) => {
-            const item = lineItems[i];
-            return !item || !availExceedsRequested(item);
-          }}
+          // Flag a shortfall on the card; it never blocks leaving the line.
+          hasError={(item) => availBelowRequested(item)}
         />
         <QuoteTotalsSummary totals={totals} stacked />
       </div>
@@ -194,7 +190,7 @@ export function ResponseLineItemsTable({
       </div>
 
       <ScrollTable className="p-4">
-        <table className="min-w-[1200px] w-full text-sm border border-border rounded-lg">
+        <table className="min-w-[1120px] w-full text-sm border border-border rounded-lg">
           <thead>
             <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
               <th className={cn(TH_CLASS, 'w-[64px]')}>{t('response.incl')}</th>
@@ -205,7 +201,6 @@ export function ResponseLineItemsTable({
               <th className={cn(TH_CLASS, 'w-[112px]')}>{t('response.unitPrice')}</th>
               <th className={cn(TH_CLASS, 'w-[88px]')}>{t('response.discount')}</th>
               <th className={cn(TH_CLASS, 'w-[88px]')}>{t('response.gst')}</th>
-              <th className={cn(TH_CLASS, 'w-[80px]')}>{t('response.taxIncl')}</th>
               <th className={cn(TH_CLASS, 'w-[148px]')}>{t('response.deliveryDate')}</th>
               <th className={cn(TH_CLASS, 'w-[120px]')}>{t('response.lineTotal')}</th>
               <th className="py-2.5 px-3 text-xs font-bold whitespace-nowrap tracking-wide w-[92px] text-right">
@@ -243,7 +238,7 @@ export function ResponseLineItemsTable({
 
             {/* Footer totals row */}
             <tr className="border-t border-border bg-[hsl(var(--table-header))]">
-              <td colSpan={12} className="py-3 px-4">
+              <td colSpan={11} className="py-3 px-4">
                 <QuoteTotalsSummary totals={totals} />
               </td>
             </tr>
@@ -297,8 +292,8 @@ function LineItemRow({
     Boolean(item.backOrderQty && parseFloat(item.backOrderQty) > 0) ||
     Boolean(item.backOrderDeliveryDate);
   const hasSubstitute = Boolean(item.substituteItemId);
-  // FOR-273: flag the row when the available qty exceeds the requested qty.
-  const availExceedsReq = availExceedsRequested(item);
+  // Flag the cell when the vendor can supply less than was requested.
+  const availBelowReq = availBelowRequested(item);
 
   return (
     <>
@@ -365,7 +360,7 @@ function LineItemRow({
         <td className={cn(TD_CLASS, 'overflow-clip')}>{item.requestedQty}</td>
 
         {/* Avail Qty */}
-        <td className={cn(TD_CLASS, 'px-1', availExceedsReq && 'bg-destructive/5')}>
+        <td className={cn(TD_CLASS, 'px-1', availBelowReq && 'bg-destructive/5')}>
           <div className="flex flex-col gap-0.5">
             {fields.availQty.input(item, index)}
             {fields.availQty.hint?.(item, index)}
@@ -380,9 +375,6 @@ function LineItemRow({
 
         {/* GST */}
         <td className={cn(TD_CLASS, 'overflow-clip')}>{fields.gst.input(item, index)}</td>
-
-        {/* Tax Incl */}
-        <td className={cn(TD_CLASS, 'text-center')}>{fields.taxIncluded.input(item, index)}</td>
 
         {/* Delivery Date */}
         <td className={TD_CLASS}>{fields.deliveryDate.input(item, index)}</td>
@@ -442,7 +434,7 @@ function LineItemRow({
       {/* Inline substitute search results, anchored right below this row */}
       {isSubstituteOpen && (
         <tr>
-          <td colSpan={12} className="p-0 border-0 relative">
+          <td colSpan={11} className="p-0 border-0 relative">
             <MaterialSearchPopup
               open
               searchQuery={substituteQuery}
@@ -457,7 +449,7 @@ function LineItemRow({
       {/* Expanded row for notes / back-order */}
       {item.expandedSection && (
         <tr className={cn(rowBg)}>
-          <td colSpan={12} className="p-0">
+          <td colSpan={11} className="p-0">
             <LineItemExpandedRow
               item={item}
               index={index}
@@ -501,13 +493,24 @@ function QuoteTotalsSummary({
       </div>
     );
   }
-  const pct = (part: number) =>
-    part > 0 ? `${((part / (totals.subtotal || 1)) * 100).toFixed(0)}%` : '-';
+  // Each part of the total as an amount, with its effective rate alongside.
+  const pct = (part: number, of: number) => `${Number(((part / (of || 1)) * 100).toFixed(2))}%`;
+  const afterDiscount = totals.subtotal - totals.discountTotal;
   const rows: [string, string][] = [
     [t('response.totalItemsQuoted'), `${totals.totalItemsQuoted}/${totals.totalItems}`],
     [t('response.subtotal'), formatCurrency(totals.subtotal)],
-    [t('response.discounts'), pct(totals.discountTotal)],
-    ['GST', pct(totals.gstTotal)],
+    [
+      t('response.discounts'),
+      totals.discountTotal > 0
+        ? `-${formatCurrency(totals.discountTotal)} (${pct(totals.discountTotal, totals.subtotal)})`
+        : '-',
+    ],
+    [
+      t('response.gstTotal'),
+      totals.gstTotal > 0
+        ? `+${formatCurrency(totals.gstTotal)} (${pct(totals.gstTotal, afterDiscount)})`
+        : '-',
+    ],
   ];
 
   // Phones: a stacked summary card instead of one wide row.

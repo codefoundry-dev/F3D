@@ -304,15 +304,18 @@ describe('ResponseLineItemsTable', () => {
     expect(screen.getByText('Alt Cement')).toBeInTheDocument();
   });
 
-  it('flags the avail qty cell when availQty exceeds requestedQty (FOR-273)', () => {
-    const item = makeItem({ requestedQty: 100, availQty: '150' });
+  it('flags the avail qty cell when availQty is below requestedQty', () => {
+    const item = makeItem({ requestedQty: 100, availQty: '80' });
     render(<ResponseLineItemsTable {...baseProps} lineItems={[item]} />);
-    expect(screen.getByText('response.availExceedsReq')).toBeInTheDocument();
+    expect(screen.getByText('response.availBelowReq')).toBeInTheDocument();
   });
 
-  it('does not flag the avail qty cell when availQty is within requestedQty', () => {
-    const item = makeItem({ requestedQty: 100, availQty: '100' });
-    render(<ResponseLineItemsTable {...baseProps} lineItems={[item]} />);
-    expect(screen.queryByText('response.availExceedsReq')).not.toBeInTheDocument();
+  it('does not flag the avail qty cell when availQty meets or exceeds requestedQty', () => {
+    const items = [
+      makeItem({ rfqLineItemId: 'li-a', requestedQty: 100, availQty: '100' }),
+      makeItem({ rfqLineItemId: 'li-b', requestedQty: 100, availQty: '150' }),
+    ];
+    render(<ResponseLineItemsTable {...baseProps} lineItems={items} />);
+    expect(screen.queryByText('response.availBelowReq')).not.toBeInTheDocument();
   });
 });

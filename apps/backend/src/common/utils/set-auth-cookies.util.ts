@@ -69,6 +69,35 @@ export function setAuthCookies(
   });
 }
 
+/** Cookie that marks a browser as trusted (skips the emailed sign-in code). */
+const TRUSTED_DEVICE_COOKIE = 'trusted_device';
+// Matches TRUSTED_DEVICE_TTL_MS in TrustedDeviceService.
+const TRUSTED_DEVICE_COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
+
+/** App-scoped like the auth cookies, so each app trusts its browser separately. */
+function trustedDeviceCookieName(req: Request): string {
+  const appId = req.headers['x-app-id'] as string | undefined;
+  return appId ? `${TRUSTED_DEVICE_COOKIE}_${appId}` : TRUSTED_DEVICE_COOKIE;
+}
+
+/** The trusted-browser token this browser presented, if any. */
+export function readTrustedDeviceCookie(req: Request): string | undefined {
+  const cookies = req.cookies as Record<string, unknown> | undefined;
+  const value = cookies?.[trustedDeviceCookieName(req)];
+  return typeof value === 'string' && value ? value : undefined;
+}
+
+/**
+ * Set (or renew) the trusted-browser cookie. Deliberately NOT cleared on logout:
+ * signing out ends the session, but the browser stays known.
+ */
+export function setTrustedDeviceCookie(res: Response, token: string, req: Request): void {
+  res.cookie(trustedDeviceCookieName(req), token, {
+    ...baseCookieOptions(),
+    maxAge: TRUSTED_DEVICE_COOKIE_MAX_AGE,
+  });
+}
+
 export function clearAuthCookies(res: Response, req: Request): void {
   const names = getCookieNames(req);
   // Same attributes as setAuthCookies (minus maxAge) so the browser actually
