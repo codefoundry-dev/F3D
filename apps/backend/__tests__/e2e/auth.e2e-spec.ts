@@ -229,6 +229,126 @@ describe('Auth (e2e)', () => {
     });
   });
 
+  // ── Trusted browser: the code is only asked for on a new browser ──────────
+
+  describe('Trusted browser (skip the sign-in code)', () => {
+    const creds = {
+      email: SEED_USERS.companyAdmin.email,
+      password: SEED_USERS.companyAdmin.password,
+    };
+    const cookieHeader = (token: string): string => `trusted_device=${token}`;
+
+    /** Sign in on a "new browser" with the emailed code; returns its trusted cookie. */
+    async function signInWithCode(): Promise<{ trustedToken: string; userId: string }> {
+      const loginRes = await request(getHttpServer()).post('/v1/auth/login').send(creds);
+      expect(loginRes.body.data.otpRequired).toBe(true);
+      const userId = loginRes.body.data.userId as string;
+      const email = emailService.getLastEmailTo(creds.email);
+      const verifyRes = await request(getHttpServer())
+        .post('/v1/auth/verify-otp')
+        .send({ userId, otp: email!.otp })
+        .expect(200);
+      const cookies = (verifyRes.headers['set-cookie'] as unknown as string[]) ?? [];
+      const trustedToken = extractCookieValue(cookies, 'trusted_device');
+      expect(trustedToken).toBeTruthy();
+      return { trustedToken: trustedToken as string, userId };
+    }
+
+    afterAll(async () => {
+      const user = await prisma.user.findUnique({ where: { email: creds.email } });
+      if (user) await prisma.trustedDevice.deleteMany({ where: { userId: user.id } });
+    });
+
+    it('signs a trusted browser in with the password alone, sending no code', async () => {
+      const { trustedToken } = await signInWithCode();
+      emailService.clear();
+
+      const res = await request(getHttpServer())
+        .post('/v1/auth/login')
+        .set('Cookie', cookieHeader(trustedToken))
+        .send(creds)
+        .expect(200);
+
+      expect(res.body.data).toEqual({ otpRequired: false });
+      expect(emailService.getLastEmailTo(creds.email)).toBeUndefined();
+
+      // The session is real: its access cookie reaches a protected endpoint.
+      const cookies = (res.headers['set-cookie'] as unknown as string[]) ?? [];
+      const accessToken = extractCookieValue(cookies, 'jwt');
+      expect(accessToken).toBeTruthy();
+      const me = await authRequest('get', '/v1/users/me', accessToken as string).expect(200);
+      expect(me.body.data.email).toBe(creds.email);
+    });
+
+    it('stays trusted after logging out', async () => {
+      const { trustedToken } = await signInWithCode();
+      const tokens = await loginUser(creds.email, creds.password);
+      await authRequest('post', '/v1/auth/logout', tokens.accessToken).expect(204);
+
+      const res = await request(getHttpServer())
+        .post('/v1/auth/login')
+        .set('Cookie', cookieHeader(trustedToken))
+        .send(creds)
+        .expect(200);
+
+      expect(res.body.data.otpRequired).toBe(false);
+    });
+
+    it('still asks a new browser (no cookie, or an unknown one) for the code', async () => {
+      await signInWithCode();
+
+      const noCookie = await request(getHttpServer()).post('/v1/auth/login').send(creds);
+      expect(noCookie.body.data.otpRequired).toBe(true);
+
+      const forged = await request(getHttpServer())
+        .post('/v1/auth/login')
+        .set('Cookie', cookieHeader('not-a-real-token'))
+        .send(creds);
+      expect(forged.body.data.otpRequired).toBe(true);
+    });
+
+    it('never lets a trusted cookie stand in for the password', async () => {
+      const { trustedToken } = await signInWithCode();
+
+      await request(getHttpServer())
+        .post('/v1/auth/login')
+        .set('Cookie', cookieHeader(trustedToken))
+        .send({ email: creds.email, password: 'WrongPassword123' })
+        .expect(401);
+    });
+
+    it("does not trust one user's browser for a different user", async () => {
+      const { trustedToken } = await signInWithCode();
+
+      const res = await request(getHttpServer())
+        .post('/v1/auth/login')
+        .set('Cookie', cookieHeader(trustedToken))
+        .send({
+          email: SEED_USERS.superAdmin.email,
+          password: SEED_USERS.superAdmin.password,
+        })
+        .expect(200);
+
+      expect(res.body.data.otpRequired).toBe(true);
+    });
+
+    it('asks for the code again once the trust has expired', async () => {
+      const { trustedToken, userId } = await signInWithCode();
+      await prisma.trustedDevice.updateMany({
+        where: { userId },
+        data: { expiresAt: new Date(Date.now() - 1000) },
+      });
+
+      const res = await request(getHttpServer())
+        .post('/v1/auth/login')
+        .set('Cookie', cookieHeader(trustedToken))
+        .send(creds)
+        .expect(200);
+
+      expect(res.body.data.otpRequired).toBe(true);
+    });
+  });
+
   // ── POST /v1/auth/refresh ───────────────────────────────────────────────
 
   describe('POST /v1/auth/refresh', () => {

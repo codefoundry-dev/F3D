@@ -99,10 +99,32 @@ export function createAuthHooks(otpSessionKey: string, useAuthStore: UseAuthStor
   function useLogin() {
     const navigate = useNavigate();
     const { t } = useTranslation(['auth']);
+    const setAuth = useAuthStore((s) => s.setAuth);
 
     return useMutation({
       mutationFn: (dto: LoginDto & { email: string }) => login(dto, { skipErrorHandler: true }),
-      onSuccess: (data, variables) => {
+      onSuccess: async (data, variables) => {
+        // Trusted browser: the backend skipped the one-time code and has already
+        // set the session cookies, so go straight in.
+        if (!data.otpRequired) {
+          try {
+            const user = await getMe({ skipErrorHandler: true });
+            setAuth({
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              role: user.role,
+              companyId: user.companyId,
+              permissions: user.permissions ?? [],
+            });
+            clearOtpSession();
+            navigate('/');
+          } catch {
+            notificationService.error(t('auth:signInSessionFailed'));
+          }
+          return;
+        }
+
         saveOtpSession({
           userId: data.userId,
           email: variables.email,

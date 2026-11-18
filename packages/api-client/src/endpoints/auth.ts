@@ -32,7 +32,17 @@ export interface ActivateAccountDto {
   password: string;
 }
 
-export interface LoginResponse {
+/**
+ * Result of the password step. On a new device or browser a one-time code is
+ * emailed (`otpRequired: true`) and sign-in finishes at verify-otp. A trusted
+ * browser skips the code: the session cookies are already set on this response.
+ */
+export type LoginResponse =
+  | { otpRequired: true; userId: string; otpExpiresAt: string }
+  | { otpRequired: false };
+
+/** A freshly re-sent one-time code for an in-progress sign-in. */
+export interface ResendOtpResponse {
   userId: string;
   otpExpiresAt: string;
 }
@@ -74,8 +84,8 @@ export async function verifyOtp(
 export async function resendOtp(
   dto: ResendOtpDto,
   config?: AxiosRequestConfig,
-): Promise<LoginResponse> {
-  const { data } = await getApiClient().post<{ data: LoginResponse }>(
+): Promise<ResendOtpResponse> {
+  const { data } = await getApiClient().post<{ data: ResendOtpResponse }>(
     AUTH_PATHS.RESEND_OTP,
     dto,
     config,

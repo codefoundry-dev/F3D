@@ -19,11 +19,20 @@ import { EmailService } from '../notifications/email.service';
 
 import { OtpService } from './otp.service';
 import type { JwtPayload } from './strategies/jwt.strategy';
+import { TrustedDeviceService } from './trusted-device.service';
 
 export interface TokenPair {
   accessToken: string;
   refreshToken: string;
 }
+
+/**
+ * Outcome of the password step. A new browser gets a sign-in code by email
+ * (`otpRequired: true`); a trusted browser is signed in straight away.
+ */
+export type LoginResult =
+  | { otpRequired: true; userId: string; otpExpiresAt: Date }
+  | { otpRequired: false; userId: string; tokens: TokenPair };
 
 @Injectable()
 export class AuthService {
@@ -33,6 +42,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly otpService: OtpService,
     private readonly emailService: EmailService,
+    private readonly trustedDevices: TrustedDeviceService,
   ) {}
 
   /** Resolve the frontend URL for a given user role */
@@ -40,7 +50,17 @@ export class AuthService {
     return getAppUrlForRole(this.config, role);
   }
 
-  async login(email: string, password: string): Promise<{ otpExpiresAt: Date; userId: string }> {
+  /**
+   * Step 1 of sign-in: check the password. If the browser presents a live
+   * trusted-browser token for this user the emailed code is skipped and the
+   * session is issued here; otherwise a code is emailed and step 2 (verifyOtp)
+   * completes the sign-in.
+   */
+  async login(
+    email: string,
+    password: string,
+    trustedDeviceToken?: string | null,
+  ): Promise<LoginResult> {
     const user = await this.prisma.user.findUnique({ where: { email } });
 
     if (!user) {
@@ -65,11 +85,15 @@ export class AuthService {
       throw new UnauthorizedException(ERR.auth.invalidCredentials);
     }
 
+    if (await this.trustedDevices.isTrusted(user.id, trustedDeviceToken)) {
+      return { otpRequired: false, userId: user.id, tokens: await this.startSession(user) };
+    }
+
     const { otp, expiresAt } = await this.otpService.generateAndStore(user.id);
 
     await this.emailService.sendOtpEmail(user.email, otp, expiresAt);
 
-    return { otpExpiresAt: expiresAt, userId: user.id };
+    return { otpRequired: true, otpExpiresAt: expiresAt, userId: user.id };
   }
 
   /**
@@ -94,7 +118,16 @@ export class AuthService {
     return { otpExpiresAt: expiresAt, userId: user.id };
   }
 
-  async verifyOtp(userId: string, otp: string): Promise<TokenPair> {
+  /**
+   * Step 2 of sign-in on a new browser. On success the browser becomes trusted:
+   * the returned `trustedDeviceToken` goes into its cookie so the next sign-in
+   * from it skips the code.
+   */
+  async verifyOtp(
+    userId: string,
+    otp: string,
+    userAgent?: string | null,
+  ): Promise<TokenPair & { trustedDeviceToken: string }> {
     const isValid = await this.otpService.verifyOtp(userId, otp);
 
     if (!isValid) {
@@ -110,10 +143,23 @@ export class AuthService {
       throw new NotFoundException(ERR.users.notFound);
     }
 
+    const tokens = await this.startSession(user);
+    const trustedDeviceToken = await this.trustedDevices.trust(user.id, userAgent);
+
+    return { ...tokens, trustedDeviceToken };
+  }
+
+  /** Issue the access/refresh tokens for a completed sign-in and record it. */
+  private async startSession(user: {
+    id: string;
+    email: string;
+    role: string;
+    companyId: string | null;
+  }): Promise<TokenPair> {
     const tokens = await this.generateTokens(user);
 
     await this.prisma.user.update({
-      where: { id: userId },
+      where: { id: user.id },
       data: {
         refreshTokenHash: await argon2.hash(tokens.refreshToken),
         lastLoginAt: new Date(),
@@ -211,6 +257,10 @@ export class AuthService {
         refreshTokenHash: null, // Invalidate all sessions
       },
     });
+
+    // A reset means the password may have been compromised: every browser has
+    // to pass the sign-in code again.
+    await this.trustedDevices.revokeAll(matchedUser.id);
   }
 
   async validateActivationToken(token: string): Promise<{ valid: boolean; email: string }> {

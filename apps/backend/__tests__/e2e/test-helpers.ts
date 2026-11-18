@@ -3,6 +3,7 @@ import { INestApplication, ValidationPipe, VersioningType, ExecutionContext } fr
 import { ClassSerializerInterceptor } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { PrismaService } from '../../src/prisma/prisma.service';
@@ -156,6 +157,9 @@ export async function bootstrapTestApp(): Promise<{
     .compile();
 
   app = moduleFixture.createNestApplication();
+  // Same middleware as main.ts: without it req.cookies is undefined and
+  // cookie-driven behaviour (e.g. the trusted-browser sign-in) can't be tested.
+  app.use(cookieParser());
 
   // Apply the same global config as main.ts
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
