@@ -68,6 +68,13 @@ vi.mock('../services/rfqs.service', () => ({
   useSaveRfqDraft: () => mockSaveDraft,
   useUpdateRfq: () => mockUpdateDraft,
   useSendRfq: () => mockSendRfq,
+  useRfqCcCandidates: () => ({
+    data: [
+      { id: 'u-pm', name: 'Project Manager', email: 'pm@example.com' },
+      { id: 'u-site', name: 'Site Lead', email: 'site@example.com' },
+    ],
+    isLoading: false,
+  }),
   useRfqProjects: mockUseRfqProjects,
   useProjectDeliveryLocations: mockUseProjectDeliveryLocations,
   useRfqMaterials: mockUseRfqMaterials,
@@ -375,16 +382,16 @@ describe('CreateRfqPage', () => {
     expect(mockApi.confirmRfqCoverage).not.toHaveBeenCalled();
   });
 
-  it('passes CC emails typed into the send dialog through to the send mutation', async () => {
+  it('passes the colleagues picked in the send dialog through to the send mutation', async () => {
     renderPage();
     fillStepOne();
     continueWizard();
     await screen.findByText(/create\.headings\.step4Title/);
 
     fireEvent.click(screen.getByTestId('submit-rfq'));
-    fireEvent.change(screen.getByTestId('send-rfq-cc'), {
-      target: { value: 'pm@example.com, site@example.com' },
-    });
+    fireEvent.click(screen.getByTestId('send-rfq-cc'));
+    fireEvent.click(screen.getByTestId('send-rfq-cc-option-u-pm'));
+    fireEvent.click(screen.getByTestId('send-rfq-cc-option-u-site'));
     fireEvent.click(screen.getByTestId('confirm-send-rfq'));
 
     await waitFor(() =>

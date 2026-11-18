@@ -1,6 +1,10 @@
-import { Alert, Button, GridModal, Input } from '@forethread/ui-components';
+import { Alert, Button, GridModal } from '@forethread/ui-components';
 import PaperPlaneIcon from '@forethread/ui-components/assets/icons/paper-plane.svg?react';
 import { useState } from 'react';
+
+import { useRfqCcCandidates } from '../../services/rfqs.service';
+
+import { CcRecipientsDropdown } from './CcRecipientsDropdown';
 
 interface SendRfqDialogProps {
   /** How many vendors will be emailed — drives the confirmation copy. */
@@ -8,22 +12,15 @@ interface SendRfqDialogProps {
   isSending: boolean;
   isError: boolean;
   onCancel: () => void;
-  /** Receives the parsed CC list (already split + trimmed; may be empty). */
+  /** Receives the email addresses of the colleagues picked to CC (may be empty). */
   onSend: (cc: string[]) => void;
-}
-
-/** Split a raw "a@x.com, b@y.com" string into trimmed, non-empty addresses. */
-function parseCcEmails(raw: string): string[] {
-  return raw
-    .split(/[,\s]+/)
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
 }
 
 /**
  * Confirmation dialog for sending an RFQ to its vendors. Sending is
  * outward-facing (it emails vendors a tokenized quote link and opens the RFQ),
- * so we confirm first and offer an optional CC field before the irreversible step.
+ * so we confirm first and offer an optional CC picker (the sender's colleagues)
+ * before the irreversible step.
  */
 export function SendRfqDialog({
   vendorCount,
@@ -32,7 +29,8 @@ export function SendRfqDialog({
   onCancel,
   onSend,
 }: SendRfqDialogProps) {
-  const [cc, setCc] = useState('');
+  const [cc, setCc] = useState<string[]>([]);
+  const { data: candidates = [], isLoading } = useRfqCcCandidates();
 
   return (
     <GridModal
@@ -47,7 +45,7 @@ export function SendRfqDialog({
           <Button
             type="button"
             className="w-full"
-            onClick={() => onSend(parseCcEmails(cc))}
+            onClick={() => onSend(cc)}
             isLoading={isSending}
             data-testid="confirm-send-rfq"
           >
@@ -67,18 +65,18 @@ export function SendRfqDialog({
     >
       <div>
         <label htmlFor="rfq-cc-emails" className="block mb-1.5 text-sm font-medium text-foreground">
-          CC emails (optional)
+          CC (optional)
         </label>
-        <Input
+        <CcRecipientsDropdown
           id="rfq-cc-emails"
+          options={candidates}
           value={cc}
-          onChange={(e) => setCc(e.target.value)}
-          placeholder="name@example.com, other@example.com"
+          onChange={setCc}
+          isLoading={isLoading}
           disabled={isSending}
-          data-testid="send-rfq-cc"
         />
         <p className="mt-1.5 text-xs text-muted-foreground">
-          Separate multiple addresses with a comma.
+          Project members are CC’d automatically.
         </p>
       </div>
 

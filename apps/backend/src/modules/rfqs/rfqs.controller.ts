@@ -125,6 +125,21 @@ export class RfqsController {
     return this.rfqsService.listApprovedResponses(projectId, user);
   }
 
+  // ── GET /v1/rfqs/cc-candidates ───────────────────────────────────────────
+  // NOTE: Static segment — declared before any :id routes so "cc-candidates"
+  // is not matched as an :id.
+
+  @Get('cc-candidates')
+  @RequirePermissions('rfq.send')
+  @ApiOperation({ summary: "List the sender's active colleagues who can be CC'd on an RFQ" })
+  @ApiResponse({
+    status: 200,
+    description: 'Active users of the caller’s company (id, name, email)',
+  })
+  async listCcCandidates(@CurrentUser() user: AuthenticatedUser) {
+    return this.rfqsService.listCcCandidates(user);
+  }
+
   // ── POST /v1/rfqs/:id/confirm-coverage ───────────────────────────────────
 
   @Post(':id/confirm-coverage')

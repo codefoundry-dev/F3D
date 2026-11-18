@@ -3,6 +3,7 @@ import {
   updateRfq,
   sendRfq,
   getRfq,
+  getRfqCcCandidates,
   getProjects,
   getProject,
   getMaterials,
@@ -66,6 +67,18 @@ export function useSendRfq() {
       void queryClient.invalidateQueries({ queryKey: ['rfqs'] });
       queryClient.setQueryData(['rfqs', data.id], data);
     },
+  });
+}
+
+/**
+ * Colleagues the sender can CC on an RFQ (send dialog dropdown). Keyed outside
+ * the `['rfqs']` namespace so sending doesn't needlessly refetch the list.
+ */
+export function useRfqCcCandidates() {
+  return useQuery({
+    queryKey: ['rfq-cc-candidates'],
+    queryFn: () => getRfqCcCandidates({ skipErrorHandler: true }),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
