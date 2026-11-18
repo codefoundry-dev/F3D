@@ -1,6 +1,10 @@
 import type { QuoteExtractionResult } from '@forethread/shared-types/client';
 
-import { descriptionSimilarity, matchExtractedQuote } from './matchExtractedQuote';
+import {
+  descriptionSimilarity,
+  hasConflictingSizes,
+  matchExtractedQuote,
+} from './matchExtractedQuote';
 import type { LineItemFormState } from './useRfqResponse';
 
 function makeLine(
@@ -169,5 +173,72 @@ describe('matchExtractedQuote', () => {
 
     const { matchedCount } = matchExtractedQuote(twoSimilar, extraction);
     expect(matchedCount).toBe(1);
+  });
+
+  const row = (description: string, quantity: number, unitPrice: number) => ({
+    description,
+    quantity,
+    unit: 'ea',
+    unitPrice,
+    lineTotal: null,
+    leadTime: null,
+  });
+
+  it('never fills a line from a near-identical item of another size', () => {
+    const ladders = [
+      makeLine({ rfqLineItemId: 'li-4m', materialName: 'SCL 12B LADDER 150W HDG 4M' }),
+      makeLine({ rfqLineItemId: 'li-6m', materialName: 'SCL 12B LADDER 150W HDG 6M' }),
+    ];
+    const extraction = makeExtraction([
+      row('SCL 12B Ladder 150W HDG 3M', 5, 56.71),
+      row('SCL 12B Ladder 150 W HDG 6 M', 18, 197.17),
+    ]);
+
+    const { lineItems, matchedCount, unmatchedCount } = matchExtractedQuote(ladders, extraction);
+
+    expect(matchedCount).toBe(1);
+    expect(unmatchedCount).toBe(1);
+    expect(lineItems[0].included).toBe(false);
+    expect(lineItems[0].unitPrice).toBe('');
+    expect(lineItems[1].unitPrice).toBe('197.17');
+  });
+
+  it('pairs repeated RFQ lines with the PDF rows quoting their quantity', () => {
+    const repeated = [
+      makeLine({ rfqLineItemId: 'li-a', materialName: 'Ladder 150W HDG 4M', requestedQty: 4 }),
+      makeLine({ rfqLineItemId: 'li-b', materialName: 'Ladder 150W HDG 4M', requestedQty: 5 }),
+    ];
+    const extraction = makeExtraction([
+      row('Ladder 150W HDG 4M', 5, 136.64),
+      row('Ladder 150W HDG 4M', 4, 130),
+    ]);
+
+    const { lineItems } = matchExtractedQuote(repeated, extraction);
+
+    expect(lineItems[0].unitPrice).toBe('130');
+    expect(lineItems[1].unitPrice).toBe('136.64');
+  });
+
+  it('prefers the exact wording over a longer row that merely contains it', () => {
+    const lines = [makeLine({ rfqLineItemId: 'li-1', materialName: 'Cable Tray 150W' })];
+    const extraction = makeExtraction([
+      row('Cable Tray 150W Flat Cover', 36, 61.54),
+      row('Cable Tray 150W', 10, 40),
+    ]);
+
+    const { lineItems } = matchExtractedQuote(lines, extraction);
+
+    expect(lineItems[0].unitPrice).toBe('40');
+  });
+});
+
+describe('hasConflictingSizes', () => {
+  it('flags descriptions that each carry a number the other lacks', () => {
+    expect(hasConflictingSizes('Steel bar 12mm', 'Steel bar 16 mm')).toBe(true);
+  });
+
+  it('accepts the same size written differently, or an extra number on one side', () => {
+    expect(hasConflictingSizes('Steel bar 12mm', 'Steel bar 12 mm')).toBe(false);
+    expect(hasConflictingSizes('Portland Cement', 'Portland Cement 25kg')).toBe(false);
   });
 });

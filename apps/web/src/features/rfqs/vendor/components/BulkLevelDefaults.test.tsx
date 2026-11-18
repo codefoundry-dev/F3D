@@ -33,6 +33,22 @@ vi.mock('@forethread/ui-components', () => ({
     inputMode?: string;
     onKeyDown?: (e: React.KeyboardEvent) => void;
   }) => <input value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} />,
+  ToggleSwitch: ({
+    checked,
+    onChange,
+    'aria-label': ariaLabel,
+  }: {
+    checked: boolean;
+    onChange: (v: boolean) => void;
+    'aria-label'?: string;
+  }) => (
+    <button
+      role="switch"
+      aria-checked={checked}
+      aria-label={ariaLabel}
+      onClick={() => onChange(!checked)}
+    />
+  ),
   onDecimalOnly: vi.fn(),
   onDigitsOnly: vi.fn(),
   CustomDropdown: ({
@@ -86,10 +102,13 @@ const defaultBulkDefaults: BulkDefaults = {
 describe('BulkLevelDefaults', () => {
   const onFieldChange = vi.fn();
   const onToggleExpanded = vi.fn();
+  const onTaxIncludedChange = vi.fn();
 
   const baseProps = {
     bulkDefaults: defaultBulkDefaults,
     onFieldChange,
+    taxIncluded: false,
+    onTaxIncludedChange,
     expanded: false,
     onToggleExpanded,
     warehouses: [] as {
@@ -104,6 +123,14 @@ describe('BulkLevelDefaults', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('turns tax-inclusive pricing on for the whole quote', () => {
+    render(<BulkLevelDefaults {...baseProps} expanded />);
+    const toggle = screen.getByRole('switch', { name: 'response.pricesIncludeTax' });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(toggle);
+    expect(onTaxIncludedChange).toHaveBeenCalledWith(true);
   });
 
   it('renders header with title and subtitle', () => {

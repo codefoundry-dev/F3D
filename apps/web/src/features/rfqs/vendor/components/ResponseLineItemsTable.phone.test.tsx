@@ -118,7 +118,7 @@ describe('ResponseLineItemsTable on phones', () => {
     expect(screen.getByTestId('quote-totals')).toHaveTextContent('500');
   });
 
-  it('edits price in the sheet and keeps it open while Avail Qty exceeds Req Qty (FOR-273)', () => {
+  it('edits price in the sheet, flagging a shortfall without blocking Save', () => {
     render(<Harness />);
     fireEvent.click(screen.getAllByTestId('line-item-card')[0]);
     const sheet = screen.getByRole('dialog');
@@ -126,17 +126,17 @@ describe('ResponseLineItemsTable on phones', () => {
     fireEvent.change(within(sheet).getByLabelText('response.unitPrice'), {
       target: { value: '12' },
     });
+    // More than requested is fine and is not flagged.
     fireEvent.change(within(sheet).getByLabelText('response.availQty'), {
       target: { value: '150' },
     });
-    expect(within(sheet).getByText('response.availExceedsReq')).toBeInTheDocument();
+    expect(within(sheet).queryByText('response.availBelowReq')).not.toBeInTheDocument();
 
-    fireEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
-    expect(screen.getByTestId('line-item-sheet')).toBeInTheDocument();
-
+    // Less than requested is flagged, but the line can still be saved.
     fireEvent.change(within(sheet).getByLabelText('response.availQty'), {
       target: { value: '80' },
     });
+    expect(within(sheet).getByText('response.availBelowReq')).toBeInTheDocument();
     fireEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
     expect(screen.queryByTestId('line-item-sheet')).not.toBeInTheDocument();
     expect(screen.getAllByTestId('line-item-card')[0]).toHaveTextContent('12');

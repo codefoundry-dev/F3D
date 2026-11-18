@@ -194,21 +194,71 @@ describe('useRfqResponse', () => {
     });
   });
 
-  it('does not overwrite line-item values the vendor already entered', () => {
+  it('applies a bulk value to every line, including ones the vendor edited', () => {
     const { result } = renderHook(() => useRfqResponse(rfqWithItems, 'vendor-1'));
     act(() => {
       result.current.updateLineItem(0, 'availQty', '7');
-      result.current.updateLineItem(0, 'gst', '20');
+      result.current.updateLineItem(0, 'discount', '50');
+      result.current.updateLineItem(0, 'discountType', 'AMOUNT');
     });
     act(() => {
       result.current.setBulkField('bulkAvailability', '25');
+      result.current.setBulkField('bulkDiscount', '20');
+    });
+    result.current.lineItems.forEach((item) => {
+      expect(item.availQty).toBe('25');
+      expect(item.discount).toBe('20');
+      expect(item.discountType).toBe('PERCENT');
+    });
+  });
+
+  it('re-applies a bulk discount that was cleared and typed again', () => {
+    const { result } = renderHook(() => useRfqResponse(rfqWithItems, 'vendor-1'));
+    // Type "1", clear the field, then type "20" — every row must end on 20.
+    for (const value of ['1', '', '2', '20']) {
+      act(() => {
+        result.current.setBulkField('bulkDiscount', value);
+      });
+    }
+    result.current.lineItems.forEach((item) => {
+      expect(item.discount).toBe('20');
+    });
+  });
+
+  it('clearing a bulk field keeps the lines the vendor edited afterwards', () => {
+    const { result } = renderHook(() => useRfqResponse(rfqWithItems, 'vendor-1'));
+    act(() => {
+      result.current.setBulkField('bulkDiscount', '10');
+    });
+    act(() => {
+      result.current.updateLineItem(0, 'discount', '15');
+    });
+    act(() => {
+      result.current.setBulkField('bulkDiscount', '');
+    });
+    expect(result.current.lineItems[0].discount).toBe('15');
+    expect(result.current.lineItems[1].discount).toBe('');
+  });
+
+  it('switches tax-inclusive pricing for every line at once', () => {
+    const { result } = renderHook(() => useRfqResponse(rfqWithItems, 'vendor-1'));
+    expect(result.current.taxIncluded).toBe(false);
+    act(() => {
+      result.current.updateLineItem(0, 'availQty', '10');
+      result.current.updateLineItem(0, 'unitPrice', '100');
       result.current.setBulkField('bulkTax', '10');
     });
-    // Item 0 keeps its own values; the empty item 1 takes the bulk defaults.
-    expect(result.current.lineItems[0].availQty).toBe('7');
-    expect(result.current.lineItems[0].gst).toBe('20');
-    expect(result.current.lineItems[1].availQty).toBe('25');
-    expect(result.current.lineItems[1].gst).toBe('10');
+    expect(result.current.totals.totalQuote).toBe(1100);
+    act(() => {
+      result.current.setTaxIncluded(true);
+    });
+    expect(result.current.taxIncluded).toBe(true);
+    result.current.lineItems.forEach((item) => {
+      expect(item.taxIncluded).toBe(true);
+    });
+    // Tax-inclusive prices add no GST on top.
+    expect(result.current.totals.gstTotal).toBe(0);
+    expect(result.current.totals.totalQuote).toBe(1000);
   });
 
   it('leaves line items untouched for bulk fields with no per-line column', () => {
@@ -293,24 +343,27 @@ describe('useRfqResponse', () => {
     expect(result.current.isValid).toBe(true);
   });
 
-  it('validation fails when availQty exceeds requestedQty', () => {
+  it('accepts availQty above requestedQty and quotes only the requested quantity', () => {
     const { result } = renderHook(() => useRfqResponse(rfqWithItems, 'vendor-1'));
     act(() => {
-      // li-1 requestedQty is 100; quote 150 (exceeds) but otherwise complete.
+      // li-1 requestedQty is 100; the vendor has 150 available.
       result.current.updateLineItem(0, 'availQty', '150');
       result.current.updateLineItem(0, 'unitPrice', '50');
       result.current.updateLineItem(0, 'deliveryDate', '2026-06-01');
-      // li-2 valid and within its requestedQty (50).
-      result.current.updateLineItem(1, 'availQty', '50');
+      // li-2 (requestedQty 50) can only be part-filled.
+      result.current.updateLineItem(1, 'availQty', '20');
       result.current.updateLineItem(1, 'unitPrice', '50');
       result.current.updateLineItem(1, 'deliveryDate', '2026-06-01');
     });
-    expect(result.current.isValid).toBe(false);
+    expect(result.current.isValid).toBe(true);
+    // 100 × 50 (capped at requested) + 20 × 50 (what is available).
+    expect(result.current.totals.subtotal).toBe(6000);
     act(() => {
       result.current.handleSubmit();
     });
-    expect(result.current.validationError).toBe('response.validationAvailExceedsReq');
-    expect(mockSubmitMutate).not.toHaveBeenCalled();
+    const submitted = mockSubmitMutate.mock.calls[0][0].lineItems;
+    expect(submitted[0].quotedQuantity).toBe(100);
+    expect(submitted[1].quotedQuantity).toBe(20);
   });
 
   it('validation passes when availQty equals requestedQty', () => {

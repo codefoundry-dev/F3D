@@ -12,7 +12,7 @@ import {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState, useCallback, useMemo, useEffect } from 'react';
 
-import { availExceedsRequested } from './availExceedsRequested';
+import { quotedQty } from './quoteQty';
 
 export interface BulkDefaults {
   bulkAvailability: string;
@@ -93,7 +93,7 @@ function initLineItemsFromQuote(
 ): LineItemFormState[] {
   const quoteMap = new Map(quoteLineItems.map((qi) => [qi.rfqLineItemId, qi]));
 
-  return rfqLineItems.map((item) => {
+  const lines = rfqLineItems.map((item) => {
     const qi = quoteMap.get(item.id);
     const isIncluded = !!qi && qi.availability !== 'NO_QUOTE';
 
@@ -127,6 +127,7 @@ function initLineItemsFromQuote(
       deliveryLocation: item.deliveryLocation,
     };
   });
+  return unifyTaxIncluded(lines);
 }
 
 const INITIAL_BULK_DEFAULTS: BulkDefaults = {
@@ -139,16 +140,54 @@ const INITIAL_BULK_DEFAULTS: BulkDefaults = {
 };
 
 /**
- * Bulk-level defaults that have a per-line-item equivalent. Entering one of
- * these seeds the matching column on every line item that's still empty.
- * Shipment + warehouse are bulk-only and have no per-line column.
+ * Bulk-level defaults that have a per-line-item equivalent. Shipment +
+ * warehouse are bulk-only and have no per-line column.
  */
-const BULK_TO_LINE_FIELD: Partial<Record<keyof BulkDefaults, keyof LineItemFormState>> = {
+export const BULK_TO_LINE_FIELD: Partial<Record<keyof BulkDefaults, keyof LineItemFormState>> = {
   bulkAvailability: 'availQty',
   bulkDiscount: 'discount',
   bulkTax: 'gst',
   bulkDeliveryTime: 'deliveryDate',
 };
+
+/**
+ * Pushes a bulk-level default onto its per-line column. A bulk value applies to
+ * every line, overwriting whatever the line held — the vendor can still adjust
+ * single lines afterwards. Clearing the bulk field only clears the lines that
+ * still hold the old bulk value, so per-line edits survive.
+ */
+export function applyBulkDefaultToLines(
+  items: LineItemFormState[],
+  field: keyof BulkDefaults,
+  value: string,
+  oldValue: string,
+): LineItemFormState[] {
+  const lineField = BULK_TO_LINE_FIELD[field];
+  if (!lineField) return items;
+  return items.map((item) => {
+    if (value === '' && (item[lineField] as string) !== oldValue) return item;
+    // A bulk discount is a percentage, so pin the line's discount mode too.
+    if (lineField === 'discount' && value !== '') {
+      return { ...item, discount: value, discountType: 'PERCENT' as const };
+    }
+    return { ...item, [lineField]: value };
+  });
+}
+
+/** The quote-level "prices include tax" toggle is on when every line carries it. */
+export function allTaxIncluded(items: LineItemFormState[]): boolean {
+  return items.length > 0 && items.every((item) => item.taxIncluded);
+}
+
+/**
+ * Tax-inclusive pricing is one quote-level switch, but it is stored per line.
+ * Quotes and drafts saved while it was a per-line checkbox can be mixed, so
+ * spread any quoted line's setting across the whole quote.
+ */
+function unifyTaxIncluded(items: LineItemFormState[]): LineItemFormState[] {
+  const taxIncluded = items.some((item) => item.included && item.taxIncluded);
+  return items.map((item) => (item.taxIncluded === taxIncluded ? item : { ...item, taxIncluded }));
+}
 
 /* ─── Local draft persistence ("Save as draft") ────────────────────────────── */
 
@@ -194,10 +233,12 @@ function applyDraftToLineItems(
   draft: ResponseDraft | null,
 ): LineItemFormState[] {
   if (!draft) return items;
-  return items.map((item) => {
-    const saved = draft.lineItems[item.rfqLineItemId];
-    return saved ? { ...item, ...saved } : item;
-  });
+  return unifyTaxIncluded(
+    items.map((item) => {
+      const saved = draft.lineItems[item.rfqLineItemId];
+      return saved ? { ...item, ...saved } : item;
+    }),
+  );
 }
 
 function bulkDefaultsFromQuote(quote: QuoteResponseDetail): BulkDefaults {
@@ -248,31 +289,17 @@ export function useRfqResponse(rfq: RfqDetail, vendorId: string, options?: UseRf
 
   const setBulkField = useCallback(
     (field: keyof BulkDefaults, value: string) => {
-      const lineField = BULK_TO_LINE_FIELD[field];
       const oldValue = bulkDefaults[field];
-
       setBulkDefaults((prev) => ({ ...prev, [field]: value }));
-
-      // Seed the matching per-line column. A cell is updated when it's empty or
-      // still holds the previous bulk value (i.e. it was seeded by this default
-      // and the vendor hasn't since edited it) — so typing "30" digit by digit
-      // keeps the line in sync instead of sticking on the first keystroke.
-      // Cells the vendor changed, and clearing the bulk field, are left alone.
-      if (!lineField || value === '') return;
-      setLineItems((prev) =>
-        prev.map((item) => {
-          const current = item[lineField] as string;
-          if (current !== '' && current !== oldValue) return item;
-          // A bulk discount is a percentage, so pin the line's discount mode too.
-          if (lineField === 'discount') {
-            return { ...item, discount: value, discountType: 'PERCENT' as const };
-          }
-          return { ...item, [lineField]: value };
-        }),
-      );
+      setLineItems((prev) => applyBulkDefaultToLines(prev, field, value, oldValue));
     },
     [bulkDefaults],
   );
+
+  const taxIncluded = useMemo(() => allTaxIncluded(lineItems), [lineItems]);
+  const setTaxIncluded = useCallback((value: boolean) => {
+    setLineItems((prev) => prev.map((item) => ({ ...item, taxIncluded: value })));
+  }, []);
 
   useEffect(() => {
     if (!existingQuote) {
@@ -322,9 +349,8 @@ export function useRfqResponse(rfq: RfqDetail, vendorId: string, options?: UseRf
     let gstTotal = 0;
 
     for (const item of includedItems) {
-      const qty = safeFloat(item.availQty);
       const price = safeFloat(item.unitPrice);
-      const lineSubtotal = qty * price;
+      const lineSubtotal = quotedQty(item) * price;
       subtotal += lineSubtotal;
 
       const discountValue = safeFloat(item.discount || bulkDefaults.bulkDiscount);
@@ -334,6 +360,8 @@ export function useRfqResponse(rfq: RfqDetail, vendorId: string, options?: UseRf
           : (lineSubtotal * discountValue) / 100;
       discountTotal += lineDiscount;
 
+      // Tax-inclusive prices already carry the GST, so nothing is added on top.
+      if (item.taxIncluded) continue;
       const gstPercent = safeFloat(item.gst || bulkDefaults.bulkTax);
       const taxableAmount = lineSubtotal - lineDiscount;
       gstTotal += (taxableAmount * gstPercent) / 100;
@@ -390,7 +418,6 @@ export function useRfqResponse(rfq: RfqDetail, vendorId: string, options?: UseRf
     for (const item of included) {
       if (!item.unitPrice || safeFloat(item.unitPrice) <= 0) return 'response.validationUnitPrice';
       if (!item.availQty || safeFloat(item.availQty) <= 0) return 'response.validationAvailQty';
-      if (availExceedsRequested(item)) return 'response.validationAvailExceedsReq';
       if (!item.deliveryDate) return 'response.validationDeliveryDate';
       if (item.discount && safeFloat(item.discount) > 100) return 'response.validationDiscountMax';
       if (item.gst && safeFloat(item.gst) > 100) return 'response.validationGstMax';
@@ -410,7 +437,8 @@ export function useRfqResponse(rfq: RfqDetail, vendorId: string, options?: UseRf
         const lineItem: SubmitQuoteLineItemInput = {
           rfqLineItemId: item.rfqLineItemId,
           unitPrice: safeFloat(item.unitPrice),
-          quotedQuantity: safeFloat(item.availQty),
+          // The buyer is quoted for at most what they asked for.
+          quotedQuantity: quotedQty(item),
           deliveryDate: new Date(item.deliveryDate).toISOString(),
         };
 
@@ -418,10 +446,8 @@ export function useRfqResponse(rfq: RfqDetail, vendorId: string, options?: UseRf
           lineItem.discount = safeFloat(item.discount);
           lineItem.discountType = item.discountType;
         }
-        if (item.gst) {
-          lineItem.tax = safeFloat(item.gst);
-          lineItem.taxIncluded = item.taxIncluded;
-        }
+        if (item.gst) lineItem.tax = safeFloat(item.gst);
+        if (item.gst || item.taxIncluded) lineItem.taxIncluded = item.taxIncluded;
         if (item.notes) {
           lineItem.notes = item.notes;
         }
@@ -542,6 +568,8 @@ export function useRfqResponse(rfq: RfqDetail, vendorId: string, options?: UseRf
     isEditMode,
     bulkDefaults,
     setBulkField,
+    taxIncluded,
+    setTaxIncluded,
     bulkExpanded,
     setBulkExpanded,
     lineItems,

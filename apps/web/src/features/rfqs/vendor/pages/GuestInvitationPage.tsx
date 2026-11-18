@@ -212,12 +212,7 @@ function GuestResponseContent({ rfq, token }: { rfq: GuestRfqDetail; token: stri
                 <li key={i}>
                   {err.type === 'NO_ITEMS'
                     ? t('guest.validationNoItems')
-                    : err.type === 'AVAIL_EXCEEDS_REQ'
-                      ? t('guest.validationAvailExceedsReq', {
-                          material: err.material,
-                          requested: err.requested,
-                        })
-                      : t('guest.validationLineItem', { material: err.material })}
+                    : t('guest.validationLineItem', { material: err.material })}
                 </li>
               ))}
             </ul>
@@ -267,6 +262,8 @@ function GuestResponseContent({ rfq, token }: { rfq: GuestRfqDetail; token: stri
             <BulkLevelDefaults
               bulkDefaults={form.bulkDefaults}
               onFieldChange={form.setBulkField}
+              taxIncluded={form.taxIncluded}
+              onTaxIncludedChange={form.setTaxIncluded}
               expanded={form.bulkExpanded}
               onToggleExpanded={form.setBulkExpanded}
               warehouses={[]}
