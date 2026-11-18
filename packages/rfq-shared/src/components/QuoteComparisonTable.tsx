@@ -32,12 +32,13 @@ import PlusIcon from '@forethread/ui-components/assets/icons/plus.svg?react';
 import PlusInCircleIcon from '@forethread/ui-components/assets/icons/plus-in-circle.svg?react';
 import SettingsIcon from '@forethread/ui-components/assets/icons/settings.svg?react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { PO_CREATE_ROUTE, RFQ_ROUTES } from '../constants/routes';
 import { useDropdown } from '../hooks/useDropdown';
 import { useApproveQuote } from '../hooks/useApproveQuote';
+import { NOTE_POPOVER_ATTR, useDismissNotePopover } from '../hooks/useDismissNotePopover';
 import { useRfqQuoteComparison, useUpdateQuoteLineItemStatuses } from '../hooks/useRfqs';
 import { buildSplitAllocations, findOverAllocatedLineIds } from '../utils/splitAward';
 
@@ -225,6 +226,8 @@ export function QuoteComparisonTable({
   const [selection, setSelection] = useState<Map<string, SelectedLine>>(new Map());
   const [orderQuantities, setOrderQuantities] = useState<Map<string, string>>(new Map());
   const [openNoteCell, setOpenNoteCell] = useState<string | null>(null);
+  const closeNote = useCallback(() => setOpenNoteCell(null), []);
+  useDismissNotePopover(openNoteCell !== null, closeNote);
   const [startOrder, setStartOrder] = useState<StartOrderKind | null>(null);
 
   const groupDropdown = useDropdown();
@@ -825,7 +828,7 @@ export function QuoteComparisonTable({
       </button>
     );
     const noteButton = (
-      <span className="relative inline-flex">
+      <span className="relative inline-flex" {...{ [NOTE_POPOVER_ATTR]: '' }}>
         <button
           type="button"
           title={t('reviewTable.viewNote')}

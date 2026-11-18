@@ -26,6 +26,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 
 import { useApproveQuote } from '../hooks/useApproveQuote';
+import { NOTE_POPOVER_ATTR, useDismissNotePopover } from '../hooks/useDismissNotePopover';
 import { useMessageThread, type ThreadMessage } from '../hooks/useMessageThread';
 import {
   useQuoteDetail,
@@ -422,6 +423,8 @@ function QuoteLineItemsTab({
   const currency = comparison?.currency ?? 'AUD';
   const lineStatusMutation = useUpdateQuoteLineItemStatuses(rfqId);
   const [openNoteLine, setOpenNoteLine] = useState<string | null>(null);
+  const closeNote = useCallback(() => setOpenNoteLine(null), []);
+  useDismissNotePopover(openNoteLine !== null, closeNote);
 
   // Lines this vendor priced lowest across all received quotes (green + tag).
   const lowestLineIds = new Set(
@@ -469,7 +472,7 @@ function QuoteLineItemsTab({
 
   function renderActions(li: QuoteResponseLineItem) {
     const noteButton = (
-      <span className="relative inline-flex">
+      <span className="relative inline-flex" {...{ [NOTE_POPOVER_ATTR]: '' }}>
         <button
           type="button"
           title={t('reviewTable.viewNote')}
