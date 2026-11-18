@@ -155,6 +155,11 @@ export const BULK_TO_LINE_FIELD: Partial<Record<keyof BulkDefaults, keyof LineIt
  * every line, overwriting whatever the line held — the vendor can still adjust
  * single lines afterwards. Clearing the bulk field only clears the lines that
  * still hold the old bulk value, so per-line edits survive.
+ *
+ * Bulk availability is the exception: quantities differ per line (and may have
+ * been read from the vendor's PDF), so it only fills lines that are still empty
+ * or still hold the previous bulk value — the latter keeps a number typed digit
+ * by digit in sync.
  */
 export function applyBulkDefaultToLines(
   items: LineItemFormState[],
@@ -165,7 +170,10 @@ export function applyBulkDefaultToLines(
   const lineField = BULK_TO_LINE_FIELD[field];
   if (!lineField) return items;
   return items.map((item) => {
-    if (value === '' && (item[lineField] as string) !== oldValue) return item;
+    const current = item[lineField] as string;
+    const seeded = current === oldValue;
+    if (value === '' && !seeded) return item;
+    if (field === 'bulkAvailability' && current !== '' && !seeded) return item;
     // A bulk discount is a percentage, so pin the line's discount mode too.
     if (lineField === 'discount' && value !== '') {
       return { ...item, discount: value, discountType: 'PERCENT' as const };

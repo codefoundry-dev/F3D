@@ -112,7 +112,7 @@ describe('useGuestRfqResponse', () => {
     });
   });
 
-  it('applies a bulk value to every line, including ones the vendor edited', () => {
+  it('applies a bulk value to every line, but bulk availability only to empty ones', () => {
     const { result } = renderHook(() =>
       useGuestRfqResponse(makeGuestRfq(sampleLineItems), 'token-1'),
     );
@@ -126,10 +126,12 @@ describe('useGuestRfqResponse', () => {
       result.current.setBulkField('bulkDiscount', '20');
     });
     result.current.lineItems.forEach((item) => {
-      expect(item.availQty).toBe('25');
       expect(item.discount).toBe('20');
       expect(item.discountType).toBe('PERCENT');
     });
+    // Bulk availability only fills the lines that were still empty.
+    expect(result.current.lineItems[0].availQty).toBe('7');
+    expect(result.current.lineItems[1].availQty).toBe('25');
   });
 
   it('re-applies a bulk discount that was cleared and typed again', () => {
