@@ -57,6 +57,8 @@ export interface LoginFormProps {
   emailInputProps?: React.InputHTMLAttributes<HTMLInputElement>;
   /** Props to spread on the password input */
   passwordInputProps?: React.InputHTMLAttributes<HTMLInputElement>;
+  /** Optional "Remember me" control, shown left of the forgot-password link */
+  rememberDeviceSlot?: ReactNode;
 }
 
 export function LoginForm({
@@ -83,6 +85,7 @@ export function LoginForm({
   onSubmit,
   emailInputProps,
   passwordInputProps,
+  rememberDeviceSlot,
 }: LoginFormProps) {
   return (
     <AuthLayout
@@ -132,12 +135,15 @@ export function LoginForm({
             </FormField>
           </div>
 
-          <Link
-            to={forgotPasswordPath}
-            className="self-end text-[14px] font-semibold leading-none tracking-[0.3px] text-gray-800 underline underline-offset-[3px] hover:no-underline"
-          >
-            {forgotPasswordLabel}
-          </Link>
+          <div className="flex w-full flex-wrap items-center justify-between gap-3">
+            {rememberDeviceSlot ?? <span />}
+            <Link
+              to={forgotPasswordPath}
+              className="ml-auto text-[14px] font-semibold leading-none tracking-[0.3px] text-gray-800 underline underline-offset-[3px] hover:no-underline"
+            >
+              {forgotPasswordLabel}
+            </Link>
+          </div>
         </div>
 
         <Button

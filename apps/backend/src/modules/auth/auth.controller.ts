@@ -11,13 +11,22 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { IsEmail, IsString, MinLength, IsNotEmpty, Length } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Length,
+  MinLength,
+} from 'class-validator';
 import { Response } from 'express';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import {
   clearAuthCookies,
+  clearTrustedDeviceCookie,
   readTrustedDeviceCookie,
   setAuthCookies,
   setTrustedDeviceCookie,
@@ -36,6 +45,14 @@ export class LoginDto {
   @IsString()
   @MinLength(8)
   password!: string;
+
+  /**
+   * "Remember me for 30 days". Omitted = true. When false the sign-in code is
+   * asked for even on a browser that was remembered before.
+   */
+  @IsOptional()
+  @IsBoolean()
+  rememberDevice?: boolean;
 }
 
 export class VerifyOtpDto {
@@ -46,6 +63,14 @@ export class VerifyOtpDto {
   @IsString()
   @Length(6, 6)
   otp!: string;
+
+  /**
+   * "Remember me for 30 days". Omitted = true: this browser skips the code for
+   * the next 30 days. False: this browser is forgotten.
+   */
+  @IsOptional()
+  @IsBoolean()
+  rememberDevice?: boolean;
 }
 
 export class ResendOtpDto {
@@ -103,14 +128,15 @@ export class AuthController {
     @Request() req: { headers: Record<string, string | string[] | undefined> },
     @Res({ passthrough: true }) res: Response,
   ) {
-    const trustedToken = readTrustedDeviceCookie(req as never);
+    // With "Remember me" unchecked the browser's trust is ignored, so the code
+    // is asked for. The cookie is NOT renewed on a trusted sign-in: trust runs
+    // out 30 days after the code was last entered, not after the last sign-in.
+    const trustedToken =
+      dto.rememberDevice === false ? undefined : readTrustedDeviceCookie(req as never);
     const result = await this.authService.login(dto.email, dto.password, trustedToken);
 
     if (!result.otpRequired) {
-      // Trusted browser: no code needed. Renew the cookie alongside the
-      // server-side expiry so a browser in regular use stays trusted.
       setAuthCookies(res, result.tokens.accessToken, result.tokens.refreshToken, req as never);
-      if (trustedToken) setTrustedDeviceCookie(res, trustedToken, req as never);
       return { otpRequired: false };
     }
 
@@ -130,15 +156,18 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const userAgent = req.headers['user-agent'];
-    const tokens = await this.authService.verifyOtp(
-      dto.userId,
-      dto.otp,
-      typeof userAgent === 'string' ? userAgent : null,
-    );
+    const tokens = await this.authService.verifyOtp(dto.userId, dto.otp, {
+      userAgent: typeof userAgent === 'string' ? userAgent : null,
+      rememberDevice: dto.rememberDevice !== false,
+      previousTrustedDeviceToken: readTrustedDeviceCookie(req as never),
+    });
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken, req as never);
-    // This browser has now passed the code — remember it so the next sign-in
-    // from here skips the code.
-    setTrustedDeviceCookie(res, tokens.trustedDeviceToken, req as never);
+    if (tokens.trustedDeviceToken) {
+      // "Remember me" checked: sign-ins from here skip the code for 30 days.
+      setTrustedDeviceCookie(res, tokens.trustedDeviceToken, req as never);
+    } else {
+      clearTrustedDeviceCookie(res, req as never);
+    }
     return { success: true };
   }
 

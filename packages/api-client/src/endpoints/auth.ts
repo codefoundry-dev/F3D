@@ -7,11 +7,15 @@ import { AUTH_PATHS } from './paths';
 export interface LoginDto {
   email: string;
   password: string;
+  /** "Remember me for 30 days". Omitted = true. False forces the sign-in code. */
+  rememberDevice?: boolean;
 }
 
 export interface VerifyOtpDto {
   userId: string;
   otp: string;
+  /** "Remember me for 30 days". Omitted = true. False forgets this browser. */
+  rememberDevice?: boolean;
 }
 
 export interface ResendOtpDto {

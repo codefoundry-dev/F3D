@@ -88,14 +88,19 @@ export function readTrustedDeviceCookie(req: Request): string | undefined {
 }
 
 /**
- * Set (or renew) the trusted-browser cookie. Deliberately NOT cleared on logout:
- * signing out ends the session, but the browser stays known.
+ * Set the trusted-browser cookie. Deliberately NOT cleared on logout: signing
+ * out ends the session, but the browser stays known.
  */
 export function setTrustedDeviceCookie(res: Response, token: string, req: Request): void {
   res.cookie(trustedDeviceCookieName(req), token, {
     ...baseCookieOptions(),
     maxAge: TRUSTED_DEVICE_COOKIE_MAX_AGE,
   });
+}
+
+/** Forget this browser: the user signed in with "Remember me" unchecked. */
+export function clearTrustedDeviceCookie(res: Response, req: Request): void {
+  res.clearCookie(trustedDeviceCookieName(req), baseCookieOptions());
 }
 
 export function clearAuthCookies(res: Response, req: Request): void {

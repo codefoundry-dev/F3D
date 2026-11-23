@@ -80,6 +80,43 @@ describe('useVerifyOtp — post-OTP session bootstrap (FOR-244)', () => {
     expect(sessionStorage.getItem(OTP_KEY)).toBeNull();
   });
 
+  it('sends "Remember me" on by default (session saved before the checkbox existed)', async () => {
+    mockedVerifyOtp.mockResolvedValue({ success: true });
+    mockedGetMe.mockResolvedValue(USER);
+    const { result } = setup();
+
+    result.current.mutate({ userId: 'u1', otp: '123456' });
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'));
+    expect(mockedVerifyOtp).toHaveBeenCalledWith(
+      { userId: 'u1', otp: '123456', rememberDevice: true },
+      expect.anything(),
+    );
+  });
+
+  it('sends the "Remember me" choice made on the sign-in form', async () => {
+    sessionStorage.setItem(
+      OTP_KEY,
+      JSON.stringify({
+        userId: 'u1',
+        email: 'foreman@test.local',
+        otpExpiresAt: '',
+        rememberDevice: false,
+      }),
+    );
+    mockedVerifyOtp.mockResolvedValue({ success: true });
+    mockedGetMe.mockResolvedValue(USER);
+    const { result } = setup();
+
+    result.current.mutate({ userId: 'u1', otp: '123456' });
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'));
+    expect(mockedVerifyOtp).toHaveBeenCalledWith(
+      { userId: 'u1', otp: '123456', rememberDevice: false },
+      expect.anything(),
+    );
+  });
+
   it('when the post-OTP session load 401s, shows a session error and returns to login — not "invalid code"', async () => {
     mockedVerifyOtp.mockResolvedValue({ success: true });
     mockedGetMe.mockRejectedValue({ statusCode: 401 });

@@ -54,7 +54,7 @@ describe('TrustedDeviceService', () => {
       expect(prisma.trustedDevice.updateMany).not.toHaveBeenCalled();
     });
 
-    it('matches on this user, the token hash and a live expiry, and slides the expiry', async () => {
+    it('matches on this user, the token hash and a live expiry, and does NOT extend the expiry', async () => {
       prisma.trustedDevice.updateMany.mockResolvedValue({ count: 1 });
 
       expect(await service.isTrusted('user-1', 'browser-token')).toBe(true);
@@ -65,14 +65,21 @@ describe('TrustedDeviceService', () => {
         tokenHash: sha256('browser-token'),
         expiresAt: { gt: expect.any(Date) },
       });
-      expect((data.expiresAt as Date).getTime()).toBeGreaterThan(
-        Date.now() + TRUSTED_DEVICE_TTL_MS - 5000,
-      );
+      // Trust runs out 30 days after the code was entered, however often the
+      // browser signs in meanwhile.
+      expect(data).toEqual({ lastUsedAt: expect.any(Date) });
     });
 
     it('is false when nothing matches (unknown, expired, or another user)', async () => {
       prisma.trustedDevice.updateMany.mockResolvedValue({ count: 0 });
       expect(await service.isTrusted('user-2', 'browser-token')).toBe(false);
+    });
+  });
+
+  it('revoke forgets only this browser for this user', async () => {
+    await service.revoke('user-1', 'browser-token');
+    expect(prisma.trustedDevice.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1', tokenHash: sha256('browser-token') },
     });
   });
 

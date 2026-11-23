@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../prisma/prisma.service';
 
-/** How long a browser stays trusted after it was last used to sign in. */
+/** How long a browser stays trusted after the sign-in code was entered on it. */
 export const TRUSTED_DEVICE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 const hashToken = (token: string): string =>
@@ -38,18 +38,23 @@ export class TrustedDeviceService {
   }
 
   /**
-   * Whether `token` is a live trusted-browser token for this user. A match
-   * slides the expiry forward, so a browser in regular use stays trusted and
-   * one left unused for the TTL has to pass the code again.
+   * Whether `token` is a live trusted-browser token for this user. The expiry
+   * is fixed when the code is entered and NOT extended by later sign-ins, so
+   * the code is asked for again 30 days after it was last entered.
    */
   async isTrusted(userId: string, token: string | null | undefined): Promise<boolean> {
     if (!token) return false;
     const now = new Date();
     const { count } = await this.prisma.trustedDevice.updateMany({
       where: { userId, tokenHash: hashToken(token), expiresAt: { gt: now } },
-      data: { lastUsedAt: now, expiresAt: new Date(now.getTime() + TRUSTED_DEVICE_TTL_MS) },
+      data: { lastUsedAt: now },
     });
     return count > 0;
+  }
+
+  /** Forget one browser for a user (its cookie token). */
+  async revoke(userId: string, token: string): Promise<void> {
+    await this.prisma.trustedDevice.deleteMany({ where: { userId, tokenHash: hashToken(token) } });
   }
 
   /** Forget every trusted browser for a user (e.g. after a password reset). */

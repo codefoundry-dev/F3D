@@ -32,6 +32,8 @@ export interface OtpSession {
   userId: string;
   email: string;
   otpExpiresAt: string;
+  /** The "Remember me for 30 days" choice from the sign-in form. */
+  rememberDevice?: boolean;
 }
 
 function makeOtpHelpers(otpSessionKey: string) {
@@ -129,6 +131,7 @@ export function createAuthHooks(otpSessionKey: string, useAuthStore: UseAuthStor
           userId: data.userId,
           email: variables.email,
           otpExpiresAt: data.otpExpiresAt,
+          rememberDevice: variables.rememberDevice !== false,
         });
         notificationService.info(t('auth:resendToast'));
         navigate('/verify-otp');
@@ -163,7 +166,13 @@ export function createAuthHooks(otpSessionKey: string, useAuthStore: UseAuthStor
     const setAuth = useAuthStore((s) => s.setAuth);
 
     return useMutation({
-      mutationFn: (dto: VerifyOtpDto) => verifyOtp(dto, { skipErrorHandler: true }),
+      // Carry the "Remember me" choice made on the sign-in form through to the
+      // code step, where the backend decides whether to trust this browser.
+      mutationFn: (dto: VerifyOtpDto) =>
+        verifyOtp(
+          { rememberDevice: loadOtpSession()?.rememberDevice ?? true, ...dto },
+          { skipErrorHandler: true },
+        ),
       onSuccess: async () => {
         // The OTP was correct and the backend has set the auth cookies. Bootstrapping
         // the user can still fail (e.g. the session cookie didn't stick) — that's a
