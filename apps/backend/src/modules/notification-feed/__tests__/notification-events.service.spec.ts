@@ -29,7 +29,24 @@ describe('NotificationEventsService', () => {
     const n = sample();
     service.emit('user-1', n);
 
-    expect(listener).toHaveBeenCalledWith(n);
+    expect(listener).toHaveBeenCalledWith({ event: 'notification', data: n });
+  });
+
+  it('pushes a message-activity frame to each listed user once', () => {
+    const a = jest.fn();
+    const b = jest.fn();
+    const other = jest.fn();
+    service.subscribe('user-a', a);
+    service.subscribe('user-b', b);
+    service.subscribe('user-c', other);
+    const activity = { threadId: 't-1', contextType: 'QUOTE_RESPONSE', contextId: 'q-1' };
+
+    service.emitMessageActivity(['user-a', 'user-b', 'user-a'], activity);
+
+    expect(a).toHaveBeenCalledTimes(1);
+    expect(a).toHaveBeenCalledWith({ event: 'message', data: activity });
+    expect(b).toHaveBeenCalledWith({ event: 'message', data: activity });
+    expect(other).not.toHaveBeenCalled();
   });
 
   it('does not deliver to a different user', () => {
