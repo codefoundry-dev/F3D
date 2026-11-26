@@ -1,4 +1,4 @@
-import { exportPurchaseOrders } from '@forethread/api-client';
+import { exportSinglePo } from '@forethread/api-client';
 import { ApproverPoolPanel } from '@forethread/approval-shared';
 import { useTranslation } from '@forethread/i18n';
 import {
@@ -217,9 +217,7 @@ export default function PurchaseOrderDetailPage() {
           label: t('actions.exportAs'),
           icon: <DownloadIcon className="w-4 h-4" />,
           onClick: () => {
-            void exportPurchaseOrders('pdf', { search: po.id }).then(({ url }) =>
-              window.open(url, '_blank'),
-            );
+            void exportSinglePo(po.id, 'pdf').then(({ url }) => window.open(url, '_blank'));
           },
         },
         ...(canChange

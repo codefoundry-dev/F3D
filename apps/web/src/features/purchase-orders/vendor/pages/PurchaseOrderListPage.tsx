@@ -1,5 +1,5 @@
 import type { PoListItem } from '@forethread/api-client';
-import { exportPurchaseOrders } from '@forethread/api-client';
+import { exportSinglePo } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
   VENDOR_COLUMNS,
@@ -293,9 +293,7 @@ export default function PurchaseOrderListPage() {
                 key: 'downloadPdf',
                 label: t('actions.downloadPdf'),
                 onClick: () => {
-                  void exportPurchaseOrders('pdf', { search: po.id }).then(({ url }) =>
-                    window.open(url, '_blank'),
-                  );
+                  void exportSinglePo(po.id, 'pdf').then(({ url }) => window.open(url, '_blank'));
                 },
               },
             ]}

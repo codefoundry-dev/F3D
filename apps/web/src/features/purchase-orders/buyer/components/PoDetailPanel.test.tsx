@@ -1,5 +1,5 @@
 const mockNavigate = vi.hoisted(() => vi.fn());
-const mockExportPurchaseOrders = vi.hoisted(() =>
+const mockExportSinglePo = vi.hoisted(() =>
   vi.fn().mockResolvedValue({ url: 'https://example.com/file.pdf' }),
 );
 const mockPoData = vi.hoisted(() => ({
@@ -19,7 +19,7 @@ const mockPoData = vi.hoisted(() => ({
 }));
 
 vi.mock('@forethread/api-client', () => ({
-  exportPurchaseOrders: mockExportPurchaseOrders,
+  exportSinglePo: mockExportSinglePo,
 }));
 
 vi.mock('@forethread/i18n', () => ({
@@ -180,7 +180,7 @@ describe('PoDetailPanel', () => {
   it('download button calls export on details tab', () => {
     render(<PoDetailPanel poId="po-1" onClose={onClose} />);
     fireEvent.click(screen.getByTitle('actions.download'));
-    expect(mockExportPurchaseOrders).toHaveBeenCalledWith('pdf', { search: 'po-1' });
+    expect(mockExportSinglePo).toHaveBeenCalledWith('po-1', 'pdf');
   });
 
   it('hides download button on non-details tab', () => {

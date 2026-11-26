@@ -69,12 +69,12 @@ vi.mock('@forethread/rfq-shared', () => ({
   usePageTitleStore: () => vi.fn(),
 }));
 
-const mockExportPurchaseOrders = vi.fn((_id: string, _format: string) =>
+const mockExportSinglePo = vi.fn((_id: string, _format: string) =>
   Promise.resolve({ url: 'https://example.com/pdf' }),
 );
 
 vi.mock('@forethread/api-client', () => ({
-  exportPurchaseOrders: (id: string, format: string) => mockExportPurchaseOrders(id, format),
+  exportSinglePo: (id: string, format: string) => mockExportSinglePo(id, format),
   getVendorProfile: () => Promise.resolve({ warehouseLocations: [] }),
 }));
 
@@ -188,7 +188,7 @@ describe('PurchaseOrderDetailPage', () => {
   it('clicking download button triggers export', () => {
     renderWithProviders(<PurchaseOrderDetailPage />);
     fireEvent.click(screen.getByText('actions.exportAs'));
-    expect(mockExportPurchaseOrders).toHaveBeenCalledWith('pdf', { search: 'po-123' });
+    expect(mockExportSinglePo).toHaveBeenCalledWith('po-123', 'pdf');
   });
 
   it('renders lineItems tab when selected', () => {

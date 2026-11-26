@@ -2,7 +2,7 @@ import type { PoListItem, RfqListItem, BulkOrderListItem } from '@forethread/api
 import {
   archivePurchaseOrder,
   copyPurchaseOrder,
-  exportPurchaseOrders,
+  exportSinglePo,
   getRfq,
   getBulkOrder,
 } from '@forethread/api-client';
@@ -370,9 +370,7 @@ export default function PurchaseOrderListPage() {
                 key: 'downloadPdf',
                 label: t('actions.downloadPdf'),
                 onClick: () => {
-                  void exportPurchaseOrders('pdf', { search: po.id }).then(({ url }) =>
-                    window.open(url, '_blank'),
-                  );
+                  void exportSinglePo(po.id, 'pdf').then(({ url }) => window.open(url, '_blank'));
                 },
               },
             ]}
