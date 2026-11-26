@@ -189,8 +189,10 @@ export function ResponseLineItemsTable({
         <h2 className="text-base font-medium text-foreground">{t('response.lineItems')}</h2>
       </div>
 
+      {/* min-w = the sum of the column widths below: narrower viewports scroll
+          sideways instead of squeezing the inputs to nothing (GST went to ~13px). */}
       <ScrollTable className="p-4">
-        <table className="min-w-[1120px] w-full text-sm border border-border rounded-lg">
+        <table className="min-w-[1240px] w-full text-sm border border-border rounded-lg">
           <thead>
             <tr className="border-b border-border text-left bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
               <th className={cn(TH_CLASS, 'w-[64px]')}>{t('response.incl')}</th>
@@ -199,8 +201,8 @@ export function ResponseLineItemsTable({
               <th className={cn(TH_CLASS, 'w-[112px]')}>{t('response.reqQty')}</th>
               <th className={cn(TH_CLASS, 'w-[112px]')}>{t('response.availQty')}</th>
               <th className={cn(TH_CLASS, 'w-[112px]')}>{t('response.unitPrice')}</th>
-              <th className={cn(TH_CLASS, 'w-[88px]')}>{t('response.discount')}</th>
-              <th className={cn(TH_CLASS, 'w-[88px]')}>{t('response.gst')}</th>
+              <th className={cn(TH_CLASS, 'w-[96px]')}>{t('response.discount')}</th>
+              <th className={cn(TH_CLASS, 'w-[96px]')}>{t('response.gst')}</th>
               <th className={cn(TH_CLASS, 'w-[148px]')}>{t('response.deliveryDate')}</th>
               <th className={cn(TH_CLASS, 'w-[120px]')}>{t('response.lineTotal')}</th>
               <th className="py-2.5 px-3 text-xs font-bold whitespace-nowrap tracking-wide w-[92px] text-right">
@@ -368,13 +370,15 @@ function LineItemRow({
         </td>
 
         {/* Unit Price */}
-        <td className={cn(TD_CLASS, 'overflow-clip')}>{fields.unitPrice.input(item, index)}</td>
+        <td className={cn(TD_CLASS, 'px-1 overflow-clip')}>
+          {fields.unitPrice.input(item, index)}
+        </td>
 
         {/* Discount */}
-        <td className={cn(TD_CLASS, 'overflow-clip')}>{fields.discount.input(item, index)}</td>
+        <td className={cn(TD_CLASS, 'px-1 overflow-clip')}>{fields.discount.input(item, index)}</td>
 
         {/* GST */}
-        <td className={cn(TD_CLASS, 'overflow-clip')}>{fields.gst.input(item, index)}</td>
+        <td className={cn(TD_CLASS, 'px-1 overflow-clip')}>{fields.gst.input(item, index)}</td>
 
         {/* Delivery Date */}
         <td className={TD_CLASS}>{fields.deliveryDate.input(item, index)}</td>
