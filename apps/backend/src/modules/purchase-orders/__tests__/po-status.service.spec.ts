@@ -2668,6 +2668,21 @@ describe('PoStatusService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
+    it('does not let a user with no company read a vendorless PO (null === null)', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({ ...auditPo, vendorId: null });
+      await expect(
+        service.getAuditTrail('po-1', { ...companyAdmin, companyId: null } as never),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.auditLog.findMany).not.toHaveBeenCalled();
+    });
+
+    it("does not let a buyer whose company is the PO's vendor read it as the vendor", async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(auditPo);
+      await expect(
+        service.getAuditTrail('po-1', { ...companyAdmin, companyId: 'vendor-comp-1' }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
     it('returns entries oldest-first for the owning contractor company', async () => {
       mockPrisma.purchaseOrder.findUnique.mockResolvedValue(auditPo);
       mockPrisma.auditLog.findMany.mockResolvedValue([

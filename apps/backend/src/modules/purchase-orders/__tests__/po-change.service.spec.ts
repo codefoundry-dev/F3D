@@ -755,6 +755,18 @@ describe('PoChangeService', () => {
   // ── listChangeRequests ────────────────────────────────────────────────────
 
   describe('listChangeRequests', () => {
+    it('denies a vendor user with no company on a PO that has no vendor yet', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
+        id: 'po-1',
+        companyId: 'comp-1',
+        vendorId: null,
+      });
+      await expect(
+        service.listChangeRequests('po-1', { ...vendorUser, companyId: null } as never),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.poChangeRequest.findMany).not.toHaveBeenCalled();
+    });
+
     it('throws NotFoundException when PO not found', async () => {
       mockPrisma.purchaseOrder.findUnique.mockResolvedValue(null);
       await expect(service.listChangeRequests('missing', vendorUser)).rejects.toThrow(

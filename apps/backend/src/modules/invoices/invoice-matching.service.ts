@@ -323,9 +323,8 @@ export class InvoiceMatchingService {
     const targetPoId = poId ?? invoice.relatedPoId;
     if (!targetPoId) throw new NotFoundException(ERR.purchaseOrders.notFound);
 
-    // getPurchaseOrder does no company scoping of its own (read access is
-    // normally gated at the PO controller), so the invoice link IS the
-    // authorisation here — the PO must belong to the invoice's company.
+    // The PO must belong to the invoice's company: a PO the caller could read
+    // for another reason (e.g. as its vendor) is still not this invoice's PO.
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id: targetPoId },
       select: { id: true, companyId: true },

@@ -2,7 +2,7 @@ import { PoListQueryDto, PoQuickFilter } from '@forethread/shared-types';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 
-import { PurchaseOrdersService } from '../purchase-orders.service';
+import { PurchaseOrdersService, canReadPurchaseOrder } from '../purchase-orders.service';
 
 /** Build a query object that satisfies the DTO (including computed skip/take). */
 function q(overrides: Partial<PoListQueryDto> = {}): PoListQueryDto {
@@ -536,6 +536,47 @@ describe('PurchaseOrdersService', () => {
     });
   });
 
+  describe('getPurchaseOrder – company access', () => {
+    const scope = { companyId: 'comp-1', vendorId: 'vendor-comp-1' };
+
+    it('rejects a user from another company before loading the detail', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValueOnce(scope);
+      await expect(
+        service.getPurchaseOrder('po-1', { ...companyAdmin, companyId: 'comp-2' } as never),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.purchaseOrder.findUnique).toHaveBeenCalledTimes(1);
+    });
+
+    it("rejects a vendor that is not the PO's vendor", async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValueOnce({ ...scope, vendorId: 'other-v' });
+      await expect(service.getPurchaseOrder('po-1', vendor as never)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('throws NotFound for an unknown PO', async () => {
+      mockPrisma.purchaseOrder.findUnique.mockResolvedValueOnce(null);
+      await expect(service.getPurchaseOrder('nope', companyAdmin as never)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('canReadPurchaseOrder: owner company, own vendor and super admin only', () => {
+      expect(canReadPurchaseOrder(scope, companyAdmin)).toBe(true);
+      expect(canReadPurchaseOrder(scope, vendor)).toBe(true);
+      expect(canReadPurchaseOrder(scope, superAdmin)).toBe(true);
+      expect(canReadPurchaseOrder(scope, { ...companyAdmin, companyId: 'comp-2' })).toBe(false);
+      // A vendor never matches on the buyer side, even with the buyer's company id.
+      expect(canReadPurchaseOrder(scope, { ...vendor, companyId: 'comp-1' })).toBe(false);
+      // A buyer whose company happens to be the PO's vendor is not the vendor.
+      expect(canReadPurchaseOrder(scope, { ...companyAdmin, companyId: 'vendor-comp-1' })).toBe(
+        false,
+      );
+      expect(canReadPurchaseOrder(scope, { ...companyAdmin, companyId: null })).toBe(false);
+      expect(canReadPurchaseOrder({ ...scope, vendorId: null }, vendor)).toBe(false);
+    });
+  });
+
   describe('getPurchaseOrder', () => {
     it('returns PO detail', async () => {
       mockPrisma.purchaseOrder.findUnique.mockResolvedValue({
@@ -574,6 +615,8 @@ describe('PurchaseOrdersService', () => {
         updatedAt: new Date('2026-03-01'),
         project: { name: 'Alpha' },
         vendor: { id: 'v-1', legalName: 'VendorCo' },
+        companyId: 'comp-1',
+        vendorId: 'v-1',
         company: { id: 'comp-1', legalName: 'TestCo' },
         createdBy: { id: 'po-1', name: 'PO User' },
         approvedBy: null,
@@ -633,6 +676,8 @@ describe('PurchaseOrdersService', () => {
         updatedAt: new Date('2026-03-01'),
         project: { name: 'Beta' },
         vendor: { id: 'v-1', legalName: 'VendorCo' },
+        companyId: 'comp-1',
+        vendorId: 'v-1',
         company: { id: 'comp-1', legalName: 'TestCo' },
         createdBy: { id: 'ca-1', name: 'CA User' },
         approvedBy: null,
@@ -690,6 +735,8 @@ describe('PurchaseOrdersService', () => {
         updatedAt: new Date('2026-03-01'),
         project: { name: 'Alpha' },
         vendor: { id: 'v-1', legalName: 'VendorCo' },
+        companyId: 'comp-1',
+        vendorId: 'v-1',
         company: { id: 'comp-1', legalName: 'TestCo' },
         createdBy: { id: 'ca-1', name: 'CA User' },
         approvedBy: null,
@@ -747,6 +794,8 @@ describe('PurchaseOrdersService', () => {
         updatedAt: new Date('2026-03-01'),
         project: { name: 'Alpha' },
         vendor: null,
+        companyId: 'comp-1',
+        vendorId: 'v-1',
         company: { id: 'comp-1', legalName: 'TestCo' },
         createdBy: { id: 'ca-1', name: 'CA User' },
         approvedBy: null,
@@ -795,6 +844,8 @@ describe('PurchaseOrdersService', () => {
         updatedAt: new Date('2026-03-01'),
         project: { name: 'Alpha' },
         vendor: { id: 'v-1', legalName: 'VendorCo' },
+        companyId: 'comp-1',
+        vendorId: 'v-1',
         company: { id: 'comp-1', legalName: 'TestCo' },
         createdBy: { id: 'u-1', name: 'PO User' },
         approvedBy: { id: 'u-2', name: 'Admin' },
@@ -999,6 +1050,8 @@ describe('PurchaseOrdersService', () => {
     updatedAt: new Date('2026-03-01'),
     project: { name: 'Alpha' },
     vendor: { id: 'v-1', legalName: 'VendorCo' },
+    companyId: 'comp-1',
+    vendorId: 'v-1',
     company: { id: 'comp-1', legalName: 'TestCo' },
     createdBy: { id: 'ca-1', name: 'CA User' },
     approvedBy: null,
@@ -1558,7 +1611,7 @@ describe('PurchaseOrdersService', () => {
           companyId: 'comp-1',
           projectId: 'proj-1',
         })
-        .mockResolvedValueOnce(fullPoDetail);
+        .mockResolvedValue(fullPoDetail);
       mockPrisma.purchaseOrder.update.mockResolvedValue({});
       const result = await service.updatePurchaseOrder(
         'po-1',
@@ -1586,7 +1639,7 @@ describe('PurchaseOrdersService', () => {
           companyId: 'comp-1',
           projectId: 'proj-1',
         })
-        .mockResolvedValueOnce(fullPoDetail);
+        .mockResolvedValue(fullPoDetail);
       mockPrisma.$transaction.mockResolvedValue([{}, {}]);
       const dto = {
         lineItems: [
@@ -1613,7 +1666,7 @@ describe('PurchaseOrdersService', () => {
           companyId: 'other',
           projectId: 'proj-1',
         })
-        .mockResolvedValueOnce(fullPoDetail);
+        .mockResolvedValue(fullPoDetail);
       mockPrisma.purchaseOrder.update.mockResolvedValue({});
       const result = await service.updatePurchaseOrder(
         'po-1',
@@ -1679,7 +1732,7 @@ describe('PurchaseOrdersService', () => {
           projectId: 'proj-1',
         })
         .mockResolvedValueOnce({ deadlineStart: new Date('2026-04-01') })
-        .mockResolvedValueOnce(fullPoDetail);
+        .mockResolvedValue(fullPoDetail);
       mockPrisma.purchaseOrder.update.mockResolvedValue({});
       const result = await service.updatePurchaseOrder(
         'po-1',
@@ -1697,7 +1750,7 @@ describe('PurchaseOrdersService', () => {
           companyId: 'comp-1',
           projectId: 'proj-1',
         })
-        .mockResolvedValueOnce(fullPoDetail);
+        .mockResolvedValue(fullPoDetail);
       mockPrisma.projectLocation.findUnique.mockResolvedValue({
         id: 'loc-1',
         projectId: 'proj-1',
@@ -1719,7 +1772,7 @@ describe('PurchaseOrdersService', () => {
           companyId: 'comp-1',
           projectId: 'proj-1',
         })
-        .mockResolvedValueOnce(fullPoDetail);
+        .mockResolvedValue(fullPoDetail);
       mockPrisma.projectLocation.findMany.mockResolvedValue([{ id: 'loc-1' }]);
       mockPrisma.$transaction.mockResolvedValue([{}, {}, {}]);
 
@@ -1751,7 +1804,7 @@ describe('PurchaseOrdersService', () => {
           companyId: 'comp-1',
           projectId: 'proj-1',
         })
-        .mockResolvedValueOnce(fullPoDetail);
+        .mockResolvedValue(fullPoDetail);
       mockPrisma.projectLocation.findMany.mockResolvedValue([{ id: 'loc-1' }]);
       mockPrisma.$transaction.mockResolvedValue([{}, {}]);
 
@@ -2065,6 +2118,8 @@ describe('PurchaseOrdersService', () => {
       updatedAt: new Date('2026-03-01'),
       project: { name: 'Alpha' },
       vendor: null,
+      companyId: 'comp-1',
+      vendorId: 'v-1',
       company: { id: 'comp-1', legalName: 'TestCo' },
       createdBy: { id: 'u-1', name: 'User' },
       approvedBy: null,
@@ -2211,7 +2266,7 @@ describe('PurchaseOrdersService', () => {
           companyId: 'comp-1',
           projectId: 'proj-1',
         })
-        .mockResolvedValueOnce(fullPoDetail);
+        .mockResolvedValue(fullPoDetail);
       mockPrisma.$transaction.mockResolvedValue([{}, {}]);
 
       const dto = {
@@ -2280,7 +2335,7 @@ describe('PurchaseOrdersService', () => {
           companyId: 'comp-1',
           projectId: 'proj-1',
         })
-        .mockResolvedValueOnce(fullPoDetail);
+        .mockResolvedValue(fullPoDetail);
       mockPrisma.purchaseOrder.update.mockResolvedValue({});
 
       const dto = {
