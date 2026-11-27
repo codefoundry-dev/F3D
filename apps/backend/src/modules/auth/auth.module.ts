@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { JwtModule } from '@nestjs/jwt';
+import { JwtModule, type JwtSignOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 
 import { PrismaModule } from '../../prisma/prisma.module';
@@ -24,7 +24,11 @@ import { TrustedDeviceService } from './trusted-device.service';
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('JWT_ACCESS_SECRET'),
         signOptions: {
-          expiresIn: config.get<string>('JWT_ACCESS_EXPIRES_IN', '24h'),
+          // @nestjs/jwt 11 types this as ms's StringValue; env values like '24h' are valid.
+          expiresIn: config.get<string>(
+            'JWT_ACCESS_EXPIRES_IN',
+            '24h',
+          ) as JwtSignOptions['expiresIn'],
         },
       }),
     }),

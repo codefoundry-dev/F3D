@@ -73,7 +73,7 @@ export default function RfqDetailPage() {
       size="md"
       className="h-[42px]"
       leftIcon={<PaperPlaneIcon className="w-4 h-4" />}
-      onClick={() => navigate(ROUTES.rfqResponse.replace(':id', rfq.id))}
+      onClick={() => void navigate(ROUTES.rfqResponse.replace(':id', rfq.id))}
       disabled={!canCreate && !canEdit}
     >
       {canEdit ? t('actions.editResponse') : t('actions.response')}

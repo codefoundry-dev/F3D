@@ -19,7 +19,8 @@ export class ProjectAccessGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request & { user: AuthenticatedUser }>();
     const user = request.user;
-    const projectId = request.params.id;
+    // Express 5 types route params as string | string[]; `:id` is always a single string.
+    const projectId = request.params.id as string | undefined;
 
     // List endpoints handle scoping in the service layer
     if (!projectId) return true;

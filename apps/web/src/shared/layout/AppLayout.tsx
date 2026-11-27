@@ -76,12 +76,12 @@ export function AppLayout() {
     {
       label: t('nav:home', { defaultValue: 'Home' }),
       icon: <HomeIcon className="size-4 text-gray-700" />,
-      onClick: () => navigate(homePath),
+      onClick: () => void navigate(homePath),
     },
     ...(pageBreadcrumbs && pageBreadcrumbs.length > 0
       ? pageBreadcrumbs.map((c) => ({
           label: c.label,
-          onClick: c.to ? () => navigate(c.to as string) : undefined,
+          onClick: c.to ? () => void navigate(c.to as string) : undefined,
         }))
       : pageTitle
         ? [{ label: pageTitle }]
@@ -110,7 +110,7 @@ export function AppLayout() {
         className={`${moreRowClass} text-gray-700`}
         onClick={() => {
           setMoreOpen(false);
-          navigate(ROUTES.me);
+          void navigate(ROUTES.me);
         }}
       >
         <span className="flex size-6 items-center justify-center">
@@ -138,10 +138,10 @@ export function AppLayout() {
       <div className="sticky top-0 h-screen">
         <Sidebar
           items={sidebarItems}
-          onNavigate={navigate}
+          onNavigate={(href) => void navigate(href)}
           logo={<LogoIcon className="h-[34px] w-[34px]" />}
           companyName={t('common:appName', { defaultValue: 'Forethread' })}
-          onLogoClick={() => navigate(homePathForRole(role))}
+          onLogoClick={() => void navigate(homePathForRole(role))}
           mobilePrimaryHrefs={getMobilePrimaryHrefs(role)}
           moreLabel={t('nav:more', { defaultValue: 'More' })}
           moreExtras={moreExtras}
@@ -159,7 +159,7 @@ export function AppLayout() {
               <button
                 type="button"
                 aria-label={t('common:back', { defaultValue: 'Back' })}
-                onClick={() => (mobileExit ? mobileExit() : backTo && navigate(backTo))}
+                onClick={() => (mobileExit ? mobileExit() : backTo && void navigate(backTo))}
                 className="-ml-2 flex size-10 shrink-0 items-center justify-center rounded-full text-gray-700 hover:bg-gray-50"
               >
                 <ChevronRightIcon className="size-5 rotate-180" />
@@ -212,7 +212,7 @@ export function AppLayout() {
                   <button
                     type="button"
                     className="w-full text-left px-4 py-2 text-sm text-card-foreground hover:bg-gray-50"
-                    onClick={() => navigate(ROUTES.me)}
+                    onClick={() => void navigate(ROUTES.me)}
                   >
                     {t('auth:myProfile', { defaultValue: 'My profile' })}
                   </button>

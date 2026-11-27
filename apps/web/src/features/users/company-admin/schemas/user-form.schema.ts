@@ -6,7 +6,7 @@ export const createUserFormSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   email: z.string().email('Invalid email address'),
   role: z.enum(COMPANY_ROLE_OPTIONS, {
-    required_error: 'Role is required',
+    error: 'Role is required',
   }),
   // Position is optional per the Figma design (label shows "(optional)") and the
   // backend CreateUserDto (`position?: string`).
@@ -27,3 +27,5 @@ export const editUserFormSchema = z.object({
 });
 
 export type EditUserFormValues = z.infer<typeof editUserFormSchema>;
+/** What the form holds before validation fills the `.default('')` fields. */
+export type EditUserFormInput = z.input<typeof editUserFormSchema>;

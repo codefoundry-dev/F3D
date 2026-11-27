@@ -609,6 +609,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'po.list',
     'po.read',
     'po.export',
+    'po.exportSingle',
     'po.listChangeRequests',
 
     'materialRequest.list',

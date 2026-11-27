@@ -32,7 +32,7 @@ export default function MaterialDetailPage() {
     return (
       <div className="p-8">
         <Alert variant="destructive">{t('materialDetail.notFound')}</Alert>
-        <Button variant="outline" className="mt-4" onClick={() => navigate(-1)}>
+        <Button variant="outline" className="mt-4" onClick={() => void navigate(-1)}>
           {t('materialDetail.goBack')}
         </Button>
       </div>
@@ -41,7 +41,7 @@ export default function MaterialDetailPage() {
 
   return (
     <div className="p-4">
-      <Button variant="outline" size="sm" className="mb-6" onClick={() => navigate(-1)}>
+      <Button variant="outline" size="sm" className="mb-6" onClick={() => void navigate(-1)}>
         {t('materialDetail.goBack')}
       </Button>
 

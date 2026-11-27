@@ -15,7 +15,7 @@ const mockUsePoActionLog = vi.hoisted(() => vi.fn());
 const mockUseParams = vi.hoisted(() => vi.fn());
 const mockUseSearchParams = vi.hoisted(() => vi.fn());
 const mockNavigate = vi.hoisted(() => vi.fn());
-const mockExportPurchaseOrders = vi.hoisted(() => vi.fn());
+const mockExportSinglePo = vi.hoisted(() => vi.fn());
 const mockHasPermission = vi.hoisted(() => vi.fn(() => true));
 
 vi.mock('@forethread/i18n', () => ({
@@ -42,7 +42,7 @@ vi.mock('@/shared/role/usePermissions', () => ({
 }));
 
 vi.mock('@forethread/api-client', () => ({
-  exportPurchaseOrders: mockExportPurchaseOrders,
+  exportSinglePo: mockExportSinglePo,
 }));
 
 vi.mock('@forethread/po-shared', () => ({
@@ -231,16 +231,16 @@ describe('PurchaseOrderDetailPage', () => {
     expect(screen.getByText('actions.exportAs')).toBeInTheDocument();
   });
 
-  it('calls exportPurchaseOrders and opens URL on export button click', async () => {
+  it('calls exportSinglePo and opens URL on export button click', async () => {
     mockUsePurchaseOrder.mockReturnValue({ data: MOCK_PO, isLoading: false, isError: false });
-    mockExportPurchaseOrders.mockResolvedValue({ url: 'https://example.com/export.pdf' });
+    mockExportSinglePo.mockResolvedValue({ url: 'https://example.com/export.pdf' });
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
 
     render(<PurchaseOrderDetailPage />, { wrapper });
     fireEvent.click(screen.getByText('actions.exportAs'));
 
     await vi.waitFor(() => {
-      expect(mockExportPurchaseOrders).toHaveBeenCalledWith('pdf', { search: 'po-456' });
+      expect(mockExportSinglePo).toHaveBeenCalledWith('po-456', 'pdf');
     });
     await vi.waitFor(() => {
       expect(openSpy).toHaveBeenCalledWith('https://example.com/export.pdf', '_blank');

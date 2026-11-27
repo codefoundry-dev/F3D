@@ -91,8 +91,8 @@ export function ExpectedDeliveriesTab() {
     return [...map.entries()].map(([value, label]) => ({ value, label }));
   }, [items]);
 
-  const recordDelivery = (poId: string) => navigate(`${ROUTES.deliveryNew}?poId=${poId}`);
-  const viewPo = (poId: string) => navigate(ROUTES.purchaseOrderDetail.replace(':id', poId));
+  const recordDelivery = (poId: string) => void navigate(`${ROUTES.deliveryNew}?poId=${poId}`);
+  const viewPo = (poId: string) => void navigate(ROUTES.purchaseOrderDetail.replace(':id', poId));
 
   return (
     <div>

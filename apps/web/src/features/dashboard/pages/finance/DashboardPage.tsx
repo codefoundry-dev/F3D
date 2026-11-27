@@ -40,7 +40,7 @@ export default function DashboardPage() {
             pills; hardcoded so it stays dark in dark mode (--foreground flips). */}
         <button
           type="button"
-          onClick={() => navigate(ROUTES.invoices)}
+          onClick={() => void navigate(ROUTES.invoices)}
           className="flex items-center gap-2.5 rounded-xl bg-[#1B1D22] px-6 py-4 text-lg font-medium text-white transition-colors hover:bg-[#1B1D22]/90"
         >
           <UploadIcon className="w-6 h-6" />

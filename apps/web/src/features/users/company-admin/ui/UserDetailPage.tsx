@@ -253,7 +253,7 @@ export default function UserDetailPage() {
               onSuccess: () => {
                 closeCancelInvitationModal();
                 notificationService.success(t('cancelInvitationSuccess'));
-                navigate(ROUTES.users);
+                void navigate(ROUTES.users);
               },
             });
           }}

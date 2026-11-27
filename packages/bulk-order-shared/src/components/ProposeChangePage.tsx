@@ -131,7 +131,7 @@ export function ProposeChangePage({ isVendorView = false }: ProposeChangePagePro
     );
   }
 
-  const goBack = () => navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', id!));
+  const goBack = () => void navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', id!));
 
   const toggleRemove = (lineItemId: string) => {
     setRemovedItems((prev) => {

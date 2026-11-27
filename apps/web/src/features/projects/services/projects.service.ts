@@ -41,7 +41,7 @@ export function useCreateProject() {
     mutationFn: (dto: CreateProjectInput) => createProject(dto, { skipErrorHandler: true }),
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ['projects'] });
-      navigate(ROUTES.projectDetail.replace(':id', data.id));
+      void navigate(ROUTES.projectDetail.replace(':id', data.id));
     },
   });
 }

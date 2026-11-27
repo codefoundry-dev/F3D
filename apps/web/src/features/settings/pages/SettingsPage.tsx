@@ -126,7 +126,7 @@ export default function SettingsPage() {
               icon={item.icon}
               title={item.title}
               subtitle={item.subtitle}
-              onClick={() => navigate(item.route)}
+              onClick={() => void navigate(item.route)}
             />
           ))}
         </div>

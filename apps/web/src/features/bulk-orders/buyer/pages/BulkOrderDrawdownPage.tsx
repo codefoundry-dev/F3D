@@ -92,7 +92,7 @@ export default function BulkOrderDrawdownPage() {
   );
 
   const goToBulkOrder = useCallback(
-    () => navigate(ROUTES.bulkOrderDetail.replace(':id', bulkOrderId)),
+    () => void navigate(ROUTES.bulkOrderDetail.replace(':id', bulkOrderId)),
     [navigate, bulkOrderId],
   );
 

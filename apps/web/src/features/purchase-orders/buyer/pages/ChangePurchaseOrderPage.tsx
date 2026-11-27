@@ -58,7 +58,7 @@ export default function ChangePurchaseOrderPage() {
   const initialValues = useMemo(() => (po ? poToFormDefaults(po).defaultValues : undefined), [po]);
 
   const goToDetail = useCallback(
-    () => navigate(ROUTES.purchaseOrderDetail.replace(':id', poId)),
+    () => void navigate(ROUTES.purchaseOrderDetail.replace(':id', poId)),
     [navigate, poId],
   );
 

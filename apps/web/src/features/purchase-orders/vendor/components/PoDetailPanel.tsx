@@ -1,4 +1,4 @@
-import { exportPurchaseOrders } from '@forethread/api-client';
+import { exportSinglePo } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import {
   usePurchaseOrder,
@@ -59,7 +59,7 @@ export function PoDetailPanel({ poId, onClose }: PoDetailPanelProps) {
 
   const handleFullscreen = () => {
     onClose();
-    navigate(ROUTES.purchaseOrderDetail.replace(':id', poId));
+    void navigate(ROUTES.purchaseOrderDetail.replace(':id', poId));
   };
 
   const iconBtnClass =
@@ -99,9 +99,7 @@ export function PoDetailPanel({ poId, onClose }: PoDetailPanelProps) {
             className={iconBtnClass}
             title={t('actions.download')}
             onClick={() => {
-              void exportPurchaseOrders('pdf', { search: poId }).then(({ url }) =>
-                window.open(url, '_blank'),
-              );
+              void exportSinglePo(poId, 'pdf').then(({ url }) => window.open(url, '_blank'));
             }}
           >
             <DownloadIcon className="w-[18px] h-[18px]" />

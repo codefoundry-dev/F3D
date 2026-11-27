@@ -8,7 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import { UserRole, UserStatus } from '@prisma/client';
 import * as argon2 from 'argon2';
 
@@ -119,15 +119,21 @@ export class AuthService {
   }
 
   /**
-   * Step 2 of sign-in on a new browser. On success the browser becomes trusted:
-   * the returned `trustedDeviceToken` goes into its cookie so the next sign-in
-   * from it skips the code.
+   * Step 2 of sign-in on a new browser. With "Remember me" (the default) the
+   * browser becomes trusted for 30 days: the returned `trustedDeviceToken` goes
+   * into its cookie so sign-ins from it skip the code until then. Without it,
+   * any trust the browser held is revoked and `trustedDeviceToken` is null.
    */
   async verifyOtp(
     userId: string,
     otp: string,
-    userAgent?: string | null,
-  ): Promise<TokenPair & { trustedDeviceToken: string }> {
+    options: {
+      userAgent?: string | null;
+      rememberDevice?: boolean;
+      /** Token from the browser's existing trusted-device cookie, if any. */
+      previousTrustedDeviceToken?: string | null;
+    } = {},
+  ): Promise<TokenPair & { trustedDeviceToken: string | null }> {
     const isValid = await this.otpService.verifyOtp(userId, otp);
 
     if (!isValid) {
@@ -144,7 +150,16 @@ export class AuthService {
     }
 
     const tokens = await this.startSession(user);
-    const trustedDeviceToken = await this.trustedDevices.trust(user.id, userAgent);
+
+    // A fresh code entry replaces whatever this browser held before, so the
+    // stale row doesn't linger until its own expiry.
+    if (options.previousTrustedDeviceToken) {
+      await this.trustedDevices.revoke(user.id, options.previousTrustedDeviceToken);
+    }
+    const trustedDeviceToken =
+      options.rememberDevice === false
+        ? null
+        : await this.trustedDevices.trust(user.id, options.userAgent);
 
     return { ...tokens, trustedDeviceToken };
   }
@@ -390,7 +405,10 @@ export class AuthService {
       this.jwtService.signAsync(payload),
       this.jwtService.signAsync(payload, {
         secret: this.config.get<string>('JWT_REFRESH_SECRET'),
-        expiresIn: this.config.get<string>('JWT_REFRESH_EXPIRES_IN', '7d'),
+        expiresIn: this.config.get<string>(
+          'JWT_REFRESH_EXPIRES_IN',
+          '7d',
+        ) as JwtSignOptions['expiresIn'],
       }),
     ]);
 

@@ -83,13 +83,32 @@ describe('AuthController', () => {
         'browser-token',
       );
       expect(result).toEqual({ otpRequired: false });
-      // access + refresh + the renewed trusted-browser cookie; tokens stay out of the body.
-      expect(res.cookie).toHaveBeenCalledTimes(3);
-      expect(res.cookie).toHaveBeenCalledWith(
+      // access + refresh only; tokens stay out of the body. The trusted-browser
+      // cookie is NOT renewed, so trust ends 30 days after the code was entered.
+      expect(res.cookie).toHaveBeenCalledTimes(2);
+      expect(res.cookie).not.toHaveBeenCalledWith(
         'trusted_device',
-        'browser-token',
-        expect.objectContaining({ httpOnly: true }),
+        expect.anything(),
+        expect.anything(),
       );
+    });
+
+    it('ignores the trusted-browser cookie when "Remember me" is unchecked', async () => {
+      const dto: LoginDto = {
+        email: 'test@example.com',
+        password: 'password123',
+        rememberDevice: false,
+      };
+      authService.login.mockResolvedValue({
+        otpRequired: true,
+        userId: 'user-1',
+        otpExpiresAt: new Date(),
+      });
+      const req = mockRequest({ cookies: { trusted_device: 'browser-token' } });
+
+      await controller.login(dto, req, mockResponse());
+
+      expect(authService.login).toHaveBeenCalledWith('test@example.com', 'password123', undefined);
     });
 
     it('reads the trusted-browser cookie scoped to the calling app', async () => {
@@ -140,7 +159,11 @@ describe('AuthController', () => {
         res,
       );
 
-      expect(authService.verifyOtp).toHaveBeenCalledWith('user-1', '123456', 'Mozilla/5.0');
+      expect(authService.verifyOtp).toHaveBeenCalledWith('user-1', '123456', {
+        userAgent: 'Mozilla/5.0',
+        rememberDevice: true,
+        previousTrustedDeviceToken: undefined,
+      });
       // access + refresh + the trusted-browser cookie that skips the code next time.
       expect(res.cookie).toHaveBeenCalledTimes(3);
       expect(res.cookie).toHaveBeenCalledWith(
@@ -149,6 +172,30 @@ describe('AuthController', () => {
         expect.objectContaining({ httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000 }),
       );
       expect(result).toEqual({ success: true });
+    });
+
+    it('with "Remember me" unchecked: no trusted-browser cookie, and any old one is cleared', async () => {
+      const dto: VerifyOtpDto = { userId: 'user-1', otp: '123456', rememberDevice: false };
+      authService.verifyOtp.mockResolvedValue({
+        accessToken: 'access-tok',
+        refreshToken: 'refresh-tok',
+        trustedDeviceToken: null,
+      });
+      const res = mockResponse();
+
+      await controller.verifyOtp(
+        dto,
+        mockRequest({ cookies: { trusted_device: 'old-token' } }),
+        res,
+      );
+
+      expect(authService.verifyOtp).toHaveBeenCalledWith('user-1', '123456', {
+        userAgent: null,
+        rememberDevice: false,
+        previousTrustedDeviceToken: 'old-token',
+      });
+      expect(res.cookie).toHaveBeenCalledTimes(2);
+      expect(res.clearCookie).toHaveBeenCalledWith('trusted_device', expect.any(Object));
     });
 
     it('should propagate errors from authService.verifyOtp', async () => {

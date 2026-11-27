@@ -102,10 +102,27 @@ describe('NotificationController', () => {
       const { req, res } = makeReqRes();
 
       controller.stream(user, req as never, res as never);
-      pushed?.({ id: 'n-9', title: 'Hi' });
+      pushed?.({ event: 'notification', data: { id: 'n-9', title: 'Hi' } });
 
       expect(res.write).toHaveBeenCalledWith(
         `event: notification\ndata: ${JSON.stringify({ id: 'n-9', title: 'Hi' })}\n\n`,
+      );
+    });
+
+    it('writes a message event frame when chat activity is pushed', () => {
+      let pushed: ((frame: unknown) => void) | undefined;
+      mockEvents.subscribe.mockImplementation((_id: string, cb: (frame: unknown) => void) => {
+        pushed = cb;
+        return jest.fn();
+      });
+      const { req, res } = makeReqRes();
+      const activity = { threadId: 't-1', contextType: 'QUOTE_RESPONSE', contextId: 'q-1' };
+
+      controller.stream(user, req as never, res as never);
+      pushed?.({ event: 'message', data: activity });
+
+      expect(res.write).toHaveBeenCalledWith(
+        `event: message\ndata: ${JSON.stringify(activity)}\n\n`,
       );
     });
 

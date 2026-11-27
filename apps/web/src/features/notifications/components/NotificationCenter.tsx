@@ -52,7 +52,7 @@ export function NotificationCenter() {
 
   const handleNavigate = (path: string) => {
     setSelected(null);
-    navigate(path);
+    void navigate(path);
   };
 
   const panelProps = {

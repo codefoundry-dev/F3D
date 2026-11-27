@@ -72,7 +72,7 @@ export default function CreateMaterialPage() {
   const isPhone = useIsPhone();
   const { exitConfirm } = useWizardChrome({
     isDirty: methods.formState.isDirty && !createMutation.isSuccess,
-    onExit: () => navigate(ROUTES.materialCatalogue),
+    onExit: () => void navigate(ROUTES.materialCatalogue),
   });
 
   const steps = [
@@ -102,10 +102,10 @@ export default function CreateMaterialPage() {
         const detailPath = ROUTES.materialCatalogueDetail.replace(':id', material.id);
         notificationService.info(t('create.toastCreated', { name: material.name }), {
           icon: <CheckCircleIcon className="size-[18px]" />,
-          action: { label: t('create.toastView'), onClick: () => navigate(detailPath) },
+          action: { label: t('create.toastView'), onClick: () => void navigate(detailPath) },
           duration: 6000,
         });
-        navigate(isContributor ? ROUTES.materialCatalogue : detailPath);
+        void navigate(isContributor ? ROUTES.materialCatalogue : detailPath);
       },
     });
   };

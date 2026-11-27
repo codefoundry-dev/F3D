@@ -61,8 +61,8 @@ export default function VendorListPage() {
   const [showOneOff, setShowOneOff] = useState(false);
   // Actions (mutations, dot menus, action/success modals)
   const vendorActions = useVendorActions({
-    onNavigateToCompany: (companyId) => navigate(`/vendors/${companyId}`),
-    onNavigateToCompanyEdit: (companyId) => navigate(`/vendors/${companyId}?edit=true`),
+    onNavigateToCompany: (companyId) => void navigate(`/vendors/${companyId}`),
+    onNavigateToCompanyEdit: (companyId) => void navigate(`/vendors/${companyId}?edit=true`),
   });
   const { openEditModal } = useVendorsStore();
 
@@ -195,9 +195,9 @@ export default function VendorListPage() {
             getCompanyRowActions={vendorActions.getCompanyRowActions}
             getVendorRowActions={vendorActions.getVendorRowActions}
             onEditVendor={openEditModal}
-            onViewCompany={(companyId: string) => navigate(`/vendors/${companyId}`)}
+            onViewCompany={(companyId: string) => void navigate(`/vendors/${companyId}`)}
             onViewUser={(companyId: string, userId: string) =>
-              navigate(`/vendors/${companyId}/representatives/${userId}`)
+              void navigate(`/vendors/${companyId}/representatives/${userId}`)
             }
           />
         )}

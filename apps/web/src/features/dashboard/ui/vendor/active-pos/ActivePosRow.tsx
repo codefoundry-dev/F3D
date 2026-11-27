@@ -1,4 +1,4 @@
-import { type VendorActivePo, exportPurchaseOrders } from '@forethread/api-client';
+import { type VendorActivePo, exportSinglePo } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { DotActionsMenu, MessageBadgeIcon } from '@forethread/ui-components';
 import EyeIcon from '@forethread/ui-components/assets/icons/eye-opened.svg?react';
@@ -21,7 +21,7 @@ export function ActivePosRow({ row, columns }: ActivePosRowProps) {
   const navigate = useNavigate();
 
   const navigateToDetail = useCallback(
-    () => navigate(ROUTES.purchaseOrderDetail.replace(':id', row.id)),
+    () => void navigate(ROUTES.purchaseOrderDetail.replace(':id', row.id)),
     [navigate, row.id],
   );
 
@@ -31,9 +31,7 @@ export function ActivePosRow({ row, columns }: ActivePosRowProps) {
       key: 'downloadPdf',
       label: t('actions.downloadPdf'),
       onClick: () => {
-        void exportPurchaseOrders('pdf', { search: row.id }).then(({ url }) =>
-          window.open(url, '_blank'),
-        );
+        void exportSinglePo(row.id, 'pdf').then(({ url }) => window.open(url, '_blank'));
       },
     },
   ];
@@ -42,7 +40,7 @@ export function ActivePosRow({ row, columns }: ActivePosRowProps) {
 
   const stopAndGo = (e: React.MouseEvent, tab?: string) => {
     e.stopPropagation();
-    navigate(tab ? `${detailUrl}?tab=${tab}` : detailUrl);
+    void navigate(tab ? `${detailUrl}?tab=${tab}` : detailUrl);
   };
 
   return (

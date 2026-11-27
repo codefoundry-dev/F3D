@@ -46,7 +46,7 @@ export default function JobPickerPage() {
         <MobileHeader
           title={t('jobOverview.selectJob')}
           subline={t('jobOverview.selectJobHint')}
-          onBack={() => navigate(ROUTES.materialRequests)}
+          onBack={() => void navigate(ROUTES.materialRequests)}
           icon={<RequestIcon />}
         />
       }
@@ -66,7 +66,7 @@ export default function JobPickerPage() {
               <button
                 type="button"
                 onClick={() =>
-                  navigate(ROUTES.materialRequestJobOverview.replace(':projectId', job.id))
+                  void navigate(ROUTES.materialRequestJobOverview.replace(':projectId', job.id))
                 }
                 className="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-4 py-4 text-left shadow-[0_1px_3px_0_rgba(10,13,18,0.06),0_1px_1px_0_rgba(10,13,18,0.02)] transition-colors hover:border-gray-200 hover:bg-accent/50"
               >

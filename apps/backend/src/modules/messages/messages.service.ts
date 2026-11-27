@@ -18,6 +18,7 @@ import {
 import { ERR } from '../../common/constants/error-messages.const';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationEventsService } from '../notification-feed/notification-events.service';
 import { NotificationService } from '../notification-feed/notification.service';
 import { StorageService } from '../storage/storage.service';
 
@@ -93,6 +94,7 @@ export class MessagesService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly notifications: NotificationService,
+    private readonly streamEvents: NotificationEventsService,
   ) {}
 
   async createThread(dto: CreateThreadDto, user: AuthenticatedUser) {
@@ -412,6 +414,10 @@ export class MessagesService {
       user.id,
     );
 
+    // Push the new message to every open chat in real time (runs after the
+    // participant heal above, so counterparties are already on the thread).
+    await this.pushThreadActivity(threadId, thread);
+
     const logoUrls = await this.signLogoUrls([message.sender.company?.logoUrl]);
 
     return {
@@ -425,6 +431,31 @@ export class MessagesService {
       })),
       createdAt: message.createdAt.toISOString(),
     };
+  }
+
+  /**
+   * Tell every participant's open SSE connections that the thread has a new
+   * message, so open chats refetch it at once instead of waiting for the poll.
+   * The sender is included so their other tabs and devices update too. Only ids
+   * travel on the stream; the client reads the message through the access-checked
+   * API. Best-effort: a push failure must not fail the send.
+   */
+  private async pushThreadActivity(
+    threadId: string,
+    thread: { contextType: MessageContextType; contextId: string },
+  ): Promise<void> {
+    try {
+      const participants = await this.prisma.threadParticipant.findMany({
+        where: { threadId },
+        select: { userId: true },
+      });
+      this.streamEvents.emitMessageActivity(
+        participants.map((p) => p.userId),
+        { threadId, contextType: thread.contextType, contextId: thread.contextId },
+      );
+    } catch {
+      // best-effort — the clients' poll still picks the message up
+    }
   }
 
   /**

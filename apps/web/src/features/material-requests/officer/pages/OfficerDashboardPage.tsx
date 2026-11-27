@@ -64,7 +64,7 @@ export default function OfficerDashboardPage() {
     [items, page, pageSize],
   );
 
-  const goToDetail = (id: string) => navigate(ROUTES.materialRequestDetail.replace(':id', id));
+  const goToDetail = (id: string) => void navigate(ROUTES.materialRequestDetail.replace(':id', id));
 
   return (
     <div className="relative px-4 pb-6 pt-4 sm:px-8 sm:pb-8 sm:pt-6">
@@ -76,7 +76,7 @@ export default function OfficerDashboardPage() {
             variant="primary"
             size="sm"
             leftIcon={<span className="text-base leading-none">+</span>}
-            onClick={() => navigate(ROUTES.materialRequestJobs)}
+            onClick={() => void navigate(ROUTES.materialRequestJobs)}
             data-testid="mr-officer-create"
           >
             {t('officer.create')}

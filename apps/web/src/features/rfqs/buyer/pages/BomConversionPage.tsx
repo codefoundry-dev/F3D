@@ -57,7 +57,7 @@ export default function BomConversionPage() {
     notificationService.success(t('upload.confirmed'));
     // Carry the just-confirmed BOM straight into the RFQ builder, which seeds
     // its Materials step from this extraction's line items (FOR-200).
-    navigate(ROUTES.rfqNew, { state: { bomExtractionId: job.id } });
+    void navigate(ROUTES.rfqNew, { state: { bomExtractionId: job.id } });
   };
 
   return (
@@ -67,7 +67,7 @@ export default function BomConversionPage() {
           <h1 className="text-xl font-semibold text-foreground">{t('upload.bomHeading')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t('upload.bomSubheading')}</p>
         </div>
-        <Button variant="outline" onClick={() => navigate(ROUTES.rfqs)}>
+        <Button variant="outline" onClick={() => void navigate(ROUTES.rfqs)}>
           {t('upload.back')}
         </Button>
       </div>

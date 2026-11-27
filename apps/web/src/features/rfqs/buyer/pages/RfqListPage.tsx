@@ -217,7 +217,7 @@ export default function RfqListPage() {
     <tr
       key={rfq.id}
       className="border-b border-border last:border-b-0 hover:bg-accent/50 transition-colors cursor-pointer"
-      onClick={() => navigate(`${ROUTES.rfqDetail.replace(':id', rfq.id)}?tab=details`)}
+      onClick={() => void navigate(`${ROUTES.rfqDetail.replace(':id', rfq.id)}?tab=details`)}
     >
       {visibleCols.map(({ field, key }) => (
         <td
@@ -243,7 +243,9 @@ export default function RfqListPage() {
           <MessageBadgeIcon
             hasNotification
             className="w-8 h-8 flex items-center justify-center"
-            onClick={() => navigate(`${ROUTES.rfqDetail.replace(':id', rfq.id)}?tab=responses`)}
+            onClick={() =>
+              void navigate(`${ROUTES.rfqDetail.replace(':id', rfq.id)}?tab=responses`)
+            }
           />
           <button
             type="button"
@@ -390,7 +392,7 @@ export default function RfqListPage() {
                         className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-sm font-medium hover:bg-muted transition-colors w-full text-left"
                         onClick={() => {
                           createDD.setIsOpen(false);
-                          navigate(ROUTES.rfqNew);
+                          void navigate(ROUTES.rfqNew);
                         }}
                       >
                         Create manually
@@ -670,7 +672,7 @@ export default function RfqListPage() {
             onOpenCopy={() => {
               const newId = s.copiedRfqId;
               s.setCopyRfq(null);
-              if (newId) navigate(ROUTES.rfqDetail.replace(':id', newId));
+              if (newId) void navigate(ROUTES.rfqDetail.replace(':id', newId));
             }}
           />
         )}
@@ -688,7 +690,7 @@ export default function RfqListPage() {
           onClose={() => setConvertKind(null)}
           onContinue={(seed) => {
             setConvertKind(null);
-            navigate(ROUTES.rfqNew, { state: { seed } });
+            void navigate(ROUTES.rfqNew, { state: { seed } });
           }}
         />
       )}
@@ -702,7 +704,7 @@ export default function RfqListPage() {
             </h2>
             {(
               [
-                ['manual', 'Create manually', () => navigate(ROUTES.rfqNew)],
+                ['manual', 'Create manually', () => void navigate(ROUTES.rfqNew)],
                 ['bom', 'Converting a project BOM', () => setConvertKind('BOM')],
                 ['materialList', 'From material list', () => setConvertKind('MATERIAL_LIST')],
               ] as const

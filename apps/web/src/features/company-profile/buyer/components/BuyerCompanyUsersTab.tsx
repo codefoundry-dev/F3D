@@ -257,7 +257,7 @@ export function BuyerCompanyUsersTab() {
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         getRowActions={getRowActions}
-        onView={(id) => navigate(ROUTES.userDetail.replace(':id', id))}
+        onView={(id) => void navigate(ROUTES.userDetail.replace(':id', id))}
         onEdit={(id) => openEditModal(id)}
       />
 

@@ -332,6 +332,65 @@ describe('Auth (e2e)', () => {
       expect(res.body.data.otpRequired).toBe(true);
     });
 
+    it('does not extend the 30 days when a trusted browser signs in', async () => {
+      const { trustedToken, userId } = await signInWithCode();
+      const before = await prisma.trustedDevice.findMany({ where: { userId } });
+
+      await request(getHttpServer())
+        .post('/v1/auth/login')
+        .set('Cookie', cookieHeader(trustedToken))
+        .send(creds)
+        .expect(200);
+
+      const after = await prisma.trustedDevice.findMany({ where: { userId } });
+      const expiryOf = (rows: typeof before, id: string) =>
+        rows.find((r) => r.id === id)?.expiresAt.getTime();
+      for (const row of before) {
+        expect(expiryOf(after, row.id)).toBe(row.expiresAt.getTime());
+      }
+    });
+
+    it('asks for the code when "Remember me" is unchecked, even on a trusted browser', async () => {
+      const { trustedToken } = await signInWithCode();
+
+      const res = await request(getHttpServer())
+        .post('/v1/auth/login')
+        .set('Cookie', cookieHeader(trustedToken))
+        .send({ ...creds, rememberDevice: false })
+        .expect(200);
+
+      expect(res.body.data.otpRequired).toBe(true);
+    });
+
+    it('forgets the browser when the code is entered with "Remember me" unchecked', async () => {
+      const { trustedToken, userId } = await signInWithCode();
+      emailService.clear();
+
+      await request(getHttpServer())
+        .post('/v1/auth/login')
+        .set('Cookie', cookieHeader(trustedToken))
+        .send({ ...creds, rememberDevice: false })
+        .expect(200);
+      const email = emailService.getLastEmailTo(creds.email);
+      const verifyRes = await request(getHttpServer())
+        .post('/v1/auth/verify-otp')
+        .set('Cookie', cookieHeader(trustedToken))
+        .send({ userId, otp: email!.otp, rememberDevice: false })
+        .expect(200);
+
+      // The cookie is cleared (empty value) rather than re-issued.
+      const cookies = (verifyRes.headers['set-cookie'] as unknown as string[]) ?? [];
+      expect(extractCookieValue(cookies, 'trusted_device') ?? '').toBe('');
+
+      // And the old token no longer skips the code.
+      const res = await request(getHttpServer())
+        .post('/v1/auth/login')
+        .set('Cookie', cookieHeader(trustedToken))
+        .send(creds)
+        .expect(200);
+      expect(res.body.data.otpRequired).toBe(true);
+    });
+
     it('asks for the code again once the trust has expired', async () => {
       const { trustedToken, userId } = await signInWithCode();
       await prisma.trustedDevice.updateMany({

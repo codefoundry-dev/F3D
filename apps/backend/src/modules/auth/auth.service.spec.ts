@@ -33,7 +33,12 @@ describe('AuthService', () => {
   let jwtService: { sign: jest.Mock; signAsync: jest.Mock };
   let configService: { get: jest.Mock };
   let otpService: { generateAndStore: jest.Mock; verifyOtp: jest.Mock };
-  let trustedDevices: { isTrusted: jest.Mock; trust: jest.Mock; revokeAll: jest.Mock };
+  let trustedDevices: {
+    isTrusted: jest.Mock;
+    trust: jest.Mock;
+    revoke: jest.Mock;
+    revokeAll: jest.Mock;
+  };
   let emailService: {
     sendOtpEmail: jest.Mock;
     sendPasswordResetEmail: jest.Mock;
@@ -100,6 +105,7 @@ describe('AuthService', () => {
     trustedDevices = {
       isTrusted: jest.fn(),
       trust: jest.fn(),
+      revoke: jest.fn(),
       revokeAll: jest.fn(),
     };
 
@@ -115,6 +121,7 @@ describe('AuthService', () => {
     jest.clearAllMocks();
     trustedDevices.isTrusted.mockResolvedValue(false);
     trustedDevices.trust.mockResolvedValue('trusted-token');
+    trustedDevices.revoke.mockResolvedValue(undefined);
     trustedDevices.revokeAll.mockResolvedValue(undefined);
   });
 
@@ -263,7 +270,7 @@ describe('AuthService', () => {
   });
 
   describe('verifyOtp', () => {
-    it('should return token pair on valid OTP', async () => {
+    const arrangeValidCode = () => {
       otpService.verifyOtp.mockResolvedValue(true);
       prisma.user.findUnique.mockResolvedValue({
         id: 'user-1',
@@ -276,12 +283,44 @@ describe('AuthService', () => {
         .mockResolvedValueOnce('refresh-token');
       mockedArgon2.hash.mockResolvedValue('hashed-refresh-token');
       prisma.user.update.mockResolvedValue({});
+    };
 
-      const result = await service.verifyOtp('user-1', '123456', 'Mozilla/5.0');
+    it('with "Remember me" unchecked: signs in but does not trust the browser, and forgets its old trust', async () => {
+      arrangeValidCode();
+
+      const result = await service.verifyOtp('user-1', '123456', {
+        userAgent: 'Mozilla/5.0',
+        rememberDevice: false,
+        previousTrustedDeviceToken: 'old-token',
+      });
+
+      expect(trustedDevices.trust).not.toHaveBeenCalled();
+      expect(trustedDevices.revoke).toHaveBeenCalledWith('user-1', 'old-token');
+      expect(result).toEqual({
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+        trustedDeviceToken: null,
+      });
+    });
+
+    it("replaces the browser's previous trust with a fresh 30-day one", async () => {
+      arrangeValidCode();
+
+      await service.verifyOtp('user-1', '123456', { previousTrustedDeviceToken: 'old-token' });
+
+      expect(trustedDevices.revoke).toHaveBeenCalledWith('user-1', 'old-token');
+      expect(trustedDevices.trust).toHaveBeenCalledWith('user-1', undefined);
+    });
+
+    it('should return token pair on valid OTP', async () => {
+      arrangeValidCode();
+
+      const result = await service.verifyOtp('user-1', '123456', { userAgent: 'Mozilla/5.0' });
 
       expect(otpService.verifyOtp).toHaveBeenCalledWith('user-1', '123456');
-      // Passing the code makes this browser trusted for next time.
+      // "Remember me" defaults to on: passing the code trusts this browser.
       expect(trustedDevices.trust).toHaveBeenCalledWith('user-1', 'Mozilla/5.0');
+      expect(trustedDevices.revoke).not.toHaveBeenCalled();
       expect(result).toEqual({
         accessToken: 'access-token',
         refreshToken: 'refresh-token',

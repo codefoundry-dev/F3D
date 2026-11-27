@@ -183,7 +183,7 @@ function CustomRoleEditor({ id }: { id: string }) {
         thresholds,
       });
       notificationService.success(t('saved'));
-      navigate(ROUTES.roles);
+      void navigate(ROUTES.roles);
     } catch {
       notificationService.error(t('saveError'));
     }
@@ -193,7 +193,7 @@ function CustomRoleEditor({ id }: { id: string }) {
     try {
       await deleteMutation.mutateAsync(id);
       notificationService.success(t('custom.deleted'));
-      navigate(ROUTES.roles);
+      void navigate(ROUTES.roles);
     } catch {
       notificationService.error(t('custom.deleteError'));
       setConfirmingDelete(false);
@@ -271,7 +271,7 @@ function CustomRoleEditor({ id }: { id: string }) {
       />
 
       <div className="flex items-center justify-end gap-3 pt-2">
-        <Button variant="secondary" onClick={() => navigate(ROUTES.roles)}>
+        <Button variant="secondary" onClick={() => void navigate(ROUTES.roles)}>
           {t('cancel')}
         </Button>
         <Button

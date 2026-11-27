@@ -111,19 +111,19 @@ export function QuoteResponsesSection({
                 key={item.id}
                 name={item.vendorName}
                 onCardClick={() =>
-                  navigate(
+                  void navigate(
                     `${ROUTES.quoteResponseDetail.replace(':id', item.rfqId).replace(':quoteId', item.id)}?tab=messages`,
                   )
                 }
                 hasChatNotification={item.hasUnreadMessages}
                 hasAttachment={item.hasAttachments ?? false}
                 onMessageClick={() =>
-                  navigate(
+                  void navigate(
                     `${ROUTES.quoteResponseDetail.replace(':id', item.rfqId).replace(':quoteId', item.id)}?tab=messages`,
                   )
                 }
                 onAttachmentClick={() =>
-                  navigate(
+                  void navigate(
                     `${ROUTES.quoteResponseDetail.replace(':id', item.rfqId).replace(':quoteId', item.id)}?tab=attachments`,
                   )
                 }

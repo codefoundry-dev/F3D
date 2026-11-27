@@ -2,7 +2,7 @@ import type { PoListItem, RfqListItem, BulkOrderListItem } from '@forethread/api
 import {
   archivePurchaseOrder,
   copyPurchaseOrder,
-  exportPurchaseOrders,
+  exportSinglePo,
   getRfq,
   getBulkOrder,
 } from '@forethread/api-client';
@@ -279,7 +279,7 @@ export default function PurchaseOrderListPage() {
     <tr
       key={po.id}
       className="border-b border-border last:border-b-0 hover:bg-accent/50 transition-colors cursor-pointer"
-      onClick={() => navigate(ROUTES.purchaseOrderDetail.replace(':id', po.id))}
+      onClick={() => void navigate(ROUTES.purchaseOrderDetail.replace(':id', po.id))}
     >
       {visibleCols.map(({ field, key }) => (
         <td
@@ -303,7 +303,7 @@ export default function PurchaseOrderListPage() {
             hasNotification={po.hasMessages}
             className="w-8 h-8 flex items-center justify-center"
             onClick={() =>
-              navigate(`${ROUTES.purchaseOrderDetail.replace(':id', po.id)}?tab=messages`)
+              void navigate(`${ROUTES.purchaseOrderDetail.replace(':id', po.id)}?tab=messages`)
             }
           />
           <button
@@ -311,7 +311,7 @@ export default function PurchaseOrderListPage() {
             className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
             title={t('actions.attachments')}
             onClick={() =>
-              navigate(`${ROUTES.purchaseOrderDetail.replace(':id', po.id)}?tab=documents`)
+              void navigate(`${ROUTES.purchaseOrderDetail.replace(':id', po.id)}?tab=documents`)
             }
           >
             <PaperclipIcon className="w-4 h-4" />
@@ -353,7 +353,8 @@ export default function PurchaseOrderListPage() {
                     {
                       key: 'changePo',
                       label: t('actions.changePo'),
-                      onClick: () => navigate(ROUTES.purchaseOrderChange.replace(':id', po.id)),
+                      onClick: () =>
+                        void navigate(ROUTES.purchaseOrderChange.replace(':id', po.id)),
                     },
                   ]
                 : []),
@@ -370,9 +371,7 @@ export default function PurchaseOrderListPage() {
                 key: 'downloadPdf',
                 label: t('actions.downloadPdf'),
                 onClick: () => {
-                  void exportPurchaseOrders('pdf', { search: po.id }).then(({ url }) =>
-                    window.open(url, '_blank'),
-                  );
+                  void exportSinglePo(po.id, 'pdf').then(({ url }) => window.open(url, '_blank'));
                 },
               },
             ]}
@@ -470,7 +469,7 @@ export default function PurchaseOrderListPage() {
                         className="flex items-center gap-2.5 h-10 px-2 rounded-xl text-foreground text-sm font-medium hover:bg-muted transition-colors w-full text-left"
                         onClick={() => {
                           createDD.setIsOpen(false);
-                          navigate(ROUTES.purchaseOrderNew);
+                          void navigate(ROUTES.purchaseOrderNew);
                         }}
                       >
                         Create manually
@@ -757,7 +756,7 @@ export default function PurchaseOrderListPage() {
           onOpenCopy={() => {
             const newId = s.copiedPoId;
             s.setCopyPo(null);
-            if (newId) navigate(ROUTES.purchaseOrderDetail.replace(':id', newId));
+            if (newId) void navigate(ROUTES.purchaseOrderDetail.replace(':id', newId));
           }}
         />
       )}
@@ -789,7 +788,7 @@ export default function PurchaseOrderListPage() {
             const { defaultValues, lockedFields } = rfqToFormDefaults(filtered, {
               quoteLineItemIds,
             });
-            navigate(ROUTES.purchaseOrderNew, {
+            void navigate(ROUTES.purchaseOrderNew, {
               state: { mode: 'from-rfq', defaultValues, lockedFields: [...lockedFields] },
             });
           });
@@ -812,7 +811,7 @@ export default function PurchaseOrderListPage() {
             if (defaultValues) {
               defaultValues.vendorId = bo.vendorId;
             }
-            navigate(ROUTES.purchaseOrderNew, {
+            void navigate(ROUTES.purchaseOrderNew, {
               state: { mode: 'from-bulk-order', defaultValues, lockedFields: [...lockedFields] },
             });
           });
@@ -831,7 +830,7 @@ export default function PurchaseOrderListPage() {
               className="flex h-12 w-full items-center rounded-[10px] px-2 text-left text-[15px] font-semibold text-gray-700 hover:bg-muted"
               onClick={() => {
                 setCreateSheetOpen(false);
-                navigate(ROUTES.purchaseOrderNew);
+                void navigate(ROUTES.purchaseOrderNew);
               }}
             >
               Create manually

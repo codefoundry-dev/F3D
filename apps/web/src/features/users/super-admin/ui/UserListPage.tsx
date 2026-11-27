@@ -342,7 +342,7 @@ export default function UserListPage() {
       {
         key: 'viewCompany',
         label: t('actions.viewCompanyDetails'),
-        onClick: () => navigate(ROUTES.companyDetail.replace(':id', companyId)),
+        onClick: () => void navigate(ROUTES.companyDetail.replace(':id', companyId)),
       },
       {
         key: 'editCompany',
@@ -747,7 +747,7 @@ export default function UserListPage() {
                   isExpanded={expandedCompanyIds.includes(group.companyId)}
                   onToggle={() => toggleCompany(group.companyId)}
                   onViewCompany={() =>
-                    navigate(ROUTES.companyDetail.replace(':id', group.companyId))
+                    void navigate(ROUTES.companyDetail.replace(':id', group.companyId))
                   }
                   companyActions={getCompanyActions(
                     group.companyId,
@@ -761,7 +761,7 @@ export default function UserListPage() {
                     sortDir={sortDir}
                     onSort={handleSort}
                     getRowActions={getRowActions}
-                    onView={(id) => navigate(ROUTES.userDetail.replace(':id', id))}
+                    onView={(id) => void navigate(ROUTES.userDetail.replace(':id', id))}
                     onEdit={(id) => openEditModal(id)}
                   />
                 </CompanyCard>

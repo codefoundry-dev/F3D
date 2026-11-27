@@ -34,7 +34,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
         ExtractJwt.fromAuthHeaderAsBearerToken(),
       ]),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('JWT_ACCESS_SECRET'),
+      // passport-jwt's types now require a string; a missing secret still fails at startup.
+      secretOrKey: config.get<string>('JWT_ACCESS_SECRET') as string,
     });
   }
 

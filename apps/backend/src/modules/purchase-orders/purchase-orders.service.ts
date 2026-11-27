@@ -40,7 +40,10 @@ import { signLinePhotoUrls } from '../storage/line-photo.util';
 import { StorageService } from '../storage/storage.service';
 import { assertVendorUsableOnProject } from '../vendors/vendor-access.util';
 
+import { canReadPurchaseOrder } from './po-access.util';
 import { loadCompanyPoTerms, normalisePoTerms } from './po-terms.util';
+
+export { canReadPurchaseOrder };
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -254,16 +257,30 @@ export class PurchaseOrdersService {
 
   // ── Get single Purchase Order ──────────────────────────────────────────────
 
-  async getPurchaseOrder(id: string, _user: AuthenticatedUser) {
+  /**
+   * Load a single PO detail for a signed-in caller. Only the PO's own company,
+   * the PO's vendor, or a super admin may read it: the `po.read` permission
+   * alone says nothing about WHICH POs, so without this any user could read or
+   * export (via po-export) another company's PO by id. Same rule as the list
+   * scoping and the change-request / document access checks.
+   */
+  async getPurchaseOrder(id: string, user: AuthenticatedUser) {
+    const scope = await this.prisma.purchaseOrder.findUnique({
+      where: { id },
+      select: { companyId: true, vendorId: true },
+    });
+    if (!scope) throw new NotFoundException(ERR.purchaseOrders.notFound);
+    if (!canReadPurchaseOrder(scope, user)) {
+      throw new ForbiddenException(ERR.general.accessDenied);
+    }
     return this.getPurchaseOrderById(id);
   }
 
   /**
-   * Load a single PO detail without a caller identity. Backs both the
-   * authenticated detail endpoint (read access is gated at the controller, so
-   * the user is unused there) and the tokenised vendor PO portal (FOR-246),
-   * where the validated access token already binds the request to this exact
-   * PO. Tenancy is implicit — the row carries its own companyId.
+   * Load a single PO detail WITHOUT a caller identity or access check. Only for
+   * the tokenised vendor PO portal (FOR-246), where the validated access token
+   * already binds the request to this exact PO, and for callers that have
+   * already authorised the read. Signed-in reads go through getPurchaseOrder.
    */
   async getPurchaseOrderById(id: string) {
     const po = await this.prisma.purchaseOrder.findUnique({

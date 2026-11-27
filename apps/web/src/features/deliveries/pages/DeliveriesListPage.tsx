@@ -148,7 +148,7 @@ export default function DeliveriesListPage() {
     );
   };
 
-  const goToDetail = (id: string) => navigate(ROUTES.deliveryDetail.replace(':id', id));
+  const goToDetail = (id: string) => void navigate(ROUTES.deliveryDetail.replace(':id', id));
 
   // Vendor / status / project / location: inline on desktop, the Filters sheet on phones.
   const reportFilters = (
@@ -356,7 +356,7 @@ export default function DeliveriesListPage() {
             onClose={() => setShowSelectPo(false)}
             onSelect={(po: PoListItem) => {
               setShowSelectPo(false);
-              navigate(`${ROUTES.deliveryNew}?poId=${po.id}`);
+              void navigate(`${ROUTES.deliveryNew}?poId=${po.id}`);
             }}
           />
         </>

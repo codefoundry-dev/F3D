@@ -41,6 +41,7 @@ import {
   Controller,
   type FieldErrors,
   type FieldPath,
+  type Resolver,
   type UseFormReturn,
 } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -100,7 +101,9 @@ export default function CreateProjectPage() {
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
 
   const form = useForm<CreateProjectFormValues>({
-    resolver: zodResolver(createProjectSchema),
+    // zod 4 types the resolver by the schema's INPUT (where `.default()` fields
+    // are optional). defaultValues always fills them, so the form holds the output shape.
+    resolver: zodResolver(createProjectSchema) as Resolver<CreateProjectFormValues>,
     defaultValues: {
       name: '',
       description: '',
@@ -135,7 +138,7 @@ export default function CreateProjectPage() {
   // Phones (ADR-0019 B8): no bottom nav, the back arrow confirms unsaved
   // changes, and Cancel / Continue move into the fixed footer bar.
   const isPhone = useIsPhone();
-  const exitToList = () => navigate(ROUTES.projects);
+  const exitToList = () => void navigate(ROUTES.projects);
   const { exitConfirm } = useWizardChrome({
     isDirty: (isDirty || stagedFiles.length > 0) && !createMutation.isSuccess,
     onExit: exitToList,

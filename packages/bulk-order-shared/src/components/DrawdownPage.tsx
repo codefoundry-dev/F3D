@@ -119,7 +119,7 @@ export function DrawdownPage() {
         });
       }
       notificationService.success(t('modals.drawdownSuccess'));
-      navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', id!));
+      void navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', id!));
     } catch {
       notificationService.error(t('modals.drawdownError'));
     }
@@ -221,7 +221,7 @@ export function DrawdownPage() {
         <Button
           variant="outline"
           size="md"
-          onClick={() => navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', id!))}
+          onClick={() => void navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', id!))}
         >
           {t('modals.cancel')}
         </Button>

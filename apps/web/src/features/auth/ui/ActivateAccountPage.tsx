@@ -151,7 +151,7 @@ export default function ActivateAccountPage() {
       successAlertContent={<p>{t('activateSuccessAlertBody')}</p>}
       successBackLabel={t('backToSignIn')}
       successRedirectText={t('activateSuccessRedirect')}
-      onRedirectToLogin={() => navigate('/login')}
+      onRedirectToLogin={() => void navigate('/login')}
       onSubmit={(e) =>
         void handleSubmit((data) => activateMutation.mutate({ token, password: data.newPassword }))(
           e,

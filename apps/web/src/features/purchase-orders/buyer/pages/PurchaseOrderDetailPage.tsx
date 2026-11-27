@@ -1,4 +1,4 @@
-import { exportPurchaseOrders } from '@forethread/api-client';
+import { exportSinglePo } from '@forethread/api-client';
 import { ApproverPoolPanel } from '@forethread/approval-shared';
 import { useTranslation } from '@forethread/i18n';
 import {
@@ -217,9 +217,7 @@ export default function PurchaseOrderDetailPage() {
           label: t('actions.exportAs'),
           icon: <DownloadIcon className="w-4 h-4" />,
           onClick: () => {
-            void exportPurchaseOrders('pdf', { search: po.id }).then(({ url }) =>
-              window.open(url, '_blank'),
-            );
+            void exportSinglePo(po.id, 'pdf').then(({ url }) => window.open(url, '_blank'));
           },
         },
         ...(canChange
@@ -228,7 +226,7 @@ export default function PurchaseOrderDetailPage() {
                 key: 'change',
                 label: t('actions.change'),
                 icon: <EditWithoutLineIcon className="w-4 h-4" />,
-                onClick: () => navigate(ROUTES.purchaseOrderChange.replace(':id', po.id)),
+                onClick: () => void navigate(ROUTES.purchaseOrderChange.replace(':id', po.id)),
               },
               {
                 key: 'cancel',
@@ -254,7 +252,7 @@ export default function PurchaseOrderDetailPage() {
                 key: 'deliveryReport',
                 label: t('actions.deliveryReport', 'Delivery report'),
                 icon: <ReportIcon className="w-4 h-4" />,
-                onClick: () => navigate(`${ROUTES.deliveryNew}?poId=${po.id}`),
+                onClick: () => void navigate(`${ROUTES.deliveryNew}?poId=${po.id}`),
               },
             ]
           : []),

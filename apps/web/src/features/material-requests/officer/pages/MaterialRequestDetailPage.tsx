@@ -117,7 +117,7 @@ export default function MaterialRequestDetailPage() {
   const handleConvertToRfq = () =>
     convertToRfq.mutate(
       { id: mr.id, input: {} },
-      { onSuccess: (res) => navigate(ROUTES.rfqDetail.replace(':id', res.rfqId)) },
+      { onSuccess: (res) => void navigate(ROUTES.rfqDetail.replace(':id', res.rfqId)) },
     );
 
   const handleConvertToPo = (vendorId: string) =>
@@ -126,7 +126,7 @@ export default function MaterialRequestDetailPage() {
       {
         onSuccess: (res) => {
           setShowConvertPo(false);
-          navigate(ROUTES.purchaseOrderDetail.replace(':id', res.poId));
+          void navigate(ROUTES.purchaseOrderDetail.replace(':id', res.poId));
         },
       },
     );
@@ -136,7 +136,7 @@ export default function MaterialRequestDetailPage() {
       {/* Back link */}
       <button
         type="button"
-        onClick={() => navigate(ROUTES.materialRequests)}
+        onClick={() => void navigate(ROUTES.materialRequests)}
         className="mb-4 inline-flex items-center gap-1 self-start text-sm text-muted-foreground transition-colors hover:text-foreground"
         data-testid="mr-detail-back"
       >
@@ -264,7 +264,7 @@ export default function MaterialRequestDetailPage() {
         {mr.convertedToRfq && (
           <button
             type="button"
-            onClick={() => navigate(ROUTES.rfqDetail.replace(':id', rfqLink))}
+            onClick={() => void navigate(ROUTES.rfqDetail.replace(':id', rfqLink))}
             className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
             data-testid="mr-converted-rfq-link"
           >
@@ -275,7 +275,7 @@ export default function MaterialRequestDetailPage() {
         {mr.convertedToPo && (
           <button
             type="button"
-            onClick={() => navigate(ROUTES.purchaseOrderDetail.replace(':id', poLink))}
+            onClick={() => void navigate(ROUTES.purchaseOrderDetail.replace(':id', poLink))}
             className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
             data-testid="mr-converted-po-link"
           >

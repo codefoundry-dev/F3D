@@ -64,7 +64,7 @@ export default function RequestConfirmationPage() {
         header={
           <MobileHeader
             title={t('confirmation.title')}
-            onBack={() => navigate(ROUTES.materialRequests)}
+            onBack={() => void navigate(ROUTES.materialRequests)}
           />
         }
       >
@@ -82,7 +82,7 @@ export default function RequestConfirmationPage() {
       header={
         <MobileHeader
           title={t('confirmation.title')}
-          onBack={() => navigate(ROUTES.materialRequests)}
+          onBack={() => void navigate(ROUTES.materialRequests)}
         />
       }
     >
@@ -150,7 +150,7 @@ export default function RequestConfirmationPage() {
           {/* Actions */}
           <div className="flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:justify-end">
             <SecondaryButton
-              onClick={() => navigate(ROUTES.materialRequests)}
+              onClick={() => void navigate(ROUTES.materialRequests)}
               className="w-full sm:w-auto"
               data-testid="mr-confirm-view"
             >
@@ -158,7 +158,7 @@ export default function RequestConfirmationPage() {
             </SecondaryButton>
             <PrimaryButton
               leading={<CheckCircleIcon className="size-4" />}
-              onClick={() => navigate(ROUTES.materialRequests)}
+              onClick={() => void navigate(ROUTES.materialRequests)}
               className="w-full sm:w-auto"
               data-testid="mr-confirm-done"
             >

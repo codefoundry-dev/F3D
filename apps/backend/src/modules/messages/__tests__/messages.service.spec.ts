@@ -49,6 +49,10 @@ const mockNotifications = {
   createForEmails: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockStreamEvents = {
+  emitMessageActivity: jest.fn(),
+};
+
 const currentUser = {
   id: 'user-1',
   role: UserRole.COMPANY_ADMIN,
@@ -76,6 +80,7 @@ describe('MessagesService', () => {
       mockPrisma as never,
       mockStorage as never,
       mockNotifications as never,
+      mockStreamEvents as never,
     );
   });
 
@@ -726,6 +731,72 @@ describe('MessagesService', () => {
           sender: { userId: 'user-1', name: 'Alice' },
         }),
       );
+    });
+
+    it('pushes the new message to every participant, sender included, in real time', async () => {
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue({ id: 'p-1' });
+      mockPrisma.messageThread.findUniqueOrThrow.mockResolvedValue({
+        id: 'thread-1',
+        contextType: 'QUOTE_RESPONSE',
+        contextId: 'quote-1',
+      });
+      mockPrisma.quoteResponse.findUnique.mockResolvedValue({
+        rfqId: 'rfq-42',
+        vendorId: 'vend-1',
+        rfq: { status: 'OPEN', createdByUserId: 'buyer-1' },
+      });
+      mockPrisma.rfqVendor.findUnique.mockResolvedValue(null);
+      mockPrisma.message.create.mockResolvedValue({
+        id: 'msg-1',
+        threadId: 'thread-1',
+        content: 'Hi',
+        sender: { id: 'user-1', name: 'Alice', email: 'a@t.com' },
+        attachments: [],
+        createdAt: new Date(),
+      });
+      mockPrisma.messageThread.update.mockResolvedValue({});
+      mockPrisma.threadParticipant.findMany.mockImplementation(
+        (args: { where: { userId?: unknown } }) =>
+          Promise.resolve(
+            args.where.userId
+              ? [{ userId: 'vendor-user' }]
+              : [{ userId: 'user-1' }, { userId: 'vendor-user' }],
+          ),
+      );
+
+      await service.sendMessage('thread-1', { content: 'Hi' } as never, currentUser);
+
+      expect(mockStreamEvents.emitMessageActivity).toHaveBeenCalledWith(['user-1', 'vendor-user'], {
+        threadId: 'thread-1',
+        contextType: 'QUOTE_RESPONSE',
+        contextId: 'quote-1',
+      });
+    });
+
+    it('still returns the message when the real-time push fails', async () => {
+      mockPrisma.threadParticipant.findUnique.mockResolvedValue({ id: 'p-1' });
+      mockPrisma.messageThread.findUniqueOrThrow.mockResolvedValue({
+        id: 'thread-1',
+        contextType: 'RFQ',
+        contextId: 'rfq-1',
+      });
+      mockPrisma.rfq.findUnique.mockResolvedValue({ id: 'rfq-1', status: 'OPEN' });
+      mockPrisma.message.create.mockResolvedValue({
+        id: 'msg-1',
+        threadId: 'thread-1',
+        content: 'Hi',
+        sender: { id: 'user-1', name: 'Alice', email: 'a@t.com' },
+        attachments: [],
+        createdAt: new Date(),
+      });
+      mockPrisma.messageThread.update.mockResolvedValue({});
+      mockStreamEvents.emitMessageActivity.mockImplementationOnce(() => {
+        throw new Error('stream down');
+      });
+
+      const result = await service.sendMessage('thread-1', { content: 'Hi' } as never, currentUser);
+
+      expect(result.id).toBe('msg-1');
     });
 
     it('targets the purchase order for a PURCHASE_ORDER thread', async () => {

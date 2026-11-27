@@ -38,6 +38,7 @@ import { SYSTEM_SENDER } from '../notification-feed/notification.types';
 import { EmailService } from '../notifications/email.service';
 
 import { DELIVERABLE_PO_STATUSES, DELIVERY_LINK_TTL_MS } from './delivery-link.const';
+import { canReadPurchaseOrder } from './po-access.util';
 import { acceptedStatusFor } from './po-delivery-schedule.service';
 import { PoExportService } from './po-export.service';
 import { assertTransition } from './po-state-machine';
@@ -1211,11 +1212,7 @@ export class PoStatusService {
 
     if (!po) throw new NotFoundException(ERR.purchaseOrders.notFound);
 
-    const hasAccess =
-      user.role === UserRole.SUPER_ADMIN ||
-      user.companyId === po.companyId ||
-      user.companyId === po.vendorId;
-    if (!hasAccess) throw new ForbiddenException(ERR.general.accessDenied);
+    if (!canReadPurchaseOrder(po, user)) throw new ForbiddenException(ERR.general.accessDenied);
 
     const logs = await this.prisma.auditLog.findMany({
       where: { targetType: 'PurchaseOrder', targetId: id },

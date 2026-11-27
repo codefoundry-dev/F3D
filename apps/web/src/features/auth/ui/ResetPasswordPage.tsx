@@ -102,7 +102,7 @@ export default function ResetPasswordPage() {
       }
       successBackLabel={t('resetSuccessBackToLogin')}
       successRedirectText={t('resetSuccessRedirect')}
-      onRedirectToLogin={() => navigate('/login')}
+      onRedirectToLogin={() => void navigate('/login')}
       onSubmit={(e) =>
         void handleSubmit((data) => resetMutation.mutate({ token, newPassword: data.newPassword }))(
           e,

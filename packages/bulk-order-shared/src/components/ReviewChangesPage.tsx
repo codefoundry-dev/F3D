@@ -83,11 +83,11 @@ export function ReviewChangesPage({ isVendorView = false }: ReviewChangesPagePro
   const pendingCr = changeRequests?.find((cr) => cr.status === 'PENDING');
   if (!pendingCr) {
     // No pending change request — redirect back
-    navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', id!));
+    void navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', id!));
     return null;
   }
 
-  const goBack = () => navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', id!));
+  const goBack = () => void navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', id!));
 
   const changes = pendingCr.changes as {
     endDate?: string | null;

@@ -37,7 +37,8 @@ export class NotificationController {
   }
 
   /**
-   * Server-Sent Events stream of the current user's new notifications. Written
+   * Server-Sent Events stream of the current user's new notifications (`event:
+   * notification`) and chat activity on their threads (`event: message`). Written
    * straight to the raw response (not `@Sse()`) so the global response transform
    * never wraps the event frames. Auth is the standard cookie JWT — EventSource
    * sends it with `withCredentials`. `@SkipThrottle` because this is one
@@ -58,8 +59,8 @@ export class NotificationController {
     // Open the stream with a comment so the client's connection resolves promptly.
     res.write(': connected\n\n');
 
-    const unsubscribe = this.events.subscribe(user.id, (notification) => {
-      res.write(`event: notification\ndata: ${JSON.stringify(notification)}\n\n`);
+    const unsubscribe = this.events.subscribe(user.id, (frame) => {
+      res.write(`event: ${frame.event}\ndata: ${JSON.stringify(frame.data)}\n\n`);
     });
 
     const heartbeat = setInterval(() => {

@@ -44,7 +44,7 @@ export function QuickActions() {
           variant="outline"
           size="md"
           leftIcon={<NewUserIcon className="w-[18px] h-[18px]" />}
-          onClick={() => navigate(ROUTES.vendorNew)}
+          onClick={() => void navigate(ROUTES.vendorNew)}
           className={`w-full ${quickActionBtn}`}
         >
           {t('quickActions.addVendor')}
@@ -53,7 +53,7 @@ export function QuickActions() {
           variant="outline"
           size="md"
           leftIcon={<UploadIcon className="w-[18px] h-[18px]" />}
-          onClick={() => navigate(ROUTES.invoiceUpload)}
+          onClick={() => void navigate(ROUTES.invoiceUpload)}
           className={`w-full ${quickActionBtn}`}
         >
           {t('quickActions.uploadInvoice')}
@@ -62,7 +62,7 @@ export function QuickActions() {
           variant="outline"
           size="md"
           leftIcon={<ReportIcon className="w-[18px] h-[18px]" />}
-          onClick={() => navigate(ROUTES.deliveries)}
+          onClick={() => void navigate(ROUTES.deliveries)}
           className={`w-full ${quickActionBtn}`}
         >
           {t('quickActions.deliveryReport')}
@@ -83,7 +83,7 @@ function CreatePoDropdown({ label, icon }: { label: string; icon: React.ReactNod
         label={label}
         icon={icon}
         items={[
-          { label: 'Create manually', onSelect: () => navigate(ROUTES.purchaseOrderNew) },
+          { label: 'Create manually', onSelect: () => void navigate(ROUTES.purchaseOrderNew) },
           { label: 'Converting Approved RFQ', onSelect: () => setShowSelectRfq(true) },
           { label: 'From Bulk order', onSelect: () => setShowSelectBo(true) },
         ]}
@@ -108,7 +108,7 @@ function CreatePoDropdown({ label, icon }: { label: string; icon: React.ReactNod
             const { defaultValues, lockedFields } = rfqToFormDefaults(filtered, {
               quoteLineItemIds,
             });
-            navigate(ROUTES.purchaseOrderNew, {
+            void navigate(ROUTES.purchaseOrderNew, {
               state: { mode: 'from-rfq', defaultValues, lockedFields: [...lockedFields] },
             });
           });
@@ -130,7 +130,7 @@ function CreatePoDropdown({ label, icon }: { label: string; icon: React.ReactNod
             if (defaultValues) {
               defaultValues.vendorId = bo.vendorId;
             }
-            navigate(ROUTES.purchaseOrderNew, {
+            void navigate(ROUTES.purchaseOrderNew, {
               state: { mode: 'from-bulk-order', defaultValues, lockedFields: [...lockedFields] },
             });
           });
@@ -149,7 +149,7 @@ function CreateRfqDropdown({ label, icon }: { label: string; icon: React.ReactNo
         label={label}
         icon={icon}
         items={[
-          { label: 'Create manually', onSelect: () => navigate(ROUTES.rfqNew) },
+          { label: 'Create manually', onSelect: () => void navigate(ROUTES.rfqNew) },
           { label: 'Converting a project BOM', onSelect: () => {} }, // TODO: navigate to BOM conversion flow
           { label: 'From material list', onSelect: () => {} }, // TODO: navigate to material list flow
         ]}

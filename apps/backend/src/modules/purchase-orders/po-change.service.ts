@@ -33,6 +33,7 @@ import { BrandingService } from '../export/branding.service';
 import { NotificationService } from '../notification-feed/notification.service';
 import { EmailService } from '../notifications/email.service';
 
+import { canReadPurchaseOrder } from './po-access.util';
 import { CreatePoChangeRequestDto, RejectPoChangeRequestDto } from './po-change.dto';
 import { assertTransition } from './po-state-machine';
 import { PO_TOKEN_TTL_MS } from './po-token.const';
@@ -1145,15 +1146,8 @@ export class PoChangeService {
     po: { companyId: string; vendorId: string | null },
     user: AuthenticatedUser,
   ): void {
-    if (user.role === UserRole.SUPER_ADMIN) return;
-    if (user.role === UserRole.VENDOR) {
-      if (user.companyId !== po.vendorId) {
-        throw new ForbiddenException(ERR.general.accessDenied);
-      }
-    } else {
-      if (user.companyId !== po.companyId) {
-        throw new ForbiddenException(ERR.general.accessDenied);
-      }
+    if (!canReadPurchaseOrder(po, user)) {
+      throw new ForbiddenException(ERR.general.accessDenied);
     }
   }
 }

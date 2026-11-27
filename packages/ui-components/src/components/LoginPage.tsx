@@ -2,7 +2,7 @@ import { isApiError, HTTP_STATUS } from '@forethread/api-client';
 import { useTranslation } from '@forethread/i18n';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import EnvelopeSimpleIcon from '../assets/icons/envelope-simple.svg?react';
@@ -11,11 +11,14 @@ import EyeOpenedIcon from '../assets/icons/eye-opened.svg?react';
 import InfoIcon from '../assets/icons/info.svg?react';
 import LockSimpleIcon from '../assets/icons/lock-simple.svg?react';
 
+import { Checkbox } from './Checkbox';
 import { LoginForm } from './LoginForm';
 
 type LoginFormData = {
   email: string;
   password: string;
+  /** "Remember me for 30 days" — skip the emailed code on this browser. */
+  rememberDevice: boolean;
 };
 
 export interface LoginPageProps {
@@ -36,17 +39,20 @@ export function LoginPage({ loginMutation }: LoginPageProps) {
       z.object({
         email: z.string().email(t('validation:emailRequired')),
         password: z.string().min(8, t('validation:passwordMin')),
+        rememberDevice: z.boolean(),
       }),
     [t],
   );
 
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors, isValid },
   } = useForm<LoginFormData>({
     mode: 'onChange',
     resolver: zodResolver(loginSchema),
+    defaultValues: { email: '', password: '', rememberDevice: true },
   });
 
   const isNotActivated = isApiError(
@@ -80,6 +86,20 @@ export function LoginPage({ loginMutation }: LoginPageProps) {
       onSubmit={(e) => void handleSubmit((data) => loginMutation.mutate(data))(e)}
       emailInputProps={register('email')}
       passwordInputProps={register('password')}
+      rememberDeviceSlot={
+        <Controller
+          name="rememberDevice"
+          control={control}
+          render={({ field }) => (
+            <Checkbox
+              checked={field.value}
+              onChange={field.onChange}
+              disabled={loginMutation.isPending}
+              label={t('rememberDevice')}
+            />
+          )}
+        />
+      }
     />
   );
 }

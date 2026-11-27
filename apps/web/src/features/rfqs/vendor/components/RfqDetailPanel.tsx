@@ -34,7 +34,7 @@ export function RfqDetailPanel({ rfqId, onClose }: RfqDetailPanelProps) {
 
   const handleFullscreen = () => {
     onClose();
-    navigate(ROUTES.rfqDetail.replace(':id', rfqId));
+    void navigate(ROUTES.rfqDetail.replace(':id', rfqId));
   };
 
   const iconBtnClass =
@@ -72,7 +72,7 @@ export function RfqDetailPanel({ rfqId, onClose }: RfqDetailPanelProps) {
             variant="primary"
             size="sm"
             leftIcon={<PaperPlaneIcon className="w-4 h-4" />}
-            onClick={() => navigate(ROUTES.rfqResponse.replace(':id', rfqId))}
+            onClick={() => void navigate(ROUTES.rfqResponse.replace(':id', rfqId))}
             disabled={!canCreate && !canEdit}
           >
             {canEdit ? t('actions.editResponse') : t('actions.response')}

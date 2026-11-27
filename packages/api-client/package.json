@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@forethread/shared-types": "workspace:*",
-    "axios": "^1.7.7"
+    "axios": "^1.20.0"
   },
   "devDependencies": {
     "@forethread/config": "workspace:*",

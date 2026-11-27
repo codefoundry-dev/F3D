@@ -109,7 +109,7 @@ export default function MaterialListDetailPage() {
       <div className="p-8 space-y-4">
         <button
           type="button"
-          onClick={() => navigate(ROUTES.materialCatalogue)}
+          onClick={() => void navigate(ROUTES.materialCatalogue)}
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <BackArrowIcon className="w-4 h-4" />
@@ -184,9 +184,11 @@ export default function MaterialListDetailPage() {
             canDelete: false,
           }}
           onView={(materialId) =>
-            navigate(ROUTES.materialCatalogueDetail.replace(':id', materialId))
+            void navigate(ROUTES.materialCatalogueDetail.replace(':id', materialId))
           }
-          onEdit={(materialId) => navigate(ROUTES.materialCatalogueEdit.replace(':id', materialId))}
+          onEdit={(materialId) =>
+            void navigate(ROUTES.materialCatalogueEdit.replace(':id', materialId))
+          }
           onArchive={() => undefined}
           onRestore={() => undefined}
           onDelete={() => undefined}

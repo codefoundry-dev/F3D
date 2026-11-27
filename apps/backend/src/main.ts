@@ -26,6 +26,11 @@ async function bootstrap(): Promise<void> {
     rawBody: true,
   });
 
+  // Express 5 (NestJS 11) defaults to the 'simple' query parser, which leaves
+  // `ids[]=a&ids[]=b` (how axios sends arrays) and `filter[x]=y` unparsed.
+  // Keep the Express 4 behaviour.
+  app.set('query parser', 'extended');
+
   app.use(cookieParser());
 
   const configService = app.get(ConfigService);

@@ -1,3 +1,4 @@
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe, VersioningType, ExecutionContext } from '@nestjs/common';
 import { ClassSerializerInterceptor } from '@nestjs/common';
@@ -156,7 +157,9 @@ export async function bootstrapTestApp(): Promise<{
     .useValue(mockEmailService)
     .compile();
 
-  app = moduleFixture.createNestApplication();
+  app = moduleFixture.createNestApplication<NestExpressApplication>();
+  // Same as main.ts: keep the extended query parser under Express 5.
+  (app as NestExpressApplication).set('query parser', 'extended');
   // Same middleware as main.ts: without it req.cookies is undefined and
   // cookie-driven behaviour (e.g. the trusted-browser sign-in) can't be tested.
   app.use(cookieParser());

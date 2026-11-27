@@ -130,7 +130,7 @@ export default function CreateBomPage() {
   const targetProjectId = firstNonEmpty(selectedProjectId, routeProjectId);
   const projectBomTabUrl = `${ROUTES.projectDetail.replace(':id', targetProjectId)}?tab=bom`;
   const exitToProject = useCallback(
-    () => navigate(`${ROUTES.projectDetail.replace(':id', routeProjectId ?? '')}?tab=bom`),
+    () => void navigate(`${ROUTES.projectDetail.replace(':id', routeProjectId ?? '')}?tab=bom`),
     [navigate, routeProjectId],
   );
 
@@ -546,7 +546,7 @@ export default function CreateBomPage() {
             <>
               <Button
                 className="w-full"
-                onClick={() => navigate(projectBomTabUrl)}
+                onClick={() => void navigate(projectBomTabUrl)}
                 data-testid="bom-success-view"
               >
                 {t('create.viewBom')}
@@ -554,7 +554,7 @@ export default function CreateBomPage() {
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={() => navigate(ROUTES.projectDetail.replace(':id', targetProjectId))}
+                onClick={() => void navigate(ROUTES.projectDetail.replace(':id', targetProjectId))}
               >
                 {t('create.backToProject')}
               </Button>

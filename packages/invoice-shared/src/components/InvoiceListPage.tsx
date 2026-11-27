@@ -439,7 +439,7 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
       {isPhone ? (
         <FloatingActionButton
           label={t('list.createNew')}
-          onClick={() => navigate(INVOICE_ROUTES.invoiceCreate)}
+          onClick={() => void navigate(INVOICE_ROUTES.invoiceCreate)}
         />
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -451,7 +451,7 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
               {t('list.title')}
             </h1>
           </div>
-          <Button variant="primary" onClick={() => navigate(INVOICE_ROUTES.invoiceCreate)}>
+          <Button variant="primary" onClick={() => void navigate(INVOICE_ROUTES.invoiceCreate)}>
             {t('list.createNew')}
           </Button>
         </div>
@@ -696,7 +696,9 @@ export function InvoiceListPage({ extraInvalidateKeys }: InvoiceListPageProps) {
                               className="flex size-7 shrink-0 items-center justify-center rounded-[8px] border border-gray-100 bg-gradient-to-b from-[#F9F9FA] to-white text-gray-600 shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)] transition-colors hover:bg-none hover:bg-gray-50 hover:text-gray-900"
                               title={t('actions.view')}
                               onClick={() =>
-                                navigate(INVOICE_ROUTES.invoiceDetail.replace(':id', invoice.id))
+                                void navigate(
+                                  INVOICE_ROUTES.invoiceDetail.replace(':id', invoice.id),
+                                )
                               }
                             >
                               <EyeIcon className="size-3.5" />

@@ -127,7 +127,7 @@ export function PlatformStateTable() {
                         type="button"
                         className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
                         aria-label="View"
-                        onClick={() => navigate(ROUTES.adminPanel)}
+                        onClick={() => void navigate(ROUTES.adminPanel)}
                       >
                         <EyeIcon className="w-4 h-4" />
                       </button>

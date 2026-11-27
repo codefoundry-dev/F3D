@@ -55,7 +55,8 @@ export function ForgotPasswordPage({
         subtitle={t('resetEmailSentSubtitle')}
         alertContent={
           <Trans
-            i18nKey="auth:resetEmailSentDescription"
+            t={t}
+            i18nKey="resetEmailSentDescription"
             values={{ email: getValues('email') }}
             components={{ strong: <strong className="font-semibold" /> }}
           />

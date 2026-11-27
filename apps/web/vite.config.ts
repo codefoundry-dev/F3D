@@ -6,8 +6,7 @@ import os from 'os';
 
 // FOR-226: half the host cores, so this suite can run alongside the backend
 // jest suite under `turbo test --concurrency=2` without OOMing a 16GB machine.
-// (Vitest 2.1 does not resolve a '50%' string inside poolOptions, so compute a
-// concrete number; 2 on a 4-core CI runner, 8 on a 16-core dev box.)
+// Compute a concrete number: 2 on a 4-core CI runner, 8 on a 16-core dev box.
 const halfCores = Math.max(1, Math.floor(os.cpus().length / 2));
 
 export default defineConfig({
@@ -49,9 +48,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     pool: 'forks',
-    // FOR-226: cap the fork pool (see halfCores above). minForks:1 avoids
-    // Tinypool's "minThreads and maxThreads must not conflict" error.
-    poolOptions: { forks: { minForks: 1, maxForks: halfCores } },
+    // FOR-226: cap the fork pool (see halfCores above). Vitest 4 replaced
+    // poolOptions.forks.maxForks with the top-level maxWorkers.
+    maxWorkers: halfCores,
     teardownTimeout: 3000,
     coverage: {
       provider: 'v8',
@@ -67,12 +66,14 @@ export default defineConfig({
         'src/**/types.ts',
       ],
       thresholds: {
-        branches: 70,
-        // Function coverage structurally trails statement/line coverage (handler
-        // functions on shell/route/error-boundary infra that aren't unit-tested
-        // still count); the suite sits ~69-70%, so this gate is a notch lower
-        // while lines/statements/branches stay at 70.
-        functions: 65,
+        // Recalibrated for Vitest 4 (#111). Its v8 provider maps coverage back
+        // to the source AST, so it counts far more functions (4.6k vs 2.5k)
+        // and branches (9.4k vs 7.7k) than Vitest 2 did for the same suite.
+        // Same tests measured on 2026-11-27: branches 82.5% -> 66.5%,
+        // functions 68.7% -> 61.7%, lines 76.7% -> 72.1%. These gates keep
+        // the old margin (~3-5 points below the suite) under the new counting.
+        branches: 63,
+        functions: 58,
         lines: 70,
         statements: 70,
       },

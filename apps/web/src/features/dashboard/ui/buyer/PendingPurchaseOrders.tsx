@@ -197,14 +197,14 @@ function PoCard({ item, canApprove }: { item: PoCardData; canApprove: boolean })
     <>
       <DashboardItemCard
         name={item.vendorName}
-        onCardClick={() => navigate(ROUTES.purchaseOrderDetail.replace(':id', item.id))}
+        onCardClick={() => void navigate(ROUTES.purchaseOrderDetail.replace(':id', item.id))}
         hasChatNotification={item.hasUnreadMessages}
         hasAttachment={item.hasAttachments ?? false}
         onMessageClick={() =>
-          navigate(`${ROUTES.purchaseOrderDetail.replace(':id', item.id)}?tab=messages`)
+          void navigate(`${ROUTES.purchaseOrderDetail.replace(':id', item.id)}?tab=messages`)
         }
         onAttachmentClick={() =>
-          navigate(`${ROUTES.purchaseOrderDetail.replace(':id', item.id)}?tab=documents`)
+          void navigate(`${ROUTES.purchaseOrderDetail.replace(':id', item.id)}?tab=documents`)
         }
         statusBadge={
           <Badge className="bg-[#E8EAED] text-[#2D3139] border-0 rounded-full text-xs px-2 py-0.5">

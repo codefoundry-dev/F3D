@@ -80,9 +80,31 @@ describe('useLogin — trusted browser', () => {
       userId: 'u1',
       email: CREDS.email,
       otpExpiresAt: '2026-11-18T12:00:00.000Z',
+      // "Remember me" defaults to on.
+      rememberDevice: true,
     });
     expect(mockedGetMe).not.toHaveBeenCalled();
     expect(setAuth).not.toHaveBeenCalled();
+  });
+
+  it('carries an unchecked "Remember me" through to the code step', async () => {
+    mockedLogin.mockResolvedValue({
+      otpRequired: true,
+      userId: 'u1',
+      otpExpiresAt: '2026-11-18T12:00:00.000Z',
+    });
+    const { result } = setup();
+
+    result.current.mutate({ ...CREDS, rememberDevice: false });
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/verify-otp'));
+    expect(mockedLogin).toHaveBeenCalledWith(
+      { ...CREDS, rememberDevice: false },
+      expect.anything(),
+    );
+    expect(JSON.parse(sessionStorage.getItem(OTP_KEY) as string)).toMatchObject({
+      rememberDevice: false,
+    });
   });
 
   it('on a trusted browser, signs straight in without the code screen', async () => {

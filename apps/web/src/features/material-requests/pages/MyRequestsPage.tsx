@@ -49,7 +49,7 @@ export default function MyRequestsPage() {
           trailing={
             <PrimaryButton
               leading={<PlusIcon className="size-4" />}
-              onClick={() => navigate(ROUTES.materialRequestJobs)}
+              onClick={() => void navigate(ROUTES.materialRequestJobs)}
               className="w-full sm:w-auto"
               data-testid="mr-new-request"
             >

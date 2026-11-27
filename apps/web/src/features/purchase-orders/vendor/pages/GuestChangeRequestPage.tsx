@@ -113,7 +113,7 @@ function GuestChangeForm({ po, token }: { po: PoDetail; token: string }) {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showError, setShowError] = useState(false);
 
-  const backToPo = () => navigate(ROUTES.guestPurchaseOrder.replace(':token', token));
+  const backToPo = () => void navigate(ROUTES.guestPurchaseOrder.replace(':token', token));
 
   const defaultValues = useMemo(() => poToFormDefaults(po).defaultValues, [po]);
   const form = useForm<FormValues>({ defaultValues });

@@ -51,12 +51,12 @@ function RfqCard({ item }: { item: VendorRfqItem }) {
       name={item.companyName}
       hasChatNotification={item.hasUnreadMessages}
       hasAttachment={item.hasAttachments ?? false}
-      onCardClick={() => navigate(ROUTES.rfqDetail.replace(':id', item.id))}
+      onCardClick={() => void navigate(ROUTES.rfqDetail.replace(':id', item.id))}
       actions={
         <button
           type="button"
           className="flex items-center gap-1.5 h-8 px-3 py-2 border border-black rounded-xl text-sm font-medium leading-6 text-black hover:bg-black/5 transition-colors"
-          onClick={() => navigate(ROUTES.rfqDetail.replace(':id', item.id))}
+          onClick={() => void navigate(ROUTES.rfqDetail.replace(':id', item.id))}
         >
           <PaperPlaneIcon className="w-[18px] h-[18px]" />
           {t('vendor.rfqsWaiting.response')}

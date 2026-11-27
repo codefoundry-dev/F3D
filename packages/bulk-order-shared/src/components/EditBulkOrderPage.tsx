@@ -80,7 +80,7 @@ export function EditBulkOrderPage() {
         },
       });
       notificationService.success(t('modals.updateSuccess'));
-      navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', id!));
+      void navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', id!));
     } catch {
       notificationService.error(t('modals.updateError'));
     }
@@ -158,7 +158,7 @@ export function EditBulkOrderPage() {
         <Button
           variant="outline"
           size="md"
-          onClick={() => navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', id!))}
+          onClick={() => void navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', id!))}
         >
           {t('modals.cancel')}
         </Button>

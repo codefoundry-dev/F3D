@@ -102,7 +102,7 @@ export function CreateBulkOrderPage({ isVendorView = false }: CreateBulkOrderPag
   const isPopulated = !!approvedResponse && lineItems.length > 0;
   const canSubmit = isPopulated && !!endDate && !mutation.isPending;
 
-  const handleCancel = () => navigate(BULK_ORDER_ROUTES.bulkOrders);
+  const handleCancel = () => void navigate(BULK_ORDER_ROUTES.bulkOrders);
 
   // Phones (ADR-0019 B8): no bottom nav, the top-bar back arrow confirms before
   // dropping a picked RFQ / end date, and Cancel / Create sit in the footer bar.
@@ -133,7 +133,7 @@ export function CreateBulkOrderPage({ isVendorView = false }: CreateBulkOrderPag
           notificationService.success(t('create.createSuccess'));
           // Route by the primary key (data.id), not the human-readable bulkId —
           // the detail endpoint resolves by id, so navigating with bulkId 404s.
-          navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', data.id));
+          void navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', data.id));
         },
         onError: () => notificationService.error(t('create.createError')),
       },
