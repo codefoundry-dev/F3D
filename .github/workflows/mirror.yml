@@ -37,7 +37,7 @@ jobs:
     if: github.repository == 'codefoundry-dev/F3D'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # full history — the mirror needs every commit
           # REQUIRED for the push below. By default checkout persists an

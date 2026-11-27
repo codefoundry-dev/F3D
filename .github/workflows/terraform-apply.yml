@@ -39,7 +39,7 @@ jobs:
       envs: ${{ steps.changes.outputs.envs }}
       any: ${{ steps.changes.outputs.any }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 2
 
@@ -117,7 +117,7 @@ jobs:
         env: ${{ fromJson(needs.detect-changes.outputs.envs) }}
     environment: ${{ matrix.env }} # GitHub environment gate - protect prod with reviewers
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: hashicorp/setup-terraform@v4
         with:
@@ -182,7 +182,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.env }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: hashicorp/setup-terraform@v4
         with:
