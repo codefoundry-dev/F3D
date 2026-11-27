@@ -39,7 +39,7 @@ jobs:
       envs: ${{ steps.changes.outputs.envs }}
       any: ${{ steps.changes.outputs.any }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -81,7 +81,7 @@ jobs:
     if: needs.detect-changes.outputs.any == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: hashicorp/setup-terraform@v4
         with:
@@ -113,7 +113,7 @@ jobs:
       matrix:
         env: ${{ fromJson(needs.detect-changes.outputs.envs) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: hashicorp/setup-terraform@v4
         with:

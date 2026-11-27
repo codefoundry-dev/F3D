@@ -73,7 +73,7 @@ jobs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
       ecr_uri: ${{ steps.meta.outputs.ecr_uri }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Compute image metadata
         id: meta
@@ -148,7 +148,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.env || (github.ref_name == 'main' && 'prod' || 'staging') }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v6
