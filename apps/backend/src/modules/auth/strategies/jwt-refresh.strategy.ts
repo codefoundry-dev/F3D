@@ -29,7 +29,8 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
         ExtractJwt.fromBodyField('refreshToken'),
       ]),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('JWT_REFRESH_SECRET'),
+      // passport-jwt's types now require a string; a missing secret still fails at startup.
+      secretOrKey: config.get<string>('JWT_REFRESH_SECRET') as string,
       passReqToCallback: true,
     });
   }
