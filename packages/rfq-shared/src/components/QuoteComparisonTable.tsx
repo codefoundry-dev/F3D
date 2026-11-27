@@ -551,7 +551,7 @@ export function QuoteComparisonTable({
       const target = selectionTargets[0];
       // FOR-391: the PO page builds the selected lines from this quote, each at
       // its quoted price.
-      navigate(PO_CREATE_ROUTE, {
+      void navigate(PO_CREATE_ROUTE, {
         state: {
           mode: 'from-rfq',
           rfqSource: target
@@ -1238,7 +1238,7 @@ export function QuoteComparisonTable({
                       <MessageBadgeIcon
                         hasNotification={vendor.hasNotes}
                         onClick={() =>
-                          navigate(
+                          void navigate(
                             `${RFQ_ROUTES.quoteResponseDetail
                               .replace(':id', rfqId)
                               .replace(':quoteId', vendor.quoteResponseId)}?tab=messages`,
@@ -1249,7 +1249,7 @@ export function QuoteComparisonTable({
                         type="button"
                         title={t('responsesTab.attachments')}
                         onClick={() =>
-                          navigate(
+                          void navigate(
                             `${RFQ_ROUTES.quoteResponseDetail
                               .replace(':id', rfqId)
                               .replace(':quoteId', vendor.quoteResponseId)}?tab=attachments`,

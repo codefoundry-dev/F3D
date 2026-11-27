@@ -30,7 +30,7 @@ export function InvoicesSection({ items, isLoading }: InvoicesSectionProps) {
             key={item.id}
             name={item.companyName}
             item={item}
-            onCardClick={() => navigate(ROUTES.invoiceDetail.replace(':id', item.id))}
+            onCardClick={() => void navigate(ROUTES.invoiceDetail.replace(':id', item.id))}
           />
         ))
       )}

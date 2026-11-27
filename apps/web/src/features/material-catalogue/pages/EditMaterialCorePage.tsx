@@ -83,7 +83,7 @@ export default function EditMaterialCorePage() {
       {
         onSuccess: () => {
           if (isChangeRequest) setShowChangeSubmitted(true);
-          else navigate(detailPath);
+          else void navigate(detailPath);
         },
       },
     );
@@ -104,7 +104,7 @@ export default function EditMaterialCorePage() {
       <div className="p-8 space-y-4">
         <button
           type="button"
-          onClick={() => navigate(ROUTES.materialCatalogue)}
+          onClick={() => void navigate(ROUTES.materialCatalogue)}
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <BackArrowIcon className="w-4 h-4" />
@@ -124,7 +124,7 @@ export default function EditMaterialCorePage() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => navigate(detailPath)}
+            onClick={() => void navigate(detailPath)}
             className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
             aria-label={t('editCore.back')}
             data-testid="edit-material-core-back"
@@ -176,7 +176,7 @@ export default function EditMaterialCorePage() {
       {showChangeSubmitted && (
         <MaterialCatalogueSuccessModal
           variant="changeSubmitted"
-          onClose={() => navigate(ROUTES.materialCatalogue)}
+          onClose={() => void navigate(ROUTES.materialCatalogue)}
         />
       )}
     </div>

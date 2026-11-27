@@ -215,7 +215,9 @@ function GuestPoContent({ po, token }: { po: PoDetail; token: string }) {
                       label: t('guest.requestChanges'),
                       icon: <EditWithoutLineIcon className="w-4 h-4" />,
                       onClick: () =>
-                        navigate(ROUTES.guestPurchaseOrderChangeRequest.replace(':token', token)),
+                        void navigate(
+                          ROUTES.guestPurchaseOrderChangeRequest.replace(':token', token),
+                        ),
                     },
                     {
                       key: 'cancel',

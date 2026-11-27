@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import UploadMaterialFilePage from './UploadMaterialFilePage';
 
@@ -40,7 +40,9 @@ vi.mock('@/shared/role', () => ({
 
 const mockedCreate = apiClient.createDocExtraction as unknown as ReturnType<typeof vi.fn>;
 const mockedSummary = apiClient.getDocExtractionSummary as unknown as ReturnType<typeof vi.fn>;
-const mockedItems = apiClient.getDocExtractionItems as unknown as ReturnType<typeof vi.fn>;
+const mockedItems = apiClient.getDocExtractionItems as unknown as Mock<
+  (...args: never[]) => unknown
+>;
 const mockedOps = apiClient.applyDocExtractionItemOps as unknown as ReturnType<typeof vi.fn>;
 const mockedUpdate = apiClient.updateDocExtraction as unknown as ReturnType<typeof vi.fn>;
 const mockedImport = apiClient.importCatalogue as unknown as ReturnType<typeof vi.fn>;

@@ -163,7 +163,7 @@ export default function ProjectListPage() {
             />
             <FloatingActionButton
               label={t('list.createNew')}
-              onClick={() => navigate(ROUTES.projectsNew)}
+              onClick={() => void navigate(ROUTES.projectsNew)}
             />
           </div>
         ) : (
@@ -185,7 +185,7 @@ export default function ProjectListPage() {
                 variant="primary"
                 size="lg"
                 leftIcon={<PlusIcon className="w-4 h-4" />}
-                onClick={() => navigate(ROUTES.projectsNew)}
+                onClick={() => void navigate(ROUTES.projectsNew)}
               >
                 {t('list.createNew')}
               </Button>
@@ -246,8 +246,8 @@ export default function ProjectListPage() {
                     <ProjectRow
                       key={project.id}
                       project={project}
-                      onOpen={() => navigate(ROUTES.projectDetail.replace(':id', project.id))}
-                      onEdit={() => navigate(ROUTES.projectEdit.replace(':id', project.id))}
+                      onOpen={() => void navigate(ROUTES.projectDetail.replace(':id', project.id))}
+                      onEdit={() => void navigate(ROUTES.projectEdit.replace(':id', project.id))}
                       usersLabel={t('list.usersCount', { count: project.memberCount })}
                       statusLabel={t(`statuses.${project.status}` as never)}
                       viewLabel={t('actions.view')}

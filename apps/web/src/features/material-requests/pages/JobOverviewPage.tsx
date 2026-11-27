@@ -74,7 +74,7 @@ export default function JobOverviewPage() {
         header={
           <MobileHeader
             title={t('jobOverview.title')}
-            onBack={() => navigate(ROUTES.materialRequestJobs)}
+            onBack={() => void navigate(ROUTES.materialRequestJobs)}
             icon={<RequestIcon />}
           />
         }
@@ -93,13 +93,15 @@ export default function JobOverviewPage() {
       header={
         <MobileHeader
           title={t('jobOverview.title')}
-          onBack={() => navigate(ROUTES.materialRequestJobs)}
+          onBack={() => void navigate(ROUTES.materialRequestJobs)}
           icon={<RequestIcon />}
           subline={t('jobOverview.projectLabel', { code: project.name })}
           trailing={
             <PrimaryButton
               leading={<PlusIcon className="size-4" />}
-              onClick={() => navigate(ROUTES.materialRequestNew.replace(':projectId', projectId))}
+              onClick={() =>
+                void navigate(ROUTES.materialRequestNew.replace(':projectId', projectId))
+              }
               className="w-full sm:w-auto"
               data-testid="mr-request-materials"
             >

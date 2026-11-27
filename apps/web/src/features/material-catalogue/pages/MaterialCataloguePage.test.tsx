@@ -2,7 +2,7 @@ import * as apiClient from '@forethread/api-client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import MaterialCataloguePage from './MaterialCataloguePage';
 
@@ -39,7 +39,7 @@ vi.mock('@/shared/role', () => ({
   }),
 }));
 
-const mockedGetMaterials = apiClient.getMaterials as unknown as ReturnType<typeof vi.fn>;
+const mockedGetMaterials = apiClient.getMaterials as unknown as Mock<(...args: never[]) => unknown>;
 const mockedGetCategories = apiClient.getMaterialCategories as unknown as ReturnType<typeof vi.fn>;
 const mockedGetFacets = apiClient.getMaterialFacets as unknown as ReturnType<typeof vi.fn>;
 const mockedGetSuggestions = apiClient.getMaterialSuggestions as unknown as ReturnType<

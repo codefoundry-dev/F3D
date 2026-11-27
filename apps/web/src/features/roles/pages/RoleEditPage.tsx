@@ -162,7 +162,7 @@ function RoleEditor({ role }: RoleEditorProps) {
     try {
       await updateMutation.mutateAsync({ permissionKeys: [...selected], thresholds });
       notificationService.success(t('saved'));
-      navigate(ROUTES.roles);
+      void navigate(ROUTES.roles);
     } catch {
       notificationService.error(t('saveError'));
     }
@@ -195,7 +195,7 @@ function RoleEditor({ role }: RoleEditorProps) {
       />
 
       <div className="flex items-center justify-end gap-3 pt-2">
-        <Button variant="secondary" onClick={() => navigate(ROUTES.roles)}>
+        <Button variant="secondary" onClick={() => void navigate(ROUTES.roles)}>
           {t('cancel')}
         </Button>
         <Button

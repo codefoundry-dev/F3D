@@ -83,7 +83,7 @@ export default function RoleListPage() {
               <button
                 key={role}
                 type="button"
-                onClick={() => navigate(ROUTES.roleEdit.replace(':role', role))}
+                onClick={() => void navigate(ROUTES.roleEdit.replace(':role', role))}
                 data-testid={`role-${role}`}
                 className="flex items-center gap-4 rounded-[10px] border border-gray-100 bg-white p-3 text-left shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)] transition-colors hover:bg-gray-25"
               >
@@ -143,7 +143,7 @@ export default function RoleListPage() {
             <button
               key={role.id}
               type="button"
-              onClick={() => navigate(ROUTES.customRoleEdit.replace(':id', role.id))}
+              onClick={() => void navigate(ROUTES.customRoleEdit.replace(':id', role.id))}
               data-testid={`custom-role-${role.id}`}
               className="flex items-center gap-4 rounded-[10px] border border-gray-100 bg-white p-3 text-left shadow-[0_1px_6px_0_rgba(10,13,18,0.06),0_1px_2px_0_rgba(10,13,18,0.02)] transition-colors hover:bg-gray-25"
             >
@@ -172,7 +172,7 @@ export default function RoleListPage() {
           onClose={() => setCreating(false)}
           onCreated={(id) => {
             setCreating(false);
-            navigate(ROUTES.customRoleEdit.replace(':id', id));
+            void navigate(ROUTES.customRoleEdit.replace(':id', id));
           }}
         />
       )}

@@ -352,7 +352,7 @@ export default function VendorUserListPage() {
                                 type="button"
                                 className={ICON_BTN_28}
                                 aria-label="View"
-                                onClick={() => navigate(`/users/${user.id}`)}
+                                onClick={() => void navigate(`/users/${user.id}`)}
                               >
                                 <EyeIcon className="size-3.5" />
                               </button>

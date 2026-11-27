@@ -88,7 +88,7 @@ export default function RfqDetailPage() {
             ? t('actions.draftPoCreated', { poNumber: po.poNumber })
             : t('startOrder.poDraftCreated'),
         );
-        if (po) navigate(ROUTES.purchaseOrderDetail.replace(':id', po.id));
+        if (po) void navigate(ROUTES.purchaseOrderDetail.replace(':id', po.id));
       },
       onError: () => toast.error(t('startOrder.createError')),
     });
@@ -159,7 +159,7 @@ export default function RfqDetailPage() {
           // it rather than offering to create a duplicate.
           <Button
             size="sm"
-            onClick={() => navigate(ROUTES.purchaseOrderDetail.replace(':id', linkedPo.id))}
+            onClick={() => void navigate(ROUTES.purchaseOrderDetail.replace(':id', linkedPo.id))}
             data-testid="view-po"
           >
             {t('actions.viewPo', { poNumber: linkedPo.poNumber })}

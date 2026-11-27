@@ -212,7 +212,7 @@ export default function EditProjectPage() {
         pointOfContactId: blankToNull(data.pointOfContactId),
       },
       {
-        onSuccess: () => navigate(ROUTES.projectDetail.replace(':id', id ?? '')),
+        onSuccess: () => void navigate(ROUTES.projectDetail.replace(':id', id ?? '')),
         onError: (error) =>
           notificationService.error(serverMessage(error) ?? t('edit.updateError')),
       },

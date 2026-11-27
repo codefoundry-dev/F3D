@@ -179,7 +179,7 @@ export default function RequestMaterialsPage() {
 
   const goBack = () => {
     if (step === 0) {
-      navigate(ROUTES.materialRequestJobs);
+      void navigate(ROUTES.materialRequestJobs);
       return;
     }
     setStep((s) => (s - 1) as WizardStep);
@@ -211,7 +211,7 @@ export default function RequestMaterialsPage() {
     const input = ids.length > 0 ? { ...base, nomineeIds: ids } : base;
     createMutation.mutate(input, {
       onSuccess: (mr) => {
-        navigate(ROUTES.materialRequestConfirmation.replace(':id', mr.id), {
+        void navigate(ROUTES.materialRequestConfirmation.replace(':id', mr.id), {
           state: { mr },
         });
       },
@@ -261,7 +261,7 @@ export default function RequestMaterialsPage() {
   const isPhone = useIsPhone();
   const { exitConfirm } = useWizardChrome({
     isDirty: lines.length > 0 && !createMutation.isSuccess,
-    onExit: () => navigate(overviewPath),
+    onExit: () => void navigate(overviewPath),
   });
 
   // App-bar breadcrumb / page title reflects the current wizard step.

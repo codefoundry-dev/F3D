@@ -82,7 +82,7 @@ function EditBomForm({ bom }: { bom: BomDetailDto }) {
       {
         onSuccess: () => {
           notificationService.success(t('edit.saveSuccess'));
-          navigate(detailUrl);
+          void navigate(detailUrl);
         },
         onError: () => notificationService.error(t('edit.saveError')),
       },
@@ -103,7 +103,7 @@ function EditBomForm({ bom }: { bom: BomDetailDto }) {
           variant="outline"
           size="lg"
           className="h-12 text-sm"
-          onClick={() => navigate(detailUrl)}
+          onClick={() => void navigate(detailUrl)}
         >
           {t('edit.cancel')}
         </Button>

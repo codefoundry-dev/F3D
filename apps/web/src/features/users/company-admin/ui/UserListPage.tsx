@@ -652,7 +652,7 @@ export default function UserListPage() {
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    navigate(ROUTES.userDetail.replace(':id', user.id))
+                                    void navigate(ROUTES.userDetail.replace(':id', user.id))
                                   }
                                   aria-label="View"
                                   className={ICON_BTN_28}

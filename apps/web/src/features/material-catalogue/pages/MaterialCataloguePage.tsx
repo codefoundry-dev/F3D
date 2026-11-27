@@ -282,7 +282,7 @@ export default function MaterialCataloguePage() {
       };
     recordRecentMaterial(full);
     setSearchFocused(false);
-    navigate(buildDetailPath(material.id));
+    void navigate(buildDetailPath(material.id));
   };
 
   const runConfirm = () => {
@@ -408,14 +408,14 @@ export default function MaterialCataloguePage() {
           {has('material.create') && isPhone && (
             <FloatingActionButton
               label={t('actions.createNew')}
-              onClick={() => navigate(ROUTES.materialCatalogueNew)}
+              onClick={() => void navigate(ROUTES.materialCatalogueNew)}
               testId="material-create"
             />
           )}
           {has('material.create') && !isPhone && (
             <Button
               leftIcon={<PlusIcon className="w-4 h-4" />}
-              onClick={() => navigate(ROUTES.materialCatalogueNew)}
+              onClick={() => void navigate(ROUTES.materialCatalogueNew)}
               data-testid="material-create"
             >
               {t('actions.createNew')}
@@ -425,7 +425,7 @@ export default function MaterialCataloguePage() {
             <Button
               variant="outline"
               leftIcon={<DownloadIcon className="w-4 h-4" />}
-              onClick={() => navigate(ROUTES.materialCatalogueUpload)}
+              onClick={() => void navigate(ROUTES.materialCatalogueUpload)}
               data-testid="material-upload"
             >
               {t('actions.upload')}
@@ -456,7 +456,7 @@ export default function MaterialCataloguePage() {
           }}
           onSearchChange={setListSearch}
           onCreate={() => setCreateListOpen(true)}
-          onView={(list) => navigate(buildListDetailPath(list.id))}
+          onView={(list) => void navigate(buildListDetailPath(list.id))}
           onEdit={(list) => setEditList(list)}
           onDelete={(list) => setDeleteList(list)}
           onViewAllCompanyMaterials={() => setActiveTab('companyMaterials')}
@@ -487,7 +487,7 @@ export default function MaterialCataloguePage() {
                 rejectingId={
                   mutations.reject.isPending ? mutations.reject.variables?.id : undefined
                 }
-                onView={(id) => navigate(buildDetailPath(id))}
+                onView={(id) => void navigate(buildDetailPath(id))}
                 onApprove={(id) => mutations.approve.mutate(id)}
                 onReject={(id) => mutations.reject.mutate({ id })}
               />
@@ -690,8 +690,8 @@ export default function MaterialCataloguePage() {
                 sortBy={sortBy}
                 sortDir={sortDir}
                 onSort={handleSort}
-                onView={(id) => navigate(buildDetailPath(id))}
-                onEdit={(id) => navigate(buildEditPath(id))}
+                onView={(id) => void navigate(buildDetailPath(id))}
+                onEdit={(id) => void navigate(buildEditPath(id))}
                 onArchive={(m) => openConfirm('archive', m)}
                 onRestore={(m) => openConfirm('restore', m)}
                 onDelete={(m) => openConfirm('delete', m)}

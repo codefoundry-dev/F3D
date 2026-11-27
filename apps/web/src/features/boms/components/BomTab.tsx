@@ -224,7 +224,7 @@ export function BomTab({ projectId }: { projectId: string }) {
               <Button
                 variant="outline"
                 onClick={() =>
-                  navigate(
+                  void navigate(
                     ROUTES.projectBomEdit.replace(':id', projectId).replace(':bomId', activeBom.id),
                   )
                 }
@@ -233,7 +233,9 @@ export function BomTab({ projectId }: { projectId: string }) {
                 {t('tab.editBom')}
               </Button>
             )}
-            <Button onClick={() => navigate(ROUTES.projectBomCreate.replace(':id', projectId))}>
+            <Button
+              onClick={() => void navigate(ROUTES.projectBomCreate.replace(':id', projectId))}
+            >
               {t('tab.createNew')}
             </Button>
           </div>

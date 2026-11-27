@@ -148,7 +148,7 @@ export function BulkOrderDetailPage({
                   size="md"
                   className="h-12 gap-2"
                   onClick={() =>
-                    navigate(BULK_ORDER_ROUTES.bulkOrderReviewChange.replace(':id', id!))
+                    void navigate(BULK_ORDER_ROUTES.bulkOrderReviewChange.replace(':id', id!))
                   }
                 >
                   <LetterIcon className="w-5 h-5" />
@@ -178,7 +178,7 @@ export function BulkOrderDetailPage({
               <Button
                 variant="primary"
                 onClick={() =>
-                  navigate(BULK_ORDER_ROUTES.bulkOrderReviewChange.replace(':id', id!))
+                  void navigate(BULK_ORDER_ROUTES.bulkOrderReviewChange.replace(':id', id!))
                 }
               >
                 {t('changeRequests.reviewChanges')}
@@ -187,7 +187,9 @@ export function BulkOrderDetailPage({
               <Button
                 variant="primary"
                 leftIcon={<PlusIcon className="w-5 h-5" />}
-                onClick={() => navigate(BULK_ORDER_ROUTES.bulkOrderDrawdown.replace(':id', id!))}
+                onClick={() =>
+                  void navigate(BULK_ORDER_ROUTES.bulkOrderDrawdown.replace(':id', id!))
+                }
               >
                 {t('detail.createDrawdown')}
               </Button>
@@ -200,7 +202,7 @@ export function BulkOrderDetailPage({
                     key: 'drawdown',
                     label: t('detail.createDrawdown'),
                     onClick: () =>
-                      navigate(BULK_ORDER_ROUTES.bulkOrderDrawdown.replace(':id', id!)),
+                      void navigate(BULK_ORDER_ROUTES.bulkOrderDrawdown.replace(':id', id!)),
                   },
                 ]
               : []),
@@ -209,7 +211,8 @@ export function BulkOrderDetailPage({
                   {
                     key: 'change',
                     label: t('detail.change'),
-                    onClick: () => navigate(BULK_ORDER_ROUTES.bulkOrderChange.replace(':id', id!)),
+                    onClick: () =>
+                      void navigate(BULK_ORDER_ROUTES.bulkOrderChange.replace(':id', id!)),
                   },
                 ]
               : []),
@@ -234,7 +237,7 @@ export function BulkOrderDetailPage({
               variant="primary"
               size="md"
               leftIcon={<PlusIcon className="w-5 h-5" />}
-              onClick={() => navigate(BULK_ORDER_ROUTES.bulkOrderDrawdown.replace(':id', id!))}
+              onClick={() => void navigate(BULK_ORDER_ROUTES.bulkOrderDrawdown.replace(':id', id!))}
             >
               {t('detail.createDrawdown')}
             </Button>
@@ -244,7 +247,7 @@ export function BulkOrderDetailPage({
               variant="outline"
               size="md"
               leftIcon={<EditIcon className="w-4 h-4" />}
-              onClick={() => navigate(BULK_ORDER_ROUTES.bulkOrderChange.replace(':id', id!))}
+              onClick={() => void navigate(BULK_ORDER_ROUTES.bulkOrderChange.replace(':id', id!))}
             >
               {t('detail.change')}
             </Button>

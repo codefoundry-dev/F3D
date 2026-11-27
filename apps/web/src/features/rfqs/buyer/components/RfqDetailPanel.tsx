@@ -37,11 +37,11 @@ export function RfqDetailPanel({ rfqId, onClose }: RfqDetailPanelProps) {
   const handleFullscreen = () => {
     onClose();
     if (openQuote) {
-      navigate(
+      void navigate(
         `${ROUTES.quoteResponseDetail.replace(':id', rfqId).replace(':quoteId', openQuote.id)}?tab=${openQuote.tab}`,
       );
     } else {
-      navigate(ROUTES.rfqDetail.replace(':id', rfqId));
+      void navigate(ROUTES.rfqDetail.replace(':id', rfqId));
     }
   };
 

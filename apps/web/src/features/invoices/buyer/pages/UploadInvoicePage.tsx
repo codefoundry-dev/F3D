@@ -137,7 +137,7 @@ export default function UploadInvoicePage() {
         <div className="flex items-center gap-3">
           <Button
             variant="outline"
-            onClick={() => navigate(ROUTES.invoices)}
+            onClick={() => void navigate(ROUTES.invoices)}
             data-testid="upload-invoice-back"
           >
             {t('upload.goToInvoices')}
@@ -251,7 +251,9 @@ export default function UploadInvoicePage() {
                             size="sm"
                             data-testid={`upload-invoice-view-${entry.key}`}
                             onClick={() =>
-                              navigate(ROUTES.invoiceDetail.replace(':id', entry.invoiceId ?? ''))
+                              void navigate(
+                                ROUTES.invoiceDetail.replace(':id', entry.invoiceId ?? ''),
+                              )
                             }
                           >
                             {t('upload.viewInvoice')}

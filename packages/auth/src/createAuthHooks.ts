@@ -120,7 +120,7 @@ export function createAuthHooks(otpSessionKey: string, useAuthStore: UseAuthStor
               permissions: user.permissions ?? [],
             });
             clearOtpSession();
-            navigate('/');
+            void navigate('/');
           } catch {
             notificationService.error(t('auth:signInSessionFailed'));
           }
@@ -134,7 +134,7 @@ export function createAuthHooks(otpSessionKey: string, useAuthStore: UseAuthStor
           rememberDevice: variables.rememberDevice !== false,
         });
         notificationService.info(t('auth:resendToast'));
-        navigate('/verify-otp');
+        void navigate('/verify-otp');
       },
     });
   }
@@ -191,13 +191,13 @@ export function createAuthHooks(otpSessionKey: string, useAuthStore: UseAuthStor
           });
 
           clearOtpSession();
-          navigate('/');
+          void navigate('/');
         } catch {
           // The OTP is single-use and now spent; send the user back to a clean sign-in
           // with a message that names the real failure instead of blaming the code.
           clearOtpSession();
           notificationService.error(t('auth:twoFactorSessionFailed'));
-          navigate('/login');
+          void navigate('/login');
         }
       },
     });
@@ -211,7 +211,7 @@ export function createAuthHooks(otpSessionKey: string, useAuthStore: UseAuthStor
       mutationFn: () => apiLogout(),
       onSettled: () => {
         clearAuth();
-        navigate('/login');
+        void navigate('/login');
       },
     });
   }

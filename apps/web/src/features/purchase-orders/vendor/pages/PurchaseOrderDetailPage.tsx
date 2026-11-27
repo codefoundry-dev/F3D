@@ -247,7 +247,7 @@ export default function PurchaseOrderDetailPage() {
                 key: 'changeRequest',
                 label: t('actions.changeRequest'),
                 onClick: () =>
-                  navigate(`${ROUTES.purchaseOrderChangeRequest.replace(':id', po.id)}`),
+                  void navigate(`${ROUTES.purchaseOrderChangeRequest.replace(':id', po.id)}`),
               },
               {
                 key: 'cancel',
@@ -324,7 +324,7 @@ export default function PurchaseOrderDetailPage() {
             layout="page"
             onEditAll={
               canChange
-                ? () => navigate(`${ROUTES.purchaseOrderChangeRequest.replace(':id', po.id)}`)
+                ? () => void navigate(`${ROUTES.purchaseOrderChangeRequest.replace(':id', po.id)}`)
                 : undefined
             }
           />

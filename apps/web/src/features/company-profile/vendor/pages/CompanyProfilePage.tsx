@@ -27,5 +27,5 @@ export default function CompanyProfilePage() {
 
   if (!companyId) return null;
 
-  return <VendorProfilePage vendorId={companyId} onBack={() => navigate(-1)} />;
+  return <VendorProfilePage vendorId={companyId} onBack={() => void navigate(-1)} />;
 }

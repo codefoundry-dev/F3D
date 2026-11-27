@@ -109,7 +109,7 @@ function RecentOrderCard({ item }: { item: RecentOrderItem }) {
     };
     const route = routeMap[item.type];
     if (route) {
-      navigate(route.replace(':id', item.id));
+      void navigate(route.replace(':id', item.id));
     }
   }
 

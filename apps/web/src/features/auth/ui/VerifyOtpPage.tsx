@@ -17,7 +17,7 @@ export default function VerifyOtpPage() {
 
   useEffect(() => {
     if (!session) {
-      navigate('/login', { replace: true });
+      void navigate('/login', { replace: true });
       return;
     }
 
@@ -69,7 +69,7 @@ export default function VerifyOtpPage() {
       isResending={resendMutation.isPending}
       onVerify={(otp) => verifyMutation.mutate({ userId: session.userId, otp })}
       onResend={() => resendMutation.mutate({ userId: session.userId })}
-      onBackToLogin={() => navigate('/login')}
+      onBackToLogin={() => void navigate('/login')}
       onContactSupport={() => window.open('mailto:support@forethread.com')}
     />
   );

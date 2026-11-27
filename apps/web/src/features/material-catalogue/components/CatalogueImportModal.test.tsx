@@ -90,6 +90,9 @@ describe('CatalogueImportModal', () => {
     mockedGet.mockReset();
     mockedUpdate.mockReset();
     mockedImport.mockReset();
+    // Vitest 3+ hands back the SAME spy when the method is already spied, so
+    // restore first or call counts leak between tests.
+    vi.restoreAllMocks();
     vi.spyOn(notificationService, 'success').mockImplementation(() => 'id');
     vi.spyOn(notificationService, 'error').mockImplementation(() => 'id');
   });

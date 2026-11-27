@@ -218,7 +218,7 @@ export default function RfqListPage() {
     <tr
       key={rfq.id}
       className="border-b border-border last:border-b-0 hover:bg-accent/50 transition-colors cursor-pointer"
-      onClick={() => navigate(`${ROUTES.rfqDetail.replace(':id', rfq.id)}?tab=details`)}
+      onClick={() => void navigate(`${ROUTES.rfqDetail.replace(':id', rfq.id)}?tab=details`)}
     >
       {visibleCols.map(({ field, key }) => (
         <td
@@ -244,7 +244,9 @@ export default function RfqListPage() {
           <MessageBadgeIcon
             hasNotification
             className="w-8 h-8 flex items-center justify-center"
-            onClick={() => navigate(`${ROUTES.rfqDetail.replace(':id', rfq.id)}?tab=responses`)}
+            onClick={() =>
+              void navigate(`${ROUTES.rfqDetail.replace(':id', rfq.id)}?tab=responses`)
+            }
           />
           <button
             type="button"

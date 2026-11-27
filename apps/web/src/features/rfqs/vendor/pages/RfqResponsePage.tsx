@@ -398,7 +398,7 @@ function RfqResponseForm({
                 onClick={() => {
                   void queryClient.invalidateQueries({ queryKey: ['rfqs'] });
                   setShowSuccessModal(false);
-                  navigate(ROUTES.rfqDetail.replace(':id', rfq.id));
+                  void navigate(ROUTES.rfqDetail.replace(':id', rfq.id));
                 }}
               >
                 {t('response.backToRfq')}
@@ -409,7 +409,7 @@ function RfqResponseForm({
                 onClick={() => {
                   void queryClient.invalidateQueries({ queryKey: ['rfqs'] });
                   setShowSuccessModal(false);
-                  navigate(ROUTES.home);
+                  void navigate(ROUTES.home);
                 }}
               >
                 {t('response.goToDashboard')}
@@ -431,7 +431,7 @@ function RfqResponseForm({
           primaryButtonLabel={t('response.backToRfq')}
           onPrimaryClick={() => {
             setShowErrorModal(false);
-            navigate(ROUTES.rfqDetail.replace(':id', rfq.id));
+            void navigate(ROUTES.rfqDetail.replace(':id', rfq.id));
           }}
           secondaryButtonLabel={form.isEditMode ? undefined : t('response.saveAsDraft')}
           onSecondaryClick={

@@ -130,7 +130,7 @@ export default function VendorRepresentativeDetailPage() {
       notificationService.success(
         t('vendors:repDetail.removedToast', { defaultValue: 'Representative removed' }),
       );
-      navigate(vendorId ? ROUTES.vendorDetail.replace(':id', vendorId) : ROUTES.vendors);
+      void navigate(vendorId ? ROUTES.vendorDetail.replace(':id', vendorId) : ROUTES.vendors);
     },
     onError: () =>
       notificationService.error(

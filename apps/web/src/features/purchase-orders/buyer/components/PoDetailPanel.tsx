@@ -40,7 +40,7 @@ export function PoDetailPanel({ poId, onClose }: PoDetailPanelProps) {
 
   const handleFullscreen = () => {
     onClose();
-    navigate(ROUTES.purchaseOrderDetail.replace(':id', poId));
+    void navigate(ROUTES.purchaseOrderDetail.replace(':id', poId));
   };
 
   const iconBtnClass =

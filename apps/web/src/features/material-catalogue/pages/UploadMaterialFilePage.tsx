@@ -395,7 +395,7 @@ export default function UploadMaterialFilePage() {
             list: summary.materialList.name,
           }),
         );
-        navigate(ROUTES.materialCatalogueListDetail.replace(':id', summary.materialList.id));
+        void navigate(ROUTES.materialCatalogueListDetail.replace(':id', summary.materialList.id));
         return;
       }
       notificationService.success(
@@ -406,7 +406,7 @@ export default function UploadMaterialFilePage() {
           categories: summary.categoriesCreated.toLocaleString(),
         }),
       );
-      navigate(ROUTES.materialCatalogue);
+      void navigate(ROUTES.materialCatalogue);
     } catch {
       setPersisting(false);
       notificationService.error(t('upload.errors.importFailed'));
@@ -416,12 +416,12 @@ export default function UploadMaterialFilePage() {
   const onViewMatch = useCallback(
     (matches: MaterialDuplicateMatch[]) => {
       const first = matches[0];
-      if (first) navigate(ROUTES.materialCatalogueDetail.replace(':id', first.id));
+      if (first) void navigate(ROUTES.materialCatalogueDetail.replace(':id', first.id));
     },
     [navigate],
   );
 
-  const cancel = () => navigate(ROUTES.materialCatalogue);
+  const cancel = () => void navigate(ROUTES.materialCatalogue);
 
   const isUploading = create.isPending;
   const isPolling = !!job && (job.status === 'PENDING' || job.status === 'PROCESSING');

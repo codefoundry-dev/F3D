@@ -11,7 +11,7 @@ import { useTranslation } from '@forethread/i18n';
 import { notificationService } from '@forethread/ui-components';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useMemo, useState } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, type Resolver } from 'react-hook-form';
 
 import { PoSourceOfCreation, PoType } from '@forethread/shared-types/client';
 
@@ -106,7 +106,9 @@ export function usePoWizardForm({
   };
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+    // zod 4 types the resolver by the schema's INPUT (preprocessed fields come out
+    // as `unknown`). The form always holds the output shape via baseDefaults.
+    resolver: zodResolver(formSchema) as Resolver<FormValues>,
     defaultValues: initialValues ? { ...baseDefaults, ...initialValues } : baseDefaults,
     mode: 'onChange',
   });

@@ -24,7 +24,7 @@ export function ErrorPage({ title, message }: ErrorPageProps) {
       retryLabel={t('common:errorRetry')}
       backLabel={t('common:errorBack')}
       onRetry={() => window.location.reload()}
-      onBack={() => navigate(-1)}
+      onBack={() => void navigate(-1)}
     />
   );
 }

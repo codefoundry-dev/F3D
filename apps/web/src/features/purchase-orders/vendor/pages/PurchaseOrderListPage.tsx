@@ -235,7 +235,7 @@ export default function PurchaseOrderListPage() {
     <tr
       key={po.id}
       className="border-b border-border last:border-b-0 hover:bg-accent/50 transition-colors cursor-pointer"
-      onClick={() => navigate(ROUTES.purchaseOrderDetail.replace(':id', po.id))}
+      onClick={() => void navigate(ROUTES.purchaseOrderDetail.replace(':id', po.id))}
     >
       {visibleCols.map(({ field, key }) => (
         <td
@@ -259,7 +259,7 @@ export default function PurchaseOrderListPage() {
             hasNotification={po.hasMessages}
             className="w-8 h-8 flex items-center justify-center"
             onClick={() =>
-              navigate(`${ROUTES.purchaseOrderDetail.replace(':id', po.id)}?tab=messages`)
+              void navigate(`${ROUTES.purchaseOrderDetail.replace(':id', po.id)}?tab=messages`)
             }
           />
           <button
@@ -267,7 +267,7 @@ export default function PurchaseOrderListPage() {
             className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
             title={t('actions.attachments')}
             onClick={() =>
-              navigate(`${ROUTES.purchaseOrderDetail.replace(':id', po.id)}?tab=documents`)
+              void navigate(`${ROUTES.purchaseOrderDetail.replace(':id', po.id)}?tab=documents`)
             }
           >
             <PaperclipIcon className="w-4 h-4" />

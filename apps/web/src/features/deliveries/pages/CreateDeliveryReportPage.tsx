@@ -217,7 +217,11 @@ export default function CreateDeliveryReportPage() {
 
   const footer = (
     <>
-      <Button variant="outline" onClick={() => navigate(ROUTES.deliveries)} disabled={isSubmitting}>
+      <Button
+        variant="outline"
+        onClick={() => void navigate(ROUTES.deliveries)}
+        disabled={isSubmitting}
+      >
         {t('create.cancel')}
       </Button>
       <Button
@@ -282,7 +286,7 @@ export default function CreateDeliveryReportPage() {
       await Promise.allSettled(uploads);
 
       notificationService.success(t('create.submitted'));
-      navigate(ROUTES.deliveryDetail.replace(':id', report.id));
+      void navigate(ROUTES.deliveryDetail.replace(':id', report.id));
     } catch {
       notificationService.error(t('create.submitFailed'));
     } finally {

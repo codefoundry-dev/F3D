@@ -57,7 +57,7 @@ export default function BomDetailPage() {
           variant="outline"
           leftIcon={<EditIcon className="w-4 h-4" />}
           onClick={() =>
-            navigate(ROUTES.projectBomEdit.replace(':id', projectId).replace(':bomId', bom.id))
+            void navigate(ROUTES.projectBomEdit.replace(':id', projectId).replace(':bomId', bom.id))
           }
           data-testid="bom-edit"
         >

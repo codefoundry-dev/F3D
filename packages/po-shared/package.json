@@ -14,7 +14,7 @@
   "peerDependencies": {
     "@tanstack/react-query": "^5.0.0",
     "react": "^18.0.0",
-    "react-router-dom": "^6.0.0",
+    "react-router-dom": "^7.18.0",
     "zustand": "^4.0.0"
   },
   "dependencies": {
@@ -23,9 +23,9 @@
     "@forethread/i18n": "workspace:*",
     "@forethread/rfq-shared": "workspace:^",
     "@forethread/ui-components": "workspace:*",
-    "@hookform/resolvers": "^3.9.0",
-    "react-hook-form": "^7.53.0",
-    "zod": "^3.23.8"
+    "@hookform/resolvers": "^5.2.2",
+    "react-hook-form": "^7.55.0",
+    "zod": "^4.6.6"
   },
   "scripts": {
     "test": "vitest run",
@@ -40,6 +40,6 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "typescript": "^5.5.4",
-    "vitest": "^2.1.1"
+    "vitest": "^4.1.12"
   }
 }

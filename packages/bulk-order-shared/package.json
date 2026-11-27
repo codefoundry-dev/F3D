@@ -18,7 +18,7 @@
   },
   "peerDependencies": {
     "react": "^18.0.0",
-    "react-router-dom": "^6.0.0",
+    "react-router-dom": "^7.18.0",
     "@tanstack/react-query": "^5.0.0"
   },
   "dependencies": {
@@ -36,6 +36,6 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "typescript": "^5.5.4",
-    "vitest": "^2.1.1"
+    "vitest": "^4.1.12"
   }
 }

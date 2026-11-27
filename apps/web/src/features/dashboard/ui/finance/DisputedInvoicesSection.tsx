@@ -39,9 +39,9 @@ export function DisputedInvoicesSection({
             key={item.id}
             name={item.vendorName ?? '—'}
             item={item}
-            onCardClick={() => navigate(invoiceDetailPath(item.id))}
-            onMessageClick={() => navigate(`${invoiceDetailPath(item.id)}?tab=messages`)}
-            onAttachmentClick={() => navigate(`${invoiceDetailPath(item.id)}?tab=attachments`)}
+            onCardClick={() => void navigate(invoiceDetailPath(item.id))}
+            onMessageClick={() => void navigate(`${invoiceDetailPath(item.id)}?tab=messages`)}
+            onAttachmentClick={() => void navigate(`${invoiceDetailPath(item.id)}?tab=attachments`)}
           />
         ))
       )}

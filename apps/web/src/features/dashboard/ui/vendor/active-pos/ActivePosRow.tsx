@@ -21,7 +21,7 @@ export function ActivePosRow({ row, columns }: ActivePosRowProps) {
   const navigate = useNavigate();
 
   const navigateToDetail = useCallback(
-    () => navigate(ROUTES.purchaseOrderDetail.replace(':id', row.id)),
+    () => void navigate(ROUTES.purchaseOrderDetail.replace(':id', row.id)),
     [navigate, row.id],
   );
 
@@ -40,7 +40,7 @@ export function ActivePosRow({ row, columns }: ActivePosRowProps) {
 
   const stopAndGo = (e: React.MouseEvent, tab?: string) => {
     e.stopPropagation();
-    navigate(tab ? `${detailUrl}?tab=${tab}` : detailUrl);
+    void navigate(tab ? `${detailUrl}?tab=${tab}` : detailUrl);
   };
 
   return (

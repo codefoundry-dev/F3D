@@ -90,14 +90,14 @@ export function BulkOrderListPage({
   } = useBulkOrderListState(counterpartyType);
 
   const navigateToDetail = (id: string) =>
-    navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', id));
+    void navigate(BULK_ORDER_ROUTES.bulkOrderDetail.replace(':id', id));
 
   const handleDrawdown = (id: string) => {
-    navigate(BULK_ORDER_ROUTES.bulkOrderDrawdown.replace(':id', id));
+    void navigate(BULK_ORDER_ROUTES.bulkOrderDrawdown.replace(':id', id));
   };
 
   const handleChange = (id: string) => {
-    navigate(BULK_ORDER_ROUTES.bulkOrderChange.replace(':id', id));
+    void navigate(BULK_ORDER_ROUTES.bulkOrderChange.replace(':id', id));
   };
 
   return (
@@ -118,7 +118,7 @@ export function BulkOrderListPage({
           counterpartyOptions={counterpartyOptions}
           counterpartyLabel={counterpartyFilterLabel ?? t('list.allVendors')}
           counterpartyPopoverTitle={counterpartyPopoverTitle ?? t('filters.vendorsTitle')}
-          onCreateNew={hideCreate ? undefined : () => navigate(BULK_ORDER_ROUTES.bulkOrderNew)}
+          onCreateNew={hideCreate ? undefined : () => void navigate(BULK_ORDER_ROUTES.bulkOrderNew)}
         />
 
         <div className="px-4 md:px-8">

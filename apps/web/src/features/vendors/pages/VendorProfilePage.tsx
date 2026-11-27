@@ -28,11 +28,11 @@ export default function VendorProfilePage() {
   return (
     <SharedVendorProfilePage
       vendorId={id}
-      onBack={() => navigate(-1)}
+      onBack={() => void navigate(-1)}
       initialEdit={searchParams.get('edit') === 'true'}
       canManageCategories
       onViewRepresentative={(userId) =>
-        navigate(ROUTES.vendorRepDetail.replace(':id', id).replace(':userId', userId))
+        void navigate(ROUTES.vendorRepDetail.replace(':id', id).replace(':userId', userId))
       }
     />
   );

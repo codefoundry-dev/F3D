@@ -4,7 +4,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 
-import { editUserFormSchema, type EditUserFormValues } from '../schemas/user-form.schema';
+import {
+  editUserFormSchema,
+  type EditUserFormInput,
+  type EditUserFormValues,
+} from '../schemas/user-form.schema';
 import { useUser, useUpdateUser } from '../services/users.service';
 import { useUsersStore } from '../state/users.store';
 
@@ -14,7 +18,7 @@ export function useEditUserForm(onClose: () => void) {
   const { data: user, isLoading: isLoadingUser } = useUser(editUserId ?? '');
   const updateMutation = useUpdateUser();
 
-  const form = useForm<EditUserFormValues>({
+  const form = useForm<EditUserFormInput, unknown, EditUserFormValues>({
     resolver: zodResolver(editUserFormSchema),
   });
 

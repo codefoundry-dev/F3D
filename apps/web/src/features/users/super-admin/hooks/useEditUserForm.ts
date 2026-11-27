@@ -18,6 +18,7 @@ const editUserFormSchema = z.object({
 });
 
 type EditUserFormValues = z.infer<typeof editUserFormSchema>;
+type EditUserFormInput = z.input<typeof editUserFormSchema>;
 
 export function useEditUserForm(onClose: () => void) {
   const { t } = useTranslation('users');
@@ -25,7 +26,7 @@ export function useEditUserForm(onClose: () => void) {
   const { data: user, isLoading: isLoadingUser } = useUser(editUserId ?? '');
   const updateMutation = useUpdateUser();
 
-  const form = useForm<EditUserFormValues>({
+  const form = useForm<EditUserFormInput, unknown, EditUserFormValues>({
     resolver: zodResolver(editUserFormSchema),
   });
 

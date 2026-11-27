@@ -109,8 +109,8 @@ export default function CreatePurchaseOrderPage() {
 
   return (
     <CreatePoWizard
-      onNavigateBack={() => navigate(ROUTES.purchaseOrders)}
-      onSuccess={() => navigate(ROUTES.purchaseOrders)}
+      onNavigateBack={() => void navigate(ROUTES.purchaseOrders)}
+      onSuccess={() => void navigate(ROUTES.purchaseOrders)}
       projectsData={projectsData}
       vendorsData={projectVendors}
       projectDetail={projectDetail}

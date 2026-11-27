@@ -36,7 +36,7 @@ export function useApproveQuote(defaultRfqId?: string) {
                 })
               : t('actions.draftPoCreated', { poNumber: result.poNumber }),
           );
-          navigate(PO_DETAIL_ROUTE.replace(':id', result.purchaseOrderId));
+          void navigate(PO_DETAIL_ROUTE.replace(':id', result.purchaseOrderId));
         },
       },
     );

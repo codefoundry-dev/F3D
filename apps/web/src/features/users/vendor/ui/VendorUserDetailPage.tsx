@@ -126,7 +126,7 @@ export default function VendorUserDetailPage() {
               onSuccess: () => {
                 closeStatusActionModal();
                 notificationService.success(t('cancelInvitationSuccess'));
-                navigate(USERS_PATH);
+                void navigate(USERS_PATH);
               },
             });
           }}

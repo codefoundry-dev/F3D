@@ -218,7 +218,7 @@ export default function CreateRfqPage() {
     attachments.length > 0;
   const { exitConfirm } = useWizardChrome({
     isDirty: hasInput && submitState !== 'success',
-    onExit: () => navigate(ROUTES.rfqs),
+    onExit: () => void navigate(ROUTES.rfqs),
   });
 
   // ── Data sources ──────────────────────────────────────────────────────────
@@ -470,7 +470,7 @@ export default function CreateRfqPage() {
     if (!ensureProjectSelected()) return;
     try {
       const detail = await persist();
-      navigate(ROUTES.rfqDetail.replace(':id', detail.id));
+      void navigate(ROUTES.rfqDetail.replace(':id', detail.id));
     } catch {
       // surfaced by isSaveError
     }
@@ -534,7 +534,7 @@ export default function CreateRfqPage() {
     <div className="hidden items-center gap-3 pb-4 md:flex">
       <button
         type="button"
-        onClick={() => navigate(ROUTES.rfqs)}
+        onClick={() => void navigate(ROUTES.rfqs)}
         className="p-1.5 rounded-lg text-foreground hover:bg-accent transition-colors"
         aria-label={t('create.backToList')}
       >
@@ -565,12 +565,16 @@ export default function CreateRfqPage() {
           <div className="flex flex-col gap-2 w-full max-w-xl mt-8">
             <Button
               className="w-full h-12"
-              onClick={() => navigate(ROUTES.purchaseOrders)}
+              onClick={() => void navigate(ROUTES.purchaseOrders)}
               data-testid="no-rfq-create-po"
             >
               {t('create.noRfqRequired.createPo')}
             </Button>
-            <Button variant="outline" className="w-full h-12" onClick={() => navigate(ROUTES.rfqs)}>
+            <Button
+              variant="outline"
+              className="w-full h-12"
+              onClick={() => void navigate(ROUTES.rfqs)}
+            >
               {t('create.noRfqRequired.mainPage')}
             </Button>
           </div>
@@ -819,7 +823,7 @@ export default function CreateRfqPage() {
 
       {submitState === 'success' && (
         <StatusSuccessModal
-          onClose={() => navigate(ROUTES.rfqs)}
+          onClose={() => void navigate(ROUTES.rfqs)}
           title={t('create.submit.successTitle')}
           description={t('create.submit.successDescription')}
           buttonLabel={t('create.submit.backToRfqs')}

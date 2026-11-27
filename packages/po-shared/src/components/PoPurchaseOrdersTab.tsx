@@ -74,13 +74,13 @@ function PoCard({
   return (
     <div
       className="rounded-lg border border-border p-4 cursor-pointer hover:border-border-hover hover:ring-1 hover:ring-border-hover transition-[box-shadow,border-color]"
-      onClick={() => navigate(`${detailRoute.replace(':id', po.id)}?tab=details`)}
+      onClick={() => void navigate(`${detailRoute.replace(':id', po.id)}?tab=details`)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          navigate(`${detailRoute.replace(':id', po.id)}?tab=details`);
+          void navigate(`${detailRoute.replace(':id', po.id)}?tab=details`);
         }
       }}
     >
@@ -117,12 +117,12 @@ function PoCard({
         >
           <MessageBadgeIcon
             hasNotification={po.hasMessages}
-            onClick={() => navigate(`${commsRoute.replace(':id', po.id)}?tab=messages`)}
+            onClick={() => void navigate(`${commsRoute.replace(':id', po.id)}?tab=messages`)}
           />
           <button
             type="button"
             className="inline-flex items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-            onClick={() => navigate(`${commsRoute.replace(':id', po.id)}?tab=attachments`)}
+            onClick={() => void navigate(`${commsRoute.replace(':id', po.id)}?tab=attachments`)}
           >
             <PaperclipIcon className="w-4 h-4" />
           </button>

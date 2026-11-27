@@ -49,22 +49,22 @@ export default function DashboardPage() {
     {
       label: t('quickActions.userManagement'),
       icon: <NewUserIcon className="w-5 h-5" />,
-      onClick: () => navigate(ROUTES.users),
+      onClick: () => void navigate(ROUTES.users),
     },
     {
       label: t('quickActions.companyManagement'),
       icon: <SuppliersIcon className="w-5 h-5" />,
-      onClick: () => navigate(ROUTES.users),
+      onClick: () => void navigate(ROUTES.users),
     },
     {
       label: t('quickActions.materialCatalogue'),
       icon: <MaterialCatalogueIcon className="w-5 h-5" />,
-      onClick: () => navigate(ROUTES.materialCatalogue),
+      onClick: () => void navigate(ROUTES.materialCatalogue),
     },
     {
       label: t('quickActions.adminPanel'),
       icon: <SettingsIcon className="w-5 h-5" />,
-      onClick: () => navigate(ROUTES.adminPanel),
+      onClick: () => void navigate(ROUTES.adminPanel),
     },
   ];
 

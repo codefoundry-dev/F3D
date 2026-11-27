@@ -94,7 +94,7 @@ export default function MaterialDetailPage() {
       <div className="p-8 space-y-4">
         <button
           type="button"
-          onClick={() => navigate(ROUTES.materialCatalogue)}
+          onClick={() => void navigate(ROUTES.materialCatalogue)}
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <BackArrowIcon className="w-4 h-4" />
@@ -120,7 +120,7 @@ export default function MaterialDetailPage() {
         variant="ghost"
         size="sm"
         leftIcon={<EditIcon className="w-4 h-4" />}
-        onClick={() => navigate(to)}
+        onClick={() => void navigate(to)}
         data-testid="material-detail-edit"
       >
         {t('detail.edit')}
@@ -140,7 +140,7 @@ export default function MaterialDetailPage() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => navigate(ROUTES.materialCatalogue)}
+            onClick={() => void navigate(ROUTES.materialCatalogue)}
             // Phones: the top bar already has the back arrow.
             className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground max-md:hidden"
             aria-label={t('detail.back')}
@@ -337,7 +337,7 @@ export default function MaterialDetailPage() {
             remove.mutate(material.id, {
               onSuccess: () => {
                 setShowDelete(false);
-                navigate(ROUTES.materialCatalogue);
+                void navigate(ROUTES.materialCatalogue);
               },
             })
           }

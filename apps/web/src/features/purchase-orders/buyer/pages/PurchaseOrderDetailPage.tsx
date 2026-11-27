@@ -226,7 +226,7 @@ export default function PurchaseOrderDetailPage() {
                 key: 'change',
                 label: t('actions.change'),
                 icon: <EditWithoutLineIcon className="w-4 h-4" />,
-                onClick: () => navigate(ROUTES.purchaseOrderChange.replace(':id', po.id)),
+                onClick: () => void navigate(ROUTES.purchaseOrderChange.replace(':id', po.id)),
               },
               {
                 key: 'cancel',
@@ -252,7 +252,7 @@ export default function PurchaseOrderDetailPage() {
                 key: 'deliveryReport',
                 label: t('actions.deliveryReport', 'Delivery report'),
                 icon: <ReportIcon className="w-4 h-4" />,
-                onClick: () => navigate(`${ROUTES.deliveryNew}?poId=${po.id}`),
+                onClick: () => void navigate(`${ROUTES.deliveryNew}?poId=${po.id}`),
               },
             ]
           : []),

@@ -5,7 +5,7 @@ import { UserRole, CompanyType } from '../enums';
 export const createUserSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   email: z.string().email('Invalid email address'),
-  role: z.nativeEnum(UserRole, { errorMap: () => ({ message: 'Invalid role' }) }),
+  role: z.nativeEnum(UserRole, { error: 'Invalid role' }),
   companyId: z.string().uuid('Invalid company ID'),
   companyType: z.nativeEnum(CompanyType).optional(),
 });

@@ -74,9 +74,9 @@ function PendingInvoiceCard({ item }: { item: InvoicePendingItem }) {
       <InvoiceCard
         name={item.vendorName ?? '—'}
         item={item}
-        onCardClick={() => navigate(invoiceDetailPath(item.id))}
-        onMessageClick={() => navigate(`${invoiceDetailPath(item.id)}?tab=messages`)}
-        onAttachmentClick={() => navigate(`${invoiceDetailPath(item.id)}?tab=attachments`)}
+        onCardClick={() => void navigate(invoiceDetailPath(item.id))}
+        onMessageClick={() => void navigate(`${invoiceDetailPath(item.id)}?tab=messages`)}
+        onAttachmentClick={() => void navigate(`${invoiceDetailPath(item.id)}?tab=attachments`)}
         actions={
           <div className="flex items-center gap-3">
             <button

@@ -58,14 +58,14 @@ function PendingInvoiceCard({ item }: { item: InvoicePendingItem }) {
   return (
     <DashboardItemCard
       name={item.vendorName ?? '—'}
-      onCardClick={() => navigate(ROUTES.invoiceDetail.replace(':id', item.id))}
+      onCardClick={() => void navigate(ROUTES.invoiceDetail.replace(':id', item.id))}
       hasChatNotification={item.hasUnreadMessages}
       hasAttachment={item.hasAttachments ?? false}
       onMessageClick={() =>
-        navigate(`${ROUTES.invoiceDetail.replace(':id', item.id)}?tab=messages`)
+        void navigate(`${ROUTES.invoiceDetail.replace(':id', item.id)}?tab=messages`)
       }
       onAttachmentClick={() =>
-        navigate(`${ROUTES.invoiceDetail.replace(':id', item.id)}?tab=documents`)
+        void navigate(`${ROUTES.invoiceDetail.replace(':id', item.id)}?tab=documents`)
       }
       fields={[
         { icon: <FileTextIcon className={ICON} />, value: item.invoiceId },
